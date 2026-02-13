@@ -98,18 +98,21 @@ export default function PayoutsPage() {
       headerName: '',
       width: 100,
       sortable: false,
-      renderCell: ({ row }) =>
-        row.status === 'pending' ? (
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<Check />}
-            onClick={() => handleMarkPaid(row.id)}
-            disabled={markPaid.isPending}
-          >
-            Mark Paid
-          </Button>
-        ) : null,
+      renderCell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+          {row.status === 'pending' ? (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<Check />}
+              onClick={() => handleMarkPaid(row.id)}
+              disabled={markPaid.isPending}
+            >
+              Mark Paid
+            </Button>
+          ) : null}
+        </Box>
+      ),
     },
   ];
 
@@ -199,7 +202,10 @@ export default function PayoutsPage() {
                   setGenerateForm((f) => ({ ...f, period_start: e.target.value }))
                 }
                 required
-                slotProps={{ input: { inputProps: { max: generateForm.period_end || undefined } } }}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  input: { inputProps: { max: generateForm.period_end || undefined } },
+                }}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -212,7 +218,10 @@ export default function PayoutsPage() {
                   setGenerateForm((f) => ({ ...f, period_end: e.target.value }))
                 }
                 required
-                slotProps={{ input: { inputProps: { min: generateForm.period_start || undefined } } }}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  input: { inputProps: { min: generateForm.period_start || undefined } },
+                }}
               />
             </Grid>
           </Grid>

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
 
 # Consignment — Extended Context
 
@@ -12,9 +12,24 @@ Consignment allows external consignees (Users with consignee role) to place item
 
 ---
 
+## ConsigneeAccount (ConsigneeProfile)
+
+A consignee account is a `ConsigneeProfile` linked 1:1 to a `User`. Managed via `ConsigneeAccountViewSet`.
+
+- **Create**: Can link an existing user (`user_id`) or create a new user (`first_name`, `last_name`, `email`, `phone`). Adding the `Consignee` group does NOT remove existing groups (supports multi-role users).
+- **Lookup**: Uses `user__id` as the lookup field (not profile ID).
+- **Soft delete**: Sets `status='closed'` instead of actual deletion.
+- **Default fields**: `commission_rate`, `payout_method`, `notes`.
+
+**API**: `/consignment/accounts/` — CRUD; search by name, email, phone, consignee_number.
+
+**Frontend**: `AccountsPage` lists consignee accounts (people). Row click navigates to `ConsigneeDetailPage` (`/consignment/accounts/:id`).
+
+---
+
 ## ConsignmentAgreement
 
-Ties a consignee (User) to commission terms.
+Ties a consignee (User) to commission terms. Each agreement represents a single drop-off batch of items.
 
 - **`consignee`** — FK to `AUTH_USER_MODEL`
 - **`agreement_number`** — Unique, auto-generated (e.g. `AGR-001`)
@@ -194,6 +209,7 @@ Returns payouts for the current user. Serializer: `MyConsignmentPayoutSerializer
 
 ```
 /consignment/
+  accounts/            — ConsigneeAccountViewSet (ConsigneeProfile CRUD)
   agreements/          — ConsignmentAgreementViewSet
   items/               — ConsignmentItemViewSet
   payouts/             — ConsignmentPayoutViewSet
@@ -209,12 +225,14 @@ Returns payouts for the current user. Serializer: `MyConsignmentPayoutSerializer
 ## Frontend Hooks & API
 
 **Hooks** (`useConsignment.ts`):
-- `useAgreements`, `useCreateAgreement`
+- `useConsigneeAccounts`, `useConsigneeAccount`, `useCreateConsigneeAccount`, `useUpdateConsigneeAccount`, `useDeleteConsigneeAccount`
+- `useAgreements`, `useCreateAgreement`, `useUpdateAgreement`, `useDeleteAgreement`
 - `useConsignmentItems`
 - `usePayouts`, `useGeneratePayout`, `useMarkPayoutPaid`
 - `useMyItems`, `useMyPayouts`, `useMySummary`
 
 **API** (`consignment.api.ts`):
+- `getConsigneeAccounts()`, `getConsigneeAccount(id)`, `createConsigneeAccount(data)`, `updateConsigneeAccount(id, data)`, `deleteConsigneeAccount(id)`
 - `generatePayout(data)` → `POST /consignment/payouts/generate/`
 - `markPayoutPaid(id, data)` → `PATCH /consignment/payouts/{id}/pay/`
 - `getMyItems()`, `getMyPayouts()`, `getMySummary()`

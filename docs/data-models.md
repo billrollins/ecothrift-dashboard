@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
 # Data Models
 
 ## accounts
@@ -17,7 +17,7 @@ Custom user model. Email is the sole login identifier.
 | date_joined | DateTimeField | auto |
 | updated_at | DateTimeField | auto |
 
-**Properties:** `full_name`, `role` (from first Group membership)
+**Properties:** `full_name`, `role` (from first Group membership), `roles` (list of all Group names — supports multi-role users)
 
 ### EmployeeProfile
 One-to-one with User. Created when a user is assigned the Employee role.
@@ -32,6 +32,8 @@ One-to-one with User. Created when a user is assigned the Employee role.
 | pay_rate | DecimalField | |
 | hire_date | DateField | |
 | termination_date | DateField | nullable |
+| termination_type | CharField(40) | choices: voluntary_resignation, job_abandonment, retirement, layoff, termination_for_cause, termination_without_cause, mutual_agreement, end_of_contract, medical, other; blank |
+| termination_notes | TextField | blank |
 | work_location | FK(core.WorkLocation) | nullable |
 | emergency_name | CharField | blank |
 | emergency_phone | CharField | blank |
@@ -171,6 +173,23 @@ Per-employee, per-year. `unique_together = (employee, year)`. Annual cap: 56 hou
 | reviewed_by | FK(User) | nullable |
 | review_note | TextField | blank |
 | reviewed_at | DateTimeField | nullable |
+| created_at | DateTimeField | auto |
+
+### TimeEntryModificationRequest
+Employee-submitted request to modify an approved time entry. Requires manager approval.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| time_entry | FK(TimeEntry) | |
+| employee | FK(User) | |
+| requested_clock_in | DateTimeField | nullable |
+| requested_clock_out | DateTimeField | nullable |
+| requested_break_minutes | IntegerField | nullable |
+| reason | TextField | |
+| status | CharField | pending / approved / denied |
+| reviewed_by | FK(User) | nullable |
+| reviewed_at | DateTimeField | nullable |
+| review_note | TextField | blank |
 | created_at | DateTimeField | auto |
 
 ---

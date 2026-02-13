@@ -83,3 +83,54 @@ export function approveSickLeave(id: number, reviewNote?: string): Promise<{ dat
 export function denySickLeave(id: number, reviewNote?: string): Promise<{ data: SickLeaveRequest }> {
   return api.post<SickLeaveRequest>(`/hr/sick-leave/requests/${id}/deny/`, { review_note: reviewNote });
 }
+
+export function deleteTimeEntry(id: number): Promise<{ data: void }> {
+  return api.delete(`/hr/time-entries/${id}/`);
+}
+
+// Modification request endpoints
+export interface ModificationRequest {
+  id: number;
+  time_entry: number;
+  employee: number;
+  employee_name: string;
+  entry_date: string;
+  entry_clock_in: string;
+  entry_clock_out: string | null;
+  requested_clock_in: string | null;
+  requested_clock_out: string | null;
+  requested_break_minutes: number | null;
+  reason: string;
+  status: 'pending' | 'approved' | 'denied';
+  reviewed_by: number | null;
+  reviewed_by_name: string | null;
+  review_note: string;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export function getModificationRequests(
+  params?: Record<string, unknown>
+): Promise<{ data: PaginatedResponse<ModificationRequest> }> {
+  return api.get<PaginatedResponse<ModificationRequest>>('/hr/modification-requests/', { params });
+}
+
+export function createModificationRequest(
+  data: Record<string, unknown>
+): Promise<{ data: ModificationRequest }> {
+  return api.post<ModificationRequest>('/hr/modification-requests/', data);
+}
+
+export function approveModificationRequest(
+  id: number,
+  reviewNote?: string
+): Promise<{ data: ModificationRequest }> {
+  return api.post<ModificationRequest>(`/hr/modification-requests/${id}/approve/`, { review_note: reviewNote });
+}
+
+export function denyModificationRequest(
+  id: number,
+  reviewNote?: string
+): Promise<{ data: ModificationRequest }> {
+  return api.post<ModificationRequest>(`/hr/modification-requests/${id}/deny/`, { review_note: reviewNote });
+}

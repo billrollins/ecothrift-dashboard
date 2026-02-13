@@ -91,6 +91,7 @@ const navSections: NavSection[] = [
     collapsible: true,
     items: [
       { path: '/admin/users', label: 'Users', icon: <SupervisorAccount /> },
+      { path: '/admin/customers', label: 'Customers', icon: <People /> },
       { path: '/admin/permissions', label: 'Permissions', icon: <Security /> },
       { path: '/admin/settings', label: 'Settings', icon: <Settings /> },
     ],

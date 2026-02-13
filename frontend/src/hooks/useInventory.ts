@@ -7,12 +7,17 @@ import {
   getOrders,
   getOrder,
   createOrder,
+  updateOrder,
+  deleteOrder,
   deliverOrder,
   uploadManifest,
   processManifest,
   createItems,
   getItems,
+  getItem,
+  createItem,
   updateItem,
+  deleteItem,
   markItemReady,
   getProducts,
   getProduct,
@@ -106,6 +111,34 @@ export function useCreatePurchaseOrder() {
     mutationFn: async (data: Record<string, unknown>) => {
       const { data: result } = await createOrder(data);
       return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+    },
+  });
+}
+
+export function useUpdateOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
+      const { data: result } = await updateOrder(id, data);
+      return result;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.id] });
+    },
+  });
+}
+
+export function useDeleteOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await deleteOrder(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
@@ -224,6 +257,45 @@ export function useMarkItemReady() {
     mutationFn: async (id: number) => {
       const { data } = await markItemReady(id);
       return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
+export function useItem(id: number | null) {
+  return useQuery({
+    queryKey: ['items', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data } = await getItem(id);
+      return data;
+    },
+    enabled: id != null,
+  });
+}
+
+export function useCreateItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const { data: result } = await createItem(data);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
+export function useDeleteItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await deleteItem(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] });

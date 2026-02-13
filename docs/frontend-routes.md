@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
 # Frontend Routes & Pages
 
 ## Route Guards
@@ -21,6 +21,7 @@ Consignee routes use `ProtectedRoute` + role check in `ConsigneeLayout`.
 | `/login` | LoginPage | Email + password login form |
 | `/pricing` | PublicItemLookupPage | Public item price lookup |
 | `/pricing/:sku` | PublicItemLookupPage | Direct SKU lookup |
+| `/forgot-password` | ForgotPasswordPage | Password reset request + token entry |
 
 ## Staff Routes (MainLayout)
 
@@ -51,6 +52,7 @@ Consignee routes use `ProtectedRoute` + role check in `ConsigneeLayout`.
 | `/inventory/processing` | ProcessingPage | Batch item processing |
 | `/inventory/products` | ProductListPage | Product catalog |
 | `/inventory/items` | ItemListPage | Item inventory with status filters |
+| `/inventory/items/:id` | ItemDetailPage | Item detail view/edit |
 
 ### POS
 
@@ -65,7 +67,8 @@ Consignee routes use `ProtectedRoute` + role check in `ConsigneeLayout`.
 
 | Path | Page | Description |
 |------|------|-------------|
-| `/consignment/accounts` | AccountsPage | Consignment agreements |
+| `/consignment/accounts` | AccountsPage | Consignee account management (people) |
+| `/consignment/accounts/:id` | ConsigneeDetailPage | Consignee profile detail + agreements |
 | `/consignment/items` | ItemsPage | All consignment items |
 | `/consignment/payouts` | PayoutsPage | Payout generation and tracking |
 
@@ -75,6 +78,7 @@ Consignee routes use `ProtectedRoute` + role check in `ConsigneeLayout`.
 |------|------|-------------|
 | `/admin/users` | UserListPage | User management (CRUD) |
 | `/admin/permissions` | PermissionsPage | Role/group management |
+| `/admin/customers` | CustomerListPage | Customer management (CRUD) |
 | `/admin/settings` | SettingsPage | App settings + print server status |
 
 ## Consignee Portal (ConsigneeLayout)
@@ -96,6 +100,6 @@ The sidebar in `MainLayout` is organized into collapsible sections:
 3. **Inventory** — Vendors, Orders, Processing, Products, Items
 4. **POS** — Terminal, Drawers, Cash Management, Transactions
 5. **Consignment** — Accounts, Items, Payouts *(Manager+ only)*
-6. **Admin** — Users, Permissions, Settings *(Admin only)*
+6. **Admin** — Users, Customers, Permissions, Settings *(Admin only)*
 
 Sections are hidden when the user's role doesn't have access.

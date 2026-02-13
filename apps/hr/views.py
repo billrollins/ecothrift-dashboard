@@ -9,9 +9,10 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee
-from .models import Department, TimeEntry, SickLeaveBalance, SickLeaveRequest
+from .models import Department, TimeEntry, TimeEntryModificationRequest, SickLeaveBalance, SickLeaveRequest
 from .serializers import (
     DepartmentSerializer, TimeEntrySerializer, TimeEntrySummarySerializer,
+    TimeEntryModificationRequestSerializer,
     SickLeaveBalanceSerializer, SickLeaveRequestSerializer,
 )
 
@@ -141,6 +142,70 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
             defaults={'hours_earned': 0, 'hours_used': 0},
         )
         balance.accrue(entry.total_hours)
+
+
+class TimeEntryModificationRequestViewSet(viewsets.ModelViewSet):
+    """
+    Employees submit modification requests; managers approve/deny.
+    """
+    serializer_class = TimeEntryModificationRequestSerializer
+    permission_classes = [IsAuthenticated, IsEmployee]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['employee', 'status', 'time_entry']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        qs = TimeEntryModificationRequest.objects.select_related(
+            'time_entry', 'employee', 'reviewed_by',
+        ).all()
+        if self.request.user.role == 'Employee':
+            qs = qs.filter(employee=self.request.user)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(employee=self.request.user)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
+    def approve(self, request, pk=None):
+        """Approve a modification request and apply the changes to the time entry."""
+        obj = self.get_object()
+        if obj.status != 'pending':
+            return Response(
+                {'detail': 'Request is not pending.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # Apply requested changes to the time entry
+        entry = obj.time_entry
+        if obj.requested_clock_in is not None:
+            entry.clock_in = obj.requested_clock_in
+        if obj.requested_clock_out is not None:
+            entry.clock_out = obj.requested_clock_out
+        if obj.requested_break_minutes is not None:
+            entry.break_minutes = obj.requested_break_minutes
+        entry.save()
+
+        obj.status = 'approved'
+        obj.reviewed_by = request.user
+        obj.review_note = request.data.get('review_note', '')
+        obj.reviewed_at = timezone.now()
+        obj.save()
+        return Response(TimeEntryModificationRequestSerializer(obj).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
+    def deny(self, request, pk=None):
+        """Deny a modification request."""
+        obj = self.get_object()
+        if obj.status != 'pending':
+            return Response(
+                {'detail': 'Request is not pending.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        obj.status = 'denied'
+        obj.reviewed_by = request.user
+        obj.review_note = request.data.get('review_note', '')
+        obj.reviewed_at = timezone.now()
+        obj.save()
+        return Response(TimeEntryModificationRequestSerializer(obj).data)
 
 
 class SickLeaveBalanceViewSet(viewsets.ModelViewSet):

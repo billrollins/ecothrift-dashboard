@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 19 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** 1.0.0 (see `.ai/version.json`)
+**Current version:** 1.1.0 (see `.ai/version.json`)
 
 ---
 
@@ -47,11 +47,22 @@ ecothrift-dashboard/
 
 ### Working
 - All 6 backend apps with models, serializers, views, URLs, admin
-- All 24 frontend pages rendering and connected to API
+- 28+ frontend pages rendering and connected to API
 - JWT auth with httpOnly cookie refresh + in-memory access token
 - Database migrations and seed data command
 - TypeScript compiles with zero errors
 - Vite production build succeeds
+- Full CRUD across Users, Employees, Consignees, Customers, Vendors, Orders, Items, Products
+- Multi-role user model (User can be Employee + Consignee + Customer simultaneously)
+- Employee termination workflow with termination type, date, and notes
+- Consignee account management (create from existing or new user, profile editing)
+- Consignment agreements per drop-off with default commission/terms
+- Customer management with POS customer association via scan
+- Admin password reset (generates temporary password)
+- Forgot password flow (stubbed token — no email delivery yet)
+- Phone number formatting across UI
+- Time entry modification requests (employee submit, manager approve/deny)
+- DataGrid action columns vertically centered across all pages
 
 ### Known Issues
 - Recharts ResponsiveContainer may log a width/height warning on initial render (cosmetic, does not affect functionality)
@@ -60,7 +71,7 @@ ecothrift-dashboard/
 ### Not Yet Implemented
 - AWS S3 file upload (model exists, upload flow not wired)
 - Print server communication (service exists, no print server deployed)
-- Email notifications
+- Email notifications (forgot-password tokens are returned in response, not emailed)
 - Test suite (no unit or integration tests yet)
 - Heroku deployment (config exists, not yet deployed)
 

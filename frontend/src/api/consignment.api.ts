@@ -7,6 +7,43 @@ export type { ConsignmentAgreement, ConsignmentItem, ConsignmentPayout };
 type Agreement = ConsignmentAgreement;
 type Payout = ConsignmentPayout;
 
+// Consignee Account types
+export interface ConsigneeAccount {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  full_name: string;
+  consignee_number: string;
+  commission_rate: string;
+  payout_method: 'cash' | 'check' | 'store_credit';
+  status: 'active' | 'paused' | 'closed';
+  join_date: string;
+  notes: string;
+}
+
+// Consignee Accounts CRUD
+export function getConsigneeAccounts(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<ConsigneeAccount> }> {
+  return api.get<PaginatedResponse<ConsigneeAccount>>('/consignment/accounts/', { params });
+}
+
+export function getConsigneeAccount(id: number): Promise<{ data: ConsigneeAccount }> {
+  return api.get<ConsigneeAccount>(`/consignment/accounts/${id}/`);
+}
+
+export function createConsigneeAccount(data: Record<string, unknown>): Promise<{ data: ConsigneeAccount }> {
+  return api.post<ConsigneeAccount>('/consignment/accounts/', data);
+}
+
+export function updateConsigneeAccount(id: number, data: Record<string, unknown>): Promise<{ data: ConsigneeAccount }> {
+  return api.patch<ConsigneeAccount>(`/consignment/accounts/${id}/`, data);
+}
+
+export function deleteConsigneeAccount(id: number): Promise<{ data: void }> {
+  return api.delete(`/consignment/accounts/${id}/`);
+}
+
 // Agreements CRUD
 export function getAgreements(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Agreement> }> {
   return api.get<PaginatedResponse<Agreement>>('/consignment/agreements/', { params });

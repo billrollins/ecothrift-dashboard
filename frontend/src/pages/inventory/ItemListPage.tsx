@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -7,18 +8,22 @@ import {
   DialogContent,
   DialogTitle,
   Grid,
+  IconButton,
   InputAdornment,
   MenuItem,
   TextField,
+  Tooltip,
 } from '@mui/material';
+import Add from '@mui/icons-material/Add';
 import Search from '@mui/icons-material/Search';
+import Delete from '@mui/icons-material/Delete';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
-import { format } from 'date-fns';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
-import { useItems, useUpdateItem } from '../../hooks/useInventory';
+import { ConfirmDialog } from '../../components/feedback/ConfirmDialog';
+import { useItems, useCreateItem, useDeleteItem } from '../../hooks/useInventory';
 import type { Item, ItemStatus, ItemSource } from '../../types/inventory.types';
 
 const ITEM_STATUSES: ItemStatus[] = [
@@ -38,19 +43,30 @@ function formatCurrency(value: string | null): string {
   return isNaN(n) ? '—' : `$${n.toFixed(2)}`;
 }
 
+const EMPTY_CREATE_FORM = {
+  title: '',
+  brand: '',
+  category: '',
+  price: '',
+  source: 'purchased' as ItemSource,
+  notes: '',
+};
+
 export default function ItemListPage() {
+  const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [sourceFilter, setSourceFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
-  const [form, setForm] = useState({
-    title: '',
-    brand: '',
-    category: '',
-    price: '',
-  });
+
+  // Create dialog
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ ...EMPTY_CREATE_FORM });
+
+  // Delete confirmation
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Item | null>(null);
 
   const params = useMemo(() => {
     const p: Record<string, string> = {};
@@ -62,9 +78,15 @@ export default function ItemListPage() {
   }, [search, statusFilter, sourceFilter, categoryFilter]);
 
   const { data, isLoading } = useItems(params);
-  const updateItem = useUpdateItem();
+  const createItem = useCreateItem();
+  const deleteItem = useDeleteItem();
 
   const items = data?.results ?? [];
+
+  const handleOpenDelete = (item: Item) => {
+    setDeleteTarget(item);
+    setDeleteOpen(true);
+  };
 
   const columns: GridColDef[] = [
     { field: 'sku', headerName: 'SKU', width: 140 },
@@ -90,29 +112,62 @@ export default function ItemListPage() {
       valueFormatter: (value) =>
         String(value).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
     },
+    {
+      field: 'actions',
+      headerName: '',
+      width: 60,
+      sortable: false,
+      filterable: false,
+      renderCell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+          <Tooltip title="Delete">
+            <IconButton
+              size="small"
+              color="error"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenDelete(row as Item);
+              }}
+            >
+              <Delete fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      ),
+    },
   ];
 
-  const handleRowClick = ({ row }: { row: Item }) => {
-    setSelectedItem(row);
-    setForm({
-      title: row.title,
-      brand: row.brand,
-      category: row.category,
-      price: row.price,
-    });
+  const handleCreate = async () => {
+    if (!createForm.title) {
+      enqueueSnackbar('Title is required', { variant: 'warning' });
+      return;
+    }
+    try {
+      await createItem.mutateAsync({
+        title: createForm.title,
+        brand: createForm.brand,
+        category: createForm.category,
+        price: createForm.price || '0',
+        source: createForm.source,
+        notes: createForm.notes,
+      });
+      enqueueSnackbar('Item created', { variant: 'success' });
+      setCreateOpen(false);
+      setCreateForm({ ...EMPTY_CREATE_FORM });
+    } catch {
+      enqueueSnackbar('Failed to create item', { variant: 'error' });
+    }
   };
 
-  const handleSave = async () => {
-    if (!selectedItem) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await updateItem.mutateAsync({
-        id: selectedItem.id,
-        data: form,
-      });
-      enqueueSnackbar('Item updated', { variant: 'success' });
-      setSelectedItem(null);
+      await deleteItem.mutateAsync(deleteTarget.id);
+      enqueueSnackbar('Item deleted', { variant: 'success' });
+      setDeleteOpen(false);
+      setDeleteTarget(null);
     } catch {
-      enqueueSnackbar('Failed to update item', { variant: 'error' });
+      enqueueSnackbar('Failed to delete item', { variant: 'error' });
     }
   };
 
@@ -123,6 +178,11 @@ export default function ItemListPage() {
       <PageHeader
         title="Items"
         subtitle="Browse and manage inventory items"
+        action={
+          <Button variant="contained" startIcon={<Add />} onClick={() => setCreateOpen(true)}>
+            Add Item
+          </Button>
+        }
       />
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -197,7 +257,7 @@ export default function ItemListPage() {
           loading={isLoading}
           pageSizeOptions={[10, 25, 50, 100]}
           initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-          onRowClick={(params) => handleRowClick({ row: params.row as Item })}
+          onRowClick={(params) => navigate(`/inventory/items/${params.id}`)}
           getRowId={(row: Item) => row.id}
           sx={{
             border: 'none',
@@ -206,95 +266,100 @@ export default function ItemListPage() {
         />
       </Box>
 
-      <Dialog
-        open={!!selectedItem}
-        onClose={() => setSelectedItem(null)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          {selectedItem ? `Item ${selectedItem.sku}` : 'Item'}
-        </DialogTitle>
+      {/* Create Item Dialog */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Item</DialogTitle>
         <DialogContent>
-          {selectedItem && (
-            <Grid container spacing={2} sx={{ mt: 0.5 }}>
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  fullWidth
-                  label="SKU"
-                  value={selectedItem.sku}
-                  disabled
-                  variant="filled"
-                />
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  fullWidth
-                  label="Title"
-                  value={form.title}
-                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Brand"
-                  value={form.brand}
-                  onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Category"
-                  value={form.category}
-                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Price"
-                  value={form.price}
-                  onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Status"
-                  value={selectedItem.status}
-                  disabled
-                  variant="filled"
-                />
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  fullWidth
-                  label="Created"
-                  value={
-                    selectedItem.created_at
-                      ? format(new Date(selectedItem.created_at), 'MMM d, yyyy HH:mm')
-                      : '—'
-                  }
-                  disabled
-                  variant="filled"
-                />
-              </Grid>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Title"
+                value={createForm.title}
+                onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
+                required
+              />
             </Grid>
-          )}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                label="Brand"
+                value={createForm.brand}
+                onChange={(e) => setCreateForm((f) => ({ ...f, brand: e.target.value }))}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                label="Category"
+                value={createForm.category}
+                onChange={(e) => setCreateForm((f) => ({ ...f, category: e.target.value }))}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                label="Price"
+                type="number"
+                value={createForm.price}
+                onChange={(e) => setCreateForm((f) => ({ ...f, price: e.target.value }))}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                select
+                label="Source"
+                value={createForm.source}
+                onChange={(e) =>
+                  setCreateForm((f) => ({ ...f, source: e.target.value as ItemSource }))
+                }
+              >
+                {ITEM_SOURCES.map((s) => (
+                  <MenuItem key={s} value={s}>
+                    {s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Notes"
+                multiline
+                rows={2}
+                value={createForm.notes}
+                onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+            </Grid>
+          </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setSelectedItem(null)}>Close</Button>
+          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
           <Button
             variant="contained"
-            onClick={handleSave}
-            disabled={updateItem.isPending}
+            onClick={handleCreate}
+            disabled={!createForm.title || createItem.isPending}
           >
-            {updateItem.isPending ? 'Saving...' : 'Save'}
+            {createItem.isPending ? 'Creating...' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Delete Item"
+        message={`Delete item ${deleteTarget?.sku ?? ''}? This cannot be undone.`}
+        confirmLabel="Delete"
+        confirmColor="error"
+        onConfirm={handleDelete}
+        onCancel={() => {
+          setDeleteOpen(false);
+          setDeleteTarget(null);
+        }}
+        loading={deleteItem.isPending}
+      />
     </Box>
   );
 }

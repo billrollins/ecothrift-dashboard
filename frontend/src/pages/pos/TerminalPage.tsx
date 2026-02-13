@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import Search from '@mui/icons-material/Search';
 import Delete from '@mui/icons-material/Delete';
+import PersonOutline from '@mui/icons-material/PersonOutline';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
@@ -27,7 +28,10 @@ import {
   useRemoveCartLine,
   useCompleteCart,
 } from '../../hooks/usePOS';
+import { useLookupCustomer } from '../../hooks/useEmployees';
+import { updateCart } from '../../api/pos.api';
 import type { Cart, CartLine, PaymentMethod } from '../../types/pos.types';
+import type { Customer } from '../../api/accounts.api';
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -43,6 +47,7 @@ export default function TerminalPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [cashTendered, setCashTendered] = useState('');
   const [cardAmount, setCardAmount] = useState('');
+  const [customer, setCustomer] = useState<Customer | null>(null);
 
   const { data: drawersData, isLoading: drawersLoading } = useDrawers({
     status: 'open',
@@ -51,6 +56,7 @@ export default function TerminalPage() {
   const addItemMutation = useAddItemToCart();
   const removeLineMutation = useRemoveCartLine();
   const completeCartMutation = useCompleteCart();
+  const lookupCustomerMutation = useLookupCustomer();
 
   const openDrawers = drawersData?.results ?? [];
 
@@ -68,22 +74,43 @@ export default function TerminalPage() {
     }
   }, [drawerId, createCartMutation, enqueueSnackbar]);
 
-  const handleAddItem = useCallback(async () => {
-    const sku = skuInput.trim();
-    if (!sku) return;
+  const handleScanInput = useCallback(async () => {
+    const input = skuInput.trim();
+    if (!input) return;
     if (!cart) {
       enqueueSnackbar('Create a cart first (select drawer and start)', { variant: 'warning' });
       return;
     }
+
+    // Detect customer ID pattern (CUS-XXX)
+    if (/^CUS-\d+$/i.test(input)) {
+      try {
+        const cust = await lookupCustomerMutation.mutateAsync(input.toUpperCase());
+        setCustomer(cust);
+        // Associate customer with the cart
+        const updated = await updateCart(cart.id, { customer: cust.id });
+        setCart(updated.data as unknown as Cart);
+        enqueueSnackbar(`Customer: ${cust.full_name}`, { variant: 'info' });
+        setSkuInput('');
+        skuInputRef.current?.focus();
+      } catch {
+        enqueueSnackbar('Customer not found', { variant: 'error' });
+        setSkuInput('');
+        skuInputRef.current?.focus();
+      }
+      return;
+    }
+
+    // Otherwise treat as item SKU
     try {
-      const updated = await addItemMutation.mutateAsync({ cartId: cart.id, sku });
+      const updated = await addItemMutation.mutateAsync({ cartId: cart.id, sku: input });
       setCart(updated as unknown as Cart);
       setSkuInput('');
       skuInputRef.current?.focus();
     } catch {
       enqueueSnackbar('Failed to add item', { variant: 'error' });
     }
-  }, [cart, skuInput, addItemMutation, enqueueSnackbar]);
+  }, [cart, skuInput, addItemMutation, lookupCustomerMutation, enqueueSnackbar]);
 
   const handleRemoveLine = useCallback(
     async (lineId: number) => {
@@ -130,6 +157,7 @@ export default function TerminalPage() {
       await completeCartMutation.mutateAsync({ cartId: cart.id, data: payload });
       enqueueSnackbar('Sale completed', { variant: 'success' });
       setCart(null);
+      setCustomer(null);
       setCashTendered('');
       setCardAmount('');
     } catch {
@@ -188,9 +216,17 @@ export default function TerminalPage() {
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 7 }}>
           <Paper sx={{ p: 2, height: '100%' }}>
-            <Typography variant="h6" gutterBottom>
-              Cart
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="h6">Cart</Typography>
+              {customer && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <PersonOutline fontSize="small" color="primary" />
+                  <Typography variant="body2" color="primary.main" fontWeight={600}>
+                    {customer.full_name} ({customer.customer_number})
+                  </Typography>
+                </Box>
+              )}
+            </Box>
             {cart ? (
               <>
                 <List dense>
@@ -255,12 +291,12 @@ export default function TerminalPage() {
                 placeholder="Scan or type SKU"
                 value={skuInput}
                 onChange={(e) => setSkuInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddItem()}
+                onKeyDown={(e) => e.key === 'Enter' && handleScanInput()}
               />
               <Button
                 variant="contained"
                 startIcon={<Search />}
-                onClick={handleAddItem}
+                onClick={handleScanInput}
                 disabled={!cart || !skuInput.trim() || addItemMutation.isPending}
               >
                 Add

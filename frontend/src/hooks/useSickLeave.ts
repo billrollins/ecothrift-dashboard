@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getSickLeaveBalances,
+  updateSickLeaveBalance,
   getSickLeaveRequests,
   createSickLeaveRequest,
   approveSickLeave,
@@ -13,6 +14,20 @@ export function useSickLeaveBalances(params?: Record<string, unknown>) {
     queryFn: async () => {
       const { data } = await getSickLeaveBalances(params);
       return data;
+    },
+  });
+}
+
+export function useUpdateSickLeaveBalance() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
+      const { data: result } = await updateSickLeaveBalance(id, data);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sickLeave', 'balances'] });
     },
   });
 }

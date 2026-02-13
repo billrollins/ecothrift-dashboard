@@ -6,6 +6,7 @@ import { ConsigneeLayout } from './components/layout/ConsigneeLayout';
 
 // Pages
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import TimeClockPage from './pages/hr/TimeClockPage';
 import TimeHistoryPage from './pages/hr/TimeHistoryPage';
@@ -19,17 +20,20 @@ import OrderDetailPage from './pages/inventory/OrderDetailPage';
 import ProcessingPage from './pages/inventory/ProcessingPage';
 import ProductListPage from './pages/inventory/ProductListPage';
 import ItemListPage from './pages/inventory/ItemListPage';
+import ItemDetailPage from './pages/inventory/ItemDetailPage';
 import TerminalPage from './pages/pos/TerminalPage';
 import DrawerListPage from './pages/pos/DrawerListPage';
 import CashManagementPage from './pages/pos/CashManagementPage';
 import TransactionListPage from './pages/pos/TransactionListPage';
 import ConsignmentAccountsPage from './pages/consignment/AccountsPage';
+import ConsigneeDetailPage from './pages/consignment/ConsigneeDetailPage';
 import ConsignmentItemsPage from './pages/consignment/ItemsPage';
 import ConsignmentPayoutsPage from './pages/consignment/PayoutsPage';
 import ConsigneeItemsPage from './pages/consignee/MyItemsPage';
 import ConsigneePayoutsPage from './pages/consignee/MyPayoutsPage';
 import ConsigneeSummaryPage from './pages/consignee/SummaryPage';
 import UserListPage from './pages/admin/UserListPage';
+import CustomerListPage from './pages/admin/CustomerListPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import PublicItemLookupPage from './pages/PublicItemLookupPage';
@@ -65,6 +69,7 @@ export default function App() {
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/pricing/:sku?" element={<PublicItemLookupPage />} />
       <Route path="/pricing" element={<PublicItemLookupPage />} />
 
@@ -91,6 +96,7 @@ export default function App() {
         <Route path="/inventory/processing" element={<ProcessingPage />} />
         <Route path="/inventory/products" element={<ProductListPage />} />
         <Route path="/inventory/items" element={<ItemListPage />} />
+        <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
         <Route path="/pos/terminal" element={<TerminalPage />} />
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         <Route path="/pos/cash" element={<CashManagementPage />} />
@@ -98,6 +104,10 @@ export default function App() {
         <Route
           path="/consignment/accounts"
           element={<ManagerRoute><ConsignmentAccountsPage /></ManagerRoute>}
+        />
+        <Route
+          path="/consignment/accounts/:id"
+          element={<ManagerRoute><ConsigneeDetailPage /></ManagerRoute>}
         />
         <Route
           path="/consignment/items"
@@ -110,6 +120,10 @@ export default function App() {
         <Route
           path="/admin/users"
           element={<AdminRoute><UserListPage /></AdminRoute>}
+        />
+        <Route
+          path="/admin/customers"
+          element={<AdminRoute><CustomerListPage /></AdminRoute>}
         />
         <Route
           path="/admin/permissions"

@@ -4,17 +4,25 @@ import {
   Card,
   CardContent,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
   TextField,
   Grid,
+  Tooltip,
   Typography,
   Chip,
 } from '@mui/material';
+import Edit from '@mui/icons-material/Edit';
 import { DataGrid } from '@mui/x-data-grid';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import {
   useSickLeaveBalances,
+  useUpdateSickLeaveBalance,
   useSickLeaveRequests,
   useCreateSickLeaveRequest,
   useApproveSickLeave,
@@ -35,6 +43,11 @@ export default function SickLeavePage() {
   const [hours, setHours] = useState('');
   const [reason, setReason] = useState('');
 
+  // Balance adjustment dialog (manager)
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustTarget, setAdjustTarget] = useState<SickLeaveBalance | null>(null);
+  const [adjustForm, setAdjustForm] = useState({ hours_earned: '', hours_used: '' });
+
   const { data: balancesData, isLoading: balancesLoading } = useSickLeaveBalances(
     isManager ? undefined : (employeeId ? { employee: employeeId } : undefined)
   );
@@ -43,6 +56,7 @@ export default function SickLeavePage() {
   );
 
   const createRequest = useCreateSickLeaveRequest();
+  const updateBalance = useUpdateSickLeaveBalance();
   const approveSickLeave = useApproveSickLeave();
   const denySickLeave = useDenySickLeave();
 
@@ -90,6 +104,33 @@ export default function SickLeavePage() {
       enqueueSnackbar('Request denied', { variant: 'success' });
     } catch {
       enqueueSnackbar('Failed to deny', { variant: 'error' });
+    }
+  };
+
+  const handleOpenAdjust = (balance: SickLeaveBalance) => {
+    setAdjustTarget(balance);
+    setAdjustForm({
+      hours_earned: balance.hours_earned,
+      hours_used: balance.hours_used,
+    });
+    setAdjustOpen(true);
+  };
+
+  const handleAdjust = async () => {
+    if (!adjustTarget) return;
+    try {
+      await updateBalance.mutateAsync({
+        id: adjustTarget.id,
+        data: {
+          hours_earned: adjustForm.hours_earned,
+          hours_used: adjustForm.hours_used,
+        },
+      });
+      enqueueSnackbar('Balance adjusted', { variant: 'success' });
+      setAdjustOpen(false);
+      setAdjustTarget(null);
+    } catch {
+      enqueueSnackbar('Failed to adjust balance', { variant: 'error' });
     }
   };
 
@@ -164,14 +205,14 @@ export default function SickLeavePage() {
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      slotProps={{ htmlInput: { max: endDate || undefined } }}
+                      slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: endDate || undefined } }}
                     />
                     <TextField
                       label="End Date"
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      slotProps={{ htmlInput: { min: startDate || undefined } }}
+                      slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: startDate || undefined } }}
                     />
                     <TextField
                       label="Hours"
@@ -253,6 +294,19 @@ export default function SickLeavePage() {
                           width: 80,
                           renderCell: ({ value }) => (value ? <Chip label="Yes" size="small" color="warning" /> : '—'),
                         },
+                        {
+                          field: 'adjust_actions',
+                          headerName: '',
+                          width: 60,
+                          sortable: false,
+                          renderCell: ({ row }) => (
+                            <Tooltip title="Adjust Balance">
+                              <IconButton size="small" onClick={() => handleOpenAdjust(row as SickLeaveBalance)}>
+                                <Edit fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          ),
+                        },
                       ]}
                       loading={balancesLoading}
                       getRowId={(row) => row.id}
@@ -283,7 +337,7 @@ export default function SickLeavePage() {
                           width: 180,
                           sortable: false,
                           renderCell: ({ row }) => (
-                            <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', height: '100%' }}>
                               <Button
                                 size="small"
                                 variant="contained"
@@ -316,6 +370,43 @@ export default function SickLeavePage() {
           </>
         )}
       </Grid>
+
+      {/* Manager: Adjust Balance Dialog */}
+      <Dialog open={adjustOpen} onClose={() => setAdjustOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          Adjust Sick Leave Balance — {adjustTarget?.employee_name} ({adjustTarget?.year})
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Hours Earned"
+                type="number"
+                value={adjustForm.hours_earned}
+                onChange={(e) => setAdjustForm((f) => ({ ...f, hours_earned: e.target.value }))}
+                slotProps={{ input: { inputProps: { min: 0, step: 0.25 } } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Hours Used"
+                type="number"
+                value={adjustForm.hours_used}
+                onChange={(e) => setAdjustForm((f) => ({ ...f, hours_used: e.target.value }))}
+                slotProps={{ input: { inputProps: { min: 0, step: 0.25 } } }}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAdjustOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleAdjust} disabled={updateBalance.isPending}>
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

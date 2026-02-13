@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
 # Architecture
 
 ## Tech Stack
@@ -8,7 +8,7 @@
 | Backend | Django + Django REST Framework | 5.2 / 3.16 |
 | Auth | SimpleJWT (httpOnly cookie refresh) | 5.4 |
 | Database | PostgreSQL | 15+ |
-| Frontend | React + TypeScript | 19 / 5.8 |
+| Frontend | React + TypeScript | 18 / 5.8 |
 | UI | MUI (Material UI) v7 | 7.x |
 | Tables | MUI X DataGrid | 8.x |
 | Server State | TanStack React Query | 5.x |
@@ -73,7 +73,7 @@ ecothrift-dashboard/
 
 ## Role-Based Access
 
-Four Django Groups define roles. A user's role is determined by their first group membership.
+Four Django Groups define roles. A user can belong to **multiple groups** simultaneously (multi-role support). The `role` property returns the highest-priority group; the `roles` property returns all groups.
 
 | Role | Access |
 |------|--------|
@@ -101,7 +101,7 @@ Frontend Page
 
 - **Email-only auth** — No username field. `User.USERNAME_FIELD = 'email'`.
 - **Pagination** — DRF PageNumberPagination, 50 per page. All list endpoints return `{ count, next, previous, results }`.
-- **Soft deletes** — Vendors use `is_active` flag, not actual deletion.
+- **Soft deletes** — Vendors and Users use `is_active` flag; Consignee accounts use `status='closed'`.
 - **SKU generation** — Auto-generated on Item creation (`ET-XXXXXX` format).
 - **Timezone** — All timestamps are `America/Chicago`. Set in Django `TIME_ZONE`.
 - **Print server** — Separate FastAPI app at `localhost:8888`. Frontend communicates directly via `localPrintService.ts`.

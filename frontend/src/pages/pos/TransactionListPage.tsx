@@ -117,7 +117,7 @@ export default function TransactionListPage() {
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            slotProps={{ input: { inputProps: { max: dateTo || undefined } } }}
+            slotProps={{ inputLabel: { shrink: true }, input: { inputProps: { max: dateTo || undefined } } }}
           />
         </Grid>
         <Grid size={{ xs: 12, md: 2 }}>
@@ -128,7 +128,7 @@ export default function TransactionListPage() {
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            slotProps={{ input: { inputProps: { min: dateFrom || undefined } } }}
+            slotProps={{ inputLabel: { shrink: true }, input: { inputProps: { min: dateFrom || undefined } } }}
           />
         </Grid>
         <Grid size={{ xs: 12, md: 2 }}>

@@ -7,6 +7,8 @@ import {
   auditSupplemental,
   getBankTransactions,
   createBankTransaction,
+  updateBankTransaction,
+  deleteBankTransaction,
   completeBankTransaction,
   cashDrop,
 } from '../api/pos.api';
@@ -90,6 +92,33 @@ export function useCreateBankTransaction() {
     mutationFn: async (data: Record<string, unknown>) => {
       const { data: result } = await createBankTransaction(data);
       return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
+    },
+  });
+}
+
+export function useUpdateBankTransaction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
+      const { data: result } = await updateBankTransaction(id, data);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
+    },
+  });
+}
+
+export function useDeleteBankTransaction() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await deleteBankTransaction(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });

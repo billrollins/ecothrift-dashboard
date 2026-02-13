@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import logoImg from '../assets/logo-full-360x120.png';
 import {
   Box,
@@ -107,6 +107,11 @@ export default function LoginPage() {
             >
               {isLoading ? 'Signing in...' : 'Sign in'}
             </Button>
+            <Typography variant="body2" textAlign="center" sx={{ mt: 1 }}>
+              <Link to="/forgot-password" style={{ color: '#2e7d32' }}>
+                Forgot password?
+              </Link>
+            </Typography>
           </Box>
         </CardContent>
       </Card>

@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model, authenticate
-from rest_framework import viewsets, status
+from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -13,6 +13,8 @@ from .serializers import (
     PasswordChangeSerializer,
 )
 from .permissions import IsAdmin, IsManagerOrAdmin
+
+from .models import CustomerProfile
 
 User = get_user_model()
 
@@ -151,6 +153,90 @@ def change_password_view(request):
     return Response({'detail': 'Password changed successfully.'})
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdmin])
+def admin_reset_password_view(request, user_id):
+    """Admin: reset a user's password to a random temporary password."""
+    import secrets
+    import string
+    try:
+        target_user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Generate a random temporary password
+    alphabet = string.ascii_letters + string.digits
+    temp_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+    target_user.set_password(temp_password)
+    target_user.save()
+    return Response({
+        'detail': 'Password reset successfully.',
+        'temporary_password': temp_password,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password_view(request):
+    """Request a password reset token. Stubbed: returns the token in response."""
+    import secrets
+    email = request.data.get('email')
+    if not email:
+        return Response({'detail': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        # Don't reveal if user exists
+        return Response({'detail': 'If this email is registered, a reset link will be sent.'})
+
+    # Generate a reset token (stubbed — no actual email sent)
+    token = secrets.token_urlsafe(32)
+    # Store token on user (using a simple cache approach for now)
+    from django.core.cache import cache
+    cache.set(f'password_reset_{token}', user.id, timeout=3600)  # 1 hour
+
+    return Response({
+        'detail': 'If this email is registered, a reset link will be sent.',
+        'reset_token': token,  # Stubbed: in production, this would be emailed
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password_view(request):
+    """Reset password using a token from forgot_password."""
+    token = request.data.get('token')
+    new_password = request.data.get('new_password')
+    if not token or not new_password:
+        return Response(
+            {'detail': 'Token and new_password are required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if len(new_password) < 6:
+        return Response(
+            {'detail': 'Password must be at least 6 characters.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    from django.core.cache import cache
+    user_id = cache.get(f'password_reset_{token}')
+    if not user_id:
+        return Response(
+            {'detail': 'Invalid or expired reset token.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(new_password)
+    user.save()
+    cache.delete(f'password_reset_{token}')
+    return Response({'detail': 'Password reset successfully.'})
+
+
 # ── User CRUD ViewSet ─────────────────────────────────────────────────────────
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -213,3 +299,80 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+# ── Customer CRUD ViewSet ─────────────────────────────────────────────────────
+
+class CustomerSerializer(serializers.Serializer):
+    """Flat serializer for customer list/detail."""
+    id = serializers.IntegerField(source='user.id', read_only=True)
+    email = serializers.EmailField(source='user.email')
+    first_name = serializers.CharField(source='user.first_name')
+    last_name = serializers.CharField(source='user.last_name')
+    phone = serializers.CharField(source='user.phone', required=False, default='')
+    full_name = serializers.CharField(source='user.full_name', read_only=True)
+    customer_number = serializers.CharField(read_only=True)
+    customer_since = serializers.DateField(read_only=True)
+    notes = serializers.CharField(required=False, default='')
+
+    def create(self, validated_data):
+        user_data = validated_data.pop('user', {})
+        user = User.objects.create_user(
+            email=user_data['email'],
+            first_name=user_data.get('first_name', ''),
+            last_name=user_data.get('last_name', ''),
+            phone=user_data.get('phone', ''),
+            password=None,  # No login needed
+            is_active=True,
+            is_staff=False,
+        )
+        profile = CustomerProfile.objects.create(
+            user=user,
+            customer_number=CustomerProfile.generate_customer_number(),
+            notes=validated_data.get('notes', ''),
+        )
+        return profile
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', {})
+        user = instance.user
+        for attr in ('email', 'first_name', 'last_name', 'phone'):
+            if attr in user_data:
+                setattr(user, attr, user_data[attr])
+        user.save()
+        if 'notes' in validated_data:
+            instance.notes = validated_data['notes']
+            instance.save(update_fields=['notes'])
+        return instance
+
+
+class CustomerViewSet(viewsets.ModelViewSet):
+    """
+    Customer management (Admin/Manager).
+    Each customer is a User + CustomerProfile.
+    """
+    serializer_class = CustomerSerializer
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = [
+        'user__first_name', 'user__last_name', 'user__email',
+        'user__phone', 'customer_number',
+    ]
+    ordering = ['customer_number']
+
+    def get_queryset(self):
+        return CustomerProfile.objects.select_related('user').all()
+
+    @action(detail=False, methods=['get'], url_path='lookup/(?P<customer_number>[^/.]+)')
+    def lookup(self, request, customer_number=None):
+        """Lookup a customer by customer_number (for POS scan)."""
+        try:
+            profile = CustomerProfile.objects.select_related('user').get(
+                customer_number=customer_number,
+            )
+            return Response(CustomerSerializer(profile).data)
+        except CustomerProfile.DoesNotExist:
+            return Response(
+                {'detail': 'Customer not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )

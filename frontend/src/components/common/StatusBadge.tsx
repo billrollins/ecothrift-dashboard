@@ -1,4 +1,4 @@
-import { Chip } from '@mui/material';
+import { Chip, Tooltip } from '@mui/material';
 
 type StatusSize = 'small' | 'medium';
 
@@ -20,6 +20,8 @@ const STATUS_COLOR_MAP: Record<string, ChipColor> = {
   voided: 'error',
   cancelled: 'error',
   closed: 'error',
+  terminated: 'error',
+  inactive: 'default',
 };
 
 function getStatusColor(status: string): ChipColor {
@@ -36,13 +38,14 @@ function formatStatusLabel(status: string): string {
 export interface StatusBadgeProps {
   status: string;
   size?: StatusSize;
+  tooltip?: string;
 }
 
-export function StatusBadge({ status, size = 'medium' }: StatusBadgeProps) {
+export function StatusBadge({ status, size = 'medium', tooltip }: StatusBadgeProps) {
   const color = getStatusColor(status);
   const label = formatStatusLabel(status);
 
-  return (
+  const chip = (
     <Chip
       label={label}
       size={size}
@@ -51,7 +54,18 @@ export function StatusBadge({ status, size = 'medium' }: StatusBadgeProps) {
       sx={{
         fontWeight: 500,
         textTransform: 'capitalize',
+        cursor: tooltip ? 'help' : undefined,
       }}
     />
   );
+
+  if (tooltip) {
+    return (
+      <Tooltip title={tooltip} arrow>
+        {chip}
+      </Tooltip>
+    );
+  }
+
+  return chip;
 }

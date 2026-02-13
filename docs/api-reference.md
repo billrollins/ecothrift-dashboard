@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
 # API Reference
 
 Base URL: `/api`
@@ -18,6 +18,8 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 | POST | `/auth/logout/` | No | Blacklists refresh token, clears cookie. |
 | GET | `/auth/me/` | Yes | Returns current user with profiles. |
 | POST | `/auth/change-password/` | Yes | Body: `{ old_password, new_password }` |
+| POST | `/auth/forgot-password/` | No | Request password reset. Body: `{ email }`. Returns `{ detail, reset_token }` (token stubbed in response for dev). |
+| POST | `/auth/reset-password/` | No | Reset password with token. Body: `{ token, new_password }`. |
 
 ---
 
@@ -33,6 +35,20 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 | PATCH | `/accounts/users/:id/` | Update user. |
 | PATCH | `/accounts/users/:id/employee_profile/` | Update employee profile. |
 | PATCH | `/accounts/users/:id/consignee_profile/` | Update consignee profile. |
+| POST | `/accounts/users/:id/reset-password/` | Admin reset: generates temporary password. Returns `{ detail, temporary_password }`. |
+
+### Customers
+
+**Permission:** Manager+
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/accounts/customers/` | List customers. Filter: `?search=` |
+| POST | `/accounts/customers/` | Create customer with profile. |
+| GET | `/accounts/customers/:id/` | Get customer detail. |
+| PATCH | `/accounts/customers/:id/` | Update customer. |
+| DELETE | `/accounts/customers/:id/` | Delete customer. |
+| GET | `/accounts/customers/lookup/:customer_number/` | POS lookup by customer number (e.g. `CUS-001`). |
 
 ---
 
@@ -76,6 +92,15 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 | CRUD | `/hr/sick-leave/requests/` | Employee+ | Filter: `?employee=`, `?status=` |
 | POST | `/hr/sick-leave/requests/:id/approve/` | Manager+ | Approve and deduct hours. |
 | POST | `/hr/sick-leave/requests/:id/deny/` | Manager+ | Deny request. |
+
+### Time Entry Modification Requests
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/hr/modification-requests/` | Employee+ | List requests. Filter: `?employee=`, `?status=` |
+| POST | `/hr/modification-requests/` | Employee+ | Submit modification request. |
+| POST | `/hr/modification-requests/:id/approve/` | Manager+ | Approve and apply changes to the time entry. |
+| POST | `/hr/modification-requests/:id/deny/` | Manager+ | Deny with review note. |
 
 ---
 
@@ -166,6 +191,16 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 ---
 
 ## Consignment (`/api/consignment/`)
+
+### Consignee Accounts
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/consignment/accounts/` | Manager+ | List consignee accounts (ConsigneeProfiles). Filter: `?search=` |
+| POST | `/consignment/accounts/` | Manager+ | Create consignee account. Body: `{ user_id }` (existing user) or `{ first_name, last_name, email, phone }` (new user). |
+| GET | `/consignment/accounts/:id/` | Manager+ | Get consignee account detail. Lookup by user ID. |
+| PATCH | `/consignment/accounts/:id/` | Manager+ | Update consignee profile fields. |
+| DELETE | `/consignment/accounts/:id/` | Manager+ | Soft delete (sets status to `closed`). |
 
 ### Staff Endpoints
 

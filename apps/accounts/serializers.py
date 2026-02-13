@@ -10,12 +10,17 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True, default=None)
     work_location_name = serializers.CharField(source='work_location.name', read_only=True, default=None)
 
+    termination_type_display = serializers.CharField(
+        source='get_termination_type_display', read_only=True, default='',
+    )
+
     class Meta:
         model = EmployeeProfile
         fields = [
             'id', 'employee_number', 'department', 'department_name',
             'position', 'employment_type', 'pay_rate', 'hire_date',
-            'termination_date', 'work_location', 'work_location_name',
+            'termination_date', 'termination_type', 'termination_type_display',
+            'termination_notes', 'work_location', 'work_location_name',
             'emergency_name', 'emergency_phone', 'notes', 'created_at',
         ]
         read_only_fields = ['id', 'employee_number', 'created_at']

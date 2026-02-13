@@ -16,9 +16,12 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material';
 import ArrowBack from '@mui/icons-material/ArrowBack';
+import Edit from '@mui/icons-material/Edit';
+import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import LocalShipping from '@mui/icons-material/LocalShipping';
 import UploadFile from '@mui/icons-material/UploadFile';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -26,7 +29,14 @@ import { useSnackbar } from 'notistack';
 import { format } from 'date-fns';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
-import { usePurchaseOrder, useDeliverOrder, useUploadManifest } from '../../hooks/useInventory';
+import { ConfirmDialog } from '../../components/feedback/ConfirmDialog';
+import {
+  usePurchaseOrder,
+  useUpdateOrder,
+  useDeleteOrder,
+  useDeliverOrder,
+  useUploadManifest,
+} from '../../hooks/useInventory';
 import type { PurchaseOrderStatus, ManifestRow } from '../../types/inventory.types';
 
 const STATUS_STEPS: PurchaseOrderStatus[] = [
@@ -48,11 +58,26 @@ export default function OrderDetailPage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const orderId = id ? parseInt(id, 10) : null;
+
+  // Deliver dialog
   const [deliverDate, setDeliverDate] = useState<Date | null>(new Date());
   const [deliverDialogOpen, setDeliverDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+  // Edit dialog
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    notes: '',
+    expected_delivery: '',
+    total_cost: '',
+  });
+
+  // Delete confirmation
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
   const { data: order, isLoading } = usePurchaseOrder(orderId);
+  const updateOrder = useUpdateOrder();
+  const deleteOrderMut = useDeleteOrder();
   const deliverOrder = useDeliverOrder();
   const uploadManifest = useUploadManifest();
 
@@ -60,6 +85,46 @@ export default function OrderDetailPage() {
 
   const statusIndex = order ? STATUS_STEPS.indexOf(order.status) : -1;
   const canDeliver = order && ['ordered', 'in_transit'].includes(order.status);
+  const canDelete = order && order.item_count === 0;
+
+  const handleOpenEdit = () => {
+    if (!order) return;
+    setEditForm({
+      notes: order.notes ?? '',
+      expected_delivery: order.expected_delivery ?? '',
+      total_cost: order.total_cost ?? '',
+    });
+    setEditOpen(true);
+  };
+
+  const handleEdit = async () => {
+    if (!orderId) return;
+    try {
+      await updateOrder.mutateAsync({
+        id: orderId,
+        data: {
+          notes: editForm.notes,
+          expected_delivery: editForm.expected_delivery || null,
+          total_cost: editForm.total_cost || null,
+        },
+      });
+      enqueueSnackbar('Order updated', { variant: 'success' });
+      setEditOpen(false);
+    } catch {
+      enqueueSnackbar('Failed to update order', { variant: 'error' });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!orderId) return;
+    try {
+      await deleteOrderMut.mutateAsync(orderId);
+      enqueueSnackbar('Order deleted', { variant: 'success' });
+      navigate('/inventory/orders');
+    } catch {
+      enqueueSnackbar('Failed to delete order', { variant: 'error' });
+    }
+  };
 
   const handleDeliver = async () => {
     if (!orderId) return;
@@ -95,13 +160,32 @@ export default function OrderDetailPage() {
         title={`Order #${order.order_number}`}
         subtitle={`${order.vendor_name} • ${order.status.replace(/_/g, ' ')}`}
         action={
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBack />}
-            onClick={() => navigate('/inventory/orders')}
-          >
-            Back
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              startIcon={<Edit />}
+              onClick={handleOpenEdit}
+            >
+              Edit
+            </Button>
+            {canDelete && (
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteOutline />}
+                onClick={() => setDeleteOpen(true)}
+              >
+                Delete
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              startIcon={<ArrowBack />}
+              onClick={() => navigate('/inventory/orders')}
+            >
+              Back
+            </Button>
+          </Box>
         }
       />
 
@@ -290,6 +374,7 @@ export default function OrderDetailPage() {
         </Card>
       )}
 
+      {/* Deliver Dialog */}
       <Dialog open={deliverDialogOpen} onClose={() => setDeliverDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Mark Delivered</DialogTitle>
         <DialogContent>
@@ -309,6 +394,62 @@ export default function OrderDetailPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Edit Order Dialog */}
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Order #{order.order_number}</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                label="Expected Delivery"
+                type="date"
+                value={editForm.expected_delivery}
+                onChange={(e) => setEditForm((f) => ({ ...f, expected_delivery: e.target.value }))}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                label="Total Cost"
+                type="number"
+                value={editForm.total_cost}
+                onChange={(e) => setEditForm((f) => ({ ...f, total_cost: e.target.value }))}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Notes"
+                multiline
+                rows={3}
+                value={editForm.notes}
+                onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleEdit} disabled={updateOrder.isPending}>
+            {updateOrder.isPending ? 'Saving...' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Delete Order"
+        message={`Delete order #${order.order_number}? This cannot be undone.`}
+        confirmLabel="Delete"
+        confirmColor="error"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteOpen(false)}
+        loading={deleteOrderMut.isPending}
+      />
     </Box>
   );
 }

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -21,6 +21,18 @@
 
 4. **Me** (`GET /api/auth/me/`) — requires auth
    - Returns current user with nested profiles (employee, consignee, customer)
+
+5. **Forgot Password** (`POST /api/auth/forgot-password/`)
+   - Body: `{ email }`
+   - Returns: `{ detail, reset_token }` (token returned in response for dev; email delivery not yet implemented)
+
+6. **Reset Password** (`POST /api/auth/reset-password/`)
+   - Body: `{ token, new_password }`
+   - Returns: `{ detail }`
+
+7. **Admin Reset Password** (`POST /api/accounts/users/{id}/reset-password/`)
+   - Admin only
+   - Generates temporary password, returns `{ detail, temporary_password }`
 
 ---
 
@@ -61,7 +73,7 @@
 
 ## Roles (Django Groups)
 
-Four roles, stored as **Django Group** names:
+Four roles, stored as **Django Group** names. A user can belong to **multiple groups** simultaneously (e.g., a user can be both an Employee and a Consignee).
 
 | Role | Group Name | is_staff |
 |------|------------|----------|
@@ -71,6 +83,7 @@ Four roles, stored as **Django Group** names:
 | Consignee | `Consignee` | False |
 
 User's `role` property: first match in `['Admin','Manager','Employee','Consignee']` from `user.groups.values_list('name', flat=True)`.
+User's `roles` property: returns **all** group names as a list (e.g. `['Employee', 'Consignee']`).
 
 ---
 

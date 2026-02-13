@@ -68,7 +68,7 @@ export default function ProductListPage() {
       width: 100,
       sortable: false,
       renderCell: ({ row }) => (
-        <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
           <IconButton
             size="small"
             onClick={(e) => {

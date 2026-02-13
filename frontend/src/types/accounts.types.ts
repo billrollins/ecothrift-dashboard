@@ -23,6 +23,9 @@ export interface EmployeeProfile {
   pay_rate: string;
   hire_date: string;
   termination_date: string | null;
+  termination_type: string;
+  termination_type_display: string;
+  termination_notes: string;
   work_location: number | null;
   work_location_name: string | null;
   emergency_name: string;

@@ -18,6 +18,7 @@ import {
 import Add from '@mui/icons-material/Add';
 import Remove from '@mui/icons-material/Remove';
 import SwapHoriz from '@mui/icons-material/SwapHoriz';
+import MoveDown from '@mui/icons-material/MoveDown';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
@@ -32,6 +33,7 @@ import {
   useCloseDrawer,
   useDrawerHandoff,
 } from '../../hooks/usePOS';
+import { useCashDrop } from '../../hooks/useCashManagement';
 import { useUsers } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import type { DenominationBreakdown } from '../../types/pos.types';
@@ -45,13 +47,14 @@ function formatCurrency(value: string | number): string {
 export default function DrawerListPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
-  const [openDialog, setOpenDialog] = useState<'open' | 'close' | 'handoff' | null>(null);
+  const [openDialog, setOpenDialog] = useState<'open' | 'close' | 'handoff' | 'drop' | null>(null);
   const [selectedRegister, setSelectedRegister] = useState<number | ''>('');
   const [selectedDrawer, setSelectedDrawer] = useState<{ id: number; opening_total: string } | null>(
     null
   );
   const [handoffDrawer, setHandoffDrawer] = useState<number | null>(null);
   const [handoffCashier, setHandoffCashier] = useState<string>('');
+  const [dropDrawer, setDropDrawer] = useState<number | null>(null);
   const [count, setCount] = useState<DenominationBreakdown>(EMPTY_BREAKDOWN);
 
   const { data: registersData, isLoading: regLoading } = useRegisters();
@@ -59,6 +62,7 @@ export default function DrawerListPage() {
   const openDrawerMutation = useOpenDrawer();
   const closeDrawerMutation = useCloseDrawer();
   const handoffMutation = useDrawerHandoff();
+  const cashDropMutation = useCashDrop();
 
   const registers = registersData?.results ?? [];
   const drawers = drawersData?.results ?? [];
@@ -121,12 +125,32 @@ export default function DrawerListPage() {
     }
   };
 
+  const handleCashDrop = async () => {
+    if (!dropDrawer) return;
+    const total = calculateTotal(count);
+    if (total <= 0) {
+      enqueueSnackbar('Enter drop amount', { variant: 'warning' });
+      return;
+    }
+    try {
+      await cashDropMutation.mutateAsync({
+        drawerId: dropDrawer,
+        data: { amount: count, total: total.toFixed(2) },
+      });
+      enqueueSnackbar('Cash drop recorded', { variant: 'success' });
+      resetDialog();
+    } catch {
+      enqueueSnackbar('Failed to record cash drop', { variant: 'error' });
+    }
+  };
+
   const resetDialog = () => {
     setOpenDialog(null);
     setSelectedRegister('');
     setSelectedDrawer(null);
     setHandoffDrawer(null);
     setHandoffCashier('');
+    setDropDrawer(null);
     setCount(EMPTY_BREAKDOWN);
   };
 
@@ -181,6 +205,18 @@ export default function DrawerListPage() {
                         Cash sales: {formatCurrency(drawer.cash_sales_total)}
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<MoveDown />}
+                          onClick={() => {
+                            setDropDrawer(drawer.id);
+                            setOpenDialog('drop');
+                          }}
+                          disabled={cashDropMutation.isPending}
+                        >
+                          Cash Drop
+                        </Button>
                         <Button
                           size="small"
                           variant="outlined"
@@ -295,6 +331,25 @@ export default function DrawerListPage() {
           <Button onClick={resetDialog}>Cancel</Button>
           <Button variant="contained" onClick={handleHandoff} disabled={handoffMutation.isPending}>
             Handoff
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openDialog === 'drop'} onClose={resetDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Cash Drop</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 1 }}>
+            <DenominationCounter
+              value={count}
+              onChange={setCount}
+              label="Drop Amount"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={resetDialog}>Cancel</Button>
+          <Button variant="contained" onClick={handleCashDrop} disabled={cashDropMutation.isPending}>
+            {cashDropMutation.isPending ? 'Processing...' : 'Drop'}
           </Button>
         </DialogActions>
       </Dialog>

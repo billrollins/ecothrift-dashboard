@@ -40,9 +40,61 @@ export function useUpdateTimeEntry() {
   });
 }
 
+export function useDeleteTimeEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => hrApi.deleteTimeEntry(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['timeEntries'] });
+    },
+  });
+}
+
 export function useTimeSummary(params?: TimeEntryParams) {
   return useQuery({
     queryKey: ['timeSummary', params],
     queryFn: () => hrApi.getTimeSummary(params).then((r) => r.data),
+  });
+}
+
+// Modification request hooks
+export function useModificationRequests(params?: Record<string, unknown>) {
+  return useQuery({
+    queryKey: ['modRequests', params],
+    queryFn: () => hrApi.getModificationRequests(params).then((r) => r.data),
+  });
+}
+
+export function useCreateModificationRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      hrApi.createModificationRequest(data).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modRequests'] });
+    },
+  });
+}
+
+export function useApproveModificationRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reviewNote }: { id: number; reviewNote?: string }) =>
+      hrApi.approveModificationRequest(id, reviewNote),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['timeEntries'] });
+    },
+  });
+}
+
+export function useDenyModificationRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reviewNote }: { id: number; reviewNote?: string }) =>
+      hrApi.denyModificationRequest(id, reviewNote),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modRequests'] });
+    },
   });
 }

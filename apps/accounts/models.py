@@ -62,6 +62,11 @@ class User(AbstractBaseUser, PermissionsMixin):
                 return role
         return None
 
+    @property
+    def roles(self):
+        """Return all group names as a list."""
+        return list(self.groups.values_list('name', flat=True))
+
 
 class EmployeeProfile(models.Model):
     """Created when a user is hired. One-to-one with User."""
@@ -69,6 +74,17 @@ class EmployeeProfile(models.Model):
         ('full_time', 'Full Time'),
         ('part_time', 'Part Time'),
         ('seasonal', 'Seasonal'),
+    ]
+    TERMINATION_TYPES = [
+        ('voluntary_resignation', 'Voluntary Resignation'),
+        ('job_abandonment', 'Job Abandonment'),
+        ('retirement', 'Retirement'),
+        ('mutual_agreement', 'Mutual Agreement'),
+        ('layoff', 'Layoff / Reduction in Force'),
+        ('termination_for_cause', 'Termination for Cause'),
+        ('termination_poor_performance', 'Termination – Poor Performance'),
+        ('end_of_contract', 'End of Contract / Seasonal'),
+        ('other', 'Other'),
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='employee')
@@ -82,6 +98,10 @@ class EmployeeProfile(models.Model):
     pay_rate = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     hire_date = models.DateField()
     termination_date = models.DateField(null=True, blank=True)
+    termination_type = models.CharField(
+        max_length=40, choices=TERMINATION_TYPES, blank=True, default='',
+    )
+    termination_notes = models.TextField(blank=True, default='')
     work_location = models.ForeignKey(
         'core.WorkLocation', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='employees',

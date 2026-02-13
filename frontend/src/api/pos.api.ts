@@ -107,6 +107,14 @@ export function createBankTransaction(data: Record<string, unknown>): Promise<{ 
   return api.post('/pos/bank-transactions/', data);
 }
 
+export function updateBankTransaction(id: number, data: Record<string, unknown>): Promise<{ data: unknown }> {
+  return api.patch(`/pos/bank-transactions/${id}/`, data);
+}
+
+export function deleteBankTransaction(id: number): Promise<{ data: void }> {
+  return api.delete(`/pos/bank-transactions/${id}/`);
+}
+
 export function completeBankTransaction(id: number): Promise<{ data: unknown }> {
   return api.patch(`/pos/bank-transactions/${id}/complete/`);
 }
@@ -118,6 +126,10 @@ export function createCart(data: Record<string, unknown>): Promise<{ data: Cart 
 
 export function getCart(id: number): Promise<{ data: Cart }> {
   return api.get<Cart>(`/pos/carts/${id}/`);
+}
+
+export function updateCart(id: number, data: Record<string, unknown>): Promise<{ data: Cart }> {
+  return api.patch<Cart>(`/pos/carts/${id}/`, data);
 }
 
 export function addItemToCart(cartId: number, sku: string): Promise<{ data: Cart }> {

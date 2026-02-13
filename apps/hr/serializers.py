@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Department, TimeEntry, SickLeaveBalance, SickLeaveRequest
+from .models import Department, TimeEntry, TimeEntryModificationRequest, SickLeaveBalance, SickLeaveRequest
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -39,6 +39,25 @@ class TimeEntrySummarySerializer(serializers.Serializer):
     total_entries = serializers.IntegerField()
     approved_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
     pending_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+
+
+class TimeEntryModificationRequestSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source='employee.full_name', read_only=True)
+    reviewed_by_name = serializers.CharField(source='reviewed_by.full_name', read_only=True, default=None)
+    entry_date = serializers.DateField(source='time_entry.date', read_only=True)
+    entry_clock_in = serializers.DateTimeField(source='time_entry.clock_in', read_only=True)
+    entry_clock_out = serializers.DateTimeField(source='time_entry.clock_out', read_only=True)
+
+    class Meta:
+        model = TimeEntryModificationRequest
+        fields = [
+            'id', 'time_entry', 'employee', 'employee_name',
+            'entry_date', 'entry_clock_in', 'entry_clock_out',
+            'requested_clock_in', 'requested_clock_out', 'requested_break_minutes',
+            'reason', 'status', 'reviewed_by', 'reviewed_by_name',
+            'review_note', 'reviewed_at', 'created_at',
+        ]
+        read_only_fields = ['id', 'employee', 'reviewed_at', 'created_at']
 
 
 class SickLeaveBalanceSerializer(serializers.ModelSerializer):

@@ -69,3 +69,57 @@ export function updateConsigneeProfile(
 ): Promise<{ data: unknown }> {
   return api.patch(`/accounts/users/${userId}/consignee_profile/`, data);
 }
+
+export function deleteUser(id: number): Promise<{ data: void }> {
+  return api.delete(`/accounts/users/${id}/`);
+}
+
+// Customer management endpoints
+export interface Customer {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  full_name: string;
+  customer_number: string;
+  customer_since: string;
+  notes: string;
+}
+
+export function getCustomers(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Customer> }> {
+  return api.get<PaginatedResponse<Customer>>('/accounts/customers/', { params });
+}
+
+export function getCustomer(id: number): Promise<{ data: Customer }> {
+  return api.get<Customer>(`/accounts/customers/${id}/`);
+}
+
+export function createCustomer(data: Record<string, unknown>): Promise<{ data: Customer }> {
+  return api.post<Customer>('/accounts/customers/', data);
+}
+
+export function updateCustomer(id: number, data: Record<string, unknown>): Promise<{ data: Customer }> {
+  return api.patch<Customer>(`/accounts/customers/${id}/`, data);
+}
+
+export function deleteCustomer(id: number): Promise<{ data: void }> {
+  return api.delete(`/accounts/customers/${id}/`);
+}
+
+export function lookupCustomer(customerNumber: string): Promise<{ data: Customer }> {
+  return api.get<Customer>(`/accounts/customers/lookup/${encodeURIComponent(customerNumber)}/`);
+}
+
+// Password reset endpoints
+export function adminResetPassword(userId: number): Promise<{ data: { detail: string; temporary_password: string } }> {
+  return api.post(`/accounts/users/${userId}/reset-password/`);
+}
+
+export function forgotPassword(email: string): Promise<{ data: { detail: string; reset_token?: string } }> {
+  return api.post('/auth/forgot-password/', { email });
+}
+
+export function resetPassword(token: string, newPassword: string): Promise<{ data: { detail: string } }> {
+  return api.post('/auth/reset-password/', { token, new_password: newPassword });
+}

@@ -4,6 +4,10 @@ import {
   Box,
   Card,
   CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Tabs,
   Tab,
   TextField,
@@ -13,10 +17,13 @@ import {
   MenuItem,
 } from '@mui/material';
 import ArrowBack from '@mui/icons-material/ArrowBack';
+import PersonOff from '@mui/icons-material/PersonOff';
+import PersonOutline from '@mui/icons-material/PersonOutline';
 import { DataGrid } from '@mui/x-data-grid';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { StatusBadge } from '../../components/common/StatusBadge';
+import { ConfirmDialog } from '../../components/feedback/ConfirmDialog';
 import { useQuery } from '@tanstack/react-query';
 import { useUser, useUpdateUser, useUpdateEmployeeProfile } from '../../hooks/useEmployees';
 import { getDepartments } from '../../api/hr.api';
@@ -25,6 +32,19 @@ import { useSickLeaveBalances, useSickLeaveRequests } from '../../hooks/useSickL
 import type { User } from '../../types';
 import { useSnackbar } from 'notistack';
 import { format } from 'date-fns';
+import { formatPhone, maskPhoneInput, stripPhone } from '../../utils/formatPhone';
+
+const TERMINATION_TYPES = [
+  { value: 'voluntary_resignation', label: 'Voluntary Resignation' },
+  { value: 'job_abandonment', label: 'Job Abandonment' },
+  { value: 'retirement', label: 'Retirement' },
+  { value: 'mutual_agreement', label: 'Mutual Agreement' },
+  { value: 'layoff', label: 'Layoff / Reduction in Force' },
+  { value: 'termination_for_cause', label: 'Termination for Cause' },
+  { value: 'termination_poor_performance', label: 'Termination – Poor Performance' },
+  { value: 'end_of_contract', label: 'End of Contract / Seasonal' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,7 +58,11 @@ export default function EmployeeDetailPage() {
   const updateEmployeeProfile = useUpdateEmployeeProfile();
   const { data: departments } = useQuery({
     queryKey: ['departments'],
-    queryFn: () => getDepartments().then((r) => r.data),
+    queryFn: async () => {
+      const { data } = await getDepartments();
+      // DRF returns paginated response; extract results array
+      return Array.isArray(data) ? data : (data as unknown as { results: { id: number; name: string }[] }).results ?? [];
+    },
   });
   const { data: timeData } = useTimeEntries(
     numericId ? { employee: numericId } : undefined
@@ -52,6 +76,12 @@ export default function EmployeeDetailPage() {
 
   const [tab, setTab] = useState(0);
   const [form, setForm] = useState<Record<string, unknown>>({});
+  const [terminateOpen, setTerminateOpen] = useState(false);
+  const [terminateForm, setTerminateForm] = useState({
+    termination_type: '',
+    termination_date: new Date().toISOString().slice(0, 10),
+    termination_notes: '',
+  });
 
   const currentUser = user as User | undefined;
   const emp = currentUser?.employee;
@@ -101,6 +131,54 @@ export default function EmployeeDetailPage() {
     }
   };
 
+  const handleTerminate = async () => {
+    if (!numericId) return;
+    if (!terminateForm.termination_type) {
+      enqueueSnackbar('Please select a termination type', { variant: 'warning' });
+      return;
+    }
+    try {
+      await updateUser.mutateAsync({
+        id: numericId,
+        data: { is_active: false },
+      });
+      await updateEmployeeProfile.mutateAsync({
+        userId: numericId,
+        data: {
+          termination_date: terminateForm.termination_date,
+          termination_type: terminateForm.termination_type,
+          termination_notes: terminateForm.termination_notes,
+        },
+      });
+      enqueueSnackbar('Employee terminated', { variant: 'success' });
+      setTerminateOpen(false);
+    } catch {
+      enqueueSnackbar('Failed to terminate employee', { variant: 'error' });
+    }
+  };
+
+  const handleReactivate = async () => {
+    if (!numericId) return;
+    try {
+      await updateUser.mutateAsync({
+        id: numericId,
+        data: { is_active: true },
+      });
+      await updateEmployeeProfile.mutateAsync({
+        userId: numericId,
+        data: {
+          termination_date: null,
+          termination_type: '',
+          termination_notes: '',
+        },
+      });
+      enqueueSnackbar('Employee reactivated', { variant: 'success' });
+      setTerminateOpen(false);
+    } catch {
+      enqueueSnackbar('Failed to reactivate employee', { variant: 'error' });
+    }
+  };
+
   if (!isNew && isLoading) return <LoadingScreen message="Loading employee..." />;
   if (!isNew && !currentUser) {
     return (
@@ -112,6 +190,8 @@ export default function EmployeeDetailPage() {
   }
 
   const displayName = currentUser?.full_name ?? 'Employee';
+  const isTerminated = !currentUser?.is_active && !!emp?.termination_date;
+  const terminationTypeLabel = emp?.termination_type_display || '';
 
   return (
     <Box>
@@ -119,9 +199,39 @@ export default function EmployeeDetailPage() {
         title={displayName}
         subtitle={emp?.position ?? 'Employee'}
         action={
-          <Button startIcon={<ArrowBack />} onClick={() => navigate('/hr/employees')}>
-            Back
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {!isNew && currentUser && isTerminated && (
+              <StatusBadge
+                status="terminated"
+                tooltip={terminationTypeLabel ? `${terminationTypeLabel}${emp?.termination_date ? ` — ${format(new Date(emp.termination_date), 'MMM d, yyyy')}` : ''}` : undefined}
+              />
+            )}
+            {!isNew && currentUser && !isTerminated && currentUser.is_active && (
+              <StatusBadge status="active" />
+            )}
+            {!isNew && currentUser && (
+              <Button
+                variant="outlined"
+                color={currentUser.is_active ? 'warning' : 'success'}
+                startIcon={currentUser.is_active ? <PersonOff /> : <PersonOutline />}
+                onClick={() => {
+                  if (currentUser.is_active) {
+                    setTerminateForm({
+                      termination_type: '',
+                      termination_date: new Date().toISOString().slice(0, 10),
+                      termination_notes: '',
+                    });
+                  }
+                  setTerminateOpen(true);
+                }}
+              >
+                {currentUser.is_active ? 'Terminate' : 'Reactivate'}
+              </Button>
+            )}
+            <Button startIcon={<ArrowBack />} onClick={() => navigate('/hr/employees')}>
+              Back
+            </Button>
+          </Box>
         }
       />
 
@@ -140,6 +250,7 @@ export default function EmployeeDetailPage() {
           </Tabs>
 
           {tab === 0 && (
+            <>
             <Card>
               <CardContent>
                 <Grid container spacing={3}>
@@ -171,8 +282,9 @@ export default function EmployeeDetailPage() {
                     <TextField
                       label="Phone"
                       fullWidth
-                      value={form.phone ?? currentUser?.phone ?? ''}
-                      onChange={(e) => handleChange('phone', e.target.value)}
+                      value={form.phone != null ? maskPhoneInput(form.phone as string) : formatPhone(currentUser?.phone)}
+                      onChange={(e) => handleChange('phone', stripPhone(e.target.value))}
+                      placeholder="(555) 123-4567"
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 6 }}>
@@ -214,6 +326,7 @@ export default function EmployeeDetailPage() {
                       fullWidth
                       value={((form.employee as { hire_date?: string })?.hire_date ?? emp?.hire_date ?? '').slice(0, 10)}
                       onChange={(e) => handleEmployeeChange('hire_date', e.target.value)}
+                      slotProps={{ inputLabel: { shrink: true } }}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 6 }}>
@@ -228,8 +341,13 @@ export default function EmployeeDetailPage() {
                     <TextField
                       label="Emergency Phone"
                       fullWidth
-                      value={(form.employee as { emergency_phone?: string })?.emergency_phone ?? emp?.emergency_phone ?? ''}
-                      onChange={(e) => handleEmployeeChange('emergency_phone', e.target.value)}
+                      value={
+                        (form.employee as { emergency_phone?: string })?.emergency_phone != null
+                          ? maskPhoneInput((form.employee as { emergency_phone?: string })?.emergency_phone ?? '')
+                          : formatPhone(emp?.emergency_phone)
+                      }
+                      onChange={(e) => handleEmployeeChange('emergency_phone', stripPhone(e.target.value))}
+                      placeholder="(555) 123-4567"
                     />
                   </Grid>
                   <Grid size={12}>
@@ -240,6 +358,38 @@ export default function EmployeeDetailPage() {
                 </Grid>
               </CardContent>
             </Card>
+
+            {/* Termination Info Banner */}
+            {isTerminated && emp && (
+              <Card sx={{ mt: 2, borderLeft: 4, borderColor: 'error.main' }}>
+                <CardContent>
+                  <Typography variant="h6" color="error" gutterBottom>
+                    Termination Details
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Typography variant="caption" color="text.secondary">Termination Type</Typography>
+                      <Typography variant="body1" fontWeight={600}>
+                        {emp.termination_type_display || '—'}
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Typography variant="caption" color="text.secondary">Termination Date</Typography>
+                      <Typography variant="body1" fontWeight={600}>
+                        {emp.termination_date ? format(new Date(emp.termination_date), 'MMMM d, yyyy') : '—'}
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Typography variant="caption" color="text.secondary">Notes</Typography>
+                      <Typography variant="body1">
+                        {emp.termination_notes || '—'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            )}
+            </>
           )}
 
           {tab === 1 && (
@@ -299,6 +449,87 @@ export default function EmployeeDetailPage() {
             </Card>
           )}
         </>
+      )}
+
+      {/* Terminate Dialog (full form) */}
+      {currentUser?.is_active && (
+        <Dialog
+          open={terminateOpen}
+          onClose={() => setTerminateOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Terminate Employee</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Terminate <strong>{displayName}</strong>. Their account will be deactivated and the
+              termination record saved.
+            </Typography>
+            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Termination Type"
+                  value={terminateForm.termination_type}
+                  onChange={(e) => setTerminateForm((f) => ({ ...f, termination_type: e.target.value }))}
+                  required
+                >
+                  <MenuItem value="" disabled>— Select type —</MenuItem>
+                  {TERMINATION_TYPES.map((t) => (
+                    <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label="Termination Date"
+                  type="date"
+                  value={terminateForm.termination_date}
+                  onChange={(e) => setTerminateForm((f) => ({ ...f, termination_date: e.target.value }))}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth
+                  label="Notes"
+                  multiline
+                  rows={3}
+                  value={terminateForm.termination_notes}
+                  onChange={(e) => setTerminateForm((f) => ({ ...f, termination_notes: e.target.value }))}
+                  placeholder="Reason, circumstances, exit interview notes..."
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setTerminateOpen(false)}>Cancel</Button>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={handleTerminate}
+              disabled={!terminateForm.termination_type || updateUser.isPending || updateEmployeeProfile.isPending}
+            >
+              {updateUser.isPending || updateEmployeeProfile.isPending ? 'Processing...' : 'Terminate'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {/* Reactivate Confirmation */}
+      {!currentUser?.is_active && (
+        <ConfirmDialog
+          open={terminateOpen}
+          title="Reactivate Employee"
+          message={`Reactivate ${displayName}? Their account will be re-enabled and termination record cleared.`}
+          confirmLabel="Reactivate"
+          confirmColor="success"
+          onConfirm={handleReactivate}
+          onCancel={() => setTerminateOpen(false)}
+          loading={updateUser.isPending || updateEmployeeProfile.isPending}
+        />
       )}
     </Box>
   );
