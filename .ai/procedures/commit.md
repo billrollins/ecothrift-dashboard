@@ -1,7 +1,7 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-13T12:00:00-06:00 -->
 # Procedure: Commit Protocol
 
-Rules and steps for creating git commits.
+Rules and steps for committing code and pushing to GitHub.
 
 ---
 
@@ -16,9 +16,9 @@ Rules and steps for creating git commits.
 ## Pre-Commit Checklist
 
 1. **Run TypeScript check:** `cd frontend && npx tsc --noEmit`
-2. **Run Python syntax check:** `python -c "import py_compile; ..."` on changed files.
+2. **Run Python syntax check:** `python -c "import compileall; compileall.compile_dir('apps', quiet=1)"` on changed apps.
 3. **Check for linter errors** on recently edited files.
-4. **Verify no secrets** are staged (.env, credentials, API keys).
+4. **Verify no secrets** are staged (.env, credentials, API keys, tokens).
 5. **Review staged changes:** `git diff --cached` to confirm what's being committed.
 
 ---
@@ -49,6 +49,23 @@ fix: resolve clock-in 400 error by making TimeEntry fields optional
 
 docs: add .ai/ context folder with procedures and extended context
 ```
+
+---
+
+## Push to GitHub
+
+After a successful commit, push to GitHub:
+
+```bash
+git push origin main
+```
+
+- **Remote:** `origin` → `https://github.com/billrollins/ecothrift-dashboard.git`
+- **Branch:** `main`
+- Always push after committing unless the user says otherwise.
+- Run `git status` after pushing to verify the branch is up to date.
+
+> **Note:** Pushing to Heroku for deployment is a separate procedure. See `.ai/procedures/deploy.md`.
 
 ---
 
