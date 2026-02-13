@@ -54,6 +54,15 @@ class S3File(models.Model):
     def __str__(self):
         return self.filename
 
+    @property
+    def url(self):
+        """Generate a download URL for this file."""
+        from django.core.files.storage import default_storage
+        try:
+            return default_storage.url(self.key)
+        except Exception:
+            return None
+
 
 class PrintServerRelease(models.Model):
     """Tracks print server versions uploaded to S3."""

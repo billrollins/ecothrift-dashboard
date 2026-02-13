@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
+<!-- Last updated: 2026-02-13T21:00:00-06:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,31 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [1.2.0] - 2026-02-13
+
+### Added
+- Purchase Order 6-step status workflow: ordered → paid → shipped → delivered → processing → complete
+- Status action buttons: Mark Paid, Mark Shipped, Mark Delivered with dedicated UX modals
+- Status undo buttons: Undo Paid, Undo Shipped, Undo Delivered to revert status changes
+- "Shipped" modal with dual modes (Mark Shipped / Edit Shipped) including date pickers for shipped_date and expected_delivery
+- Cost breakdown: purchase_cost + shipping_cost + fees = total_cost (auto-computed in model save)
+- New PO fields: paid_date, shipped_date, retail_value, condition (dropdown), description, order_number (editable)
+- Auto-generated order numbers (PO-XXXXX) with option to provide custom values
+- CSV manifest upload persists to S3 with S3File record and manifest_preview JSON field
+- S3File download URL via presigned URL property
+- Manifest file info bar on detail page with filename, size, upload date, and Download button
+- Ordered date editable on both create and edit forms
+- Order list view enhanced with Description, Condition, Items, Retail Value columns
+
+### Changed
+- PO status choices renamed: `in_transit` → `shipped`, added `paid`
+- Edit Order dialog reorganized: Order # + Date → Details → Costs → Notes (consistent across create/edit/detail)
+- Create Order dialog now includes all fields matching edit dialog (# Items, condition, retail value, description)
+- Upload manifest endpoint now returns full order detail instead of transient preview
+- useUploadManifest hook invalidates specific order query for immediate UI refresh
 
 ---
 

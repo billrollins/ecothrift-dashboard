@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from apps.core.serializers import S3FileSerializer
 from .models import (
     Vendor, PurchaseOrder, CSVTemplate, ManifestRow,
     Product, Item, ProcessingBatch, ItemScanHistory,
@@ -23,16 +24,23 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor.name', read_only=True)
     vendor_code = serializers.CharField(source='vendor.code', read_only=True)
     created_by_name = serializers.CharField(source='created_by.full_name', read_only=True, default=None)
+    order_number = serializers.CharField(required=False, allow_blank=True)
+    ordered_date = serializers.DateField(required=False)
 
     class Meta:
         model = PurchaseOrder
         fields = [
             'id', 'vendor', 'vendor_name', 'vendor_code', 'order_number',
-            'status', 'ordered_date', 'expected_delivery', 'delivered_date',
-            'total_cost', 'item_count', 'notes', 'manifest',
+            'status', 'ordered_date', 'paid_date', 'shipped_date',
+            'expected_delivery', 'delivered_date',
+            'purchase_cost', 'shipping_cost', 'fees',
+            'total_cost', 'retail_value', 'condition', 'description',
+            'item_count', 'notes', 'manifest', 'manifest_file', 'manifest_preview',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'total_cost', 'manifest_preview', 'created_at', 'updated_at']
+
+    manifest_file = S3FileSerializer(source='manifest', read_only=True)
 
 
 class PurchaseOrderDetailSerializer(PurchaseOrderSerializer):

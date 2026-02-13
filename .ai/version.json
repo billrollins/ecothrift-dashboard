@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
-  "build_date": "2026-02-13T16:00:00-06:00",
-  "description": "CRUD enhancements, multi-role users, consignment rework, customer management, password resets"
+  "version": "1.2.0",
+  "build_date": "2026-02-13T21:00:00-06:00",
+  "description": "Purchase Order enhancements: 6-step status workflow, cost breakdown, S3 manifest upload, order details UI"
 }

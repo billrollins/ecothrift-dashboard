@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-13T21:00:00-06:00 -->
 
 # Inventory Pipeline — Extended Context
 
@@ -9,12 +9,12 @@ This document describes the full inventory pipeline, models, and flows for the E
 ## Pipeline Overview
 
 ```
-Vendor → PurchaseOrder → CSV manifest upload → ManifestRow parsing → Item creation
+Vendor → PurchaseOrder → CSV manifest upload (S3) → ManifestRow parsing → Item creation
 ```
 
 1. **Vendor** — Source of purchased inventory (liquidation, retail, direct, other).
 2. **PurchaseOrder** — Order placed with a vendor; tracks status from ordered through completion.
-3. **CSV manifest upload** — Staff uploads a vendor CSV via `POST /inventory/orders/{id}/upload-manifest/`.
+3. **CSV manifest upload** — Staff uploads a vendor CSV via `POST /inventory/orders/{id}/upload-manifest/`. File is saved to S3, preview persisted in `manifest_preview` JSON field.
 4. **ManifestRow parsing** — CSV is parsed using a vendor-specific `CSVTemplate`; rows become `ManifestRow` records via `POST /inventory/orders/{id}/process-manifest/`.
 5. **Item creation** — Items are created from manifest rows via `POST /inventory/orders/{id}/create-items/`.
 
@@ -34,16 +34,53 @@ Vendor → PurchaseOrder → CSV manifest upload → ManifestRow parsing → Ite
 | Status       | Description                          |
 |-------------|--------------------------------------|
 | `ordered`   | Order placed (default)               |
-| `in_transit`| Shipment in transit                  |
-| `delivered` | Received (via `POST .../deliver/`)   |
+| `paid`      | Payment made (via `mark-paid`)       |
+| `shipped`   | Shipment in transit (via `mark-shipped`) |
+| `delivered` | Received (via `deliver`)             |
 | `processing`| Manifest processed, items being prepped |
 | `complete`  | All items processed                  |
 | `cancelled` | Order cancelled                      |
 
-**Flow**: ordered → in_transit → delivered → processing → complete
+**Flow**: ordered → paid → shipped → delivered → processing → complete
 
-- `deliver` action: sets `status='delivered'`, `delivered_date` (from request or today).
-- `upload-manifest` and `process-manifest` move the order into `processing` when manifest rows exist.
+### Status Actions
+
+| Action | Endpoint | Sets | Clears |
+|--------|----------|------|--------|
+| Mark Paid | `POST .../mark-paid/` | status=paid, paid_date | — |
+| Revert Paid | `POST .../revert-paid/` | status=ordered | paid_date |
+| Mark Shipped | `POST .../mark-shipped/` | status=shipped, shipped_date, expected_delivery | — |
+| Revert Shipped | `POST .../revert-shipped/` | status=paid (or ordered) | shipped_date, expected_delivery |
+| Deliver | `POST .../deliver/` | status=delivered, delivered_date | — |
+| Revert Delivered | `POST .../revert-delivered/` | status=shipped | delivered_date |
+
+### Cost Breakdown
+
+`total_cost` is auto-computed in `save()` from: `purchase_cost + shipping_cost + fees`.
+
+### Additional Fields (v1.2.0)
+
+- **`order_number`** — Auto-generated `PO-XXXXX` or user-provided; editable after creation.
+- **`description`** — Title-like summary of the order (e.g. "6 Pallets of Small Appliances, 130 Units...").
+- **`condition`** — Choices: `new`, `like_new`, `good`, `fair`, `salvage`, `mixed`.
+- **`retail_value`** — Estimated retail value (can be blank for unmanifested orders).
+- **`manifest_preview`** — JSONField persisting CSV headers + first 20 rows for display on reload.
+
+---
+
+## CSV Manifest Upload (S3)
+
+**Upload flow**:
+1. File uploaded via `POST /inventory/orders/{id}/upload-manifest/`
+2. CSV parsed in-memory: headers extracted, rows collected
+3. File saved to S3 at `manifests/orders/{order_id}/{filename}`
+4. `S3File` record created; linked to PO via `manifest` FK
+5. Preview data (headers + first 20 rows) persisted in `manifest_preview` JSON field
+6. Returns full order detail (including `manifest_file` with download URL and `manifest_preview`)
+
+**Re-upload**: Replaces old S3 file and S3File record. Preview is overwritten.
+
+**S3File model** includes a `url` property that generates a presigned download URL via `default_storage.url()`.
 
 ---
 
@@ -57,8 +94,6 @@ Vendor → PurchaseOrder → CSV manifest upload → ManifestRow parsing → Ite
 - **`is_default`** — Whether this is the default template for the vendor
 
 **Auto-matching**: On manifest upload, headers are hashed and matched against `CSVTemplate` where `vendor=order.vendor` and `header_signature=sig`. If found, the template is suggested.
-
-**Upload response** includes: `headers`, `signature`, `template_id`, `template_name`, `row_count`, `rows` (preview of first 20).
 
 ---
 
@@ -151,27 +186,35 @@ Created when `create-items` runs; one batch per run. Items are created by iterat
 
 ## Frontend Integration
 
+### Order List Page (`OrderListPage.tsx`)
+
+- DataGrid with columns: Order #, Vendor, Status, Description, Condition, Items, Ordered, Expected, Delivered, Cost, Retail
+- Filters: status, vendor, date range
+- "New Order" dialog with same section layout as edit: Order # + Date → Details → Costs → Notes
+
 ### Order Detail Page (`OrderDetailPage.tsx`)
 
-- Status stepper: ordered → in_transit → delivered → processing → complete
-- "Mark Delivered" with date picker
-- CSV manifest upload (Select CSV → Upload)
-- Manifest rows table; "Go to Processing" when status is delivered/processing/complete
-
-### Processing Page (`ProcessingPage.tsx`)
-
-- **Tab 1 — Manifest Processing**: Select PO, upload CSV, "Upload & Process" (calls `uploadManifest` then `processManifest`)
-- **Tab 2 — Item Queue**: DataGrid of items with `status__in=['intake','processing']`; editable title, brand, category, price; "Mark Ready" per item
+- Status stepper: ordered → paid → shipped → delivered → processing → complete
+- Display sections: Dates → Details (description, condition, retail value, items) → Costs → Notes
+- Action buttons: Mark Paid, Undo Paid, Mark Shipped / Edit Shipped, Mark Delivered, Undo Delivered
+- "Shipped" modal with dual modes (Mark Shipped / Edit Shipped) and date pickers
+- Manifest section: upload CSV, file info bar with download link, persisted CSV preview table
+- Manifest rows table (from processed data)
+- Edit dialog: Order # + Date → Details → Costs → Notes (consistent with create)
+- Delete guard: only shows when item_count === 0
 
 ### Hooks (`useInventory.ts`)
 
 - `usePurchaseOrder`, `useDeliverOrder`, `useUploadManifest`, `useProcessManifest`, `useCreateItems`
+- `useMarkOrderPaid`, `useRevertOrderPaid`, `useMarkOrderShipped`, `useRevertOrderShipped`, `useRevertOrderDelivered`
 - `useItems`, `useUpdateItem`, `useMarkItemReady`
 - `useProducts`, `useVendors`, etc.
 
 ### API (`inventory.api.ts`)
 
-- Orders: `getOrders`, `getOrder`, `deliverOrder`, `uploadManifest`, `processManifest`, `createItems`
+- Orders: `getOrders`, `getOrder`, `createOrder`, `updateOrder`, `deleteOrder`
+- Status: `markOrderPaid`, `revertOrderPaid`, `markOrderShipped`, `revertOrderShipped`, `deliverOrder`, `revertOrderDelivered`
+- Manifest: `uploadManifest`, `processManifest`, `createItems`
 - Items: `getItems`, `updateItem`, `markItemReady`
 - Public: `itemLookup(sku)` — no auth
 

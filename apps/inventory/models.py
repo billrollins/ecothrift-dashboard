@@ -31,26 +31,45 @@ class Vendor(models.Model):
 class PurchaseOrder(models.Model):
     STATUS_CHOICES = [
         ('ordered', 'Ordered'),
-        ('in_transit', 'In Transit'),
+        ('paid', 'Paid'),
+        ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
         ('processing', 'Processing'),
         ('complete', 'Complete'),
         ('cancelled', 'Cancelled'),
     ]
 
+    CONDITION_CHOICES = [
+        ('new', 'New'),
+        ('like_new', 'Like New'),
+        ('good', 'Used - Good'),
+        ('fair', 'Used - Fair'),
+        ('salvage', 'Salvage'),
+        ('mixed', 'Mixed'),
+    ]
+
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='orders')
     order_number = models.CharField(max_length=100, unique=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ordered')
     ordered_date = models.DateField()
+    paid_date = models.DateField(null=True, blank=True)
+    shipped_date = models.DateField(null=True, blank=True)
     expected_delivery = models.DateField(null=True, blank=True)
     delivered_date = models.DateField(null=True, blank=True)
+    purchase_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    shipping_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    fees = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    retail_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    condition = models.CharField(max_length=20, choices=CONDITION_CHOICES, blank=True, default='')
+    description = models.CharField(max_length=500, blank=True, default='')
     item_count = models.IntegerField(default=0)
     notes = models.TextField(blank=True, default='')
     manifest = models.ForeignKey(
         'core.S3File', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='purchase_orders',
     )
+    manifest_preview = models.JSONField(null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
     )
@@ -62,6 +81,29 @@ class PurchaseOrder(models.Model):
 
     def __str__(self):
         return f'{self.order_number} ({self.vendor.code})'
+
+    def save(self, *args, **kwargs):
+        """Auto-compute total_cost from component fields when any are set."""
+        components = [self.purchase_cost, self.shipping_cost, self.fees]
+        if any(c is not None for c in components):
+            from decimal import Decimal
+            self.total_cost = sum(
+                (c for c in components if c is not None), Decimal('0.00')
+            )
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def generate_order_number():
+        """Generate next order number like PO-00001."""
+        last = PurchaseOrder.objects.order_by('-id').first()
+        if last:
+            try:
+                num = int(last.order_number.replace('PO-', '')) + 1
+            except (ValueError, AttributeError):
+                num = PurchaseOrder.objects.count() + 1
+        else:
+            num = 1
+        return f'PO-{num:05d}'
 
 
 class CSVTemplate(models.Model):

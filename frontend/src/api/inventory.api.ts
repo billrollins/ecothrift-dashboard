@@ -49,8 +49,31 @@ export function deleteOrder(id: number): Promise<{ data: void }> {
   return api.delete(`/inventory/orders/${id}/`);
 }
 
+export function markOrderPaid(id: number, date?: string): Promise<{ data: Order }> {
+  return api.post<Order>(`/inventory/orders/${id}/mark-paid/`, date ? { paid_date: date } : undefined);
+}
+
+export function revertOrderPaid(id: number): Promise<{ data: Order }> {
+  return api.post<Order>(`/inventory/orders/${id}/revert-paid/`);
+}
+
+export function markOrderShipped(
+  id: number,
+  data: { shipped_date?: string; expected_delivery?: string },
+): Promise<{ data: Order }> {
+  return api.post<Order>(`/inventory/orders/${id}/mark-shipped/`, data);
+}
+
+export function revertOrderShipped(id: number): Promise<{ data: Order }> {
+  return api.post<Order>(`/inventory/orders/${id}/revert-shipped/`);
+}
+
 export function deliverOrder(id: number, date?: string): Promise<{ data: Order }> {
-  return api.post<Order>(`/inventory/orders/${id}/deliver/`, date ? { date } : undefined);
+  return api.post<Order>(`/inventory/orders/${id}/deliver/`, date ? { delivered_date: date } : undefined);
+}
+
+export function revertOrderDelivered(id: number): Promise<{ data: Order }> {
+  return api.post<Order>(`/inventory/orders/${id}/revert-delivered/`);
 }
 
 export function uploadManifest(orderId: number, file: File): Promise<{ data: unknown }> {

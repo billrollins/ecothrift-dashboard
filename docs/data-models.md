@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
+<!-- Last updated: 2026-02-13T21:00:00-06:00 -->
 # Data Models
 
 ## accounts
@@ -217,15 +217,24 @@ Employee-submitted request to modify an approved time entry. Requires manager ap
 | Field | Type | Notes |
 |-------|------|-------|
 | vendor | FK(Vendor) | |
-| order_number | CharField | unique |
-| status | CharField | draft / ordered / in_transit / delivered / processing / completed / cancelled |
-| ordered_date | DateField | nullable |
+| order_number | CharField | unique, auto-generated PO-XXXXX or user-provided |
+| status | CharField | ordered / paid / shipped / delivered / processing / complete / cancelled |
+| ordered_date | DateField | defaults to today on create |
+| paid_date | DateField | nullable, set via mark-paid action |
+| shipped_date | DateField | nullable, set via mark-shipped action |
 | expected_delivery | DateField | nullable |
-| delivered_date | DateField | nullable |
-| total_cost | DecimalField | |
+| delivered_date | DateField | nullable, set via deliver action |
+| purchase_cost | DecimalField | nullable |
+| shipping_cost | DecimalField | nullable |
+| fees | DecimalField | nullable |
+| total_cost | DecimalField | auto-computed from purchase_cost + shipping_cost + fees |
+| retail_value | DecimalField | nullable, estimated retail value |
+| condition | CharField | choices: new / like_new / good / fair / salvage / mixed |
+| description | CharField(500) | order title/summary |
 | item_count | IntegerField | default 0 |
 | notes | TextField | blank |
-| manifest | FK(S3File) | nullable |
+| manifest | FK(S3File) | nullable, uploaded CSV file |
+| manifest_preview | JSONField | nullable, persisted CSV preview (headers + first 20 rows) |
 | created_by | FK(User) | |
 | created_at | DateTimeField | auto |
 | updated_at | DateTimeField | auto |

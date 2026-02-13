@@ -2,6 +2,7 @@ import csv
 import hashlib
 import io
 
+from django.core.files.storage import default_storage
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes as perm_classes
@@ -11,6 +12,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
+from apps.core.models import S3File
 from .models import (
     Vendor, PurchaseOrder, CSVTemplate, ManifestRow,
     Product, Item, ProcessingBatch, ItemScanHistory,
@@ -56,7 +58,51 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         return PurchaseOrderSerializer
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        extra = {'created_by': self.request.user}
+        if not serializer.validated_data.get('order_number'):
+            extra['order_number'] = PurchaseOrder.generate_order_number()
+        if 'ordered_date' not in serializer.validated_data:
+            extra['ordered_date'] = timezone.now().date()
+        serializer.save(**extra)
+
+    @action(detail=True, methods=['post'], url_path='mark-paid')
+    def mark_paid(self, request, pk=None):
+        """Mark a PO as paid."""
+        order = self.get_object()
+        order.status = 'paid'
+        order.paid_date = request.data.get('paid_date', timezone.now().date())
+        order.save()
+        return Response(PurchaseOrderSerializer(order).data)
+
+    @action(detail=True, methods=['post'], url_path='revert-paid')
+    def revert_paid(self, request, pk=None):
+        """Revert a PO from paid back to ordered."""
+        order = self.get_object()
+        order.status = 'ordered'
+        order.paid_date = None
+        order.save()
+        return Response(PurchaseOrderSerializer(order).data)
+
+    @action(detail=True, methods=['post'], url_path='mark-shipped')
+    def mark_shipped(self, request, pk=None):
+        """Mark a PO as shipped."""
+        order = self.get_object()
+        order.status = 'shipped'
+        order.shipped_date = request.data.get('shipped_date', timezone.now().date())
+        if request.data.get('expected_delivery'):
+            order.expected_delivery = request.data['expected_delivery']
+        order.save()
+        return Response(PurchaseOrderSerializer(order).data)
+
+    @action(detail=True, methods=['post'], url_path='revert-shipped')
+    def revert_shipped(self, request, pk=None):
+        """Revert a PO from shipped back to paid (or ordered)."""
+        order = self.get_object()
+        order.shipped_date = None
+        order.expected_delivery = None
+        order.status = 'paid' if order.paid_date else 'ordered'
+        order.save()
+        return Response(PurchaseOrderSerializer(order).data)
 
     @action(detail=True, methods=['post'])
     def deliver(self, request, pk=None):
@@ -67,9 +113,18 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order.save()
         return Response(PurchaseOrderSerializer(order).data)
 
+    @action(detail=True, methods=['post'], url_path='revert-delivered')
+    def revert_delivered(self, request, pk=None):
+        """Revert a PO from delivered back to paid (or ordered if no paid_date)."""
+        order = self.get_object()
+        order.delivered_date = None
+        order.status = 'paid' if order.paid_date else 'ordered'
+        order.save()
+        return Response(PurchaseOrderSerializer(order).data)
+
     @action(detail=True, methods=['post'], url_path='upload-manifest')
     def upload_manifest(self, request, pk=None):
-        """Upload a CSV manifest file for a PO."""
+        """Upload a CSV manifest file for a PO — saves to S3 and persists preview."""
         order = self.get_object()
         file = request.FILES.get('file')
         if not file:
@@ -78,11 +133,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # ── Parse CSV ────────────────────────────────────────────────────
         content = file.read().decode('utf-8-sig')
         reader = csv.reader(io.StringIO(content))
         headers = next(reader, [])
 
-        # Auto-match template by header signature
         sig = hashlib.md5(','.join(h.strip().lower() for h in headers).encode()).hexdigest()
         template = CSVTemplate.objects.filter(
             vendor=order.vendor, header_signature=sig,
@@ -97,14 +152,42 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'raw': dict(zip(headers, row)),
             })
 
-        return Response({
+        # ── Save file to storage (S3 or local) ──────────────────────────
+        s3_key = f'manifests/orders/{order.id}/{file.name}'
+        file.seek(0)
+        saved_path = default_storage.save(s3_key, file)
+
+        # Delete old S3File record if replacing
+        if order.manifest:
+            try:
+                default_storage.delete(order.manifest.key)
+            except Exception:
+                pass
+            order.manifest.delete()
+
+        s3_file = S3File.objects.create(
+            key=saved_path,
+            filename=file.name,
+            size=file.size,
+            content_type=file.content_type or 'text/csv',
+            uploaded_by=request.user,
+        )
+
+        # ── Persist preview + link to PO ─────────────────────────────────
+        preview_data = {
             'headers': headers,
             'signature': sig,
             'template_id': template.id if template else None,
             'template_name': template.name if template else None,
             'row_count': len(rows_data),
-            'rows': rows_data[:20],  # preview first 20
-        })
+            'rows': rows_data[:20],
+        }
+        order.manifest = s3_file
+        order.manifest_preview = preview_data
+        order.save(update_fields=['manifest', 'manifest_preview'])
+
+        # Return the updated order so the frontend gets everything
+        return Response(PurchaseOrderDetailSerializer(order).data)
 
     @action(detail=True, methods=['post'], url_path='process-manifest')
     def process_manifest(self, request, pk=None):

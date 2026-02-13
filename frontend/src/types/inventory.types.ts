@@ -8,11 +8,21 @@ export type VendorType = 'liquidation' | 'retail' | 'direct' | 'other';
  */
 export type PurchaseOrderStatus =
   | 'ordered'
-  | 'in_transit'
+  | 'paid'
+  | 'shipped'
   | 'delivered'
   | 'processing'
   | 'complete'
   | 'cancelled';
+
+export type PurchaseOrderCondition =
+  | 'new'
+  | 'like_new'
+  | 'good'
+  | 'fair'
+  | 'salvage'
+  | 'mixed'
+  | '';
 
 /**
  * Item source choices
@@ -82,12 +92,37 @@ export interface PurchaseOrder {
   order_number: string;
   status: PurchaseOrderStatus;
   ordered_date: string;
+  paid_date: string | null;
+  shipped_date: string | null;
   expected_delivery: string | null;
   delivered_date: string | null;
+  purchase_cost: string | null;
+  shipping_cost: string | null;
+  fees: string | null;
   total_cost: string | null;
+  retail_value: string | null;
+  condition: PurchaseOrderCondition;
+  description: string;
   item_count: number;
   notes: string;
   manifest: number | null;
+  manifest_file: {
+    id: number;
+    key: string;
+    filename: string;
+    size: number;
+    content_type: string;
+    uploaded_at: string;
+    url: string | null;
+  } | null;
+  manifest_preview: {
+    headers: string[];
+    signature: string;
+    template_id: number | null;
+    template_name: string | null;
+    row_count: number;
+    rows: { row_number: number; raw: Record<string, string> }[];
+  } | null;
   created_by: number | null;
   created_by_name: string | null;
   created_at: string;

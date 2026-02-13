@@ -10,6 +10,7 @@ import {
   Grid,
   MenuItem,
   TextField,
+  Typography,
 } from '@mui/material';
 import Add from '@mui/icons-material/Add';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
@@ -24,7 +25,8 @@ import type { PurchaseOrder, PurchaseOrderStatus } from '../../types/inventory.t
 
 const ORDER_STATUSES: PurchaseOrderStatus[] = [
   'ordered',
-  'in_transit',
+  'paid',
+  'shipped',
   'delivered',
   'processing',
   'complete',
@@ -45,7 +47,20 @@ export default function OrderListPage() {
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
   const [dateTo, setDateTo] = useState<Date | null>(null);
   const [newOpen, setNewOpen] = useState(false);
-  const [form, setForm] = useState({ vendor: '', notes: '' });
+  const [form, setForm] = useState({
+    vendor: '',
+    order_number: '',
+    ordered_date: null as Date | null,
+    expected_delivery: null as Date | null,
+    description: '',
+    condition: '',
+    retail_value: '',
+    item_count: '',
+    purchase_cost: '',
+    shipping_cost: '',
+    fees: '',
+    notes: '',
+  });
 
   const params = useMemo(() => {
     const p: Record<string, string | number> = {};
@@ -63,37 +78,69 @@ export default function OrderListPage() {
   const vendors = vendorsData?.results ?? [];
   const orders = ordersData?.results ?? [];
 
+  const conditionLabel = (val: string) => {
+    const map: Record<string, string> = {
+      new: 'New', like_new: 'Like New', good: 'Good', fair: 'Fair',
+      salvage: 'Salvage', mixed: 'Mixed',
+    };
+    return map[val] ?? '—';
+  };
+
   const columns: GridColDef[] = [
-    { field: 'order_number', headerName: 'Order #', width: 120 },
-    { field: 'vendor_name', headerName: 'Vendor', flex: 1, minWidth: 160 },
+    { field: 'order_number', headerName: 'Order #', width: 110 },
+    { field: 'vendor_name', headerName: 'Vendor', width: 130 },
     {
       field: 'status',
       headerName: 'Status',
-      width: 120,
+      width: 110,
       renderCell: ({ value }) => <StatusBadge status={value} size="small" />,
+    },
+    {
+      field: 'description',
+      headerName: 'Description',
+      flex: 1,
+      minWidth: 200,
+    },
+    {
+      field: 'condition',
+      headerName: 'Condition',
+      width: 100,
+      valueFormatter: (value) => (value ? conditionLabel(value) : '—'),
+    },
+    {
+      field: 'item_count',
+      headerName: 'Items',
+      width: 70,
+      type: 'number',
     },
     {
       field: 'ordered_date',
       headerName: 'Ordered',
-      width: 110,
+      width: 105,
       valueFormatter: (value) => (value ? format(new Date(value), 'MMM d, yyyy') : '—'),
     },
     {
       field: 'expected_delivery',
       headerName: 'Expected',
-      width: 110,
+      width: 105,
       valueFormatter: (value) => (value ? format(new Date(value), 'MMM d, yyyy') : '—'),
     },
     {
       field: 'delivered_date',
       headerName: 'Delivered',
-      width: 110,
+      width: 105,
       valueFormatter: (value) => (value ? format(new Date(value), 'MMM d, yyyy') : '—'),
     },
     {
       field: 'total_cost',
       headerName: 'Cost',
-      width: 100,
+      width: 95,
+      valueFormatter: (value) => formatCurrency(value),
+    },
+    {
+      field: 'retail_value',
+      headerName: 'Retail',
+      width: 95,
       valueFormatter: (value) => formatCurrency(value),
     },
   ];
@@ -101,10 +148,28 @@ export default function OrderListPage() {
   const handleCreate = async () => {
     if (!form.vendor) return;
     try {
-      await createOrder.mutateAsync({ vendor: parseInt(form.vendor, 10), notes: form.notes });
+      const payload: Record<string, unknown> = {
+        vendor: parseInt(form.vendor, 10),
+        notes: form.notes,
+      };
+      if (form.order_number.trim()) payload.order_number = form.order_number.trim();
+      if (form.ordered_date) {
+        payload.ordered_date = format(form.ordered_date, 'yyyy-MM-dd');
+      }
+      if (form.expected_delivery) {
+        payload.expected_delivery = format(form.expected_delivery, 'yyyy-MM-dd');
+      }
+      if (form.description.trim()) payload.description = form.description.trim();
+      if (form.condition) payload.condition = form.condition;
+      if (form.retail_value) payload.retail_value = form.retail_value;
+      if (form.item_count) payload.item_count = parseInt(form.item_count, 10);
+      if (form.purchase_cost) payload.purchase_cost = form.purchase_cost;
+      if (form.shipping_cost) payload.shipping_cost = form.shipping_cost;
+      if (form.fees) payload.fees = form.fees;
+      await createOrder.mutateAsync(payload);
       enqueueSnackbar('Order created', { variant: 'success' });
       setNewOpen(false);
-      setForm({ vendor: '', notes: '' });
+      setForm({ vendor: '', order_number: '', ordered_date: null, expected_delivery: null, description: '', condition: '', retail_value: '', item_count: '', purchase_cost: '', shipping_cost: '', fees: '', notes: '' });
     } catch {
       enqueueSnackbar('Failed to create order', { variant: 'error' });
     }
@@ -199,11 +264,13 @@ export default function OrderListPage() {
 
       <Dialog open={newOpen} onClose={() => setNewOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>New Purchase Order</DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+        <DialogContent dividers>
+          {/* Vendor, Order # & Date */}
+          <Grid container spacing={2}>
             <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
+                size="small"
                 select
                 label="Vendor"
                 value={form.vendor}
@@ -218,17 +285,144 @@ export default function OrderListPage() {
                 ))}
               </TextField>
             </Grid>
-            <Grid size={{ xs: 12 }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
-                label="Notes"
-                multiline
-                rows={2}
-                value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                size="small"
+                label="Order Number"
+                placeholder="Leave blank to auto-generate"
+                value={form.order_number}
+                onChange={(e) => setForm((f) => ({ ...f, order_number: e.target.value }))}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <DatePicker
+                label="Ordered Date"
+                value={form.ordered_date}
+                onChange={(date) => setForm((f) => ({ ...f, ordered_date: date }))}
+                slotProps={{ textField: { fullWidth: true, size: 'small', placeholder: 'Defaults to today' } }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <DatePicker
+                label="Expected Delivery"
+                value={form.expected_delivery}
+                onChange={(date) => setForm((f) => ({ ...f, expected_delivery: date }))}
+                slotProps={{ textField: { fullWidth: true, size: 'small' } }}
               />
             </Grid>
           </Grid>
+
+          {/* Details */}
+          <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
+            Details
+          </Typography>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Description"
+                placeholder="e.g. 6 Pallets of Small Appliances, 130 Units..."
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                size="small"
+                select
+                label="Condition"
+                value={form.condition}
+                onChange={(e) => setForm((f) => ({ ...f, condition: e.target.value }))}
+              >
+                <MenuItem value="">Not Set</MenuItem>
+                <MenuItem value="new">New</MenuItem>
+                <MenuItem value="like_new">Like New</MenuItem>
+                <MenuItem value="good">Used - Good</MenuItem>
+                <MenuItem value="fair">Used - Fair</MenuItem>
+                <MenuItem value="salvage">Salvage</MenuItem>
+                <MenuItem value="mixed">Mixed</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Retail Value"
+                type="number"
+                inputProps={{ min: 0, step: '0.01' }}
+                value={form.retail_value}
+                onChange={(e) => setForm((f) => ({ ...f, retail_value: e.target.value }))}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="# Items"
+                type="number"
+                inputProps={{ min: 0 }}
+                value={form.item_count}
+                onChange={(e) => setForm((f) => ({ ...f, item_count: e.target.value }))}
+              />
+            </Grid>
+          </Grid>
+
+          {/* Costs */}
+          <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
+            Costs
+          </Typography>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Purchase Cost"
+                type="number"
+                inputProps={{ min: 0, step: '0.01' }}
+                value={form.purchase_cost}
+                onChange={(e) => setForm((f) => ({ ...f, purchase_cost: e.target.value }))}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Shipping"
+                type="number"
+                inputProps={{ min: 0, step: '0.01' }}
+                value={form.shipping_cost}
+                onChange={(e) => setForm((f) => ({ ...f, shipping_cost: e.target.value }))}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Fees"
+                type="number"
+                inputProps={{ min: 0, step: '0.01' }}
+                value={form.fees}
+                onChange={(e) => setForm((f) => ({ ...f, fees: e.target.value }))}
+              />
+            </Grid>
+          </Grid>
+
+          {/* Notes */}
+          <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
+            Notes
+          </Typography>
+          <TextField
+            fullWidth
+            size="small"
+            multiline
+            rows={2}
+            value={form.notes}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            sx={{ mt: 0.5 }}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setNewOpen(false)}>Cancel</Button>

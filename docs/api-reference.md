@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
+<!-- Last updated: 2026-02-13T21:00:00-06:00 -->
 # API Reference
 
 Base URL: `/api`
@@ -116,9 +116,14 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| CRUD | `/inventory/orders/` | Staff | Filter: `?vendor=`, `?status=` |
-| POST | `/inventory/orders/:id/deliver/` | Staff | Mark as delivered. |
-| POST | `/inventory/orders/:id/upload-manifest/` | Staff | Upload CSV manifest file. |
+| CRUD | `/inventory/orders/` | Staff | Filter: `?vendor=`, `?status=`. Order # auto-generated or user-provided. |
+| POST | `/inventory/orders/:id/mark-paid/` | Staff | Set status=paid, paid_date. |
+| POST | `/inventory/orders/:id/revert-paid/` | Staff | Revert to ordered, clear paid_date. |
+| POST | `/inventory/orders/:id/mark-shipped/` | Staff | Set status=shipped, shipped_date, expected_delivery. |
+| POST | `/inventory/orders/:id/revert-shipped/` | Staff | Revert to paid/ordered, clear shipped_date. |
+| POST | `/inventory/orders/:id/deliver/` | Staff | Set status=delivered, delivered_date. |
+| POST | `/inventory/orders/:id/revert-delivered/` | Staff | Revert to shipped, clear delivered_date. |
+| POST | `/inventory/orders/:id/upload-manifest/` | Staff | Upload CSV to S3, persist preview. Returns full order. |
 | POST | `/inventory/orders/:id/process-manifest/` | Staff | Parse CSV into ManifestRows. |
 | POST | `/inventory/orders/:id/create-items/` | Staff | Create Items from ManifestRows. |
 

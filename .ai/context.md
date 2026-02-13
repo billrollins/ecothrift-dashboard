@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
+<!-- Last updated: 2026-02-13T21:00:00-06:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 19 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** 1.1.0 (see `.ai/version.json`)
+**Current version:** 1.2.0 (see `.ai/version.json`)
 
 ---
 
@@ -53,6 +53,10 @@ ecothrift-dashboard/
 - TypeScript compiles with zero errors
 - Vite production build succeeds
 - Full CRUD across Users, Employees, Consignees, Customers, Vendors, Orders, Items, Products
+- Purchase Order management: 6-step status workflow (ordered→paid→shipped→delivered→processing→complete) with action buttons and undo
+- PO cost breakdown (purchase_cost + shipping_cost + fees = total_cost), retail value, condition, description
+- CSV manifest upload to S3 with persisted preview and download link
+- Editable order number (auto-generated PO-XXXXX or user-provided)
 - Multi-role user model (User can be Employee + Consignee + Customer simultaneously)
 - Employee termination workflow with termination type, date, and notes
 - Consignee account management (create from existing or new user, profile editing)
@@ -69,7 +73,7 @@ ecothrift-dashboard/
 - Large JS bundle (~1.7MB) — could benefit from code splitting via lazy routes
 
 ### Not Yet Implemented
-- AWS S3 file upload (model exists, upload flow not wired)
+- Processing workflow (what happens after manifest upload — item creation UX, batch processing)
 - Print server communication (service exists, no print server deployed)
 - Email notifications (forgot-password tokens are returned in response, not emailed)
 - Test suite (no unit or integration tests yet)

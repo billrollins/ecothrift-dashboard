@@ -9,7 +9,12 @@ import {
   createOrder,
   updateOrder,
   deleteOrder,
+  markOrderPaid,
+  revertOrderPaid,
+  markOrderShipped,
+  revertOrderShipped,
   deliverOrder,
+  revertOrderDelivered,
   uploadManifest,
   processManifest,
   createItems,
@@ -146,6 +151,77 @@ export function useDeleteOrder() {
   });
 }
 
+export function useMarkOrderPaid() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      date,
+    }: {
+      id: number;
+      date?: string;
+    }) => {
+      const { data } = await markOrderPaid(id, date);
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({
+        queryKey: ['purchaseOrders', variables.id],
+      });
+    },
+  });
+}
+
+export function useRevertOrderPaid() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await revertOrderPaid(id);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+    },
+  });
+}
+
+export function useMarkOrderShipped() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: { shipped_date?: string; expected_delivery?: string };
+    }) => {
+      const { data: result } = await markOrderShipped(id, data);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+    },
+  });
+}
+
+export function useRevertOrderShipped() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await revertOrderShipped(id);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+    },
+  });
+}
+
 export function useDeliverOrder() {
   const queryClient = useQueryClient();
 
@@ -169,6 +245,20 @@ export function useDeliverOrder() {
   });
 }
 
+export function useRevertOrderDelivered() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await revertOrderDelivered(id);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+    },
+  });
+}
+
 export function useUploadManifest() {
   const queryClient = useQueryClient();
 
@@ -177,8 +267,9 @@ export function useUploadManifest() {
       const { data } = await uploadManifest(orderId, file);
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.orderId] });
     },
   });
 }

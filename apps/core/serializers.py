@@ -19,10 +19,12 @@ class AppSettingSerializer(serializers.ModelSerializer):
 
 
 class S3FileSerializer(serializers.ModelSerializer):
+    url = serializers.CharField(read_only=True)
+
     class Meta:
         model = S3File
-        fields = '__all__'
-        read_only_fields = ['id', 'uploaded_at']
+        fields = ['id', 'key', 'filename', 'size', 'content_type', 'uploaded_by', 'uploaded_at', 'url']
+        read_only_fields = ['id', 'uploaded_at', 'url']
 
 
 class PrintServerReleaseSerializer(serializers.ModelSerializer):
