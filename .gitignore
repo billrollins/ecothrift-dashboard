@@ -12,6 +12,7 @@ frontend/dist/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 

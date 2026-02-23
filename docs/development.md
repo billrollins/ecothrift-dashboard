@@ -1,10 +1,10 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-16T10:31:19-06:00 -->
 # Development Guide
 
 ## Prerequisites
 
 - Python 3.12
-- Node.js 18+
+- Node.js 20+
 - PostgreSQL 15+
 
 ## First-Time Setup
@@ -31,7 +31,7 @@ python manage.py setup_initial_data
 cd frontend
 npm install
 
-# 7. Start both servers (or use workspace/scripts/start-both.bat)
+# 7. Start both servers (or use workspace/scripts/start-servers.bat)
 # Terminal 1:
 python manage.py runserver
 
@@ -48,14 +48,11 @@ Drag-and-drop these from `workspace/scripts/`:
 
 | Script | What it does |
 |--------|-------------|
-| `start-both.bat` | Opens Django + Vite in separate windows |
-| `start-backend.bat` | Django runserver only |
-| `start-frontend.bat` | Vite dev server only |
+| `start-servers.bat` | Kills old ports, starts Django + Vite in separate windows |
+| `kill-servers.bat` | Stops Django (8000) and Vite (5173) |
 | `migrate.bat` | makemigrations + migrate |
 | `seed-data.bat` | Run setup_initial_data |
-| `shell.bat` | Django shell |
 | `reset-db.bat` | Drop + recreate DB (with confirmation) |
-| `jupyter.bat` | Launch Jupyter from workspace/notebooks/ |
 
 ## Environment Variables
 
@@ -65,11 +62,19 @@ Defined in `.env` (gitignored):
 |----------|-------------|---------|
 | `SECRET_KEY` | Django secret key | (generated) |
 | `DEBUG` | Debug mode | `True` |
-| `DATABASE_URL` | PostgreSQL connection | `postgres://postgres:postgres@localhost:5432/ecothrift_v2` |
-| `ALLOWED_HOSTS` | Comma-separated hosts | `localhost,127.0.0.1` |
+| `ENVIRONMENT` | Runtime environment label | `development` |
+| `DATABASE_NAME` | PostgreSQL database name | `ecothrift_v2` |
+| `DATABASE_USER` | PostgreSQL user | `postgres` |
+| `DATABASE_PASSWORD` | PostgreSQL password | `password` |
+| `DATABASE_HOST` | PostgreSQL host | `localhost` |
+| `DATABASE_PORT` | PostgreSQL port | `5432` |
+| `USE_S3` | Toggle S3-backed media storage | `False` (set `True` when using S3) |
 | `AWS_ACCESS_KEY_ID` | S3 access key | — |
 | `AWS_SECRET_ACCESS_KEY` | S3 secret key | — |
 | `AWS_STORAGE_BUCKET_NAME` | S3 bucket name | — |
+| `AWS_S3_REGION_NAME` | S3 region | `us-east-2` |
+| `ALLOWED_HOSTS` | Comma-separated hosts | `localhost,127.0.0.1` |
+| `ANTHROPIC_API_KEY` | Optional AI integration key | — |
 
 ## Adding a New Feature
 

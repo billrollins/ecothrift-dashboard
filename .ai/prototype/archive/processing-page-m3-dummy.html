@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M3 Processing Page Dummy</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --muted: #94a3b8;
+      --text: #e5e7eb;
+      --accent: #22c55e;
+      --accent-2: #38bdf8;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background: linear-gradient(180deg, #0b1223 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      background: #052e16;
+      color: #86efac;
+      border: 1px solid #166534;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    .subtitle {
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: 13px;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .kpi {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .kpi .label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .kpi .value {
+      margin-top: 6px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 12px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .panel header {
+      background: rgba(56, 189, 248, 0.08);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #273449;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      color: #cbd5e1;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid;
+    }
+    .s-ready { color: #86efac; border-color: #166534; background: #052e16; }
+    .s-progress { color: #93c5fd; border-color: #1d4ed8; background: #172554; }
+    .s-exception { color: #fca5a5; border-color: #991b1b; background: #3f0f12; }
+    .content {
+      padding: 10px 12px;
+    }
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .field {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+    }
+    .field .name {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .field .val {
+      margin-top: 6px;
+      font-weight: 600;
+    }
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: default;
+    }
+    .primary { background: var(--accent); color: #052e16; }
+    .secondary { background: var(--accent-2); color: #082f49; }
+    .warn { background: var(--warn); color: #451a03; }
+    .danger { background: var(--danger); color: #fee2e2; }
+    .notes {
+      margin-top: 12px;
+      background: #0b2036;
+      border: 1px solid #164e63;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+    .notes h3 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: #bae6fd;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .notes ul {
+      margin: 0;
+      padding-left: 18px;
+      color: #dbeafe;
+    }
+    .notes li { margin: 6px 0; }
+    .footer {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    @media (max-width: 1080px) {
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div>
+        <h1>Processing Page - M3 (Universal Items + Smart Batch)</h1>
+        <div class="subtitle">Every physical unit is already an Item row. BatchGroup only accelerates updates.</div>
+      </div>
+      <span class="badge">Dummy UI Prototype</span>
+    </div>
+
+    <section class="kpis">
+      <div class="kpi">
+        <div class="label">Order</div>
+        <div class="value">PO-00987</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Manifest Units</div>
+        <div class="value">1,149</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Item Rows Created</div>
+        <div class="value">1,149 (100%)</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Batch Groups</div>
+        <div class="value">86</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Individual Exceptions</div>
+        <div class="value">42</div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <article class="panel">
+        <header>Batch Groups Queue (all mapped to existing Item rows)</header>
+        <table>
+          <thead>
+            <tr>
+              <th>Batch ID</th>
+              <th>Product</th>
+              <th>Qty</th>
+              <th>Status</th>
+              <th>Suggested Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>BTH-00124</td>
+              <td>Heated Vest 32 Degree</td>
+              <td>61</td>
+              <td><span class="status s-progress">in_progress</span></td>
+              <td>Apply bulk price/condition to all 61 items</td>
+            </tr>
+            <tr>
+              <td>BTH-00125</td>
+              <td>Allegra Allergy 180mg</td>
+              <td>28</td>
+              <td><span class="status s-ready">ready</span></td>
+              <td>Mark ready and print 28 tags</td>
+            </tr>
+            <tr>
+              <td>BTH-00126</td>
+              <td>Storage Tote 27G</td>
+              <td>20</td>
+              <td><span class="status s-progress">in_progress</span></td>
+              <td>Set location + push to shelf</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+
+      <article class="panel">
+        <header>Batch Action Drawer (BTH-00124)</header>
+        <div class="content">
+          <div class="action-grid">
+            <div class="field">
+              <div class="name">Product</div>
+              <div class="val">Heated Vest 32 Degree</div>
+            </div>
+            <div class="field">
+              <div class="name">Impacted Item Rows</div>
+              <div class="val">61 existing Item rows</div>
+            </div>
+            <div class="field">
+              <div class="name">Set Price</div>
+              <div class="val">$14.99</div>
+            </div>
+            <div class="field">
+              <div class="name">Set Condition</div>
+              <div class="val">Good</div>
+            </div>
+            <div class="field">
+              <div class="name">Set Location</div>
+              <div class="val">A3</div>
+            </div>
+            <div class="field">
+              <div class="name">Detach Item</div>
+              <div class="val">ITM0019281 (damaged)</div>
+            </div>
+          </div>
+          <div class="buttons">
+            <button class="primary">Apply to 61 Items</button>
+            <button class="secondary">Print 61 Tags</button>
+            <button class="warn">Detach 1 Exception Item</button>
+            <button class="danger">Mark Batch Complete</button>
+          </div>
+          <div class="notes">
+            <h3>What Processor Sees in M3</h3>
+            <ul>
+              <li>Every unit is already an Item and can be individually opened at any time.</li>
+              <li>Batch actions are convenience updates over pre-existing item rows.</li>
+              <li>No "unitize" concept because item creation already happened earlier.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" style="margin-top:12px;">
+      <header>Individual Exceptions Queue (still Item-based)</header>
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Product</th>
+            <th>Issue</th>
+            <th>Current Status</th>
+            <th>Next Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ITM0019281</td>
+            <td>Heated Vest 32 Degree</td>
+            <td>Torn seam discovered</td>
+            <td><span class="status s-exception">exception</span></td>
+            <td>Set condition Fair, repricing to $7.99</td>
+          </tr>
+          <tr>
+            <td>ITM0019330</td>
+            <td>Poker Table</td>
+            <td>Missing cup holders</td>
+            <td><span class="status s-exception">exception</span></td>
+            <td>Add note + approve salvage pricing</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="footer">
+      M3 visual emphasis: processor works mostly with pre-created Item rows; batch is a speed tool, not the source of inventory quantity.
+    </div>
+  </div>
+</body>
+</html>

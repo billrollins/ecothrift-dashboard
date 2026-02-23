@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
+<!-- Last updated: 2026-02-21T18:00:00-06:00 -->
 # Frontend Routes & Pages
 
 ## Route Guards
@@ -48,8 +48,10 @@ Consignee routes use `ProtectedRoute` + role check in `ConsigneeLayout`.
 | `/inventory/vendors` | VendorListPage | Vendor directory |
 | `/inventory/vendors/:id` | VendorDetailPage | Vendor detail with PO history |
 | `/inventory/orders` | OrderListPage | Purchase order list |
-| `/inventory/orders/:id` | OrderDetailPage | PO detail, manifest upload/processing |
-| `/inventory/processing` | ProcessingPage | Batch item processing |
+| `/inventory/orders/:id` | OrderDetailPage | PO detail with status workflow, manifest info, and nav buttons (Back/Preprocessing/Processing/Delete) in page header |
+| `/inventory/preprocessing` | PreprocessingRedirect | Redirects to last preprocessed order or prompts for order ID |
+| `/inventory/preprocessing/:id` | PreprocessingPage | Standalone 4-step manifest preprocessing (Standardize → AI Cleanup → Product Matching → Pricing) with breadcrumb navigation and undo for each step |
+| `/inventory/processing` | ProcessingPage | Unified processing workspace: set fields, check in, print tags |
 | `/inventory/products` | ProductListPage | Product catalog |
 | `/inventory/items` | ItemListPage | Item inventory with status filters |
 | `/inventory/items/:id` | ItemDetailPage | Item detail view/edit |
@@ -97,8 +99,8 @@ The sidebar in `MainLayout` is organized into collapsible sections:
 
 1. **Dashboard** — Dashboard
 2. **HR** — Time Clock, Time History, Employees, Sick Leave
-3. **Inventory** — Vendors, Orders, Processing, Products, Items
-4. **POS** — Terminal, Drawers, Cash Management, Transactions
+3. **Inventory** *(collapsible)* — Vendors, Orders, Preprocessing, Processing, Products, Items
+4. **POS** *(collapsible)* — Terminal, Drawers, Cash Management, Transactions
 5. **Consignment** — Accounts, Items, Payouts *(Manager+ only)*
 6. **Admin** — Users, Customers, Permissions, Settings *(Admin only)*
 

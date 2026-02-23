@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M3 vs M5 Processing Comparison</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: #334155;
+      --m3: #38bdf8;
+      --m5: #f59e0b;
+      --good: #22c55e;
+      --warn: #f97316;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #0b1223 0%, var(--bg) 100%);
+    }
+    .page {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 22px;
+    }
+    h1 { margin: 0 0 4px; font-size: 26px; }
+    .subtitle { margin: 0 0 16px; color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid;
+      margin-right: 6px;
+    }
+    .t-m3 { color: #bae6fd; border-color: #0c4a6e; background: #082f49; }
+    .t-m5 { color: #fde68a; border-color: #92400e; background: #451a03; }
+    .links {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    a {
+      text-decoration: none;
+      color: #111827;
+      background: #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #273449;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #cbd5e1;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .good { color: #86efac; font-weight: 700; }
+    .warn { color: #fdba74; font-weight: 700; }
+    .foot {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Processing UI Comparison: M3 vs M5</h1>
+    <p class="subtitle">Visual helper to identify fundamental processing differences before implementation.</p>
+
+    <section class="grid">
+      <article class="card">
+        <h2><span class="tag t-m3">M3</span>Universal Items + Smart Batch</h2>
+        <ul>
+          <li>All manifest units become Item rows up front.</li>
+          <li>Processor mostly performs bulk updates over existing Item rows.</li>
+          <li>No unitization action exists in core flow.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2><span class="tag t-m5">M5</span>Hybrid Policy-Driven Unitization</h2>
+        <ul>
+          <li>Units start as StockLot quantity, not Item rows.</li>
+          <li>Processor unitizes only needed quantity for shelf.</li>
+          <li>Immediate itemization is policy/override-driven for exceptions.</li>
+        </ul>
+      </article>
+    </section>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Differentiator</th>
+          <th>M3 Processing Experience</th>
+          <th>M5 Processing Experience</th>
+          <th>Impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Inventory shown on processing screen</td>
+          <td>Mostly Item queues and BatchGroups</td>
+          <td>Dual queues: Deferred Lots + Immediate Items</td>
+          <td>M5 adds explicit reserve flow visibility</td>
+        </tr>
+        <tr>
+          <td>When Item rows are created</td>
+          <td>Before processing (near 100% at intake)</td>
+          <td>During processing via unitize action</td>
+          <td>M5 lowers early row growth and front-loaded labor</td>
+        </tr>
+        <tr>
+          <td>Processor primary action</td>
+          <td>Apply attributes to existing items in bulk</td>
+          <td>Decide unitize quantity then create sellable items</td>
+          <td>M5 gives tighter control over shelf replenishment</td>
+        </tr>
+        <tr>
+          <td>Policy visibility</td>
+          <td>Minimal (batch heuristics)</td>
+          <td>Explicit policy reason shown per lot/item</td>
+          <td>M5 requires policy governance but improves explainability</td>
+        </tr>
+        <tr>
+          <td>Speed for very large manifests</td>
+          <td>Good, but still writes all item rows early</td>
+          <td class="good">Very strong, defers item row creation</td>
+          <td>M5 scales better with repeated commodity units</td>
+        </tr>
+        <tr>
+          <td>Mental model simplicity</td>
+          <td class="good">Simpler: everything is an item</td>
+          <td class="warn">More complex: lots + items + policy</td>
+          <td>M3 easier training, M5 stronger operational control</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="links">
+      <a href="./processing-page-m3-dummy.html">Open M3 Dummy Page</a>
+      <a href="./processing-page-m5-dummy.html">Open M5 Dummy Page</a>
+    </div>
+
+    <div class="foot">
+      These pages are static prototypes for workflow comparison only (no live API/data).
+    </div>
+  </div>
+</body>
+</html>

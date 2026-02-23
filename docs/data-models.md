@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T21:00:00-06:00 -->
+<!-- Last updated: 2026-02-21T18:00:00-06:00 -->
 # Data Models
 
 ## accounts
@@ -196,6 +196,8 @@ Employee-submitted request to modify an approved time entry. Requires manager ap
 
 ## inventory
 
+**Design note:** Inventory follows **M3 (Universal Items + Smart Batch)**. Every physical unit becomes an `Item` row; `BatchGroup` is used to accelerate processing, not to replace `Item` as the inventory truth.
+
 ### Vendor
 `is_active` used for soft delete.
 
@@ -251,8 +253,20 @@ Vendor-specific CSV column mappings for manifest processing.
 | is_default | BooleanField | |
 | created_at | DateTimeField | auto |
 
+### Category
+Category taxonomy with optional processing/spec template metadata.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| name | CharField(200) | unique |
+| slug | SlugField(200) | unique |
+| parent | FK(Category) | nullable, self-reference |
+| spec_template | JSONField | structured spec prompt template |
+| created_at | DateTimeField | auto |
+| updated_at | DateTimeField | auto |
+
 ### ManifestRow
-Standardized row data extracted from vendor CSV.
+Standardized row data extracted from vendor CSV. Central to the preprocessing pipeline — AI cleanup, product matching, and pricing all write to fields on this model.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -260,56 +274,125 @@ Standardized row data extracted from vendor CSV.
 | row_number | IntegerField | |
 | quantity | IntegerField | default 1 |
 | description | TextField | blank |
+| title | CharField(300) | blank |
 | brand | CharField | blank |
 | model | CharField | blank |
 | category | CharField | blank |
+| condition | CharField | new / like_new / good / fair / salvage / unknown; blank |
 | retail_value | DecimalField | nullable |
+| proposed_price | DecimalField | nullable, pre-arrival draft pricing |
+| final_price | DecimalField | nullable, finalized pre-arrival price |
+| pricing_stage | CharField | unpriced / draft / final |
+| pricing_notes | TextField | blank |
 | upc | CharField | blank |
+| vendor_item_number | CharField | blank |
+| batch_flag | BooleanField | default False |
+| search_tags | TextField | blank, AI-generated |
+| specifications | JSONField | default dict, AI-generated specs |
+| matched_product | FK(Product) | nullable |
+| match_status | CharField | pending / matched / new |
+| match_candidates | JSONField | default list, scored match candidates |
+| ai_match_decision | CharField | pending_review / confirmed / rejected / uncertain / new_product; blank |
+| ai_reasoning | TextField | blank, AI reasoning text |
+| ai_suggested_title | CharField(300) | blank, AI-suggested title |
+| ai_suggested_brand | CharField(200) | blank, AI-suggested brand |
+| ai_suggested_model | CharField(200) | blank, AI-suggested model |
 | notes | TextField | blank |
 
 ### Product
-Reusable product definitions.
+Reusable product catalog entry with matching metadata.
 
 | Field | Type | Notes |
 |-------|------|-------|
+| product_number | CharField(20) | unique, auto-generated PRD-XXXXX |
 | title | CharField(300) | |
 | brand | CharField | blank |
 | model | CharField | blank |
-| category | CharField | blank |
+| category | CharField | display category text (legacy-compatible) |
+| category_ref | FK(Category) | nullable, optional taxonomy link |
 | description | TextField | blank |
+| specifications | JSONField | structured + freeform specs |
 | default_price | DecimalField | nullable |
+| upc | CharField | blank |
+| times_ordered | IntegerField | default 0 |
+| total_units_received | IntegerField | default 0 |
+| is_active | BooleanField | default True |
+| created_at | DateTimeField | auto |
+| updated_at | DateTimeField | auto |
+
+### VendorProductRef
+Maps a vendor-specific identifier to an internal Product for repeat matching.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| vendor | FK(Vendor) | |
+| product | FK(Product) | |
+| vendor_item_number | CharField | vendor-side item code |
+| vendor_description | CharField(500) | blank |
+| last_unit_cost | DecimalField | nullable |
+| times_seen | IntegerField | default 1 |
+| last_seen_date | DateField | auto |
 | created_at | DateTimeField | auto |
 | updated_at | DateTimeField | auto |
 
 ### Item
-Individual sellable item with auto-generated SKU.
+Individual sellable item with auto-generated SKU (core inventory truth in M3).
 
 | Field | Type | Notes |
 |-------|------|-------|
-| sku | CharField(20) | unique, auto-generated ET-XXXXXX |
+| sku | CharField(20) | unique, auto-generated ITMXXXXXXX |
 | product | FK(Product) | nullable |
 | purchase_order | FK(PurchaseOrder) | nullable |
+| manifest_row | FK(ManifestRow) | nullable |
+| batch_group | FK(BatchGroup) | nullable |
+| processing_tier | CharField | individual / batch |
 | title | CharField(300) | |
 | brand | CharField | blank |
 | category | CharField | blank |
 | price | DecimalField | sticker price |
 | cost | DecimalField | nullable |
-| source | CharField | purchased / donated / consignment |
-| status | CharField | intake / processing / on_shelf / sold / returned / damaged / missing |
+| condition | CharField | new / like_new / good / fair / salvage / unknown |
+| source | CharField | purchased / consignment / house |
+| status | CharField | intake / processing / on_shelf / sold / returned / scrapped / lost |
+| specifications | JSONField | item-level overrides/details |
 | location | CharField | blank |
 | listed_at | DateTimeField | nullable |
+| checked_in_at | DateTimeField | nullable |
+| checked_in_by | FK(User) | nullable |
 | sold_at | DateTimeField | nullable |
 | sold_for | DecimalField | nullable |
 | notes | TextField | blank |
 | created_at | DateTimeField | auto |
 | updated_at | DateTimeField | auto |
 
+### BatchGroup
+Batch processing helper for high-quantity rows. Not a separate inventory entity.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| batch_number | CharField(20) | unique, auto-generated BTH-XXXXX |
+| product | FK(Product) | |
+| purchase_order | FK(PurchaseOrder) | nullable |
+| manifest_row | FK(ManifestRow) | nullable |
+| total_qty | IntegerField | number of items grouped |
+| status | CharField | pending / in_progress / complete |
+| unit_price | DecimalField | nullable |
+| unit_cost | DecimalField | nullable |
+| condition | CharField | batch default |
+| location | CharField | batch default |
+| processed_by | FK(User) | nullable |
+| processed_at | DateTimeField | nullable |
+| notes | TextField | blank |
+| created_at | DateTimeField | auto |
+| updated_at | DateTimeField | auto |
+
 ### ProcessingBatch
+Run-level tracker for each `create-items` execution.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | purchase_order | FK(PurchaseOrder) | |
-| status | CharField | pending / in_progress / completed |
+| status | CharField | pending / in_progress / complete |
 | total_rows | IntegerField | default 0 |
 | processed_count | IntegerField | default 0 |
 | items_created | IntegerField | default 0 |
@@ -318,15 +401,28 @@ Individual sellable item with auto-generated SKU.
 | created_by | FK(User) | |
 | notes | TextField | blank |
 
+### ItemHistory
+Immutable event log for item lifecycle and processing actions.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| item | FK(Item) | related_name='history_events' |
+| event_type | CharField | created / status_change / price_change / condition_change / location_change / batch_processed / detached_from_batch / sold / returned / lost / found / note |
+| old_value | CharField | blank |
+| new_value | CharField | blank |
+| note | TextField | blank |
+| created_by | FK(User) | nullable |
+| created_at | DateTimeField | auto |
+
 ### ItemScanHistory
-Tracks public item lookups.
+Tracks public lookups and POS scans.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | item | FK(Item) | |
 | scanned_at | DateTimeField | auto |
 | ip_address | GenericIPAddressField | nullable |
-| source | CharField | web / app |
+| source | CharField | public_lookup / pos_terminal |
 
 ---
 

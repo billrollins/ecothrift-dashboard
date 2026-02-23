@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
+<!-- Last updated: 2026-02-21T18:00:00-06:00 -->
 # Architecture
 
 ## Tech Stack
@@ -8,13 +8,13 @@
 | Backend | Django + Django REST Framework | 5.2 / 3.16 |
 | Auth | SimpleJWT (httpOnly cookie refresh) | 5.4 |
 | Database | PostgreSQL | 15+ |
-| Frontend | React + TypeScript | 18 / 5.8 |
+| Frontend | React + TypeScript | 18.3 / 5.9 |
 | UI | MUI (Material UI) v7 | 7.x |
 | Tables | MUI X DataGrid | 8.x |
 | Server State | TanStack React Query | 5.x |
 | Forms | React Hook Form | 7.x |
 | Routing | React Router | 7.x |
-| Charts | Recharts | 2.x |
+| Charts | Recharts | 3.x |
 | Notifications | Notistack | 3.x |
 | HTTP | Axios | 1.x |
 | Bundler | Vite | 7.x |
@@ -34,6 +34,7 @@ ecothrift-dashboard/
 │   └── wsgi.py
 ├── apps/
 │   ├── accounts/           # Users, profiles, auth, permissions
+│   ├── ai/                  # Claude API proxy (chat, models)
 │   ├── core/               # Locations, settings, files, print server
 │   ├── hr/                 # Time clock, departments, sick leave
 │   ├── inventory/          # Vendors, POs, products, items, processing
@@ -49,6 +50,7 @@ ecothrift-dashboard/
 │   │   ├── services/       # Local print server client
 │   │   ├── theme/          # MUI theme config
 │   │   ├── types/          # TypeScript interfaces (one per backend app)
+│   │   ├── utils/          # Shared utilities (formatting, helpers)
 │   │   ├── assets/         # Logo images
 │   │   ├── App.tsx         # Router + route guards
 │   │   └── main.tsx        # Entry point + providers
@@ -100,7 +102,7 @@ Frontend Page
 ## Key Design Decisions
 
 - **Email-only auth** — No username field. `User.USERNAME_FIELD = 'email'`.
-- **Pagination** — DRF PageNumberPagination, 50 per page. All list endpoints return `{ count, next, previous, results }`.
+- **Pagination** — DRF `ConfigurablePageSizePagination` (default 50, client can override via `page_size` param). All list endpoints return `{ count, next, previous, results }`.
 - **Soft deletes** — Vendors and Users use `is_active` flag; Consignee accounts use `status='closed'`.
 - **SKU generation** — Auto-generated on Item creation (`ET-XXXXXX` format).
 - **Timezone** — All timestamps are `America/Chicago`. Set in Django `TIME_ZONE`.

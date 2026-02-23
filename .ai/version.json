@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
-  "build_date": "2026-02-13T21:00:00-06:00",
-  "description": "Purchase Order enhancements: 6-step status workflow, cost breakdown, S3 manifest upload, order details UI"
+  "version": "1.7.0",
+  "build_date": "2026-02-21T18:00:00-06:00",
+  "description": "Preprocessing UX polish: consistent undo for all 4 steps, 6-state standardize button logic, breadcrumb navigation replaces next/confirm buttons, Complete Preprocessing in breadcrumb row, currency/number formatting utilities, auto-build check-in queue on deliver"
 }

@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M5 Processing Page Dummy</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --accent-2: #a78bfa;
+      --lot: #f59e0b;
+      --item: #38bdf8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background: linear-gradient(180deg, #0b1223 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+    .page { max-width: 1450px; margin: 0 auto; padding: 20px; }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    h1 { margin: 0; font-size: 24px; }
+    .subtitle { margin-top: 4px; color: var(--muted); font-size: 13px; }
+    .tag {
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid #5b21b6;
+      color: #ddd6fe;
+      background: #2e1065;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .kpi {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .kpi .label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .kpi .value { margin-top: 5px; font-size: 19px; font-weight: 700; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.2fr 1.2fr 1fr;
+      gap: 12px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .panel header {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .lot-header {
+      background: rgba(245, 158, 11, 0.1);
+      color: #fde68a;
+    }
+    .item-header {
+      background: rgba(56, 189, 248, 0.08);
+      color: #bae6fd;
+    }
+    .policy-header {
+      background: rgba(167, 139, 250, 0.12);
+      color: #ddd6fe;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #273449;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #cbd5e1;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid;
+    }
+    .lot-pill { color: #fde68a; border-color: #92400e; background: #451a03; }
+    .item-pill { color: #bae6fd; border-color: #0c4a6e; background: #082f49; }
+    .imm-pill { color: #bbf7d0; border-color: #166534; background: #052e16; }
+    .def-pill { color: #fecaca; border-color: #991b1b; background: #3f0f12; }
+    .body { padding: 10px 12px; }
+    .field {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      margin-bottom: 8px;
+    }
+    .field .name {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .field .val { margin-top: 6px; font-weight: 600; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: default;
+    }
+    .btn-lot { background: var(--lot); color: #451a03; }
+    .btn-item { background: var(--item); color: #082f49; }
+    .btn-ok { background: var(--accent); color: #052e16; }
+    .insight {
+      margin-top: 12px;
+      background: #172554;
+      border: 1px solid #1d4ed8;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+    .insight h3 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #bfdbfe;
+    }
+    .insight ul { margin: 0; padding-left: 18px; }
+    .insight li { margin: 6px 0; }
+    .footer {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    @media (max-width: 1180px) {
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div>
+        <h1>Processing Page - M5 (Hybrid Policy-Driven Unitization)</h1>
+        <div class="subtitle">Inventory starts as StockLots. Policy decides immediate Items vs deferred unitization.</div>
+      </div>
+      <span class="tag">Dummy UI Prototype</span>
+    </div>
+
+    <section class="kpis">
+      <div class="kpi">
+        <div class="label">Order</div>
+        <div class="value">PO-00987</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Manifest Units</div>
+        <div class="value">1,149</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Immediate Items</div>
+        <div class="value">96</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Deferred Lot Units</div>
+        <div class="value">1,053</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Unitized Today</div>
+        <div class="value">180</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Lots Remaining</div>
+        <div class="value">57</div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <article class="panel">
+        <header class="lot-header">Deferred Lots Queue (StockLot table)</header>
+        <table>
+          <thead>
+            <tr>
+              <th>Lot</th>
+              <th>Product</th>
+              <th>Qty Avail</th>
+              <th>Policy</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="pill lot-pill">LOT-00231</span></td>
+              <td>Heated Vest 32 Degree</td>
+              <td>61</td>
+              <td><span class="pill def-pill">defer</span></td>
+              <td>Unitize 24 for floor</td>
+            </tr>
+            <tr>
+              <td><span class="pill lot-pill">LOT-00232</span></td>
+              <td>Storage Tote 27G</td>
+              <td>20</td>
+              <td><span class="pill def-pill">defer</span></td>
+              <td>Set lot price + unitize 10</td>
+            </tr>
+            <tr>
+              <td><span class="pill lot-pill">LOT-00233</span></td>
+              <td>Singer Heavy Duty Machine</td>
+              <td>1</td>
+              <td><span class="pill imm-pill">immediate</span></td>
+              <td>Already itemized</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+
+      <article class="panel">
+        <header class="item-header">Immediate Items Queue (Item table)</header>
+        <table>
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Product</th>
+              <th>Reason</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="pill item-pill">ITM0019931</span></td>
+              <td>Singer Heavy Duty Machine</td>
+              <td>Policy: quantity <= 1</td>
+              <td>processing</td>
+            </tr>
+            <tr>
+              <td><span class="pill item-pill">ITM0019932</span></td>
+              <td>Poker Table</td>
+              <td>Policy: high unit price</td>
+              <td>processing</td>
+            </tr>
+            <tr>
+              <td><span class="pill item-pill">ITM0019933</span></td>
+              <td>Tool Set</td>
+              <td>Policy override by manager</td>
+              <td>on_shelf</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+
+      <article class="panel">
+        <header class="policy-header">Lot Action + Policy Panel</header>
+        <div class="body">
+          <div class="field">
+            <div class="name">Selected Lot</div>
+            <div class="val">LOT-00231 (61 units)</div>
+          </div>
+          <div class="field">
+            <div class="name">Current Lot State</div>
+            <div class="val">qty_available=61, qty_unitized=0, status=ready_to_tag</div>
+          </div>
+          <div class="field">
+            <div class="name">Processor Input</div>
+            <div class="val">Unitize quantity: 24, Price: 14.99, Condition: Good, Location: A3</div>
+          </div>
+          <div class="field">
+            <div class="name">Expected DB Writes</div>
+            <div class="val">Item +24, StockLot qty updates, LotLedgerEvent(unitized)</div>
+          </div>
+          <div class="actions">
+            <button class="btn-lot">Apply Lot QC</button>
+            <button class="btn-item">Unitize 24 Items</button>
+            <button class="btn-ok">Print 24 ITM Tags</button>
+          </div>
+          <div class="insight">
+            <h3>What Processor Sees in M5</h3>
+            <ul>
+              <li>Two queues are explicit: deferred lots and immediate items.</li>
+              <li>Unitization is a real action that creates Item rows on demand.</li>
+              <li>Policy explains why some products skip lot-only mode.</li>
+              <li>Lot remains reserve inventory after partial unitization.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <div class="footer">
+      M5 visual emphasis: quantity starts in StockLot, not Item. Processor controls when sellable ITM rows are materialized.
+    </div>
+  </div>
+</body>
+</html>

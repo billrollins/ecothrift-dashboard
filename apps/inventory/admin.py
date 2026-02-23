@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
-    Vendor, PurchaseOrder, CSVTemplate, ManifestRow,
-    Product, Item, ProcessingBatch, ItemScanHistory,
+    Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
+    Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
+    ItemHistory, ItemScanHistory,
 )
 
 
@@ -26,25 +27,56 @@ class CSVTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(ManifestRow)
 class ManifestRowAdmin(admin.ModelAdmin):
-    list_display = ('purchase_order', 'row_number', 'description', 'quantity')
+    list_display = (
+        'purchase_order', 'row_number', 'description', 'quantity',
+        'match_status', 'matched_product',
+    )
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'parent')
+    search_fields = ('name', 'slug')
 
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('title', 'brand', 'category', 'default_price')
-    search_fields = ('title', 'brand')
+    list_display = ('product_number', 'title', 'brand', 'category', 'default_price', 'is_active')
+    search_fields = ('product_number', 'title', 'brand', 'upc')
+    list_filter = ('is_active',)
+
+
+@admin.register(VendorProductRef)
+class VendorProductRefAdmin(admin.ModelAdmin):
+    list_display = ('vendor', 'vendor_item_number', 'product', 'times_seen', 'last_seen_date')
+    search_fields = ('vendor_item_number', 'vendor__code', 'product__title')
+    list_filter = ('vendor',)
+
+
+@admin.register(BatchGroup)
+class BatchGroupAdmin(admin.ModelAdmin):
+    list_display = ('batch_number', 'purchase_order', 'product', 'total_qty', 'status', 'processed_at')
+    search_fields = ('batch_number', 'purchase_order__order_number', 'product__title')
+    list_filter = ('status',)
 
 
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
-    list_display = ('sku', 'title', 'price', 'status', 'source')
-    list_filter = ('status', 'source')
+    list_display = ('sku', 'title', 'price', 'status', 'processing_tier', 'batch_group', 'source')
+    list_filter = ('status', 'processing_tier', 'source')
     search_fields = ('sku', 'title')
 
 
 @admin.register(ProcessingBatch)
 class ProcessingBatchAdmin(admin.ModelAdmin):
     list_display = ('purchase_order', 'status', 'items_created', 'started_at')
+
+
+@admin.register(ItemHistory)
+class ItemHistoryAdmin(admin.ModelAdmin):
+    list_display = ('item', 'event_type', 'created_by', 'created_at')
+    list_filter = ('event_type',)
+    search_fields = ('item__sku', 'note')
 
 
 @admin.register(ItemScanHistory)

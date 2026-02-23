@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { LoadingScreen } from './components/feedback/LoadingScreen';
 import MainLayout from './components/layout/MainLayout';
@@ -17,6 +17,7 @@ import VendorListPage from './pages/inventory/VendorListPage';
 import VendorDetailPage from './pages/inventory/VendorDetailPage';
 import OrderListPage from './pages/inventory/OrderListPage';
 import OrderDetailPage from './pages/inventory/OrderDetailPage';
+import PreprocessingPage from './pages/inventory/PreprocessingPage';
 import ProcessingPage from './pages/inventory/ProcessingPage';
 import ProductListPage from './pages/inventory/ProductListPage';
 import ItemListPage from './pages/inventory/ItemListPage';
@@ -64,6 +65,17 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function PreprocessingRedirect() {
+  const lastId = localStorage.getItem('lastPreprocessOrderId');
+  if (lastId) return <Navigate to={`/inventory/preprocessing/${lastId}`} replace />;
+  return <Navigate to="/inventory/orders" replace />;
+}
+
+function PreprocessingLegacyRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/inventory/preprocessing/${id}`} replace />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -93,6 +105,9 @@ export default function App() {
         <Route path="/inventory/vendors/:id" element={<VendorDetailPage />} />
         <Route path="/inventory/orders" element={<OrderListPage />} />
         <Route path="/inventory/orders/:id" element={<OrderDetailPage />} />
+        <Route path="/inventory/preprocessing" element={<PreprocessingRedirect />} />
+        <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
+        <Route path="/inventory/orders/:id/preprocess" element={<PreprocessingLegacyRedirect />} />
         <Route path="/inventory/processing" element={<ProcessingPage />} />
         <Route path="/inventory/products" element={<ProductListPage />} />
         <Route path="/inventory/items" element={<ItemListPage />} />

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T21:00:00-06:00 -->
+<!-- Last updated: 2026-02-21T18:00:00-06:00 -->
 # API Reference
 
 Base URL: `/api`
@@ -59,6 +59,7 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 | GET | `/core/locations/` | Staff | List work locations. |
 | CRUD | `/core/settings/` | Manager+ | App settings (lookup by `key`). |
 | CRUD | `/core/files/` | Manager+ | S3 file records. |
+| GET | `/core/system/version/` | Yes | App version/build metadata from `.ai/version.json`. |
 | GET | `/core/system/print-server-version/` | Yes | Current print server release. |
 | GET | `/core/system/print-server-releases/` | Yes | All print server releases. |
 
@@ -106,6 +107,8 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 
 ## Inventory (`/api/inventory/`)
 
+**M3 note:** Inventory processing uses Universal Items + Smart Batch. All physical units become `Item` records; batch APIs accelerate processing actions over those items.
+
 ### Vendors
 
 | Method | Endpoint | Auth | Description |
@@ -122,25 +125,72 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 | POST | `/inventory/orders/:id/mark-shipped/` | Staff | Set status=shipped, shipped_date, expected_delivery. |
 | POST | `/inventory/orders/:id/revert-shipped/` | Staff | Revert to paid/ordered, clear shipped_date. |
 | POST | `/inventory/orders/:id/deliver/` | Staff | Set status=delivered, delivered_date. |
-| POST | `/inventory/orders/:id/revert-delivered/` | Staff | Revert to shipped, clear delivered_date. |
+| POST | `/inventory/orders/:id/revert-delivered/` | Staff | Revert to paid (or ordered), clear delivered_date. |
 | POST | `/inventory/orders/:id/upload-manifest/` | Staff | Upload CSV to S3, persist preview. Returns full order. |
-| POST | `/inventory/orders/:id/process-manifest/` | Staff | Parse CSV into ManifestRows. |
-| POST | `/inventory/orders/:id/create-items/` | Staff | Create Items from ManifestRows. |
+| GET | `/inventory/orders/:id/manifest-rows/` | Staff | Return parsed raw manifest rows plus template mappings, standard columns, and available functions. Supports `?search=` (full-row match) and returns top rows by `?limit=`. |
+| POST | `/inventory/orders/:id/preview-standardize/` | Staff | Validate and preview Standard Manifest normalization without writing `ManifestRow` rows. Supports `search_term` over full normalized output before applying preview limit. |
+| POST | `/inventory/orders/:id/process-manifest/` | Staff | Standardize manifest rows into `ManifestRow` using standard mappings + function chains; optional template save by header signature. |
+| POST | `/inventory/orders/:id/update-manifest-pricing/` | Staff | Bulk update pre-arrival pricing fields on standardized manifest rows. |
+| POST | `/inventory/orders/:id/suggest-formulas/` | Staff | AI-suggest formula mappings for standard columns based on manifest headers. |
+| POST | `/inventory/orders/:id/ai-cleanup-rows/` | Staff | Send manifest rows to Claude in batches for AI title/brand/model/specs cleanup. Supports `batch_size` and `offset`. |
+| GET | `/inventory/orders/:id/ai-cleanup-status/` | Staff | Returns cleanup progress: `cleaned_rows`, `total_rows`. |
+| POST | `/inventory/orders/:id/cancel-ai-cleanup/` | Staff | Undo Step 2: clears all AI fields. Cascades to also clear Step 3 matching fields. |
+| POST | `/inventory/orders/:id/clear-manifest-rows/` | Staff | Undo Step 1: deletes all ManifestRow records. Blocked if Items exist. |
+| POST | `/inventory/orders/:id/undo-product-matching/` | Staff | Undo Step 3: clears match_candidates, ai_match_decision, matched_product on all rows. |
+| POST | `/inventory/orders/:id/clear-pricing/` | Staff | Undo Step 4: clears proposed_price, final_price, resets pricing_stage to 'unpriced'. |
+| POST | `/inventory/orders/:id/match-products/` | Staff | Match manifest rows to Products (UPC/vendor ref/fallback text). |
+| GET | `/inventory/orders/:id/match-results/` | Staff | Returns match results with summary and per-row candidates/decisions. |
+| POST | `/inventory/orders/:id/review-matches/` | Staff | Submit review decisions (accept/reject/update) for matched manifest rows. |
+| POST | `/inventory/orders/:id/finalize-rows/` | Staff | Finalize manifest rows with edited fields and set pricing_stage to 'final'. |
+| POST | `/inventory/orders/:id/create-items/` | Staff | Build check-in queue: create `Item` rows and batch groups from manifest rows. Also auto-triggered by deliver. |
+| POST | `/inventory/orders/:id/check-in-items/` | Staff | Bulk check in selected order items and mark them shelf-ready. |
+| POST | `/inventory/orders/:id/mark-complete/` | Staff | Mark order complete when no intake items remain. |
+| GET | `/inventory/orders/:id/delete-preview/` | Staff | Preview reverse-sequence deletion plan and impacted artifacts/items for safe order reset. |
+| POST | `/inventory/orders/:id/purge-delete/` | Staff | Purge order-owned artifacts in reverse order, then delete the order. Requires `confirm_order_number`. |
+
+### Batch Groups (M3)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/inventory/batch-groups/` | Staff | List/filter batch groups (`status`, `purchase_order`, `product`). |
+| GET | `/inventory/batch-groups/:id/` | Staff | Batch group detail with processing metadata. |
+| POST | `/inventory/batch-groups/:id/process/` | Staff | Apply price/condition/location to all grouped items and mark batch complete. |
+| POST | `/inventory/batch-groups/:id/check-in/` | Staff | Check in pending batch items and mark shelf-ready. |
+| POST | `/inventory/batch-groups/:id/detach/` | Staff | Detach one item from batch into individual processing flow. |
+
+### Vendor Product Refs (M3)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| CRUD | `/inventory/product-refs/` | Staff | Vendor-to-product cross references; filter by `vendor`, `product`, search by vendor item #. |
+
+### Categories (M3)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| CRUD | `/inventory/categories/` | Staff | Category taxonomy and optional spec templates. |
 
 ### Products & Items
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| CRUD | `/inventory/products/` | Staff | Reusable product definitions. |
-| CRUD | `/inventory/items/` | Staff | Filter: `?status=`, `?source=`, `?category=` |
+| CRUD | `/inventory/products/` | Staff | Product catalog with M3 matching metadata. |
+| CRUD | `/inventory/items/` | Staff | Filter: `?status=`, `?source=`, `?category=`, `?processing_tier=`, `?batch_group=`, `?condition=` |
+| POST | `/inventory/items/:id/check-in/` | Staff | Check in a single item with finalized fields and mark shelf-ready. |
 | POST | `/inventory/items/:id/ready/` | Staff | Mark item as on_shelf. |
 | GET | `/inventory/items/lookup/:sku/` | **Public** | Public item lookup by SKU. |
+
+### Item History (M3)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/inventory/item-history/` | Staff | Read-only lifecycle events. Filter: `?item=`, `?event_type=` |
 
 ### CSV Templates
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| CRUD | `/inventory/templates/` | Staff | Vendor CSV column mappings. |
+| CRUD | `/inventory/templates/` | Staff | Vendor CSV mappings keyed by header signature for preprocessing reuse. |
 
 ---
 
@@ -192,6 +242,15 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 |--------|----------|------|-------------|
 | GET | `/pos/dashboard/metrics/` | Yes | Today's revenue, weekly chart, 4-week comparison, quick stats. |
 | GET | `/pos/dashboard/alerts/` | Yes | Pending approvals, open drawers, etc. |
+
+---
+
+## AI (`/api/ai/`)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/ai/chat/` | Staff | Proxy to Anthropic Claude API. Body: `{ model, messages, max_tokens, system }`. |
+| GET | `/ai/models/` | Staff | List available Claude models with display names and capabilities. |
 
 ---
 

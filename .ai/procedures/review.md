@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-19T14:00:00-06:00 -->
 # Procedure: Context and Documentation Review
 
 How to audit project documentation for accuracy and freshness.

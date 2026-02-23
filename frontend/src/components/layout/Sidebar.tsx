@@ -9,6 +9,7 @@ import AccessTime from '@mui/icons-material/AccessTime';
 import AccountBalance from '@mui/icons-material/AccountBalance';
 import Dashboard from '@mui/icons-material/Dashboard';
 import Handshake from '@mui/icons-material/Handshake';
+import AutoFixHigh from '@mui/icons-material/AutoFixHigh';
 import Inventory from '@mui/icons-material/Inventory';
 import LocalHospital from '@mui/icons-material/LocalHospital';
 import People from '@mui/icons-material/People';
@@ -58,9 +59,11 @@ const navSections: NavSection[] = [
   },
   {
     label: 'Inventory',
+    collapsible: true,
     items: [
       { path: '/inventory/vendors', label: 'Vendors', icon: <Store /> },
       { path: '/inventory/orders', label: 'Orders', icon: <ShoppingCart /> },
+      { path: '/inventory/preprocessing', label: 'Preprocessing', icon: <AutoFixHigh /> },
       { path: '/inventory/processing', label: 'Processing', icon: <Inventory /> },
       { path: '/inventory/products', label: 'Products', icon: <Inventory /> },
       { path: '/inventory/items', label: 'Items', icon: <Inventory /> },
@@ -68,6 +71,7 @@ const navSections: NavSection[] = [
   },
   {
     label: 'POS',
+    collapsible: true,
     items: [
       { path: '/pos/terminal', label: 'Terminal', icon: <PointOfSale /> },
       { path: '/pos/drawers', label: 'Drawers', icon: <AccountBalance /> },

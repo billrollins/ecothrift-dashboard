@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/inventory/', include('apps.inventory.urls')),
     path('api/pos/', include('apps.pos.urls')),
     path('api/consignment/', include('apps.consignment.urls')),
+    path('api/ai/', include('apps.ai.urls')),
 ]
 
 # Serve the React SPA for all non-API routes in production

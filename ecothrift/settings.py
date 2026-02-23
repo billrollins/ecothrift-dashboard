@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'apps.inventory',
     'apps.pos',
     'apps.consignment',
+    'apps.ai',
 ]
 
 MIDDLEWARE = [
@@ -100,7 +101,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'ecothrift.pagination.ConfigurablePageSizePagination',
     'PAGE_SIZE': 50,
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -164,6 +165,9 @@ if USE_S3:
 else:
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
+
+# ── AI / Anthropic ───────────────────────────────────────────────────────────
+ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
 
 # ── Default primary key ──────────────────────────────────────────────────────
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

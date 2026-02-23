@@ -38,12 +38,28 @@ export type ItemStatus =
   | 'on_shelf'
   | 'sold'
   | 'returned'
-  | 'scrapped';
+  | 'scrapped'
+  | 'lost';
+
+export type ItemCondition =
+  | 'new'
+  | 'like_new'
+  | 'good'
+  | 'fair'
+  | 'salvage'
+  | 'unknown';
+
+export type ProcessingTier = 'individual' | 'batch';
 
 /**
  * Processing batch status choices
  */
 export type ProcessingBatchStatus = 'pending' | 'in_progress' | 'complete';
+
+export type MatchStatus = 'pending' | 'matched' | 'new';
+export type AIMatchDecision = 'pending_review' | 'confirmed' | 'rejected' | 'uncertain' | 'new_product' | '';
+export type BatchGroupStatus = 'pending' | 'in_progress' | 'complete';
+export type ManifestPricingStage = 'unpriced' | 'draft' | 'final';
 
 /**
  * Item scan source choices
@@ -54,6 +70,11 @@ export interface ColumnMapping {
   source: string;
   target: string;
   transform?: string;
+  transforms?: Array<{
+    type: string;
+    from?: string;
+    to?: string;
+  }>;
 }
 
 export interface Vendor {
@@ -70,17 +91,44 @@ export interface Vendor {
   created_at: string;
 }
 
+export interface MatchCandidate {
+  product_id: number;
+  product_title: string;
+  score: number;
+  match_type: string;
+}
+
 export interface ManifestRow {
   id: number;
   purchase_order: number;
   row_number: number;
   quantity: number;
   description: string;
+  title: string;
   brand: string;
   model: string;
   category: string;
+  condition: ItemCondition | '';
   retail_value: string | null;
+  proposed_price: string | null;
+  final_price: string | null;
+  pricing_stage: ManifestPricingStage;
+  pricing_notes: string;
   upc: string;
+  vendor_item_number: string;
+  batch_flag: boolean;
+  search_tags: string;
+  specifications: Record<string, unknown>;
+  matched_product: number | null;
+  matched_product_title: string | null;
+  matched_product_number: string | null;
+  match_status: MatchStatus;
+  match_candidates: MatchCandidate[];
+  ai_match_decision: AIMatchDecision;
+  ai_reasoning: string;
+  ai_suggested_title: string;
+  ai_suggested_brand: string;
+  ai_suggested_model: string;
   notes: string;
 }
 
@@ -120,9 +168,24 @@ export interface PurchaseOrder {
     signature: string;
     template_id: number | null;
     template_name: string | null;
+    template_mappings?: ColumnMapping[] | null;
     row_count: number;
     rows: { row_number: number; raw: Record<string, string> }[];
   } | null;
+  processing_stats?: {
+    item_status_counts: {
+      intake: number;
+      processing: number;
+      on_shelf: number;
+      sold: number;
+      returned: number;
+      scrapped: number;
+      lost: number;
+    };
+    pending_items: number;
+    batch_groups_pending: number;
+    batch_groups_total: number;
+  };
   created_by: number | null;
   created_by_name: string | null;
   created_at: string;
@@ -142,12 +205,20 @@ export interface CSVTemplate {
 
 export interface Product {
   id: number;
+  product_number: string | null;
   title: string;
   brand: string;
   model: string;
   category: string;
+  category_ref: number | null;
+  category_name: string | null;
   description: string;
+  specifications: Record<string, unknown>;
   default_price: string | null;
+  upc: string;
+  times_ordered: number;
+  total_units_received: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -157,7 +228,13 @@ export interface Item {
   sku: string;
   product: number | null;
   product_title: string | null;
+  product_number: string | null;
   purchase_order: number | null;
+  manifest_row: number | null;
+  batch_group: number | null;
+  batch_group_number: string | null;
+  batch_group_status: BatchGroupStatus | null;
+  processing_tier: ProcessingTier;
   title: string;
   brand: string;
   category: string;
@@ -165,8 +242,12 @@ export interface Item {
   cost: string | null;
   source: ItemSource;
   status: ItemStatus;
+  condition: ItemCondition;
+  specifications: Record<string, unknown>;
   location: string;
   listed_at: string | null;
+  checked_in_at: string | null;
+  checked_in_by: number | null;
   sold_at: string | null;
   sold_for: string | null;
   notes: string;
@@ -185,6 +266,71 @@ export interface ProcessingBatch {
   completed_at: string | null;
   created_by: number | null;
   notes: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  parent: number | null;
+  parent_name: string | null;
+  spec_template: Array<Record<string, unknown>>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VendorProductRef {
+  id: number;
+  vendor: number;
+  vendor_name: string;
+  vendor_code: string;
+  product: number;
+  product_title: string;
+  product_number: string | null;
+  vendor_item_number: string;
+  vendor_description: string;
+  last_unit_cost: string | null;
+  times_seen: number;
+  last_seen_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BatchGroup {
+  id: number;
+  batch_number: string;
+  product: number | null;
+  product_title: string | null;
+  product_number: string | null;
+  purchase_order: number | null;
+  purchase_order_number: string | null;
+  manifest_row: number | null;
+  manifest_row_number: number | null;
+  total_qty: number;
+  status: BatchGroupStatus;
+  unit_price: string | null;
+  unit_cost: string | null;
+  condition: ItemCondition;
+  location: string;
+  processed_by: number | null;
+  processed_at: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+  items_count?: number;
+  intake_items_count?: number;
+}
+
+export interface ItemHistory {
+  id: number;
+  item: number;
+  event_type: string;
+  old_value: string;
+  new_value: string;
+  note: string;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
 }
 
 export interface ItemScanHistory {
