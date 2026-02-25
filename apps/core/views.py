@@ -70,3 +70,18 @@ def print_server_releases(request):
     releases = PrintServerRelease.objects.select_related('s3_file').all()
     serializer = PrintServerReleaseSerializer(releases, many=True)
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+def print_server_version_public(request):
+    """Public (no auth) endpoint — returns current print server version for the /manage page."""
+    release = PrintServerRelease.objects.filter(is_current=True).select_related('s3_file').first()
+    if not release:
+        return Response({'available': False})
+    data = PrintServerReleaseSerializer(release).data
+    data['available'] = True
+    # Flat download_url so the print server /manage page can access it directly
+    data['download_url'] = release.s3_file.url if release.s3_file else None
+    return Response(data)
+
+

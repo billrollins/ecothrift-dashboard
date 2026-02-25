@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     WorkLocationViewSet, AppSettingViewSet, S3FileViewSet,
     app_version, print_server_version, print_server_releases,
+    print_server_version_public,
 )
 
 router = DefaultRouter()
@@ -15,4 +16,5 @@ urlpatterns = [
     path('system/version/', app_version, name='app-version'),
     path('system/print-server-version/', print_server_version, name='print-server-version'),
     path('system/print-server-releases/', print_server_releases, name='print-server-releases'),
+    path('system/print-server-version-public/', print_server_version_public, name='print-server-version-public'),
 ]

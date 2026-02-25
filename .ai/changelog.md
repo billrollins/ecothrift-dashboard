@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-21T18:00:00-06:00 -->
+<!-- Last updated: 2026-02-25T18:00:00-06:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,21 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [1.8.0] — 2026-02-25
+
+### Added
+- **Local Print Server** (`printserver/`): standalone FastAPI server on `127.0.0.1:8888` for label, receipt, and cash drawer printing via Windows GDI/ESC-POS
+- Built-in browser UI at `/` (printer assignment dropdowns, test buttons) and `/manage` (status, auto-start toggle with Enabled/Disabled label, version check, changelog, uninstall)
+- Windows self-contained installer (`ecothrift-printserver-setup.exe`) with Tkinter GUI, registry auto-start, port-kill on reinstall
+- `distribute.bat` / `distribute.py`: builds both exes, uploads setup exe to S3, registers release in Django DB using management commands — no credentials required
+- Django `publish_printserver` management command for credential-less release registration
+- Public (no-auth) `print-server-version-public` endpoint for version checks from the print server management page
+- Admin SettingsPage redesigned: printer assignment dropdowns, test label/receipt/drawer buttons, Client Download section, Online chip links to `/manage`
+- Server-side update-check proxy (`/manage/check-update`) to avoid browser CORS restrictions
+- `CORS_ALLOWED_ORIGINS` updated to include `127.0.0.1:8888`
 
 ---
 

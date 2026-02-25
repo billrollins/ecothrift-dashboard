@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-21T18:00:00-06:00 -->
+<!-- Last updated: 2026-02-25T18:00:00-06:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -33,6 +33,7 @@ ecothrift-dashboard/
 │   ├── App.tsx             Router + route guards
 │   └── main.tsx            Entry point + providers
 ├── docs/                   Code documentation (architecture, models, API, routes, dev guide)
+├── printserver/            Local print server (FastAPI, Python, Windows installer)
 ├── .ai/                    AI context, versioning, procedures (this folder)
 │   └── prototype/          Design prototypes and archived explorations
 ├── workspace/              Personal scripts, notebooks, notes (gitignored)
@@ -82,6 +83,7 @@ ecothrift-dashboard/
 - `OrderListPage` enhanced: Actions column first with header, row-level Preprocessing/Processing icon buttons
 - Pre-arrival pricing redesigned: no mode toggle, always-editable table, auto-save on Apply All / Clear All / field blur, `retail_value` mapping enforced as required at standardization
 - Alternative inventory prototypes archived under `.ai/prototype/archive/`
+- **Local Print Server** (`printserver/`): FastAPI server on `127.0.0.1:8888`. Label printing (GDI/Pillow), receipt printing (GDI plain-text), cash drawer (ESC/POS). Built-in browser UI at `/` (printer assignment) and `/manage` (auto-start toggle, version check, changelog, uninstall). Windows installer (`setup.exe`) with Tkinter GUI, registry auto-start, port-kill on reinstall. `distribute.bat` builds both exes, uploads setup exe to S3, registers in Django DB without credentials. Admin SettingsPage integrated with printer dropdowns, test buttons, download section, and manage link.
 - Editable order number (auto-generated PO-XXXXX or user-provided)
 - Multi-role user model (User can be Employee + Consignee + Customer simultaneously)
 - Employee termination workflow with termination type, date, and notes
@@ -102,7 +104,6 @@ ecothrift-dashboard/
 - POS cash completion path should be hardened for malformed numeric payloads (e.g., `change_given` string coercion edge cases)
 
 ### Not Yet Implemented
-- Print server communication (service exists, no print server deployed)
 - Email notifications (forgot-password tokens are returned in response, not emailed)
 - Test suite (no unit or integration tests yet)
 - Heroku deployment (config exists, not yet deployed)
@@ -110,7 +111,6 @@ ecothrift-dashboard/
 ### Pending (Next Coder Focus)
 - **Processing page UX rework.** Now that preprocessing is stable with full undo support, the Processing page (check-in workflow) needs its own UX pass.
 - **End-to-end testing.** Full pipeline: Order page (upload manifest) → Preprocessing page (standardize → AI cleanup → product matching → pricing → complete) → Processing page (check-in items). Exercise all undo paths.
-- **Print server integration testing.** Label printing during check-in needs a deployed print server.
 - Phases 6-9 of the original AI rework plan (in `workspace/notes/prompt creator.md`) still have unfinished work: App Separation cleanup.
 
 ---

@@ -122,6 +122,9 @@ SIMPLE_JWT = {
 # ── CORS ──────────────────────────────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
+    # Allow the local print server management page to call public endpoints
+    'http://127.0.0.1:8888',
+    'http://localhost:8888',
 ]
 CORS_ALLOW_CREDENTIALS = True
 

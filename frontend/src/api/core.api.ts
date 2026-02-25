@@ -38,8 +38,8 @@ export function getAppVersion(): Promise<{ data: AppVersion }> {
 }
 
 // Print server endpoints
-export function getPrintServerVersion(): Promise<{ data: { version: string } }> {
-  return api.get<{ version: string }>('/core/system/print-server-version/');
+export function getPrintServerVersion(): Promise<{ data: Record<string, unknown> }> {
+  return api.get('/core/system/print-server-version/');
 }
 
 export function getPrintServerReleases(): Promise<{ data: unknown[] }> {

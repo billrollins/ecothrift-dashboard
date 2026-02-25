@@ -1,0 +1,9 @@
+dist/
+build/
+installer/build/
+*.spec
+__pycache__/
+*.pyc
+settings.json
+printserver.log
+setup-crash.log
