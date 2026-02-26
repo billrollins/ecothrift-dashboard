@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-21T18:00:00-06:00 -->
+<!-- Last updated: 2026-02-25T22:00:00-06:00 -->
 # Frontend Routes & Pages
 
 ## Route Guards
@@ -51,7 +51,7 @@ Consignee routes use `ProtectedRoute` + role check in `ConsigneeLayout`.
 | `/inventory/orders/:id` | OrderDetailPage | PO detail with status workflow, manifest info, and nav buttons (Back/Preprocessing/Processing/Delete) in page header |
 | `/inventory/preprocessing` | PreprocessingRedirect | Redirects to last preprocessed order or prompts for order ID |
 | `/inventory/preprocessing/:id` | PreprocessingPage | Standalone 4-step manifest preprocessing (Standardize → AI Cleanup → Product Matching → Pricing) with breadcrumb navigation and undo for each step |
-| `/inventory/processing` | ProcessingPage | Unified processing workspace: set fields, check in, print tags |
+| `/inventory/processing` | ProcessingPage | Command Center workspace: Autocomplete order selector, progress ring, SKU scanner (F2), tabbed queues (Batches/Items/Checked In), side Drawer for item/batch editing, bulk check-in, keyboard shortcuts, session stats bar, print server status chip |
 | `/inventory/products` | ProductListPage | Product catalog |
 | `/inventory/items` | ItemListPage | Item inventory with status filters |
 | `/inventory/items/:id` | ItemDetailPage | Item detail view/edit |

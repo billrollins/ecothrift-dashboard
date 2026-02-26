@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-02-25T18:00:00-06:00 -->
+<!-- Last updated: 2026-02-25T22:00:00-06:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** 1.7.0 (see `.ai/version.json`)
+**Current version:** 1.9.0 (see `.ai/version.json`)
 
 ---
 
@@ -64,6 +64,7 @@ ecothrift-dashboard/
 - Pre-arrival pricing shipped on manifest rows (`proposed_price`, `final_price`, `pricing_stage`, `pricing_notes`) with bulk save endpoint
 - Arrival check-in workflow shipped: bulk order check-in, single item check-in, batch check-in, and label printing integration in the Processing workspace
 - Processing page now centers on finalize fields -> check in -> print tags, with batch detach as a secondary exception action
+- **Processing Page Overhaul** (v1.9.0): "Command Center + Side Drawer" design. MUI Autocomplete order selector, circular progress ring, always-visible SKU scanner (F2), three-tab queue (Batches/Items/Checked In) with badge counts, right-side Drawer for item/batch editing, bulk check-in, detach confirmation, sticky defaults (localStorage), Copy from Last, auto-advance after check-in, session stats bar (items/hr, ETA), full keyboard shortcuts (F2/Ctrl+Enter/Escape/Ctrl+P/N), print server status chip with 30s polling, staggered batch label printing with progress, reprint button on Checked In tab
 - Order reset tooling shipped: order detail now includes **Delete Order** modal with reverse-sequence artifact preview + guarded purge action (`confirm_order_number`)
 - Standard Manifest UX now includes 3-step accordion flow (Upload -> Raw Sample -> Standardize) with multi-open sections
 - Raw and standardized preview search shipped: searches full manifest/normalized set server-side and returns top 100 rows for preview
@@ -109,7 +110,6 @@ ecothrift-dashboard/
 - Heroku deployment (config exists, not yet deployed)
 
 ### Pending (Next Coder Focus)
-- **Processing page UX rework.** Now that preprocessing is stable with full undo support, the Processing page (check-in workflow) needs its own UX pass.
 - **End-to-end testing.** Full pipeline: Order page (upload manifest) → Preprocessing page (standardize → AI cleanup → product matching → pricing → complete) → Processing page (check-in items). Exercise all undo paths.
 - Phases 6-9 of the original AI rework plan (in `workspace/notes/prompt creator.md`) still have unfinished work: App Separation cleanup.
 

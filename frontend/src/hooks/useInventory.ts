@@ -644,23 +644,25 @@ export function useCheckInOrderItems() {
   });
 }
 
-export function useItems(params?: Record<string, unknown>) {
+export function useItems(params?: Record<string, unknown>, enabled = true) {
   return useQuery({
     queryKey: ['items', params],
     queryFn: async () => {
       const { data } = await getItems(params);
       return data;
     },
+    enabled,
   });
 }
 
-export function useBatchGroups(params?: Record<string, unknown>) {
+export function useBatchGroups(params?: Record<string, unknown>, enabled = true) {
   return useQuery({
     queryKey: ['batchGroups', params],
     queryFn: async () => {
       const { data } = await getBatchGroups(params);
       return data;
     },
+    enabled,
   });
 }
 

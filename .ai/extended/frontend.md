@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-18T16:00:00-06:00 -->
+<!-- Last updated: 2026-02-25T22:00:00-06:00 -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -178,3 +178,26 @@ Sidebar footer shows `v{appVersion.version}` from `getAppVersion()` → `/api/co
 - `PreprocessingPage.tsx` `useEffect` for templateName: replaced `order` object dependency with scalar `orderVendorCode` and `orderPreviewTemplateName`
 - `rawManifestParams` useMemo: changed `order?.manifest_file` (object ref) to `!!order?.manifest_file` (boolean)
 - `matchSummary` prop: memoized with `useMemo` instead of inline object literal
+
+## Processing Page Overhaul (1.9.0)
+
+### New Files
+- `frontend/src/hooks/useLocalPrintStatus.ts` — polls `/health` every 30s; returns `{ online, version, printersAvailable, lastChecked }`
+- `frontend/src/components/inventory/ProcessingDrawer.tsx` — right-side MUI `Drawer` (width 420px); exports `ProcessingDrawer`, `buildItemForm`, `buildBatchForm`, `EMPTY_FORM`, `DRAWER_WIDTH`, `DrawerMode`, `ProcessingFormState` types
+- `frontend/src/components/inventory/ProcessingStatsBar.tsx` — session stats bar; shows elapsed, items/hr, ETA, session count, auto-advance toggle
+
+### ProcessingPage.tsx (redesign)
+- **Layout**: "Command Center + Side Drawer" — PageHeader → Order Context Bar → Scanner Card → Tabbed Queue Card → Stats Bar + right-anchored Drawer
+- **Order selector**: MUI `Autocomplete` with search, vendor name, status chips per option
+- **Progress ring**: `CircularProgress` (determinate, 52px) overlaid with `%` text; stats chips for on-shelf/pending/batch counts
+- **Scanner input**: always-visible `TextField` with F2 hotkey; Enter finds item by SKU and opens Drawer
+- **Tabs**: `Batches (N)` / `Items (N)` / `Checked In (N)` with MUI `Badge` counts; compact DataGrid per tab
+- **Items tab**: checkbox `checkboxSelection` for bulk; `rowSelectionModel` uses `{ type: 'include', ids: Set<number> }`; floating "Bulk Check-In" button when selection > 0
+- **Checked In tab**: sorted `checked_in_at` desc; per-row printer icon reprint button
+- **ProcessingDrawer**: source context `Accordion` (collapsed), Copy from Last button, form fields, print toggle, Save/Check-In/Reprint/Next buttons; auto-focuses first field on open
+- **Batch label printing**: `printBatchLabels()` sends N `/print/label` calls via `Promise.allSettled` with 200ms stagger; `printProgress` state drives inline Alert
+- **Auto-advance**: `advanceToNext()` finds next item in queue by index after check-in; toggle in StatsBar
+- **Sticky defaults**: `processing_sticky_defaults` in localStorage; loaded on drawer open for empty fields
+- **Hotkeys**: single `keydown` listener — F2, Ctrl+Enter, Escape, Ctrl+P, N
+- **useItems / useBatchGroups**: now accept `enabled` param (false when no order selected)
+- **queueNotBuilt**: triggers on `delivered` OR `processing` status with zero items

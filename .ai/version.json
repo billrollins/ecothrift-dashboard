@@ -1,5 +1,5 @@
 {
-  "version": "1.7.0",
-  "build_date": "2026-02-21T18:00:00-06:00",
-  "description": "Preprocessing UX polish: consistent undo for all 4 steps, 6-state standardize button logic, breadcrumb navigation replaces next/confirm buttons, Complete Preprocessing in breadcrumb row, currency/number formatting utilities, auto-build check-in queue on deliver"
+  "version": "1.9.0",
+  "build_date": "2026-02-25T22:00:00-06:00",
+  "description": "Processing page overhaul: Command Center + Side Drawer design, print server status indicator, SKU scanner, tabbed queues, bulk check-in, hotkeys, auto-advance, sticky defaults, session stats bar"
 }

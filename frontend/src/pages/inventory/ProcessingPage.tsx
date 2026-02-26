@@ -1,41 +1,58 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
+  Autocomplete,
+  Badge,
   Box,
   Button,
   Card,
   CardContent,
-  Checkbox,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
-  FormControlLabel,
-  Grid,
-  LinearProgress,
+  IconButton,
   MenuItem,
+  Popover,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
-import Search from '@mui/icons-material/Search';
-import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
-import TaskAlt from '@mui/icons-material/TaskAlt';
-import Tune from '@mui/icons-material/Tune';
+import ArrowBack from '@mui/icons-material/ArrowBack';
+import BuildOutlined from '@mui/icons-material/BuildOutlined';
 import CallSplit from '@mui/icons-material/CallSplit';
-import OpenInNew from '@mui/icons-material/OpenInNew';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
+import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
+import OpenInNew from '@mui/icons-material/OpenInNew';
+import PrintDisabled from '@mui/icons-material/PrintDisabled';
+import Search from '@mui/icons-material/Search';
+import Tune from '@mui/icons-material/Tune';
 import { DataGrid, type GridColDef, type GridRenderCellParams } from '@mui/x-data-grid';
 import { format } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
+  ProcessingDrawer,
+  buildItemForm,
+  buildBatchForm,
+  EMPTY_FORM,
+  DRAWER_WIDTH,
+  type DrawerMode,
+  type ProcessingFormState,
+} from '../../components/inventory/ProcessingDrawer';
+import { ProcessingStatsBar } from '../../components/inventory/ProcessingStatsBar';
+import {
   useBatchGroups,
   useCheckInBatchGroup,
   useCheckInItem,
+  useCheckInOrderItems,
   useCreateItems,
   useDetachBatchItem,
   useItems,
@@ -45,26 +62,14 @@ import {
   useUpdateBatchGroup,
   useUpdateItem,
 } from '../../hooks/useInventory';
+import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
 import { localPrintService } from '../../services/localPrintService';
-import type { BatchGroup, Item, PurchaseOrderStatus } from '../../types/inventory.types';
+import { formatCurrency } from '../../utils/format';
+import type { BatchGroup, Item, PurchaseOrder, PurchaseOrderStatus } from '../../types/inventory.types';
 
-type DialogMode = 'item' | 'batch' | null;
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-type ProcessingFormState = {
-  title: string;
-  brand: string;
-  category: string;
-  condition: string;
-  location: string;
-  price: string;
-  cost: string;
-  notes: string;
-};
-
-const STATUS_COLOR: Record<
-  PurchaseOrderStatus,
-  'default' | 'primary' | 'warning' | 'success' | 'error'
-> = {
+const STATUS_COLOR: Record<PurchaseOrderStatus, 'default' | 'primary' | 'warning' | 'success' | 'error'> = {
   ordered: 'default',
   paid: 'default',
   shipped: 'primary',
@@ -74,81 +79,121 @@ const STATUS_COLOR: Record<
   cancelled: 'error',
 };
 
-function formatCurrency(value: string | null | undefined): string {
-  if (value == null || value === '') return '—';
-  const parsed = Number.parseFloat(value);
-  return Number.isNaN(parsed) ? '—' : `$${parsed.toFixed(2)}`;
+const STICKY_KEY = 'processing_sticky_defaults';
+
+function loadStickyDefaults(): { condition?: string; location?: string } {
+  try {
+    return JSON.parse(localStorage.getItem(STICKY_KEY) || '{}');
+  } catch {
+    return {};
+  }
 }
 
-function buildItemForm(item: Item): ProcessingFormState {
-  return {
-    title: item.title || '',
-    brand: item.brand || '',
-    category: item.category || '',
-    condition: item.condition || 'unknown',
-    location: item.location || '',
-    price: item.price || '',
-    cost: item.cost || '',
-    notes: item.notes || '',
-  };
+function saveStickyDefaults(condition: string, location: string) {
+  localStorage.setItem(STICKY_KEY, JSON.stringify({ condition, location }));
 }
 
-function buildBatchForm(batch: BatchGroup): ProcessingFormState {
-  return {
-    title: '',
-    brand: '',
-    category: '',
-    condition: batch.condition || 'unknown',
-    location: batch.location || '',
-    price: batch.unit_price || '',
-    cost: batch.unit_cost || '',
-    notes: batch.notes || '',
-  };
+// ─── Print helpers ────────────────────────────────────────────────────────────
+
+async function printSingleLabel(
+  item: Pick<Item, 'sku' | 'title' | 'price'>,
+  priceOverride?: string,
+): Promise<boolean> {
+  try {
+    const price = priceOverride || item.price;
+    await localPrintService.printLabel({
+      text: price ? `$${Number.parseFloat(price).toFixed(2)}` : '$0.00',
+      qr_data: item.sku,
+      product_title: item.title,
+      include_text: true,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-const EMPTY_FORM: ProcessingFormState = {
-  title: '',
-  brand: '',
-  category: '',
-  condition: 'unknown',
-  location: '',
-  price: '',
-  cost: '',
-  notes: '',
-};
+async function printBatchLabels(
+  items: Pick<Item, 'sku' | 'title' | 'price'>[],
+  priceOverride?: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ succeeded: number; failed: number }> {
+  let succeeded = 0;
+  let failed = 0;
+  const STAGGER_MS = 200;
+
+  const results = await Promise.allSettled(
+    items.map((item, i) =>
+      new Promise<boolean>((resolve) => {
+        setTimeout(async () => {
+          const ok = await printSingleLabel(item, priceOverride);
+          if (ok) succeeded++;
+          else failed++;
+          onProgress?.(succeeded + failed, items.length);
+          resolve(ok);
+        }, i * STAGGER_MS);
+      }),
+    ),
+  );
+  void results;
+  return { succeeded, failed };
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ProcessingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const orderParam = searchParams.get('order');
   const { enqueueSnackbar } = useSnackbar();
+  const printStatus = useLocalPrintStatus();
+
+  // ─── State ──────────────────────────────────────────────────────────────────
 
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(
     orderParam ? Number.parseInt(orderParam, 10) : null,
   );
+  const [activeTab, setActiveTab] = useState(0);
   const [search, setSearch] = useState('');
-  const [dialogMode, setDialogMode] = useState<DialogMode>(null);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>(null);
   const [activeItem, setActiveItem] = useState<Item | null>(null);
   const [activeBatch, setActiveBatch] = useState<BatchGroup | null>(null);
   const [form, setForm] = useState<ProcessingFormState>(EMPTY_FORM);
   const [printOnCheckIn, setPrintOnCheckIn] = useState(true);
+  const [autoAdvance, setAutoAdvance] = useState(true);
+  const [lastCheckedIn, setLastCheckedIn] = useState<ProcessingFormState | null>(null);
+  const [justCheckedIn, setJustCheckedIn] = useState(false);
+  const [sessionCount, setSessionCount] = useState(0);
+  const sessionStartRef = useRef(Date.now());
+  const scannerRef = useRef<HTMLInputElement>(null);
+  const [scanInput, setScanInput] = useState('');
+  const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkForm, setBulkForm] = useState({ condition: '', location: '', price: '', cost: '' });
+  const [printProgress, setPrintProgress] = useState<{ done: number; total: number } | null>(null);
 
-  const { data: ordersData } = usePurchaseOrders({
-    status__in: 'delivered,processing,complete',
-  });
+  // Detach confirmation
+  const [detachAnchor, setDetachAnchor] = useState<HTMLElement | null>(null);
+  const [detachBatchId, setDetachBatchId] = useState<number | null>(null);
+
+  // ─── Queries ────────────────────────────────────────────────────────────────
+
+  const { data: ordersData } = usePurchaseOrders({ status__in: 'delivered,processing,complete' });
   const { data: order } = usePurchaseOrder(selectedOrderId);
   const { data: batchGroupsData, isLoading: batchLoading } = useBatchGroups(
-    selectedOrderId ? { purchase_order: selectedOrderId } : undefined,
+    { purchase_order: selectedOrderId },
+    selectedOrderId != null,
   );
   const { data: itemsData, isLoading: itemsLoading } = useItems(
-    selectedOrderId
-      ? {
-          purchase_order: selectedOrderId,
-          page_size: 500,
-          ...(search ? { search } : {}),
-        }
-      : undefined,
+    {
+      purchase_order: selectedOrderId,
+      page_size: 1000,
+      ...(search ? { search } : {}),
+    },
+    selectedOrderId != null,
   );
+
+  // ─── Mutations ──────────────────────────────────────────────────────────────
 
   const updateItem = useUpdateItem();
   const checkInItem = useCheckInItem();
@@ -157,6 +202,9 @@ export default function ProcessingPage() {
   const checkInBatchGroup = useCheckInBatchGroup();
   const detachBatchItem = useDetachBatchItem();
   const markComplete = useMarkOrderComplete();
+  const bulkCheckIn = useCheckInOrderItems();
+
+  // ─── Derived data ───────────────────────────────────────────────────────────
 
   const orders = ordersData?.results ?? [];
   const items = itemsData?.results ?? [];
@@ -169,466 +217,690 @@ export default function ProcessingPage() {
   const progressValue = totalTracked > 0 ? (onShelf / totalTracked) * 100 : 0;
 
   const pendingItems = useMemo(
-    () => items.filter((item) => ['intake', 'processing'].includes(item.status)),
+    () => items.filter((i) => ['intake', 'processing'].includes(i.status)),
     [items],
   );
   const individualQueue = useMemo(
-    () => pendingItems.filter((item) => item.processing_tier === 'individual' || !item.batch_group),
+    () => pendingItems.filter((i) => i.processing_tier === 'individual' || !i.batch_group),
     [pendingItems],
   );
+  const checkedInItems = useMemo(
+    () => items.filter((i) => i.status === 'on_shelf'),
+    [items],
+  );
   const batchQueue = useMemo(
-    () => batchGroups.filter((group) => (group.intake_items_count ?? 0) > 0 || group.status !== 'complete'),
+    () => batchGroups.filter((g) => (g.intake_items_count ?? 0) > 0 || g.status !== 'complete'),
     [batchGroups],
   );
 
-  // Pipeline state checks
-  const queueNotBuilt = order != null
-    && order.status === 'delivered'
-    && (order.item_count === 0 || (!itemsLoading && items.length === 0));
-  const allCheckedIn = order != null
-    && pendingCount === 0
-    && onShelf > 0
-    && order.item_count > 0;
+  const queueNotBuilt =
+    order != null &&
+    ['delivered', 'processing'].includes(order.status) &&
+    (order.item_count === 0 || (!itemsLoading && items.length === 0));
+
+  const allCheckedIn =
+    order != null && pendingCount === 0 && onShelf > 0 && order.item_count > 0;
 
   const loading = batchLoading || itemsLoading;
-  if (loading && !order && selectedOrderId) return <LoadingScreen />;
 
-  // ─── Handlers ──────────────────────────────────────────────────────────────
+  // ─── Drawer handlers ───────────────────────────────────────────────────────
 
-  const openItemDialog = (item: Item) => {
-    setDialogMode('item');
+  const stickyDefaults = loadStickyDefaults();
+
+  const openItemDrawer = useCallback((item: Item) => {
+    setDrawerMode('item');
     setActiveItem(item);
     setActiveBatch(null);
-    setForm(buildItemForm(item));
-  };
+    setForm(buildItemForm(item, stickyDefaults));
+    setJustCheckedIn(false);
+  }, [stickyDefaults]);
 
-  const openBatchDialog = (batch: BatchGroup) => {
-    setDialogMode('batch');
+  const openBatchDrawer = useCallback((batch: BatchGroup) => {
+    setDrawerMode('batch');
     setActiveBatch(batch);
     setActiveItem(null);
-    setForm(buildBatchForm(batch));
-  };
+    setForm(buildBatchForm(batch, stickyDefaults));
+    setJustCheckedIn(false);
+  }, [stickyDefaults]);
 
-  const closeDialog = () => {
-    setDialogMode(null);
+  const closeDrawer = useCallback(() => {
+    setDrawerMode(null);
     setActiveItem(null);
     setActiveBatch(null);
     setForm(EMPTY_FORM);
-  };
+    setJustCheckedIn(false);
+  }, []);
 
-  const printLabel = async (item: Pick<Item, 'sku' | 'title' | 'price'>) => {
-    const available = await localPrintService.isAvailable();
-    if (!available) {
-      enqueueSnackbar('Print server unavailable — item checked in without printing.', {
-        variant: 'warning',
-      });
+  const advanceToNext = useCallback(() => {
+    if (activeTab === 0 && batchQueue.length > 0) {
+      const currentIdx = activeBatch ? batchQueue.findIndex((b) => b.id === activeBatch.id) : -1;
+      const next = batchQueue[currentIdx + 1] ?? batchQueue[0];
+      if (next) openBatchDrawer(next);
+      else closeDrawer();
+    } else {
+      const currentIdx = activeItem ? individualQueue.findIndex((i) => i.id === activeItem.id) : -1;
+      const next = individualQueue[currentIdx + 1] ?? individualQueue[0];
+      if (next) openItemDrawer(next);
+      else closeDrawer();
+    }
+  }, [activeTab, batchQueue, individualQueue, activeBatch, activeItem, openBatchDrawer, openItemDrawer, closeDrawer]);
+
+  // ─── Print handler ──────────────────────────────────────────────────────────
+
+  const handlePrint = useCallback(async (item: Pick<Item, 'sku' | 'title' | 'price'>, priceOverride?: string) => {
+    if (!printStatus.online) {
+      enqueueSnackbar('Print server offline — label not printed.', { variant: 'warning' });
       return;
     }
-    try {
-      await localPrintService.printLabel({
-        text: item.price ? `$${Number.parseFloat(item.price).toFixed(2)}` : '$0.00',
-        qr_data: item.sku,
-        product_title: item.title,
-        include_text: true,
-      });
-    } catch {
-      enqueueSnackbar(`Failed printing label for ${item.sku}`, { variant: 'error' });
-    }
-  };
+    const ok = await printSingleLabel(item, priceOverride);
+    if (!ok) enqueueSnackbar(`Failed printing label for ${item.sku}`, { variant: 'error' });
+  }, [printStatus.online, enqueueSnackbar]);
 
-  const handleSaveFieldsOnly = async () => {
-    if (dialogMode === 'item' && activeItem) {
+  // ─── Save / Check-In handlers ──────────────────────────────────────────────
+
+  const handleSave = useCallback(async () => {
+    if (drawerMode === 'item' && activeItem) {
       try {
         await updateItem.mutateAsync({
           id: activeItem.id,
           data: {
-            title: form.title,
-            brand: form.brand,
-            category: form.category,
-            condition: form.condition,
-            location: form.location,
-            price: form.price || undefined,
-            cost: form.cost || undefined,
+            title: form.title, brand: form.brand, category: form.category,
+            condition: form.condition, location: form.location,
+            price: form.price || undefined, cost: form.cost || undefined,
             notes: form.notes,
           },
         });
+        saveStickyDefaults(form.condition, form.location);
         enqueueSnackbar(`Updated ${activeItem.sku}`, { variant: 'success' });
-        closeDialog();
+        closeDrawer();
       } catch {
         enqueueSnackbar('Failed to save item updates', { variant: 'error' });
       }
-      return;
-    }
-
-    if (dialogMode === 'batch' && activeBatch) {
+    } else if (drawerMode === 'batch' && activeBatch) {
       try {
         await updateBatchGroup.mutateAsync({
           id: activeBatch.id,
           data: {
-            unit_price: form.price || undefined,
-            unit_cost: form.cost || undefined,
-            condition: form.condition || undefined,
-            location: form.location,
+            unit_price: form.price || undefined, unit_cost: form.cost || undefined,
+            condition: form.condition || undefined, location: form.location,
             notes: form.notes,
           },
         });
+        saveStickyDefaults(form.condition, form.location);
         enqueueSnackbar(`Updated ${activeBatch.batch_number}`, { variant: 'success' });
-        closeDialog();
+        closeDrawer();
       } catch {
         enqueueSnackbar('Failed to save batch updates', { variant: 'error' });
       }
     }
-  };
+  }, [drawerMode, activeItem, activeBatch, form, updateItem, updateBatchGroup, enqueueSnackbar, closeDrawer]);
 
-  const handleCheckInAndPrint = async () => {
-    if (dialogMode === 'item' && activeItem) {
+  const handleCheckIn = useCallback(async () => {
+    if (drawerMode === 'item' && activeItem) {
       try {
         const checkedIn = await checkInItem.mutateAsync({
           id: activeItem.id,
           data: {
-            title: form.title,
-            brand: form.brand,
-            category: form.category,
-            condition: form.condition,
-            location: form.location,
-            price: form.price || undefined,
-            cost: form.cost || undefined,
+            title: form.title, brand: form.brand, category: form.category,
+            condition: form.condition, location: form.location,
+            price: form.price || undefined, cost: form.cost || undefined,
             notes: form.notes,
           },
         });
+        saveStickyDefaults(form.condition, form.location);
+        setLastCheckedIn({ ...form });
+        setSessionCount((c) => c + 1);
         enqueueSnackbar(`Checked in ${checkedIn.sku}`, { variant: 'success' });
+
         if (printOnCheckIn) {
-          await printLabel({ sku: checkedIn.sku, title: checkedIn.title, price: checkedIn.price });
+          await handlePrint({ sku: checkedIn.sku, title: checkedIn.title, price: checkedIn.price });
         }
-        closeDialog();
+
+        setJustCheckedIn(true);
+        if (autoAdvance) {
+          setTimeout(advanceToNext, 300);
+        }
       } catch {
         enqueueSnackbar('Failed to check in item', { variant: 'error' });
       }
-      return;
-    }
-
-    if (dialogMode === 'batch' && activeBatch) {
-      const printQueue = pendingItems.filter(
-        (item) => item.batch_group === activeBatch.id && ['intake', 'processing'].includes(item.status),
+    } else if (drawerMode === 'batch' && activeBatch) {
+      const batchItems = pendingItems.filter(
+        (i) => i.batch_group === activeBatch.id && ['intake', 'processing'].includes(i.status),
       );
       try {
         const result = await checkInBatchGroup.mutateAsync({
           id: activeBatch.id,
           data: {
-            unit_price: form.price || undefined,
-            unit_cost: form.cost || undefined,
-            condition: form.condition || undefined,
-            location: form.location,
+            unit_price: form.price || undefined, unit_cost: form.cost || undefined,
+            condition: form.condition || undefined, location: form.location,
           },
         });
+        saveStickyDefaults(form.condition, form.location);
+        setLastCheckedIn({ ...form });
+        setSessionCount((c) => c + (result.checked_in ?? batchItems.length));
         enqueueSnackbar(
           `Checked in ${result.checked_in} item(s) from ${activeBatch.batch_number}`,
           { variant: 'success' },
         );
-        if (printOnCheckIn) {
-          for (const item of printQueue) {
-            await printLabel({ sku: item.sku, title: item.title, price: form.price || item.price });
+
+        if (printOnCheckIn && batchItems.length > 0) {
+          setPrintProgress({ done: 0, total: batchItems.length });
+          const { failed } = await printBatchLabels(batchItems, form.price, (done, total) => {
+            setPrintProgress({ done, total });
+          });
+          setPrintProgress(null);
+          if (failed > 0) {
+            enqueueSnackbar(`${failed} label(s) failed to print`, { variant: 'warning' });
           }
         }
-        closeDialog();
+
+        setJustCheckedIn(true);
+        if (autoAdvance) {
+          setTimeout(advanceToNext, 300);
+        }
       } catch {
         enqueueSnackbar('Failed to check in batch', { variant: 'error' });
       }
     }
-  };
+  }, [drawerMode, activeItem, activeBatch, form, pendingItems, printOnCheckIn, autoAdvance,
+    checkInItem, checkInBatchGroup, handlePrint, advanceToNext, enqueueSnackbar]);
 
-  const handleDetachOne = async (batchId: number) => {
+  const handleReprint = useCallback(async () => {
+    if (activeItem) {
+      await handlePrint({ sku: activeItem.sku, title: activeItem.title, price: activeItem.price });
+    }
+  }, [activeItem, handlePrint]);
+
+  const handleCopyLast = useCallback(() => {
+    if (!lastCheckedIn) return;
+    setForm((prev) => ({
+      ...prev,
+      condition: lastCheckedIn.condition,
+      location: lastCheckedIn.location,
+      notes: lastCheckedIn.notes,
+    }));
+    enqueueSnackbar('Copied from last item', { variant: 'info' });
+  }, [lastCheckedIn, enqueueSnackbar]);
+
+  // ─── Detach handler ─────────────────────────────────────────────────────────
+
+  const confirmDetach = useCallback(async () => {
+    if (detachBatchId == null) return;
     try {
-      const result = await detachBatchItem.mutateAsync({ id: batchId });
+      const result = await detachBatchItem.mutateAsync({ id: detachBatchId });
       enqueueSnackbar(`Detached ${result.detached_item_sku}`, { variant: 'success' });
     } catch {
       enqueueSnackbar('Failed to detach item from batch', { variant: 'error' });
     }
-  };
+    setDetachAnchor(null);
+    setDetachBatchId(null);
+  }, [detachBatchId, detachBatchItem, enqueueSnackbar]);
 
-  const handleMarkComplete = async () => {
+  // ─── Mark complete ──────────────────────────────────────────────────────────
+
+  const handleMarkComplete = useCallback(async () => {
     if (!selectedOrderId) return;
     try {
       await markComplete.mutateAsync(selectedOrderId);
       enqueueSnackbar('Order marked complete!', { variant: 'success' });
     } catch (err: unknown) {
       const detail =
-        err != null &&
-        typeof err === 'object' &&
-        'response' in err &&
-        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+        err != null && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
       enqueueSnackbar(detail || 'Failed to mark order complete', { variant: 'error' });
     }
-  };
+  }, [selectedOrderId, markComplete, enqueueSnackbar]);
 
-  // ─── Column definitions ────────────────────────────────────────────────────
+  // ─── Build queue ────────────────────────────────────────────────────────────
 
-  const batchColumns: GridColDef[] = [
-    { field: 'batch_number', headerName: 'Batch', width: 130 },
-    { field: 'product_number', headerName: 'Product #', width: 120 },
-    { field: 'product_title', headerName: 'Product', flex: 1, minWidth: 180 },
-    { field: 'total_qty', headerName: 'Qty', width: 70 },
-    { field: 'intake_items_count', headerName: 'Pending', width: 90 },
+  const handleBuildQueue = useCallback(async () => {
+    if (!order) return;
+    try {
+      const result = await createItemsMutation.mutateAsync(order.id);
+      enqueueSnackbar(
+        `Created ${result.items_created} item(s), ${result.batch_groups_created} batch(es)`,
+        { variant: 'success' },
+      );
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      enqueueSnackbar(axiosErr?.response?.data?.detail || 'Failed to build check-in queue', { variant: 'error' });
+    }
+  }, [order, createItemsMutation, enqueueSnackbar]);
+
+  // ─── Bulk check-in ─────────────────────────────────────────────────────────
+
+  const handleBulkCheckIn = useCallback(async () => {
+    if (!selectedOrderId || selectedItemIds.length === 0) return;
+    try {
+      const result = await bulkCheckIn.mutateAsync({
+        orderId: selectedOrderId,
+        data: {
+          item_ids: selectedItemIds.map(Number),
+          ...(bulkForm.condition ? { condition: bulkForm.condition } : {}),
+          ...(bulkForm.location ? { location: bulkForm.location } : {}),
+          ...(bulkForm.price ? { price: bulkForm.price } : {}),
+          ...(bulkForm.cost ? { cost: bulkForm.cost } : {}),
+        },
+      });
+      setSessionCount((c) => c + (result.checked_in ?? 0));
+      enqueueSnackbar(`Bulk checked in ${result.checked_in} item(s)`, { variant: 'success' });
+
+      if (printOnCheckIn && printStatus.online) {
+        const idSet = new Set(selectedItemIds.map(Number));
+        const itemsToPrint = items.filter((i) => idSet.has(i.id));
+        if (itemsToPrint.length > 0) {
+          setPrintProgress({ done: 0, total: itemsToPrint.length });
+          const { failed } = await printBatchLabels(
+            itemsToPrint,
+            bulkForm.price || undefined,
+            (done, total) => setPrintProgress({ done, total }),
+          );
+          setPrintProgress(null);
+          if (failed > 0) enqueueSnackbar(`${failed} label(s) failed to print`, { variant: 'warning' });
+        }
+      }
+
+      setSelectedItemIds([]);
+      setBulkDialogOpen(false);
+      setBulkForm({ condition: '', location: '', price: '', cost: '' });
+    } catch {
+      enqueueSnackbar('Failed to bulk check in items', { variant: 'error' });
+    }
+  }, [selectedOrderId, selectedItemIds, bulkForm, printOnCheckIn, printStatus.online,
+    items, bulkCheckIn, enqueueSnackbar]);
+
+  // ─── Scanner ────────────────────────────────────────────────────────────────
+
+  const handleScan = useCallback(() => {
+    const sku = scanInput.trim().toUpperCase();
+    if (!sku) return;
+    const found = items.find((i) => i.sku.toUpperCase() === sku);
+    if (found) {
+      openItemDrawer(found);
+      if (activeTab !== 1) setActiveTab(1);
+    } else {
+      enqueueSnackbar(`No item found with SKU "${sku}"`, { variant: 'warning' });
+    }
+    setScanInput('');
+  }, [scanInput, items, openItemDrawer, activeTab, enqueueSnackbar]);
+
+  // ─── Keyboard shortcuts ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      if (e.key === 'F2') {
+        e.preventDefault();
+        scannerRef.current?.focus();
+        return;
+      }
+
+      if (drawerMode) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeDrawer();
+          return;
+        }
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          handleCheckIn();
+          return;
+        }
+        if (e.key === 'p' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          handleReprint();
+          return;
+        }
+      }
+
+      if (!isInput && !drawerMode) {
+        if (e.key === 'n' || e.key === 'N') {
+          e.preventDefault();
+          advanceToNext();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [drawerMode, closeDrawer, handleCheckIn, handleReprint, advanceToNext]);
+
+  // ─── Column definitions ─────────────────────────────────────────────────────
+
+  const batchColumns: GridColDef[] = useMemo(() => [
+    { field: 'batch_number', headerName: 'Batch', width: 120 },
+    { field: 'product_title', headerName: 'Product', flex: 1, minWidth: 160 },
+    { field: 'total_qty', headerName: 'Qty', width: 60, type: 'number' },
     {
-      field: 'unit_price',
-      headerName: 'Unit Price',
-      width: 110,
-      renderCell: (params: GridRenderCellParams<BatchGroup>) => (
-        <>{formatCurrency(params.row.unit_price)}</>
-      ),
+      field: 'intake_items_count', headerName: 'Pending', width: 80, type: 'number',
+      renderCell: (params: GridRenderCellParams<BatchGroup>) => {
+        const count = params.row.intake_items_count ?? 0;
+        return count > 0
+          ? <Chip label={count} size="small" color="warning" sx={{ fontWeight: 600, minWidth: 32 }} />
+          : <Chip label="0" size="small" color="success" variant="outlined" />;
+      },
     },
-    { field: 'condition', headerName: 'Condition', width: 110 },
-    { field: 'location', headerName: 'Location', width: 120 },
     {
-      field: 'actions',
-      headerName: '',
-      width: 200,
-      sortable: false,
-      filterable: false,
+      field: 'unit_price', headerName: 'Price', width: 90,
+      renderCell: (params: GridRenderCellParams<BatchGroup>) => <>{formatCurrency(params.row.unit_price)}</>,
+    },
+    { field: 'condition', headerName: 'Condition', width: 100 },
+    { field: 'location', headerName: 'Location', width: 100 },
+    {
+      field: 'actions', headerName: 'Actions', width: 180, sortable: false, filterable: false,
       renderCell: (params: GridRenderCellParams<BatchGroup>) => (
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            size="small"
-            variant="contained"
-            startIcon={<Tune />}
-            onClick={(e) => { e.stopPropagation(); openBatchDialog(params.row); }}
-          >
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          <Button size="small" variant="contained" startIcon={<Tune />}
+            onClick={(e) => { e.stopPropagation(); openBatchDrawer(params.row); }}>
             Process
           </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            color="warning"
-            startIcon={<CallSplit />}
-            onClick={(e) => { e.stopPropagation(); handleDetachOne(params.row.id); }}
-            disabled={detachBatchItem.isPending}
-          >
-            Detach 1
-          </Button>
+          <Tooltip title="Detach one item to individual processing">
+            <IconButton size="small" color="warning"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDetachAnchor(e.currentTarget);
+                setDetachBatchId(params.row.id);
+              }}
+              disabled={detachBatchItem.isPending}>
+              <CallSplit fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
       ),
     },
-  ];
+  ], [openBatchDrawer, detachBatchItem.isPending]);
 
-  const itemColumns: GridColDef[] = [
-    { field: 'sku', headerName: 'SKU', width: 130 },
-    { field: 'title', headerName: 'Title', flex: 1, minWidth: 180 },
+  const itemColumns: GridColDef[] = useMemo(() => [
     {
-      field: 'batch_group_number',
-      headerName: 'Batch',
-      width: 110,
-      valueGetter: (_v, row) => row.batch_group_number || '—',
-    },
-    { field: 'condition', headerName: 'Condition', width: 110 },
-    {
-      field: 'price',
-      headerName: 'Price',
-      width: 90,
+      field: 'sku', headerName: 'SKU', width: 120,
       renderCell: (params: GridRenderCellParams<Item>) => (
-        <>{formatCurrency(params.row.price)}</>
+        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
+          {params.row.sku}
+        </Typography>
       ),
     },
-    { field: 'location', headerName: 'Location', width: 110 },
-    { field: 'status', headerName: 'Status', width: 100 },
+    { field: 'title', headerName: 'Title', flex: 1, minWidth: 160 },
+    { field: 'brand', headerName: 'Brand', width: 100 },
     {
-      field: 'checked_in_at',
-      headerName: 'Checked In',
-      width: 145,
-      renderCell: (params: GridRenderCellParams<Item>) => (
-        <>
-          {params.row.checked_in_at
-            ? format(new Date(params.row.checked_in_at), 'MM/dd h:mm a')
-            : '—'}
-        </>
-      ),
+      field: 'condition', headerName: 'Condition', width: 100,
+      renderCell: (params: GridRenderCellParams<Item>) => {
+        const val = params.row.condition;
+        return val && val !== 'unknown'
+          ? <Chip label={val.replace('_', ' ')} size="small" variant="outlined" />
+          : <Typography variant="body2" color="text.secondary">--</Typography>;
+      },
     },
     {
-      field: 'actions',
-      headerName: '',
-      width: 120,
-      sortable: false,
-      filterable: false,
+      field: 'price', headerName: 'Price', width: 85,
+      renderCell: (params: GridRenderCellParams<Item>) => <>{formatCurrency(params.row.price)}</>,
+    },
+    { field: 'location', headerName: 'Location', width: 90 },
+    {
+      field: 'actions', headerName: 'Actions', width: 100, sortable: false, filterable: false,
       renderCell: (params: GridRenderCellParams<Item>) => (
-        <Button
-          size="small"
-          variant="contained"
-          startIcon={<Tune />}
-          onClick={(e) => { e.stopPropagation(); openItemDialog(params.row); }}
-        >
+        <Button size="small" variant="contained" startIcon={<Tune />}
+          onClick={(e) => { e.stopPropagation(); openItemDrawer(params.row); }}>
           Process
         </Button>
       ),
     },
-  ];
+  ], [openItemDrawer]);
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  const checkedInColumns: GridColDef[] = useMemo(() => [
+    {
+      field: 'sku', headerName: 'SKU', width: 120,
+      renderCell: (params: GridRenderCellParams<Item>) => (
+        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
+          {params.row.sku}
+        </Typography>
+      ),
+    },
+    { field: 'title', headerName: 'Title', flex: 1, minWidth: 160 },
+    {
+      field: 'price', headerName: 'Price', width: 85,
+      renderCell: (params: GridRenderCellParams<Item>) => <>{formatCurrency(params.row.price)}</>,
+    },
+    { field: 'condition', headerName: 'Condition', width: 100 },
+    { field: 'location', headerName: 'Location', width: 90 },
+    {
+      field: 'checked_in_at', headerName: 'Checked In', width: 140,
+      renderCell: (params: GridRenderCellParams<Item>) => (
+        <>{params.row.checked_in_at ? format(new Date(params.row.checked_in_at), 'MM/dd h:mm a') : '—'}</>
+      ),
+    },
+    {
+      field: 'actions', headerName: '', width: 60, sortable: false, filterable: false,
+      renderCell: (params: GridRenderCellParams<Item>) => (
+        <Tooltip title="Reprint label">
+          <IconButton size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePrint({ sku: params.row.sku, title: params.row.title, price: params.row.price });
+            }}>
+            <LocalPrintshop fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ),
+    },
+  ], [handlePrint]);
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
+  if (loading && !order && selectedOrderId) return <LoadingScreen />;
 
   return (
     <Box>
+      {/* ── Page Header ─────────────────────────────────────────────── */}
       <PageHeader
         title="Processing Workspace"
-        subtitle="Finalize details, check in inventory, and print tags"
+        subtitle="Check in inventory, finalize details, and print tags"
+        action={
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Print server status */}
+            <Tooltip title={
+              printStatus.online
+                ? `v${printStatus.version} — ${printStatus.printersAvailable} printer(s)`
+                : 'Print server not detected at localhost:8888'
+            }>
+              <Chip
+                icon={printStatus.online ? <LocalPrintshop /> : <PrintDisabled />}
+                label={printStatus.online ? 'Printer Online' : 'Printer Offline'}
+                size="small"
+                color={printStatus.online ? 'success' : 'default'}
+                variant={printStatus.online ? 'filled' : 'outlined'}
+              />
+            </Tooltip>
+            {/* Navigation */}
+            {selectedOrderId && order && (
+              <>
+                <Button size="small" variant="outlined" startIcon={<ArrowBack />}
+                  onClick={() => navigate(`/inventory/preprocessing/${order.id}`)}>
+                  Preprocessing
+                </Button>
+                <Button size="small" variant="outlined" startIcon={<OpenInNew />}
+                  onClick={() => navigate(`/inventory/orders/${order.id}`)}>
+                  Order
+                </Button>
+              </>
+            )}
+          </Box>
+        }
       />
 
-      {/* Order selector + context card */}
+      {/* ── Order Context Bar ───────────────────────────────────────── */}
       <Card sx={{ mb: 2 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="flex-start">
-            <Grid size={{ xs: 12, md: 5 }}>
-              <TextField
-                fullWidth
-                select
-                label="Purchase Order"
-                value={selectedOrderId ?? ''}
-                onChange={(e) =>
-                  setSelectedOrderId(e.target.value ? Number.parseInt(e.target.value, 10) : null)}
-              >
-                <MenuItem value="">Select order</MenuItem>
-                {orders.map((o) => (
-                  <MenuItem key={o.id} value={o.id}>
-                    {o.order_number} — {o.vendor_name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 7 }}>
-              {order ? (
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-                    <Typography variant="subtitle2" fontWeight={600}>
-                      {order.vendor_name}
-                    </Typography>
-                    <Chip
-                      label={order.status}
-                      size="small"
-                      color={STATUS_COLOR[order.status] ?? 'default'}
-                    />
-                    {order.condition && (
-                      <Chip label={order.condition} size="small" variant="outlined" />
-                    )}
-                    <Button
-                      size="small"
-                      variant="text"
-                      endIcon={<OpenInNew fontSize="small" />}
-                      onClick={() => navigate(`/inventory/orders/${order.id}`)}
-                      sx={{ ml: 'auto' }}
-                    >
-                      View Order
-                    </Button>
-                  </Box>
-                  {order.description && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }} noWrap>
-                      {order.description}
-                    </Typography>
-                  )}
-                  {order.item_count > 0 && stats && (
-                    <>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-                        <LinearProgress
-                          variant="determinate"
-                          value={progressValue}
-                          sx={{ flex: 1, height: 8, borderRadius: 4 }}
-                        />
-                        <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-                          {onShelf} / {order.item_count}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        {pendingCount > 0 && (
-                          <Chip label={`${pendingCount} pending`} size="small" color="warning" />
-                        )}
-                        {onShelf > 0 && (
-                          <Chip label={`${onShelf} on shelf`} size="small" color="success" />
-                        )}
-                        {(stats.batch_groups_pending ?? 0) > 0 && (
-                          <Chip label={`${stats.batch_groups_pending} batch groups`} size="small" />
-                        )}
-                      </Box>
-                    </>
-                  )}
+        <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', '&:last-child': { pb: 2 } }}>
+          <Autocomplete
+            sx={{ minWidth: 300, flexShrink: 0 }}
+            size="small"
+            options={orders}
+            value={orders.find((o) => o.id === selectedOrderId) ?? null}
+            onChange={(_e, val) => {
+              setSelectedOrderId(val?.id ?? null);
+              setActiveTab(0);
+              closeDrawer();
+              setSelectedItemIds([]);
+            }}
+            getOptionLabel={(o: PurchaseOrder) => `${o.order_number} — ${o.vendor_name}`}
+            renderOption={(props, o: PurchaseOrder) => (
+              <li {...props} key={o.id}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                  <Typography variant="body2" fontWeight={600}>{o.order_number}</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }} noWrap>
+                    {o.vendor_name}
+                  </Typography>
+                  <Chip label={o.status} size="small" color={STATUS_COLOR[o.status]} />
                 </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary" sx={{ pt: 1 }}>
-                  Select a purchase order above to begin processing.
-                </Typography>
-              )}
-            </Grid>
-          </Grid>
+              </li>
+            )}
+            renderInput={(params) => (
+              <TextField {...params} label="Purchase Order" placeholder="Search orders..." />
+            )}
+            isOptionEqualToValue={(opt, val) => opt.id === val.id}
+          />
+
+          {/* Progress ring + stats */}
+          {order && stats && order.item_count > 0 && (
+            <>
+              <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+                <CircularProgress variant="determinate" value={progressValue} size={52} thickness={4}
+                  color={progressValue >= 100 ? 'success' : 'primary'} />
+                <Box sx={{
+                  position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Typography variant="caption" fontWeight={700} color="text.secondary">
+                    {Math.round(progressValue)}%
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Chip
+                  label={`${onShelf} / ${order.item_count} on shelf`}
+                  size="small"
+                  color="success"
+                  variant={onShelf === order.item_count ? 'filled' : 'outlined'}
+                />
+                {pendingCount > 0 && (
+                  <Chip label={`${pendingCount} pending`} size="small" color="warning" />
+                )}
+                {(stats.batch_groups_pending ?? 0) > 0 && (
+                  <Chip label={`${stats.batch_groups_pending} batches`} size="small" variant="outlined" />
+                )}
+                <Chip
+                  label={order.status}
+                  size="small"
+                  color={STATUS_COLOR[order.status]}
+                />
+              </Box>
+            </>
+          )}
+
+          {/* Mark Complete */}
+          {allCheckedIn && order?.status !== 'complete' && (
+            <Button
+              variant="contained" color="success" size="small"
+              startIcon={markComplete.isPending ? <CircularProgress size={14} color="inherit" /> : <CheckCircleOutline />}
+              onClick={handleMarkComplete}
+              disabled={markComplete.isPending}
+              sx={{ ml: 'auto' }}
+            >
+              Mark Complete
+            </Button>
+          )}
+          {order?.status === 'complete' && (
+            <Chip label="Complete" color="success" size="small" icon={<CheckCircleOutline />} sx={{ ml: 'auto' }} />
+          )}
         </CardContent>
       </Card>
 
-      {/* Smart empty state: queue not built */}
+      {/* ── Smart alerts ────────────────────────────────────────────── */}
       {selectedOrderId && order && queueNotBuilt && (
-        <Alert
-          severity="warning"
-          sx={{ mb: 2 }}
-          action={
-            <Button
-              size="small"
-              color="inherit"
-              onClick={async () => {
-                try {
-                  const result = await createItemsMutation.mutateAsync(order.id);
-                  enqueueSnackbar(
-                    `Created ${result.items_created} item(s), ${result.batch_groups_created} batch(es)`,
-                    { variant: 'success' },
-                  );
-                } catch (err: unknown) {
-                  const axiosErr = err as { response?: { data?: { detail?: string } } };
-                  enqueueSnackbar(
-                    axiosErr?.response?.data?.detail || 'Failed to build check-in queue',
-                    { variant: 'error' },
-                  );
-                }
-              }}
-              disabled={createItemsMutation.isPending}
-            >
-              {createItemsMutation.isPending ? 'Building...' : 'Build Check-In Queue'}
-            </Button>
-          }
-        >
+        <Alert severity="warning" sx={{ mb: 2 }} action={
+          <Button size="small" color="inherit" onClick={handleBuildQueue} disabled={createItemsMutation.isPending}>
+            {createItemsMutation.isPending ? 'Building...' : 'Build Check-In Queue'}
+          </Button>
+        }>
           The check-in queue hasn&apos;t been built yet. Click <strong>Build Check-In Queue</strong> to
           create items from the manifest.
         </Alert>
       )}
 
-      {/* Smart empty state: all done */}
-      {selectedOrderId && order && allCheckedIn && (
-        <Alert
-          severity="success"
-          sx={{ mb: 2 }}
-          icon={<CheckCircleOutline />}
-          action={
-            order.status !== 'complete' ? (
-              <Button
-                size="small"
-                color="inherit"
-                onClick={handleMarkComplete}
-                disabled={markComplete.isPending}
-              >
-                Mark Complete
-              </Button>
-            ) : undefined
-          }
-        >
-          All {onShelf} items are checked in.
-          {order.status !== 'complete' && ' Mark the order complete to finish.'}
+      {allCheckedIn && order?.status === 'complete' && (
+        <Alert severity="success" sx={{ mb: 2 }} icon={<CheckCircleOutline />}>
+          All {onShelf} items are checked in and the order is complete.
         </Alert>
       )}
 
-      {/* Queues — render when an order is selected (shows empty state until Build Check-In Queue is run) */}
+      {/* ── Print progress indicator ────────────────────────────────── */}
+      {printProgress && (
+        <Alert severity="info" sx={{ mb: 2 }} icon={<LocalPrintshop />}>
+          Printing labels... {printProgress.done} / {printProgress.total}
+        </Alert>
+      )}
+
+      {/* ── Scanner Input ───────────────────────────────────────────── */}
       {selectedOrderId && (
-        <>
-          <Card sx={{ mb: 2 }}>
-            <CardContent>
-              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                Batch Queue
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Set shared fields once, then check in and print labels for all items in the batch.
-              </Typography>
-              <Box sx={{ height: 360 }}>
+        <Card sx={{ mb: 2 }}>
+          <CardContent sx={{ display: 'flex', gap: 1, alignItems: 'center', py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Chip label="F2" size="small" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
+            <TextField
+              inputRef={scannerRef}
+              size="small"
+              placeholder="Scan or type SKU..."
+              value={scanInput}
+              onChange={(e) => setScanInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleScan()}
+              sx={{ flex: 1, maxWidth: 400 }}
+              slotProps={{
+                input: {
+                  startAdornment: <Search fontSize="small" sx={{ mr: 0.75, color: 'text.secondary' }} />,
+                },
+              }}
+            />
+            <Button size="small" variant="outlined" onClick={handleScan}>Find</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Tabbed Queues ───────────────────────────────────────────── */}
+      {selectedOrderId && (
+        <Card sx={{ mb: 2 }}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center' }}>
+            <Tabs value={activeTab} onChange={(_e, v) => setActiveTab(v)}>
+              <Tab label={
+                <Badge badgeContent={batchQueue.length} color="warning" max={999}>
+                  <Box sx={{ pr: batchQueue.length > 0 ? 2 : 0 }}>Batches</Box>
+                </Badge>
+              } />
+              <Tab label={
+                <Badge badgeContent={individualQueue.length} color="warning" max={999}>
+                  <Box sx={{ pr: individualQueue.length > 0 ? 2 : 0 }}>Items</Box>
+                </Badge>
+              } />
+              <Tab label={
+                <Badge badgeContent={checkedInItems.length} color="success" max={999}>
+                  <Box sx={{ pr: checkedInItems.length > 0 ? 2 : 0 }}>Checked In</Box>
+                </Badge>
+              } />
+            </Tabs>
+
+            {/* Bulk actions for Items tab */}
+            {activeTab === 1 && selectedItemIds.length > 0 && (
+              <Box sx={{ ml: 'auto', mr: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Chip label={`${selectedItemIds.length} selected`} size="small" color="primary" />
+                <Button size="small" variant="contained" onClick={() => setBulkDialogOpen(true)}>
+                  Bulk Check-In
+                </Button>
+              </Box>
+            )}
+          </Box>
+
+          <CardContent sx={{ p: 0 }}>
+            {/* Batches tab */}
+            {activeTab === 0 && (
+              <Box sx={{ height: 440 }}>
                 <DataGrid
                   rows={batchQueue}
                   columns={batchColumns}
@@ -636,209 +908,163 @@ export default function ProcessingPage() {
                   pageSizeOptions={[10, 25, 50]}
                   initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
                   getRowId={(row: BatchGroup) => row.id}
-                  sx={{ border: 'none' }}
+                  onRowClick={(params) => openBatchDrawer(params.row as BatchGroup)}
+                  sx={{ border: 'none', cursor: 'pointer' }}
+                  density="compact"
                 />
               </Box>
-            </CardContent>
-          </Card>
+            )}
 
-          <Card sx={{ mb: 2 }}>
-            <CardContent>
-              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                Item Queue
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                Individual and detached exception items.
-              </Typography>
-              <TextField
-                size="small"
-                placeholder="Search SKU/title/brand..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                sx={{ mb: 1.5, maxWidth: 320 }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <Search fontSize="small" sx={{ mr: 0.75, color: 'text.secondary' }} />
-                    ),
-                  },
-                }}
-              />
-              <Box sx={{ height: 420 }}>
+            {/* Items tab */}
+            {activeTab === 1 && (
+              <Box>
+                <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
+                  <TextField
+                    size="small"
+                    placeholder="Filter items..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    sx={{ maxWidth: 300 }}
+                    slotProps={{
+                      input: {
+                        startAdornment: <Search fontSize="small" sx={{ mr: 0.75, color: 'text.secondary' }} />,
+                      },
+                    }}
+                  />
+                </Box>
+                <Box sx={{ height: 440 }}>
+                  <DataGrid
+                    rows={individualQueue}
+                    columns={itemColumns}
+                    loading={itemsLoading}
+                    pageSizeOptions={[10, 25, 50]}
+                    initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                    getRowId={(row: Item) => row.id}
+                    onRowClick={(params) => openItemDrawer(params.row as Item)}
+                    checkboxSelection
+                    rowSelectionModel={{ type: 'include' as const, ids: new Set(selectedItemIds) }}
+                    onRowSelectionModelChange={(model) => setSelectedItemIds(Array.from(model.ids).map(Number))}
+                    sx={{ border: 'none', cursor: 'pointer' }}
+                    density="compact"
+                  />
+                </Box>
+              </Box>
+            )}
+
+            {/* Checked In tab */}
+            {activeTab === 2 && (
+              <Box sx={{ height: 440 }}>
                 <DataGrid
-                  rows={individualQueue}
-                  columns={itemColumns}
+                  rows={checkedInItems}
+                  columns={checkedInColumns}
                   loading={itemsLoading}
                   pageSizeOptions={[10, 25, 50]}
-                  initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                  initialState={{
+                    pagination: { paginationModel: { pageSize: 10 } },
+                    sorting: { sortModel: [{ field: 'checked_in_at', sort: 'desc' }] },
+                  }}
                   getRowId={(row: Item) => row.id}
                   sx={{ border: 'none' }}
+                  density="compact"
                 />
               </Box>
-            </CardContent>
-          </Card>
-
-          {/* Mark Complete footer */}
-          <Card>
-            <CardContent
-              sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}
-            >
-              <Box>
-                <Typography variant="subtitle2" fontWeight={600}>
-                  Finish Order
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {pendingCount > 0
-                    ? `${pendingCount} item${pendingCount === 1 ? '' : 's'} still pending.`
-                    : 'All items checked in — ready to mark complete.'}
-                </Typography>
-              </Box>
-              <Tooltip title={pendingCount > 0 ? `${pendingCount} items still pending` : ''}>
-                <span>
-                  <Button
-                    variant="contained"
-                    color="success"
-                    startIcon={<CheckCircleOutline />}
-                    onClick={handleMarkComplete}
-                    disabled={
-                      pendingCount > 0 ||
-                      markComplete.isPending ||
-                      order?.status === 'complete'
-                    }
-                  >
-                    {order?.status === 'complete' ? 'Order Complete' : 'Mark Complete'}
-                  </Button>
-                </span>
-              </Tooltip>
-            </CardContent>
-          </Card>
-        </>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* Processing dialog — shared for item and batch */}
-      <Dialog open={dialogMode !== null} onClose={closeDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {dialogMode === 'item'
-            ? `Process Item — ${activeItem?.sku ?? ''}`
-            : `Process Batch — ${activeBatch?.batch_number ?? ''}`}
-        </DialogTitle>
+      {/* ── Session Stats Bar ───────────────────────────────────────── */}
+      {selectedOrderId && (
+        <ProcessingStatsBar
+          sessionCheckedIn={sessionCount}
+          sessionStartTime={sessionStartRef.current}
+          totalPending={pendingCount}
+          autoAdvance={autoAdvance}
+          onAutoAdvanceToggle={setAutoAdvance}
+        />
+      )}
+
+      {/* ── Side Drawer ─────────────────────────────────────────────── */}
+      <ProcessingDrawer
+        mode={drawerMode}
+        item={activeItem}
+        batch={activeBatch}
+        form={form}
+        onFormChange={setForm}
+        printOnCheckIn={printOnCheckIn}
+        onPrintToggle={setPrintOnCheckIn}
+        onClose={closeDrawer}
+        onSave={handleSave}
+        onCheckIn={handleCheckIn}
+        onSkipNext={advanceToNext}
+        onCopyLast={handleCopyLast}
+        onReprint={handleReprint}
+        saving={updateItem.isPending || updateBatchGroup.isPending}
+        checkingIn={checkInItem.isPending || checkInBatchGroup.isPending}
+        hasLastItem={lastCheckedIn != null}
+        autoAdvance={autoAdvance}
+        batchItemCount={activeBatch?.intake_items_count ?? 0}
+        justCheckedIn={justCheckedIn}
+      />
+
+      {/* ── Detach confirmation popover ──────────────────────────────── */}
+      <Popover
+        open={detachAnchor != null}
+        anchorEl={detachAnchor}
+        onClose={() => { setDetachAnchor(null); setDetachBatchId(null); }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Box sx={{ p: 2, maxWidth: 260 }}>
+          <Typography variant="subtitle2" gutterBottom>Detach Item?</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            This will remove one item from the batch and move it to individual processing.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+            <Button size="small" onClick={() => { setDetachAnchor(null); setDetachBatchId(null); }}>
+              Cancel
+            </Button>
+            <Button size="small" variant="contained" color="warning" onClick={confirmDetach}
+              disabled={detachBatchItem.isPending}>
+              Detach
+            </Button>
+          </Box>
+        </Box>
+      </Popover>
+
+      {/* ── Bulk Check-In Dialog ─────────────────────────────────────── */}
+      <Dialog open={bulkDialogOpen} onClose={() => setBulkDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Bulk Check-In ({selectedItemIds.length} items)</DialogTitle>
         <DialogContent>
-          <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {dialogMode === 'item' && (
-              <>
-                <TextField
-                  label="Title"
-                  fullWidth
-                  value={form.title}
-                  onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                />
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, md: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Brand"
-                      value={form.brand}
-                      onChange={(e) => setForm((prev) => ({ ...prev, brand: e.target.value }))}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Category"
-                      value={form.category}
-                      onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value }))}
-                    />
-                  </Grid>
-                </Grid>
-              </>
-            )}
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  select
-                  label="Condition"
-                  value={form.condition}
-                  onChange={(e) => setForm((prev) => ({ ...prev, condition: e.target.value }))}
-                >
-                  <MenuItem value="new">New</MenuItem>
-                  <MenuItem value="like_new">Like New</MenuItem>
-                  <MenuItem value="good">Good</MenuItem>
-                  <MenuItem value="fair">Fair</MenuItem>
-                  <MenuItem value="salvage">Salvage</MenuItem>
-                  <MenuItem value="unknown">Unknown</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Location"
-                  value={form.location}
-                  onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
-                />
-              </Grid>
-            </Grid>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label={dialogMode === 'batch' ? 'Unit Price' : 'Price'}
-                  type="number"
-                  value={form.price}
-                  onChange={(e) => setForm((prev) => ({ ...prev, price: e.target.value }))}
-                  slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }}
-                  helperText={
-                    dialogMode === 'item' && activeItem?.price
-                      ? 'From pre-arrival pricing'
-                      : undefined
-                  }
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label={dialogMode === 'batch' ? 'Unit Cost' : 'Cost'}
-                  type="number"
-                  value={form.cost}
-                  onChange={(e) => setForm((prev) => ({ ...prev, cost: e.target.value }))}
-                  slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }}
-                />
-              </Grid>
-            </Grid>
-            <TextField
-              label="Notes"
-              multiline
-              minRows={2}
-              value={form.notes}
-              onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={printOnCheckIn}
-                  onChange={(e) => setPrintOnCheckIn(e.target.checked)}
-                />
-              }
-              label="Print label(s) after check-in"
-            />
+          <DialogContentText sx={{ mb: 2 }}>
+            Apply shared overrides to all selected items and check them in. Leave fields blank to keep existing values.
+          </DialogContentText>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField select size="small" label="Condition" value={bulkForm.condition}
+              onChange={(e) => setBulkForm((p) => ({ ...p, condition: e.target.value }))}>
+              <MenuItem value="">Keep existing</MenuItem>
+              <MenuItem value="new">New</MenuItem>
+              <MenuItem value="like_new">Like New</MenuItem>
+              <MenuItem value="good">Good</MenuItem>
+              <MenuItem value="fair">Fair</MenuItem>
+              <MenuItem value="salvage">Salvage</MenuItem>
+            </TextField>
+            <TextField size="small" label="Location" value={bulkForm.location}
+              onChange={(e) => setBulkForm((p) => ({ ...p, location: e.target.value }))} />
+            <TextField size="small" label="Price Override" type="number" value={bulkForm.price}
+              onChange={(e) => setBulkForm((p) => ({ ...p, price: e.target.value }))}
+              slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }} />
+            <TextField size="small" label="Cost Override" type="number" value={bulkForm.cost}
+              onChange={(e) => setBulkForm((p) => ({ ...p, cost: e.target.value }))}
+              slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }} />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeDialog}>Cancel</Button>
-          <Button
-            variant="outlined"
-            onClick={handleSaveFieldsOnly}
-            disabled={updateItem.isPending || updateBatchGroup.isPending}
-          >
-            Save Fields Only
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={printOnCheckIn ? <LocalPrintshop /> : <TaskAlt />}
-            onClick={handleCheckInAndPrint}
-            disabled={checkInItem.isPending || checkInBatchGroup.isPending}
-          >
-            {printOnCheckIn ? 'Check-In & Print Tags' : 'Check-In'}
+          <Button onClick={() => setBulkDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleBulkCheckIn}
+            disabled={bulkCheckIn.isPending}
+            startIcon={bulkCheckIn.isPending ? <CircularProgress size={14} color="inherit" /> : <CheckCircleOutline />}>
+            {bulkCheckIn.isPending ? 'Checking in...' : `Check In ${selectedItemIds.length} Items`}
           </Button>
         </DialogActions>
       </Dialog>

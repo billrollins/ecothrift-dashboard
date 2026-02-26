@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-25T18:00:00-06:00 -->
+<!-- Last updated: 2026-02-25T22:00:00-06:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,37 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [1.9.0] — 2026-02-25
+
+### Added
+- **Processing Page Overhaul** (`ProcessingPage.tsx`): full "Command Center + Side Drawer" redesign
+- `useLocalPrintStatus` hook: polls `/health` every 30s, exposes `online`/`version`/`printersAvailable`; persistent green/gray status chip in PageHeader
+- Print server graceful degradation: check-in succeeds even when print server offline; warning snackbar + reprint recovery on Checked In tab
+- Staggered batch label printing via `Promise.allSettled` with 200ms stagger and inline "Printing X/Y labels..." progress alert
+- **MUI Autocomplete order selector** with search, status chips, and per-order progress indicators replacing basic dropdown
+- **Circular progress ring** (% complete) + stats chips (on-shelf, pending, batches) in order context bar
+- **Always-visible SKU scanner input** with F2 hotkey focus; Enter searches items by SKU and auto-opens side drawer
+- **Three-tab queue** (Batches / Items / Checked In) with badge counts; tab selection persists across interactions
+- **Right-side MUI Drawer** (`ProcessingDrawer.tsx`) replaces center dialog; shows form + collapsible source data context (product, brand, cost, batch info)
+- **Checked In tab**: DataGrid of completed items sorted by check-in time with per-row reprint button
+- **Bulk check-in**: checkbox column on Items tab, floating "Bulk Check-In" dialog with shared condition/location/price/cost overrides; calls existing `check-in-items` endpoint; prints staggered labels
+- **Detach confirmation popover**: replaces immediate action; shows warning before detaching item from batch
+- **Keyboard shortcuts**: F2 (scanner focus), Ctrl+Enter (check-in), Escape (close drawer), Ctrl+P (reprint), N (next item)
+- **Auto-advance**: after check-in automatically opens next pending item; toggle switch in stats bar (default ON)
+- **Sticky defaults**: condition + location persist in `localStorage` under `processing_sticky_defaults`; pre-fill empty fields on open
+- **Copy from Last**: button in drawer copies condition/location/notes from most recently checked-in item
+- **Session stats bar** (`ProcessingStatsBar.tsx`): elapsed time, items/hour rate, ETA, session item count, auto-advance toggle
+- **Back to Preprocessing** navigation button in PageHeader when an order is selected
+- `useItems` and `useBatchGroups` hooks accept `enabled` parameter to prevent fetching all items when no order selected
+
+### Changed
+- `queueNotBuilt` logic broadened: triggers for both `delivered` and `processing` status with zero items (was `delivered` only)
+- Items query limit raised from 500 to 1000 for large orders
+- Replaced local `formatCurrency` in ProcessingPage with shared `formatCurrency` from `utils/format.ts`
+- DataGrid density set to `compact` across all three tabs for higher information density
 
 ---
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-18T16:00:00-06:00 -->
+<!-- Last updated: 2026-02-25T22:00:00-06:00 -->
 
 # Inventory Pipeline — Extended Context
 
@@ -319,12 +319,29 @@ Cross-reference mapping of vendor identifiers to internal `Product`.
 - Actions follow the new flow: Save Pre-Arrival Pricing → Match Products → Build Check-In Queue → Open Processing Workspace
 - Includes order reset modal using reverse-sequence artifact preview + guarded purge deletion
 
+### Processing Page (`ProcessingPage.tsx`) — v1.9.0
+
+"Command Center + Side Drawer" design. Key features:
+- **MUI Autocomplete** order selector (search, status chips per option) replaces basic dropdown
+- **Progress ring** (CircularProgress, 52px) with % overlaid; stats chips for pending/on-shelf/batch counts
+- **SKU scanner input** always visible; F2 focuses it; Enter finds item by SKU and opens Drawer
+- **Three-tab DataGrid** (Batches / Items / Checked In) with badge counts; compact density
+- **Right-side Drawer** (`ProcessingDrawer.tsx`) — form + collapsible source context, Copy from Last, Save/Check-In/Reprint, keyboard hints
+- **Bulk check-in**: checkbox selection on Items tab → dialog with shared overrides → `check-in-items` endpoint
+- **Batch labels**: staggered `Promise.allSettled` with 200ms stagger; progress alert
+- **Reprint**: per-row printer icon on Checked In tab + Reprint button in drawer after check-in
+- **Detach confirmation**: popover before detach (was instant)
+- **Keyboard shortcuts**: F2 (scanner), Ctrl+Enter (check-in), Escape (close), Ctrl+P (reprint), N (next)
+- **Auto-advance**: opens next pending item after check-in; toggle in stats bar
+- **Sticky defaults**: condition + location persisted to `localStorage` (`processing_sticky_defaults`)
+- **Session stats bar** (`ProcessingStatsBar.tsx`): elapsed, items/hr, ETA, session count
+
 ### Hooks (`useInventory.ts`)
 
 - `usePurchaseOrder`, `useDeliverOrder`, `useUploadManifest`, `useManifestRows`, `usePreviewStandardize`, `useProcessManifest`, `useUpdateManifestPricing`, `useMatchProducts`, `useCreateItems`, `useMarkOrderComplete`, `useAICleanupRows`, `useAICleanupStatus`, `useCancelAICleanup`
-- `useBatchGroups`, `useUpdateBatchGroup`, `useCheckInBatchGroup`, `useDetachBatchItem`
+- `useBatchGroups(params, enabled)`, `useUpdateBatchGroup`, `useCheckInBatchGroup`, `useDetachBatchItem`
 - `useMarkOrderPaid`, `useRevertOrderPaid`, `useMarkOrderShipped`, `useRevertOrderShipped`, `useRevertOrderDelivered`
-- `useItems`, `useUpdateItem`, `useCheckInItem`, `useMarkItemReady`, `useCheckInOrderItems`
+- `useItems(params, enabled)`, `useUpdateItem`, `useCheckInItem`, `useMarkItemReady`, `useCheckInOrderItems`
 - `useProducts`, `useVendors`, etc.
 - `useOrderDeletePreview`, `usePurgeDeleteOrder`
 
