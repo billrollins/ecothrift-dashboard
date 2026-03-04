@@ -18,7 +18,11 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Icon and default button color. Ignored if confirmColor is set. */
   severity?: 'warning' | 'error' | 'info';
+  /** Override button color (e.g. 'success', 'error'). Use when you need a color not in severity. */
+  confirmColor?: 'primary' | 'error' | 'warning' | 'success' | 'inherit';
+  loading?: boolean;
 }
 
 const severityConfig = {
@@ -45,8 +49,12 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   severity = 'warning',
+  confirmColor: confirmColorProp,
+  loading = false,
 }: ConfirmDialogProps) {
   const config = severityConfig[severity];
+  const confirmColor = confirmColorProp ?? config.confirmColor;
+  const showIcon = confirmColorProp == null;
 
   return (
     <Dialog
@@ -61,7 +69,7 @@ export function ConfirmDialog({
       }}
     >
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {config.icon}
+        {showIcon && config.icon}
         {title}
       </DialogTitle>
       <DialogContent>
@@ -78,15 +86,16 @@ export function ConfirmDialog({
           gap: 1,
         }}
       >
-        <Button onClick={onCancel} variant="outlined" color="inherit">
+        <Button onClick={onCancel} variant="outlined" color="inherit" disabled={loading}>
           {cancelLabel}
         </Button>
         <Button
           onClick={onConfirm}
           variant="contained"
-          color={config.confirmColor}
+          color={confirmColor}
+          disabled={loading}
         >
-          {confirmLabel}
+          {loading ? 'Processing...' : confirmLabel}
         </Button>
       </DialogActions>
     </Dialog>

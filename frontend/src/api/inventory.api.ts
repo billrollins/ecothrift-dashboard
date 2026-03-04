@@ -591,6 +591,14 @@ export function checkInOrderItems(
   return api.post<CheckInOrderItemsResponse>(`/inventory/orders/${orderId}/check-in-items/`, data);
 }
 
+export function bulkMarkBroken(orderId: number, itemIds: number[]): Promise<{ data: { marked_broken: number } }> {
+  return api.post<{ marked_broken: number }>(`/inventory/orders/${orderId}/mark-items-broken/`, { item_ids: itemIds });
+}
+
+export function bulkUncheckIn(orderId: number, itemIds: number[]): Promise<{ data: { unchecked_in: number } }> {
+  return api.post<{ unchecked_in: number }>(`/inventory/orders/${orderId}/uncheck-in-items/`, { item_ids: itemIds });
+}
+
 // Templates CRUD
 export function getTemplates(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Template> }> {
   return api.get<PaginatedResponse<Template>>('/inventory/templates/', { params });
@@ -688,6 +696,14 @@ export function checkInItem(id: number, data: CheckInItemPayload): Promise<{ dat
   return api.post<Item & { checked_in: boolean }>(`/inventory/items/${id}/check-in/`, data);
 }
 
+export function markItemBroken(id: number): Promise<{ data: Item }> {
+  return api.post<Item>(`/inventory/items/${id}/mark-broken/`);
+}
+
+export function uncheckInItem(id: number): Promise<{ data: Item }> {
+  return api.post<Item>(`/inventory/items/${id}/uncheck-in/`);
+}
+
 // Batch groups
 export function getBatchGroups(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Batch> }> {
   return api.get<PaginatedResponse<Batch>>('/inventory/batch-groups/', { params });
@@ -713,9 +729,16 @@ export function processBatchGroup(
 
 export function checkInBatchGroup(
   id: number,
-  data: { unit_price?: number | string; unit_cost?: number | string; condition?: string; location?: string },
-): Promise<{ data: Batch & { checked_in: number } }> {
-  return api.post<Batch & { checked_in: number }>(`/inventory/batch-groups/${id}/check-in/`, data);
+  data: {
+    unit_price?: number | string;
+    unit_cost?: number | string;
+    condition?: string;
+    location?: string;
+    check_in_count?: number;
+    scrap_count?: number;
+  },
+): Promise<{ data: Batch & { checked_in: number; marked_broken?: number } }> {
+  return api.post<Batch & { checked_in: number; marked_broken?: number }>(`/inventory/batch-groups/${id}/check-in/`, data);
 }
 
 export function detachBatchItem(
@@ -733,4 +756,232 @@ export function getItemHistory(params?: Record<string, unknown>): Promise<{ data
 /** Item lookup by SKU - no auth required */
 export function itemLookup(sku: string) {
   return apiPublic.get<Item>(`/inventory/items/lookup/${encodeURIComponent(sku)}/`);
+}
+
+// ── Pricing / Estimation ──────────────────────────────────────────────────────
+
+export interface PriceEstimateRequest {
+  title: string;
+  brand?: string;
+  model?: string;
+  condition?: string;
+  source?: string;
+  retail_value?: string | number;
+  category?: string;
+}
+
+export interface PriceEstimateResponse {
+  estimated_price: string;
+  low_estimate: string;
+  high_estimate: string;
+  confidence: number;
+  method: string;
+  comparables: Array<{ sku: string; title: string; brand: string; condition: string; sold_for: string; sold_at: string }>;
+  notes: string;
+}
+
+export function estimatePrice(data: PriceEstimateRequest): Promise<{ data: PriceEstimateResponse }> {
+  return api.post<PriceEstimateResponse>('/inventory/estimate-price/', data);
+}
+
+export function estimateManifestPrices(orderId: number, overwrite = false): Promise<{ data: {
+  total_rows: number; rows_estimated: number; rows_skipped: number;
+  estimated_revenue: string; po_cost: string | null; margin_pct: number | null;
+} }> {
+  return api.post(`/inventory/orders/${orderId}/estimate-prices/`, { overwrite });
+}
+
+export interface QuickRepriceRequest {
+  discount_type: 'percent' | 'fixed';
+  discount_value: number;
+  min_price?: number;
+}
+
+export interface QuickRepriceResponse {
+  sku: string;
+  title: string;
+  old_price: string;
+  new_price: string;
+  discount_amount: string;
+  discount_type: string;
+  discount_value: string;
+}
+
+export function quickReprice(itemId: number, data: QuickRepriceRequest): Promise<{ data: QuickRepriceResponse }> {
+  return api.post<QuickRepriceResponse>(`/inventory/items/${itemId}/quick-reprice/`, data);
+}
+
+export function verifyItemPresent(itemId: number): Promise<{ data: { sku: string; title: string; status: string; location: string; verified: boolean } }> {
+  return api.post(`/inventory/items/${itemId}/verify-present/`, {});
+}
+
+export function getStoreReport(params?: { stale_days?: number; location?: string }): Promise<{ data: {
+  summary: {
+    total_items_on_shelf: number;
+    total_retail_value: string;
+    avg_price: string;
+    stale_threshold_days: number;
+    stale_item_count: number;
+    unpriced_item_count: number;
+    lost_item_count: number;
+  };
+  stale_items: Item[];
+  unpriced_items: Item[];
+  lost_items: Item[];
+  category_breakdown: Array<{ category: string; count: number; total_value: string }>;
+  source_breakdown: Array<{ source: string; count: number; total_value: string }>;
+  price_histogram: Array<{ range: string; count: number }>;
+} }> {
+  return api.get('/inventory/store-report/', { params });
+}
+
+// ── Retag ─────────────────────────────────────────────────────────────────────
+
+export interface RetagLookupResponse {
+  found: boolean;
+  already_retagged: boolean;
+  legacy_item?: {
+    sku: string; title: string; brand: string; category: string;
+    condition: string; source: string; price: string; cost: string | null;
+    location: string; notes: string; status: string;
+  };
+  existing_item?: { sku: string; title: string; price: string; status: string };
+  suggested?: {
+    category_id: number | null; category_name: string; category_confidence: number;
+    estimated_price: string; price_low: string; price_high: string;
+    price_confidence: number; price_method: string;
+    comparables: Array<{ sku: string; title: string; sold_for: string; sold_at: string }>;
+  };
+}
+
+export function retagLookup(oldSku: string): Promise<{ data: RetagLookupResponse }> {
+  return api.post<RetagLookupResponse>('/inventory/retag/lookup/', { old_sku: oldSku });
+}
+
+export interface RetagCreateRequest {
+  old_sku: string;
+  title: string;
+  brand?: string;
+  category?: string;
+  category_id?: number;
+  condition: string;
+  source: string;
+  price: number | string;
+  cost?: number | string;
+  location?: string;
+  notes?: string;
+}
+
+export interface RetagCreateResponse {
+  new_sku: string;
+  title: string;
+  price: string;
+  category: string;
+  old_sku: string;
+  print_payload: { qr_data: string; text: string; product_title: string; include_text: boolean };
+}
+
+export function retagCreate(data: RetagCreateRequest): Promise<{ data: RetagCreateResponse }> {
+  return api.post<RetagCreateResponse>('/inventory/retag/create/', data);
+}
+
+// ── Retag v2 (DB2 → DB3) ──────────────────────────────────────────────────────
+
+export interface RetagV2LookupResponse {
+  found: boolean;
+  already_retagged: boolean;
+  legacy_item?: {
+    sku: string;
+    title: string;
+    brand: string;
+    model: string;
+    condition: string;
+    legacy_status: string;
+    price: string;
+    retail_amt: string | null;
+  };
+  existing_item?: {
+    sku: string;
+    retagged_at: string | null;
+  };
+  suggested?: {
+    estimated_price: string;
+    price_low: string;
+    price_high: string;
+    price_confidence: number;
+    price_method: string;
+    comparables: Array<{ sku: string; title: string; sold_for: string; sold_at: string }>;
+  };
+}
+
+export interface RetagV2CreateRequest {
+  old_sku: string;
+  title: string;
+  brand?: string;
+  condition: string;
+  source: string;
+  price: number | string;
+  cost?: number | string;
+  location?: string;
+  notes?: string;
+}
+
+export interface RetagV2CreateResponse {
+  new_sku: string;
+  title: string;
+  price: string;
+  category: string;
+  old_sku: string;
+  already_retagged?: boolean;
+  print_payload: { qr_data: string; text: string; product_title: string; include_text: boolean };
+}
+
+export function retagV2Lookup(oldSku: string): Promise<{ data: RetagV2LookupResponse }> {
+  return api.post<RetagV2LookupResponse>('/inventory/retag/v2/lookup/', { old_sku: oldSku });
+}
+
+export function retagV2Create(data: RetagV2CreateRequest): Promise<{ data: RetagV2CreateResponse }> {
+  return api.post<RetagV2CreateResponse>('/inventory/retag/v2/create/', data);
+}
+
+export interface RetagV2StatsResponse {
+  source_db: string;
+  total_staged: number;
+  total_retagged: number;
+  remaining: number;
+  pct_complete: number;
+}
+
+export function retagV2Stats(): Promise<{ data: RetagV2StatsResponse }> {
+  return api.get<RetagV2StatsResponse>('/inventory/retag/v2/stats/');
+}
+
+export interface RetagHistoryRow {
+  id: number;
+  legacy_sku: string;
+  new_item_sku: string;
+  title: string;
+  price: string;
+  retail_amt: string | null;
+  retagged_at: string;
+  retagged_by: string | null;
+}
+
+export interface RetagHistoryResponse {
+  total_retagged: number;
+  sum_price: string;
+  sum_retail: string;
+  count: number;
+  page: number;
+  num_pages: number;
+  results: RetagHistoryRow[];
+}
+
+export function retagV2History(params: {
+  search?: string;
+  since?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<{ data: RetagHistoryResponse }> {
+  return api.get<RetagHistoryResponse>('/inventory/retag/v2/history/', { params });
 }

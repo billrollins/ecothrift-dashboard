@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-25T22:00:00-06:00 -->
+<!-- Last updated: 2026-03-04T14:00:00-06:00 -->
 # Frontend Routes & Pages
 
 ## Route Guards
@@ -55,6 +55,7 @@ Consignee routes use `ProtectedRoute` + role check in `ConsigneeLayout`.
 | `/inventory/products` | ProductListPage | Product catalog |
 | `/inventory/items` | ItemListPage | Item inventory with status filters |
 | `/inventory/items/:id` | ItemDetailPage | Item detail view/edit |
+| `/inventory/retag` | RetagPage | DB2→DB3 retag workflow: scan old tag, create new DB3 item, print label. **Temporary — remove after retag day.** |
 
 ### POS
 
@@ -99,7 +100,7 @@ The sidebar in `MainLayout` is organized into collapsible sections:
 
 1. **Dashboard** — Dashboard
 2. **HR** — Time Clock, Time History, Employees, Sick Leave
-3. **Inventory** *(collapsible)* — Vendors, Orders, Preprocessing, Processing, Products, Items
+3. **Inventory** *(collapsible)* — Vendors, Orders, Preprocessing, Processing, Products, Items, Retag *(temporary)*
 4. **POS** *(collapsible)* — Terminal, Drawers, Cash Management, Transactions
 5. **Consignment** — Accounts, Items, Payouts *(Manager+ only)*
 6. **Admin** — Users, Customers, Permissions, Settings *(Admin only)*

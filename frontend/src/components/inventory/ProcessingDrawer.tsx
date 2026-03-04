@@ -13,6 +13,10 @@ import {
   FormControlLabel,
   Grid,
   IconButton,
+  List,
+  ListItemButton,
+  ListItemSecondaryAction,
+  ListItemText,
   MenuItem,
   TextField,
   Tooltip,
@@ -25,6 +29,7 @@ import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import NavigateNext from '@mui/icons-material/NavigateNext';
 import SaveOutlined from '@mui/icons-material/SaveOutlined';
 import TaskAlt from '@mui/icons-material/TaskAlt';
+import Undo from '@mui/icons-material/Undo';
 import type { BatchGroup, Item } from '../../types/inventory.types';
 
 export type DrawerMode = 'item' | 'batch' | null;
@@ -83,6 +88,11 @@ export function buildBatchForm(
   };
 }
 
+export interface BatchCheckInPartial {
+  checkInCount?: number;
+  scrapCount?: number;
+}
+
 interface ProcessingDrawerProps {
   mode: DrawerMode;
   item: Item | null;
@@ -93,16 +103,21 @@ interface ProcessingDrawerProps {
   onPrintToggle: (value: boolean) => void;
   onClose: () => void;
   onSave: () => void;
-  onCheckIn: () => void;
+  onCheckIn: (extra?: BatchCheckInPartial) => void;
   onSkipNext: () => void;
   onCopyLast: () => void;
   onReprint: () => void;
+  onMarkBroken?: () => void;
   saving: boolean;
   checkingIn: boolean;
   hasLastItem: boolean;
   autoAdvance: boolean;
   batchItemCount?: number;
   justCheckedIn?: boolean;
+  batchPendingItems?: Item[];
+  batchCheckedInItems?: Item[];
+  onOpenBatchItem?: (item: Item) => void;
+  onUncheckInItem?: (id: number) => void;
 }
 
 export const DRAWER_WIDTH = 420;
@@ -121,15 +136,29 @@ export function ProcessingDrawer({
   onSkipNext,
   onCopyLast,
   onReprint,
+  onMarkBroken,
   saving,
   checkingIn,
   hasLastItem,
   autoAdvance,
-  batchItemCount,
+  batchItemCount = 0,
   justCheckedIn,
+  batchPendingItems = [],
+  batchCheckedInItems = [],
+  onOpenBatchItem,
+  onUncheckInItem,
 }: ProcessingDrawerProps) {
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const [sourceExpanded, setSourceExpanded] = useState(false);
+  const [checkInCount, setCheckInCount] = useState(batchItemCount);
+  const [scrapCount, setScrapCount] = useState(0);
+
+  useEffect(() => {
+    if (mode === 'batch') {
+      setCheckInCount(batchItemCount);
+      setScrapCount(0);
+    }
+  }, [mode, batch?.id, batchItemCount]);
 
   useEffect(() => {
     if (mode && firstFieldRef.current) {
@@ -160,7 +189,13 @@ export function ProcessingDrawer({
       onClose={onClose}
       variant="temporary"
       ModalProps={{ keepMounted: true }}
-      PaperProps={{ sx: { width: DRAWER_WIDTH, display: 'flex', flexDirection: 'column' } }}
+      PaperProps={{
+        sx: {
+          width: { xs: '100vw', sm: DRAWER_WIDTH },
+          display: 'flex',
+          flexDirection: 'column',
+        },
+      }}
     >
       {/* Header */}
       <Box sx={{ p: 2, pb: 1.5, borderBottom: 1, borderColor: 'divider' }}>
@@ -241,33 +276,140 @@ export function ProcessingDrawer({
         )}
 
         {isBatch && batch && (
-          <Accordion
-            expanded={sourceExpanded}
-            onChange={() => setSourceExpanded(!sourceExpanded)}
-            disableGutters
-            elevation={0}
-            sx={{ border: 1, borderColor: 'divider', borderRadius: 1, '&:before': { display: 'none' } }}
-          >
-            <AccordionSummary expandIcon={<ExpandMore />} sx={{ minHeight: 40, '& .MuiAccordionSummary-content': { my: 0.5 } }}>
-              <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                Batch Info
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails sx={{ pt: 0 }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
-                {batch.product_title && (
-                  <>
-                    <Typography variant="caption" color="text.secondary">Product</Typography>
-                    <Typography variant="caption">{batch.product_title}</Typography>
-                  </>
-                )}
-                <Typography variant="caption" color="text.secondary">Total Qty</Typography>
-                <Typography variant="caption">{batch.total_qty}</Typography>
-                <Typography variant="caption" color="text.secondary">Pending</Typography>
-                <Typography variant="caption">{batch.intake_items_count ?? 0}</Typography>
+          <>
+            <Accordion
+              expanded={sourceExpanded}
+              onChange={() => setSourceExpanded(!sourceExpanded)}
+              disableGutters
+              elevation={0}
+              sx={{ border: 1, borderColor: 'divider', borderRadius: 1, '&:before': { display: 'none' } }}
+            >
+              <AccordionSummary expandIcon={<ExpandMore />} sx={{ minHeight: 40, '& .MuiAccordionSummary-content': { my: 0.5 } }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                  Batch Info
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails sx={{ pt: 0 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
+                  {batch.product_title && (
+                    <>
+                      <Typography variant="caption" color="text.secondary">Product</Typography>
+                      <Typography variant="caption">{batch.product_title}</Typography>
+                    </>
+                  )}
+                  <Typography variant="caption" color="text.secondary">Total Qty</Typography>
+                  <Typography variant="caption">{batch.total_qty}</Typography>
+                  <Typography variant="caption" color="text.secondary">Pending</Typography>
+                  <Typography variant="caption">{batch.intake_items_count ?? 0}</Typography>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: 'block', mb: 0.5 }}>
+              Partial check-in (optional)
+            </Typography>
+            <Grid container spacing={1.5}>
+              <Grid size={{ xs: 6 }}>
+                <TextField
+                  fullWidth size="small" type="number" label="Check in qty"
+                  value={checkInCount}
+                  onChange={(e) => setCheckInCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  slotProps={{ input: { inputProps: { min: 0, max: batchItemCount } } }}
+                />
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <TextField
+                  fullWidth size="small" type="number" label="Mark broken"
+                  value={scrapCount}
+                  onChange={(e) => setScrapCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  slotProps={{ input: { inputProps: { min: 0, max: batchItemCount } } }}
+                />
+              </Grid>
+            </Grid>
+          </>
+        )}
+
+        {/* Batch item lists: Pending (clickable) + Checked In (clickable + Unprocess) */}
+        {isBatch && (batchPendingItems.length > 0 || batchCheckedInItems.length > 0) && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {batchPendingItems.length > 0 && (
+              <Box sx={{ maxHeight: 200, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ px: 1.5, pt: 1, display: 'block' }}>
+                  Pending ({batchPendingItems.length})
+                </Typography>
+                <List dense disablePadding>
+                  {batchPendingItems.map((row) => (
+                    <ListItemButton
+                      key={row.id}
+                      onClick={() => onOpenBatchItem?.(row)}
+                      sx={{ py: 0.25 }}
+                    >
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                              {row.sku}
+                            </Typography>
+                            {row.condition && row.condition !== 'unknown' && (
+                              <Chip label={row.condition.replace('_', ' ')} size="small" variant="outlined" sx={{ height: 20 }} />
+                            )}
+                          </Box>
+                        }
+                        secondary={row.title ? (row.title.length > 40 ? `${row.title.slice(0, 40)}…` : row.title) : '—'}
+                        primaryTypographyProps={{ variant: 'body2' }}
+                        secondaryTypographyProps={{ noWrap: true }}
+                      />
+                    </ListItemButton>
+                  ))}
+                </List>
               </Box>
-            </AccordionDetails>
-          </Accordion>
+            )}
+            {batchCheckedInItems.length > 0 && (
+              <Box sx={{ maxHeight: 200, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ px: 1.5, pt: 1, display: 'block' }}>
+                  Checked In ({batchCheckedInItems.length})
+                </Typography>
+                <List dense disablePadding>
+                  {batchCheckedInItems.map((row) => (
+                    <ListItemButton
+                      key={row.id}
+                      onClick={() => onOpenBatchItem?.(row)}
+                      sx={{ py: 0.25 }}
+                    >
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                              {row.sku}
+                            </Typography>
+                            {row.condition && row.condition !== 'unknown' && (
+                              <Chip label={row.condition.replace('_', ' ')} size="small" variant="outlined" sx={{ height: 20 }} />
+                            )}
+                          </Box>
+                        }
+                        secondary={row.title ? (row.title.length > 40 ? `${row.title.slice(0, 40)}…` : row.title) : '—'}
+                        primaryTypographyProps={{ variant: 'body2' }}
+                        secondaryTypographyProps={{ noWrap: true }}
+                      />
+                      <ListItemSecondaryAction>
+                        <Tooltip title="Unprocess (revert to pending)">
+                          <IconButton
+                            size="small"
+                            edge="end"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onUncheckInItem?.(row.id);
+                            }}
+                          >
+                            <Undo fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </ListItemSecondaryAction>
+                    </ListItemButton>
+                  ))}
+                </List>
+              </Box>
+            )}
+          </Box>
         )}
 
         {/* Copy from Last */}
@@ -379,6 +521,17 @@ export function ProcessingDrawer({
       <Divider />
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Box sx={{ display: 'flex', gap: 1 }}>
+          {isItem && onMarkBroken && (
+            <Button
+              variant="outlined"
+              size="small"
+              color="error"
+              onClick={onMarkBroken}
+              disabled={saving || checkingIn}
+            >
+              Mark Broken
+            </Button>
+          )}
           <Button
             fullWidth variant="outlined" size="small"
             startIcon={saving ? <CircularProgress size={14} /> : <SaveOutlined />}
@@ -390,7 +543,7 @@ export function ProcessingDrawer({
           <Button
             fullWidth variant="contained" size="small"
             startIcon={checkingIn ? <CircularProgress size={14} color="inherit" /> : printOnCheckIn ? <LocalPrintshop /> : <TaskAlt />}
-            onClick={onCheckIn}
+            onClick={() => onCheckIn(isBatch ? { checkInCount, scrapCount } : undefined)}
             disabled={saving || checkingIn}
           >
             {checkingIn ? 'Checking in...' : printOnCheckIn ? 'Check-In & Print' : 'Check-In'}

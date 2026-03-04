@@ -17,7 +17,6 @@ import {
   DialogTitle,
   IconButton,
   MenuItem,
-  Popover,
   Tab,
   Tabs,
   TextField,
@@ -32,6 +31,7 @@ import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import OpenInNew from '@mui/icons-material/OpenInNew';
 import PrintDisabled from '@mui/icons-material/PrintDisabled';
 import Search from '@mui/icons-material/Search';
+import Settings from '@mui/icons-material/Settings';
 import Tune from '@mui/icons-material/Tune';
 import { DataGrid, type GridColDef, type GridRenderCellParams } from '@mui/x-data-grid';
 import { format } from 'date-fns';
@@ -43,25 +43,29 @@ import {
   buildItemForm,
   buildBatchForm,
   EMPTY_FORM,
-  DRAWER_WIDTH,
   type DrawerMode,
   type ProcessingFormState,
 } from '../../components/inventory/ProcessingDrawer';
+import { ProcessingSettingsModal } from '../../components/inventory/ProcessingSettingsModal';
 import { ProcessingStatsBar } from '../../components/inventory/ProcessingStatsBar';
 import {
   useBatchGroups,
+  useBulkUncheckIn,
   useCheckInBatchGroup,
   useCheckInItem,
   useCheckInOrderItems,
   useCreateItems,
   useDetachBatchItem,
   useItems,
+  useMarkItemBroken,
   useMarkOrderComplete,
   usePurchaseOrder,
   usePurchaseOrders,
+  useUncheckInItem,
   useUpdateBatchGroup,
   useUpdateItem,
 } from '../../hooks/useInventory';
+import { useGridColumnState } from '../../hooks/useGridColumnState';
 import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
 import { localPrintService } from '../../services/localPrintService';
 import { formatCurrency } from '../../utils/format';
@@ -171,17 +175,34 @@ export default function ProcessingPage() {
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkForm, setBulkForm] = useState({ condition: '', location: '', price: '', cost: '' });
   const [printProgress, setPrintProgress] = useState<{ done: number; total: number } | null>(null);
+  const [selectedCheckedInIds, setSelectedCheckedInIds] = useState<number[]>([]);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<number[]>([]);
+  const [checkedInBulkDialogOpen, setCheckedInBulkDialogOpen] = useState(false);
+  const [checkedInBulkForm, setCheckedInBulkForm] = useState({ condition: '', location: '', price: '' });
+  const [batchApplyForm, setBatchApplyForm] = useState({ condition: '', location: '', price: '' });
 
   // Detach confirmation
-  const [detachAnchor, setDetachAnchor] = useState<HTMLElement | null>(null);
+  const [detachDialogOpen, setDetachDialogOpen] = useState(false);
   const [detachBatchId, setDetachBatchId] = useState<number | null>(null);
+  const [detachCount, setDetachCount] = useState(1);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [searchInputValue, setSearchInputValue] = useState('');
+  const generalSearchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInputValue.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInputValue]);
 
   // ─── Queries ────────────────────────────────────────────────────────────────
 
   const { data: ordersData } = usePurchaseOrders({ status__in: 'delivered,processing,complete' });
   const { data: order } = usePurchaseOrder(selectedOrderId);
   const { data: batchGroupsData, isLoading: batchLoading } = useBatchGroups(
-    { purchase_order: selectedOrderId },
+    {
+      purchase_order: selectedOrderId,
+      ...(search ? { search } : {}),
+    },
     selectedOrderId != null,
   );
   const { data: itemsData, isLoading: itemsLoading } = useItems(
@@ -203,6 +224,9 @@ export default function ProcessingPage() {
   const detachBatchItem = useDetachBatchItem();
   const markComplete = useMarkOrderComplete();
   const bulkCheckIn = useCheckInOrderItems();
+  const markItemBrokenMutation = useMarkItemBroken();
+  const bulkUncheckInMutation = useBulkUncheckIn();
+  const uncheckInItemMutation = useUncheckInItem();
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
@@ -231,6 +255,25 @@ export default function ProcessingPage() {
   const batchQueue = useMemo(
     () => batchGroups.filter((g) => (g.intake_items_count ?? 0) > 0 || g.status !== 'complete'),
     [batchGroups],
+  );
+
+  const batchPendingItems = useMemo(
+    () =>
+      activeBatch
+        ? items.filter(
+            (i) => i.batch_group === activeBatch.id && ['intake', 'processing'].includes(i.status),
+          )
+        : [],
+    [items, activeBatch],
+  );
+  const batchCheckedInItems = useMemo(
+    () =>
+      activeBatch
+        ? items.filter(
+            (i) => i.batch_group === activeBatch.id && ['on_shelf', 'scrapped'].includes(i.status),
+          )
+        : [],
+    [items, activeBatch],
   );
 
   const queueNotBuilt =
@@ -335,7 +378,7 @@ export default function ProcessingPage() {
     }
   }, [drawerMode, activeItem, activeBatch, form, updateItem, updateBatchGroup, enqueueSnackbar, closeDrawer]);
 
-  const handleCheckIn = useCallback(async () => {
+  const handleCheckIn = useCallback(async (extra?: { checkInCount?: number; scrapCount?: number }) => {
     if (drawerMode === 'item' && activeItem) {
       try {
         const checkedIn = await checkInItem.mutateAsync({
@@ -367,23 +410,30 @@ export default function ProcessingPage() {
       const batchItems = pendingItems.filter(
         (i) => i.batch_group === activeBatch.id && ['intake', 'processing'].includes(i.status),
       );
+      const hasPartial = extra && (extra.scrapCount != null || extra.checkInCount != null);
       try {
         const result = await checkInBatchGroup.mutateAsync({
           id: activeBatch.id,
           data: {
             unit_price: form.price || undefined, unit_cost: form.cost || undefined,
             condition: form.condition || undefined, location: form.location,
+            ...(hasPartial && extra
+              ? {
+                  check_in_count: extra.checkInCount,
+                  scrap_count: extra.scrapCount,
+                }
+              : {}),
           },
         });
         saveStickyDefaults(form.condition, form.location);
         setLastCheckedIn({ ...form });
         setSessionCount((c) => c + (result.checked_in ?? batchItems.length));
-        enqueueSnackbar(
-          `Checked in ${result.checked_in} item(s) from ${activeBatch.batch_number}`,
-          { variant: 'success' },
-        );
+        const msg = result.marked_broken
+          ? `Checked in ${result.checked_in}, marked ${result.marked_broken} broken`
+          : `Checked in ${result.checked_in} item(s) from ${activeBatch.batch_number}`;
+        enqueueSnackbar(msg, { variant: 'success' });
 
-        if (printOnCheckIn && batchItems.length > 0) {
+        if (printOnCheckIn && !hasPartial && batchItems.length > 0) {
           setPrintProgress({ done: 0, total: batchItems.length });
           const { failed } = await printBatchLabels(batchItems, form.price, (done, total) => {
             setPrintProgress({ done, total });
@@ -422,19 +472,122 @@ export default function ProcessingPage() {
     enqueueSnackbar('Copied from last item', { variant: 'info' });
   }, [lastCheckedIn, enqueueSnackbar]);
 
+  const handleMarkBroken = useCallback(async () => {
+    if (!activeItem) return;
+    try {
+      await markItemBrokenMutation.mutateAsync(activeItem.id);
+      enqueueSnackbar(`Marked ${activeItem.sku} as broken`, { variant: 'success' });
+      closeDrawer();
+    } catch {
+      enqueueSnackbar('Failed to mark item broken', { variant: 'error' });
+    }
+  }, [activeItem, markItemBrokenMutation, enqueueSnackbar, closeDrawer]);
+
+  const handleUncheckInBatchItem = useCallback(
+    async (id: number) => {
+      try {
+        await uncheckInItemMutation.mutateAsync(id);
+        enqueueSnackbar('Item reverted to pending', { variant: 'success' });
+      } catch {
+        enqueueSnackbar('Failed to unprocess item', { variant: 'error' });
+      }
+    },
+    [uncheckInItemMutation, enqueueSnackbar],
+  );
+
+  const handleCheckedInBulkUncheckIn = useCallback(async () => {
+    if (!selectedOrderId || selectedCheckedInIds.length === 0) return;
+    try {
+      const result = await bulkUncheckInMutation.mutateAsync({ orderId: selectedOrderId, itemIds: selectedCheckedInIds });
+      enqueueSnackbar(`Unchecked in ${result.unchecked_in} item(s)`, { variant: 'success' });
+      setSelectedCheckedInIds([]);
+    } catch {
+      enqueueSnackbar('Failed to uncheck in items', { variant: 'error' });
+    }
+  }, [selectedOrderId, selectedCheckedInIds, bulkUncheckInMutation, enqueueSnackbar]);
+
+  const handleBatchApplyToItems = useCallback(async () => {
+    if (!selectedOrderId) return;
+    const ids = individualQueue.map((i) => i.id);
+    if (ids.length === 0) return;
+    const data: Record<string, unknown> = { item_ids: ids };
+    if (batchApplyForm.condition) data.condition = batchApplyForm.condition;
+    if (batchApplyForm.location !== undefined) data.location = batchApplyForm.location;
+    if (batchApplyForm.price) data.price = batchApplyForm.price;
+    try {
+      const result = await bulkCheckIn.mutateAsync({ orderId: selectedOrderId, data });
+      enqueueSnackbar(`Applied to ${result.checked_in} item(s)`, { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to apply to items', { variant: 'error' });
+    }
+  }, [selectedOrderId, individualQueue, batchApplyForm, bulkCheckIn, enqueueSnackbar]);
+
+  const handleBatchApplyToBatches = useCallback(async () => {
+    const updates: Record<string, string> = {};
+    if (batchApplyForm.condition) updates.condition = batchApplyForm.condition;
+    if (batchApplyForm.location !== undefined) updates.location = batchApplyForm.location;
+    if (batchApplyForm.price) updates.unit_price = batchApplyForm.price;
+    if (Object.keys(updates).length === 0) return;
+    const targets =
+      selectedBatchIds.length > 0
+        ? batchQueue.filter((b) => selectedBatchIds.includes(b.id))
+        : batchQueue;
+    try {
+      for (const batch of targets) {
+        await updateBatchGroup.mutateAsync({ id: batch.id, data: updates });
+      }
+      enqueueSnackbar(`Applied to ${targets.length} batch(es)`, { variant: 'success' });
+      setSelectedBatchIds([]);
+    } catch {
+      enqueueSnackbar('Failed to apply to batches', { variant: 'error' });
+    }
+  }, [batchQueue, selectedBatchIds, batchApplyForm, updateBatchGroup, enqueueSnackbar]);
+
+  const handleCheckedInBulkUpdate = useCallback(async () => {
+    const updates: Record<string, string> = {};
+    if (checkedInBulkForm.condition) updates.condition = checkedInBulkForm.condition;
+    if (checkedInBulkForm.location !== undefined) updates.location = checkedInBulkForm.location;
+    if (checkedInBulkForm.price) updates.price = checkedInBulkForm.price;
+    if (Object.keys(updates).length === 0) {
+      setCheckedInBulkDialogOpen(false);
+      return;
+    }
+    try {
+      for (const id of selectedCheckedInIds) {
+        await updateItem.mutateAsync({ id, data: updates });
+      }
+      enqueueSnackbar(`Updated ${selectedCheckedInIds.length} item(s)`, { variant: 'success' });
+      setSelectedCheckedInIds([]);
+      setCheckedInBulkDialogOpen(false);
+      setCheckedInBulkForm({ condition: '', location: '', price: '' });
+    } catch {
+      enqueueSnackbar('Failed to update some items', { variant: 'error' });
+    }
+  }, [selectedCheckedInIds, checkedInBulkForm, updateItem, enqueueSnackbar]);
+
   // ─── Detach handler ─────────────────────────────────────────────────────────
 
   const confirmDetach = useCallback(async () => {
     if (detachBatchId == null) return;
     try {
-      const result = await detachBatchItem.mutateAsync({ id: detachBatchId });
-      enqueueSnackbar(`Detached ${result.detached_item_sku}`, { variant: 'success' });
+      let lastSku = '';
+      for (let i = 0; i < detachCount; i++) {
+        const result = await detachBatchItem.mutateAsync({ id: detachBatchId });
+        lastSku = result.detached_item_sku;
+      }
+      enqueueSnackbar(
+        detachCount === 1
+          ? `Detached ${lastSku}`
+          : `Detached ${detachCount} item(s) from batch`,
+        { variant: 'success' },
+      );
     } catch {
-      enqueueSnackbar('Failed to detach item from batch', { variant: 'error' });
+      enqueueSnackbar('Failed to detach item(s) from batch', { variant: 'error' });
     }
-    setDetachAnchor(null);
+    setDetachDialogOpen(false);
     setDetachBatchId(null);
-  }, [detachBatchId, detachBatchItem, enqueueSnackbar]);
+    setDetachCount(1);
+  }, [detachBatchId, detachCount, detachBatchItem, enqueueSnackbar]);
 
   // ─── Mark complete ──────────────────────────────────────────────────────────
 
@@ -537,6 +690,26 @@ export default function ProcessingPage() {
         scannerRef.current?.focus();
         return;
       }
+      if (e.key === '/' && !isInput) {
+        e.preventDefault();
+        generalSearchRef.current?.focus();
+        return;
+      }
+      if (e.key === 'f' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        generalSearchRef.current?.focus();
+        return;
+      }
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setSettingsModalOpen(true);
+        return;
+      }
+      if (!isInput && ['1', '2', '3'].includes(e.key) && selectedOrderId) {
+        e.preventDefault();
+        setActiveTab(Number(e.key) - 1);
+        return;
+      }
 
       if (drawerMode) {
         if (e.key === 'Escape') {
@@ -554,22 +727,58 @@ export default function ProcessingPage() {
           handleReprint();
           return;
         }
-      }
-
-      if (!isInput && !drawerMode) {
-        if (e.key === 'n' || e.key === 'N') {
+        if (e.key === 'b' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          if (drawerMode === 'item' && activeItem) handleMarkBroken();
+          return;
+        }
+        if (e.key === 'd' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          if (drawerMode === 'batch' && activeBatch) {
+            setDetachDialogOpen(true);
+            setDetachBatchId(activeBatch.id);
+            setDetachCount(1);
+          }
+          return;
+        }
+        if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
           e.preventDefault();
           advanceToNext();
+          return;
         }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [drawerMode, closeDrawer, handleCheckIn, handleReprint, advanceToNext]);
+  }, [drawerMode, activeItem, activeBatch, selectedOrderId, closeDrawer, handleCheckIn, handleReprint, advanceToNext, handleMarkBroken]);
 
-  // ─── Column definitions ─────────────────────────────────────────────────────
+  // ─── Column definitions (actions first for layout) ──────────────────────────
 
-  const batchColumns: GridColDef[] = useMemo(() => [
+  const batchColumnsBase: GridColDef[] = useMemo(() => [
+    {
+      field: 'actions', headerName: 'Actions', width: 180, sortable: false, filterable: false,
+      renderCell: (params: GridRenderCellParams<BatchGroup>) => (
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          <Button size="small" variant="contained" startIcon={<Tune />}
+            onClick={(e) => { e.stopPropagation(); openBatchDrawer(params.row); }}
+            sx={{ minWidth: { xs: 40, sm: 'auto' }, '& .MuiButton-startIcon': { marginRight: { xs: 0, sm: 0.5 } } }}>
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Process</Box>
+          </Button>
+          <Tooltip title="Detach one item to individual processing">
+            <IconButton size="small" color="warning"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDetachDialogOpen(true);
+                setDetachBatchId(params.row.id);
+                setDetachCount(1);
+              }}
+              disabled={detachBatchItem.isPending}>
+              <CallSplit fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      ),
+    },
     { field: 'batch_number', headerName: 'Batch', width: 120 },
     { field: 'product_title', headerName: 'Product', flex: 1, minWidth: 160 },
     { field: 'total_qty', headerName: 'Qty', width: 60, type: 'number' },
@@ -583,40 +792,45 @@ export default function ProcessingPage() {
       },
     },
     {
-      field: 'unit_price', headerName: 'Price', width: 90,
+      field: 'unit_price', headerName: 'Price', width: 90, editable: true,
       renderCell: (params: GridRenderCellParams<BatchGroup>) => <>{formatCurrency(params.row.unit_price)}</>,
     },
-    { field: 'condition', headerName: 'Condition', width: 100 },
-    { field: 'location', headerName: 'Location', width: 100 },
+    { field: 'condition', headerName: 'Condition', width: 100, editable: true },
+    { field: 'location', headerName: 'Location', width: 100, editable: true },
+  ], [openBatchDrawer, detachBatchItem.isPending]);
+
+  const batchColumnState = useGridColumnState({
+    storageKey: 'processing_grid_batches',
+    columns: batchColumnsBase,
+  });
+
+  const itemColumnsBase: GridColDef[] = useMemo(() => [
     {
-      field: 'actions', headerName: 'Actions', width: 180, sortable: false, filterable: false,
-      renderCell: (params: GridRenderCellParams<BatchGroup>) => (
+      field: 'actions', headerName: 'Actions', width: 100, sortable: false, filterable: false,
+      renderCell: (params: GridRenderCellParams<Item>) => (
         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
           <Button size="small" variant="contained" startIcon={<Tune />}
-            onClick={(e) => { e.stopPropagation(); openBatchDrawer(params.row); }}>
-            Process
+            onClick={(e) => { e.stopPropagation(); openItemDrawer(params.row); }}
+            sx={{ minWidth: { xs: 40, sm: 'auto' }, '& .MuiButton-startIcon': { marginRight: { xs: 0, sm: 0.5 } } }}>
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Process</Box>
           </Button>
-          <Tooltip title="Detach one item to individual processing">
-            <IconButton size="small" color="warning"
+          <Tooltip title="Mark broken">
+            <IconButton size="small" color="error"
               onClick={(e) => {
                 e.stopPropagation();
-                setDetachAnchor(e.currentTarget);
-                setDetachBatchId(params.row.id);
+                markItemBrokenMutation.mutate(params.row.id);
               }}
-              disabled={detachBatchItem.isPending}>
-              <CallSplit fontSize="small" />
+              disabled={markItemBrokenMutation.isPending}>
+              <span style={{ fontSize: 14 }}>✕</span>
             </IconButton>
           </Tooltip>
         </Box>
       ),
     },
-  ], [openBatchDrawer, detachBatchItem.isPending]);
-
-  const itemColumns: GridColDef[] = useMemo(() => [
     {
       field: 'sku', headerName: 'SKU', width: 120,
       renderCell: (params: GridRenderCellParams<Item>) => (
-        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
+        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500, display: 'flex', alignItems: 'center' }}>
           {params.row.sku}
         </Typography>
       ),
@@ -624,7 +838,7 @@ export default function ProcessingPage() {
     { field: 'title', headerName: 'Title', flex: 1, minWidth: 160 },
     { field: 'brand', headerName: 'Brand', width: 100 },
     {
-      field: 'condition', headerName: 'Condition', width: 100,
+      field: 'condition', headerName: 'Condition', width: 100, editable: true,
       renderCell: (params: GridRenderCellParams<Item>) => {
         const val = params.row.condition;
         return val && val !== 'unknown'
@@ -633,26 +847,36 @@ export default function ProcessingPage() {
       },
     },
     {
-      field: 'price', headerName: 'Price', width: 85,
+      field: 'price', headerName: 'Price', width: 85, editable: true,
       renderCell: (params: GridRenderCellParams<Item>) => <>{formatCurrency(params.row.price)}</>,
     },
-    { field: 'location', headerName: 'Location', width: 90 },
+    { field: 'location', headerName: 'Location', width: 90, editable: true },
+  ], [openItemDrawer, markItemBrokenMutation]);
+
+  const itemColumnState = useGridColumnState({
+    storageKey: 'processing_grid_items',
+    columns: itemColumnsBase,
+  });
+
+  const checkedInColumnsBase: GridColDef[] = useMemo(() => [
     {
-      field: 'actions', headerName: 'Actions', width: 100, sortable: false, filterable: false,
+      field: 'actions', headerName: '', width: 60, sortable: false, filterable: false,
       renderCell: (params: GridRenderCellParams<Item>) => (
-        <Button size="small" variant="contained" startIcon={<Tune />}
-          onClick={(e) => { e.stopPropagation(); openItemDrawer(params.row); }}>
-          Process
-        </Button>
+        <Tooltip title="Reprint label">
+          <IconButton size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePrint({ sku: params.row.sku, title: params.row.title, price: params.row.price });
+            }}>
+            <LocalPrintshop fontSize="small" />
+          </IconButton>
+        </Tooltip>
       ),
     },
-  ], [openItemDrawer]);
-
-  const checkedInColumns: GridColDef[] = useMemo(() => [
     {
       field: 'sku', headerName: 'SKU', width: 120,
       renderCell: (params: GridRenderCellParams<Item>) => (
-        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
+        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500, display: 'flex', alignItems: 'center' }}>
           {params.row.sku}
         </Typography>
       ),
@@ -670,28 +894,19 @@ export default function ProcessingPage() {
         <>{params.row.checked_in_at ? format(new Date(params.row.checked_in_at), 'MM/dd h:mm a') : '—'}</>
       ),
     },
-    {
-      field: 'actions', headerName: '', width: 60, sortable: false, filterable: false,
-      renderCell: (params: GridRenderCellParams<Item>) => (
-        <Tooltip title="Reprint label">
-          <IconButton size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePrint({ sku: params.row.sku, title: params.row.title, price: params.row.price });
-            }}>
-            <LocalPrintshop fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      ),
-    },
   ], [handlePrint]);
+
+  const checkedInColumnState = useGridColumnState({
+    storageKey: 'processing_grid_checked_in',
+    columns: checkedInColumnsBase,
+  });
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   if (loading && !order && selectedOrderId) return <LoadingScreen />;
 
   return (
-    <Box>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* ── Page Header ─────────────────────────────────────────────── */}
       <PageHeader
         title="Processing Workspace"
@@ -733,7 +948,7 @@ export default function ProcessingPage() {
       <Card sx={{ mb: 2 }}>
         <CardContent sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', '&:last-child': { pb: 2 } }}>
           <Autocomplete
-            sx={{ minWidth: 300, flexShrink: 0 }}
+            sx={{ minWidth: 460, maxWidth: 600, flex: '1 1 300px' }}
             size="small"
             options={orders}
             value={orders.find((o) => o.id === selectedOrderId) ?? null}
@@ -760,6 +975,30 @@ export default function ProcessingPage() {
             )}
             isOptionEqualToValue={(opt, val) => opt.id === val.id}
           />
+
+          {selectedOrderId && (
+            <TextField
+              inputRef={generalSearchRef}
+              size="small"
+              placeholder="Search SKU, brand, title, description, UPC…"
+              value={searchInputValue}
+              onChange={(e) => setSearchInputValue(e.target.value)}
+              sx={{ flex: '1 1 280px', minWidth: 200, maxWidth: 400 }}
+              slotProps={{
+                input: {
+                  startAdornment: <Search fontSize="small" sx={{ mr: 0.75, color: 'text.secondary' }} />,
+                },
+              }}
+            />
+          )}
+
+          {selectedOrderId && (
+            <Tooltip title="Settings and hotkeys (?)">
+              <IconButton size="small" onClick={() => setSettingsModalOpen(true)}>
+                <Settings fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
 
           {/* Progress ring + stats */}
           {order && stats && order.item_count > 0 && (
@@ -811,6 +1050,19 @@ export default function ProcessingPage() {
           )}
           {order?.status === 'complete' && (
             <Chip label="Complete" color="success" size="small" icon={<CheckCircleOutline />} sx={{ ml: 'auto' }} />
+          )}
+
+          {/* Session stats row (embedded stats bar) */}
+          {selectedOrderId && (
+            <Box sx={{ width: '100%', pt: 1 }}>
+              <ProcessingStatsBar
+                sessionCheckedIn={sessionCount}
+                sessionStartTime={sessionStartRef.current}
+                totalPending={pendingCount}
+                autoAdvance={autoAdvance}
+                onAutoAdvanceToggle={setAutoAdvance}
+              />
+            </Box>
           )}
         </CardContent>
       </Card>
@@ -866,7 +1118,7 @@ export default function ProcessingPage() {
 
       {/* ── Tabbed Queues ───────────────────────────────────────────── */}
       {selectedOrderId && (
-        <Card sx={{ mb: 2 }}>
+        <Card sx={{ flex: 1, minHeight: 0, mb: 2, display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center' }}>
             <Tabs value={activeTab} onChange={(_e, v) => setActiveTab(v)}>
               <Tab label={
@@ -886,6 +1138,12 @@ export default function ProcessingPage() {
               } />
             </Tabs>
 
+            {/* Bulk actions for Batches tab */}
+            {activeTab === 0 && selectedBatchIds.length > 0 && (
+              <Box sx={{ ml: 'auto', mr: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Chip label={`${selectedBatchIds.length} selected`} size="small" color="primary" />
+              </Box>
+            )}
             {/* Bulk actions for Items tab */}
             {activeTab === 1 && selectedItemIds.length > 0 && (
               <Box sx={{ ml: 'auto', mr: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -895,21 +1153,113 @@ export default function ProcessingPage() {
                 </Button>
               </Box>
             )}
+            {/* Bulk actions for Checked In tab */}
+            {activeTab === 2 && selectedCheckedInIds.length > 0 && (
+              <Box sx={{ ml: 'auto', mr: 2, display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Chip label={`${selectedCheckedInIds.length} selected`} size="small" color="primary" />
+                <Button size="small" variant="outlined" onClick={() => setCheckedInBulkDialogOpen(true)}>
+                  Set Condition / Location / Price
+                </Button>
+                <Button size="small" variant="outlined" color="warning" onClick={handleCheckedInBulkUncheckIn}
+                  disabled={bulkUncheckInMutation.isPending}>
+                  Uncheck In
+                </Button>
+              </Box>
+            )}
           </Box>
 
-          <CardContent sx={{ p: 0 }}>
+          <CardContent sx={{ p: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {/* Batch apply toolbar (Batches + Items tabs) */}
+            {(activeTab === 0 || activeTab === 1) && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 1,
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  px: 2,
+                  py: 1,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  flexShrink: 0,
+                }}
+              >
+                <TextField
+                  select
+                  size="small"
+                  label="Condition"
+                  value={batchApplyForm.condition}
+                  onChange={(e) => setBatchApplyForm((p) => ({ ...p, condition: e.target.value }))}
+                  sx={{ minWidth: 120 }}
+                >
+                  <MenuItem value="">—</MenuItem>
+                  <MenuItem value="new">New</MenuItem>
+                  <MenuItem value="like_new">Like New</MenuItem>
+                  <MenuItem value="good">Good</MenuItem>
+                  <MenuItem value="fair">Fair</MenuItem>
+                  <MenuItem value="salvage">Salvage</MenuItem>
+                </TextField>
+                <TextField
+                  size="small"
+                  label="Location"
+                  value={batchApplyForm.location}
+                  onChange={(e) => setBatchApplyForm((p) => ({ ...p, location: e.target.value }))}
+                  sx={{ minWidth: 100 }}
+                />
+                <TextField
+                  size="small"
+                  label="Price"
+                  type="number"
+                  value={batchApplyForm.price}
+                  onChange={(e) => setBatchApplyForm((p) => ({ ...p, price: e.target.value }))}
+                  slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }}
+                  sx={{ minWidth: 80 }}
+                />
+                {activeTab === 0 && (
+                  <Button size="small" variant="outlined" onClick={handleBatchApplyToBatches}
+                    disabled={batchQueue.length === 0}>
+                    {selectedBatchIds.length > 0
+                      ? `Apply to ${selectedBatchIds.length} selected`
+                      : 'Apply to visible batches'}
+                  </Button>
+                )}
+                {activeTab === 1 && (
+                  <Button size="small" variant="outlined" onClick={handleBatchApplyToItems}
+                    disabled={individualQueue.length === 0 || bulkCheckIn.isPending}>
+                    Apply to visible items
+                  </Button>
+                )}
+              </Box>
+            )}
+
             {/* Batches tab */}
             {activeTab === 0 && (
-              <Box sx={{ height: 440 }}>
+              <Box sx={{ flex: 1, minHeight: 0 }}>
                 <DataGrid
                   rows={batchQueue}
-                  columns={batchColumns}
+                  columns={batchColumnState.columns}
+                  onColumnWidthChange={batchColumnState.onColumnWidthChange}
+                  processRowUpdate={async (newRow: BatchGroup) => {
+                    await updateBatchGroup.mutateAsync({
+                      id: newRow.id,
+                      data: {
+                        condition: newRow.condition || undefined,
+                        location: newRow.location,
+                        unit_price: newRow.unit_price ?? undefined,
+                      },
+                    });
+                    return newRow;
+                  }}
+                  onProcessRowUpdateError={(err) => enqueueSnackbar(err.message || 'Update failed', { variant: 'error' })}
                   loading={batchLoading}
                   pageSizeOptions={[10, 25, 50]}
                   initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
                   getRowId={(row: BatchGroup) => row.id}
                   onRowClick={(params) => openBatchDrawer(params.row as BatchGroup)}
-                  sx={{ border: 'none', cursor: 'pointer' }}
+                  checkboxSelection
+                  rowSelectionModel={{ type: 'include' as const, ids: new Set(selectedBatchIds) }}
+                  onRowSelectionModelChange={(model) => setSelectedBatchIds(Array.from(model.ids).map(Number))}
+                  sx={{ border: 'none', cursor: 'pointer', height: '100%' }}
                   density="compact"
                 />
               </Box>
@@ -917,25 +1267,27 @@ export default function ProcessingPage() {
 
             {/* Items tab */}
             {activeTab === 1 && (
-              <Box>
-                <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
-                  <TextField
-                    size="small"
-                    placeholder="Filter items..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    sx={{ maxWidth: 300 }}
-                    slotProps={{
-                      input: {
-                        startAdornment: <Search fontSize="small" sx={{ mr: 0.75, color: 'text.secondary' }} />,
-                      },
-                    }}
-                  />
+              <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                <Box sx={{ px: 2, pt: 1.5, pb: 0.5, flexShrink: 0 }}>
+                  {/* Filter is now the general search in header */}
                 </Box>
-                <Box sx={{ height: 440 }}>
+                <Box sx={{ flex: 1, minHeight: 0 }}>
                   <DataGrid
                     rows={individualQueue}
-                    columns={itemColumns}
+                    columns={itemColumnState.columns}
+                    onColumnWidthChange={itemColumnState.onColumnWidthChange}
+                    processRowUpdate={async (newRow: Item) => {
+                      await updateItem.mutateAsync({
+                        id: newRow.id,
+                        data: {
+                          condition: newRow.condition || undefined,
+                          location: newRow.location,
+                          price: newRow.price ?? undefined,
+                        },
+                      });
+                      return newRow;
+                    }}
+                    onProcessRowUpdateError={(err) => enqueueSnackbar(err.message || 'Update failed', { variant: 'error' })}
                     loading={itemsLoading}
                     pageSizeOptions={[10, 25, 50]}
                     initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
@@ -944,7 +1296,7 @@ export default function ProcessingPage() {
                     checkboxSelection
                     rowSelectionModel={{ type: 'include' as const, ids: new Set(selectedItemIds) }}
                     onRowSelectionModelChange={(model) => setSelectedItemIds(Array.from(model.ids).map(Number))}
-                    sx={{ border: 'none', cursor: 'pointer' }}
+                    sx={{ border: 'none', cursor: 'pointer', height: '100%' }}
                     density="compact"
                   />
                 </Box>
@@ -953,10 +1305,11 @@ export default function ProcessingPage() {
 
             {/* Checked In tab */}
             {activeTab === 2 && (
-              <Box sx={{ height: 440 }}>
+              <Box sx={{ flex: 1, minHeight: 0 }}>
                 <DataGrid
                   rows={checkedInItems}
-                  columns={checkedInColumns}
+                  columns={checkedInColumnState.columns}
+                  onColumnWidthChange={checkedInColumnState.onColumnWidthChange}
                   loading={itemsLoading}
                   pageSizeOptions={[10, 25, 50]}
                   initialState={{
@@ -964,24 +1317,16 @@ export default function ProcessingPage() {
                     sorting: { sortModel: [{ field: 'checked_in_at', sort: 'desc' }] },
                   }}
                   getRowId={(row: Item) => row.id}
-                  sx={{ border: 'none' }}
+                  checkboxSelection
+                  rowSelectionModel={{ type: 'include' as const, ids: new Set(selectedCheckedInIds) }}
+                  onRowSelectionModelChange={(model) => setSelectedCheckedInIds(Array.from(model.ids).map(Number))}
+                  sx={{ border: 'none', height: '100%' }}
                   density="compact"
                 />
               </Box>
             )}
           </CardContent>
         </Card>
-      )}
-
-      {/* ── Session Stats Bar ───────────────────────────────────────── */}
-      {selectedOrderId && (
-        <ProcessingStatsBar
-          sessionCheckedIn={sessionCount}
-          sessionStartTime={sessionStartRef.current}
-          totalPending={pendingCount}
-          autoAdvance={autoAdvance}
-          onAutoAdvanceToggle={setAutoAdvance}
-        />
       )}
 
       {/* ── Side Drawer ─────────────────────────────────────────────── */}
@@ -1005,32 +1350,66 @@ export default function ProcessingPage() {
         autoAdvance={autoAdvance}
         batchItemCount={activeBatch?.intake_items_count ?? 0}
         justCheckedIn={justCheckedIn}
+        onMarkBroken={drawerMode === 'item' ? handleMarkBroken : undefined}
+        batchPendingItems={batchPendingItems}
+        batchCheckedInItems={batchCheckedInItems}
+        onOpenBatchItem={openItemDrawer}
+        onUncheckInItem={handleUncheckInBatchItem}
       />
 
-      {/* ── Detach confirmation popover ──────────────────────────────── */}
-      <Popover
-        open={detachAnchor != null}
-        anchorEl={detachAnchor}
-        onClose={() => { setDetachAnchor(null); setDetachBatchId(null); }}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Box sx={{ p: 2, maxWidth: 260 }}>
-          <Typography variant="subtitle2" gutterBottom>Detach Item?</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            This will remove one item from the batch and move it to individual processing.
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-            <Button size="small" onClick={() => { setDetachAnchor(null); setDetachBatchId(null); }}>
-              Cancel
-            </Button>
-            <Button size="small" variant="contained" color="warning" onClick={confirmDetach}
-              disabled={detachBatchItem.isPending}>
-              Detach
-            </Button>
-          </Box>
-        </Box>
-      </Popover>
+      {/* ── Detach confirmation dialog ──────────────────────────────── */}
+      {(() => {
+        const detachMax = batchGroups.find((b) => b.id === detachBatchId)?.intake_items_count ?? 1;
+        return (
+          <Dialog
+            open={detachDialogOpen}
+            onClose={() => { setDetachDialogOpen(false); setDetachBatchId(null); setDetachCount(1); }}
+            maxWidth="xs"
+          >
+            <DialogTitle>Detach Items</DialogTitle>
+            <DialogContent>
+              <DialogContentText sx={{ mb: 2 }}>
+                Remove items from this batch and move them to individual processing.
+              </DialogContentText>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Number of items"
+                value={detachCount}
+                onChange={(e) => setDetachCount(Math.max(1, Math.min(detachMax, parseInt(e.target.value, 10) || 1)))}
+                slotProps={{ input: { inputProps: { min: 1, max: detachMax } } }}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => { setDetachDialogOpen(false); setDetachBatchId(null); setDetachCount(1); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                color="warning"
+                onClick={confirmDetach}
+                disabled={detachBatchItem.isPending}
+              >
+                {detachBatchItem.isPending ? 'Detaching...' : `Detach ${detachCount}`}
+              </Button>
+            </DialogActions>
+          </Dialog>
+        );
+      })()}
+
+      {/* ── Settings modal ───────────────────────────────────────────── */}
+      <ProcessingSettingsModal
+        open={settingsModalOpen}
+        onClose={() => setSettingsModalOpen(false)}
+        autoAdvance={autoAdvance}
+        onAutoAdvanceChange={setAutoAdvance}
+        printOnCheckIn={printOnCheckIn}
+        onPrintOnCheckInChange={setPrintOnCheckIn}
+        stickyCondition={loadStickyDefaults().condition ?? ''}
+        stickyLocation={loadStickyDefaults().location ?? ''}
+        onStickyChange={saveStickyDefaults}
+      />
 
       {/* ── Bulk Check-In Dialog ─────────────────────────────────────── */}
       <Dialog open={bulkDialogOpen} onClose={() => setBulkDialogOpen(false)} maxWidth="xs" fullWidth>
@@ -1065,6 +1444,40 @@ export default function ProcessingPage() {
             disabled={bulkCheckIn.isPending}
             startIcon={bulkCheckIn.isPending ? <CircularProgress size={14} color="inherit" /> : <CheckCircleOutline />}>
             {bulkCheckIn.isPending ? 'Checking in...' : `Check In ${selectedItemIds.length} Items`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Checked In bulk update dialog ───────────────────────────── */}
+      <Dialog open={checkedInBulkDialogOpen} onClose={() => setCheckedInBulkDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Update {selectedCheckedInIds.length} item(s)</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Set condition, location, and/or price for all selected checked-in items. Leave blank to keep existing.
+          </DialogContentText>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField select size="small" label="Condition" value={checkedInBulkForm.condition}
+              onChange={(e) => setCheckedInBulkForm((p) => ({ ...p, condition: e.target.value }))} fullWidth>
+              <MenuItem value="">Keep existing</MenuItem>
+              <MenuItem value="new">New</MenuItem>
+              <MenuItem value="like_new">Like New</MenuItem>
+              <MenuItem value="good">Good</MenuItem>
+              <MenuItem value="fair">Fair</MenuItem>
+              <MenuItem value="salvage">Salvage</MenuItem>
+              <MenuItem value="unknown">Unknown</MenuItem>
+            </TextField>
+            <TextField size="small" label="Location" value={checkedInBulkForm.location}
+              onChange={(e) => setCheckedInBulkForm((p) => ({ ...p, location: e.target.value }))} fullWidth />
+            <TextField size="small" label="Price" type="number" value={checkedInBulkForm.price}
+              onChange={(e) => setCheckedInBulkForm((p) => ({ ...p, price: e.target.value }))}
+              slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }} fullWidth />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCheckedInBulkDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleCheckedInBulkUpdate}
+            disabled={!checkedInBulkForm.condition && !checkedInBulkForm.location && !checkedInBulkForm.price}>
+            Apply to selected
           </Button>
         </DialogActions>
       </Dialog>

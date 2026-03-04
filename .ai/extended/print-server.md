@@ -1,10 +1,10 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-26T14:00:00-06:00 -->
 
 # Print Server — Extended Context
 
 ## Overview
 
-The print server is a **separate FastAPI application** that runs locally at `http://127.0.0.1:8888`. The Eco-Thrift Dashboard does **not** contain the print server code — it only communicates with it via HTTP.
+The print server is a **separate FastAPI application** that runs locally at `http://127.0.0.1:8888`. The print server code lives in the `printserver/` directory of this repo and is distributed as a standalone Windows installer. The dashboard communicates with it via HTTP.
 
 ## Architecture
 
@@ -55,16 +55,21 @@ Both require `IsAuthenticated`.
 
 ## Design Intent
 
-The print server (when deployed) handles:
+The print server handles:
 
-- **Label printing**: Barcode/QR labels for inventory items
-- **Receipt printing**: POS receipts
-- **Cash drawer**: Open via USB/serial, typically through the receipt printer
+- **Label printing**: Barcode/QR labels for inventory items (GDI + Pillow)
+- **Receipt printing**: POS receipts (GDI plain-text)
+- **Cash drawer**: Open via ESC/POS through the receipt printer
 
 Hardware is accessed locally (USB/serial) — hence the separate local process.
 
-## Current Status
+## Current Status (v1.8.0+)
 
-- **Service client**: `localPrintService.ts` exists and is ready
-- **Backend**: Release tracking (PrintServerRelease, S3File) and endpoints exist
-- **Print server**: **Not deployed yet** — no FastAPI print server app in this repo
+- **Service client**: `localPrintService.ts` — fully wired for label, receipt, drawer
+- **Backend**: Release tracking (PrintServerRelease, S3File) and endpoints exist; public no-auth version endpoint at `/core/system/print-server-version-public/`
+- **Print server**: **Shipped** — `printserver/` directory in repo. FastAPI app, Windows self-contained installer (`ecothrift-printserver-setup.exe`), `distribute.bat` builds + uploads to S3
+- **Built-in browser UI**: `/` (printer assignment), `/manage` (auto-start toggle, version check, changelog, uninstall)
+- **Registry auto-start**: Installer registers for Windows startup; port-kill on reinstall
+- **Dashboard integration**: Admin SettingsPage has printer dropdowns, test buttons, Client Download section, and link to `/manage`
+- **`useLocalPrintStatus` hook**: Polls `/health` every 30s; persistent green/gray status chip in ProcessingPage PageHeader
+- **Graceful degradation**: Check-in succeeds even when print server is offline; reprint recovery on Checked In tab

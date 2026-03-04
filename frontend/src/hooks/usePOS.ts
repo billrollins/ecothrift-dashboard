@@ -5,9 +5,12 @@ import {
   getCarts,
   openDrawer,
   closeDrawer,
+  reopenDrawer,
   drawerHandoff,
+  drawerTakeover,
   createCart,
   addItemToCart,
+  updateCartLine,
   removeCartLine,
   completeCart,
   voidCart,
@@ -23,23 +26,31 @@ export function useRegisters(params?: Record<string, unknown>) {
   });
 }
 
-export function useDrawers(params?: Record<string, unknown>) {
+export function useDrawers(
+  params?: Record<string, unknown>,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['drawers', params],
     queryFn: async () => {
       const { data } = await getDrawers(params);
       return data;
     },
+    enabled: options?.enabled !== false,
   });
 }
 
-export function useCarts(params?: Record<string, unknown>) {
+export function useCarts(
+  params?: Record<string, unknown>,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['carts', params],
     queryFn: async () => {
       const { data } = await getCarts(params);
       return data;
     },
+    enabled: options?.enabled !== false,
   });
 }
 
@@ -77,6 +88,26 @@ export function useCloseDrawer() {
   });
 }
 
+export function useReopenDrawer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      cashier,
+    }: {
+      id: number;
+      cashier?: number;
+    }) => {
+      const { data: result } = await reopenDrawer(id, cashier ? { cashier } : undefined);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drawers'] });
+    },
+  });
+}
+
 export function useDrawerHandoff() {
   const queryClient = useQueryClient();
 
@@ -89,6 +120,26 @@ export function useDrawerHandoff() {
       data: Record<string, unknown>;
     }) => {
       const { data: result } = await drawerHandoff(id, data);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drawers'] });
+    },
+  });
+}
+
+export function useDrawerTakeover() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: number;
+      data?: Record<string, unknown>;
+    }) => {
+      const { data: result } = await drawerTakeover(id, data);
       return result;
     },
     onSuccess: () => {
@@ -124,6 +175,28 @@ export function useAddItemToCart() {
     }) => {
       const { data } = await addItemToCart(cartId, sku);
       return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['carts'] });
+    },
+  });
+}
+
+export function useUpdateCartLine() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      cartId,
+      lineId,
+      data,
+    }: {
+      cartId: number;
+      lineId: number;
+      data: Record<string, unknown>;
+    }) => {
+      const { data: result } = await updateCartLine(cartId, lineId, data);
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['carts'] });

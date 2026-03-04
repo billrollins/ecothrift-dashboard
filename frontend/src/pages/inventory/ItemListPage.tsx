@@ -22,7 +22,7 @@ import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
-import { ConfirmDialog } from '../../components/feedback/ConfirmDialog';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useItems, useCreateItem, useDeleteItem } from '../../hooks/useInventory';
 import type { Item, ItemStatus, ItemSource } from '../../types/inventory.types';
 

@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-02-25T22:00:00-06:00 -->
+<!-- Last updated: 2026-03-04T14:00:00-06:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** 1.9.0 (see `.ai/version.json`)
+**Current version:** 2.0.0 (see `.ai/version.json`)
 
 ---
 
@@ -16,6 +16,7 @@ ecothrift-dashboard/
 ├── ecothrift/              Django project settings and root URLs
 ├── apps/
 │   ├── accounts/           Users, profiles, auth, permissions
+│   ├── ai/                 Claude API proxy (chat, models)
 │   ├── core/               Locations, app settings, S3 files, print server
 │   ├── hr/                 Time clock, departments, sick leave
 │   ├── inventory/          Vendors, POs, products, items, processing
@@ -64,7 +65,7 @@ ecothrift-dashboard/
 - Pre-arrival pricing shipped on manifest rows (`proposed_price`, `final_price`, `pricing_stage`, `pricing_notes`) with bulk save endpoint
 - Arrival check-in workflow shipped: bulk order check-in, single item check-in, batch check-in, and label printing integration in the Processing workspace
 - Processing page now centers on finalize fields -> check in -> print tags, with batch detach as a secondary exception action
-- **Processing Page Overhaul** (v1.9.0): "Command Center + Side Drawer" design. MUI Autocomplete order selector, circular progress ring, always-visible SKU scanner (F2), three-tab queue (Batches/Items/Checked In) with badge counts, right-side Drawer for item/batch editing, bulk check-in, detach confirmation, sticky defaults (localStorage), Copy from Last, auto-advance after check-in, session stats bar (items/hr, ETA), full keyboard shortcuts (F2/Ctrl+Enter/Escape/Ctrl+P/N), print server status chip with 30s polling, staggered batch label printing with progress, reprint button on Checked In tab
+- **Processing Page Overhaul** (v1.9.0+): "Command Center + Side Drawer" design. MUI Autocomplete order selector (wider), circular progress ring, general search (debounced, filters items/batches), always-visible SKU scanner (F2), three-tab queue (Batches/Items/Checked In) with badge counts, right-side Drawer for item/batch editing. **Partial batch check-in**: check-in qty and mark-broken qty inputs in batch drawer; mark-broken and uncheck-in actions (single + bulk). **Batch drawer item list**: pending and checked-in items shown in batch mode; clickable to open in item form; Unprocess button on checked-in items. **Persistent column widths** (localStorage). **Settings modal** (auto-advance, print toggle, sticky defaults, hotkey cheat sheet). **Batch apply toolbar** (condition/location/price to visible items/batches). **Inline editing** on condition/location/price. **Checked In bulk actions** (Set Condition/Location/Price, Uncheck In). Bulk check-in, detach confirmation, Copy from Last, session stats bar (items/hr, ETA), full keyboard shortcuts (F2/1/2/3//?/Ctrl+Enter/Escape/Ctrl+P/Ctrl+B/Ctrl+D/N), print server status chip, staggered batch label printing, reprint on Checked In tab
 - Order reset tooling shipped: order detail now includes **Delete Order** modal with reverse-sequence artifact preview + guarded purge action (`confirm_order_number`)
 - Standard Manifest UX now includes 3-step accordion flow (Upload -> Raw Sample -> Standardize) with multi-open sections
 - Raw and standardized preview search shipped: searches full manifest/normalized set server-side and returns top 100 rows for preview
@@ -96,6 +97,11 @@ ecothrift-dashboard/
 - Phone number formatting across UI
 - Time entry modification requests (employee submit, manager approve/deny)
 - DataGrid action columns vertically centered across all pages
+- **POS system overhaul**: Device identity via `pos_device_config` (localStorage) — device type and register per machine. **Terminal**: Auto-register from config, drawer status banner, inline open drawer and Takeover, receipt printing and cash drawer auto-open on completion, print server status chip. Terminal state machine (`TerminalState` + `deriveTerminalState`). Lazy cart creation (cart created on first scan). Cart persistence via direct `getCarts()` API call on mount (bypasses React Query cache). Inline line editing (qty/description/price). Void Sale button + ConfirmDialog. **Drawers**: Manager-focused cards with status chips, expected cash (opening + sales − drops), variance display on close, role-based view (employees see only their register + cash drop; managers see Handoff/Close/Reopen). **Transactions**: Receipt # search, cashier dropdown, status filter (All/Completed/Voided — defaults to All), receipt reprint, payment breakdown, void with loading state. **Cash Management**: Supplemental last-counted display, draw-over-balance warning, bank transaction date filter (client-side). **Backend**: Drawer open validation, `takeover` action, `reopen` action (Manager+), `CartFilter` (status=open/completed/voided/all, receipt_number, date_from, date_to, drawer, cashier), `manage_line` action (single PATCH+DELETE handler for cart lines), `add_item` deduplication (increments qty on existing line), prefetch-cache refresh after mutations, `CartSerializer` read-only fields (cashier, subtotal, tax_amount, total, tax_rate). Single **ConfirmDialog** in `common/` (severity + loading).
+- **Retag v2 — DB2→DB3 migration system** (v2.0.0): Full retag workflow to migrate all on-shelf items from the old DB2 production system to DB3. Includes: `TempLegacyItem` model (staging table of all active DB2 items), `RetagLog` model (per-event retag log for retag day), `import_db2_staging` management command (populates staging from local DB2 snapshot), `retag_v2_lookup_view` / `retag_v2_create_view` / `retag_v2_history_view` API endpoints, `RetagPage.tsx` frontend at `/inventory/retag`. Retag app supports 4 price strategies (keep current, % of current, AI estimate, % of retail), auto-print on scan toggle, non-blocking "already retagged" warnings (always creates new DB3 item regardless), paginated history panel with summary tiles (total tagged, sum retail, sum price), search, and session filter. **Both `TempLegacyItem` and `RetagLog` are temporary scaffolding — drop after retag day (March 16). See `docs/retag/after_retag.md`.**
+- **Pricing model foundation** (v2.0.0): Management commands scaffolded for the full pricing ML pipeline: `import_historical_sold` (loads ~145K sold items from DB1+DB2 for training data), `import_historical_transactions` (loads ~68K transactions into `HistoricalTransaction` for revenue charting across all 3 dashboard generations), `train_price_model` (gradient-boosted price estimator saved to `workspace/models/price_model.joblib`), `backfill_categories` (retroactive category classification). None of these have been run yet — they are ready to run after retag day.
+- **`very_good` condition**: Added `('very_good', 'Very Good')` to `CONDITION_CHOICES` on `Item`, `ManifestRow`, and `BatchGroup`.
+- **Database audits**: Full schema and row-count audits for all 3 database generations in `docs/Database Audits/` (DB1 archive, DB2 production, DB3 dev/new production).
 
 ### Known Issues
 - **Concurrent AI cleanup needs testing/hardening**: The concurrent batch processing (16 threads x 5 rows) was just implemented. The user reported "there's a lot wrong" but did not specify what. The next session should test the concurrent cleanup flow end-to-end and fix any issues. Possible problems: race conditions in offset assignment, duplicate row processing, error handling when multiple workers fail, progress counter accuracy.
@@ -103,13 +109,29 @@ ecothrift-dashboard/
 - Recharts ResponsiveContainer may log a width/height warning on initial render (cosmetic, does not affect functionality)
 - Large JS bundle (~1.7MB) — could benefit from code splitting via lazy routes
 - POS cash completion path should be hardened for malformed numeric payloads (e.g., `change_given` string coercion edge cases)
+- **Retag scaffolding must be dropped after March 16**: `TempLegacyItem` and `RetagLog` are temporary models. After retag day is verified successful, drop the tables (`DROP TABLE inventory_retaglog; DROP TABLE inventory_templegacyitem;`), remove the model classes, create a removal migration, and remove all retag v2 API endpoints, frontend page, and sidebar link. Full instructions in `docs/retag/after_retag.md`.
+- **DB2 staging import must be re-run before retag day**: Run `python manage.py import_db2_staging --update-existing` the night before or morning of March 16 to refresh the staging table with the latest DB2 prices. See `docs/retag/before_retag.md`.
 
 ### Not Yet Implemented
 - Email notifications (forgot-password tokens are returned in response, not emailed)
 - Test suite (no unit or integration tests yet)
 - Heroku deployment (config exists, not yet deployed)
+- Pricing ML model not yet trained — requires running `import_historical_sold` then `train_price_model` after retag day
+- `backfill_categories` not yet run — run after retag cleanup to improve pricing model accuracy
+
+### Deferred (POS)
+- Email receipts (Receipt model has `emailed` flag; no delivery)
+- Barcode scanning via camera in POS (`@zxing/library` present, not wired)
+- Refund flow (partial refunds, refund to different method; distinct from void)
+- Multi-location supplemental drawer (backend uses `.first()`)
+- Offline/degraded POS (queue transactions when server down)
+- POS reports/analytics (daily/weekly/monthly revenue, cashier performance)
+- Customer loyalty / rewards
+- Discount / coupon system
+- Void reason field (backend void endpoint does not store reason)
 
 ### Pending (Next Coder Focus)
+- **Retag day: March 16.** All prep steps are in `docs/retag/before_retag.md`. After retag: cleanup scaffolding, run historical imports, train pricing model — see `docs/retag/after_retag.md`.
 - **End-to-end testing.** Full pipeline: Order page (upload manifest) → Preprocessing page (standardize → AI cleanup → product matching → pricing → complete) → Processing page (check-in items). Exercise all undo paths.
 - Phases 6-9 of the original AI rework plan (in `workspace/notes/prompt creator.md`) still have unfinished work: App Separation cleanup.
 

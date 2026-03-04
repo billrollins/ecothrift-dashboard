@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-21T18:00:00-06:00 -->
+<!-- Last updated: 2026-03-04T14:00:00-06:00 -->
 # Data Models
 
 ## accounts
@@ -434,7 +434,7 @@ Tracks public lookups and POS scans.
 |-------|------|-------|
 | location | FK(WorkLocation) | |
 | name | CharField | |
-| code | CharField(10) | unique |
+| code | CharField(20) | unique |
 | starting_cash | DecimalField | |
 | starting_breakdown | JSONField | denomination counts |
 | is_active | BooleanField | default True |
@@ -600,7 +600,7 @@ A sale transaction. `recalculate()` updates subtotal/tax/total from lines.
 | item | OneToOneField(Item) | related_name='consignment' |
 | asking_price | DecimalField | |
 | listed_price | DecimalField | nullable |
-| status | CharField | received / listed / sold / returned / expired |
+| status | CharField | pending_intake / listed / sold / expired / returned |
 | received_at | DateTimeField | auto |
 | listed_at | DateTimeField | nullable |
 | sold_at | DateTimeField | nullable |
@@ -628,3 +628,41 @@ A sale transaction. `recalculate()` updates subtotal/tax/total from lines.
 | payment_method | CharField | blank |
 | notes | TextField | blank |
 | created_at | DateTimeField | auto |
+
+---
+
+## inventory (Temporary Retag Scaffolding)
+
+> **These two models are temporary.** Drop them after retag day (March 16, 2026). See `docs/retag/after_retag.md` for removal instructions.
+
+### TempLegacyItem
+Staging table populated by `import_db2_staging` before retag day. Used by the retag app to look up DB2 item data when staff scans an old tag.
+
+| Field | Type | Notes |
+|---|---|---|
+| legacy_sku | CharField(50) | unique; the DB2 item SKU |
+| source_db | CharField | `db1` or `db2` |
+| title | TextField | |
+| brand | CharField(200) | |
+| model | CharField(200) | |
+| price | DecimalField | DB2 starting_price |
+| retail_amt | DecimalField | nullable |
+| condition | CharField | |
+| legacy_status | CharField | `on_shelf`, `processing`, or `sold` |
+| retagged | BooleanField | True after first DB3 item created for this SKU |
+| new_item_sku | CharField | most recent DB3 Item SKU created |
+| retagged_at | DateTimeField | timestamp of most recent retag |
+| imported_at | DateTimeField | auto |
+
+### RetagLog
+One row written per retag event (even if item already retagged). Powers the history panel in `RetagPage.tsx`.
+
+| Field | Type | Notes |
+|---|---|---|
+| legacy_sku | CharField(50) | db_index |
+| new_item_sku | CharField(20) | DB3 Item SKU created |
+| title | CharField(300) | |
+| price | DecimalField | price at retag time |
+| retail_amt | DecimalField | nullable |
+| retagged_at | DateTimeField | auto, db_index |
+| retagged_by | FK(User) | nullable; SET_NULL |

@@ -23,7 +23,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { StatusBadge } from '../../components/common/StatusBadge';
-import { ConfirmDialog } from '../../components/feedback/ConfirmDialog';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useQuery } from '@tanstack/react-query';
 import { useUser, useUpdateUser, useUpdateEmployeeProfile } from '../../hooks/useEmployees';
 import { getDepartments } from '../../api/hr.api';

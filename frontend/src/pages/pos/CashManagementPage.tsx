@@ -25,7 +25,7 @@ import Delete from '@mui/icons-material/Delete';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
-import { ConfirmDialog } from '../../components/feedback/ConfirmDialog';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import DenominationCounter, {
   EMPTY_BREAKDOWN,
   calculateTotal,
@@ -74,6 +74,10 @@ export default function CashManagementPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<BankTransaction | null>(null);
 
+  // Bank transaction date filter
+  const [bankDateFrom, setBankDateFrom] = useState('');
+  const [bankDateTo, setBankDateTo] = useState('');
+
   // Queries
   const { data: supplemental, isLoading: suppLoading } = useSupplemental();
   const { data: suppTransactions, isLoading: suppTxLoading } = useSupplementalTransactions();
@@ -88,7 +92,12 @@ export default function CashManagementPage() {
   const deleteBankMutation = useDeleteBankTransaction();
   const completeBankMutation = useCompleteBankTransaction();
 
-  const supp = supplemental as { current_total?: string; location_name?: string } | undefined;
+  const supp = supplemental as {
+    current_total?: string;
+    location_name?: string;
+    last_counted_at?: string | null;
+    last_counted_by_name?: string | null;
+  } | undefined;
   const suppTxList = (suppTransactions ?? []) as Array<{
     id: number;
     transaction_type: string;
@@ -97,7 +106,15 @@ export default function CashManagementPage() {
     performed_at: string;
     notes: string;
   }>;
-  const bankTxList = (bankData?.results ?? []) as BankTransaction[];
+  const bankTxListRaw = (bankData?.results ?? []) as BankTransaction[];
+  const bankTxList = bankTxListRaw.filter((tx) => {
+    const created = (tx as { created_at?: string }).created_at;
+    if (!created) return true;
+    const d = new Date(created).toISOString().slice(0, 10);
+    if (bankDateFrom && d < bankDateFrom) return false;
+    if (bankDateTo && d > bankDateTo) return false;
+    return true;
+  });
 
   // Supplemental handlers
   const handleSuppAction = async () => {
@@ -105,6 +122,12 @@ export default function CashManagementPage() {
     if (suppDialog === 'audit' ? false : total <= 0) {
       enqueueSnackbar('Enter an amount', { variant: 'warning' });
       return;
+    }
+    const currentTotal = parseFloat(supp?.current_total ?? '0') || 0;
+    if (suppDialog === 'draw' && total > currentTotal) {
+      enqueueSnackbar(`Draw amount (${formatCurrency(total)}) exceeds balance (${formatCurrency(currentTotal)}). Proceeding may result in negative balance.`, {
+        variant: 'warning',
+      });
     }
     try {
       const payload = { amount: suppCount, total: total.toFixed(2), notes: suppNotes };
@@ -228,6 +251,12 @@ export default function CashManagementPage() {
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 {supp?.location_name ?? '—'}
               </Typography>
+              {supp?.last_counted_at && (
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Last counted: {format(new Date(supp.last_counted_at), 'PPp')}
+                  {supp?.last_counted_by_name ? ` by ${supp.last_counted_by_name}` : ''}
+                </Typography>
+              )}
               <Box sx={{ display: 'flex', gap: 1, mt: 1, mb: 2, flexWrap: 'wrap' }}>
                 <Button
                   size="small"
@@ -298,6 +327,24 @@ export default function CashManagementPage() {
               <Typography variant="h6" gutterBottom>
                 Bank Transactions
               </Typography>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                <TextField
+                  size="small"
+                  label="From"
+                  type="date"
+                  value={bankDateFrom}
+                  onChange={(e) => setBankDateFrom(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true }, input: { inputProps: { max: bankDateTo || undefined } } }}
+                />
+                <TextField
+                  size="small"
+                  label="To"
+                  type="date"
+                  value={bankDateTo}
+                  onChange={(e) => setBankDateTo(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true }, input: { inputProps: { min: bankDateFrom || undefined } } }}
+                />
+              </Box>
               {bankLoading ? (
                 <Typography variant="body2" color="text.secondary">
                   Loading...

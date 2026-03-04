@@ -2026,6 +2026,83 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
+    @action(detail=True, methods=['post'], url_path='estimate-prices')
+    def estimate_prices(self, request, pk=None):
+        """Run the price estimator on all ManifestRows in this PO.
+
+        Sets proposed_price on each unpriced row and pricing_stage to 'draft'.
+        Returns a summary: total rows, estimated revenue, margin vs PO cost.
+        """
+        from .services.price_estimator import estimate_price as do_estimate
+        from decimal import InvalidOperation
+
+        order = self.get_object()
+        rows = ManifestRow.objects.filter(purchase_order=order).select_related('matched_product')
+
+        overwrite = bool(request.data.get('overwrite', False))
+        updated = 0
+        total_estimated_revenue = Decimal('0.00')
+        skipped = 0
+
+        rows_to_update = []
+        for row in rows:
+            if not overwrite and row.final_price is not None:
+                skipped += 1
+                total_estimated_revenue += (row.final_price or Decimal('0')) * (row.quantity or 1)
+                continue
+            if not overwrite and row.proposed_price is not None and row.pricing_stage in ('draft', 'final'):
+                skipped += 1
+                total_estimated_revenue += (row.proposed_price or Decimal('0')) * (row.quantity or 1)
+                continue
+
+            category_name = None
+            if row.matched_product and row.matched_product.category_ref:
+                category_name = row.matched_product.category_ref.name
+            elif row.category:
+                category_name = row.category
+
+            result = do_estimate(
+                title=row.ai_suggested_title or row.title or row.description or '',
+                brand=row.ai_suggested_brand or row.brand or None,
+                model_name=row.ai_suggested_model or row.model or None,
+                category_name=category_name,
+                condition=row.condition or 'unknown',
+                source='purchased',
+                retail_value=row.retail_value,
+                include_comparables=False,
+            )
+
+            row.proposed_price = result.estimated_price
+            if row.pricing_stage == 'unpriced':
+                row.pricing_stage = 'draft'
+            row.pricing_notes = (
+                f'AI estimate ({result.method}, {result.confidence:.0%} confidence). '
+                f'Range: ${result.low_estimate}–${result.high_estimate}.'
+            )
+            rows_to_update.append(row)
+            updated += 1
+            total_estimated_revenue += result.estimated_price * (row.quantity or 1)
+
+        if rows_to_update:
+            ManifestRow.objects.bulk_update(
+                rows_to_update,
+                ['proposed_price', 'pricing_stage', 'pricing_notes'],
+                batch_size=200,
+            )
+
+        margin = None
+        if order.total_cost and total_estimated_revenue > 0:
+            margin = float((total_estimated_revenue - order.total_cost) / order.total_cost * 100)
+
+        return Response({
+            'total_rows': rows.count(),
+            'rows_estimated': updated,
+            'rows_skipped': skipped,
+            'estimated_revenue': str(total_estimated_revenue.quantize(Decimal('0.01'))),
+            'po_cost': str(order.total_cost) if order.total_cost else None,
+            'margin_pct': round(margin, 1) if margin is not None else None,
+        })
+
     @action(detail=True, methods=['post'], url_path='finalize-rows')
     def finalize_rows(self, request, pk=None):
         """Bulk update finalized fields on manifest rows."""
@@ -2217,6 +2294,79 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'checked_in': checked_in,
             'order_status': order.status,
         })
+
+    @action(detail=True, methods=['post'], url_path='mark-items-broken')
+    def mark_items_broken(self, request, pk=None):
+        """Bulk mark selected order items as scrapped (broken)."""
+        order = self.get_object()
+        item_ids = parse_id_list(request.data.get('item_ids') or [])
+        if not item_ids:
+            return Response(
+                {'detail': 'item_ids required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        items = list(order.items.filter(id__in=item_ids).exclude(status__in=['sold', 'scrapped', 'lost']))
+        if not items:
+            return Response(
+                {'detail': 'No items found to mark broken.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        histories = []
+        for item in items:
+            old_status = item.status
+            item.status = 'scrapped'
+            item.save()
+            histories.append(
+                ItemHistory(
+                    item=item,
+                    event_type='status_change',
+                    old_value=old_status,
+                    new_value='scrapped',
+                    note='Bulk marked broken',
+                    created_by=request.user,
+                ),
+            )
+        if histories:
+            ItemHistory.objects.bulk_create(histories, batch_size=1000)
+        return Response({'marked_broken': len(items)})
+
+    @action(detail=True, methods=['post'], url_path='uncheck-in-items')
+    def uncheck_in_items(self, request, pk=None):
+        """Bulk revert selected order items to intake so they can be re-processed."""
+        order = self.get_object()
+        item_ids = parse_id_list(request.data.get('item_ids') or [])
+        if not item_ids:
+            return Response(
+                {'detail': 'item_ids required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        items = list(order.items.filter(id__in=item_ids))
+        if not items:
+            return Response(
+                {'detail': 'No items found to uncheck.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        histories = []
+        for item in items:
+            old_status = item.status
+            item.status = 'intake'
+            item.checked_in_at = None
+            item.checked_in_by = None
+            item.listed_at = None
+            item.save()
+            histories.append(
+                ItemHistory(
+                    item=item,
+                    event_type='status_change',
+                    old_value=old_status,
+                    new_value='intake',
+                    note='Bulk unchecked in',
+                    created_by=request.user,
+                ),
+            )
+        if histories:
+            ItemHistory.objects.bulk_create(histories, batch_size=1000)
+        return Response({'unchecked_in': len(items)})
 
     @action(detail=True, methods=['post'], url_path='mark-complete')
     def mark_complete(self, request, pk=None):
@@ -2423,12 +2573,14 @@ class BatchGroupViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='check-in')
     def check_in(self, request, pk=None):
-        """Check in all pending items in this batch and mark shelf-ready."""
+        """Check in pending items in this batch. Optional check_in_count and scrap_count for partial."""
         batch = self.get_object()
         unit_price = request.data.get('unit_price')
         unit_cost = request.data.get('unit_cost')
         condition = request.data.get('condition')
         location = request.data.get('location')
+        check_in_count = request.data.get('check_in_count')
+        scrap_count = request.data.get('scrap_count')
 
         update_fields = []
         if unit_price is not None:
@@ -2449,13 +2601,96 @@ class BatchGroupViewSet(viewsets.ModelViewSet):
         update_fields.extend(['status', 'processed_by', 'updated_at'])
         batch.save(update_fields=update_fields)
 
-        pending_items = batch.items.exclude(status__in=['sold', 'scrapped', 'lost'])
-        item_ids = list(pending_items.values_list('id', flat=True))
-        checked_in_count = batch.apply_to_items()
+        pending_qs = batch.items.exclude(status__in=['sold', 'scrapped', 'lost']).order_by('id')
+        pending_ids = list(pending_qs.values_list('id', flat=True))
         now = timezone.now()
 
-        if item_ids:
-            Item.objects.filter(id__in=item_ids).update(
+        # Partial check-in: optional check_in_count and scrap_count
+        try:
+            scrap_n = int(scrap_count) if scrap_count is not None else 0
+            check_n = int(check_in_count) if check_in_count is not None else None
+        except (TypeError, ValueError):
+            scrap_n = 0
+            check_n = None
+
+        if scrap_n < 0:
+            scrap_n = 0
+        if check_n is not None and check_n < 0:
+            check_n = None
+
+        if scrap_n > 0 or (check_n is not None and check_n > 0):
+            # Partial: first scrap_n -> scrapped, next check_n -> on_shelf
+            scrap_ids = pending_ids[:scrap_n] if scrap_n else []
+            check_ids = (
+                pending_ids[scrap_n:scrap_n + check_n]
+                if check_n is not None and check_n > 0
+                else (pending_ids[scrap_n:] if check_n is None else [])
+            )
+            if check_n is None and not scrap_ids:
+                check_ids = pending_ids[:]
+
+            if scrap_ids:
+                Item.objects.filter(id__in=scrap_ids).update(status='scrapped')
+                ItemHistory.objects.bulk_create(
+                    [
+                        ItemHistory(
+                            item_id=iid,
+                            event_type='status_change',
+                            old_value='intake',
+                            new_value='scrapped',
+                            note=f'Marked broken via {batch.batch_number}',
+                            created_by=request.user,
+                        )
+                        for iid in scrap_ids
+                    ],
+                    batch_size=1000,
+                )
+
+            if check_ids:
+                updates = {
+                    'status': 'on_shelf',
+                    'listed_at': now,
+                    'checked_in_at': now,
+                    'checked_in_by': request.user,
+                }
+                if batch.unit_price is not None:
+                    updates['price'] = batch.unit_price
+                if batch.unit_cost is not None:
+                    updates['cost'] = batch.unit_cost
+                if batch.condition:
+                    updates['condition'] = batch.condition
+                if batch.location:
+                    updates['location'] = batch.location
+                Item.objects.filter(id__in=check_ids).update(**updates)
+                ItemHistory.objects.bulk_create(
+                    [
+                        ItemHistory(
+                            item_id=item_id,
+                            event_type='batch_processed',
+                            note=f'Checked in via {batch.batch_number}',
+                            created_by=request.user,
+                        )
+                        for item_id in check_ids
+                    ],
+                    batch_size=1000,
+                )
+
+            remaining = len(pending_ids) - len(scrap_ids) - len(check_ids)
+            if remaining <= 0:
+                batch.status = 'complete'
+                batch.processed_at = now
+                batch.save(update_fields=['status', 'processed_at', 'updated_at'])
+
+            serializer = self.get_serializer(batch)
+            data = serializer.data
+            data['checked_in'] = len(check_ids)
+            data['marked_broken'] = len(scrap_ids)
+            return Response(data)
+
+        # Full check-in (existing behavior)
+        checked_in_count = batch.apply_to_items()
+        if pending_ids:
+            Item.objects.filter(id__in=pending_ids).update(
                 checked_in_at=now,
                 checked_in_by=request.user,
             )
@@ -2467,7 +2702,7 @@ class BatchGroupViewSet(viewsets.ModelViewSet):
                         note=f'Checked in via {batch.batch_number}',
                         created_by=request.user,
                     )
-                    for item_id in item_ids
+                    for item_id in pending_ids
                 ],
                 batch_size=1000,
             )
@@ -2540,7 +2775,12 @@ class ItemViewSet(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
     permission_classes = [IsAuthenticated, IsStaff]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    search_fields = ['sku', 'title', 'brand', 'category', 'product__product_number']
+    search_fields = [
+        'sku', 'title', 'brand', 'category', 'notes', 'location',
+        'product__title', 'product__product_number', 'product__model', 'product__upc',
+        'manifest_row__description', 'manifest_row__upc',
+        'manifest_row__vendor_item_number', 'manifest_row__search_tags',
+    ]
     filterset_fields = [
         'status', 'source', 'purchase_order', 'category',
         'processing_tier', 'batch_group', 'condition',
@@ -2637,6 +2877,43 @@ class ItemViewSet(viewsets.ModelViewSet):
         )
         return Response(ItemSerializer(item).data)
 
+    @action(detail=True, methods=['post'], url_path='mark-broken')
+    def mark_broken(self, request, pk=None):
+        """Mark item as scrapped (broken)."""
+        item = self.get_object()
+        old_status = item.status
+        item.status = 'scrapped'
+        item.save()
+        ItemHistory.objects.create(
+            item=item,
+            event_type='status_change',
+            old_value=old_status,
+            new_value='scrapped',
+            note='Marked broken',
+            created_by=request.user,
+        )
+        return Response(ItemSerializer(item).data)
+
+    @action(detail=True, methods=['post'], url_path='uncheck-in')
+    def uncheck_in(self, request, pk=None):
+        """Revert item to intake so it can be re-processed."""
+        item = self.get_object()
+        old_status = item.status
+        item.status = 'intake'
+        item.checked_in_at = None
+        item.checked_in_by = None
+        item.listed_at = None
+        item.save()
+        ItemHistory.objects.create(
+            item=item,
+            event_type='status_change',
+            old_value=old_status,
+            new_value='intake',
+            note='Unchecked in',
+            created_by=request.user,
+        )
+        return Response(ItemSerializer(item).data)
+
 
 class ItemHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ItemHistory.objects.select_related('item', 'created_by').all()
@@ -2653,7 +2930,7 @@ class ItemHistoryViewSet(viewsets.ReadOnlyModelViewSet):
 def item_lookup(request, sku):
     """Public item lookup by SKU (no auth required)."""
     try:
-        item = Item.objects.get(sku=sku)
+        item = Item.objects.select_related('manifest_row').get(sku=sku)
     except Item.DoesNotExist:
         return Response(
             {'detail': 'Item not found.'},
@@ -2668,3 +2945,722 @@ def item_lookup(request, sku):
     )
 
     return Response(ItemPublicSerializer(item).data)
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsStaff])
+def verify_present_view(request, pk):
+    """Mark an item as verified present during a shrinkage audit scan.
+
+    POST /api/inventory/items/:id/verify-present/
+    Body: { audit_session_id? }
+    Logs an ItemScanHistory record with source='audit_scan'.
+    """
+    try:
+        item = Item.objects.get(pk=pk)
+    except Item.DoesNotExist:
+        return Response({'detail': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    ItemScanHistory.objects.create(
+        item=item,
+        ip_address=request.META.get('REMOTE_ADDR'),
+        source='audit_scan',
+    )
+    return Response({
+        'sku': item.sku,
+        'title': item.title,
+        'status': item.status,
+        'location': item.location,
+        'verified': True,
+    })
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsStaff])
+def quick_reprice_view(request, pk):
+    """Apply a discount to an item and return the updated item.
+
+    POST /api/inventory/items/:id/quick-reprice/
+    Body: {
+        discount_type: 'percent' | 'fixed',
+        discount_value: number,    # e.g. 25 for 25% or 5.00 for $5
+        min_price?: number         # floor — won't go below this (default 0.50)
+    }
+    Returns updated item data. Logs a price_change history event.
+    """
+    try:
+        item = Item.objects.get(pk=pk)
+    except Item.DoesNotExist:
+        return Response({'detail': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    discount_type = request.data.get('discount_type')
+    discount_value = request.data.get('discount_value')
+    min_price = Decimal(str(request.data.get('min_price', '0.50')))
+
+    if discount_type not in ('percent', 'fixed'):
+        return Response(
+            {'detail': 'discount_type must be "percent" or "fixed".'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        discount_value = Decimal(str(discount_value))
+    except Exception:
+        return Response({'detail': 'discount_value must be a number.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    old_price = item.price
+    if discount_type == 'percent':
+        if not (0 < discount_value <= 100):
+            return Response({'detail': 'percent discount_value must be between 1 and 100.'}, status=400)
+        discount_amount = (old_price * discount_value / 100).quantize(Decimal('0.01'))
+    else:
+        discount_amount = discount_value.quantize(Decimal('0.01'))
+
+    new_price = max(old_price - discount_amount, min_price).quantize(Decimal('0.01'))
+
+    item.price = new_price
+    item.save(update_fields=['price', 'updated_at'])
+
+    ItemHistory.objects.create(
+        item=item,
+        event_type='price_change',
+        old_value=str(old_price),
+        new_value=str(new_price),
+        note=f'Quick reprice: {discount_type} {discount_value} off',
+        created_by=request.user,
+    )
+
+    return Response({
+        'sku': item.sku,
+        'title': item.title,
+        'old_price': str(old_price),
+        'new_price': str(new_price),
+        'discount_amount': str(discount_amount),
+        'discount_type': discount_type,
+        'discount_value': str(discount_value),
+    })
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsStaff])
+def estimate_price_view(request):
+    """Estimate a price for an item given its attributes.
+
+    POST /api/inventory/estimate-price/
+    Body: { title, brand?, model?, condition?, source?, retail_value?, category? }
+    Returns: { estimated_price, low_estimate, high_estimate, confidence, method, comparables }
+    """
+    from .services.price_estimator import estimate_price
+    from decimal import InvalidOperation
+
+    title = request.data.get('title', '')
+    if not title:
+        return Response({'detail': 'title is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    retail_raw = request.data.get('retail_value')
+    try:
+        retail_value = Decimal(str(retail_raw)) if retail_raw else None
+    except (InvalidOperation, ValueError):
+        retail_value = None
+
+    result = estimate_price(
+        title=title,
+        brand=request.data.get('brand') or None,
+        model_name=request.data.get('model') or None,
+        category_name=request.data.get('category') or None,
+        condition=request.data.get('condition', 'unknown'),
+        source=request.data.get('source', 'purchased'),
+        retail_value=retail_value,
+    )
+
+    return Response({
+        'estimated_price': str(result.estimated_price),
+        'low_estimate': str(result.low_estimate),
+        'high_estimate': str(result.high_estimate),
+        'confidence': result.confidence,
+        'method': result.method,
+        'comparables': result.comparables,
+        'notes': result.notes,
+    })
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsStaff])
+def retag_lookup_view(request):
+    """Look up a legacy item by old SKU for the Retag workflow.
+
+    POST /api/inventory/retag/lookup/
+    Body: { old_sku }
+    Returns legacy item data plus classifier and estimator suggestions.
+    """
+    from .services.categorizer import classify_item
+    from .services.price_estimator import estimate_price
+
+    old_sku = (request.data.get('old_sku') or '').strip()
+    if not old_sku:
+        return Response({'detail': 'old_sku is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check if already retagged in the new system
+    existing = Item.objects.filter(sku=old_sku).first()
+    if existing and not existing.notes.startswith('LEGACY:'):
+        return Response({
+            'already_retagged': True,
+            'existing_item': {
+                'sku': existing.sku,
+                'title': existing.title,
+                'price': str(existing.price),
+                'status': existing.status,
+            },
+        })
+
+    # The legacy item IS already in the DB (imported by import_legacy_data)
+    # or find it directly
+    legacy_item = Item.objects.filter(sku=old_sku).first()
+    if not legacy_item:
+        return Response({'detail': f'No item found with SKU {old_sku}.'}, status=404)
+
+    # Run classifier
+    cat_result = classify_item(
+        title=legacy_item.title,
+        brand=legacy_item.brand or None,
+        use_llm_fallback=True,
+    )
+
+    # Run price estimator
+    retail_val = None
+    if legacy_item.manifest_row and legacy_item.manifest_row.retail_value:
+        retail_val = legacy_item.manifest_row.retail_value
+
+    price_result = estimate_price(
+        title=legacy_item.title,
+        brand=legacy_item.brand or None,
+        category_name=cat_result.category_name,
+        condition=legacy_item.condition,
+        source=legacy_item.source,
+        retail_value=retail_val,
+    )
+
+    return Response({
+        'found': True,
+        'already_retagged': False,
+        'legacy_item': {
+            'sku': legacy_item.sku,
+            'title': legacy_item.title,
+            'brand': legacy_item.brand,
+            'category': legacy_item.category,
+            'condition': legacy_item.condition,
+            'source': legacy_item.source,
+            'price': str(legacy_item.price),
+            'cost': str(legacy_item.cost) if legacy_item.cost else None,
+            'location': legacy_item.location,
+            'notes': legacy_item.notes,
+            'status': legacy_item.status,
+        },
+        'suggested': {
+            'category_id': cat_result.category_id,
+            'category_name': cat_result.category_name,
+            'category_confidence': cat_result.confidence,
+            'estimated_price': str(price_result.estimated_price),
+            'price_low': str(price_result.low_estimate),
+            'price_high': str(price_result.high_estimate),
+            'price_confidence': price_result.confidence,
+            'price_method': price_result.method,
+            'comparables': price_result.comparables,
+        },
+    })
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsStaff])
+def retag_create_view(request):
+    """Create a new Item from confirmed retag data and mark the old item as retagged.
+
+    POST /api/inventory/retag/create/
+    Body: {
+        old_sku,
+        title, brand, category_id?, condition, source, price, cost?, location?, notes?
+    }
+    Returns the new item.
+    """
+    old_sku = (request.data.get('old_sku') or '').strip()
+    if not old_sku:
+        return Response({'detail': 'old_sku is required.'}, status=400)
+
+    old_item = Item.objects.filter(sku=old_sku).first()
+    if not old_item:
+        return Response({'detail': f'Legacy item {old_sku} not found.'}, status=404)
+
+    title = (request.data.get('title') or old_item.title or '').strip()
+    if not title:
+        return Response({'detail': 'title is required.'}, status=400)
+
+    try:
+        price = Decimal(str(request.data.get('price', '0')))
+    except Exception:
+        return Response({'detail': 'price must be a number.'}, status=400)
+
+    cost_raw = request.data.get('cost')
+    try:
+        cost = Decimal(str(cost_raw)) if cost_raw else None
+    except Exception:
+        cost = None
+
+    category_id = request.data.get('category_id')
+    product = old_item.product
+
+    new_item = Item.objects.create(
+        sku=Item.generate_sku(),
+        product=product,
+        title=title,
+        brand=(request.data.get('brand') or old_item.brand or '').strip(),
+        category=(request.data.get('category') or old_item.category or '').strip(),
+        price=price,
+        cost=cost,
+        condition=request.data.get('condition') or old_item.condition or 'unknown',
+        source=request.data.get('source') or old_item.source or 'purchased',
+        location=(request.data.get('location') or old_item.location or '').strip(),
+        notes=(request.data.get('notes') or '').strip(),
+        status='on_shelf',
+        listed_at=timezone.now(),
+        checked_in_at=timezone.now(),
+        checked_in_by=request.user,
+    )
+
+    if category_id:
+        try:
+            from .models import Category as CategoryModel
+            cat = CategoryModel.objects.get(pk=category_id)
+            new_item.category = cat.name
+            new_item.save(update_fields=['category'])
+            if product:
+                product.category_ref = cat
+                product.save(update_fields=['category_ref'])
+        except Exception:
+            pass
+
+    ItemHistory.objects.create(
+        item=new_item,
+        event_type='created',
+        new_value=f'retag_from={old_sku}',
+        note=f'Created via Retag app from legacy SKU {old_sku}',
+        created_by=request.user,
+    )
+
+    # Mark old item as retagged
+    old_item.notes = f'LEGACY: retagged as {new_item.sku}. ' + (old_item.notes or '')
+    old_item.save(update_fields=['notes'])
+
+    return Response({
+        'new_sku': new_item.sku,
+        'title': new_item.title,
+        'price': str(new_item.price),
+        'category': new_item.category,
+        'old_sku': old_sku,
+        'print_payload': {
+            'qr_data': new_item.sku,
+            'text': f'${price:.2f}',
+            'product_title': new_item.title,
+            'include_text': True,
+        },
+    })
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsStaff])
+def retag_v2_lookup_view(request):
+    """Look up a DB2 item by its legacy SKU for the Retag v2 (DB2 → DB3) workflow.
+
+    Always returns the full item data — retag_count from RetagLog is included so the
+    frontend can show a non-blocking warning if this SKU has been tagged before.
+
+    POST /api/inventory/retag/v2/lookup/
+    Body: { old_sku }
+    """
+    from .models import TempLegacyItem, RetagLog
+    from .services.price_estimator import estimate_price
+
+    old_sku = (request.data.get('old_sku') or '').strip().upper()
+    if not old_sku:
+        return Response({'detail': 'old_sku is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        staged = TempLegacyItem.objects.get(legacy_sku=old_sku, source_db='db2')
+    except TempLegacyItem.DoesNotExist:
+        return Response(
+            {'found': False, 'detail': f'No DB2 item found with SKU {old_sku}. '
+             'Ensure import_db2_staging has been run.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    # Count prior retags from the log — used for a non-blocking warning only
+    retag_count = RetagLog.objects.filter(legacy_sku=old_sku).count()
+    already_retagged = retag_count > 0
+
+    # Most recent log entry (for showing previous new SKU in the warning)
+    latest_log = (
+        RetagLog.objects.filter(legacy_sku=old_sku).order_by('-retagged_at').first()
+        if already_retagged else None
+    )
+
+    price_result = estimate_price(
+        title=staged.title,
+        brand=staged.brand or None,
+        category_name=None,
+        condition=staged.condition or 'unknown',
+        source='purchased',
+        retail_value=staged.retail_amt,
+    )
+
+    return Response({
+        'found': True,
+        'already_retagged': already_retagged,
+        'retag_count': retag_count,
+        'legacy_item': {
+            'sku': staged.legacy_sku,
+            'title': staged.title,
+            'brand': staged.brand,
+            'model': staged.model,
+            'condition': staged.condition,
+            'legacy_status': staged.legacy_status,
+            'price': str(staged.price) if staged.price else '0.00',
+            'retail_amt': str(staged.retail_amt) if staged.retail_amt else None,
+        },
+        'existing_item': {
+            'sku': latest_log.new_item_sku if latest_log else staged.new_item_sku,
+            'retagged_at': latest_log.retagged_at.isoformat() if latest_log else (
+                staged.retagged_at.isoformat() if staged.retagged_at else None
+            ),
+        } if already_retagged else None,
+        'suggested': {
+            'estimated_price': str(price_result.estimated_price),
+            'price_low': str(price_result.low_estimate),
+            'price_high': str(price_result.high_estimate),
+            'price_confidence': price_result.confidence,
+            'price_method': price_result.method,
+            'comparables': price_result.comparables,
+        },
+    })
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsStaff])
+def retag_v2_create_view(request):
+    """Create a new DB3 Item from a DB2 legacy item (Retag v2 workflow).
+
+    Always creates a fresh Item — scanning the same old SKU twice produces two DB3 items.
+    Every successful create is recorded in RetagLog (temporary scaffolding).
+
+    POST /api/inventory/retag/v2/create/
+    Body: { old_sku, title, brand?, condition, source, price, cost?, location?, notes? }
+    """
+    from .models import TempLegacyItem, RetagLog
+    from django.utils import timezone as tz
+
+    old_sku = (request.data.get('old_sku') or '').strip().upper()
+    if not old_sku:
+        return Response({'detail': 'old_sku is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        staged = TempLegacyItem.objects.get(legacy_sku=old_sku, source_db='db2')
+    except TempLegacyItem.DoesNotExist:
+        return Response(
+            {'detail': f'No DB2 staging row found for SKU {old_sku}.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    title = (request.data.get('title') or staged.title).strip()
+    brand = (request.data.get('brand') or staged.brand or '').strip()
+    condition = request.data.get('condition') or staged.condition or 'unknown'
+    source = request.data.get('source') or 'purchased'
+    location = (request.data.get('location') or '').strip()
+    extra_notes = (request.data.get('notes') or '').strip()
+
+    try:
+        price = float(request.data.get('price') or staged.price or 0)
+    except (ValueError, TypeError):
+        price = float(staged.price or 0)
+    try:
+        cost = float(request.data['cost']) if request.data.get('cost') else None
+    except (ValueError, TypeError):
+        cost = None
+
+    new_sku = Item.generate_sku()
+    notes_parts = [f'RETAGGED_FROM_DB2:{old_sku}']
+    if extra_notes:
+        notes_parts.append(extra_notes)
+
+    new_item = Item.objects.create(
+        sku=new_sku,
+        title=title,
+        brand=brand,
+        category=staged.model or '',
+        price=price,
+        cost=cost,
+        source=source,
+        status='on_shelf',
+        condition=condition,
+        location=location,
+        notes=' | '.join(notes_parts),
+        listed_at=tz.now(),
+    )
+
+    ItemHistory.objects.create(
+        item=new_item,
+        event_type='created',
+        note=f'Retagged from DB2 legacy item {old_sku}',
+        created_by=request.user,
+    )
+
+    # Record this event in the retag log (one row per scan)
+    RetagLog.objects.create(
+        legacy_sku=old_sku,
+        new_item_sku=new_sku,
+        title=title,
+        price=price,
+        retail_amt=staged.retail_amt,
+        retagged_by=request.user,
+    )
+
+    # Update the staging row to track most-recent tag (retagged=True lets lookup know it's been done)
+    staged.retagged = True
+    staged.new_item_sku = new_sku
+    staged.retagged_at = tz.now()
+    staged.save(update_fields=['retagged', 'new_item_sku', 'retagged_at'])
+
+    return Response({
+        'new_sku': new_item.sku,
+        'title': new_item.title,
+        'price': str(new_item.price),
+        'category': new_item.category,
+        'old_sku': old_sku,
+        'already_retagged': False,
+        'print_payload': {
+            'qr_data': new_item.sku,
+            'text': f'${price:.2f}',
+            'product_title': new_item.title,
+            'include_text': True,
+        },
+    })
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsStaff])
+def retag_v2_stats_view(request):
+    """Return aggregate progress stats for the Retag v2 (DB2 → DB3) operation.
+
+    GET /api/inventory/retag/v2/stats/
+    Returns: { total_staged, total_retagged, remaining, pct_complete, source_db }
+    """
+    from .models import TempLegacyItem
+
+    total = TempLegacyItem.objects.filter(source_db='db2').count()
+    retagged = TempLegacyItem.objects.filter(source_db='db2', retagged=True).count()
+    remaining = total - retagged
+    pct = round((retagged / total * 100), 1) if total > 0 else 0.0
+
+    return Response({
+        'source_db': 'db2',
+        'total_staged': total,
+        'total_retagged': retagged,
+        'remaining': remaining,
+        'pct_complete': pct,
+    })
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsStaff])
+def retag_v2_history_view(request):
+    """Paginated retag event log for the history panel.
+
+    GET /api/inventory/retag/v2/history/
+    Params:
+      search     — filter by legacy_sku or title (case-insensitive substring)
+      since      — ISO datetime; filters to rows at or after this time (session filter)
+      page       — 1-based page number (default 1)
+      page_size  — rows per page (default 25, max 100)
+
+    Summary totals (total_retagged, sum_price, sum_retail) always reflect ALL log rows,
+    independent of search/since filters.
+    """
+    from .models import RetagLog
+    from django.db.models import Count, Sum, Q
+
+    # ── Global summary (unfiltered) ──────────────────────────────────────────
+    summary = RetagLog.objects.aggregate(
+        total_retagged=Count('id'),
+        sum_price=Sum('price'),
+        sum_retail=Sum('retail_amt'),
+    )
+
+    # ── Filtered queryset ────────────────────────────────────────────────────
+    qs = RetagLog.objects.all()
+
+    search = (request.query_params.get('search') or '').strip()
+    if search:
+        qs = qs.filter(Q(legacy_sku__icontains=search) | Q(title__icontains=search))
+
+    since = request.query_params.get('since')
+    if since:
+        from django.utils.dateparse import parse_datetime
+        since_dt = parse_datetime(since)
+        if since_dt:
+            qs = qs.filter(retagged_at__gte=since_dt)
+
+    # ── Pagination ────────────────────────────────────────────────────────────
+    try:
+        page = max(1, int(request.query_params.get('page', 1)))
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        page_size = min(100, max(1, int(request.query_params.get('page_size', 25))))
+    except (ValueError, TypeError):
+        page_size = 25
+
+    total_count = qs.count()
+    num_pages = max(1, (total_count + page_size - 1) // page_size)
+    page = min(page, num_pages)
+    offset = (page - 1) * page_size
+
+    rows = qs.order_by('-retagged_at')[offset: offset + page_size]
+
+    return Response({
+        'total_retagged': summary['total_retagged'] or 0,
+        'sum_price': str(summary['sum_price'] or 0),
+        'sum_retail': str(summary['sum_retail'] or 0),
+        'count': total_count,
+        'page': page,
+        'num_pages': num_pages,
+        'results': [
+            {
+                'id': row.id,
+                'legacy_sku': row.legacy_sku,
+                'new_item_sku': row.new_item_sku,
+                'title': row.title,
+                'price': str(row.price),
+                'retail_amt': str(row.retail_amt) if row.retail_amt is not None else None,
+                'retagged_at': row.retagged_at.isoformat(),
+                'retagged_by': row.retagged_by.get_full_name() if row.retagged_by else None,
+            }
+            for row in rows
+        ],
+    })
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsStaff])
+def classify_item_view(request):
+    """Classify an item into a Category using the tiered classifier.
+
+    Body: { title, brand?, model?, use_llm? }
+    Returns: { category_id, category_name, parent_name, confidence, method }
+    """
+    from .services.categorizer import classify_item
+
+    title = request.data.get('title', '')
+    if not title:
+        return Response({'detail': 'title is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    brand = request.data.get('brand') or None
+    model = request.data.get('model') or None
+    use_llm = bool(request.data.get('use_llm', True))
+
+    result = classify_item(title=title, brand=brand, model=model, use_llm_fallback=use_llm)
+    return Response({
+        'category_id': result.category_id,
+        'category_name': result.category_name,
+        'parent_name': result.parent_name,
+        'confidence': result.confidence,
+        'method': result.method,
+    })
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsStaff])
+def store_report_view(request):
+    """Manager store report: on-shelf inventory summary, stale items, pricing gaps.
+
+    Query params:
+        stale_days (int): items on shelf longer than this are flagged (default 60)
+        location (str):   filter by location prefix
+    """
+    from django.db.models import Avg, Max, Min
+    from datetime import timedelta
+
+    stale_days = int(request.query_params.get('stale_days', 60))
+    location_filter = request.query_params.get('location', '')
+
+    on_shelf_qs = Item.objects.filter(status='on_shelf')
+    if location_filter:
+        on_shelf_qs = on_shelf_qs.filter(location__icontains=location_filter)
+
+    stale_cutoff = timezone.now() - timedelta(days=stale_days)
+
+    # Aggregate stats
+    totals = on_shelf_qs.aggregate(
+        total_items=Count('id'),
+        total_retail_value=Sum('price'),
+        avg_price=Avg('price'),
+        min_price=Min('price'),
+        max_price=Max('price'),
+    )
+
+    stale_items = on_shelf_qs.filter(
+        listed_at__lt=stale_cutoff,
+    ).order_by('listed_at').values(
+        'id', 'sku', 'title', 'brand', 'price', 'listed_at', 'location', 'category',
+    )[:100]
+
+    unpriced_items = on_shelf_qs.filter(price=0).values(
+        'id', 'sku', 'title', 'brand', 'listed_at', 'location',
+    )[:50]
+
+    lost_items = Item.objects.filter(status='lost').values(
+        'id', 'sku', 'title', 'brand', 'price', 'location',
+    )[:50]
+
+    category_breakdown = on_shelf_qs.values('category').annotate(
+        count=Count('id'),
+        total_value=Sum('price'),
+    ).order_by('-total_value')[:30]
+
+    source_breakdown = on_shelf_qs.values('source').annotate(
+        count=Count('id'),
+        total_value=Sum('price'),
+    )
+
+    condition_breakdown = on_shelf_qs.values('condition').annotate(
+        count=Count('id'),
+    )
+
+    # Price histogram buckets
+    buckets = [
+        (0, 5), (5, 10), (10, 25), (25, 50),
+        (50, 100), (100, 200), (200, 500), (500, None),
+    ]
+    price_histogram = []
+    for low, high in buckets:
+        qs = on_shelf_qs.filter(price__gte=low)
+        if high is not None:
+            qs = qs.filter(price__lt=high)
+        label = f'${low}–${high}' if high else f'${low}+'
+        price_histogram.append({'range': label, 'count': qs.count()})
+
+    return Response({
+        'summary': {
+            'total_items_on_shelf': totals['total_items'] or 0,
+            'total_retail_value': str(totals['total_retail_value'] or 0),
+            'avg_price': str(round(totals['avg_price'] or 0, 2)),
+            'min_price': str(totals['min_price'] or 0),
+            'max_price': str(totals['max_price'] or 0),
+            'stale_threshold_days': stale_days,
+            'stale_item_count': on_shelf_qs.filter(listed_at__lt=stale_cutoff).count(),
+            'unpriced_item_count': on_shelf_qs.filter(price=0).count(),
+            'lost_item_count': Item.objects.filter(status='lost').count(),
+        },
+        'stale_items': list(stale_items),
+        'unpriced_items': list(unpriced_items),
+        'lost_items': list(lost_items),
+        'category_breakdown': list(category_breakdown),
+        'source_breakdown': list(source_breakdown),
+        'condition_breakdown': list(condition_breakdown),
+        'price_histogram': price_histogram,
+    })

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-21T18:00:00-06:00 -->
+<!-- Last updated: 2026-02-26T14:00:00-06:00 -->
 # Architecture
 
 ## Tech Stack
@@ -56,6 +56,7 @@ ecothrift-dashboard/
 │   │   └── main.tsx        # Entry point + providers
 │   ├── vite.config.ts
 │   └── package.json
+├── printserver/            # Local print server (FastAPI, Windows installer)
 ├── docs/                   # This documentation
 ├── workspace/              # Personal scripts, notebooks, notes (gitignored)
 ├── manage.py
@@ -104,7 +105,7 @@ Frontend Page
 - **Email-only auth** — No username field. `User.USERNAME_FIELD = 'email'`.
 - **Pagination** — DRF `ConfigurablePageSizePagination` (default 50, client can override via `page_size` param). All list endpoints return `{ count, next, previous, results }`.
 - **Soft deletes** — Vendors and Users use `is_active` flag; Consignee accounts use `status='closed'`.
-- **SKU generation** — Auto-generated on Item creation (`ET-XXXXXX` format).
+- **SKU generation** — Auto-generated on Item creation (`ITM0001234` format — `ITM` prefix + 7-digit zero-padded number).
 - **Timezone** — All timestamps are `America/Chicago`. Set in Django `TIME_ZONE`.
 - **Print server** — Separate FastAPI app at `localhost:8888`. Frontend communicates directly via `localPrintService.ts`.
 - **Cash denomination tracking** — Drawers, drops, handoffs, and supplemental all use JSON fields for bill/coin breakdowns.

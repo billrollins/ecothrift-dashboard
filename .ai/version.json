@@ -1,5 +1,5 @@
 {
-  "version": "1.9.0",
-  "build_date": "2026-02-25T22:00:00-06:00",
-  "description": "Processing page overhaul: Command Center + Side Drawer design, print server status indicator, SKU scanner, tabbed queues, bulk check-in, hotkeys, auto-advance, sticky defaults, session stats bar"
+  "version": "2.0.0",
+  "build_date": "2026-03-04T14:00:00-06:00",
+  "description": "DB2->DB3 retag v2 migration system, pricing model foundation, very_good condition, database audits"
 }

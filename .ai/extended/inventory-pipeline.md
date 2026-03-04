@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-25T22:00:00-06:00 -->
+<!-- Last updated: 2026-03-04T14:00:00-06:00 -->
 
 # Inventory Pipeline — Extended Context
 
@@ -236,8 +236,12 @@ Core inventory entity flowing through the system.
 
 **Check-in actions**:
 - `POST /inventory/items/{id}/check-in/` — single-item check-in + field finalize
+- `POST /inventory/items/{id}/mark-broken/` — mark item as scrapped
+- `POST /inventory/items/{id}/uncheck-in/` — revert item to intake
 - `POST /inventory/orders/{id}/check-in-items/` — bulk check-in for order-scoped queues
-- `POST /inventory/batch-groups/{id}/check-in/` — batch check-in path
+- `POST /inventory/orders/{id}/mark-items-broken/` — bulk mark items scrapped
+- `POST /inventory/orders/{id}/uncheck-in-items/` — bulk revert items to intake
+- `POST /inventory/batch-groups/{id}/check-in/` — batch check-in; optional `check_in_count` and `scrap_count` for partial check-in
 
 ---
 
@@ -263,8 +267,10 @@ Batch-level processing helper for rows marked as batch tier.
 - **Typical fields**: `batch_number`, `product`, `purchase_order`, `manifest_row`, `total_qty`, `status`, `unit_price`, `unit_cost`, `condition`, `location`, `processed_by`, `processed_at`
 - **Actions**:
   - `POST /inventory/batch-groups/{id}/process/` — apply batch settings to all items and mark ready
-  - `POST /inventory/batch-groups/{id}/check-in/` — check in pending batch items and mark shelf-ready
+  - `POST /inventory/batch-groups/{id}/check-in/` — check in pending batch items; optional `check_in_count` and `scrap_count` for partial (e.g. check in 2 good, mark 3 broken)
   - `POST /inventory/batch-groups/{id}/detach/` — remove one item for individual exception processing
+
+**Processing drawer (batch mode)** shows pending and checked-in items as clickable lists; clicking opens the item form; checked-in items have an Unprocess button to revert to intake.
 
 ---
 
@@ -364,3 +370,102 @@ Tracks public lookups and POS scans.
 - **`scanned_at`** — auto
 - **`ip_address`** — from request
 - **`source`**: `public_lookup` or `pos_terminal`
+
+---
+
+## Retag v2 — DB2→DB3 Migration System
+
+On **March 16, 2026** every item in the store will be physically re-tagged using the Retag v2 app, migrating all inventory from DB2 (2nd-gen production) to DB3 (3rd-gen production).
+
+### Temporary Scaffolding Models
+
+Both models live in `apps/inventory/models.py` and are **temporary** — drop after retag day.
+
+**`TempLegacyItem`** (migration `0009_add_temp_legacy_item_and_historical_transaction`)
+Staging table of every active DB2 item imported from a local DB2 PostgreSQL snapshot.
+
+| Field | Type | Notes |
+|---|---|---|
+| legacy_sku | CharField(50) | unique; the DB2 SKU scanned by staff |
+| source_db | CharField | `db1` or `db2` |
+| title | TextField | |
+| brand | CharField(200) | |
+| model | CharField(200) | |
+| price | DecimalField | DB2 starting_price |
+| retail_amt | DecimalField | DB2 retail_amt |
+| condition | CharField | last known condition |
+| legacy_status | CharField | `on_shelf`, `processing`, or `sold` |
+| retagged | BooleanField | True once scanned and DB3 item created |
+| new_item_sku | CharField | the DB3 Item SKU created for this item |
+| retagged_at | DateTimeField | timestamp of first retag |
+
+**`RetagLog`** (migration `0011_add_retaglog`)
+One row per retag event (always created, even on duplicate scans).
+
+| Field | Type | Notes |
+|---|---|---|
+| legacy_sku | CharField(50) | indexed |
+| new_item_sku | CharField(20) | the DB3 Item SKU created |
+| title | CharField(300) | |
+| price | DecimalField | price at time of retag |
+| retail_amt | DecimalField | nullable |
+| retagged_at | DateTimeField | auto, indexed |
+| retagged_by | FK(User) | nullable |
+
+### `import_db2_staging` Management Command
+
+`apps/inventory/management/commands/import_db2_staging.py`
+
+Connects directly to the local `db2` PostgreSQL snapshot (see `docs/Database Audits/.config`) and bulk-inserts active DB2 items into `TempLegacyItem`.
+
+```bash
+python manage.py import_db2_staging          # import active items only
+python manage.py import_db2_staging --dry-run
+python manage.py import_db2_staging --update-existing  # refresh prices
+python manage.py import_db2_staging --include-sold     # also import sold items (for DS/ML)
+```
+
+Run `--update-existing` the morning of retag day after a fresh DB2 backup/restore.
+
+### Retag v2 API Endpoints
+
+All at `/api/inventory/retag/v2/`, all require `IsAuthenticated`.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `retag/v2/lookup/` | Body: `{ sku }`. Returns `TempLegacyItem` data plus `retag_count` from `RetagLog`. |
+| POST | `retag/v2/create/` | Body: `{ legacy_sku, title, brand, price, retail_amt, condition, source }`. Always creates a new `Item` + `RetagLog` row + updates `TempLegacyItem`. Returns `print_payload`. |
+| GET | `retag/v2/stats/` | Summary stats: total retagged, sum price, sum retail. |
+| GET | `retag/v2/history/` | Paginated `RetagLog` rows. Query params: `search`, `since` (ISO datetime), `page`, `page_size`. Response includes summary stats. |
+
+### Frontend: `RetagPage.tsx`
+
+Route: `/inventory/retag` (Staff+). Located at `frontend/src/pages/inventory/RetagPage.tsx`.
+
+Key behaviours:
+- **Scan input**: debounced, fires `retag_v2_lookup` on input. If `autoPrint` is on, immediately calls `retag_v2_create` and prints.
+- **Price strategies**: `keep_current` | `pct_current` | `estimate` | `pct_retail`. Calculated reactively from lookup data.
+- **Always creates new item**: scanning a previously-retagged SKU shows a non-blocking snackbar warning but still creates a new DB3 `Item`.
+- **History panel**: paginated `RetagLog` table at bottom of page. Summary tiles: total tagged, sum price, sum retail. Search by title/SKU. Session-only filter (filter by `since=` page load timestamp).
+
+### Pricing Model Foundation Commands
+
+Also in `apps/inventory/management/commands/` — scaffolded but not yet run:
+
+| Command | Purpose |
+|---|---|
+| `import_historical_sold` | Import ~145K sold items from DB1+DB2 into DB3 `inventory_item` (status=`sold`) for ML training |
+| `import_historical_transactions` | Import ~68K transactions from DB1+DB2 into `pos_historicaltransaction` for multi-generation revenue reporting |
+| `train_price_model` | Train gradient-boosted price estimator on sold items; saves to `workspace/models/price_model.joblib` |
+| `backfill_categories` | Retroactively classify all items into the `Category` taxonomy |
+
+Run these **after retag day** in the order listed.
+
+### Cleanup After Retag Day
+
+See `docs/retag/after_retag.md` for full instructions. Key steps:
+1. `DROP TABLE inventory_retaglog; DROP TABLE inventory_templegacyitem;`
+2. Remove `TempLegacyItem` and `RetagLog` model classes from `models.py`
+3. Run `makemigrations inventory --name remove_retag_scaffolding` + `migrate`
+4. Remove `import_db2_staging` management command
+5. Remove `retag_v2_*` API endpoints, routes, frontend page, and sidebar link

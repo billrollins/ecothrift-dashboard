@@ -153,7 +153,7 @@ class CartSerializer(serializers.ModelSerializer):
             'lines', 'receipt',
         ]
         read_only_fields = [
-            'id', 'subtotal', 'tax_amount', 'total', 'created_at',
+            'id', 'cashier', 'subtotal', 'tax_amount', 'total', 'tax_rate', 'created_at',
         ]
 
 

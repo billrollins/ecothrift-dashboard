@@ -296,3 +296,34 @@ class RevenueGoal(models.Model):
 
     def __str__(self):
         return f'{self.location.name} - {self.date}: ${self.goal_amount}'
+
+
+class HistoricalTransaction(models.Model):
+    """Imported transaction records from DB1 and DB2 for historical revenue reporting.
+
+    No FK relationships — pure data import, no referential integrity required.
+    Populated by the import_historical_transactions management command.
+    """
+    SOURCE_CHOICES = [
+        ('db1', 'DB1 Legacy'),
+        ('db2', 'DB2 Production'),
+    ]
+
+    source_db      = models.CharField(max_length=10, choices=SOURCE_CHOICES)
+    legacy_cart_id = models.CharField(max_length=50)
+    sale_date      = models.DateField(db_index=True)
+    subtotal       = models.DecimalField(max_digits=10, decimal_places=2)
+    tax_amount     = models.DecimalField(max_digits=10, decimal_places=2)
+    total          = models.DecimalField(max_digits=10, decimal_places=2)
+    item_count     = models.IntegerField(default=0)
+    payment_method = models.CharField(max_length=20, blank=True, default='')
+
+    class Meta:
+        unique_together = [('source_db', 'legacy_cart_id')]
+        ordering = ['-sale_date']
+        indexes = [
+            models.Index(fields=['source_db', 'sale_date']),
+        ]
+
+    def __str__(self):
+        return f'[{self.source_db.upper()}] {self.legacy_cart_id} — {self.sale_date} ${self.total}'

@@ -23,7 +23,7 @@ import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { StatusBadge } from '../../components/common/StatusBadge';
-import { ConfirmDialog } from '../../components/feedback/ConfirmDialog';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useUsers, useCreateUser, useUpdateUser } from '../../hooks/useEmployees';
 import { adminResetPassword } from '../../api/accounts.api';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../utils/formatPhone';

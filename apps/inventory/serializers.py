@@ -182,10 +182,49 @@ class ItemSerializer(serializers.ModelSerializer):
 
 
 class ItemPublicSerializer(serializers.ModelSerializer):
-    """Public-facing item info for price lookup (no cost, no internal fields)."""
+    """Public-facing item info for customer scan — no cost, no internal fields."""
+
+    estimated_retail_value = serializers.SerializerMethodField()
+    savings_pct = serializers.SerializerMethodField()
+    processing_notes = serializers.SerializerMethodField()
+
+    def get_estimated_retail_value(self, obj):
+        if obj.manifest_row and obj.manifest_row.retail_value:
+            return str(obj.manifest_row.retail_value)
+        return None
+
+    def get_savings_pct(self, obj):
+        retail = None
+        if obj.manifest_row and obj.manifest_row.retail_value:
+            retail = obj.manifest_row.retail_value
+        if retail and retail > 0 and obj.price > 0:
+            savings = ((retail - obj.price) / retail * 100)
+            if savings > 0:
+                return round(float(savings), 1)
+        return None
+
+    def get_processing_notes(self, obj):
+        """Return any test/restoration notes from item notes (public-safe subset)."""
+        if not obj.notes:
+            return None
+        # Only include notes that were explicitly marked as public
+        # by staff starting them with "NOTE:" prefix
+        lines = [
+            line.strip()
+            for line in obj.notes.splitlines()
+            if line.strip().upper().startswith('NOTE:')
+        ]
+        if lines:
+            return ' '.join(line[5:].strip() for line in lines)
+        return None
+
     class Meta:
         model = Item
-        fields = ['sku', 'title', 'brand', 'category', 'price', 'status']
+        fields = [
+            'sku', 'title', 'brand', 'category',
+            'price', 'status', 'condition', 'source',
+            'estimated_retail_value', 'savings_pct', 'processing_notes',
+        ]
 
 
 class ProcessingBatchSerializer(serializers.ModelSerializer):

@@ -20,7 +20,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
-import { ConfirmDialog } from '../../components/feedback/ConfirmDialog';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import {
   useCustomers,
   useCreateCustomer,

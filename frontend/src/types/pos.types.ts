@@ -4,6 +4,22 @@
 export type PaymentMethod = 'cash' | 'card' | 'split';
 
 /**
+ * Device type for POS device identity (persisted in localStorage).
+ */
+export type POSDeviceType = 'register' | 'manager' | 'online_sales' | 'processing' | 'mobile';
+
+/**
+ * Persisted device config so this machine is recognized as a specific terminal/role.
+ */
+export interface POSDeviceConfig {
+  deviceType: POSDeviceType;
+  registerId?: number;
+  registerName?: string;
+  registerCode?: string;
+  configuredAt: string;
+}
+
+/**
  * Denomination breakdown for cash counts
  */
 export interface DenominationBreakdown {

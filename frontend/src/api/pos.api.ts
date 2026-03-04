@@ -69,8 +69,16 @@ export function drawerHandoff(id: number, data: Record<string, unknown>): Promis
   return api.post<Drawer>(`/pos/drawers/${id}/handoff/`, data);
 }
 
+export function drawerTakeover(id: number, data?: Record<string, unknown>): Promise<{ data: Drawer }> {
+  return api.post<Drawer>(`/pos/drawers/${id}/takeover/`, data ?? {});
+}
+
 export function closeDrawer(id: number, data: Record<string, unknown>): Promise<{ data: Drawer }> {
   return api.post<Drawer>(`/pos/drawers/${id}/close/`, data);
+}
+
+export function reopenDrawer(id: number, data?: Record<string, unknown>): Promise<{ data: Drawer }> {
+  return api.post<Drawer>(`/pos/drawers/${id}/reopen/`, data ?? {});
 }
 
 export function cashDrop(drawerId: number, data: Record<string, unknown>): Promise<{ data: unknown }> {
@@ -136,6 +144,14 @@ export function addItemToCart(cartId: number, sku: string): Promise<{ data: Cart
   return api.post<Cart>(`/pos/carts/${cartId}/add-item/`, { sku });
 }
 
+export function updateCartLine(
+  cartId: number,
+  lineId: number,
+  data: Record<string, unknown>,
+): Promise<{ data: Cart }> {
+  return api.patch<Cart>(`/pos/carts/${cartId}/lines/${lineId}/`, data);
+}
+
 export function removeCartLine(cartId: number, lineId: number): Promise<{ data: unknown }> {
   return api.delete(`/pos/carts/${cartId}/lines/${lineId}/`);
 }
@@ -159,4 +175,36 @@ export function getDashboardMetrics(): Promise<{ data: unknown }> {
 
 export function getDashboardAlerts(): Promise<{ data: unknown[] }> {
   return api.get('/pos/dashboard/alerts/');
+}
+
+// ── Historical Revenue ─────────────────────────────────────────────────────────
+
+export interface HistoricalRevenueDataPoint {
+  period: string;
+  source_db: 'db1' | 'db2' | 'db3';
+  total: string;
+  transaction_count: number;
+}
+
+export interface HistoricalRevenueSummary {
+  db1_total: string;
+  db2_total: string;
+  db3_total: string;
+  db1_transactions: number;
+  db2_transactions: number;
+  db3_transactions: number;
+}
+
+export interface HistoricalRevenueResponse {
+  period: string;
+  data: HistoricalRevenueDataPoint[];
+  summary: HistoricalRevenueSummary;
+}
+
+export function getHistoricalRevenue(params?: {
+  period?: 'monthly' | 'yearly' | 'weekly';
+  sources?: 'all' | 'db3_only' | 'db1_db2_only';
+  years?: string;
+}): Promise<{ data: HistoricalRevenueResponse }> {
+  return api.get<HistoricalRevenueResponse>('/pos/historical-revenue/', { params });
 }

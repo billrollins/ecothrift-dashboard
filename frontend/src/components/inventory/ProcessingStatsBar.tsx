@@ -44,6 +44,7 @@ export function ProcessingStatsBar({
         border: 1,
         borderColor: 'divider',
         flexWrap: 'wrap',
+        overflowX: 'auto',
       }}
     >
       <Chip

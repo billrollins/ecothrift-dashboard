@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.db.models import Sum, Q, Count
+from django.db.models.functions import TruncMonth, TruncYear, TruncWeek
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes as perm_classes
@@ -9,11 +10,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee
-from apps.inventory.models import Item
+from apps.inventory.models import Item, ItemScanHistory
 from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
-    Cart, CartLine, Receipt, RevenueGoal,
+    Cart, CartLine, Receipt, RevenueGoal, HistoricalTransaction,
 )
 from .serializers import (
     RegisterSerializer, DrawerSerializer,
@@ -23,6 +24,7 @@ from .serializers import (
     CartSerializer, CartLineSerializer, ReceiptSerializer,
     RevenueGoalSerializer,
 )
+from .filters import CartFilter
 
 
 class RegisterViewSet(viewsets.ModelViewSet):
@@ -49,40 +51,100 @@ class DrawerViewSet(viewsets.ModelViewSet):
         """Open a new drawer."""
         data = request.data
         register_id = data.get('register')
-        opening_count = data.get('opening_count', {})
-        opening_total = Decimal(str(data.get('opening_total', 0)))
+        if register_id is None:
+            return Response(
+                {'detail': 'register is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            register_id = int(register_id)
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'register must be a valid ID.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        opening_count = data.get('opening_count')
+        if opening_count is None:
+            opening_count = {}
+        if not isinstance(opening_count, dict):
+            return Response(
+                {'detail': 'opening_count must be an object (denomination breakdown).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            opening_total = Decimal(str(data.get('opening_total', 0)))
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'opening_total must be a number.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         today = timezone.now().date()
 
-        # Check if drawer already exists for this register today
+        if not Register.objects.filter(id=register_id).exists():
+            return Response(
+                {'detail': 'Register not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        register = Register.objects.get(id=register_id)
+        if not register.is_active:
+            return Response(
+                {'detail': 'This register is inactive.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if Drawer.objects.filter(register_id=register_id, date=today).exists():
             return Response(
                 {'detail': 'A drawer is already open for this register today.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        drawer = Drawer.objects.create(
-            register_id=register_id,
-            date=today,
-            status='open',
-            current_cashier=request.user,
-            opened_by=request.user,
-            opened_at=timezone.now(),
-            opening_count=opening_count,
-            opening_total=opening_total,
-        )
+        try:
+            drawer = Drawer.objects.create(
+                register_id=register_id,
+                date=today,
+                status='open',
+                current_cashier=request.user,
+                opened_by=request.user,
+                opened_at=timezone.now(),
+                opening_count=opening_count,
+                opening_total=opening_total,
+            )
+        except Exception as e:
+            return Response(
+                {'detail': f'Could not create drawer: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return Response(DrawerSerializer(drawer).data, status=status.HTTP_201_CREATED)
+
+    def _drawer_expected_cash(self, drawer):
+        """Expected cash in drawer: opening + cash sales - drops."""
+        total_drops = drawer.drops.aggregate(s=Sum('total'))['s'] or Decimal('0')
+        return drawer.opening_total + drawer.cash_sales_total - total_drops
 
     @action(detail=True, methods=['post'])
     def handoff(self, request, pk=None):
-        """Cashier handoff."""
+        """Cashier handoff (outgoing cashier initiates with count)."""
         drawer = self.get_object()
+        if drawer.status != 'open':
+            return Response(
+                {'detail': 'Drawer is not open.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         incoming_cashier_id = request.data.get('incoming_cashier')
+        if not incoming_cashier_id:
+            return Response(
+                {'detail': 'incoming_cashier is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         count = request.data.get('count', {})
+        if not isinstance(count, dict):
+            count = {}
         counted_total = Decimal(str(request.data.get('counted_total', 0)))
 
-        # Calculate expected
-        expected = drawer.opening_total + drawer.cash_sales_total
+        expected = self._drawer_expected_cash(drawer)
         variance = counted_total - expected
 
         handoff = DrawerHandoff.objects.create(
@@ -97,20 +159,62 @@ class DrawerViewSet(viewsets.ModelViewSet):
             notes=request.data.get('notes', ''),
         )
 
-        # Update current cashier
         drawer.current_cashier_id = incoming_cashier_id
         drawer.save(update_fields=['current_cashier'])
 
         return Response(DrawerHandoffSerializer(handoff).data)
 
     @action(detail=True, methods=['post'])
+    def takeover(self, request, pk=None):
+        """Takeover: incoming cashier claims the drawer (optionally with a count)."""
+        drawer = self.get_object()
+        if drawer.status != 'open':
+            return Response(
+                {'detail': 'Drawer is not open.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        count = request.data.get('count', {})
+        if not isinstance(count, dict):
+            count = {}
+        counted_total = request.data.get('counted_total')
+        if counted_total is not None:
+            counted_total = Decimal(str(counted_total))
+        else:
+            counted_total = self._drawer_expected_cash(drawer)
+
+        expected = self._drawer_expected_cash(drawer)
+        variance = counted_total - expected
+
+        handoff = DrawerHandoff.objects.create(
+            drawer=drawer,
+            outgoing_cashier=drawer.current_cashier,
+            incoming_cashier=request.user,
+            counted_at=timezone.now(),
+            count=count,
+            counted_total=counted_total,
+            expected_total=expected,
+            variance=variance,
+            notes=request.data.get('notes', '') or 'Takeover',
+        )
+
+        drawer.current_cashier = request.user
+        drawer.save(update_fields=['current_cashier'])
+
+        return Response(DrawerSerializer(drawer).data)
+
+    @action(detail=True, methods=['post'])
     def close(self, request, pk=None):
         """Close a drawer."""
         drawer = self.get_object()
+        if drawer.status != 'open':
+            return Response(
+                {'detail': 'Drawer is not open.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         closing_count = request.data.get('closing_count', {})
         closing_total = Decimal(str(request.data.get('closing_total', 0)))
 
-        expected = drawer.opening_total + drawer.cash_sales_total
+        expected = self._drawer_expected_cash(drawer)
         variance = closing_total - expected
 
         drawer.status = 'closed'
@@ -121,6 +225,35 @@ class DrawerViewSet(viewsets.ModelViewSet):
         drawer.expected_cash = expected
         drawer.variance = variance
         drawer.save()
+
+        return Response(DrawerSerializer(drawer).data)
+
+    @action(detail=True, methods=['post'])
+    def reopen(self, request, pk=None):
+        """Reopen a closed drawer (Manager/Admin only)."""
+        from apps.accounts.permissions import IsManagerOrAdmin
+        if not IsManagerOrAdmin().has_permission(request, self):
+            return Response(
+                {'detail': 'Only managers and admins can reopen a closed drawer.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        drawer = self.get_object()
+        if drawer.status != 'closed':
+            return Response(
+                {'detail': 'Drawer is not closed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Assign the reopening cashier (or keep whoever last had it)
+        cashier_id = request.data.get('cashier')
+        if cashier_id:
+            drawer.current_cashier_id = cashier_id
+        elif not drawer.current_cashier_id:
+            drawer.current_cashier = request.user
+
+        drawer.status = 'open'
+        drawer.save(update_fields=['status', 'current_cashier'])
 
         return Response(DrawerSerializer(drawer).data)
 
@@ -261,7 +394,7 @@ class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
     permission_classes = [IsAuthenticated, IsEmployee]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
-    filterset_fields = ['drawer', 'status', 'cashier', 'payment_method']
+    filterset_class = CartFilter
     ordering = ['-created_at']
 
     def get_queryset(self):
@@ -270,8 +403,15 @@ class CartViewSet(viewsets.ModelViewSet):
         ).prefetch_related('lines').all()
 
     def perform_create(self, serializer):
-        # Get tax rate from AppSetting
         from apps.core.models import AppSetting
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
+        drawer = serializer.validated_data.get('drawer')
+        if drawer is not None and drawer.status != 'open':
+            raise DRFValidationError(
+                {'drawer': 'This drawer is not open. Sales can only be added to an open drawer.'}
+            )
+
         try:
             tax_setting = AppSetting.objects.get(key='tax_rate')
             tax_rate = Decimal(str(tax_setting.value))
@@ -299,14 +439,28 @@ class CartViewSet(viewsets.ModelViewSet):
         if item.status == 'sold':
             return Response({'detail': 'Item already sold.'}, status=400)
 
-        line = CartLine.objects.create(
-            cart=cart,
+        existing = cart.lines.filter(item=item).first()
+        if existing:
+            existing.quantity += 1
+            existing.save()
+        else:
+            CartLine.objects.create(
+                cart=cart,
+                item=item,
+                description=item.title,
+                quantity=1,
+                unit_price=item.price,
+            )
+
+        # Log POS scan
+        ItemScanHistory.objects.create(
             item=item,
-            description=item.title,
-            quantity=1,
-            unit_price=item.price,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            source='pos_terminal',
         )
+
         cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
         return Response(CartSerializer(cart).data)
 
     @action(detail=True, methods=['post'])
@@ -381,16 +535,25 @@ class CartViewSet(viewsets.ModelViewSet):
 
         return Response(CartSerializer(cart).data)
 
-    @action(detail=True, methods=['delete'], url_path='lines/(?P<line_id>[^/.]+)')
-    def remove_line(self, request, pk=None, line_id=None):
-        """Remove a line from a cart."""
+    @action(detail=True, methods=['patch', 'delete'], url_path='lines/(?P<line_id>[^/.]+)')
+    def manage_line(self, request, pk=None, line_id=None):
+        """Update (PATCH) or remove (DELETE) a cart line."""
         cart = self.get_object()
         try:
             line = cart.lines.get(id=line_id)
         except CartLine.DoesNotExist:
             return Response({'detail': 'Line not found.'}, status=404)
-        line.delete()
+
+        if request.method == 'DELETE':
+            line.delete()
+        else:
+            for field in ('quantity', 'description', 'unit_price'):
+                if field in request.data:
+                    setattr(line, field, request.data[field])
+            line.save()
+
         cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
         return Response(CartSerializer(cart).data)
 
 
@@ -526,3 +689,97 @@ def dashboard_alerts(request):
         })
 
     return Response(alerts)
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsManagerOrAdmin])
+def historical_revenue(request):
+    """Aggregate revenue across all three database generations for reporting charts.
+
+    Query params:
+        period: 'monthly' (default) | 'yearly' | 'weekly'
+        sources: 'all' (default) | 'db3_only' | 'db1_db2_only'
+        years:   comma-separated list of years to include (default: all)
+
+    Returns aggregated totals grouped by period, broken out by source_db.
+    """
+    period = request.query_params.get('period', 'monthly')
+    sources_filter = request.query_params.get('sources', 'all')
+    years_str = request.query_params.get('years', '')
+
+    trunc_fn = {
+        'monthly': TruncMonth,
+        'yearly': TruncYear,
+        'weekly': TruncWeek,
+    }.get(period, TruncMonth)
+
+    # Build DB3 current sales (pos_cart)
+    db3_qs = Cart.objects.filter(status='completed', completed_at__isnull=False)
+    if years_str:
+        years = [int(y.strip()) for y in years_str.split(',') if y.strip().isdigit()]
+        db3_qs = db3_qs.filter(completed_at__year__in=years)
+
+    db3_data = (
+        db3_qs
+        .annotate(period=trunc_fn('completed_at'))
+        .values('period')
+        .annotate(total=Sum('total'), count=Count('id'))
+        .order_by('period')
+    )
+
+    # Build historical (DB1 + DB2) from HistoricalTransaction
+    hist_qs = HistoricalTransaction.objects.all()
+    if sources_filter == 'db3_only':
+        hist_qs = hist_qs.none()
+    if years_str:
+        years = [int(y.strip()) for y in years_str.split(',') if y.strip().isdigit()]
+        hist_qs = hist_qs.filter(sale_date__year__in=years)
+
+    hist_data = (
+        hist_qs
+        .annotate(period=trunc_fn('sale_date'))
+        .values('period', 'source_db')
+        .annotate(total=Sum('total'), count=Count('id'))
+        .order_by('period', 'source_db')
+    )
+
+    # Combine all into a flat list of {period, source_db, total, count}
+    result = []
+    if sources_filter != 'db1_db2_only':
+        for row in db3_data:
+            result.append({
+                'period': row['period'].date().isoformat() if row['period'] else None,
+                'source_db': 'db3',
+                'total': str(row['total'] or 0),
+                'transaction_count': row['count'],
+            })
+    if sources_filter != 'db3_only':
+        for row in hist_data:
+            result.append({
+                'period': row['period'].isoformat() if row['period'] else None,
+                'source_db': row['source_db'],
+                'total': str(row['total'] or 0),
+                'transaction_count': row['count'],
+            })
+
+    # Summary totals
+    summary = {
+        'db1_total': str(
+            HistoricalTransaction.objects.filter(source_db='db1').aggregate(t=Sum('total'))['t'] or 0
+        ),
+        'db2_total': str(
+            HistoricalTransaction.objects.filter(source_db='db2').aggregate(t=Sum('total'))['t'] or 0
+        ),
+        'db3_total': str(
+            Cart.objects.filter(status='completed').aggregate(t=Sum('total'))['t'] or 0
+        ),
+        'db1_transactions': HistoricalTransaction.objects.filter(source_db='db1').count(),
+        'db2_transactions': HistoricalTransaction.objects.filter(source_db='db2').count(),
+        'db3_transactions': Cart.objects.filter(status='completed').count(),
+    }
+
+    return Response({
+        'period': period,
+        'data': result,
+        'summary': summary,
+    })

@@ -24,7 +24,6 @@ import {
   updateManifestPricing,
   matchProducts,
   createItems,
-  checkInOrderItems,
   markOrderComplete,
   getCategories,
   getCategory,
@@ -37,6 +36,11 @@ import {
   updateItem,
   deleteItem,
   checkInItem,
+  markItemBroken,
+  uncheckInItem,
+  checkInOrderItems,
+  bulkMarkBroken,
+  bulkUncheckIn,
   markItemReady,
   getBatchGroups,
   getBatchGroup,
@@ -731,7 +735,14 @@ export function useCheckInBatchGroup() {
       data,
     }: {
       id: number;
-      data: { unit_price?: number | string; unit_cost?: number | string; condition?: string; location?: string };
+      data: {
+        unit_price?: number | string;
+        unit_cost?: number | string;
+        condition?: string;
+        location?: string;
+        check_in_count?: number;
+        scrap_count?: number;
+      };
     }) => {
       const { data: result } = await checkInBatchGroup(id, data);
       return result;
@@ -811,6 +822,52 @@ export function useCheckInItem() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['items'] });
       queryClient.invalidateQueries({ queryKey: ['items', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+    },
+  });
+}
+
+export function useMarkItemBroken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => markItemBroken(id).then(({ data }) => data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+    },
+  });
+}
+
+export function useUncheckInItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => uncheckInItem(id).then(({ data }) => data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+    },
+  });
+}
+
+export function useBulkMarkBroken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, itemIds }: { orderId: number; itemIds: number[] }) =>
+      bulkMarkBroken(orderId, itemIds).then(({ data }) => data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+    },
+  });
+}
+
+export function useBulkUncheckIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, itemIds }: { orderId: number; itemIds: number[] }) =>
+      bulkUncheckIn(orderId, itemIds).then(({ data }) => data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
     },
   });

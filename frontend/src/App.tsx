@@ -22,6 +22,8 @@ import ProcessingPage from './pages/inventory/ProcessingPage';
 import ProductListPage from './pages/inventory/ProductListPage';
 import ItemListPage from './pages/inventory/ItemListPage';
 import ItemDetailPage from './pages/inventory/ItemDetailPage';
+import QuickRepricePage from './pages/inventory/QuickRepricePage';
+import RetagPage from './pages/inventory/RetagPage';
 import TerminalPage from './pages/pos/TerminalPage';
 import DrawerListPage from './pages/pos/DrawerListPage';
 import CashManagementPage from './pages/pos/CashManagementPage';
@@ -112,6 +114,8 @@ export default function App() {
         <Route path="/inventory/products" element={<ProductListPage />} />
         <Route path="/inventory/items" element={<ItemListPage />} />
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
+        <Route path="/inventory/quick-reprice" element={<QuickRepricePage />} />
+        <Route path="/inventory/retag" element={<RetagPage />} />
         <Route path="/pos/terminal" element={<TerminalPage />} />
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         <Route path="/pos/cash" element={<CashManagementPage />} />

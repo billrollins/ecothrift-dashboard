@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-25T22:00:00-06:00 -->
+<!-- Last updated: 2026-03-04T14:00:00-06:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,34 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.0.0] — 2026-03-04
+
+### Added
+- **Retag v2 — DB2→DB3 Migration System**: Full on-site retag workflow. `TempLegacyItem` model (staging table of active DB2 items, populated by `import_db2_staging`). `RetagLog` model (per-event log for retag day). Three `retag_v2_*` API endpoints (`lookup`, `create`, `history`). `RetagPage.tsx` at `/inventory/retag`. Supports 4 price strategies (keep current / % of current / AI estimate / % of retail), auto-print on scan, non-blocking "already retagged" snackbar warnings, always creates a new DB3 item per scan. Paginated history panel with summary tiles (total tagged, sum retail, sum price), search, and session filter. **Both `TempLegacyItem` and `RetagLog` are temporary scaffolding — drop after retag day.**
+- **Pricing Model Foundation**: Management commands scaffolded: `import_historical_sold` (~145K sold items from DB1+DB2 for ML training data), `import_historical_transactions` (~68K transactions into `HistoricalTransaction` for multi-generation revenue reporting), `train_price_model` (gradient-boosted price estimator, output to `workspace/models/price_model.joblib`), `backfill_categories` (retroactive category classifier). Ready to run after retag day.
+- **`very_good` condition**: Added `('very_good', 'Very Good')` to `CONDITION_CHOICES` on `Item`, `ManifestRow`, and `BatchGroup` models (migration `0010_add_very_good_condition`).
+- **Database audits**: Full schema and row-count audits in `docs/Database Audits/` for DB1 (`old_production_db` archive), DB2 (`ecothrift_v2` production), DB3 (`ecothrift_dev` new production).
+- **Retag day ops docs**: `docs/retag/before_retag.md` (prep checklist, data clearing, end-to-end test plan, price strategy guide) and `docs/retag/after_retag.md` (cleanup, historical import, model training, deployment checklist).
+
+---
+
+## [1.9.1] — 2026-02-26
+
+### Fixed
+- **POS `CartFilter` `status=open` fallthrough**: `filter_status` only handled `all`, `completed`, `voided` — `open` fell through returning all carts (including voided ones), causing voided carts to be restored on mount. Added `open` to the handled values.
+- **Prefetch cache staleness after cart mutations**: `CartViewSet` uses `prefetch_related('lines')` which caches lines on the object. After `add_item` and `manage_line` mutations the serializer read stale prefetch cache, returning data one step behind. Fixed by re-fetching cart via `self.get_queryset().get(pk=cart.pk)` after `recalculate()`.
+- **Cart restore stale React Query cache on navigation**: `useCarts` React Query hook served stale cached data instantly on `TerminalPage` remount, restoring an outdated cart before the fresh network response arrived. Replaced with direct `getCarts()` API call in a `useEffect` that always makes a fresh network request.
+- **Duplicate CartLines on repeated item scan**: `add_item` was creating a new `CartLine` every time the same SKU was scanned. Now increments `quantity` on the existing line instead.
+
+### Added
+- **Inline cart line editing**: Edit icon per line opens in-place `TextField`s for `quantity`, `description`, and `unit_price`. Backend `manage_line` action serves both `PATCH` (update) and `DELETE` (remove) on `lines/{line_id}/`.
+- **Void Sale button**: Red "Void" button + `ConfirmDialog` on terminal. Calls `POST /pos/carts/{id}/void/`. Voided carts visible in Transactions by default (status filter defaults to `all`).
+- **Drawer reopen**: `POST /pos/drawers/{id}/reopen/` (Manager+) reopens a closed drawer. UI button on closed-drawer cards in `DrawerListPage`.
+- **Terminal state machine**: `TerminalState` union + `deriveTerminalState()` drives full-page UI branching (unconfigured / loading / no_drawer / drawer_open_other / ready+active_sale / drawer_closed / manager_mode).
+- **Lazy cart creation**: Cart is created on first item scan rather than on an explicit "Start Sale" button. Sale interface shown immediately when drawer is open/ready.
 
 ---
 

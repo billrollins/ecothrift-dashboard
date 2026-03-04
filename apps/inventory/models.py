@@ -176,6 +176,7 @@ class ManifestRow(models.Model):
     CONDITION_CHOICES = [
         ('new', 'New'),
         ('like_new', 'Like New'),
+        ('very_good', 'Very Good'),
         ('good', 'Good'),
         ('fair', 'Fair'),
         ('salvage', 'Salvage'),
@@ -346,6 +347,7 @@ class BatchGroup(models.Model):
     CONDITION_CHOICES = [
         ('new', 'New'),
         ('like_new', 'Like New'),
+        ('very_good', 'Very Good'),
         ('good', 'Good'),
         ('fair', 'Fair'),
         ('salvage', 'Salvage'),
@@ -460,6 +462,7 @@ class Item(models.Model):
     CONDITION_CHOICES = [
         ('new', 'New'),
         ('like_new', 'Like New'),
+        ('very_good', 'Very Good'),
         ('good', 'Good'),
         ('fair', 'Fair'),
         ('salvage', 'Salvage'),
@@ -614,6 +617,7 @@ class ItemScanHistory(models.Model):
     SOURCE_CHOICES = [
         ('public_lookup', 'Public Lookup'),
         ('pos_terminal', 'POS Terminal'),
+        ('audit_scan', 'Audit Scan'),
     ]
 
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='scans')
@@ -627,3 +631,65 @@ class ItemScanHistory(models.Model):
 
     def __str__(self):
         return f'{self.item.sku} scanned at {self.scanned_at}'
+
+
+class TempLegacyItem(models.Model):
+    """Staging table for items imported from DB1 or DB2 to support the Retag workflow.
+
+    Populated by the import_db2_staging and import_db1_staging management commands.
+    Once staff scans the legacy item and creates a new DB3 Item, retagged is set True.
+    """
+    SOURCE_CHOICES = [
+        ('db1', 'DB1 Legacy'),
+        ('db2', 'DB2 Production'),
+    ]
+
+    legacy_sku    = models.CharField(max_length=50, unique=True)
+    source_db     = models.CharField(max_length=10, choices=SOURCE_CHOICES)
+    title         = models.TextField()
+    brand         = models.CharField(max_length=200, blank=True, default='')
+    model         = models.CharField(max_length=200, blank=True, default='')
+    price         = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    retail_amt    = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    condition     = models.CharField(max_length=20, blank=True, default='')
+    legacy_status = models.CharField(max_length=20, blank=True, default='')
+    retagged      = models.BooleanField(default=False, db_index=True)
+    new_item_sku  = models.CharField(max_length=20, blank=True, default='')
+    retagged_at   = models.DateTimeField(null=True, blank=True)
+    imported_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['legacy_sku']
+        indexes = [
+            models.Index(fields=['source_db', 'retagged']),
+        ]
+
+    def __str__(self):
+        return f'[{self.source_db.upper()}] {self.legacy_sku} — {self.title[:60]}'
+
+
+class RetagLog(models.Model):
+    """Temporary scaffolding — one row per retag event during the DB2→DB3 retag day.
+
+    Drop after retag day:  DROP TABLE inventory_retaglog;
+    Then remove this model and its migration from the codebase.
+    """
+    legacy_sku   = models.CharField(max_length=50, db_index=True)
+    new_item_sku = models.CharField(max_length=20)
+    title        = models.CharField(max_length=300)
+    price        = models.DecimalField(max_digits=10, decimal_places=2)
+    retail_amt   = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    retagged_at  = models.DateTimeField(auto_now_add=True, db_index=True)
+    retagged_by  = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='retag_log_entries',
+    )
+
+    class Meta:
+        ordering = ['-retagged_at']
+
+    def __str__(self):
+        return f'{self.legacy_sku} → {self.new_item_sku} @ {self.retagged_at:%Y-%m-%d %H:%M}'

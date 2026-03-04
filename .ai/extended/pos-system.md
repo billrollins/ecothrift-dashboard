@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-02-26T18:00:00-06:00 -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -40,6 +40,7 @@
 - Belongs to `Drawer`, `cashier`; optional `customer`
 - `subtotal`, `tax_rate`, `tax_amount`, `total`, `payment_method`, `cash_tendered`, `change_given`, `card_amount`, `completed_at`
 - `recalculate()` updates subtotal/tax/total from lines
+- `cashier`, `subtotal`, `tax_amount`, `total`, `tax_rate` are **read-only** in `CartSerializer` (server-set)
 
 ### CartLine
 
@@ -57,25 +58,35 @@
 - `location`, `date`, `goal_amount`
 - Used for dashboard metrics and weekly/4-week comparisons
 
+---
+
 ## Drawer Lifecycle
 
 1. **Open** — `POST /pos/drawers/` with `register`, `opening_count`, `opening_total`; one drawer per register per day
 2. **Handoff** — `POST /pos/drawers/{id}/handoff/` with `incoming_cashier`, `count`, `counted_total`; updates `current_cashier`
-3. **Drops** — `POST /pos/drawers/{id}/drop/` with `amount`, `total`; records cash removed
-4. **Close** — `POST /pos/drawers/{id}/close/` with `closing_count`, `closing_total`; sets status `closed`, computes `expected_cash` and `variance`
+3. **Takeover** — `POST /pos/drawers/{id}/takeover/` with optional `count`, `counted_total`, `notes`; incoming cashier claims drawer
+4. **Drops** — `POST /pos/drawers/{id}/drop/` with `amount`, `total`; records cash removed
+5. **Close** — `POST /pos/drawers/{id}/close/` with `closing_count`, `closing_total`; sets status `closed`, computes `expected_cash` and `variance`
+6. **Reopen** — `POST /pos/drawers/{id}/reopen/` — Manager/Admin only; sets status back to `open`; optional `cashier` body param to reassign
 
 Denomination counts (JSON) are used at each step for reconciliation.
 
+---
+
 ## Cart / Sale Flow
 
-1. **Create cart** — `POST /pos/carts/` with `drawer`; tax rate from AppSetting `tax_rate` (default 0.07)
-2. **Add items** — `POST /pos/carts/{id}/add-item/` with `sku`; looks up Item by SKU, rejects if `sold`; creates CartLine, recalculates cart
-3. **Remove line** — `DELETE /pos/carts/{id}/lines/{line_id}/`
-4. **Complete** — `POST /pos/carts/{id}/complete/` with `payment_method`, `cash_tendered`, `change_given`, `card_amount`:
+1. **Create cart** — `POST /pos/carts/` with `drawer`; tax rate from AppSetting `tax_rate` (default 0.07); only valid if drawer `status == 'open'`
+2. **Add items** — `POST /pos/carts/{id}/add-item/` with `sku`; looks up Item by SKU; rejects if `sold`; if same item already in cart, **increments quantity** on existing line (no duplicate lines); creates CartLine otherwise; recalculates cart; response re-fetches fresh cart from DB (bypasses prefetch cache)
+3. **Update line** — `PATCH /pos/carts/{id}/lines/{line_id}/` — updates `quantity`, `description`, and/or `unit_price`; recalculates
+4. **Remove line** — `DELETE /pos/carts/{id}/lines/{line_id}/` — removes line; recalculates
+   - Lines 3 and 4 are served by the single `manage_line` action (`url_path='lines/(?P<line_id>[^/.]+)'`) which dispatches on HTTP method
+5. **Complete** — `POST /pos/carts/{id}/complete/` with `payment_method`, `cash_tendered`, `card_amount`:
    - Updates drawer `cash_sales_total` for cash/split
    - Marks items `sold` (sold_at, sold_for)
    - Handles consignment items (commission, consignee earnings)
    - Creates Receipt with auto-generated receipt number
+
+---
 
 ## Void Flow
 
@@ -83,34 +94,100 @@ Denomination counts (JSON) are used at each step for reconciliation.
 - Sets cart status to `voided`
 - Reverts items to `on_shelf`; clears `sold_at`, `sold_for`
 
-## Receipt Number Generation
+---
 
-`Receipt.generate_receipt_number()` — prefix `R-{YYYYMMDD}-`, then 3-digit sequence for the day (e.g. `R-20260212-001`, `R-20260212-002`).
+## CartFilter (`apps/pos/filters.py`)
+
+Custom `django-filters` FilterSet on Cart. Handles:
+
+- `?status=open` → filters to open carts only
+- `?status=completed` → completed carts only
+- `?status=voided` → voided carts only
+- `?status=all` → both completed and voided (for transactions page)
+- `?drawer=`, `?cashier=`, `?payment_method=`, `?receipt_number=` (icontains on receipt number), `?date_from=`, `?date_to=`
+
+---
+
+## Device Identity Pattern
+
+Each physical machine stores its device type in `localStorage` under the key `pos_device_config` (JSON):
+
+```json
+{
+  "deviceType": "register",
+  "registerId": 1
+}
+```
+
+Possible `deviceType` values: `"register"`, `"manager"`, `"online_sales"`, `"processing"`, `"mobile"`.
+
+The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/writes this via `useSyncExternalStore` with a **stable cached snapshot** to prevent infinite re-renders. `isRegister` is derived as `config?.deviceType === 'register'`.
+
+---
+
+## Terminal State Machine
+
+`TerminalPage.tsx` uses a `TerminalState` union type and `deriveTerminalState()` function to pick the correct full-page UI:
+
+| State | Condition |
+|-------|-----------|
+| `unconfigured` | No `pos_device_config` in localStorage |
+| `loading` | Drawer query in-flight |
+| `no_drawer` | Register device, drawer query done, no drawer for today |
+| `drawer_open_other` | Drawer open but assigned to a different cashier |
+| `ready` / `active_sale` | Drawer open and owned by current user; falls through to same UI — sale interface shown immediately |
+| `drawer_closed` | Today's drawer exists but is closed |
+| `manager_mode` | `deviceType !== 'register'`; shows all open drawers to pick from |
+
+---
+
+## Terminal Page (`TerminalPage.tsx`)
+
+- **Device setup**: Settings icon in PageHeader — always visible, opens `DeviceSetupDialog`
+- **Drawer open**: Dialog with `DenominationCounter` for opening count; `POST /pos/drawers/`
+- **Takeover**: Button shown when drawer owned by another cashier; `POST /pos/drawers/{id}/takeover/`
+- **Lazy cart creation**: Cart is created on first item scan, not on "Start Sale" (no Start Sale button in ready state)
+- **Cart persistence**: On mount, `useEffect` calls `getCarts({ drawer, status: 'open' })` **directly** (not via React Query cache) to restore any in-progress cart; `hasRestoredRef` prevents re-restoration after void/complete
+- **SKU scan / customer lookup**: Unified input; `CUS-XXX` pattern triggers customer lookup; all other input treated as SKU
+- **Inline line editing**: Edit icon opens in-place `TextField`s for `quantity`, `description`, `unit_price` per line; Save/Cancel buttons; calls `PATCH /pos/carts/{id}/lines/{line_id}/`
+- **Remove line**: Optimistic UI (line removed from local state immediately); calls `DELETE /pos/carts/{id}/lines/{line_id}/`; rolls back on error
+- **Void Sale**: Red "Void" button + `ConfirmDialog`; Manager/Admin only; calls `POST /pos/carts/{id}/void/`
+- **Complete sale**: Disabled if cart has no items; validates payment amounts; calls `POST /pos/carts/{id}/complete/`; triggers `localPrintService.printReceipt()` with cash drawer auto-open for cash/split
+
+---
+
+## Drawer List Page (`DrawerListPage.tsx`)
+
+- **Manager view**: Cards for all registers; cashier view limited to their own register
+- **Unconfigured guard**: If device has no config and user is not manager, shows an `Alert` directing to POS Terminal settings
+- **Per-register cards**: Shows register name/code; if no drawer → "Open Drawer"; if open → cashier, opened at, opening total, cash sales, Handoff / Close Drawer / Takeover buttons; if closed → "Drawer Closed" + "Reopen Drawer" (Manager+ only, amber)
+- **Open Drawer dialog**: DenominationCounter; `POST /pos/drawers/`
+- **Close Drawer dialog**: DenominationCounter; `POST /pos/drawers/{id}/close/`
+- **Handoff dialog**: Select incoming cashier, DenominationCounter; `POST /pos/drawers/{id}/handoff/`
+- **Reopen dialog**: Manager confirmation; `POST /pos/drawers/{id}/reopen/`
+
+---
+
+## Transactions Page (`TransactionListPage.tsx`)
+
+- Default `statusFilter` is `'all'` (shows both completed and voided)
+- Filters: receipt number search, cashier dropdown, status (All / Completed / Voided), date range
+- Actions per row: reprint receipt, void (Manager+)
+
+---
+
+## API & Hooks
+
+### `pos.api.ts`
+Functions: `getRegisters`, `getDrawers`, `openDrawer`, `drawerHandoff`, `drawerTakeover`, `closeDrawer`, `reopenDrawer`, `cashDrop`, `getSupplemental`, `drawFromSupplemental`, `returnToSupplemental`, `auditSupplemental`, `getSupplementalTransactions`, `getBankTransactions`, `createBankTransaction`, `updateBankTransaction`, `completeBankTransaction`, `createCart`, `updateCart`, `getCart`, `addItemToCart`, `updateCartLine`, `removeCartLine`, `completeCart`, `voidCart`, `getCarts`, `getDashboardMetrics`, `getDashboardAlerts`
+
+### `usePOS.ts`
+Hooks: `useRegisters`, `useDrawers` (accepts `options.enabled`), `useCarts` (accepts `options.enabled`), `useOpenDrawer`, `useCloseDrawer`, `useReopenDrawer`, `useDrawerHandoff`, `useDrawerTakeover`, `useCreateCart`, `useAddItemToCart`, `useUpdateCartLine`, `useRemoveCartLine`, `useCompleteCart`, `useVoidCart`
+
+---
 
 ## Revenue Goals & Dashboard Metrics
 
 - **RevenueGoal** — per location, per date
 - **dashboard_metrics** (`GET /pos/dashboard/metrics/`): today's revenue, today's goal, weekly (Sun–Sat), 4-week comparison, items sold today, active drawers, clocked-in employees
 - **dashboard_alerts** (`GET /pos/dashboard/alerts/`): pending time entries, pending sick leave, open drawers
-
-## Terminal Page (`TerminalPage.tsx`)
-
-- **Drawer selection**: Select from open drawers; required before starting sale
-- **Start Sale**: Creates cart for selected drawer
-- **Add Item**: SKU input (scan or type), Enter or Add button; adds by SKU via `addItemToCart`
-- **Cart display**: List of lines with description, qty × price, line total; remove button per line; subtotal, tax, total
-- **Payment**: Method (cash/card/split); cash tendered and change due for cash/split; card amount for card/split; Complete Sale button
-- Uses `useDrawers`, `useCreateCart`, `useAddItemToCart`, `useRemoveCartLine`, `useCompleteCart` from `usePOS`
-
-## Drawer List Page (`DrawerListPage.tsx`)
-
-- **Per-register cards**: Shows register name/code; if no drawer → "Open Drawer"; if open → cashier, opened at, opening total, cash sales, Handoff / Close Drawer buttons
-- **Open Drawer dialog**: DenominationCounter for opening count; POST to create drawer
-- **Close Drawer dialog**: DenominationCounter for closing count; POST to close
-- **Handoff dialog**: Select incoming cashier (from users, excluding current), DenominationCounter for handoff count; POST handoff
-- Uses `useRegisters`, `useDrawers`, `useOpenDrawer`, `useCloseDrawer`, `useDrawerHandoff`, `useUsers`
-
-## API & Hooks
-
-- **pos.api.ts**: registers, drawers (open/handoff/close/drop), supplemental, bank transactions, carts (create/add-item/remove-line/complete/void), dashboard metrics/alerts
-- **usePOS.ts**: `useRegisters`, `useDrawers`, `useCarts`, `useOpenDrawer`, `useCloseDrawer`, `useDrawerHandoff`, `useCreateCart`, `useAddItemToCart`, `useRemoveCartLine`, `useCompleteCart`, `useVoidCart`; invalidates drawers/carts/dashboard on mutations

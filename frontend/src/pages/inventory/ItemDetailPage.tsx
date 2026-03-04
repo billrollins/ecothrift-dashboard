@@ -18,7 +18,7 @@ import { format } from 'date-fns';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { StatusBadge } from '../../components/common/StatusBadge';
-import { ConfirmDialog } from '../../components/feedback/ConfirmDialog';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useItem, useUpdateItem, useDeleteItem, useMarkItemReady } from '../../hooks/useInventory';
 import type { ItemSource } from '../../types/inventory.types';
 

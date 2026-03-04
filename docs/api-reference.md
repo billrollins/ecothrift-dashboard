@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-21T18:00:00-06:00 -->
+<!-- Last updated: 2026-03-04T14:00:00-06:00 -->
 # API Reference
 
 Base URL: `/api`
@@ -62,6 +62,7 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 | GET | `/core/system/version/` | Yes | App version/build metadata from `.ai/version.json`. |
 | GET | `/core/system/print-server-version/` | Yes | Current print server release. |
 | GET | `/core/system/print-server-releases/` | Yes | All print server releases. |
+| GET | `/core/system/print-server-version-public/` | No | Public (no auth) — current print server version for the `/manage` update-check page. Returns `{ available, version, download_url, ... }` or `{ available: false }`. |
 
 ---
 
@@ -143,7 +144,9 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 | POST | `/inventory/orders/:id/review-matches/` | Staff | Submit review decisions (accept/reject/update) for matched manifest rows. |
 | POST | `/inventory/orders/:id/finalize-rows/` | Staff | Finalize manifest rows with edited fields and set pricing_stage to 'final'. |
 | POST | `/inventory/orders/:id/create-items/` | Staff | Build check-in queue: create `Item` rows and batch groups from manifest rows. Also auto-triggered by deliver. |
-| POST | `/inventory/orders/:id/check-in-items/` | Staff | Bulk check in selected order items and mark them shelf-ready. |
+| POST | `/inventory/orders/:id/check-in-items/` | Staff | Bulk check in selected order items and mark them shelf-ready. Body: `item_ids`, `condition`, `location`, `price`, etc. |
+| POST | `/inventory/orders/:id/mark-items-broken/` | Staff | Bulk mark items as scrapped. Body: `{ item_ids: [...] }` |
+| POST | `/inventory/orders/:id/uncheck-in-items/` | Staff | Bulk revert items to intake. Body: `{ item_ids: [...] }` |
 | POST | `/inventory/orders/:id/mark-complete/` | Staff | Mark order complete when no intake items remain. |
 | GET | `/inventory/orders/:id/delete-preview/` | Staff | Preview reverse-sequence deletion plan and impacted artifacts/items for safe order reset. |
 | POST | `/inventory/orders/:id/purge-delete/` | Staff | Purge order-owned artifacts in reverse order, then delete the order. Requires `confirm_order_number`. |
@@ -155,7 +158,7 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 | GET | `/inventory/batch-groups/` | Staff | List/filter batch groups (`status`, `purchase_order`, `product`). |
 | GET | `/inventory/batch-groups/:id/` | Staff | Batch group detail with processing metadata. |
 | POST | `/inventory/batch-groups/:id/process/` | Staff | Apply price/condition/location to all grouped items and mark batch complete. |
-| POST | `/inventory/batch-groups/:id/check-in/` | Staff | Check in pending batch items and mark shelf-ready. |
+| POST | `/inventory/batch-groups/:id/check-in/` | Staff | Check in pending batch items and mark shelf-ready. Optional body: `check_in_count`, `scrap_count` for partial check-in. |
 | POST | `/inventory/batch-groups/:id/detach/` | Staff | Detach one item from batch into individual processing flow. |
 
 ### Vendor Product Refs (M3)
@@ -177,6 +180,8 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 | CRUD | `/inventory/products/` | Staff | Product catalog with M3 matching metadata. |
 | CRUD | `/inventory/items/` | Staff | Filter: `?status=`, `?source=`, `?category=`, `?processing_tier=`, `?batch_group=`, `?condition=` |
 | POST | `/inventory/items/:id/check-in/` | Staff | Check in a single item with finalized fields and mark shelf-ready. |
+| POST | `/inventory/items/:id/mark-broken/` | Staff | Mark item as scrapped. |
+| POST | `/inventory/items/:id/uncheck-in/` | Staff | Revert item to intake (clear checked_in_at, listed_at). |
 | POST | `/inventory/items/:id/ready/` | Staff | Mark item as on_shelf. |
 | GET | `/inventory/items/lookup/:sku/` | **Public** | Public item lookup by SKU. |
 
@@ -192,6 +197,17 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 |--------|----------|------|-------------|
 | CRUD | `/inventory/templates/` | Staff | Vendor CSV mappings keyed by header signature for preprocessing reuse. |
 
+### Retag v2 (Temporary Scaffolding)
+
+> Temporary endpoints for the DB2→DB3 retag workflow. Remove after retag day.
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/inventory/retag/v2/lookup/` | Staff | Look up a DB2 item by SKU. Body: `{ sku }`. Returns `TempLegacyItem` data + `retag_count`. |
+| POST | `/inventory/retag/v2/create/` | Staff | Create a new DB3 `Item` from a legacy SKU. Body: `{ legacy_sku, title, brand, price, retail_amt, condition, source }`. Always creates a new item even if previously retagged. Returns `print_payload`. |
+| GET | `/inventory/retag/v2/stats/` | Staff | Summary stats: `total_retagged`, `sum_price`, `sum_retail`. |
+| GET | `/inventory/retag/v2/history/` | Staff | Paginated `RetagLog` rows. Query: `?search=`, `?since=` (ISO datetime), `?page=`, `?page_size=`. Response includes summary stats. |
+
 ---
 
 ## POS (`/api/pos/`)
@@ -202,20 +218,24 @@ Paginated list endpoints return: `{ count, next, previous, results: [...] }`
 |--------|----------|------|-------------|
 | CRUD | `/pos/registers/` | Staff | Register configuration. |
 | GET | `/pos/drawers/` | Employee+ | Filter: `?register=`, `?date=`, `?status=` |
-| POST | `/pos/drawers/` | Employee+ | Open a drawer. |
-| POST | `/pos/drawers/:id/close/` | Employee+ | Close with closing count. |
-| POST | `/pos/drawers/:id/handoff/` | Employee+ | Mid-shift cashier handoff. |
+| POST | `/pos/drawers/` | Employee+ | Open a drawer. Body: `{ register, opening_count, opening_total }` |
+| POST | `/pos/drawers/:id/close/` | Employee+ | Close with closing count. Expected cash = opening + sales − drops. |
+| POST | `/pos/drawers/:id/handoff/` | Employee+ | Mid-shift cashier handoff (outgoing cashier initiates with count). |
+| POST | `/pos/drawers/:id/takeover/` | Employee+ | Takeover: incoming cashier claims drawer. Body optional: `{ count?, counted_total?, notes? }`. Defaults counted_total to expected cash if omitted. |
+| POST | `/pos/drawers/:id/reopen/` | Manager+ | Reopen a closed drawer. Body optional: `{ cashier? }` to reassign. |
 | POST | `/pos/drawers/:id/drop/` | Employee+ | Cash drop to safe. |
 
 ### Carts (Sales)
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| POST | `/pos/carts/` | Employee+ | Create cart for a drawer. |
-| POST | `/pos/carts/:id/add-item/` | Employee+ | Add item by SKU. Body: `{ sku }` |
+| GET | `/pos/carts/` | Employee+ | List carts. Filter: `?status=`, `?cashier=`, `?payment_method=`, `?receipt_number=`, `?date_from=`, `?date_to=`. Status: `open`, `completed`, `voided`, or `all` (completed + voided). |
+| POST | `/pos/carts/` | Employee+ | Create cart for a drawer. Drawer must be `open`. `cashier` set server-side. |
+| POST | `/pos/carts/:id/add-item/` | Employee+ | Add item by SKU. Body: `{ sku }`. Increments qty on existing line if same item already in cart. |
+| PATCH | `/pos/carts/:id/lines/:line_id/` | Employee+ | Update a line. Body: `{ quantity?, description?, unit_price? }` |
 | DELETE | `/pos/carts/:id/lines/:line_id/` | Employee+ | Remove a line. |
 | POST | `/pos/carts/:id/complete/` | Employee+ | Complete sale. Body: `{ payment_method, cash_tendered?, card_amount? }` |
-| POST | `/pos/carts/:id/void/` | Manager+ | Void a completed cart. Reverts items to on_shelf. |
+| POST | `/pos/carts/:id/void/` | Manager+ | Void a cart. Reverts items to on_shelf. |
 
 ### Cash Management
 
