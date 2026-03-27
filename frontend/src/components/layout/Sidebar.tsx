@@ -20,6 +20,7 @@ import Security from '@mui/icons-material/Security';
 import Settings from '@mui/icons-material/Settings';
 import ShoppingCart from '@mui/icons-material/ShoppingCart';
 import Store from '@mui/icons-material/Store';
+import Tune from '@mui/icons-material/Tune';
 import SupervisorAccount from '@mui/icons-material/SupervisorAccount';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
@@ -69,7 +70,7 @@ const navSections: NavSection[] = [
       { path: '/inventory/processing', label: 'Processing', icon: <Inventory /> },
       { path: '/inventory/products', label: 'Products', icon: <Inventory /> },
       { path: '/inventory/items', label: 'Items', icon: <Inventory /> },
-      { path: '/inventory/retag', label: 'Retag (DB2→DB3)', icon: <LabelOutlined /> },
+      { path: '/inventory/retag', label: 'Retag (migration)', icon: <LabelOutlined /> },
       { path: '/inventory/quick-reprice', label: 'Quick Reprice', icon: <LocalOffer /> },
     ],
   },
@@ -95,13 +96,19 @@ const navSections: NavSection[] = [
   },
   {
     label: 'Admin',
-    roles: ['Admin'],
+    roles: ['Manager', 'Admin'],
     collapsible: true,
     items: [
-      { path: '/admin/users', label: 'Users', icon: <SupervisorAccount /> },
-      { path: '/admin/customers', label: 'Customers', icon: <People /> },
-      { path: '/admin/permissions', label: 'Permissions', icon: <Security /> },
-      { path: '/admin/settings', label: 'Settings', icon: <Settings /> },
+      {
+        path: '/admin/pos-setup',
+        label: 'POS setup',
+        icon: <Tune />,
+        roles: ['Manager', 'Admin'],
+      },
+      { path: '/admin/users', label: 'Users', icon: <SupervisorAccount />, roles: ['Admin'] },
+      { path: '/admin/customers', label: 'Customers', icon: <People />, roles: ['Admin'] },
+      { path: '/admin/permissions', label: 'Permissions', icon: <Security />, roles: ['Admin'] },
+      { path: '/admin/settings', label: 'Settings', icon: <Settings />, roles: ['Admin'] },
     ],
   },
 ];
@@ -131,6 +138,7 @@ function NavItemButton({
         borderRadius: 1,
         mx: 1,
         mb: 0.5,
+        minWidth: 0,
         '&.Mui-selected': {
           backgroundColor: 'primary.main',
           color: 'primary.contrastText',
@@ -143,8 +151,12 @@ function NavItemButton({
         },
       }}
     >
-      <ListItemIcon sx={{ minWidth: 40 }}>{icon}</ListItemIcon>
-      <ListItemText primary={label} primaryTypographyProps={{ variant: 'body2' }} />
+      <ListItemIcon sx={{ minWidth: 40, flexShrink: 0 }}>{icon}</ListItemIcon>
+      <ListItemText
+        primary={label}
+        primaryTypographyProps={{ variant: 'body2', noWrap: true }}
+        sx={{ minWidth: 0 }}
+      />
     </ListItemButton>
   );
 }
@@ -171,9 +183,13 @@ export function Sidebar() {
     <List
       component="nav"
       sx={{
-        width: SIDEBAR_WIDTH,
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
         pt: 2,
         px: 1,
+        overflowX: 'hidden',
       }}
     >
       {navSections.map((section) => {
@@ -193,6 +209,7 @@ export function Sidebar() {
                   borderRadius: 1,
                   mx: 1,
                   mb: 0.5,
+                  pr: 1,
                   ...(isSectionActive && {
                     backgroundColor: 'action.selected',
                   }),
@@ -200,13 +217,20 @@ export function Sidebar() {
               >
                 <ListItemText
                   primary={section.label}
-                  primaryTypographyProps={{ variant: 'subtitle2', fontWeight: 600 }}
+                  primaryTypographyProps={{ variant: 'subtitle2', fontWeight: 600, noWrap: true }}
+                  sx={{ minWidth: 0 }}
                 />
-                {isOpen ? <ExpandLess /> : <ExpandMore />}
+                {isOpen ? (
+                  <ExpandLess sx={{ flexShrink: 0 }} />
+                ) : (
+                  <ExpandMore sx={{ flexShrink: 0 }} />
+                )}
               </ListItemButton>
               <Collapse in={isOpen} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
-                  {section.items.map((item) => (
+                  {section.items.map((item) => {
+                    if (!canAccess(userRole, item.roles)) return null;
+                    return (
                     <NavItemButton
                       key={item.path}
                       label={item.label}
@@ -217,7 +241,8 @@ export function Sidebar() {
                       }
                       onClick={() => navigate(item.path)}
                     />
-                  ))}
+                    );
+                  })}
                 </List>
               </Collapse>
             </div>
@@ -226,7 +251,9 @@ export function Sidebar() {
 
           return (
           <div key={section.label}>
-            {section.items.map((item) => (
+            {section.items.map((item) => {
+              if (!canAccess(userRole, item.roles)) return null;
+              return (
               <NavItemButton
                 key={item.path}
                 label={item.label}
@@ -237,7 +264,8 @@ export function Sidebar() {
                 }
                 onClick={() => navigate(item.path)}
               />
-            ))}
+              );
+            })}
           </div>
         );
       })}

@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-03-04T14:00:00-06:00 -->
+<!-- Last updated: 2026-03-28T18:00:00-05:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** 2.0.0 (see `.ai/version.json`)
+**Current version:** See repo root `.version` (e.g. `v2.2.4`).
 
 ---
 
@@ -33,12 +33,19 @@ ecothrift-dashboard/
 │   ├── types/              TypeScript interfaces (one per backend app)
 │   ├── App.tsx             Router + route guards
 │   └── main.tsx            Entry point + providers
-├── docs/                   Code documentation (architecture, models, API, routes, dev guide)
 ├── printserver/            Local print server (FastAPI, Python, Windows installer)
-├── .ai/                    AI context, versioning, procedures (this folder)
+├── scripts/                Committed dev/deploy automation (see `.ai/extended/development.md`)
+├── .ai/                    AI steering: context, protocols, initiatives, extended, reference, prototype
+│   ├── protocols/          startup.md, review_bump.md
+│   ├── initiatives/        _index.md (active); _archived/ARCHIVE.md + buckets (_completed, _backlog, _pending, _abandoned)
+│   ├── extended/           Deep-dive domain docs (load on demand)
+│   ├── reference/          Third-party / external context (optional)
 │   └── prototype/          Design prototypes and archived explorations
-├── workspace/              Personal scripts, notebooks, notes (gitignored)
+├── workspace/              Temp artifacts, notebooks, side projects (almost all gitignored)
+│   └── notebooks/_shared/requirements-notebooks.txt  Optional Jupyter/DB + ML deps
 ├── project design/         Original build specification (historical reference)
+├── .version                Single-line app semver (vMAJOR.MINOR.PATCH)
+├── CHANGELOG.md            Version-level changelog (repo root)
 ├── requirements.txt        Python dependencies
 ├── .env                    Local environment variables (gitignored)
 └── .gitignore
@@ -69,8 +76,9 @@ ecothrift-dashboard/
 - Order reset tooling shipped: order detail now includes **Delete Order** modal with reverse-sequence artifact preview + guarded purge action (`confirm_order_number`)
 - Standard Manifest UX now includes 3-step accordion flow (Upload -> Raw Sample -> Standardize) with multi-open sections
 - Raw and standardized preview search shipped: searches full manifest/normalized set server-side and returns top 100 rows for preview
-- Sidebar navigation updated so Inventory and POS behave as grouped/collapsible sections (same pattern as HR)
+- Sidebar navigation updated so Inventory and POS behave as grouped/collapsible sections (same pattern as HR); **v2.2.4+** sidebar scroll region and drawer paper use **`overflow-x: hidden`** and constrained flex (`minWidth: 0`) so long nav labels ellipsis instead of showing a horizontal scrollbar
 - **AI Integration**: `apps/ai/` Django app proxies Anthropic Claude API (`claude-sonnet-4-6`, `claude-haiku-4-5`). Frontend `ModelSelector` component, `useAI` hooks, `ai.api.ts` service layer.
+- **Dev logging (Add Item + AI)**: Hierarchical targets in **`.ai/debug/log.config`** (cascade); **`AppLogger`** in `apps/core/logging.py` routes stderr / `.ai/debug/debug.log` / API `debug` JSON per area. Add Item uses **`LOG_ADD_ITEM`** → **`LOG_ADD_ITEM_FORM`** (dialog actions) and **`LOG_ADD_ITEM_AI`** (prompt + raw response for `POST …/items/suggest/`). **`GET /api/core/dev-log/config/`** (DEBUG, staff) exposes resolved targets to the frontend; **`POST /api/core/dev-log/line/`** appends client form lines when `file` is enabled. Browser console also respects **`VITE_DEV_LOG`** in `.env`. See initiative [`.ai/initiatives/add_item_dialog_and_sources.md`](initiatives/add_item_dialog_and_sources.md).
 - **Expression-Based Formula Engine**: `apps/inventory/formula_engine.py` parses `[COLUMN]` refs, functions (UPPER, LOWER, TITLE, TRIM, REPLACE, CONCAT, LEFT, RIGHT), string concatenation, and literals. Backward compatible with legacy source+transforms mappings.
 - **AI Row Cleanup Pipeline**: `ai-cleanup-rows` endpoint processes manifest rows through Claude for title/brand/model/specs suggestions. Frontend-driven concurrent batch processing with configurable batch size (5/10/25/50) and thread count (1/4/8/16). Pause/resume/cancel with localStorage persistence.
 - **Expandable Row Detail Panels**: Cleanup table rows expand to show side-by-side "Original Manifest Data" vs "AI Suggestions" with change highlighting, specs key-value grid, and AI reasoning block.
@@ -85,7 +93,7 @@ ecothrift-dashboard/
 - `OrderListPage` enhanced: Actions column first with header, row-level Preprocessing/Processing icon buttons
 - Pre-arrival pricing redesigned: no mode toggle, always-editable table, auto-save on Apply All / Clear All / field blur, `retail_value` mapping enforced as required at standardization
 - Alternative inventory prototypes archived under `.ai/prototype/archive/`
-- **Local Print Server** (`printserver/`): FastAPI server on `127.0.0.1:8888`. Label printing (GDI/Pillow), receipt printing (GDI plain-text), cash drawer (ESC/POS). Built-in browser UI at `/` (printer assignment) and `/manage` (auto-start toggle, version check, changelog, uninstall). Windows installer (`setup.exe`) with Tkinter GUI, registry auto-start, port-kill on reinstall. `distribute.bat` builds both exes, uploads setup exe to S3, registers in Django DB without credentials. Admin SettingsPage integrated with printer dropdowns, test buttons, download section, and manage link.
+- **Local Print Server** (`printserver/`): FastAPI on `127.0.0.1:8888`; labels, receipts, drawer. **`ecothrift-printserver-setup.exe`** on Install runs **legacy cleanup** (V2 Startup VBS, `C:\DashPrintServer` / `C:\PrintServer` when `print_server.py`+`venv` present, kill port 8888) then installs V3 under `%LOCALAPPDATA%\EcoThrift\PrintServer\` with HKCU Run auto-start. **Labels (2026-03):** side-stripe layout (⅓ stripe, smaller `$`, larger dollar line + cents; dollar digits inset when whole dollars > 0; **sub-dollar:** `$` + cents only, no middle `0`); price fit scales 1.0–0.5 step 0.01; Windows GDI print fit/center/top for roll stock; source **v1.2.38** in `printserver/config.py` (see `printserver/CHANGELOG.md`). **Label price layout initiative archived:** [`.ai/initiatives/_archived/_completed/print_server_label_price_layout.md`](initiatives/_archived/_completed/print_server_label_price_layout.md). Consultant handoff: `.ai/reference/Consult Label/`. **`distribute.bat`** → S3 + `PrintServerRelease` (installer version follows `printserver/config.py`, not repo root `.version`). **`dev_print_e2e_3_labels.bat`** prints three sample labels from `workspace/testing/data/retag_e2e_10_items.json`; **`scripts/label_price_fringe_grid.py`** generates fringe PNGs + fit stats (gitignored `output_label_fringe_review/`). Details: `.ai/extended/print-server.md`.
 - Editable order number (auto-generated PO-XXXXX or user-provided)
 - Multi-role user model (User can be Employee + Consignee + Customer simultaneously)
 - Employee termination workflow with termination type, date, and notes
@@ -98,10 +106,11 @@ ecothrift-dashboard/
 - Time entry modification requests (employee submit, manager approve/deny)
 - DataGrid action columns vertically centered across all pages
 - **POS system overhaul**: Device identity via `pos_device_config` (localStorage) — device type and register per machine. **Terminal**: Auto-register from config, drawer status banner, inline open drawer and Takeover, receipt printing and cash drawer auto-open on completion, print server status chip. Terminal state machine (`TerminalState` + `deriveTerminalState`). Lazy cart creation (cart created on first scan). Cart persistence via direct `getCarts()` API call on mount (bypasses React Query cache). Inline line editing (qty/description/price). Void Sale button + ConfirmDialog. **Drawers**: Manager-focused cards with status chips, expected cash (opening + sales − drops), variance display on close, role-based view (employees see only their register + cash drop; managers see Handoff/Close/Reopen). **Transactions**: Receipt # search, cashier dropdown, status filter (All/Completed/Voided — defaults to All), receipt reprint, payment breakdown, void with loading state. **Cash Management**: Supplemental last-counted display, draw-over-balance warning, bank transaction date filter (client-side). **Backend**: Drawer open validation, `takeover` action, `reopen` action (Manager+), `CartFilter` (status=open/completed/voided/all, receipt_number, date_from, date_to, drawer, cashier), `manage_line` action (single PATCH+DELETE handler for cart lines), `add_item` deduplication (increments qty on existing line), prefetch-cache refresh after mutations, `CartSerializer` read-only fields (cashier, subtotal, tax_amount, total, tax_rate). Single **ConfirmDialog** in `common/` (severity + loading).
-- **Retag v2 — DB2→DB3 migration system** (v2.0.0): Full retag workflow to migrate all on-shelf items from the old DB2 production system to DB3. Includes: `TempLegacyItem` model (staging table of all active DB2 items), `RetagLog` model (per-event retag log for retag day), `import_db2_staging` management command (populates staging from local DB2 snapshot), `retag_v2_lookup_view` / `retag_v2_create_view` / `retag_v2_history_view` API endpoints, `RetagPage.tsx` frontend at `/inventory/retag`. Retag app supports 4 price strategies (keep current, % of current, AI estimate, % of retail), auto-print on scan toggle, non-blocking "already retagged" warnings (always creates new DB3 item regardless), paginated history panel with summary tiles (total tagged, sum retail, sum price), search, and session filter. **Both `TempLegacyItem` and `RetagLog` are temporary scaffolding — drop after retag day (March 16). See `docs/retag/after_retag.md`.**
+- **Retag v2 — DB2→DB3 migration system** (v2.0.0): Full retag workflow to migrate all on-shelf items from the old DB2 production system to DB3. **Retag history panel** surfaces load errors; **“This session only”** shows server log count since page load; summary tiles distinguish all-time vs this-visit counts. **Quick reprice** (`/inventory/quick-reprice`): exact `sku` filter, status display, sold-item duplicate / manager mark-on-shelf, **This Session** expandable list with links to **`/inventory/items/:id`** (list persists **this browser · local calendar day** via `localStorage`, new list after local midnight; still labeled “This Session”), default **10%** discount, **Discount Settings** above scan row; **`?sku=`** prefill from item detail **Reprice**. **Item detail** (`/inventory/items/:id`): **Print tag** and **Reprice**; after **Save**, if price/title/brand changed, **label reprint** reminder banner with **Reprint label**. See `CHANGELOG` **2.2.3**; E2E initiative [archived completed](initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md). Includes: `TempLegacyItem` model (staging table of all active DB2 items), `RetagLog` model (per-event retag log for retag day), `import_db2_staging` management command (populates staging from local DB2 snapshot), `retag_v2_lookup_view` / `retag_v2_create_view` / `retag_v2_history_view` API endpoints, `RetagPage.tsx` frontend at `/inventory/retag`. Retag app supports 4 price strategies (keep current, % of current, AI estimate, % of retail), auto-print on scan toggle, non-blocking "already retagged" warnings (always creates new DB3 item regardless), paginated history panel with summary tiles (total tagged, sum retail, sum price), search, and session filter. **Both `TempLegacyItem` and `RetagLog` are temporary scaffolding — drop after retag day (March 16). See `.ai/extended/retag-operations.md`.**
 - **Pricing model foundation** (v2.0.0): Management commands scaffolded for the full pricing ML pipeline: `import_historical_sold` (loads ~145K sold items from DB1+DB2 for training data), `import_historical_transactions` (loads ~68K transactions into `HistoricalTransaction` for revenue charting across all 3 dashboard generations), `train_price_model` (gradient-boosted price estimator saved to `workspace/models/price_model.joblib`), `backfill_categories` (retroactive category classification). None of these have been run yet — they are ready to run after retag day.
 - **`very_good` condition**: Added `('very_good', 'Very Good')` to `CONDITION_CHOICES` on `Item`, `ManifestRow`, and `BatchGroup`.
-- **Database audits**: Full schema and row-count audits for all 3 database generations in `docs/Database Audits/` (DB1 archive, DB2 production, DB3 dev/new production).
+- **Database audits**: Long-form schema exports for DB1/DB2/DB3 are kept locally under `workspace/` if you maintain them; routing notes in `.ai/extended/databases.md`.
+- **B-Stock notebook scraper** (v2.2.0): Tracked package `workspace/notebooks/bstock-scraper/Scraper/` — `BStockScraper` with `get_auctions()` / `update()` / `save_to_disk()`; CLI `python -m Scraper` from `workspace/notebooks/bstock-scraper`; Playwright fallback `python -m Scraper.browser`; config + secrets in gitignored `Scraper/bstock_config_local.py`. `get_manifests()` is Phase 2 (NotImplementedError until manifest XHR is wired). See `workspace/notebooks/_shared/README.md`, `.ai/initiatives/_archived/_pending/bstock_scraper.md`.
 
 ### Known Issues
 - **Concurrent AI cleanup needs testing/hardening**: The concurrent batch processing (16 threads x 5 rows) was just implemented. The user reported "there's a lot wrong" but did not specify what. The next session should test the concurrent cleanup flow end-to-end and fix any issues. Possible problems: race conditions in offset assignment, duplicate row processing, error handling when multiple workers fail, progress counter accuracy.
@@ -109,8 +118,8 @@ ecothrift-dashboard/
 - Recharts ResponsiveContainer may log a width/height warning on initial render (cosmetic, does not affect functionality)
 - Large JS bundle (~1.7MB) — could benefit from code splitting via lazy routes
 - POS cash completion path should be hardened for malformed numeric payloads (e.g., `change_given` string coercion edge cases)
-- **Retag scaffolding must be dropped after March 16**: `TempLegacyItem` and `RetagLog` are temporary models. After retag day is verified successful, drop the tables (`DROP TABLE inventory_retaglog; DROP TABLE inventory_templegacyitem;`), remove the model classes, create a removal migration, and remove all retag v2 API endpoints, frontend page, and sidebar link. Full instructions in `docs/retag/after_retag.md`.
-- **DB2 staging import must be re-run before retag day**: Run `python manage.py import_db2_staging --update-existing` the night before or morning of March 16 to refresh the staging table with the latest DB2 prices. See `docs/retag/before_retag.md`.
+- **Retag scaffolding must be dropped after March 16**: `TempLegacyItem` and `RetagLog` are temporary models. After retag day is verified successful, drop the tables (`DROP TABLE inventory_retaglog; DROP TABLE inventory_templegacyitem;`), remove the model classes, create a removal migration, and remove all retag v2 API endpoints, frontend page, and sidebar link. Full instructions in `.ai/extended/retag-operations.md`.
+- **DB2 staging import must be re-run before retag day**: Run `python manage.py import_db2_staging --update-existing` the night before or morning of March 16 to refresh the staging table with the latest DB2 prices. See `.ai/extended/retag-operations.md`.
 
 ### Not Yet Implemented
 - Email notifications (forgot-password tokens are returned in response, not emailed)
@@ -130,10 +139,11 @@ ecothrift-dashboard/
 - Discount / coupon system
 - Void reason field (backend void endpoint does not store reason)
 
-### Pending (Next Coder Focus)
-- **Retag day: March 16.** All prep steps are in `docs/retag/before_retag.md`. After retag: cleanup scaffolding, run historical imports, train pricing model — see `docs/retag/after_retag.md`.
-- **End-to-end testing.** Full pipeline: Order page (upload manifest) → Preprocessing page (standardize → AI cleanup → product matching → pricing → complete) → Processing page (check-in items). Exercise all undo paths.
-- Phases 6-9 of the original AI rework plan (in `workspace/notes/prompt creator.md`) still have unfinished work: App Separation cleanup.
+### Next focus and backlog
+
+**`.ai/initiatives/_index.md`** lists **active** initiatives (none at 2026-03-28 — prior E2E retag/Quick reprice work is [archived completed](initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md)). **[`.ai/initiatives/_archived/ARCHIVE.md`](initiatives/_archived/ARCHIVE.md)** catalogs completed, backlog, **pending**, and abandoned work. **Initiatives are archived only when the user explicitly approves** — see protocols and `_index.md`. Priorities also live in **`CHANGELOG.md`** and the user’s session message.
+
+**Initiatives and versioning:** **Major, minor, and patch** bumps (repo `.version`, root `package.json`, `CHANGELOG.md`) follow **user-visible behavior and API contract** — not a 1:1 rule with initiative files (see `_index.md` under “CHANGELOG, `.version`, and releases”). Even so, **shipping work should stay traceable to named initiatives** in `_index.md` unless the change is explicitly outside that model (e.g. hotfix). If an AI session or a **review_bump** pass cannot tell **which initiative** is being worked on or released, that is a **process gap**: the user should **name** the initiative or **create** one (new `.md` + row in `_index.md`). See `.ai/protocols/startup.md` (step 4) and `.ai/protocols/review_bump.md` (Part A item 4, Part C gate).
 
 ---
 
@@ -144,30 +154,32 @@ ecothrift-dashboard/
 3. **Do NOT create documentation files** unless asked.
 4. **Do NOT amend commits** unless the conditions in the system prompt are met.
 5. **Use timestamps** (ISO 8601, America/Chicago timezone) on all documentation updates.
-6. **Read `extended/TOC.md`** for deeper context, but only load specific files as needed — do not read all extended files at once.
-7. **Follow procedures** in `.ai/procedures/` for specific workflows (startup, review, handoff, commit, deploy).
-8. **Verify before changing** — read files before editing, check lints after editing.
-9. **Use the workspace/** folder for any scratch files, test scripts, or notebooks.
+6. **Load `.ai/extended/<domain>.md` only when the task touches that domain** — filenames are self-explanatory (e.g. `backend.md`, `inventory-pipeline.md`). Do not read all extended files at once.
+7. **Follow protocols** in `.ai/protocols/` (`startup.md`, `review_bump.md`). **Initiatives** live in `.ai/initiatives/` (`_index.md` for active; `_archived/ARCHIVE.md` for the archive catalog).
+8. **Initiatives vs releases** — Tie substantial work and **version bumps** to **named initiatives** when possible; **patch/minor/major** still follows product semver (see `_index.md`). If initiative scope is **ambiguous**, ask the user or add an initiative — do not guess.
+9. **Initiative archiving** — Do **not** move an initiative to `.ai/initiatives/_archived/` unless the **user explicitly** approves or instructs. **Ask** before archiving.
+10. **Verify before changing** — read files before editing, check lints after editing.
+11. **Use the workspace/** folder for any scratch files, test scripts, or notebooks.
 
 ---
 
 ## How to Maintain Project Docs
 
-### Documentation lives in two places:
+### Documentation lives here:
 
-1. **`docs/`** — Code documentation. Architecture, data models, API reference, frontend routes, development guide. These describe *what the code does*.
-2. **`.ai/`** — AI context. Project state, versioning, procedures. These describe *how to work on the code*.
+- **`.ai/`** — AI-oriented steering: `context.md`, `protocols/`, `initiatives/`, **`extended/`** (domain deep-dives, `development.md`, database routing, retag ops). No separate `docs/` tree.
+- **`workspace/`** — Local scratch, notebook outputs, optional side-project notes (gitignored except whitelisted notebook paths).
 
 ### Maintenance rules:
 
-- When you change backend models, update `docs/data-models.md` and `.ai/extended/backend.md`.
-- When you add/change API endpoints, update `docs/api-reference.md`.
-- When you add/change routes or pages, update `docs/frontend-routes.md`.
+- When you change backend models, update `.ai/extended/backend.md` when that file is used for the domain.
+- When you add/change API endpoints or routes, update the relevant `.ai/extended/*.md` file or `context.md` “Current State”.
 - When you change auth or permissions, update `.ai/extended/auth-and-roles.md`.
-- When releasing a new version, bump `.ai/version.json`, add entry to `.ai/changelog.md`.
+- When you add or rename databases / connection patterns, update `.ai/extended/databases.md` (never put secrets in `.ai/`).
+- When releasing a new version, bump repo root `.version`, bump root `package.json` `"version"` to match (numeric semver), and add an entry to repo root `CHANGELOG.md`. Anchor **major/minor/patch** in user-visible/API changes; link shipped work to **initiatives** in `_index.md` where applicable (see `.ai/protocols/review_bump.md` Part C). If the initiative in scope is unclear, resolve that before bumping.
 - Always update the `<!-- Last updated: ... -->` timestamp at the top of any file you modify.
-- Update `.ai/extended/TOC.md` last-updated column when you edit any extended file.
-- Review docs freshness periodically using `.ai/procedures/review.md`.
+- When you edit an `.ai/extended/*.md` file, update its top timestamp.
+- Review docs freshness periodically using `.ai/protocols/review_bump.md` (Part A–B).
 
 ---
 
@@ -175,13 +187,18 @@ ecothrift-dashboard/
 
 | Need | Where |
 |------|-------|
-| Tech stack and architecture | `docs/architecture.md` |
-| Database schema | `docs/data-models.md` |
-| API endpoints | `docs/api-reference.md` |
-| Frontend routes and pages | `docs/frontend-routes.md` |
-| Setup and dev guide | `docs/development.md` |
-| Current version | `.ai/version.json` |
-| Version history | `.ai/changelog.md` |
-| Deep-dive context | `.ai/extended/TOC.md` → individual files |
-| Procedures | `.ai/procedures/startup.md`, `review.md`, etc. |
-| Scripts and notebooks | `workspace/scripts/`, `workspace/notebooks/` |
+| Tech stack and architecture | `.ai/context.md`, `.ai/extended/frontend.md` / `backend.md` as needed |
+| Database schema (Django / DB3) | `apps/*/models.py`, `.ai/extended/databases.md` |
+| Multi-DB overview (DB1/2/3) | `.ai/extended/databases.md` |
+| Local DB audit exports (optional) | `workspace/database-audits/` (gitignored) |
+| Jupyter multi-DB notebooks | `workspace/notebooks/` (see `_shared/README.md` for setup) |
+| Setup and dev guide | `.ai/extended/development.md` |
+| Current version | Repo root `.version` |
+| Version history | Repo root `CHANGELOG.md` |
+| Initiatives (active, on hold, backlog) | `.ai/initiatives/_index.md` |
+| Archived initiatives (historical) | `.ai/initiatives/_archived/ARCHIVE.md` |
+| Deep-dive context | `.ai/extended/*.md` (load by domain) |
+| Protocols | `.ai/protocols/startup.md`, `review_bump.md` |
+| Dev scripts (repo) | `scripts/dev/` |
+| Personal scratch | `workspace/` (mostly gitignored) |
+| E2E test templates | `workspace/testing/` (tracked checklist + README) |

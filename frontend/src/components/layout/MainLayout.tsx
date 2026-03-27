@@ -53,12 +53,20 @@ export default function MainLayout() {
   });
 
   const sidebarContent = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}>
-        <img src={logo} alt="Eco-Thrift" style={{ maxWidth: 180, height: 'auto' }} />
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minWidth: 0,
+        overflowX: 'hidden',
+      }}
+    >
+      <Box sx={{ p: 2, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
+        <img src={logo} alt="Eco-Thrift" style={{ maxWidth: '100%', width: 180, height: 'auto' }} />
       </Box>
       <Divider />
-      <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+      <Box sx={{ flexGrow: 1, minWidth: 0, overflowX: 'hidden', overflowY: 'auto' }}>
         <Sidebar />
       </Box>
       {appVersion?.version && (
@@ -84,7 +92,11 @@ export default function MainLayout() {
           onClose={handleDrawerToggle}
           ModalProps={{ keepMounted: true }}
           sx={{
-            '& .MuiDrawer-paper': { width: SIDEBAR_WIDTH, boxSizing: 'border-box' },
+            '& .MuiDrawer-paper': {
+              width: SIDEBAR_WIDTH,
+              boxSizing: 'border-box',
+              overflowX: 'hidden',
+            },
           }}
         >
           {sidebarContent}
@@ -98,6 +110,7 @@ export default function MainLayout() {
             '& .MuiDrawer-paper': {
               width: SIDEBAR_WIDTH,
               boxSizing: 'border-box',
+              overflowX: 'hidden',
               borderRight: '1px solid',
               borderColor: 'divider',
             },

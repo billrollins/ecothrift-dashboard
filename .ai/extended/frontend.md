@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-25T22:00:00-06:00 -->
+<!-- Last updated: 2026-03-28T18:00:00-05:00 -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -38,6 +38,7 @@
 - `PreprocessingPage` (`/inventory/preprocessing/:id`) is a standalone 3-step wizard: Standardize Manifest → Row-Level Processing → Pricing & Finalize. Has own sidebar nav entry "Preprocessing". localStorage persists last order ID. Legacy route `/inventory/orders/:id/preprocess` redirects.
 - **Row-Level Processing** (Step 2) uses `RowProcessingPanel` with: AI cleanup controls (model selector, batch size 5/10/25/50, concurrency 1/4/8/16), expandable rows table showing original data vs AI suggestions, product matching section, and review decisions section.
 - `ProcessingPage` is a unified processing workspace for set fields, check-in, and label printing (batch + individual flows)
+- **Retag / quick reprice (v2.2.3+):** `QuickRepricePage` at `/inventory/quick-reprice` — exact SKU filter, default **10%** discount, **This Session** (label unchanged) list **persisted per browser · local calendar day** (`localStorage`, new list after local midnight), expandable with links to item detail, optional **`?sku=`** prefill. `ItemDetailPage` at `/inventory/items/:id` — **Print tag** (local print server), **Reprice** → quick-reprice with `?sku=`, **label reprint** banner after save when price/title/brand change.
 
 **Consignee routes** (ConsigneeLayout): `/consignee`, `/consignee/items`, `/consignee/payouts`
 
@@ -47,7 +48,7 @@
 
 ### MainLayout
 
-- **Sidebar** (260px): logo, nav sections (Dashboard, HR, Inventory, POS, Consignment, Admin), version footer
+- **Sidebar** (260px): logo, nav sections (Dashboard, HR, Inventory, POS, Consignment, Admin), version footer. **Overflow:** drawer paper and the nav scroll area use **`overflow-x: hidden`** (vertical scroll only); **`Sidebar`** list is full-width with **`minWidth: 0`**; long labels **`noWrap`** + ellipsis; section chevrons **`flexShrink: 0`** (see **v2.2.4** `CHANGELOG`).
 - **AppBar**: sticky, default color, user avatar + menu (logout)
 - **Outlet** for page content
 - Mobile: temporary drawer with hamburger toggle
@@ -92,7 +93,7 @@
 
 ## Version Display
 
-Sidebar footer shows `v{appVersion.version}` from `getAppVersion()` → `/api/core/system/version/` (core app endpoint).
+Sidebar footer shows `v{appVersion.version}` from `getAppVersion()` → `/api/core/system/version/`. The backend reads semver from repo root `.version` (no `v` prefix in the JSON `version` field).
 
 ---
 
