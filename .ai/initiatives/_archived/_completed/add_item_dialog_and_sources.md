@@ -112,4 +112,4 @@ Before / alongside product work we added **hierarchical dev logging** so Add Ite
 ## See also
 
 - `.ai/extended/inventory-pipeline.md` — processing vs standalone add item.
-- `.ai/protocols/review_bump.md` — release / context hygiene.
+- `.ai/protocols/review_bump.md` — doc audit, version bump, handoff.

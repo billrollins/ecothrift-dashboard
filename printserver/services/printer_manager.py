@@ -158,12 +158,13 @@ def send_image(
     drivers report a ``VERTRES`` taller than one label; vertical centering splits
     the bitmap across two feeds or clips the top of the first label.
 
-    If ``fit_to_printable`` is False, the bitmap is **not** shrunk to fit
-    ``HORZRES``/``VERTRES``. Use for **pre-sized** rasters (e.g. 3×2 in at
-    ``source_dpi``) when the driver reports a **smaller** logical page (wrong
-    stock size) and shrinking would print a **tiny** image on wide physical
-    stock. The DC may still clip; prefer matching the driver paper size to the
-    label.
+    If ``fit_to_printable`` is False the bitmap fills the **full physical
+    page** (``PHYSICALWIDTH`` × ``PHYSICALHEIGHT``), drawn from
+    ``(-PHYSICALOFFSETX, -PHYSICALOFFSETY)`` so it starts at the physical
+    edge, not the printable origin.  Use for **pre-sized** rasters (e.g.
+    location labels at 3×2) that must fill the entire label stock.  Falls
+    back to filling ``HORZRES × VERTRES`` at ``(0, 0)`` if the driver does
+    not report physical page dimensions.
     """
     if image.mode != "RGB":
         image = image.convert("RGB")
@@ -189,13 +190,23 @@ def send_image(
         dst_h = max(1, int(dst_h * fit))
         px = max(0, (printable_w - dst_w) // 2)
         py = 0  # top of printable = start of label; do not center vertically on roll stock
-    elif not fit_to_printable and printable_w > 0 and printable_h > 0:
-        # Native size from source_dpi; center horizontally if it fits, else left-align.
-        py = 0
-        if dst_w <= printable_w:
-            px = max(0, (printable_w - dst_w) // 2)
+    elif not fit_to_printable:
+        # Full-bleed: fill the entire physical page.  GDI (0,0) is the
+        # *printable* origin which is already PHYSICALOFFSETX from the
+        # physical edge — drawing there shifts the image right.  Compensate
+        # with negative coords so the bitmap covers the whole label.
+        phys_w = hdc.GetDeviceCaps(win32con.PHYSICALWIDTH)
+        phys_h = hdc.GetDeviceCaps(win32con.PHYSICALHEIGHT)
+        if phys_w > 0 and phys_h > 0:
+            dst_w = phys_w
+            dst_h = phys_h
+            px = -phys_off_x
+            py = -phys_off_y
         else:
-            px = 0
+            # Driver doesn't report physical dims — fill the printable rect.
+            dst_w = printable_w
+            dst_h = printable_h
+            px, py = 0, 0
     else:
         px, py = 0, 0
 
@@ -207,9 +218,11 @@ def send_image(
 
     hdc.EndPage()
     hdc.EndDoc()
+    phys_w_log = hdc.GetDeviceCaps(win32con.PHYSICALWIDTH)
+    phys_h_log = hdc.GetDeviceCaps(win32con.PHYSICALHEIGHT)
     hdc.DeleteDC()
     logger.info(
-        "GDI image sent to %s rect=(%d,%d)+(%dx%d) printable=%dx%d dpi=%dx%d phys_off=(%d,%d)",
+        "GDI image sent to %s rect=(%d,%d)+(%dx%d) printable=%dx%d phys=%dx%d dpi=%dx%d phys_off=(%d,%d) fit=%s",
         printer_name,
         px,
         py,
@@ -217,10 +230,13 @@ def send_image(
         dst_h,
         printable_w,
         printable_h,
+        phys_w_log,
+        phys_h_log,
         printer_dpi_x,
         printer_dpi_y,
         phys_off_x,
         phys_off_y,
+        fit_to_printable,
     )
 
 

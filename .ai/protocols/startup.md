@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-27T20:00:00-05:00 -->
+<!-- Last updated: 2026-03-28T21:00:00-05:00 -->
 # Protocol: Session Startup
 
 How to begin a new AI session on this project.
@@ -44,4 +44,4 @@ How to begin a new AI session on this project.
 
 ## Next protocol
 
-For context refresh, version bump, pre-commit, deploy checklist, and handoff: `.ai/protocols/review_bump.md`.
+For context refresh, version bump, pre-commit, and handoff: `.ai/protocols/review_bump.md`.

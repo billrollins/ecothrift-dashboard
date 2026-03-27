@@ -1,3 +1,4 @@
+<!-- Last updated: 2026-03-28T21:00:00-05:00 -->
 ```
                     ╔═══════════════════════════════════════════════════════════╗
                     ║                                                           ║
@@ -78,6 +79,19 @@ Built different. Built fast. Built to last.
   ✦  CSV MANIFEST PIPELINE   Upload vendor spreadsheets → auto-parse →
                               create inventory items in bulk.
 ```
+
+---
+
+### AI steering & initiatives
+
+| Doc | Purpose |
+|-----|---------|
+| [`.ai/context.md`](.ai/context.md) | Living **current state** (what works, known gaps). |
+| [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) | **Active** initiatives (bounded work tracked as one `.md` each). |
+| [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md) | **Archived** initiatives (completed, backlog, pending, abandoned). |
+| [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md) | Doc audit, version bump, pre-commit, handoff (includes keeping this README in sync). |
+
+Detailed setup beyond **Quick Start** lives in [`.ai/extended/development.md`](.ai/extended/development.md).
 
 ---
 
