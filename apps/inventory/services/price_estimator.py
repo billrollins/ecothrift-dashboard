@@ -21,13 +21,14 @@ The model is trained on Item records where sold_for is not null.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+from apps.core.logging import get_logger
+
+logger = get_logger(__name__, 'LOG_INVENTORY_PRICING')
 
 MODEL_PATH = Path(__file__).parent.parent.parent.parent / 'workspace' / 'models' / 'price_model.joblib'
 
@@ -44,7 +45,7 @@ CONDITION_MULTIPLIERS = {
 SOURCE_ADJUSTMENTS = {
     'purchased': 1.0,
     'consignment': 1.05,  # consignment items typically priced slightly higher
-    'house': 0.90,
+    'misc': 0.90,
 }
 
 
@@ -190,7 +191,7 @@ def estimate_price(
         model_name:       Model number (not to be confused with the Django model).
         category_name:    Category text (e.g. "Small Kitchen Appliances").
         condition:        One of: new / like_new / good / fair / salvage / unknown.
-        source:           One of: purchased / consignment / house.
+        source:           One of: purchased / consignment / misc.
         retail_value:     Vendor-stated retail / cost.
         include_comparables: Whether to query the DB for similar sold items.
 

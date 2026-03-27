@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -35,6 +35,8 @@ class LabelPrintRequest(BaseModel):
     printer_name: str | None = None
     include_text: bool = True
     product_title: str | None = None
+    product_brand: str | None = Field(None, description="Product brand line(s) on label")
+    product_model: str | None = Field(None, description="Model / style / product number line(s)")
 
 
 class TestPrintRequest(BaseModel):
@@ -71,6 +73,7 @@ class DrawerControlRequest(BaseModel):
 class PrinterSettings(BaseModel):
     label_printer: str | None = None
     receipt_printer: str | None = None
+    label_size_preset: Literal["3x2", "1.5x1"] = "3x2"
 
 
 # ---------------------------------------------------------------------------

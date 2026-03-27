@@ -98,7 +98,7 @@ const CONDITION_OPTIONS = [
 const SOURCE_OPTIONS = [
   { value: 'purchased', label: 'Purchased (BStock)' },
   { value: 'consignment', label: 'Consignment' },
-  { value: 'house', label: 'House' },
+  { value: 'misc', label: 'Miscellaneous' },
 ];
 
 interface SessionEntry {
@@ -150,8 +150,8 @@ export default function RetagPage() {
   const { enqueueSnackbar } = useSnackbar();
 
   // ── Session settings (persist across scans) ──
-  const [strategy, setStrategy] = useState<PriceStrategy>('keep_db2');
-  const [strategyPct, setStrategyPct] = useState(35);
+  const [strategy, setStrategy] = useState<PriceStrategy>('pct_of_retail');
+  const [strategyPct, setStrategyPct] = useState(55);
   const [autoPrint, setAutoPrint] = useState(true);
   const [defaultSource, setDefaultSource] = useState('purchased');
   const [defaultCondition, setDefaultCondition] = useState('unknown');
@@ -180,6 +180,7 @@ export default function RetagPage() {
   // ── History panel state ──
   const [historyData, setHistoryData] = useState<RetagHistoryResponse | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [historySearch, setHistorySearch] = useState('');
   const [historyPage, setHistoryPage] = useState(1);
   const [sessionOnly, setSessionOnly] = useState(false);
@@ -202,6 +203,7 @@ export default function RetagPage() {
   // ── History panel fetch ──────────────────────────────────────────────────
   const fetchHistory = useCallback((page: number, search: string, sessionOnlyMode: boolean) => {
     setHistoryLoading(true);
+    setHistoryError(null);
     retagV2History({
       page,
       page_size: 25,
@@ -211,8 +213,13 @@ export default function RetagPage() {
       .then(r => {
         setHistoryData(r.data);
         setHistoryLoading(false);
+        setHistoryError(null);
       })
-      .catch(() => setHistoryLoading(false));
+      .catch(() => {
+        setHistoryData(null);
+        setHistoryLoading(false);
+        setHistoryError('Could not load retag history. Check your connection and try again.');
+      });
   }, []);
 
   // Fetch history on mount and after each retag
@@ -316,6 +323,8 @@ export default function RetagPage() {
             qr_data: data.print_payload.qr_data,
             text: data.print_payload.text,
             product_title: data.print_payload.product_title,
+            product_brand: data.print_payload.product_brand?.trim() || undefined,
+            product_model: data.print_payload.product_model?.trim() || undefined,
             include_text: true,
           })
           .then(() => true)
@@ -455,6 +464,10 @@ export default function RetagPage() {
 
   return (
     <Box sx={{ p: 2 }}>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Retag migration: scan legacy DB2 shelf tags to create DB3 items and print new labels. Staging
+        data comes from <code>import_db2_staging</code>; remove this page after retag week per ops docs.
+      </Alert>
 
       {/* ── Header + Stats Bar ── */}
       <Stack direction="row" alignItems="center" spacing={2} mb={2} flexWrap="wrap">
@@ -948,10 +961,10 @@ export default function RetagPage() {
         {/* Summary tiles */}
         <Stack direction="row" spacing={2} flexWrap="wrap" mb={2}>
           {[
-            { label: 'Total Tagged', value: historyData?.total_retagged ?? '—' },
+            { label: 'Total Tagged (all time)', value: historyData?.total_retagged ?? '—' },
             { label: 'Sum DB2 Price', value: historyData ? fmt(parseFloat(historyData.sum_price)) : '—' },
             { label: 'Sum Retail', value: historyData ? fmt(parseFloat(historyData.sum_retail)) : '—' },
-            { label: 'This Session', value: history.length },
+            { label: 'Tags this visit', value: history.length },
           ].map(tile => (
             <Paper
               key={tile.label}
@@ -1003,9 +1016,9 @@ export default function RetagPage() {
             label={
               <Typography variant="body2">
                 This session only
-                {sessionOnly && history.length > 0 && (
+                {sessionOnly && historyData != null && (
                   <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
-                    ({history.length})
+                    ({historyData.count} in log since page opened)
                   </Typography>
                 )}
               </Typography>
@@ -1015,6 +1028,12 @@ export default function RetagPage() {
             <Typography variant="caption" color="text.secondary">Loading...</Typography>
           )}
         </Stack>
+
+        {historyError && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setHistoryError(null)}>
+            {historyError}
+          </Alert>
+        )}
 
         {/* Table */}
         <Paper variant="outlined">

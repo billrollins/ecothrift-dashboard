@@ -48,6 +48,7 @@ import DenominationCounter, {
 } from '../../components/forms/DenominationCounter';
 import { DeviceSetupDialog } from '../../components/pos/DeviceSetupDialog';
 import {
+  useRegisters,
   useDrawers,
   useCreateCart,
   useAddItemToCart,
@@ -148,6 +149,14 @@ export default function TerminalPage() {
   const { config, isRegister, registerId } = useDeviceConfig();
   const printStatus = useLocalPrintStatus();
 
+  const { data: registersData, isLoading: registersLoading } = useRegisters({ page_size: 200 });
+  const registers = registersData?.results ?? [];
+  const registerConfigInvalid =
+    isRegister &&
+    registerId != null &&
+    !registersLoading &&
+    !registers.some((r) => r.id === registerId);
+
   const [deviceSetupOpen, setDeviceSetupOpen] = useState(false);
   const [managerDrawerId, setManagerDrawerId] = useState<number | ''>('');
   const [cart, setCart] = useState<Cart | null>(null);
@@ -163,17 +172,20 @@ export default function TerminalPage() {
   const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
 
   // Stable date string — only recomputes at midnight
-  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayLocalISO = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
   // Stable params objects to avoid React Query key churn
   const drawerQueryParams = useMemo(
-    () => (isRegister && registerId != null ? { register: registerId, date: todayISO } : undefined),
-    [isRegister, registerId, todayISO],
+    () =>
+      isRegister && registerId != null && !registerConfigInvalid
+        ? { register: registerId, date: todayLocalISO }
+        : undefined,
+    [isRegister, registerId, todayLocalISO, registerConfigInvalid],
   );
 
   // Register mode: today's drawer for this register (any status)
   const { data: todayDrawerData, isLoading: drawerLoading } = useDrawers(drawerQueryParams, {
-    enabled: isRegister && registerId != null,
+    enabled: isRegister && registerId != null && !registerConfigInvalid,
   });
   const todayDrawer: Drawer | null = (todayDrawerData?.results ?? [])[0] ?? null;
 
@@ -959,6 +971,47 @@ export default function TerminalPage() {
       : config
         ? config.deviceType.replace(/_/g, ' ')
         : 'Device not configured';
+
+  if (registerConfigInvalid) {
+    return (
+      <Box>
+        <PageHeader
+          title="POS Terminal"
+          subtitle={deviceLabel}
+          action={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Chip
+                size="small"
+                label={printStatus.online ? 'Print server online' : 'Print server offline'}
+                color={printStatus.online ? 'success' : 'default'}
+                variant="outlined"
+              />
+              <Tooltip title="Configure this device">
+                <IconButton size="small" onClick={() => setDeviceSetupOpen(true)} color="warning">
+                  <Settings />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          }
+        />
+        <Alert severity="error" sx={{ mb: 2 }}>
+          This device is configured for register ID {registerId}, which does not exist anymore (for example after
+          resetting data or re-seeding registers). Open device setup and select the correct register. Opening a drawer
+          will fail until you do.
+        </Alert>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+          <Button variant="contained" size="large" onClick={() => setDeviceSetupOpen(true)}>
+            Open device setup
+          </Button>
+        </Box>
+        <DeviceSetupDialog
+          open={deviceSetupOpen}
+          onClose={() => setDeviceSetupOpen(false)}
+          onSaved={() => setDeviceSetupOpen(false)}
+        />
+      </Box>
+    );
+  }
 
   if (terminalState === 'loading') {
     return <LoadingScreen message="Loading drawer..." />;

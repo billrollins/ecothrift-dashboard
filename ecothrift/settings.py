@@ -4,9 +4,13 @@ Django settings for ecothrift project — development.
 import os
 from pathlib import Path
 from datetime import timedelta
-from decouple import config, Csv
+from decouple import Config, Csv, RepositoryEnv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load `.env` from project root so ANTHROPIC_API_KEY and other vars work even when
+# `manage.py` / ASGI is started with a cwd other than the repo root.
+config = Config(RepositoryEnv(str(BASE_DIR / '.env')))
 
 # ── Security ──────────────────────────────────────────────────────────────────
 SECRET_KEY = config('SECRET_KEY')

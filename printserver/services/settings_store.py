@@ -21,6 +21,8 @@ SETTINGS_FILE = _BASE_DIR / "settings.json"
 _DEFAULTS: dict[str, Any] = {
     "label_printer": None,
     "receipt_printer": None,
+    # "3x2" (local/testing) or "1.5x1" (production) — see config.LABEL_SIZE_PRESETS
+    "label_size_preset": "3x2",
     # URL to the public version-check endpoint on the dashboard backend.
     # Example: https://yourdomain.com/api/core/system/print-server-version-public/
     "update_check_url": "",

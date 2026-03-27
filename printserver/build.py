@@ -22,6 +22,7 @@ def kill_running_server() -> None:
 
 def build() -> None:
     kill_running_server()
+    logo = ROOT / "assets" / "ecothrift_logo_bw.png"
     cmd = [
         sys.executable,
         "-m",
@@ -48,6 +49,13 @@ def build() -> None:
         "uvicorn.lifespan.on",
         "--hidden-import",
         "uvicorn.lifespan.off",
+        "--hidden-import",
+        "label_test_data",
+    ]
+    if logo.exists():
+        # Windows: source;dest inside bundle (extracted to _MEIPASS/assets/)
+        cmd.extend(["--add-data", f"{logo};assets"])
+    cmd.extend([
         "--paths",
         str(ROOT),
         "--distpath",
@@ -57,7 +65,7 @@ def build() -> None:
         "--specpath",
         str(ROOT),
         str(ROOT / "main.py"),
-    ]
+    ])
     print(f"Running: {' '.join(cmd)}")
     subprocess.check_call(cmd)
     exe = ROOT / "dist" / "ecothrift-printserver.exe"

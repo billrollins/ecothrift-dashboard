@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -6,16 +7,21 @@ import {
   Card,
   CardContent,
   Chip,
-  Divider,
-  FormControl,
+  Collapse,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControlLabel,
+  IconButton,
   InputAdornment,
-  InputLabel,
-  MenuItem,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
   Paper,
   Radio,
   RadioGroup,
-  Select,
   Stack,
   TextField,
   Typography,
@@ -24,42 +30,268 @@ import LocalOffer from '@mui/icons-material/LocalOffer';
 import QrCodeScanner from '@mui/icons-material/QrCodeScanner';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
 import ArrowDownward from '@mui/icons-material/ArrowDownward';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useSnackbar } from 'notistack';
-import { quickReprice } from '../../api/inventory.api';
+import {
+  getItems,
+  quickReprice,
+  duplicateItemForResale,
+  markSoldItemOnShelf,
+} from '../../api/inventory.api';
+import type { Item, ItemStatus } from '../../types/inventory.types';
 import { localPrintService } from '../../services/localPrintService';
+import { useAuth } from '../../contexts/AuthContext';
+
+const QUICK_REPRICE_ALLOWED_STATUSES = new Set<ItemStatus>([
+  'intake',
+  'processing',
+  'on_shelf',
+  'returned',
+]);
+
+function formatStatusLabel(status: string): string {
+  return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 
 interface RepriceResult {
   sku: string;
   title: string;
+  status?: string;
   old_price: string;
   new_price: string;
   discount_amount: string;
   discount_type: string;
 }
 
+interface SessionEntry {
+  id: number;
+  sku: string;
+  title: string;
+  new_price: string;
+}
+
+const QUICK_REPRICE_SESSION_STORAGE_KEY = 'ecothrift_quick_reprice_session_v1';
+
+/** Local calendar date YYYY-MM-DD (midnight boundary follows this machine's local timezone). */
+function getLocalDateKey(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function loadPersistedSession(): { entries: SessionEntry[]; savings: number } {
+  try {
+    const raw = localStorage.getItem(QUICK_REPRICE_SESSION_STORAGE_KEY);
+    if (!raw) return { entries: [], savings: 0 };
+    const parsed = JSON.parse(raw) as {
+      date?: string;
+      entries?: SessionEntry[];
+      sessionSavings?: number;
+    };
+    const today = getLocalDateKey();
+    if (parsed.date !== today) return { entries: [], savings: 0 };
+    return {
+      entries: Array.isArray(parsed.entries) ? parsed.entries : [],
+      savings: Number(parsed.sessionSavings) || 0,
+    };
+  } catch {
+    return { entries: [], savings: 0 };
+  }
+}
+
 export default function QuickRepricePage() {
   const { enqueueSnackbar } = useSnackbar();
+  const { hasRole } = useAuth();
+  const isManager = hasRole('Manager') || hasRole('Admin');
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
-  const [discountValue, setDiscountValue] = useState('');
+  const [discountValue, setDiscountValue] = useState('10');
   const [minPrice, setMinPrice] = useState('0.50');
   const [skuInput, setSkuInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState<RepriceResult | null>(null);
-  const [sessionCount, setSessionCount] = useState(0);
-  const [sessionSavings, setSessionSavings] = useState(0);
+  const [sessionEntries, setSessionEntries] = useState<SessionEntry[]>(
+    () => loadPersistedSession().entries,
+  );
+  const [sessionSavings, setSessionSavings] = useState(
+    () => loadPersistedSession().savings,
+  );
+  const [sessionListOpen, setSessionListOpen] = useState(false);
   const [error, setError] = useState('');
+  const [resolvedPreview, setResolvedPreview] = useState<Pick<Item, 'sku' | 'title' | 'status'> | null>(null);
+
+  const [soldDialogOpen, setSoldDialogOpen] = useState(false);
+  const [blockedItem, setBlockedItem] = useState<Item | null>(null);
+  const [soldDialogBusy, setSoldDialogBusy] = useState(false);
+  const [soldDialogError, setSoldDialogError] = useState('');
 
   const skuRef = useRef<HTMLInputElement>(null);
+  /** Calendar day `sessionEntries` / savings belong to; rolls over at local midnight. */
+  const sessionDateRef = useRef<string>(getLocalDateKey());
 
-  // Keep SKU field focused
+  const rolloverIfNeeded = useCallback(() => {
+    const today = getLocalDateKey();
+    if (sessionDateRef.current !== today) {
+      sessionDateRef.current = today;
+      setSessionEntries([]);
+      setSessionSavings(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        QUICK_REPRICE_SESSION_STORAGE_KEY,
+        JSON.stringify({
+          date: getLocalDateKey(),
+          entries: sessionEntries,
+          sessionSavings,
+        }),
+      );
+    } catch {
+      // ignore quota / private mode
+    }
+  }, [sessionEntries, sessionSavings]);
+
+  useEffect(() => {
+    const tick = () => {
+      const today = getLocalDateKey();
+      if (sessionDateRef.current !== today) {
+        sessionDateRef.current = today;
+        setSessionEntries([]);
+        setSessionSavings(0);
+      }
+    };
+    const id = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   useEffect(() => {
     skuRef.current?.focus();
   }, [lastResult, loading]);
 
+  useEffect(() => {
+    const skuParam = searchParams.get('sku');
+    if (!skuParam?.trim()) return;
+    setSkuInput(skuParam.trim().toUpperCase());
+    const next = new URLSearchParams(searchParams);
+    next.delete('sku');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const runQuickReprice = useCallback(
+    async (item: Item) => {
+      rolloverIfNeeded();
+      const val = Number(discountValue);
+      const { data: result } = await quickReprice(item.id, {
+        discount_type: discountType,
+        discount_value: val,
+        min_price: Number(minPrice) || 0.50,
+      });
+
+      setLastResult({
+        sku: result.sku,
+        title: result.title,
+        status: result.status ?? item.status,
+        old_price: result.old_price,
+        new_price: result.new_price,
+        discount_amount: result.discount_amount,
+        discount_type: result.discount_type,
+      });
+      setSessionEntries(prev => [
+        {
+          id: item.id,
+          sku: result.sku,
+          title: result.title,
+          new_price: result.new_price,
+        },
+        ...prev,
+      ]);
+      setSessionSavings(s => s + Number(result.discount_amount));
+
+      const printOk = await localPrintService
+        .printLabel({
+          qr_data: result.sku,
+          text: `$${Number(result.new_price).toFixed(2)}`,
+          product_title: result.title,
+          product_brand: result.brand?.trim() || undefined,
+          product_model: result.product_number?.trim() || undefined,
+          include_text: true,
+        })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!printOk) {
+        enqueueSnackbar('Label printed — but print server may be offline', { variant: 'warning' });
+      }
+    },
+    [discountType, discountValue, minPrice, enqueueSnackbar, rolloverIfNeeded],
+  );
+
+  const closeSoldDialog = useCallback(() => {
+    setSoldDialogOpen(false);
+    setBlockedItem(null);
+    setSoldDialogError('');
+    setSoldDialogBusy(false);
+  }, []);
+
+  const handleDuplicateForResale = useCallback(async () => {
+    if (!blockedItem) return;
+    setSoldDialogError('');
+    setSoldDialogBusy(true);
+    try {
+      const { data: newItem } = await duplicateItemForResale(blockedItem.id);
+      closeSoldDialog();
+      setResolvedPreview({ sku: newItem.sku, title: newItem.title, status: newItem.status });
+      enqueueSnackbar(`Created ${newItem.sku} — applying discount…`, { variant: 'info' });
+      try {
+        await runQuickReprice(newItem);
+      } catch (repriceErr: unknown) {
+        const axiosErr = repriceErr as { response?: { data?: { detail?: string } } };
+        const detail = axiosErr?.response?.data?.detail;
+        setError(typeof detail === 'string' ? detail : 'Discount could not be applied to the new item.');
+      }
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      const detail = axiosErr?.response?.data?.detail;
+      setSoldDialogError(typeof detail === 'string' ? detail : 'Could not create duplicate.');
+    } finally {
+      setSoldDialogBusy(false);
+    }
+  }, [blockedItem, closeSoldDialog, enqueueSnackbar, runQuickReprice]);
+
+  const handleMarkOnShelf = useCallback(async () => {
+    if (!blockedItem) return;
+    setSoldDialogError('');
+    setSoldDialogBusy(true);
+    try {
+      const { data: item } = await markSoldItemOnShelf(blockedItem.id);
+      closeSoldDialog();
+      setResolvedPreview({ sku: item.sku, title: item.title, status: item.status });
+      enqueueSnackbar(`${item.sku} marked on shelf — applying discount…`, { variant: 'info' });
+      try {
+        await runQuickReprice(item);
+      } catch (repriceErr: unknown) {
+        const axiosErr = repriceErr as { response?: { data?: { detail?: string } } };
+        const detail = axiosErr?.response?.data?.detail;
+        setError(typeof detail === 'string' ? detail : 'Discount could not be applied.');
+      }
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      const detail = axiosErr?.response?.data?.detail;
+      setSoldDialogError(typeof detail === 'string' ? detail : 'Could not update item.');
+    } finally {
+      setSoldDialogBusy(false);
+    }
+  }, [blockedItem, closeSoldDialog, enqueueSnackbar, runQuickReprice]);
+
   const handleScan = useCallback(async () => {
-    const sku = skuInput.trim();
-    if (!sku) return;
+    const raw = skuInput.trim();
+    const sku = raw.toUpperCase();
+    if (!raw) return;
     if (!discountValue || isNaN(Number(discountValue))) {
       setError('Set a discount value before scanning.');
       return;
@@ -75,17 +307,14 @@ export default function QuickRepricePage() {
     }
 
     setError('');
+    setResolvedPreview(null);
     setLoading(true);
     setSkuInput('');
 
     try {
-      // Use the items API to find by SKU
-      const itemsResp = await fetch(
-        `/api/inventory/items/?sku=${encodeURIComponent(sku)}`,
-        { headers: { Authorization: `Bearer ${localStorage.getItem('access')}` } },
-      );
-      const itemsData = await itemsResp.json();
-      const item = itemsData.results?.[0] || itemsData[0];
+      const { data: listData } = await getItems({ sku, page_size: 5 });
+      const rows = listData.results ?? [];
+      const item = rows[0] as Item | undefined;
 
       if (!item) {
         setError(`Item not found: ${sku}`);
@@ -93,36 +322,34 @@ export default function QuickRepricePage() {
         return;
       }
 
-      const { data: result } = await quickReprice(item.id, {
-        discount_type: discountType,
-        discount_value: val,
-        min_price: Number(minPrice) || 0.50,
-      });
+      setResolvedPreview({ sku: item.sku, title: item.title, status: item.status });
 
-      setLastResult(result);
-      setSessionCount(c => c + 1);
-      setSessionSavings(s => s + Number(result.discount_amount));
-
-      // Auto-print new label
-      const printOk = await localPrintService.printLabel({
-        qr_data: result.sku,
-        text: `$${Number(result.new_price).toFixed(2)}`,
-        product_title: result.title,
-        include_text: true,
-      }).then(() => true).catch(() => false);
-
-      if (!printOk) {
-        enqueueSnackbar('Label printed — but print server may be offline', { variant: 'warning' });
+      if (item.status === 'sold') {
+        setBlockedItem(item);
+        setSoldDialogOpen(true);
+        setLoading(false);
+        return;
       }
 
+      if (!QUICK_REPRICE_ALLOWED_STATUSES.has(item.status as ItemStatus)) {
+        setError(
+          `Cannot reprice — status is "${formatStatusLabel(item.status)}". ` +
+            'Quick reprice only applies to intake, processing, on shelf, or returned items.',
+        );
+        setLoading(false);
+        return;
+      }
+
+      await runQuickReprice(item);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Reprice failed.';
-      setError(msg);
+      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      const detail = axiosErr?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Reprice failed.');
     } finally {
       setLoading(false);
       setTimeout(() => skuRef.current?.focus(), 50);
     }
-  }, [skuInput, discountType, discountValue, minPrice, enqueueSnackbar]);
+  }, [skuInput, discountType, discountValue, minPrice, runQuickReprice]);
 
   const handleSkuKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleScan();
@@ -137,12 +364,12 @@ export default function QuickRepricePage() {
         <Box>
           <Typography variant="h5" fontWeight={700}>Quick Reprice</Typography>
           <Typography variant="body2" color="text.secondary">
-            Set a discount, then scan items — price updates and new label prints automatically.
+            Defaults to 10% off the current price — set discount in the panel below, then scan items to reprice and
+            print labels automatically.
           </Typography>
         </Box>
       </Stack>
 
-      {/* Discount Configuration */}
       <Paper variant="outlined" sx={{ p: 2.5, mb: 3 }}>
         <Typography variant="subtitle1" fontWeight={600} mb={2}>Discount Settings</Typography>
 
@@ -150,9 +377,19 @@ export default function QuickRepricePage() {
           <RadioGroup
             row
             value={discountType}
-            onChange={e => setDiscountType(e.target.value as 'percent' | 'fixed')}
+            onChange={e => {
+              const next = e.target.value as 'percent' | 'fixed';
+              setDiscountType(next);
+              if (next === 'percent') {
+                setDiscountValue(v => (v.trim() === '' ? '10' : v));
+              }
+            }}
           >
-            <FormControlLabel value="percent" control={<Radio />} label="Percentage off (e.g. 30%)" />
+            <FormControlLabel
+              value="percent"
+              control={<Radio />}
+              label="% off current price (default 10%)"
+            />
             <FormControlLabel value="fixed" control={<Radio />} label="Fixed amount off (e.g. $5.00)" />
           </RadioGroup>
 
@@ -172,7 +409,6 @@ export default function QuickRepricePage() {
               }}
               sx={{ width: 180 }}
               size="small"
-              autoFocus
             />
             <TextField
               label="Minimum price floor ($)"
@@ -189,7 +425,6 @@ export default function QuickRepricePage() {
         </Stack>
       </Paper>
 
-      {/* Scan Field */}
       <Paper
         variant="outlined"
         sx={{
@@ -222,13 +457,21 @@ export default function QuickRepricePage() {
         </Stack>
       </Paper>
 
+      {resolvedPreview && (
+        <Stack direction="row" alignItems="center" spacing={1} mb={2} flexWrap="wrap">
+          <Typography variant="caption" color="text.secondary">Resolved:</Typography>
+          <Typography variant="body2" fontWeight={600}>{resolvedPreview.title}</Typography>
+          <Typography variant="caption" fontFamily="monospace">{resolvedPreview.sku}</Typography>
+          <Chip size="small" label={formatStatusLabel(resolvedPreview.status)} variant="outlined" />
+        </Stack>
+      )}
+
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
         </Alert>
       )}
 
-      {/* Last Result */}
       {lastResult && (
         <Card variant="outlined" sx={{ mb: 3, borderColor: 'success.main', borderWidth: 2 }}>
           <CardContent>
@@ -241,9 +484,14 @@ export default function QuickRepricePage() {
             <Typography variant="body1" fontWeight={600} mb={0.5}>
               {lastResult.title}
             </Typography>
-            <Typography variant="body2" color="text.secondary" mb={1.5}>
-              SKU: {lastResult.sku}
-            </Typography>
+            <Stack direction="row" alignItems="center" spacing={1} mb={1.5}>
+              <Typography variant="body2" color="text.secondary">
+                SKU: {lastResult.sku}
+              </Typography>
+              {lastResult.status && (
+                <Chip size="small" label={formatStatusLabel(lastResult.status)} variant="outlined" />
+              )}
+            </Stack>
             <Stack direction="row" spacing={3} alignItems="center">
               <Box textAlign="center">
                 <Typography variant="caption" color="text.secondary">Old Price</Typography>
@@ -269,24 +517,127 @@ export default function QuickRepricePage() {
         </Card>
       )}
 
-      {/* Session Stats */}
-      {sessionCount > 0 && (
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="subtitle2" color="text.secondary" mb={1}>This Session</Typography>
-          <Stack direction="row" spacing={4}>
+      {sessionEntries.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 0, overflow: 'hidden' }}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+            sx={{ px: 2, py: 1.5, pr: 1 }}
+          >
             <Box>
-              <Typography variant="h5" fontWeight={700}>{sessionCount}</Typography>
-              <Typography variant="caption" color="text.secondary">Items Repriced</Typography>
-            </Box>
-            <Box>
-              <Typography variant="h5" fontWeight={700} color="error.main">
-                −${sessionSavings.toFixed(2)}
+              <Typography variant="subtitle2" color="text.secondary">
+                This Session
               </Typography>
-              <Typography variant="caption" color="text.secondary">Total Discounted</Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                This browser · today (local time) · new list after midnight
+              </Typography>
             </Box>
+            <IconButton
+              size="small"
+              aria-label={sessionListOpen ? 'Hide item list' : 'Show item list'}
+              onClick={() => setSessionListOpen(o => !o)}
+              sx={{
+                transform: sessionListOpen ? 'rotate(180deg)' : 'none',
+                transition: theme => theme.transitions.create('transform'),
+              }}
+            >
+              <ExpandMore />
+            </IconButton>
           </Stack>
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Stack direction="row" spacing={4}>
+              <Box>
+                <Typography variant="h5" fontWeight={700}>{sessionEntries.length}</Typography>
+                <Typography variant="caption" color="text.secondary">Items Repriced</Typography>
+              </Box>
+              <Box>
+                <Typography variant="h5" fontWeight={700} color="error.main">
+                  −${sessionSavings.toFixed(2)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">Total Discounted</Typography>
+              </Box>
+            </Stack>
+          </Box>
+          <Collapse in={sessionListOpen}>
+            <List dense disablePadding sx={{ borderTop: 1, borderColor: 'divider' }}>
+              {sessionEntries.map((row, index) => (
+                <ListItem key={`${row.id}-${index}`} disablePadding>
+                  <ListItemButton
+                    component={Link}
+                    to={`/inventory/items/${row.id}`}
+                    sx={{ py: 1, px: 2 }}
+                  >
+                    <ListItemText
+                      primary={
+                        <Typography variant="body2" component="span" fontFamily="monospace">
+                          {row.sku}
+                        </Typography>
+                      }
+                      secondary={
+                        <>
+                          <Typography variant="caption" color="text.secondary" display="block" noWrap>
+                            {row.title}
+                          </Typography>
+                          <Typography variant="body2" fontWeight={600} color="success.main" component="span">
+                            ${Number(row.new_price).toFixed(2)}
+                          </Typography>
+                        </>
+                      }
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          </Collapse>
         </Paper>
       )}
+
+      <Dialog open={soldDialogOpen} onClose={soldDialogBusy ? undefined : closeSoldDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Item is sold</DialogTitle>
+        <DialogContent>
+          {blockedItem && (
+            <Stack spacing={2} sx={{ pt: 0.5 }}>
+              <Typography variant="body2">
+                <strong>{blockedItem.title}</strong>
+                {' '}
+                <Typography component="span" fontFamily="monospace" variant="body2">{blockedItem.sku}</Typography>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Quick reprice cannot change the price on a unit that has already sold. Create a new shelf item
+                copied from this record (same order / product links where applicable), or — if you are a manager
+                and this sale was never completed on the register — mark this unit on shelf again.
+              </Typography>
+              {soldDialogError && (
+                <Alert severity="warning" onClose={() => setSoldDialogError('')}>
+                  {soldDialogError}
+                </Alert>
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ flexWrap: 'wrap', gap: 1, px: 3, pb: 2 }}>
+          <Button onClick={closeSoldDialog} disabled={soldDialogBusy}>
+            Cancel
+          </Button>
+          {isManager && (
+            <Button
+              variant="outlined"
+              onClick={handleMarkOnShelf}
+              disabled={soldDialogBusy}
+            >
+              Mark on shelf again
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            onClick={handleDuplicateForResale}
+            disabled={soldDialogBusy}
+          >
+            {soldDialogBusy ? 'Working…' : 'Create unsold copy & reprice'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

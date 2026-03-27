@@ -10,6 +10,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee
+from apps.core.models import WorkLocation
 from apps.inventory.models import Item, ItemScanHistory
 from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
@@ -24,7 +25,7 @@ from .serializers import (
     CartSerializer, CartLineSerializer, ReceiptSerializer,
     RevenueGoalSerializer,
 )
-from .filters import CartFilter
+from .filters import CartFilter, DrawerFilter
 
 
 class RegisterViewSet(viewsets.ModelViewSet):
@@ -34,12 +35,17 @@ class RegisterViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['location', 'is_active']
 
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsManagerOrAdmin()]
+        return [IsAuthenticated(), IsStaff()]
+
 
 class DrawerViewSet(viewsets.ModelViewSet):
     serializer_class = DrawerSerializer
     permission_classes = [IsAuthenticated, IsEmployee]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
-    filterset_fields = ['register', 'date', 'status']
+    filterset_class = DrawerFilter
     ordering = ['-date', '-opened_at']
 
     def get_queryset(self):
@@ -368,6 +374,42 @@ class SupplementalViewSet(viewsets.GenericViewSet):
             supplemental=supp,
         ).select_related('performed_by').order_by('-performed_at')[:50]
         return Response(SupplementalTransactionSerializer(txns, many=True).data)
+
+    @action(detail=False, methods=['post'], url_path='bootstrap')
+    def bootstrap(self, request):
+        """Create SupplementalDrawer for a WorkLocation when missing (same defaults as setup_initial_data)."""
+        raw = request.data.get('location')
+        if raw is None:
+            loc = WorkLocation.objects.filter(is_active=True).order_by('id').first()
+            if not loc:
+                return Response(
+                    {'detail': 'No work location exists. Create one first.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            try:
+                loc = WorkLocation.objects.get(pk=int(raw))
+            except (TypeError, ValueError, WorkLocation.DoesNotExist):
+                return Response({'detail': 'Invalid location.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        drawer, created = SupplementalDrawer.objects.get_or_create(
+            location=loc,
+            defaults={
+                'current_balance': {
+                    'hundreds': 0, 'fifties': 2, 'twenties': 5, 'tens': 10,
+                    'fives': 20, 'ones': 50, 'quarters': 80, 'dimes': 100,
+                    'nickels': 80, 'pennies': 100,
+                },
+                'current_total': Decimal('500.00'),
+                'last_counted_by': request.user,
+                'last_counted_at': timezone.now(),
+            },
+        )
+        ser = SupplementalDrawerSerializer(drawer)
+        return Response(
+            ser.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
 
 class BankTransactionViewSet(viewsets.ModelViewSet):

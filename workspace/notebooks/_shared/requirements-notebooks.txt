@@ -1,0 +1,24 @@
+# Optional data stack: Jupyter / multi-DB notebooks + ML pricing & categorizer
+# Install: pip install -r workspace/notebooks/_shared/requirements-notebooks.txt
+#
+# The Django app runs without these; use for workspace/notebooks and management
+# commands like train_price_model / category classifier when ML deps are needed.
+
+# --- Notebooks (workspace/notebooks, db-explorer/) ---
+pandas>=2.2
+SQLAlchemy>=2.0
+psycopg2-binary>=2.9
+
+# --- B-Stock scraper (workspace/notebooks/bstock-scraper/Scraper/) ---
+requests>=2.31
+# Strategy B browser fallback — after pip install, run once: playwright install chromium
+playwright>=1.40
+
+# --- ML / pricing model (apps/inventory management commands) ---
+scikit-learn>=1.4.0
+joblib>=1.3.0
+numpy>=1.26.0
+
+# Gradient boosting — install at least one for best price prediction:
+lightgbm>=4.0.0
+# xgboost>=2.0.0    # alternative if lightgbm fails to install

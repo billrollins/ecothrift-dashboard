@@ -32,7 +32,7 @@ Built different. Built fast. Built to last.
 ```
   ┌─────────────────────────────────────────────────────────────┐
   │  FRONTEND                                                   │
-  │  React 19  ·  TypeScript  ·  MUI v7  ·  Vite  ·  Recharts  │
+  │  React 18  ·  TypeScript  ·  MUI v7  ·  Vite  ·  Recharts   │
   │  TanStack Query  ·  React Hook Form  ·  React Router        │
   └──────────────────────────┬──────────────────────────────────┘
                              │  REST API + JWT
@@ -106,17 +106,24 @@ Then open **http://localhost:5173** and log in.
 
 ```
 ecothrift-dashboard/
-├── apps/                6 Django apps (accounts, core, hr, inventory, pos, consignment)
-├── ecothrift/           Django project settings
-├── frontend/            React + TypeScript + MUI
-├── docs/                Code documentation
-├── .ai/                 AI context, versioning, procedures
-└── workspace/           Scripts, notebooks, notes (gitignored)
+├── apps/                Django apps (accounts, core, hr, inventory, pos, consignment, ai)
+├── ecothrift/           Django project package (settings, urls, wsgi)
+├── manage.py            Django CLI entry (same tree = “backend” for local dev)
+├── frontend/            React + TypeScript + MUI (Vite)
+├── printserver/         Local print server source (FastAPI; Windows installer in-repo)
+├── scripts/             Dev/deploy helpers (see `.ai/extended/development.md`)
+├── .ai/                 AI/session context, protocols, extended domain notes (not runtime)
+├── .version             App semver (single line)
+├── CHANGELOG.md         Version history
+├── package.json         Heroku heroku-postbuild → frontend build only
+└── workspace/           Local scratch; only select files under workspace/notebooks/ (e.g. _shared/, db-explorer/, historical-data/, bstock-scraper/) may be tracked
 ```
+
+**Print server:** Develop in `printserver/`. The Windows installer deploys under `%LOCALAPPDATA%\EcoThrift\PrintServer\` and, on **Install**, removes legacy V2 print-server folders/Startup hooks before laying down the new exe (see `printserver/installer/setup.py`).
 
 ---
 
 <p align="center">
-  <b>Eco-Thrift Dashboard v1.0.0</b><br/>
+  <b>Eco-Thrift Dashboard</b> (see repo root <code>.version</code> for semver)<br/>
   <i>Reduce. Reuse. Run a tight ship.</i>
 </p>

@@ -24,6 +24,8 @@ export interface LocalPrintRequest {
   printer_name?: string;
   include_text?: boolean;
   product_title?: string;
+  product_brand?: string;
+  product_model?: string;
 }
 
 export interface LocalPrintResponse {
@@ -33,9 +35,13 @@ export interface LocalPrintResponse {
   error?: string;
 }
 
+/** Persisted on the print server (`settings.json`); matches `PrinterSettings` in `printserver/models.py`. */
+export type LabelSizePreset = '3x2' | '1.5x1';
+
 export interface PrinterSettings {
   label_printer: string | null;
   receipt_printer: string | null;
+  label_size_preset: LabelSizePreset;
 }
 
 class LocalPrintService {
@@ -161,11 +167,26 @@ class LocalPrintService {
     sku: string;
     title: string;
     product_title?: string;
+    brand?: string | null;
+    model?: string | null;
+    unit_price?: string | number | null;
   }): LocalPrintRequest {
+    let priceText = '$—';
+    const p = row.unit_price;
+    if (p != null && p !== '') {
+      if (typeof p === 'number' && !Number.isNaN(p)) {
+        priceText = `$${p.toFixed(2)}`;
+      } else {
+        const s = String(p).trim();
+        priceText = s.startsWith('$') ? s : `$${s}`;
+      }
+    }
     return {
-      text: `$${row.title}`,
+      text: priceText,
       qr_data: row.sku,
       product_title: row.product_title || row.title,
+      product_brand: row.brand?.trim() || undefined,
+      product_model: row.model?.trim() || undefined,
       include_text: true,
     };
   }

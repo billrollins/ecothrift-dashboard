@@ -11,15 +11,12 @@ Usage:
 
 from __future__ import annotations
 
-import logging
 from collections import Counter
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.inventory.services.categorizer import classify_item
-
-logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):

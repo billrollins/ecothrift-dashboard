@@ -1,0 +1,15 @@
+{
+  "store_name": "Eco-Thrift",
+  "receipt_number": "V5-1001",
+  "date": "2026-02-14",
+  "time": "2:30 PM",
+  "cashier": "R. Chen",
+  "items": [{ "name": "Frame 8x10", "quantity": 1, "unit_price": 8.0, "line_total": 8.0 }],
+  "subtotal": 8.0,
+  "tax": 0.56,
+  "total": 8.56,
+  "payment_method": "Mastercard ****9921",
+  "amount_tendered": 8.56,
+  "change": 0,
+  "footer": "Var 05 — no you_saved key (typical POS)"
+}

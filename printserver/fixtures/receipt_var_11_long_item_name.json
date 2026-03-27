@@ -1,0 +1,15 @@
+{
+  "store_name": "Eco-Thrift",
+  "items": [
+    {
+      "name": "SKU-THRIFT-8842-A — Vintage wool peacoat navy M — tag says dry-clean only — rack B14",
+      "quantity": 1,
+      "unit_price": 28.0,
+      "line_total": 28.0
+    }
+  ],
+  "subtotal": 28.0,
+  "total": 28.0,
+  "payment_method": "Cash",
+  "footer": "Var 11 — very long item name (PNG font shrink)"
+}

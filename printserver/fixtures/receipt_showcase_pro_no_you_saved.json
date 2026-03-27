@@ -1,0 +1,22 @@
+{
+  "receipt_layout": "professional",
+  "store_name": "Eco-Thrift - Canfield",
+  "store_address": "8425 W Center Rd\nOmaha, NE 68124",
+  "store_hours": "Wed–Sat 9AM–6PM · Mon–Tue 9AM–6PM\nSun closed",
+  "store_phone": "(402) 881-9861",
+  "receipt_number": "CF-2026-03-26-REG02-99001",
+  "date": "2026-03-26",
+  "time": "10:15 AM",
+  "cashier": "Sam R.",
+  "items": [
+    { "name": "Dress shirt (L)", "quantity": 1, "unit_price": 7.49, "line_total": 7.49 },
+    { "name": "Belt leather", "quantity": 1, "unit_price": 5.0, "line_total": 5.0 }
+  ],
+  "subtotal": 12.49,
+  "tax": 0.87,
+  "total": 13.36,
+  "payment_method": "Cash",
+  "amount_tendered": 20.0,
+  "change": 6.64,
+  "footer": "Variation: no you_saved line — still full header + loud policy below"
+}

@@ -14,8 +14,8 @@ Import specific tables only:
 
 PREREQUISITES
 -------------
-1.  Run the schema discovery queries in docs/old-db-schema.md against ecothrift_v2.
-2.  Paste the results into docs/old-db-schema.md.
+1.  Run the schema discovery queries and save results locally (e.g. `workspace/notebooks/old-db-schema.md`, gitignored).
+2.  Paste results into that file for reference.
 3.  Update the COLUMN MAPPING sections below to match the actual old schema.
 4.  Run with --dry-run first and review the output before committing.
 
@@ -27,14 +27,15 @@ Sections marked "TODO: FILL IN AFTER SCHEMA REVIEW" must be updated before runni
 
 from __future__ import annotations
 
-import logging
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connections, transaction
 
-logger = logging.getLogger(__name__)
+from apps.core.logging import get_logger
+
+logger = get_logger(__name__, 'LOG_INVENTORY_IMPORT')
 
 
 # ── Connection name ────────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@ LEGACY_DB = 'legacy'
 
 # ── TODO: FILL IN AFTER SCHEMA REVIEW ─────────────────────────────────────────
 # Replace these placeholder table/column names with the actual names from
-# docs/old-db-schema.md after you paste the schema query results.
+# workspace/notebooks/old-db-schema.md (local) after you paste the schema query results.
 
 # Old items table (the physical inventory items with SKUs, prices, etc.)
 LEGACY_ITEMS_TABLE = 'TODO_items_table_name'
@@ -148,8 +149,8 @@ SOURCE_MAP = {
     'b-stock': 'purchased',
     'consignment': 'consignment',
     'consign': 'consignment',
-    'house': 'house',
-    'store': 'house',
+    'house': 'misc',
+    'store': 'misc',
 }
 # ── END TODO SECTION ──────────────────────────────────────────────────────────
 
@@ -259,7 +260,7 @@ class Command(BaseCommand):
             raise CommandError(
                 'The import command has not been configured yet.\n'
                 'Please:\n'
-                '  1. Run the schema discovery SQL in docs/old-db-schema.md\n'
+                '  1. Run the schema discovery SQL; save notes under workspace/notebooks/old-db-schema.md (local)\n'
                 '  2. Paste the results into that file\n'
                 '  3. Update the COLUMN MAPPING sections at the top of this file\n'
                 f'\nUnconfigured tables: {", ".join(unconfigured)}'

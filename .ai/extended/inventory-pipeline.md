@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-04T14:00:00-06:00 -->
+<!-- Last updated: 2026-03-26T20:00:00-05:00 -->
 
 # Inventory Pipeline — Extended Context
 
@@ -416,13 +416,13 @@ One row per retag event (always created, even on duplicate scans).
 
 `apps/inventory/management/commands/import_db2_staging.py`
 
-Connects directly to the local `db2` PostgreSQL snapshot (see `docs/Database Audits/.config`) and bulk-inserts active DB2 items into `TempLegacyItem`.
+Connects directly to the local `db2` PostgreSQL snapshot (see root `.env` `DB2_*` or `workspace/` connection notes in `.ai/extended/databases.md`) and bulk-inserts DB2 items into `TempLegacyItem`.
 
 ```bash
-python manage.py import_db2_staging          # import active items only
+python manage.py import_db2_staging          # default: active + sold rows
 python manage.py import_db2_staging --dry-run
 python manage.py import_db2_staging --update-existing  # refresh prices
-python manage.py import_db2_staging --include-sold     # also import sold items (for DS/ML)
+python manage.py import_db2_staging --active-only      # unsold only (sold_at IS NULL)
 ```
 
 Run `--update-existing` the morning of retag day after a fresh DB2 backup/restore.
@@ -463,7 +463,7 @@ Run these **after retag day** in the order listed.
 
 ### Cleanup After Retag Day
 
-See `docs/retag/after_retag.md` for full instructions. Key steps:
+See `.ai/extended/retag-operations.md` (and this section). Key steps:
 1. `DROP TABLE inventory_retaglog; DROP TABLE inventory_templegacyitem;`
 2. Remove `TempLegacyItem` and `RetagLog` model classes from `models.py`
 3. Run `makemigrations inventory --name remove_retag_scaffolding` + `migrate`

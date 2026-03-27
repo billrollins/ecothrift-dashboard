@@ -8,16 +8,35 @@ from services import settings_store
 router = APIRouter(tags=["settings"])
 
 
+def _normalize_settings_payload(data: dict) -> dict:
+    preset = data.get("label_size_preset") or "3x2"
+    if preset not in ("3x2", "1.5x1"):
+        preset = "3x2"
+    data = {**data, "label_size_preset": preset}
+    return data
+
+
 @router.get("/settings", response_model=PrinterSettings)
 async def get_settings():
-    data = settings_store.get_all()
-    return PrinterSettings(**data)
+    data = _normalize_settings_payload(settings_store.get_all())
+    return PrinterSettings(
+        label_printer=data.get("label_printer"),
+        receipt_printer=data.get("receipt_printer"),
+        label_size_preset=data["label_size_preset"],
+    )
 
 
 @router.put("/settings", response_model=PrinterSettings)
 async def update_settings(body: PrinterSettings):
-    updated = settings_store.update(body.model_dump(exclude_none=False))
-    return PrinterSettings(**updated)
+    cur = settings_store.get_all()
+    merged = {**cur, **body.model_dump()}
+    merged = _normalize_settings_payload(merged)
+    updated = settings_store.update(merged)
+    return PrinterSettings(
+        label_printer=updated.get("label_printer"),
+        receipt_printer=updated.get("receipt_printer"),
+        label_size_preset=merged["label_size_preset"],
+    )
 
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -96,6 +115,13 @@ _SETTINGS_HTML = """\
     <select id="receiptPrinter"><option value="">Loading...</option></select>
     <div class="printer-status" id="receiptStatus"></div>
 
+    <label for="labelSizePreset">Label paper size</label>
+    <select id="labelSizePreset">
+      <option value="3x2">3&quot; × 2&quot; (testing / large)</option>
+      <option value="1.5x1">1.5&quot; × 1&quot; (production)</option>
+    </select>
+    <p class="printer-status" style="margin-top:4px">Controls thermal label dimensions (Eco-Thrift layout).</p>
+
     <div class="btn-row">
       <button class="btn-primary" id="saveBtn" disabled>Save</button>
     </div>
@@ -167,6 +193,8 @@ async function load() {
     setStatus(true, printers.length + " printer(s) found");
     populateSelect("labelPrinter", "labelStatus", settings.label_printer);
     populateSelect("receiptPrinter", "receiptStatus", settings.receipt_printer);
+    const sz = document.getElementById("labelSizePreset");
+    sz.value = settings.label_size_preset === "1.5x1" ? "1.5x1" : "3x2";
     document.getElementById("saveBtn").disabled = false;
     document.getElementById("testLabel").disabled = false;
     document.getElementById("testReceipt").disabled = false;
@@ -180,6 +208,7 @@ document.getElementById("saveBtn").addEventListener("click", async () => {
   const body = {
     label_printer: document.getElementById("labelPrinter").value || null,
     receipt_printer: document.getElementById("receiptPrinter").value || null,
+    label_size_preset: document.getElementById("labelSizePreset").value,
   };
   try {
     const res = await fetch(BASE + "/settings", {

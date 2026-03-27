@@ -1,1 +1,5 @@
----
+docs: archive add_item_dialog_and_sources initiative to completed
+
+- Move initiative to .ai/initiatives/_archived/_completed/add_item_dialog_and_sources.md
+- Update ARCHIVE.md TOC, _index.md active table, CHANGELOG + context links
+- review_bump: context + initiative index sync; no semver bump (steering-only)

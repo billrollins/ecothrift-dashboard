@@ -1,0 +1,69 @@
+:5173/api/pos/drawers/?register=1&date=2026-03-26:1  Failed to load resource: the server responded with a status of 400 (Bad Request)
+:5173/api/pos/drawers/?register=1&date=2026-03-26:1  Failed to load resource: the server responded with a status of 400 (Bad Request)
+drawers:1 Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist.
+drawers:1 Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist.
+:5173/api/pos/drawers/?register=1&date=2026-03-26:1  Failed to load resource: the server responded with a status of 400 (Bad Request)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+:5173/api/pos/drawers/?register=1&date=2026-03-26:1  Failed to load resource: the server responded with a status of 400 (Bad Request)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+:5173/api/pos/drawers/:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+proxy.js:1 Uncaught Error: Attempting to use a disconnected port object
+    at handleMessageFromPage (proxy.js:1:850)
+
+
+Watching for file changes with StatReloader
+Performing system checks...
+
+System check identified no issues (0 silenced).
+March 26, 2026 - 14:56:15
+Django version 5.2, using settings 'ecothrift.settings'
+Starting development server at http://127.0.0.1:8000/
+Quit the server with CTRL-BREAK.
+
+WARNING: This is a development server. Do not use it in a production setting. Use a production WSGI or ASGI server instead.
+For more information on production servers see: https://docs.djangoproject.com/en/5.2/howto/deployment/
+[26/Mar/2026 14:56:39] "POST /api/auth/refresh/ HTTP/1.1" 200 241
+[26/Mar/2026 14:56:39] "POST /api/auth/refresh/ HTTP/1.1" 200 241
+[26/Mar/2026 14:56:39] "GET /api/auth/me/ HTTP/1.1" 200 930
+[26/Mar/2026 14:56:39] "GET /api/auth/me/ HTTP/1.1" 200 930
+[26/Mar/2026 14:56:39] "GET /api/core/system/version/ HTTP/1.1" 200 54
+[26/Mar/2026 14:56:39] "GET /api/pos/dashboard/alerts/ HTTP/1.1" 200 65
+[26/Mar/2026 14:56:39] "GET /api/pos/dashboard/metrics/ HTTP/1.1" 200 881
+[26/Mar/2026 14:56:42] "GET /api/pos/registers/ HTTP/1.1" 200 603
+[26/Mar/2026 14:56:42] "GET /api/pos/drawers/ HTTP/1.1" 200 656
+[26/Mar/2026 14:56:42] "GET /api/accounts/users/?page_size=200 HTTP/1.1" 200 2843
+Bad Request: /api/pos/drawers/
+[26/Mar/2026 14:56:45] "GET /api/pos/drawers/?register=1&date=2026-03-26 HTTP/1.1" 400 88
+Bad Request: /api/pos/drawers/
+[26/Mar/2026 14:56:46] "GET /api/pos/drawers/?register=1&date=2026-03-26 HTTP/1.1" 400 88
+Bad Request: /api/pos/drawers/
+[26/Mar/2026 14:59:06] "GET /api/pos/drawers/?register=1&date=2026-03-26 HTTP/1.1" 400 88
+Bad Request: /api/pos/drawers/
+[26/Mar/2026 14:59:09] "GET /api/pos/drawers/?register=1&date=2026-03-26 HTTP/1.1" 400 88
+[26/Mar/2026 14:59:09] "GET /api/pos/registers/ HTTP/1.1" 200 603
+Not Found: /api/pos/drawers/
+[26/Mar/2026 14:59:15] "POST /api/pos/drawers/ HTTP/1.1" 404 32

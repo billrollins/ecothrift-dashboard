@@ -1,0 +1,8 @@
+{
+  "store_name": "Eco-Thrift",
+  "items": [{ "name": "Book", "quantity": 1, "unit_price": 3.5, "line_total": 3.5 }],
+  "subtotal": 3.5,
+  "total": 3.5,
+  "payment_method": "Amex ****3005",
+  "footer": "Var 08 — payment only (no Tendered/Change lines)"
+}

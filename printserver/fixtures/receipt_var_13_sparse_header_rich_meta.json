@@ -1,0 +1,11 @@
+{
+  "store_name": "Eco-Thrift",
+  "receipt_number": "STORE-WEST-2026-03-25-REG04-TXN00091827",
+  "date": "2026-03-25",
+  "cashier": "M. O'Brien",
+  "items": [{ "name": "Hat", "quantity": 1, "unit_price": 6.0, "line_total": 6.0 }],
+  "subtotal": 6.0,
+  "total": 6.0,
+  "payment_method": "Cash",
+  "footer": "Var 13 — no address/phone/time; long receipt #"
+}

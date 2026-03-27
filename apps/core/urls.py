@@ -4,6 +4,7 @@ from .views import (
     WorkLocationViewSet, AppSettingViewSet, S3FileViewSet,
     app_version, print_server_version, print_server_releases,
     print_server_version_public,
+    dev_log_config, dev_log_line,
 )
 
 router = DefaultRouter()
@@ -17,4 +18,6 @@ urlpatterns = [
     path('system/print-server-version/', print_server_version, name='print-server-version'),
     path('system/print-server-releases/', print_server_releases, name='print-server-releases'),
     path('system/print-server-version-public/', print_server_version_public, name='print-server-version-public'),
+    path('dev-log/config/', dev_log_config, name='dev-log-config'),
+    path('dev-log/line/', dev_log_line, name='dev-log-line'),
 ]

@@ -1,0 +1,26 @@
+{
+  "receipt_layout": "professional",
+  "store_name": "Eco-Thrift - Canfield",
+  "store_address": "8425 W Center Rd\nOmaha, NE 68124",
+  "store_hours": "Wed–Sat 9AM–6PM · Mon–Tue 9AM–6PM\nSun closed",
+  "store_phone": "(402) 881-9861",
+  "receipt_number": "CF-2026-03-22-1842",
+  "date": "2026-03-22",
+  "time": "4:18 PM",
+  "cashier": "Jordan M.",
+  "items": [
+    { "name": "Vintage denim jacket", "quantity": 1, "unit_price": 18.99, "line_total": 18.99 },
+    { "name": "Kitchenware bundle (3 pc)", "quantity": 1, "unit_price": 12.50, "line_total": 12.50 },
+    { "name": "Kids sneakers sz 4", "quantity": 1, "unit_price": 6.99, "line_total": 6.99 },
+    { "name": "Hardcover books", "quantity": 5, "unit_price": 1.99, "line_total": 9.95 },
+    { "name": "Lamp + shade", "quantity": 1, "unit_price": 14.00, "line_total": 14.00 }
+  ],
+  "you_saved": 52.4,
+  "subtotal": 62.43,
+  "tax": 4.37,
+  "total": 66.8,
+  "payment_method": "Cash",
+  "amount_tendered": 70.0,
+  "change": 3.2,
+  "footer": "Thank you — every purchase helps our mission\nAnother chance for everything and everyone"
+}

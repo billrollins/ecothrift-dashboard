@@ -106,6 +106,11 @@ export function getSupplementalTransactions(): Promise<{ data: unknown[] }> {
   return api.get('/pos/supplemental/transactions/');
 }
 
+/** Create `SupplementalDrawer` for a work location when missing (Manager+). */
+export function bootstrapSupplemental(data?: { location?: number }): Promise<{ data: unknown }> {
+  return api.post('/pos/supplemental/bootstrap/', data ?? {});
+}
+
 // Bank transactions
 export function getBankTransactions(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<unknown> }> {
   return api.get<PaginatedResponse<unknown>>('/pos/bank-transactions/', { params });

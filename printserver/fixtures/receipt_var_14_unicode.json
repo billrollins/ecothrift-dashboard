@@ -1,0 +1,12 @@
+{
+  "store_name": "Eco-Thrift — café corner",
+  "store_address": "Pop-up near O'Leary's\nHalf-off Wednesday",
+  "items": [
+    { "name": "Mug — \"World's Best\" Dad", "quantity": 1, "unit_price": 3.5, "line_total": 3.5 },
+    { "name": "Book: café culture (French)", "quantity": 1, "unit_price": 4.0, "line_total": 4.0 }
+  ],
+  "subtotal": 7.5,
+  "total": 7.5,
+  "payment_method": "Cash",
+  "footer": "Var 14 — unicode / quotes / apostrophe stress"
+}

@@ -27,7 +27,7 @@ export type PurchaseOrderCondition =
 /**
  * Item source choices
  */
-export type ItemSource = 'purchased' | 'consignment' | 'house';
+export type ItemSource = 'purchased' | 'consignment' | 'misc';
 
 /**
  * Item status choices
@@ -44,6 +44,7 @@ export type ItemStatus =
 export type ItemCondition =
   | 'new'
   | 'like_new'
+  | 'very_good'
   | 'good'
   | 'fair'
   | 'salvage'
@@ -221,6 +222,25 @@ export interface Product {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** One scope block from GET /inventory/items/stats/ */
+export interface ItemStatsBlock {
+  label: string;
+  on_shelf: number;
+  sold: number;
+  lost: number;
+  scrapped: number;
+  total: number;
+  avg_retail: string;
+  avg_sold: string;
+  loss_rate: string;
+}
+
+export interface ItemStatsResponse {
+  product: ItemStatsBlock | null;
+  category: ItemStatsBlock | null;
+  global: ItemStatsBlock;
 }
 
 export interface Item {

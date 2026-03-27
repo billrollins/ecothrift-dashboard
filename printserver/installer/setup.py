@@ -4,13 +4,13 @@ Eco-Thrift Print Server -- Windows Installer
 Bundled as setup.exe by PyInstaller.  Run this on each workstation.
 
 What it does:
-  1. Copies ecothrift-printserver.exe to %LOCALAPPDATA%/EcoThrift/PrintServer/
-  2. Removes any old installation first (clean overwrite)
-  3. Optionally registers the server to auto-start on Windows login
-     (via HKCU registry Run key -- no admin rights needed)
-  4. Optionally creates a Desktop shortcut
+  1. Stops anything on port 8888 and removes legacy V2 print server (Startup VBS,
+     C:\\DashPrintServer / C:\\PrintServer when they look like Python+v2 installs)
+  2. Copies ecothrift-printserver.exe to %LOCALAPPDATA%/EcoThrift/PrintServer/
+  3. Removes any previous V3 install dir first (clean overwrite)
+  4. Optionally registers auto-start (HKCU Run -- no admin rights needed)
 
-No admin rights required.
+Removing C:\\... legacy folders may require Run as administrator if ACLs were locked down.
 """
 
 # ---------------------------------------------------------------------------
@@ -87,7 +87,7 @@ def _kill_port_8888() -> None:
     import subprocess as _sp
     result = _sp.run(['netstat', '-ano'], capture_output=True, text=True)
     seen: set[str] = set()
-    for line in result.stdout.splitlines():
+    for line in (result.stdout or "").splitlines():
         if ':8888 ' in line and 'LISTENING' in line:
             parts = line.split()
             pid = parts[-1] if parts else ""
@@ -96,12 +96,52 @@ def _kill_port_8888() -> None:
                 _sp.run(['taskkill', '/F', '/PID', pid], capture_output=True)
 
 
+def _is_likely_v2_install(path: Path) -> bool:
+    """V2 dashboard print server: Python venv + print_server.py (see .ai/reference/PrintServer (V2))."""
+    return (path / "print_server.py").is_file() and (path / "venv").is_dir()
+
+
+def cleanup_legacy_prior(log: "callable[[str], None]") -> None:
+    """Stop listeners on 8888, kill frozen exe, remove V2 Startup link and V2 install trees."""
+    log("Stopping print server processes (frozen exe + port 8888)...")
+    os.system("taskkill /F /IM ecothrift-printserver.exe >nul 2>&1")
+    _kill_port_8888()
+
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        v2_startup = (
+            Path(appdata)
+            / "Microsoft"
+            / "Windows"
+            / "Start Menu"
+            / "Programs"
+            / "Startup"
+            / "Eco-Thrift Print Server.vbs"
+        )
+        if v2_startup.is_file():
+            try:
+                v2_startup.unlink()
+                log(f"Removed legacy V2 Startup shortcut: {v2_startup}")
+            except OSError as exc:
+                log(f"Could not remove {v2_startup}: {exc}")
+
+    for legacy_root in (Path("C:/DashPrintServer"), Path("C:/PrintServer")):
+        if not legacy_root.is_dir():
+            continue
+        if not _is_likely_v2_install(legacy_root):
+            log(f"Skip {legacy_root} (not a recognized V2 install — need print_server.py + venv/)")
+            continue
+        try:
+            shutil.rmtree(legacy_root, ignore_errors=False)
+            log(f"Removed legacy V2 install: {legacy_root}")
+        except OSError as exc:
+            log(f"Could not remove {legacy_root}: {exc} — try Run as administrator")
+
+
 def do_install(auto_start: bool, log: "callable[[str], None]") -> bool:
     try:
-        # 1. Stop any running instance (by name and by port to catch dev server)
-        log("Stopping existing instance (if running)...")
-        os.system("taskkill /F /IM ecothrift-printserver.exe >nul 2>&1")
-        _kill_port_8888()
+        # 1. Legacy V2 + stop anything on 8888 / frozen exe
+        cleanup_legacy_prior(log)
 
         # 2. Remove old install
         if INSTALL_DIR.exists():
@@ -161,8 +201,7 @@ def do_install(auto_start: bool, log: "callable[[str], None]") -> bool:
 
 def do_uninstall(log: "callable[[str], None]") -> bool:
     try:
-        log("Stopping print server...")
-        os.system("taskkill /F /IM ecothrift-printserver.exe >nul 2>&1")
+        cleanup_legacy_prior(log)
 
         log("Removing auto-start registry entry...")
         try:

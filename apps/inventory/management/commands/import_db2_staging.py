@@ -1,31 +1,44 @@
-"""Import active DB2 items into TempLegacyItem staging table for the Retag v2 workflow.
+"""Import DB2 items into TempLegacyItem staging table for the Retag v2 workflow.
+
+By default imports **active and sold** rows from DB2. Excluding sold items often causes
+missing SKUs and data-quality gaps (retag coverage, ML, audits); use `--active-only`
+when you only need floor inventory.
 
 Usage:
     python manage.py import_db2_staging
     python manage.py import_db2_staging --dry-run
-    python manage.py import_db2_staging --include-sold      # also import sold items (for DS/ML)
+    python manage.py import_db2_staging --active-only   # only unsold (sold_at IS NULL)
     python manage.py import_db2_staging --update-existing   # overwrite rows that already exist
 
-Connects directly to the local 'db2' postgres restore via psycopg2.
-See docs/Database Audits/.config for connection details.
+Connects directly to the DB2 postgres database via psycopg2 (not Django's default DB).
+Set DB2_HOST, DB2_PORT, DB2_NAME, DB2_USER, DB2_PASSWORD in root `.env` (optional; see `.ai/extended/databases.md`).
 
 Expected runtime: < 30s for ~20K rows.
 """
 
 import psycopg2
 import psycopg2.extras
+from decouple import config
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.inventory.models import TempLegacyItem
+from apps.inventory.retag_condition import normalize_legacy_condition
 
-DB2_CONFIG = {
-    'host': 'localhost',
-    'port': 5432,
-    'dbname': 'db2',
-    'user': 'postgres',
-    'password': 'password',
-}
+
+def get_db2_connection_params():
+    """Postgres connection for the DB2 (legacy dashboard) database.
+
+    Override via env (or .env through python-decouple): DB2_HOST, DB2_PORT, DB2_NAME,
+    DB2_USER, DB2_PASSWORD. Defaults match local restore `db2` on localhost.
+    """
+    return {
+        'host': config('DB2_HOST', default='localhost'),
+        'port': config('DB2_PORT', default=5432, cast=int),
+        'dbname': config('DB2_NAME', default='db2'),
+        'user': config('DB2_USER', default='postgres'),
+        'password': config('DB2_PASSWORD', default='password'),
+    }
 
 # In DB2, status is derived from date fields (no status column on inventory_item)
 # ACTIVE: on_shelf_at set, sold_at NULL
@@ -84,7 +97,10 @@ ORDER BY i.id
 
 
 class Command(BaseCommand):
-    help = 'Import active DB2 items into TempLegacyItem staging table for Retag v2.'
+    help = (
+        'Import DB2 items into TempLegacyItem for Retag v2. '
+        'Defaults to including sold rows; pass --active-only to skip them.'
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -93,9 +109,14 @@ class Command(BaseCommand):
             help='Show what would be imported without writing to DB3.',
         )
         parser.add_argument(
+            '--active-only',
+            action='store_true',
+            help='Import only items with sold_at IS NULL (exclude sold rows).',
+        )
+        parser.add_argument(
             '--include-sold',
             action='store_true',
-            help='Also import sold/scrapped/returned items (useful for DS/ML data prep).',
+            help='Deprecated: sold rows are included by default; use --active-only to exclude.',
         )
         parser.add_argument(
             '--update-existing',
@@ -105,23 +126,33 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
-        include_sold = options['include_sold']
+        active_only = options['active_only']
+        include_sold = not active_only
         update_existing = options['update_existing']
+        if options['include_sold']:
+            self.stdout.write(self.style.WARNING(
+                '--include-sold is unnecessary (sold rows are included by default).',
+            ))
 
         self.stdout.write(self.style.HTTP_INFO(
             f'\n=== DB2 to DB3 Staging Import ===\n'
             f'Dry run:         {dry_run}\n'
-            f'Include sold:    {include_sold}\n'
+            f'Active only:     {active_only}  (sold rows {"excluded" if active_only else "included"})\n'
             f'Update existing: {update_existing}\n'
         ))
 
+        db2_params = get_db2_connection_params()
+        self.stdout.write(
+            f"DB2 target: {db2_params['user']}@{db2_params['host']}:{db2_params['port']}/{db2_params['dbname']}\n"
+        )
+
         # Connect to DB2
         try:
-            conn = psycopg2.connect(**DB2_CONFIG)
+            conn = psycopg2.connect(**db2_params)
         except psycopg2.OperationalError as e:
             self.stderr.write(self.style.ERROR(
-                f'Cannot connect to db2 at localhost:5432. '
-                f'Run backup_prod.bat then restore_dev.bat first.\n{e}'
+                f"Cannot connect to DB2 at {db2_params['host']}:{db2_params['port']}/{db2_params['dbname']}. "
+                f"Set DB2_* in .env or restore the DB2 snapshot locally.\n{e}"
             ))
             return
 
@@ -173,7 +204,7 @@ class Command(BaseCommand):
                 'model': row['model'] or '',
                 'price': row['starting_price'],
                 'retail_amt': row['retail_amt'],
-                'condition': row['condition'] or '',
+                'condition': normalize_legacy_condition(row['condition']),
                 'legacy_status': row['derived_status'] or '',
             }
             if sku in existing_skus:

@@ -1,0 +1,11 @@
+{
+  "store_name": "Eco-Thrift",
+  "items": [{ "name": "Lamp", "quantity": 1, "unit_price": 20.0, "line_total": 20.0 }],
+  "subtotal": 20.0,
+  "tax": 1.4,
+  "total": 21.4,
+  "payment_method": "Debit ****4400",
+  "amount_tendered": 21.4,
+  "change": 0,
+  "footer": "Var 04 — non-zero tax row"
+}

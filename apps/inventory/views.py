@@ -1,14 +1,14 @@
 import csv
 import hashlib
 import io
-import logging
 import re
 from decimal import Decimal, InvalidOperation
 
 from django.core.files.storage import default_storage
 from django.db import transaction
-from django.db.models import Count, Q, Sum, F
+from django.db.models import Avg, Count, Q, Sum, F
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes as perm_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -16,11 +16,16 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-from apps.accounts.permissions import IsStaff
+from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
+from apps.core.logging import get_logger
 from apps.core.models import S3File
 from .formula_engine import evaluate_formula, FormulaError
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__, 'LOG_INVENTORY')
+suggest_logger = get_logger(__name__, 'LOG_ADD_ITEM_AI')
+cleanup_logger = get_logger(__name__, 'LOG_INVENTORY_AI_CLEANUP')
+match_logger = get_logger(__name__, 'LOG_INVENTORY_AI_MATCH')
+finalization_logger = get_logger(__name__, 'LOG_INVENTORY_AI_FINALIZATION')
 from .models import (
     Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
@@ -33,6 +38,8 @@ from .serializers import (
     ProductSerializer, ItemSerializer, ItemPublicSerializer,
     ProcessingBatchSerializer, ItemHistorySerializer,
 )
+from .prompts import CONDITION_VALUES, FEW_SHOT_ADD_ITEM, LISTING_STANDARDS, OUTPUT_SCHEMA_HINT
+from .services.ai_listing_context import retrieve_listing_examples_for_prompt
 
 
 MANIFEST_TARGET_FIELDS = (
@@ -1275,7 +1282,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     break
                 except (anthropic_lib.APIConnectionError, anthropic_lib.RateLimitError) as e:
                     if attempt < max_retries:
-                        logger.warning('AI cleanup retry %d after: %s', attempt + 1, e)
+                        cleanup_logger.warning('AI cleanup retry %d after: %s', attempt + 1, e)
                         _time.sleep(2 ** attempt)
                     else:
                         raise
@@ -1298,7 +1305,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 if bracket_pos >= 0:
                     json_match = re.search(r'\[[\s\S]*\]', content_text[bracket_pos:] + ']')
                     if json_match:
-                        logger.warning(
+                        cleanup_logger.warning(
                             'AI cleanup response truncated (max_tokens=%d, batch=%d rows). '
                             'Recovered partial JSON.',
                             calculated_max_tokens, len(batch),
@@ -1350,21 +1357,21 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         except anthropic_lib.APIError as e:
             timing['total_ms'] = round((_time.perf_counter() - t_total_start) * 1000, 1)
-            logger.error('AI cleanup API error: %s', e)
+            cleanup_logger.error('AI cleanup API error: %s', e)
             return Response(
                 {'error': f'AI service error: {e}', 'timing': timing},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         except (json_lib.JSONDecodeError, KeyError) as e:
             timing['total_ms'] = round((_time.perf_counter() - t_total_start) * 1000, 1)
-            logger.warning('Failed to parse AI cleanup response: %s', e)
+            cleanup_logger.warning('Failed to parse AI cleanup response: %s', e)
             return Response(
                 {'error': f'Failed to parse AI response: {e}', 'timing': timing},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         except Exception as e:
             timing['total_ms'] = round((_time.perf_counter() - t_total_start) * 1000, 1)
-            logger.exception('Unexpected error in ai_cleanup_rows')
+            cleanup_logger.exception('Unexpected error in ai_cleanup_rows')
             return Response(
                 {'error': f'Unexpected error: {e}', 'timing': timing},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1768,10 +1775,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                                     'matched_product', 'match_status',
                                 ])
                         except (json_lib.JSONDecodeError, KeyError):
-                            logger.warning('Failed to parse AI match decisions for batch')
+                            match_logger.warning('Failed to parse AI match decisions for batch')
 
             except Exception:
-                logger.exception('AI matching failed, fuzzy results preserved')
+                match_logger.exception('AI matching failed, fuzzy results preserved')
 
         final_rows = ManifestRow.objects.filter(purchase_order=order)
         return Response({
@@ -2000,7 +2007,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
             json_match = re.search(r'\[[\s\S]*\]', content_text)
             if not json_match:
-                logger.warning('AI finalization: no JSON array in response. Content length=%s', len(content_text))
+                finalization_logger.warning('AI finalization: no JSON array in response. Content length=%s', len(content_text))
                 return Response(
                     {'error': 'AI returned non-JSON response.'},
                     status=status.HTTP_502_BAD_GATEWAY,
@@ -2009,7 +2016,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             try:
                 suggestions = json_lib.loads(json_match.group())
             except json_lib.JSONDecodeError as parse_err:
-                logger.warning('AI finalization: JSON parse failed: %s. Snippet: %s', parse_err, content_text[:500])
+                finalization_logger.warning('AI finalization: JSON parse failed: %s. Snippet: %s', parse_err, content_text[:500])
                 return Response(
                     {'error': f'AI returned invalid JSON: {parse_err}'},
                     status=status.HTTP_502_BAD_GATEWAY,
@@ -2020,7 +2027,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             })
 
         except Exception as e:
-            logger.error('AI finalization suggestion failed: %s', e)
+            finalization_logger.error('AI finalization suggestion failed: %s', e)
             return Response(
                 {'error': f'AI service error: {e}'},
                 status=status.HTTP_502_BAD_GATEWAY,
@@ -2771,6 +2778,44 @@ class VendorProductRefViewSet(viewsets.ModelViewSet):
     ordering_fields = ['last_seen_date', 'times_seen']
 
 
+def _item_stats_payload(qs, label: str):
+    """Aggregate counts and averages for a filtered Item queryset."""
+    status_rows = qs.values('status').annotate(c=Count('id'))
+    sc = {row['status']: row['c'] for row in status_rows}
+    on_shelf = sc.get('on_shelf', 0)
+    sold = sc.get('sold', 0)
+    lost = sc.get('lost', 0)
+    scrapped = sc.get('scrapped', 0)
+    total = qs.count()
+    avg_retail = qs.aggregate(a=Avg('price'))['a']
+    avg_sold = qs.filter(sold_for__isnull=False).aggregate(a=Avg('sold_for'))['a']
+    loss_rate = Decimal('0')
+    if total > 0:
+        loss_rate = (Decimal(lost) / Decimal(total)).quantize(Decimal('0.0001'))
+    return {
+        'label': label,
+        'on_shelf': on_shelf,
+        'sold': sold,
+        'lost': lost,
+        'scrapped': scrapped,
+        'total': total,
+        'avg_retail': str(round(avg_retail, 2)) if avg_retail is not None else '0.00',
+        'avg_sold': str(round(avg_sold, 2)) if avg_sold is not None else '0.00',
+        'loss_rate': f'{float(loss_rate):.4f}',
+    }
+
+
+def _csv_query_values(request, key: str) -> list[str]:
+    """Comma-separated and/or repeated query param values (e.g. status=a,b or status=a&status=b)."""
+    out: list[str] = []
+    for part in request.query_params.getlist(key):
+        for x in part.split(','):
+            t = x.strip()
+            if t:
+                out.append(t)
+    return out
+
+
 class ItemViewSet(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
     permission_classes = [IsAuthenticated, IsStaff]
@@ -2782,19 +2827,343 @@ class ItemViewSet(viewsets.ModelViewSet):
         'manifest_row__vendor_item_number', 'manifest_row__search_tags',
     ]
     filterset_fields = [
-        'status', 'source', 'purchase_order', 'category',
-        'processing_tier', 'batch_group', 'condition',
+        'sku', 'purchase_order', 'category',
+        'processing_tier', 'batch_group',
     ]
     ordering_fields = ['created_at', 'price', 'title', 'sku']
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return Item.objects.select_related(
+        qs = Item.objects.select_related(
             'product', 'purchase_order', 'manifest_row', 'batch_group',
         ).all()
+        request = self.request
+
+        q_raw = (request.query_params.get('q') or '').strip()
+        if q_raw:
+            for word in q_raw.lower().split():
+                w = word.strip()
+                if w:
+                    qs = qs.filter(search_text__icontains=w)
+
+        updated_after = (request.query_params.get('updated_after') or '').strip()
+        if updated_after:
+            dt = parse_datetime(updated_after)
+            if dt is not None:
+                if timezone.is_naive(dt):
+                    dt = timezone.make_aware(dt, timezone.get_current_timezone())
+                qs = qs.filter(updated_at__gte=dt)
+
+        status_vals = _csv_query_values(request, 'status')
+        if status_vals:
+            qs = qs.filter(status__in=status_vals)
+
+        condition_vals = _csv_query_values(request, 'condition')
+        if condition_vals:
+            qs = qs.filter(condition__in=condition_vals)
+
+        source_vals = _csv_query_values(request, 'source')
+        if source_vals:
+            qs = qs.filter(source__in=source_vals)
+
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(sku=Item.generate_sku())
+
+    @action(detail=False, methods=['get'], url_path='stats')
+    def item_stats(self, request):
+        """Product / category / global item aggregates for the item drawer."""
+        product_id_raw = request.query_params.get('product_id', '').strip()
+        category_raw = (request.query_params.get('category') or '').strip()
+
+        product_block = None
+        if product_id_raw:
+            try:
+                pid = int(product_id_raw)
+            except ValueError:
+                pid = None
+            if pid is not None:
+                prod = Product.objects.filter(pk=pid).first()
+                if prod:
+                    product_block = _item_stats_payload(
+                        Item.objects.filter(product_id=pid),
+                        prod.title,
+                    )
+
+        category_block = None
+        if category_raw:
+            category_block = _item_stats_payload(
+                Item.objects.filter(category=category_raw),
+                category_raw,
+            )
+
+        global_block = _item_stats_payload(Item.objects.all(), 'All Items')
+
+        return Response({
+            'product': product_block,
+            'category': category_block,
+            'global': global_block,
+        })
+
+    @action(detail=False, methods=['post'], url_path='suggest')
+    def suggest_item(self, request):
+        """AI-assisted listing copy for Add Item (single-item, structured JSON)."""
+        import json as json_lib
+        import time as _time
+
+        try:
+            import anthropic as anthropic_lib
+        except ImportError:
+            return Response(
+                {'error': 'anthropic library is not installed.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        t_total = _time.perf_counter()
+        timing: dict = {}
+
+        try:
+            from django.conf import settings as django_settings
+
+            api_key = getattr(django_settings, 'ANTHROPIC_API_KEY', '')
+            if not api_key:
+                return Response(
+                    {'error': 'ANTHROPIC_API_KEY not configured.'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+
+            fields = request.data.get('fields') or []
+            context = request.data.get('context') or {}
+            # Default to Sonnet — same proven id as manifest AI cleanup; Haiku id varies by account/GA date.
+            model_id = (request.data.get('model') or '').strip() or 'claude-sonnet-4-6'
+
+            if not isinstance(fields, list) or not fields:
+                return Response(
+                    {'error': 'fields must be a non-empty list of field names.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            allowed = {
+                'title', 'brand', 'category', 'condition',
+                'specifications', 'notes', 'price',
+            }
+            fields = [f for f in fields if f in allowed]
+            if not fields:
+                return Response(
+                    {'error': 'No valid fields requested.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            title = (context.get('title') or '')[:500]
+            brand = (context.get('brand') or '')[:200]
+            category = (context.get('category') or '')[:200]
+            cond = (context.get('condition') or '')[:40]
+
+            t0 = _time.perf_counter()
+            store_examples, examples_used = retrieve_listing_examples_for_prompt(
+                title, brand or None, category or None, cond or None,
+            )
+            timing['db_ms'] = round((_time.perf_counter() - t0) * 1000, 1)
+
+            user_payload = {
+                'requested_fields': fields,
+                'draft': {k: context.get(k, '') for k in fields},
+                'store_examples': store_examples,
+            }
+
+            system_prompt = (
+                LISTING_STANDARDS
+                + '\nAllowed condition values (exactly one if returning condition): '
+                + ', '.join(CONDITION_VALUES)
+                + '\n\n'
+                + FEW_SHOT_ADD_ITEM
+                + '\n'
+                + OUTPUT_SCHEMA_HINT
+                + '\n\n'
+                + 'The user message is JSON with requested_fields, draft, and store_examples. '
+                'store_examples are for style only; do not copy SKUs/prices as facts about the draft item.'
+            )
+
+            user_message_json = json_lib.dumps(user_payload)
+            user_message_json_pretty = json_lib.dumps(user_payload, indent=2)
+            if suggest_logger.active_targets() & {'django', 'file'}:
+                prompt_blob = (
+                    f'\n[suggest_item] model={model_id!r}\n'
+                    f'--- SYSTEM PROMPT ({len(system_prompt)} chars) ---\n'
+                    f'{system_prompt}\n'
+                    f'--- USER MESSAGE ---\n'
+                    f'{user_message_json_pretty}\n'
+                    f'--- END suggest_item ---\n'
+                )
+                suggest_logger.info('%s', prompt_blob)
+
+            client = anthropic_lib.Anthropic(api_key=api_key)
+            t0 = _time.perf_counter()
+            response = client.messages.create(
+                model=model_id,
+                max_tokens=1024,
+                system=system_prompt,
+                messages=[{'role': 'user', 'content': user_message_json}],
+                timeout=60.0,
+            )
+            timing['api_ms'] = round((_time.perf_counter() - t0) * 1000, 1)
+
+            content_text = ''
+            for block in response.content:
+                if block.type == 'text':
+                    content_text += block.text
+
+            if suggest_logger.active_targets() & {'django', 'file'}:
+                suggest_logger.info('%s', '--- AI RESPONSE (raw) ---\n' + content_text[:50000])
+
+            if not (content_text or '').strip():
+                suggest_logger.warning('suggest_item empty content from model=%s', model_id)
+                return Response(
+                    {
+                        'error': 'AI returned an empty response. Check ANTHROPIC_API_KEY and model id, then try again.',
+                        'examples_used': examples_used,
+                        'timing': timing,
+                    },
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+            # Strip common markdown fences so the first `{` is the JSON object.
+            stripped = content_text.strip()
+            if stripped.startswith('```'):
+                stripped = re.sub(r'^```(?:json)?\s*', '', stripped, count=1, flags=re.IGNORECASE)
+                stripped = re.sub(r'\s*```\s*$', '', stripped, count=1)
+
+            parsed = None
+            start = stripped.find('{')
+            if start >= 0:
+                try:
+                    decoder = json_lib.JSONDecoder()
+                    parsed, _end = decoder.raw_decode(stripped, start)
+                except json_lib.JSONDecodeError as parse_err:
+                    suggest_logger.warning(
+                        'suggest_item JSON raw_decode failed: %s; snippet=%s',
+                        parse_err,
+                        stripped[:500],
+                    )
+            if not isinstance(parsed, dict):
+                suggest_logger.warning(
+                    'suggest_item could not parse suggestions JSON; model=%s content_len=%s preview=%s',
+                    model_id,
+                    len(content_text),
+                    content_text[:800],
+                )
+                return Response(
+                    {
+                        'error': 'Could not parse AI response as JSON. Try again or pick another model.',
+                        'examples_used': examples_used,
+                        'timing': timing,
+                    },
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+            raw_suggestions = parsed.get('suggestions') if isinstance(parsed, dict) else None
+            if not isinstance(raw_suggestions, dict):
+                # Some models return field keys at the top level without a "suggestions" wrapper.
+                loose = {k: parsed[k] for k in allowed if k in parsed}
+                if loose:
+                    raw_suggestions = loose
+            if not isinstance(raw_suggestions, dict):
+                return Response(
+                    {
+                        'error': 'AI response missing suggestions object (expected {"suggestions": {...}}).',
+                        'examples_used': examples_used,
+                        'timing': timing,
+                    },
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+            out: dict = {}
+            for key in fields:
+                if key not in raw_suggestions:
+                    continue
+                val = raw_suggestions[key]
+                if key == 'condition':
+                    cv = str(val).strip() if val is not None else ''
+                    if cv in CONDITION_VALUES:
+                        out[key] = cv
+                    continue
+                if key == 'specifications':
+                    if isinstance(val, dict):
+                        clean = {str(k): str(v) for k, v in val.items() if k is not None}
+                        out[key] = clean
+                    continue
+                if key == 'price':
+                    pd = parse_decimal(val)
+                    if pd is not None and pd >= 0 and pd <= Decimal('999999.99'):
+                        q = pd.quantize(Decimal('0.01'))
+                        fs = format(q, 'f')
+                        if '.' in fs:
+                            fs = fs.rstrip('0').rstrip('.')
+                        out[key] = fs or '0'
+                    continue
+                if key in ('title', 'brand', 'category', 'notes'):
+                    out[key] = str(val) if val is not None else ''
+
+            low_confidence = parsed.get('low_confidence', False) is True
+            low_confidence_reason = ''
+            if low_confidence:
+                low_confidence_reason = str(parsed.get('low_confidence_reason', ''))[:500]
+
+            usage = getattr(response, 'usage', None)
+            usage_out = {}
+            if usage is not None:
+                usage_out = {
+                    'input_tokens': getattr(usage, 'input_tokens', 0),
+                    'output_tokens': getattr(usage, 'output_tokens', 0),
+                }
+
+            timing['total_ms'] = round((_time.perf_counter() - t_total) * 1000, 1)
+
+            payload = {
+                'suggestions': out,
+                'low_confidence': low_confidence,
+                'low_confidence_reason': low_confidence_reason,
+                'usage': usage_out,
+                'examples_used': examples_used,
+                'timing': timing,
+            }
+            if suggest_logger.should_log_browser():
+                payload['debug'] = {
+                    'model': model_id,
+                    'system_prompt': system_prompt,
+                    'user_message': user_message_json_pretty,
+                }
+            return Response(payload)
+
+        except anthropic_lib.APIError as e:
+            suggest_logger.warning('suggest_item Anthropic error: %s', e)
+            detail = str(e)
+            resp = getattr(e, 'response', None)
+            if resp is not None:
+                try:
+                    detail = f'{detail} (HTTP {resp.status_code})'
+                except Exception:
+                    pass
+            return Response(
+                {
+                    'error': (
+                        'AI service error from Anthropic. '
+                        'Confirm ANTHROPIC_API_KEY and that the model id is valid for your account. '
+                        f'Detail: {detail}'
+                    ),
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        except json_lib.JSONDecodeError as e:
+            return Response(
+                {'error': f'Failed to parse AI response: {e}'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        except Exception as e:
+            suggest_logger.exception('suggest_item unexpected error')
+            return Response(
+                {'error': f'AI suggest failed: {e}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=True, methods=['post'], url_path='check-in')
     def check_in(self, request, pk=None):
@@ -2993,6 +3362,19 @@ def quick_reprice_view(request, pk):
     except Item.DoesNotExist:
         return Response({'detail': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+    # Do not change price on units that are no longer active sellable inventory (receipts / reporting).
+    allowed = {'intake', 'processing', 'on_shelf', 'returned'}
+    if item.status not in allowed:
+        return Response(
+            {
+                'detail': (
+                    f'Quick reprice is not allowed for items with status "{item.status}". '
+                    'Only active inventory (intake, processing, on shelf, or returned) can be repriced.'
+                ),
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     discount_type = request.data.get('discount_type')
     discount_value = request.data.get('discount_value')
     min_price = Decimal(str(request.data.get('min_price', '0.50')))
@@ -3029,15 +3411,169 @@ def quick_reprice_view(request, pk):
         created_by=request.user,
     )
 
+    product_number = ''
+    if item.product_id:
+        try:
+            product_number = (item.product.product_number or '').strip()
+        except Exception:
+            product_number = ''
+
     return Response({
         'sku': item.sku,
         'title': item.title,
+        'status': item.status,
         'old_price': str(old_price),
         'new_price': str(new_price),
         'discount_amount': str(discount_amount),
         'discount_type': discount_type,
         'discount_value': str(discount_value),
+        'brand': item.brand or '',
+        'product_number': product_number,
     })
+
+
+def _item_has_completed_pos_sale(item):
+    from apps.pos.models import CartLine
+
+    return CartLine.objects.filter(item=item, cart__status='completed').exists()
+
+
+def _completed_sale_receipt_number(item):
+    from apps.pos.models import CartLine
+
+    line = (
+        CartLine.objects.filter(item=item, cart__status='completed')
+        .select_related('cart__receipt')
+        .order_by('-cart__completed_at')
+        .first()
+    )
+    if not line:
+        return None
+    r = getattr(line.cart, 'receipt', None)
+    return r.receipt_number if r else None
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsStaff])
+def duplicate_item_for_resale_view(request, pk):
+    """Create a new on-shelf item copied from a sold unit (new SKU).
+
+    POST /api/inventory/items/:id/duplicate-for-resale/
+    Copies product, PO, manifest/batch links, title, pricing, condition, etc.
+    Consignment-sourced items are stored as purchased on the copy (no ConsignmentItem row).
+    """
+    try:
+        src = Item.objects.get(pk=pk)
+    except Item.DoesNotExist:
+        return Response({'detail': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if src.status != 'sold':
+        return Response(
+            {'detail': 'Only sold items can be duplicated for resale.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    base_notes = (src.notes or '').strip()
+    dup_line = f'DUPLICATE_FOR_RESALE_FROM:{src.sku}'
+    new_notes = f'{base_notes}\n{dup_line}' if base_notes else dup_line
+    if src.source == 'consignment':
+        new_notes = f'{new_notes}\nORIGINAL_WAS_CONSIGNMENT:{src.sku}'
+
+    new_source = 'purchased' if src.source == 'consignment' else src.source
+    now = timezone.now()
+
+    with transaction.atomic():
+        new_item = Item.objects.create(
+            sku=Item.generate_sku(),
+            product=src.product,
+            purchase_order=src.purchase_order,
+            manifest_row=src.manifest_row,
+            batch_group=src.batch_group,
+            processing_tier=src.processing_tier,
+            title=src.title,
+            brand=src.brand,
+            category=src.category,
+            price=src.price,
+            cost=src.cost,
+            source=new_source,
+            status='on_shelf',
+            condition=src.condition,
+            specifications=src.specifications if src.specifications is not None else {},
+            location=src.location,
+            notes=new_notes,
+            listed_at=now,
+            checked_in_at=now,
+            checked_in_by=request.user,
+        )
+        ItemHistory.objects.create(
+            item=new_item,
+            event_type='created',
+            old_value='',
+            new_value=new_item.sku,
+            note=f'Duplicate for resale from sold item {src.sku}',
+            created_by=request.user,
+        )
+
+    return Response(ItemSerializer(new_item).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsManagerOrAdmin])
+def mark_sold_item_on_shelf_view(request, pk):
+    """Put a sold item back on shelf (manager). Blocked if a completed POS sale exists.
+
+    POST /api/inventory/items/:id/mark-on-shelf/
+    Use when there is no completed register sale for this unit (e.g. data fix). Otherwise void the sale in POS.
+    """
+    try:
+        item = Item.objects.get(pk=pk)
+    except Item.DoesNotExist:
+        return Response({'detail': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if item.status != 'sold':
+        return Response(
+            {'detail': 'Only sold items can be returned to shelf.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if _item_has_completed_pos_sale(item):
+        rnum = _completed_sale_receipt_number(item)
+        extra = f' Receipt: {rnum}.' if rnum else ''
+        return Response(
+            {
+                'detail': (
+                    'This item is on a completed register sale. Void that transaction in POS first.'
+                    + extra
+                ),
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    old_status = item.status
+    item.status = 'on_shelf'
+    item.sold_at = None
+    item.sold_for = None
+    item.save(update_fields=['status', 'sold_at', 'sold_for', 'updated_at'])
+
+    if item.source == 'consignment' and hasattr(item, 'consignment'):
+        ci = item.consignment
+        ci.status = 'listed'
+        ci.sold_at = None
+        ci.sale_amount = None
+        ci.store_commission = None
+        ci.consignee_earnings = None
+        ci.save()
+
+    ItemHistory.objects.create(
+        item=item,
+        event_type='status_change',
+        old_value=old_status,
+        new_value='on_shelf',
+        note='Marked on shelf from Quick reprice / inventory (manager)',
+        created_by=request.user,
+    )
+
+    return Response(ItemSerializer(item).data)
 
 
 @api_view(['POST'])
@@ -3260,6 +3796,12 @@ def retag_create_view(request):
             'text': f'${price:.2f}',
             'product_title': new_item.title,
             'include_text': True,
+            'product_brand': (new_item.brand or '').strip() or None,
+            'product_model': (
+                (new_item.product.product_number or '').strip()
+                if new_item.product_id
+                else None
+            ),
         },
     })
 
@@ -3276,6 +3818,7 @@ def retag_v2_lookup_view(request):
     Body: { old_sku }
     """
     from .models import TempLegacyItem, RetagLog
+    from .retag_condition import normalize_legacy_condition
     from .services.price_estimator import estimate_price
 
     old_sku = (request.data.get('old_sku') or '').strip().upper()
@@ -3301,11 +3844,12 @@ def retag_v2_lookup_view(request):
         if already_retagged else None
     )
 
+    cond_norm = normalize_legacy_condition(staged.condition)
     price_result = estimate_price(
         title=staged.title,
         brand=staged.brand or None,
         category_name=None,
-        condition=staged.condition or 'unknown',
+        condition=cond_norm,
         source='purchased',
         retail_value=staged.retail_amt,
     )
@@ -3319,7 +3863,7 @@ def retag_v2_lookup_view(request):
             'title': staged.title,
             'brand': staged.brand,
             'model': staged.model,
-            'condition': staged.condition,
+            'condition': cond_norm,
             'legacy_status': staged.legacy_status,
             'price': str(staged.price) if staged.price else '0.00',
             'retail_amt': str(staged.retail_amt) if staged.retail_amt else None,
@@ -3353,6 +3897,7 @@ def retag_v2_create_view(request):
     Body: { old_sku, title, brand?, condition, source, price, cost?, location?, notes? }
     """
     from .models import TempLegacyItem, RetagLog
+    from .retag_condition import normalize_legacy_condition
     from django.utils import timezone as tz
 
     old_sku = (request.data.get('old_sku') or '').strip().upper()
@@ -3369,7 +3914,9 @@ def retag_v2_create_view(request):
 
     title = (request.data.get('title') or staged.title).strip()
     brand = (request.data.get('brand') or staged.brand or '').strip()
-    condition = request.data.get('condition') or staged.condition or 'unknown'
+    condition = normalize_legacy_condition(
+        request.data.get('condition') or staged.condition,
+    )
     source = request.data.get('source') or 'purchased'
     location = (request.data.get('location') or '').strip()
     extra_notes = (request.data.get('notes') or '').strip()
@@ -3438,6 +3985,8 @@ def retag_v2_create_view(request):
             'text': f'${price:.2f}',
             'product_title': new_item.title,
             'include_text': True,
+            'product_brand': brand or None,
+            'product_model': (staged.model or '').strip() or None,
         },
     })
 

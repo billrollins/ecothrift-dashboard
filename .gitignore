@@ -1,9 +1,19 @@
+# Local label test PNGs (printserver/scripts/print_label_local_test.py --dry-run)
+printserver/output/
+printserver/output_label_fringe_review/
+
+# Dev logging (config is tracked; log output is not)
+.ai/debug/debug.log
+
 # Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 venv/
 .env
+
+# Jupyter (any directory in the repo)
+.ipynb_checkpoints/
 
 # Node / Frontend
 frontend/node_modules/
@@ -25,5 +35,55 @@ Thumbs.db
 staticfiles/
 media/
 
-# Personal workspace (scripts, notebooks, notes)
-workspace/
+# Personal workspace — almost everything ignored; only the notebook whitelist below is tracked.
+workspace/*
+!workspace/notebooks/
+!workspace/testing/
+workspace/testing/*
+!workspace/testing/README.md
+!workspace/testing/e2e_retag_pos_sales_verification.md
+!workspace/testing/branded_qr_smoke_test.py
+!workspace/testing/branded_qr_code_prompt.md
+!workspace/testing/logo-icon-120x120.png
+!workspace/testing/logo-icon-100x100.png
+!workspace/testing/logo-letters-black-fullsize.png
+workspace/notebooks/*
+!workspace/notebooks/README.md
+!workspace/notebooks/_shared/
+workspace/notebooks/_shared/*
+!workspace/notebooks/_shared/README.md
+!workspace/notebooks/_shared/config.example.py
+!workspace/notebooks/_shared/requirements-notebooks.txt
+!workspace/notebooks/db-explorer/
+workspace/notebooks/db-explorer/*
+!workspace/notebooks/db-explorer/db_explorer.ipynb
+!workspace/notebooks/historical-data/
+workspace/notebooks/historical-data/*
+!workspace/notebooks/historical-data/schema_discovery.ipynb
+!workspace/notebooks/historical-data/export_all.ipynb
+!workspace/notebooks/bstock-scraper/
+workspace/notebooks/bstock-scraper/*
+!workspace/notebooks/bstock-scraper/Scraper/
+workspace/notebooks/bstock-scraper/Scraper/*
+!workspace/notebooks/bstock-scraper/Scraper/__init__.py
+!workspace/notebooks/bstock-scraper/Scraper/__main__.py
+!workspace/notebooks/bstock-scraper/Scraper/config.py
+!workspace/notebooks/bstock-scraper/Scraper/client.py
+!workspace/notebooks/bstock-scraper/Scraper/scraper.py
+!workspace/notebooks/bstock-scraper/Scraper/browser.py
+!workspace/notebooks/bstock-scraper/Scraper/refresh_token.py
+!workspace/notebooks/bstock-scraper/Scraper/config.example.py
+!workspace/notebooks/bstock-scraper/Scraper/examples/
+workspace/notebooks/bstock-scraper/Scraper/examples/*
+!workspace/notebooks/bstock-scraper/Scraper/examples/bstock_quickstart.ipynb
+workspace/notebooks/_shared/config_local.py
+workspace/notebooks/bstock_config_local.py
+workspace/notebooks/bstock_auth/
+workspace/notebooks/output/
+workspace/notebooks/bstock-scraper/Scraper/bstock_config_local.py
+workspace/notebooks/bstock-scraper/Scraper/bstock_auth/
+workspace/notebooks/bstock-scraper/Scraper/output/
+workspace/notebooks/historical-data/pickle/
+workspace/notebooks/db-explorer/pickles/
+workspace/notebooks/.env
+workspace/notebooks/__pycache__/

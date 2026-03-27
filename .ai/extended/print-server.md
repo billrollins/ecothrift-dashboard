@@ -1,75 +1,67 @@
-<!-- Last updated: 2026-02-26T14:00:00-06:00 -->
+<!-- Last updated: 2026-03-28T12:30:00-05:00 -->
 
 # Print Server — Extended Context
 
 ## Overview
 
-The print server is a **separate FastAPI application** that runs locally at `http://127.0.0.1:8888`. The print server code lives in the `printserver/` directory of this repo and is distributed as a standalone Windows installer. The dashboard communicates with it via HTTP.
+The print server is a **separate FastAPI application** at `http://127.0.0.1:8888`. Source: [`printserver/`](../../printserver/). Stores download **`ecothrift-printserver-setup.exe`** from the V3 dashboard (S3 + `PrintServerRelease`). **Not** a Windows Service — auto-start is **HKCU Run** (`EcoThriftPrintServer`).
 
 ## Architecture
 
-- **Print server**: Standalone FastAPI app on localhost:8888
-- **Dashboard**: Django + React app that calls the print server for printing operations
-- **Communication**: REST over HTTP, 5-second timeout (2-second for availability check)
+- **Print server**: FastAPI on localhost:8888
+- **Dashboard**: Django + React → HTTP (`frontend/src/services/localPrintService.ts`)
+- **Timeouts**: ~5s normal, ~120s for print jobs (virtual PDF printers)
 
 ## Frontend: `localPrintService.ts`
 
-Singleton service at `frontend/src/services/localPrintService.ts` with these methods:
-
 | Method | Purpose |
 |--------|---------|
-| `isAvailable()` | Quick health check (2s timeout), returns boolean |
-| `getHealth()` | Full health response: `{ status, version, printers_available }` |
-| `listPrinters()` | List printers: `{ name, status, is_default }[]` |
-| `printLabel(request)` | Print barcode/QR label; uses `LocalPrintRequest` (text, qr_data, printer_name?, include_text?, product_title?) |
-| `printTest()` | Test label print |
-| `printReceipt(receiptData, openDrawer?, printerName?)` | Print receipt; optionally open cash drawer |
-| `printTestReceipt(printerName?)` | Test receipt print |
-| `openCashDrawer()` | Open cash drawer via receipt printer |
+| `isAvailable()` | Health check (2s timeout) |
+| `getHealth()`, `listPrinters()` | Status and Windows printers |
+| `getSettings` / `updateSettings` | **Requires V3** — persisted in `settings.json` next to installed exe |
+| `printLabel`, `printTest`, `printReceipt`, `openCashDrawer`, etc. | Printing |
 
-**Printer settings** are stored in `localStorage` under `printerSettings`:
-- `labelPrinter` (default: `'Green Label'`)
-- `receiptPrinter` (default: `'POS Printer'`)
+Printer assignment is **on the print server**, shared by all browsers on the PC.
 
-## Backend: Print Server Release Tracking
+## Backend release tracking
 
-### Models (`apps/core/models.py`)
+- Models: `PrintServerRelease`, `S3File` in `apps/core/models.py`
+- Authenticated: `/api/core/system/print-server-version/`, `print-server-releases/`
+- Public (no auth): `/api/core/system/print-server-version-public/` — default `UPDATE_CHECK_URL` in [`printserver/config.py`](../../printserver/config.py); `/manage/check-update` proxies this (no browser CORS).
 
-- **PrintServerRelease**: Tracks versions uploaded to S3
-  - `version` (unique)
-  - `s3_file` (FK to S3File)
-  - `release_notes`
-  - `is_current` (boolean) — only one release is current
-  - `released_by`, `released_at`
+Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe` via [`printserver/distribute.py`](../../printserver/distribute.py) + `manage.py publish_printserver`.
 
-- **S3File**: Tracks uploaded files (key, filename, size, content_type, uploaded_by, uploaded_at)
+## V2 vs V3 (migration)
 
-### Endpoints (`apps/core/views.py`)
+| | V2 (old dashboard) | V3 (this repo) |
+|--|-------------------|----------------|
+| Path | `C:\DashPrintServer` (or manual `C:\PrintServer`) | `%LOCALAPPDATA%\EcoThrift\PrintServer\` |
+| Runtime | Python **venv** + `print_server.py` | Single **`ecothrift-printserver.exe`** |
+| Auto-start | Startup folder **`Eco-Thrift Print Server.vbs`** | HKCU **Run** `EcoThriftPrintServer` |
+| `/settings` | **No** (404) | **Yes** |
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/core/system/print-server-version/` | GET | Returns latest release info when `is_current=True`; `{ available: false }` if none |
-| `/api/core/system/print-server-releases/` | GET | List all print server releases |
+**Stores:** Running **Install** on `ecothrift-printserver-setup.exe` calls **`cleanup_legacy_prior()`** in [`printserver/installer/setup.py`](../../printserver/installer/setup.py): stops port **8888** + frozen exe, deletes V2 Startup VBS, removes `C:\DashPrintServer` / `C:\PrintServer` only when both `print_server.py` and `venv\` exist, then wipes old V3 dir and installs fresh. **Uninstall** from setup GUI also runs that cleanup after removing V3. If `C:\...` removal fails, **Run setup as Administrator**.
 
-Both require `IsAuthenticated`.
+**IT optional:** [`printserver/installer/uninstall_legacy_prior.bat`](../../printserver/installer/uninstall_legacy_prior.bat) — best-effort CMD mirror (not uploaded separately to S3 by default).
 
-## Design Intent
+**Not used:** Windows Services, Task Scheduler (for both stacks per reference).
 
-The print server handles:
+## Design intent
 
-- **Label printing**: Barcode/QR labels for inventory items (GDI + Pillow)
-- **Receipt printing**: POS receipts (GDI plain-text)
-- **Cash drawer**: Open via ESC/POS through the receipt printer
+Labels (GDI + Pillow), receipts (GDI text), cash drawer (ESC/POS). Built-in UI: `/` printers, `/manage` updates + uninstall trigger (server self-remove).
 
-Hardware is accessed locally (USB/serial) — hence the separate local process.
+**Labels (shipped in source, v1.2.x):** “Concept C” side stripe — raster in [`printserver/services/label_printer.py`](../../printserver/services/label_printer.py); 203 DPI presets `3x2` / `1.5x1`. Price band: smaller `$` top-left; larger dollar digits and cents; dollar digits left-aligned with extra inset from the stripe edge when whole dollars > 0 (see `_draw_price_block`). **Sub-dollar** prices (e.g. `$0.75`): **`$` + cents only** — no large middle `0`. Fit loop tries scales **1.0 → 0.5** step **0.01** (integer font sizes may repeat across steps). Optional `price_fit_stats` on `generate_label` fills `first_fit_scale` and `used_fallback` for tooling. **Fringe harness:** [`printserver/scripts/label_price_fringe_grid.py`](../../printserver/scripts/label_price_fringe_grid.py) writes PNGs + a console summary under `printserver/output_label_fringe_review/` (gitignored). **GDI:** `printer_manager.send_image` fits the bitmap to `HORZRES`×`VERTRES`, centers horizontally, top-aligns vertically (thermal drivers). Reference PNGs + notes: [`.ai/reference/Consult Label/to-be-checked/`](../reference/Consult%20Label/to-be-checked/). Quick local print: [`printserver/dev_print_e2e_3_labels.bat`](../../printserver/dev_print_e2e_3_labels.bat).
 
-## Current Status (v1.8.0+)
+## Initiatives (labels + receipts)
 
-- **Service client**: `localPrintService.ts` — fully wired for label, receipt, drawer
-- **Backend**: Release tracking (PrintServerRelease, S3File) and endpoints exist; public no-auth version endpoint at `/core/system/print-server-version-public/`
-- **Print server**: **Shipped** — `printserver/` directory in repo. FastAPI app, Windows self-contained installer (`ecothrift-printserver-setup.exe`), `distribute.bat` builds + uploads to S3
-- **Built-in browser UI**: `/` (printer assignment), `/manage` (auto-start toggle, version check, changelog, uninstall)
-- **Registry auto-start**: Installer registers for Windows startup; port-kill on reinstall
-- **Dashboard integration**: Admin SettingsPage has printer dropdowns, test buttons, Client Download section, and link to `/manage`
-- **`useLocalPrintStatus` hook**: Polls `/health` every 30s; persistent green/gray status chip in ProcessingPage PageHeader
-- **Graceful degradation**: Check-in succeeds even when print server is offline; reprint recovery on Checked In tab
+**Receipts (pending):** [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](../initiatives/_archived/_pending/print_server_receipt_format.md). **Labels — Concept C (closed):** [`.ai/initiatives/_archived/_completed/print_server_label_design.md`](../initiatives/_archived/_completed/print_server_label_design.md). **Labels — price layout & fringe (closed):** [`.ai/initiatives/_archived/_completed/print_server_label_price_layout.md`](../initiatives/_archived/_completed/print_server_label_price_layout.md). **Migration/install (closed):** [`print_server_v3_testing_and_migration.md`](../initiatives/_archived/_completed/print_server_v3_testing_and_migration.md).
+
+## Current integration
+
+- Admin **Settings**: download current release, printer dropdowns, tests, link to `127.0.0.1:8888/manage`
+- **ProcessingPage**: `useLocalPrintStatus`, label print, offline degradation
+- POS pages also use `localPrintService` for receipts
+
+## V2 reference snapshot
+
+Historical installer/API: [`.ai/reference/PrintServer (V2)/`](../reference/PrintServer%20(V2)/). Stub checklist: [`LEGACY_UNINSTALL.md`](../reference/PrintServer%20(V2)/LEGACY_UNINSTALL.md) (details live in this file).

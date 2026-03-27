@@ -1,0 +1,12 @@
+{
+  "store_name": "Eco-Thrift — Pop-up",
+  "items": [
+    { "name": "T-shirt", "quantity": 1, "unit_price": 4.0, "line_total": 4.0 },
+    { "name": "Scarf", "quantity": 1, "unit_price": 3.0, "line_total": 3.0 }
+  ],
+  "tax": 0,
+  "subtotal": 7.0,
+  "total": 7.0,
+  "payment_method": "Cash",
+  "footer": "Var 03 — explicit tax 0 (no Tax line)"
+}

@@ -1,0 +1,11 @@
+{
+  "store_name": "Eco-Thrift",
+  "items": [
+    { "name": "Belt", "quantity": 1, "unit_price": 5.5, "line_total": 5.5 }
+  ],
+  "subtotal": 5.5,
+  "total": 5.5,
+  "payment_method": "Cash",
+  "amount_tendered": 6.0,
+  "change": 0.5
+}

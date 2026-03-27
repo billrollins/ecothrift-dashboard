@@ -1,0 +1,11 @@
+{
+  "store_name": "Eco-Thrift",
+  "items": [{ "name": "Coat", "quantity": 1, "unit_price": 32.0, "line_total": 32.0 }],
+  "subtotal": 32.0,
+  "tax": 2.24,
+  "total": 34.24,
+  "payment_method": "Cash",
+  "amount_tendered": 40.0,
+  "change": 5.76,
+  "footer": "Var 06 — cash tendered > total"
+}

@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.db import models
 from django.utils.text import slugify
@@ -448,7 +450,7 @@ class Item(models.Model):
     SOURCE_CHOICES = [
         ('purchased', 'Purchased'),
         ('consignment', 'Consignment'),
-        ('house', 'House'),
+        ('misc', 'Miscellaneous'),
     ]
     STATUS_CHOICES = [
         ('intake', 'Intake'),
@@ -525,12 +527,46 @@ class Item(models.Model):
     notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    search_text = models.TextField(blank=True, default='', db_index=True)
 
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
         return f'{self.sku} - {self.title}'
+
+    def rebuild_search_text(self) -> str:
+        """Lowercased concatenation of item + product fields for fast icontains search."""
+        parts = [
+            self.sku or '',
+            self.title or '',
+            self.brand or '',
+            self.category or '',
+            self.notes or '',
+            self.location or '',
+            self.status or '',
+            self.condition or '',
+            self.source or '',
+        ]
+        if self.product_id:
+            try:
+                p = self.product
+            except Product.DoesNotExist:
+                p = None
+            if p is not None:
+                parts.extend([
+                    p.title or '',
+                    p.product_number or '',
+                    p.model or '',
+                    p.upc or '',
+                    p.brand or '',
+                ])
+        text = ' '.join(parts).lower()
+        return re.sub(r'\s+', ' ', text).strip()
+
+    def save(self, *args, **kwargs):
+        self.search_text = self.rebuild_search_text()
+        super().save(*args, **kwargs)
 
     @staticmethod
     def generate_sku():
@@ -669,18 +705,15 @@ class TempLegacyItem(models.Model):
 
 
 class RetagLog(models.Model):
-    """Temporary scaffolding — one row per retag event during the DB2→DB3 retag day.
+    """Per-scan audit log for Retag v2 (temporary scaffolding; see .ai/extended/retag-operations.md)."""
 
-    Drop after retag day:  DROP TABLE inventory_retaglog;
-    Then remove this model and its migration from the codebase.
-    """
-    legacy_sku   = models.CharField(max_length=50, db_index=True)
+    legacy_sku = models.CharField(max_length=50, db_index=True)
     new_item_sku = models.CharField(max_length=20)
-    title        = models.CharField(max_length=300)
-    price        = models.DecimalField(max_digits=10, decimal_places=2)
-    retail_amt   = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    retagged_at  = models.DateTimeField(auto_now_add=True, db_index=True)
-    retagged_by  = models.ForeignKey(
+    title = models.CharField(max_length=300)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    retail_amt = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    retagged_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    retagged_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
@@ -692,4 +725,4 @@ class RetagLog(models.Model):
         ordering = ['-retagged_at']
 
     def __str__(self):
-        return f'{self.legacy_sku} → {self.new_item_sku} @ {self.retagged_at:%Y-%m-%d %H:%M}'
+        return f'{self.legacy_sku} → {self.new_item_sku} @ {self.retagged_at}'

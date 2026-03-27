@@ -1,0 +1,25 @@
+{
+  "receipt_layout": "professional",
+  "store_name": "Eco-Thrift - Canfield",
+  "store_address": "8425 W Center Rd\nOmaha, NE 68124",
+  "store_hours": "Wed–Sat 9AM–6PM · Mon–Tue 9AM–6PM\nSun closed",
+  "store_phone": "(402) 881-9861",
+  "receipt_number": "CF-2026-03-24-1555",
+  "date": "2026-03-24",
+  "time": "3:55 PM",
+  "cashier": "Alex T.",
+  "items": [
+    { "name": "Office chair (rolling)", "quantity": 1, "unit_price": 45.0, "line_total": 45.0 },
+    { "name": "Monitor 24\" (as-is)", "quantity": 1, "unit_price": 35.0, "line_total": 35.0 },
+    { "name": "Cable / adapter bin", "quantity": 1, "unit_price": 5.99, "line_total": 5.99 },
+    { "name": "Donation thank-you pin", "quantity": 1, "unit_price": 0.0, "line_total": 0.0 }
+  ],
+  "you_saved": 124.0,
+  "subtotal": 85.99,
+  "tax": 6.02,
+  "total": 92.01,
+  "payment_method": "Debit ****8812",
+  "amount_tendered": 92.01,
+  "change": 0,
+  "footer": "Shop thrift first — every day is Earth Day\nAnother chance for everything and everyone"
+}

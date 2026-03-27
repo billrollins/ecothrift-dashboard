@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getRegisters,
@@ -14,6 +15,11 @@ import {
   removeCartLine,
   completeCart,
   voidCart,
+  createRegister,
+  updateRegister,
+  deleteRegister,
+  getSupplemental,
+  bootstrapSupplemental,
 } from '../api/pos.api';
 
 export function useRegisters(params?: Record<string, unknown>) {
@@ -259,5 +265,55 @@ export function useVoidCart() {
       queryClient.invalidateQueries({ queryKey: ['drawers'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
+  });
+}
+
+export function useCreateRegister() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => createRegister(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['registers'] }),
+  });
+}
+
+export function useUpdateRegister() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
+      updateRegister(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['registers'] }),
+  });
+}
+
+export function useDeleteRegister() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteRegister(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['registers'] }),
+  });
+}
+
+export function useSupplemental() {
+  return useQuery({
+    queryKey: ['supplemental'],
+    queryFn: async () => {
+      try {
+        const { data } = await getSupplemental();
+        return data;
+      } catch (e: unknown) {
+        if (isAxiosError(e) && e.response?.status === 404) return null;
+        throw e;
+      }
+    },
+    retry: false,
+  });
+}
+
+export function useBootstrapSupplemental() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (locationId?: number) =>
+      bootstrapSupplemental(locationId != null ? { location: locationId } : {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['supplemental'] }),
   });
 }

@@ -32,7 +32,9 @@ import {
   deleteCategory,
   getItems,
   getItem,
+  getItemStats,
   createItem,
+  suggestItem,
   updateItem,
   deleteItem,
   checkInItem,
@@ -65,6 +67,7 @@ import {
   undoProductMatching,
   clearPricing,
 } from '../api/inventory.api';
+import { devLog } from '../utils/logger';
 import type {
   SuggestFormulasPayload,
   AICleanupRowsPayload,
@@ -72,6 +75,7 @@ import type {
   ReviewMatchesPayload,
   SuggestFinalizationPayload,
   FinalizeRowsPayload,
+  SuggestItemRequest,
 } from '../api/inventory.api';
 
 export function useVendors(params?: Record<string, unknown>) {
@@ -885,6 +889,25 @@ export function useItem(id: number | null) {
   });
 }
 
+export function useItemStats(params: {
+  productId?: number | null;
+  category?: string | null;
+  enabled?: boolean;
+}) {
+  const { productId, category, enabled = true } = params;
+  return useQuery({
+    queryKey: ['items', 'stats', productId ?? null, category ?? ''],
+    queryFn: async () => {
+      const { data } = await getItemStats({
+        product_id: productId ?? undefined,
+        category: category ?? undefined,
+      });
+      return data;
+    },
+    enabled,
+  });
+}
+
 export function useCreateItem() {
   const queryClient = useQueryClient();
 
@@ -895,6 +918,22 @@ export function useCreateItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
+export function useAISuggestItem() {
+  return useMutation({
+    mutationFn: async (data: SuggestItemRequest) => {
+      const { data: result } = await suggestItem(data);
+      if (result.debug) {
+        devLog.group('[suggest_item] prompt sent to AI');
+        devLog.log('model:', result.debug.model);
+        devLog.log('system_prompt:\n', result.debug.system_prompt);
+        devLog.log('user_message:\n', result.debug.user_message);
+        devLog.groupEnd();
+      }
+      return result;
     },
   });
 }

@@ -1,0 +1,11 @@
+{
+  "store_name": "Eco-Thrift",
+  "items": [{ "name": "Shoes", "quantity": 1, "unit_price": 15.99, "line_total": 15.99 }],
+  "subtotal": 15.99,
+  "tax": 1.12,
+  "total": 17.11,
+  "payment_method": "Visa ****1234",
+  "amount_tendered": 17.11,
+  "change": 0,
+  "footer": "Var 07 — card exact match + change 0"
+}

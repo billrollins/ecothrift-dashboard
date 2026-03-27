@@ -1,0 +1,24 @@
+{
+  "receipt_layout": "professional",
+  "store_name": "Eco-Thrift - Canfield",
+  "store_address": "8425 W Center Rd\nOmaha, NE 68124",
+  "store_hours": "Wed–Sat 9AM–6PM · Mon–Tue 9AM–6PM\nSun closed",
+  "store_phone": "(402) 881-9861",
+  "receipt_number": "CF-2026-03-19-1107",
+  "date": "2026-03-19",
+  "time": "11:07 AM",
+  "cashier": "Sam R.",
+  "items": [
+    { "name": "Dress shirt (L)", "quantity": 1, "unit_price": 7.49, "line_total": 7.49 },
+    { "name": "Ceramic vase", "quantity": 1, "unit_price": 4.25, "line_total": 4.25 },
+    { "name": "Puzzle 1000pc", "quantity": 2, "unit_price": 3.5, "line_total": 7.0 }
+  ],
+  "you_saved": 18.75,
+  "subtotal": 18.74,
+  "tax": 1.31,
+  "total": 20.05,
+  "payment_method": "Visa ****4242",
+  "amount_tendered": 20.05,
+  "change": 0,
+  "footer": "Thanks for shopping Canfield today!\nAnother chance for everything and everyone"
+}

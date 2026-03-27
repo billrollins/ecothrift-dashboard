@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T18:00:00-05:00 -->
+<!-- Last updated: 2026-03-28T19:00:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -13,7 +13,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Dashboard (dev tooling)
 
-- **Add Item dev logging:** Hierarchical **`.ai/debug/log.config`** areas **`LOG_ADD_ITEM`**, **`LOG_ADD_ITEM_FORM`**, **`LOG_ADD_ITEM_AI`**; default committed config sets **`LOG_ADD_ITEM = file`** so AI prompt, raw response, and form action lines go to **`.ai/debug/debug.log`**. Endpoints **`GET /api/core/dev-log/config/`**, **`POST /api/core/dev-log/line/`** (DEBUG, staff). Frontend **`useDevLogConfig`**, **`AddItemDialog`** instrumentation. Initiative: [`.ai/initiatives/add_item_dialog_and_sources.md`](.ai/initiatives/add_item_dialog_and_sources.md).
+- **Add Item dev logging:** Hierarchical **`.ai/debug/log.config`** areas **`LOG_ADD_ITEM`**, **`LOG_ADD_ITEM_FORM`**, **`LOG_ADD_ITEM_AI`**; default committed config sets **`LOG_ADD_ITEM = file`** so AI prompt, raw response, and form action lines go to **`.ai/debug/debug.log`**. Endpoints **`GET /api/core/dev-log/config/`**, **`POST /api/core/dev-log/line/`** (DEBUG, staff). Frontend **`useDevLogConfig`**, **`ItemForm`** instrumentation. Initiative (completed): [`.ai/initiatives/_archived/_completed/add_item_dialog_and_sources.md`](.ai/initiatives/_archived/_completed/add_item_dialog_and_sources.md).
 
 ### Print server (source — ship via `printserver/distribute.bat`; **dashboard Heroku not bumped**)
 

@@ -1,0 +1,25 @@
+{
+  "receipt_layout": "professional",
+  "store_name": "Eco-Thrift - Canfield",
+  "store_address": "8425 W Center Rd\nOmaha, NE 68124",
+  "store_hours": "Wed–Sat 9AM–6PM · Mon–Tue 9AM–6PM\nSun closed",
+  "store_phone": "(402) 881-9861",
+  "receipt_number": "CF-2026-03-25-REG04-88421",
+  "date": "2026-03-25",
+  "time": "3:42 PM",
+  "cashier": "Jordan M.",
+  "items": [
+    { "name": "Vintage wool peacoat (navy, M)", "quantity": 1, "unit_price": 34.0, "line_total": 34.0 },
+    { "name": "Ceramic planter set", "quantity": 1, "unit_price": 12.5, "line_total": 12.5 },
+    { "name": "Kids LEGO bin (by weight)", "quantity": 1, "unit_price": 8.99, "line_total": 8.99 },
+    { "name": "Hardcover books", "quantity": 4, "unit_price": 1.99, "line_total": 7.96 }
+  ],
+  "you_saved": 67.25,
+  "subtotal": 63.45,
+  "tax": 4.44,
+  "total": 67.89,
+  "payment_method": "Visa ****4242",
+  "amount_tendered": 67.89,
+  "change": 0,
+  "footer": "Another chance for everything and everyone\nThank you for supporting Eco-Thrift Canfield"
+}

@@ -31,7 +31,12 @@ import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { getSettings, updateSetting, getAppVersion, getPrintServerVersion } from '../../api/core.api';
 import { localPrintService } from '../../services/localPrintService';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { PrinterSettings, PrinterInfo, HealthResponse } from '../../services/localPrintService';
+import type {
+  PrinterSettings,
+  PrinterInfo,
+  HealthResponse,
+  LabelSizePreset,
+} from '../../services/localPrintService';
 
 interface PrintServerReleaseData {
   available: boolean;
@@ -123,6 +128,7 @@ export default function SettingsPage() {
       localPrintService.updateSettings({
         label_printer: name || null,
         receipt_printer: psSettings?.receipt_printer ?? null,
+        label_size_preset: psSettings?.label_size_preset ?? '3x2',
       }),
     onSuccess: () => {
       refetchPsSettings();
@@ -135,6 +141,7 @@ export default function SettingsPage() {
       localPrintService.updateSettings({
         label_printer: psSettings?.label_printer ?? null,
         receipt_printer: name || null,
+        label_size_preset: psSettings?.label_size_preset ?? '3x2',
       }),
     onSuccess: () => {
       refetchPsSettings();
@@ -150,6 +157,20 @@ export default function SettingsPage() {
         variant: r.success ? 'success' : 'error',
       }),
     onError: () => enqueueSnackbar('Test label failed', { variant: 'error' }),
+  });
+
+  const saveLabelSizePreset = useMutation({
+    mutationFn: (preset: LabelSizePreset) =>
+      localPrintService.updateSettings({
+        label_printer: psSettings?.label_printer ?? null,
+        receipt_printer: psSettings?.receipt_printer ?? null,
+        label_size_preset: preset,
+      }),
+    onSuccess: () => {
+      refetchPsSettings();
+      enqueueSnackbar('Label paper size saved', { variant: 'success' });
+    },
+    onError: () => enqueueSnackbar('Failed to save label size', { variant: 'error' }),
   });
 
   const testReceipt = useMutation({
@@ -476,6 +497,22 @@ export default function SettingsPage() {
                   >
                     Test Label
                   </Button>
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-end', mb: 2 }}>
+                  <FormControl fullWidth>
+                    <InputLabel>Label paper size</InputLabel>
+                    <Select
+                      value={psSettings?.label_size_preset ?? '3x2'}
+                      label="Label paper size"
+                      onChange={(e: SelectChangeEvent<LabelSizePreset>) =>
+                        saveLabelSizePreset.mutate(e.target.value as LabelSizePreset)
+                      }
+                    >
+                      <MenuItem value="3x2">3″ × 2″ (testing / large)</MenuItem>
+                      <MenuItem value="1.5x1">1.5″ × 1″ (production)</MenuItem>
+                    </Select>
+                  </FormControl>
                 </Box>
 
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-end', mb: 2 }}>

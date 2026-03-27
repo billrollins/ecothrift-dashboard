@@ -28,6 +28,7 @@ import TerminalPage from './pages/pos/TerminalPage';
 import DrawerListPage from './pages/pos/DrawerListPage';
 import CashManagementPage from './pages/pos/CashManagementPage';
 import TransactionListPage from './pages/pos/TransactionListPage';
+import PosStoreSetupPage from './pages/admin/PosStoreSetupPage';
 import ConsignmentAccountsPage from './pages/consignment/AccountsPage';
 import ConsigneeDetailPage from './pages/consignment/ConsigneeDetailPage';
 import ConsignmentItemsPage from './pages/consignment/ItemsPage';
@@ -120,6 +121,14 @@ export default function App() {
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         <Route path="/pos/cash" element={<CashManagementPage />} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
+        <Route
+          path="/admin/pos-setup"
+          element={
+            <ManagerRoute>
+              <PosStoreSetupPage />
+            </ManagerRoute>
+          }
+        />
         <Route
           path="/consignment/accounts"
           element={<ManagerRoute><ConsignmentAccountsPage /></ManagerRoute>}

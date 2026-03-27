@@ -100,7 +100,7 @@ function saveStickyDefaults(condition: string, location: string) {
 // ─── Print helpers ────────────────────────────────────────────────────────────
 
 async function printSingleLabel(
-  item: Pick<Item, 'sku' | 'title' | 'price'>,
+  item: Pick<Item, 'sku' | 'title' | 'price'> & Partial<Pick<Item, 'brand' | 'product_number'>>,
   priceOverride?: string,
 ): Promise<boolean> {
   try {
@@ -109,6 +109,8 @@ async function printSingleLabel(
       text: price ? `$${Number.parseFloat(price).toFixed(2)}` : '$0.00',
       qr_data: item.sku,
       product_title: item.title,
+      product_brand: item.brand?.trim() || undefined,
+      product_model: item.product_number?.trim() || undefined,
       include_text: true,
     });
     return true;
@@ -118,7 +120,7 @@ async function printSingleLabel(
 }
 
 async function printBatchLabels(
-  items: Pick<Item, 'sku' | 'title' | 'price'>[],
+  items: Array<Pick<Item, 'sku' | 'title' | 'price'> & Partial<Pick<Item, 'brand' | 'product_number'>>>,
   priceOverride?: string,
   onProgress?: (done: number, total: number) => void,
 ): Promise<{ succeeded: number; failed: number }> {
@@ -330,7 +332,10 @@ export default function ProcessingPage() {
 
   // ─── Print handler ──────────────────────────────────────────────────────────
 
-  const handlePrint = useCallback(async (item: Pick<Item, 'sku' | 'title' | 'price'>, priceOverride?: string) => {
+  const handlePrint = useCallback(async (
+    item: Pick<Item, 'sku' | 'title' | 'price'> & Partial<Pick<Item, 'brand' | 'product_number'>>,
+    priceOverride?: string,
+  ) => {
     if (!printStatus.online) {
       enqueueSnackbar('Print server offline — label not printed.', { variant: 'warning' });
       return;
@@ -396,7 +401,13 @@ export default function ProcessingPage() {
         enqueueSnackbar(`Checked in ${checkedIn.sku}`, { variant: 'success' });
 
         if (printOnCheckIn) {
-          await handlePrint({ sku: checkedIn.sku, title: checkedIn.title, price: checkedIn.price });
+          await handlePrint({
+            sku: checkedIn.sku,
+            title: checkedIn.title,
+            price: checkedIn.price,
+            brand: checkedIn.brand,
+            product_number: checkedIn.product_number,
+          });
         }
 
         setJustCheckedIn(true);
@@ -457,7 +468,13 @@ export default function ProcessingPage() {
 
   const handleReprint = useCallback(async () => {
     if (activeItem) {
-      await handlePrint({ sku: activeItem.sku, title: activeItem.title, price: activeItem.price });
+      await handlePrint({
+        sku: activeItem.sku,
+        title: activeItem.title,
+        price: activeItem.price,
+        brand: activeItem.brand,
+        product_number: activeItem.product_number,
+      });
     }
   }, [activeItem, handlePrint]);
 
@@ -866,7 +883,13 @@ export default function ProcessingPage() {
           <IconButton size="small"
             onClick={(e) => {
               e.stopPropagation();
-              handlePrint({ sku: params.row.sku, title: params.row.title, price: params.row.price });
+              handlePrint({
+                sku: params.row.sku,
+                title: params.row.title,
+                price: params.row.price,
+                brand: params.row.brand,
+                product_number: params.row.product_number,
+              });
             }}>
             <LocalPrintshop fontSize="small" />
           </IconButton>

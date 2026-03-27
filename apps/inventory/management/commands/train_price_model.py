@@ -2,7 +2,7 @@
 Train the price estimation model on historical sold items.
 
 Requires: scikit-learn, lightgbm (or xgboost), joblib, pandas
-Install:  pip install -r requirements-ml.txt
+Install:  pip install -r workspace/notebooks/_shared/requirements-notebooks.txt
 
 Usage:
     python manage.py train_price_model
@@ -28,12 +28,9 @@ TARGET
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
-
-logger = logging.getLogger(__name__)
 
 DEFAULT_OUTPUT = Path(__file__).parent.parent.parent.parent.parent / 'workspace' / 'models' / 'price_model.joblib'
 MIN_SAMPLES_DEFAULT = 100
@@ -76,7 +73,7 @@ class Command(BaseCommand):
         except ImportError as exc:
             raise CommandError(
                 f'Required ML packages not installed.\n'
-                f'Run: pip install -r requirements-ml.txt\n'
+                f'Run: pip install -r workspace/notebooks/_shared/requirements-notebooks.txt\n'
                 f'Error: {exc}'
             ) from exc
 

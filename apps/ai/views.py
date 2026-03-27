@@ -1,12 +1,12 @@
-import logging
-
 from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-logger = logging.getLogger(__name__)
+from apps.core.logging import get_logger
+
+logger = get_logger(__name__, 'LOG_AI')
 
 AVAILABLE_MODELS = [
     {'id': 'claude-sonnet-4-6', 'name': 'Claude Sonnet 4.6', 'default': True},

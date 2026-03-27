@@ -1,0 +1,11 @@
+{
+  "store_name": "Eco-Thrift",
+  "items": [
+    { "name": "Donor thank-you sticker", "quantity": 1, "unit_price": 0, "line_total": 0 },
+    { "name": "Jeans", "quantity": 1, "unit_price": 9.0, "line_total": 9.0 }
+  ],
+  "subtotal": 9.0,
+  "total": 9.0,
+  "payment_method": "Cash",
+  "footer": "Var 10 — $0 line item + paid item"
+}

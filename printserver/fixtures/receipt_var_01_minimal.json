@@ -1,0 +1,8 @@
+{
+  "store_name": "Eco-Thrift",
+  "items": [{ "name": "Mug", "quantity": 1, "unit_price": 2.0, "line_total": 2.0 }],
+  "subtotal": 2.0,
+  "total": 2.0,
+  "payment_method": "Cash",
+  "footer": "Var 01 — minimal header/meta/payment detail"
+}

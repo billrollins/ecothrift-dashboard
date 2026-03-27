@@ -1,5 +1,17 @@
-from django_filters import rest_framework as filters
-from .models import Cart
+﻿from django_filters import rest_framework as filters
+from .models import Cart, Drawer
+
+
+class DrawerFilter(filters.FilterSet):
+    """NumberFilter for register avoids ModelChoice validation that returns 400 for stale IDs."""
+
+    register = filters.NumberFilter(field_name='register_id')
+    date = filters.DateFilter()
+    status = filters.CharFilter()
+
+    class Meta:
+        model = Drawer
+        fields = ['register', 'date', 'status']
 
 
 class CartFilter(filters.FilterSet):

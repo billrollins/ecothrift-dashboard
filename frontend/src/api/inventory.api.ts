@@ -4,6 +4,7 @@ import type {
   PurchaseOrder,
   Product,
   Item,
+  ItemStatsResponse,
   CSVTemplate,
   Category,
   VendorProductRef,
@@ -680,6 +681,41 @@ export function createItem(data: Record<string, unknown>): Promise<{ data: Item 
   return api.post<Item>('/inventory/items/', data);
 }
 
+export interface SuggestItemRequest {
+  fields: string[];
+  context: Record<string, string>;
+  model?: string;
+}
+
+export interface SuggestItemResponse {
+  suggestions: Record<string, unknown>;
+  low_confidence: boolean;
+  low_confidence_reason: string;
+  usage: { input_tokens: number; output_tokens: number };
+  examples_used: number;
+  timing: { db_ms: number; api_ms: number; total_ms: number };
+  /** Present when suggest area resolves to `browser` in `.ai/debug/log.config` (console via devLog + VITE_DEV_LOG). */
+  debug?: {
+    model: string;
+    system_prompt: string;
+    user_message: string;
+  };
+}
+
+export function suggestItem(data: SuggestItemRequest): Promise<{ data: SuggestItemResponse }> {
+  return api.post<SuggestItemResponse>('/inventory/items/suggest/', data);
+}
+
+export function getItemStats(params?: {
+  product_id?: number | null;
+  category?: string | null;
+}): Promise<{ data: ItemStatsResponse }> {
+  const q: Record<string, string> = {};
+  if (params?.product_id != null) q.product_id = String(params.product_id);
+  if (params?.category?.trim()) q.category = params.category.trim();
+  return api.get<ItemStatsResponse>('/inventory/items/stats/', { params: q });
+}
+
 export function updateItem(id: number, data: Record<string, unknown>): Promise<{ data: Item }> {
   return api.patch<Item>(`/inventory/items/${id}/`, data);
 }
@@ -800,15 +836,26 @@ export interface QuickRepriceRequest {
 export interface QuickRepriceResponse {
   sku: string;
   title: string;
+  status?: string;
   old_price: string;
   new_price: string;
   discount_amount: string;
   discount_type: string;
   discount_value: string;
+  brand?: string;
+  product_number?: string;
 }
 
 export function quickReprice(itemId: number, data: QuickRepriceRequest): Promise<{ data: QuickRepriceResponse }> {
   return api.post<QuickRepriceResponse>(`/inventory/items/${itemId}/quick-reprice/`, data);
+}
+
+export function duplicateItemForResale(itemId: number): Promise<{ data: Item }> {
+  return api.post<Item>(`/inventory/items/${itemId}/duplicate-for-resale/`);
+}
+
+export function markSoldItemOnShelf(itemId: number): Promise<{ data: Item }> {
+  return api.post<Item>(`/inventory/items/${itemId}/mark-on-shelf/`);
 }
 
 export function verifyItemPresent(itemId: number): Promise<{ data: { sku: string; title: string; status: string; location: string; verified: boolean } }> {
@@ -878,7 +925,14 @@ export interface RetagCreateResponse {
   price: string;
   category: string;
   old_sku: string;
-  print_payload: { qr_data: string; text: string; product_title: string; include_text: boolean };
+  print_payload: {
+    qr_data: string;
+    text: string;
+    product_title: string;
+    include_text: boolean;
+    product_brand?: string | null;
+    product_model?: string | null;
+  };
 }
 
 export function retagCreate(data: RetagCreateRequest): Promise<{ data: RetagCreateResponse }> {
@@ -933,7 +987,14 @@ export interface RetagV2CreateResponse {
   category: string;
   old_sku: string;
   already_retagged?: boolean;
-  print_payload: { qr_data: string; text: string; product_title: string; include_text: boolean };
+  print_payload: {
+    qr_data: string;
+    text: string;
+    product_title: string;
+    include_text: boolean;
+    product_brand?: string | null;
+    product_model?: string | null;
+  };
 }
 
 export function retagV2Lookup(oldSku: string): Promise<{ data: RetagV2LookupResponse }> {

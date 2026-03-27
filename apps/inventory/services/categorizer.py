@@ -7,7 +7,7 @@ inventory.Category record and a confidence score.
 THREE-TIER APPROACH (in order of preference):
   1. Rule-based keyword matching — instant, no dependencies, explainable
   2. ML classifier (TF-IDF + Logistic Regression) — trained on historical data
-     when enough labeled items exist. Requires scikit-learn (requirements-ml.txt).
+     when enough labeled items exist. Requires scikit-learn (workspace/notebooks/_shared/requirements-notebooks.txt).
   3. LLM fallback (Claude) — for ambiguous items when ML confidence is low.
      Uses the existing ANTHROPIC_API_KEY from settings.
 
@@ -21,12 +21,13 @@ Usage:
 
 from __future__ import annotations
 
-import logging
 import re
 from dataclasses import dataclass
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+from apps.core.logging import get_logger
+
+logger = get_logger(__name__, 'LOG_INVENTORY_CATEGORIZER')
 
 
 @dataclass

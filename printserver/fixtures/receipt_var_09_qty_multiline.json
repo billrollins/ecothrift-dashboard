@@ -1,0 +1,15 @@
+{
+  "store_name": "Eco-Thrift",
+  "items": [
+    {
+      "name": "Socks (bundle)",
+      "quantity": 6,
+      "unit_price": 1.25,
+      "line_total": 7.5
+    }
+  ],
+  "subtotal": 7.5,
+  "total": 7.5,
+  "payment_method": "Cash",
+  "footer": "Var 09 — qty>1 two-line item layout"
+}

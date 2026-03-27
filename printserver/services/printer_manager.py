@@ -140,12 +140,30 @@ def send_raw(printer_name: str, doc_name: str, data: bytes) -> None:
         win32print.ClosePrinter(handle)
 
 
-def send_image(printer_name: str, image: Image.Image, source_dpi: int, doc_name: str = "Label") -> None:
+def send_image(
+    printer_name: str,
+    image: Image.Image,
+    source_dpi: int,
+    doc_name: str = "Label",
+    *,
+    fit_to_printable: bool = True,
+) -> None:
     """Print a PIL Image through the Windows GDI pipeline.
 
     Works with ANY Windows printer (inkjet, laser, thermal label, PDF).
-    The image is scaled from source_dpi to the printer's native DPI so the
-    physical size stays correct.
+    The image is scaled from ``source_dpi`` using the driver's logical DPI, then
+    **fitted** to the printable rectangle (``HORZRES`` / ``VERTRES``) so it never
+    overflows. **Horizontally centered** to fix drivers whose logical width does
+    not match ``LOGPIXELSX``. **Vertically top-aligned** (``py = 0``): many roll
+    drivers report a ``VERTRES`` taller than one label; vertical centering splits
+    the bitmap across two feeds or clips the top of the first label.
+
+    If ``fit_to_printable`` is False, the bitmap is **not** shrunk to fit
+    ``HORZRES``/``VERTRES``. Use for **pre-sized** rasters (e.g. 3×2 in at
+    ``source_dpi``) when the driver reports a **smaller** logical page (wrong
+    stock size) and shrinking would print a **tiny** image on wide physical
+    stock. The DC may still clip; prefer matching the driver paper size to the
+    label.
     """
     if image.mode != "RGB":
         image = image.convert("RGB")
@@ -155,21 +173,55 @@ def send_image(printer_name: str, image: Image.Image, source_dpi: int, doc_name:
 
     printer_dpi_x = hdc.GetDeviceCaps(win32con.LOGPIXELSX)
     printer_dpi_y = hdc.GetDeviceCaps(win32con.LOGPIXELSY)
+    printable_w = hdc.GetDeviceCaps(win32con.HORZRES)
+    printable_h = hdc.GetDeviceCaps(win32con.VERTRES)
+    phys_off_x = hdc.GetDeviceCaps(win32con.PHYSICALOFFSETX)
+    phys_off_y = hdc.GetDeviceCaps(win32con.PHYSICALOFFSETY)
 
-    # Physical size in printer pixels, preserving the source dimensions.
-    dst_w = int(image.width / source_dpi * printer_dpi_x)
-    dst_h = int(image.height / source_dpi * printer_dpi_y)
+    # Intended physical size in printer device units (driver-reported DPI).
+    dst_w = max(1, int(image.width / source_dpi * printer_dpi_x))
+    dst_h = max(1, int(image.height / source_dpi * printer_dpi_y))
+
+    if fit_to_printable and printable_w > 0 and printable_h > 0:
+        # Fit inside the printable area; never overflow (prevents asymmetric clip).
+        fit = min(printable_w / dst_w, printable_h / dst_h, 1.0)
+        dst_w = max(1, int(dst_w * fit))
+        dst_h = max(1, int(dst_h * fit))
+        px = max(0, (printable_w - dst_w) // 2)
+        py = 0  # top of printable = start of label; do not center vertically on roll stock
+    elif not fit_to_printable and printable_w > 0 and printable_h > 0:
+        # Native size from source_dpi; center horizontally if it fits, else left-align.
+        py = 0
+        if dst_w <= printable_w:
+            px = max(0, (printable_w - dst_w) // 2)
+        else:
+            px = 0
+    else:
+        px, py = 0, 0
 
     hdc.StartDoc(doc_name)
     hdc.StartPage()
 
     dib = ImageWin.Dib(image)
-    dib.draw(hdc.GetHandleOutput(), (0, 0, dst_w, dst_h))
+    dib.draw(hdc.GetHandleOutput(), (px, py, px + dst_w, py + dst_h))
 
     hdc.EndPage()
     hdc.EndDoc()
     hdc.DeleteDC()
-    logger.info("GDI image sent to %s (%dx%d @ %d dpi)", printer_name, dst_w, dst_h, printer_dpi_x)
+    logger.info(
+        "GDI image sent to %s rect=(%d,%d)+(%dx%d) printable=%dx%d dpi=%dx%d phys_off=(%d,%d)",
+        printer_name,
+        px,
+        py,
+        dst_w,
+        dst_h,
+        printable_w,
+        printable_h,
+        printer_dpi_x,
+        printer_dpi_y,
+        phys_off_x,
+        phys_off_y,
+    )
 
 
 def send_text(printer_name: str, text: str, doc_name: str = "Receipt") -> None:
