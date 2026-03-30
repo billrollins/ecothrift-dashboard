@@ -162,6 +162,10 @@ STORAGES = {
     },
 }
 
+# Serve Vite build output at root paths (e.g. /assets/*) via WhiteNoise so the
+# SPA's script/link tags (which use base="/") resolve to real files.
+WHITENOISE_ROOT = _frontend_dist if _frontend_dist.exists() else None
+
 # ── S3 Storage ────────────────────────────────────────────────────────────────
 USE_S3 = config('USE_S3', default=False, cast=bool)
 
