@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-27T15:00:00-05:00 -->
+<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -59,7 +59,7 @@ Open `http://localhost:5173`. Login: `bill_rollins@ecothrift.us` / `JAckel13`
 
 ## Quick Scripts
 
-If **POS registers** or **supplemental drawer** rows are missing (e.g. after `reset_business_data`), run `python manage.py setup_initial_data` to recreate defaults idempotently, or open **Admin → POS setup** (`/admin/pos-setup`, Manager/Admin) to create registers, locations, or bootstrap a supplemental drawer. You can also use Django **`/admin/`** for `Register`, `SupplementalDrawer`, and `WorkLocation`. After register IDs change, re-pick the register in **POS device config** on each terminal (stored in browser localStorage). Committed scripts (drag-and-drop into a terminal or run from Explorer):
+If **POS registers** or **supplemental drawer** rows are missing (e.g. after `reset_business_data`), run `python manage.py setup_initial_data` to recreate defaults idempotently, or open **Admin → POS setup** (`/admin/pos-setup`, Manager/Admin) to create registers, locations, or bootstrap a supplemental drawer. You can also use Django **`/db-admin/`** (`contrib.admin`) for `Register`, `SupplementalDrawer`, and `WorkLocation`. (React app routes stay at **`/admin/*`** — e.g. `/admin/pos-setup`, `/admin/settings` — and must not collide with Django admin.) After register IDs change, re-pick the register in **POS device config** on each terminal (stored in browser localStorage). Committed scripts (drag-and-drop into a terminal or run from Explorer):
 
 | Script | What it does |
 |--------|-------------|

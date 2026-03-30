@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
+<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -13,7 +13,7 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 
 | Initiative | Notes |
 |------------|--------|
-| *—* | *No active initiatives. See [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md) (especially **pending**).* |
+| [`django_admin_legacy_navigation.md`](./django_admin_legacy_navigation.md) | **Shipped:** Django admin at **`/db-admin/`**; React **`/admin/*`** no longer collides. Confirm prod, then archive. |
 
 **Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables.
 

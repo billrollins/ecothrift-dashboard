@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T16:00:00-06:00 -->
+<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -132,7 +132,8 @@ hasRole(role) => userLevel >= requiredLevel
 ### Admin
 
 - All staff routes
-- `/admin/users`, `/admin/permissions`, `/admin/settings`
+- React in-app admin: `/admin/users`, `/admin/permissions`, `/admin/settings`, and other **`/admin/*`** routes (not Django `contrib.admin`)
+- **Django model admin** (superuser, raw ORM UI): **`/db-admin/`** — separate prefix from React **`/admin/*`**
 - Consignment management (`/consignment/accounts`, `/consignment/items`, `/consignment/payouts`)
 
 ### Manager

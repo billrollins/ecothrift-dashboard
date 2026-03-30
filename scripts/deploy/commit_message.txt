@@ -1,4 +1,18 @@
-fix(retag): update defaults — 35% retail, Good condition, harden scan focus
+fix: move Django contrib.admin to /db-admin so React /admin/* refreshes work
 
-- strategyPct 55→35, defaultCondition/editCondition unknown→good
-- Add useLocation + visibilitychange hooks to focus scan field on route entry and tab activate
+Full page loads were hitting contrib.admin under the same /admin/ prefix as the
+React staff pages (e.g. /admin/settings), which showed Django admin login.
+Mount admin at /db-admin/, let the SPA serve /admin/*, proxy /db-admin in Vite,
+and redirect exact /admin and /admin/ to /db-admin/ for old bookmarks.
+
+See CHANGELOG [Unreleased] and .ai/initiatives/django_admin_legacy_navigation.md.
+
+Also — retag v2 history API and today-only history defaults:
+
+- retag_v2_history_view: serialize retagged_by with User.full_name (custom User
+  has no get_full_name(); AbstractUser-only API).
+- RetagPage: default today-only filter on; since = start of local calendar day
+  (date-fns startOfDay); initial fetch matches the toggle; search debounce uses
+  sessionOnlyRef.
+
+See CHANGELOG.md [Unreleased] when inventory/retag notes are added.

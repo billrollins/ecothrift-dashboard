@@ -45,7 +45,7 @@ import {
   type RetagHistoryResponse,
 } from '../../api/inventory.api';
 import { localPrintService } from '../../services/localPrintService';
-import { format } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 import { useLocation } from 'react-router-dom';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -185,8 +185,10 @@ export default function RetagPage() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historySearch, setHistorySearch] = useState('');
   const [historyPage, setHistoryPage] = useState(1);
-  const [sessionOnly, setSessionOnly] = useState(false);
-  const sessionStartRef = useRef<string>(new Date().toISOString());
+  const [sessionOnly, setSessionOnly] = useState(true);
+  const dayStartIsoRef = useRef<string>(startOfDay(new Date()).toISOString());
+  const sessionOnlyRef = useRef(sessionOnly);
+  sessionOnlyRef.current = sessionOnly;
   const historySearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const skuRef = useRef<HTMLInputElement>(null);
@@ -214,7 +216,7 @@ export default function RetagPage() {
       page,
       page_size: 25,
       search: search || undefined,
-      since: sessionOnlyMode ? sessionStartRef.current : undefined,
+      since: sessionOnlyMode ? dayStartIsoRef.current : undefined,
     })
       .then(r => {
         setHistoryData(r.data);
@@ -235,7 +237,7 @@ export default function RetagPage() {
   }, [fetchHistory, historyPage, historySearch, sessionOnly]);
 
   useEffect(() => {
-    fetchHistory(1, '', false);
+    fetchHistory(1, '', true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1019,7 +1021,7 @@ export default function RetagPage() {
               setHistoryPage(1);
               if (historySearchTimerRef.current) clearTimeout(historySearchTimerRef.current);
               historySearchTimerRef.current = setTimeout(() => {
-                fetchHistory(1, val, false);
+                fetchHistory(1, val, sessionOnlyRef.current);
               }, 300);
             }}
             sx={{ width: 300 }}
@@ -1040,10 +1042,10 @@ export default function RetagPage() {
             }
             label={
               <Typography variant="body2">
-                This session only
+                Today only (local day)
                 {sessionOnly && historyData != null && (
                   <Typography component="span" variant="caption" color="text.secondary" ml={0.5}>
-                    ({historyData.count} in log since page opened)
+                    ({historyData.count} since midnight local)
                   </Typography>
                 )}
               </Typography>

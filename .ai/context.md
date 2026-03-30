@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
+<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -141,7 +141,7 @@ ecothrift-dashboard/
 
 ### Next focus and backlog
 
-**`.ai/initiatives/_index.md`** lists **active** initiatives (none at the moment — see **pending** below). Prior E2E retag/Quick reprice work is [archived completed](initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md). **Receipt format** and **location labels** are **pending** off the main index — [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](initiatives/_archived/_pending/print_server_receipt_format.md), [`.ai/initiatives/_archived/_pending/create_location_label.md`](initiatives/_archived/_pending/create_location_label.md). **[`.ai/initiatives/_archived/ARCHIVE.md`](initiatives/_archived/ARCHIVE.md)** catalogs completed, backlog, **pending**, and abandoned work. **Initiatives are archived only when the user explicitly approves** — see protocols and `_index.md`. Priorities also live in **`CHANGELOG.md`** and the user’s session message.
+**`.ai/initiatives/_index.md`** lists **active** initiatives — currently **[Django Admin navigation / hard refresh](initiatives/django_admin_legacy_navigation.md)** (**`contrib.admin`** at **`/db-admin/`**; React in-app admin remains **`/admin/*`** — refresh fix shipped 2026-03-30; confirm prod then archive when ready). Prior E2E retag/Quick reprice work is [archived completed](initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md). **Receipt format** and **location labels** are **pending** off the main index — [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](initiatives/_archived/_pending/print_server_receipt_format.md), [`.ai/initiatives/_archived/_pending/create_location_label.md`](initiatives/_archived/_pending/create_location_label.md). **[`.ai/initiatives/_archived/ARCHIVE.md`](initiatives/_archived/ARCHIVE.md)** catalogs completed, backlog, **pending**, and abandoned work. **Initiatives are archived only when the user explicitly approves** — see protocols and `_index.md`. Priorities also live in **`CHANGELOG.md`** and the user’s session message.
 
 **Initiatives and versioning:** **Major, minor, and patch** bumps (repo `.version`, root `package.json`, `CHANGELOG.md`) follow **user-visible behavior and API contract** — not a 1:1 rule with initiative files (see `_index.md` under “CHANGELOG, `.version`, and releases”). Even so, **shipping work should stay traceable to named initiatives** in `_index.md` unless the change is explicitly outside that model (e.g. hotfix). If an AI session or a **review_bump** pass cannot tell **which initiative** is being worked on or released, that is a **process gap**: the user should **name** the initiative or **create** one (new `.md` + row in `_index.md`). See `.ai/protocols/startup.md` (step 4) and `.ai/protocols/review_bump.md` (Part A item 4, Part C gate).
 

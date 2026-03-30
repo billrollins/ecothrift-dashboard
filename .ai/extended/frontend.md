@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T18:00:00-05:00 -->
+<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -88,7 +88,7 @@
 `vite.config.ts`:
 
 - Port 5173
-- **Proxy**: `/api` and `/admin` → `http://127.0.0.1:8000`
+- **Proxy**: `/api` and `/db-admin` (Django `contrib.admin`) → `http://127.0.0.1:8000`. **`/admin/*`** is **not** proxied — it is served by Vite as the React SPA (in-app admin pages: settings, users, etc.).
 - Build: `dist`, no sourcemaps
 
 ## Version Display

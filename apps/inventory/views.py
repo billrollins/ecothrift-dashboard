@@ -4087,7 +4087,7 @@ def retag_v2_history_view(request):
                 'price': str(row.price),
                 'retail_amt': str(row.retail_amt) if row.retail_amt is not None else None,
                 'retagged_at': row.retagged_at.isoformat(),
-                'retagged_by': row.retagged_by.get_full_name() if row.retagged_by else None,
+                'retagged_by': row.retagged_by.full_name if row.retagged_by else None,
             }
             for row in rows
         ],

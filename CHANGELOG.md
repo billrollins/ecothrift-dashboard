@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
+<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,6 +10,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+### Fixed
+
+- **Routing — Django admin vs React `/admin/*`:** Django **`contrib.admin`** moved from **`/admin/`** to **`/db-admin/`** so hard refresh and direct URLs to in-app pages (e.g. **`/admin/settings`**, **`/admin/users`**) load the React SPA instead of Django’s admin login. Production SPA fallback no longer excludes **`admin/`**; Vite dev proxy targets **`/db-admin`** only. Exact **`/admin`** / **`/admin/`** redirects to **`/db-admin/`** for bookmarks to the old Django admin root. Superusers who used Django Admin at **`/admin/`** should open **`/db-admin/`**. Initiative: [`.ai/initiatives/django_admin_legacy_navigation.md`](.ai/initiatives/django_admin_legacy_navigation.md).
 
 ### Steering
 
