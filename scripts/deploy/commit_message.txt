@@ -1,5 +1,4 @@
-docs(initiatives): move create_location_label to pending archive
+fix(retag): update defaults — 35% retail, Good condition, harden scan focus
 
-- git mv to _archived/_pending/; archive marker + link fixes
-- Update _index.md, ARCHIVE.md TOC, CHANGELOG [Unreleased], context.md
-- review_bump: steering sync; no repo semver bump (initiative bookkeeping only)
+- strategyPct 55→35, defaultCondition/editCondition unknown→good
+- Add useLocation + visibilitychange hooks to focus scan field on route entry and tab activate

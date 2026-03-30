@@ -46,6 +46,7 @@ import {
 } from '../../api/inventory.api';
 import { localPrintService } from '../../services/localPrintService';
 import { format } from 'date-fns';
+import { useLocation } from 'react-router-dom';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -148,13 +149,14 @@ function computeAppliedPrice(
 
 export default function RetagPage() {
   const { enqueueSnackbar } = useSnackbar();
+  const location = useLocation();
 
   // ── Session settings (persist across scans) ──
   const [strategy, setStrategy] = useState<PriceStrategy>('pct_of_retail');
-  const [strategyPct, setStrategyPct] = useState(55);
+  const [strategyPct, setStrategyPct] = useState(35);
   const [autoPrint, setAutoPrint] = useState(true);
   const [defaultSource, setDefaultSource] = useState('purchased');
-  const [defaultCondition, setDefaultCondition] = useState('unknown');
+  const [defaultCondition, setDefaultCondition] = useState('good');
 
   // ── Scan / lookup state ──
   const [skuInput, setSkuInput] = useState('');
@@ -166,7 +168,7 @@ export default function RetagPage() {
   const [lookupResult, setLookupResult] = useState<RetagV2LookupResponse | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editPrice, setEditPrice] = useState('');
-  const [editCondition, setEditCondition] = useState('unknown');
+  const [editCondition, setEditCondition] = useState('good');
   const [editLocation, setEditLocation] = useState('');
   const [priceOverridden, setPriceOverridden] = useState(false);
 
@@ -188,6 +190,10 @@ export default function RetagPage() {
   const historySearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const skuRef = useRef<HTMLInputElement>(null);
+  const lookupLoadingRef = useRef(false);
+  const createLoadingRef = useRef(false);
+  lookupLoadingRef.current = lookupLoading;
+  createLoadingRef.current = createLoading;
 
   // Load DB stats on mount and after each successful tag
   const refreshStats = useCallback(() => {
@@ -239,6 +245,25 @@ export default function RetagPage() {
       setTimeout(() => skuRef.current?.focus(), 80);
     }
   }, [lookupResult, createLoading, lookupLoading, history.length]);
+
+  // Focus scan field after navigating to this route (sidebar / SPA)
+  useEffect(() => {
+    if (location.pathname !== '/inventory/retag') return;
+    if (createLoading || lookupLoading) return;
+    const t = setTimeout(() => skuRef.current?.focus(), 80);
+    return () => clearTimeout(t);
+  }, [location.pathname, createLoading, lookupLoading]);
+
+  // Refocus scan when the browser tab becomes visible again
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (lookupLoadingRef.current || createLoadingRef.current) return;
+      setTimeout(() => skuRef.current?.focus(), 50);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   // ── Reactive applied price ──
   const legacy = lookupResult?.legacy_item;
