@@ -4,13 +4,17 @@ Django settings for ecothrift project — development.
 import os
 from pathlib import Path
 from datetime import timedelta
-from decouple import Config, Csv, RepositoryEnv
+from decouple import Config, Csv, RepositoryEnv, RepositoryEmpty
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load `.env` from project root so ANTHROPIC_API_KEY and other vars work even when
-# `manage.py` / ASGI is started with a cwd other than the repo root.
-config = Config(RepositoryEnv(str(BASE_DIR / '.env')))
+# Load `.env` from project root when it exists (local dev); fall back to
+# environment variables only (Heroku / production where .env is absent).
+_env_path = BASE_DIR / '.env'
+if _env_path.is_file():
+    config = Config(RepositoryEnv(str(_env_path)))
+else:
+    config = Config(RepositoryEmpty())
 
 # ── Security ──────────────────────────────────────────────────────────────────
 SECRET_KEY = config('SECRET_KEY')
