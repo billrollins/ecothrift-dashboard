@@ -476,123 +476,138 @@ def render_receipt_to_image(
     *,
     layout_style: str | None = None,
     dpi: int = 203,
+    render_scale: int = 1,
 ) -> Image.Image:
     """Structured receipt PNG: large logo, clear sections, loud no-refund block.
 
     ``receipt_layout`` / ``receipt_style`` on ``data`` may be ``professional``,
     ``cool``, or ``emoji``. ``layout_style`` wins when set.
+
+    ``render_scale`` multiplies canvas dimensions, fonts, and spacing so Pillow
+    rasterizes at higher resolution. Use ``send_image(..., source_dpi=dpi * render_scale)``
+    to keep physical print width unchanged.
     """
-    _ = dpi  # reserved for future mm-accurate sizing
+    S = max(1, int(render_scale))
+    _ = dpi
     theme_key = resolve_receipt_layout(data, layout_style)
     t = _RECEIPT_THEMES[theme_key]
 
-    x0 = _MARGIN
-    x1 = _MARGIN + _INNER
-    y = _MARGIN
-    H_WORK = 4200
+    canvas_w = CANVAS_W * S
+    margin = _MARGIN * S
+    inner = canvas_w - 2 * margin
+    h_work = 4200 * S
 
-    im = Image.new("RGB", (CANVAS_W, H_WORK), t["bg"])
+    x0 = margin
+    x1 = margin + inner
+    y = margin
+
+    im = Image.new("RGB", (canvas_w, h_work), t["bg"])
     draw = ImageDraw.Draw(im)
 
-    f_title = _sans_bold(26)
-    f_sub = _sans_reg(16)
-    f_small = _sans_reg(14)
-    f_label = _sans_reg(14)
-    f_label_b = _sans_bold(14)
-    f_meta_val = _mono_receipt(23)
-    f_item = _sans_reg(16)
-    f_money = _sans_reg(16)
-    f_total = _sans_bold(32)
-    f_saved = _sans_bold(24)
-    f_policy_h = _sans_bold(34)
-    f_policy_m = _sans_bold(15)
-    f_policy_s = _sans_reg(13)
+    f_title = _sans_bold(26 * S)
+    f_sub = _sans_reg(16 * S)
+    f_small = _sans_reg(14 * S)
+    f_label = _sans_reg(14 * S)
+    f_label_b = _sans_bold(14 * S)
+    f_meta_val = _mono_receipt(23 * S)
+    f_item = _sans_reg(16 * S)
+    f_money = _sans_reg(16 * S)
+    f_total = _sans_bold(32 * S)
+    f_saved = _sans_bold(24 * S)
+    f_policy_h = _sans_bold(34 * S)
+    f_policy_m = _sans_bold(15 * S)
+    f_policy_s = _sans_reg(13 * S)
+    f_hdr_small = _sans_bold(12 * S)
+    f_loc = _sans_bold(11 * S)
+    f_total_row_label = _sans_bold(18 * S)
+    lw1 = max(1, S)
+    lw2 = max(2, 2 * S)
 
     # --- Logo: full content width, no pad/border strip (page bg only) ---
-    logo_max_h = 200
-    logo = _load_receipt_logo_content_width(_INNER, logo_max_h)
+    logo_max_h = 200 * S
+    logo = _load_receipt_logo_content_width(inner, logo_max_h)
     has_logo_image = logo is not None
     if logo:
-        lx = x0 + (_INNER - logo.width) // 2
+        lx = x0 + (inner - logo.width) // 2
         ly = y
         if logo.mode == "RGBA":
             im.paste(logo, (lx, ly), logo)
         else:
             im.paste(logo, (lx, ly))
-        y += logo.height + 18
+        y += logo.height + 18 * S
     else:
         fallback = data.get("store_name", "Eco-Thrift")
-        band_h = 72
+        band_h = 72 * S
         tw = _text_w(draw, fallback, f_title)
-        draw.text((x0 + (_INNER - tw) / 2, y + band_h // 2 - 14), fallback, font=f_title, fill=t["accent"])
-        y += band_h + 16
+        draw.text((x0 + (inner - tw) / 2, y + band_h // 2 - 14 * S), fallback, font=f_title, fill=t["accent"])
+        y += band_h + 16 * S
 
     # --- Store ---
     if has_logo_image:
         name = data.get("store_name", "Eco-Thrift")
         nw = _text_w(draw, name, f_title)
-        draw.text((x0 + (_INNER - nw) / 2, y), name, font=f_title, fill=t["text"])
-        y += _text_h(f_title) + 6
+        draw.text((x0 + (inner - nw) / 2, y), name, font=f_title, fill=t["text"])
+        y += _text_h(f_title) + 6 * S
 
     if data.get("store_phone"):
         ph = str(data["store_phone"]).strip()
         draw.text((x0, y), "Phone", font=f_label_b, fill=t["muted"])
         pw = _text_w(draw, ph, f_sub)
         draw.text((x1 - pw, y), ph, font=f_sub, fill=t["text"])
-        y += max(_text_h(f_label_b), _text_h(f_sub)) + 6
+        y += max(_text_h(f_label_b), _text_h(f_sub)) + 6 * S
     if data.get("store_hours"):
         draw.text((x0, y), "Hours", font=f_label_b, fill=t["muted"])
-        y += _text_h(f_label_b) + 4
+        y += _text_h(f_label_b) + 4 * S
         for part in str(data["store_hours"]).split("\n"):
             if part.strip():
-                for ln in _wrap_text(part.strip(), f_sub, draw, _INNER - 12):
-                    draw.text((x0 + 10, y), ln, font=f_sub, fill=t["text"])
-                    y += _text_h(f_sub) + 2
-        y += 6
+                for ln in _wrap_text(part.strip(), f_sub, draw, inner - 12 * S):
+                    draw.text((x0 + 10 * S, y), ln, font=f_sub, fill=t["text"])
+                    y += _text_h(f_sub) + 2 * S
+        y += 6 * S
 
     # Section divider
     if theme_key == "emoji":
         sep = "✨ · · · · · · · · · · · · · · · · · · ✨"
         tw = _text_w(draw, sep, f_small)
-        draw.text((x0 + (_INNER - tw) / 2, y), sep, font=f_small, fill=t["accent"])
-        y += _text_h(f_small) + 12
+        draw.text((x0 + (inner - tw) / 2, y), sep, font=f_small, fill=t["accent"])
+        y += _text_h(f_small) + 12 * S
     elif theme_key == "cool":
-        draw.rectangle([x0, y, x1, y + 3], fill=t["accent"])
-        y += 14
+        draw.rectangle([x0, y, x1, y + 3 * S], fill=t["accent"])
+        y += 14 * S
     else:
-        draw.line([x0, y + 6, x1, y + 6], fill=t["rule"], width=2)
-        y += 18
+        draw.line([x0, y + 6 * S, x1, y + 6 * S], fill=t["rule"], width=lw2)
+        y += 18 * S
 
     # --- Transaction meta ---
     meta_top = y
-    meta_pad = 14
+    meta_pad = 14 * S
     if t.get("meta_box"):
         mx0 = x0 + meta_pad
         mx1 = x1 - meta_pad
     elif theme_key == "cool":
-        mx0 = x0 + 5 + meta_pad
-        mx1 = x1 - 10
+        mx0 = x0 + 5 * S + meta_pad
+        mx1 = x1 - 10 * S
     else:
         mx0 = x0 + meta_pad
-        mx1 = x1 - 10
+        mx1 = x1 - 10 * S
 
-    y_meta = meta_top + 8
+    y_meta = meta_top + 8 * S
     if theme_key == "emoji":
         draw.text((mx0, y_meta), "🧾 Transaction", font=f_label, fill=t["accent"])
-        y_meta += _text_h(f_label) + 8
+        y_meta += _text_h(f_label) + 8 * S
     elif theme_key == "cool":
-        draw.text((mx0, y_meta), "transaction //", font=_sans_bold(12), fill=t["accent"])
-        y_meta += _text_h(_sans_bold(12)) + 8
+        draw.text((mx0, y_meta), "transaction //", font=f_hdr_small, fill=t["accent"])
+        y_meta += _text_h(f_hdr_small) + 8 * S
     else:
-        draw.text((mx0, y_meta), "TRANSACTION", font=_sans_bold(12), fill=t["muted"])
-        y_meta += _text_h(_sans_bold(12)) + 10
+        draw.text((mx0, y_meta), "TRANSACTION", font=f_hdr_small, fill=t["muted"])
+        y_meta += _text_h(f_hdr_small) + 10 * S
 
     if data.get("receipt_number"):
         rn = str(data["receipt_number"])
         draw.text((mx0, y_meta), "Receipt #", font=f_label, fill=t["muted"])
         rw = _text_w(draw, rn, f_meta_val)
         draw.text((mx1 - rw, y_meta), rn, font=f_meta_val, fill=t["text"])
-        y_meta += max(_text_h(f_label), _text_h(f_meta_val)) + 8
+        y_meta += max(_text_h(f_label), _text_h(f_meta_val)) + 8 * S
 
     if data.get("date"):
         time_str = data.get("time", "")
@@ -600,25 +615,25 @@ def render_receipt_to_image(
         draw.text((mx0, y_meta), "Date & time", font=f_label, fill=t["muted"])
         rw = _text_w(draw, dt, f_meta_val)
         draw.text((mx1 - rw, y_meta), dt, font=f_meta_val, fill=t["text"])
-        y_meta += max(_text_h(f_label), _text_h(f_meta_val)) + 8
+        y_meta += max(_text_h(f_label), _text_h(f_meta_val)) + 8 * S
 
     if data.get("cashier"):
         cs = str(data["cashier"])
         draw.text((mx0, y_meta), "Cashier", font=f_label, fill=t["muted"])
         rw = _text_w(draw, cs, f_sub)
         draw.text((mx1 - rw, y_meta), cs, font=f_sub, fill=t["text"])
-        y_meta += max(_text_h(f_label), _text_h(f_sub)) + 4
+        y_meta += max(_text_h(f_label), _text_h(f_sub)) + 4 * S
 
-    y = y_meta + 12
+    y = y_meta + 12 * S
     if t.get("meta_box"):
-        draw.rectangle([x0, meta_top, x1, y], outline=t["meta_box_outline"], width=2)
+        draw.rectangle([x0, meta_top, x1, y], outline=t["meta_box_outline"], width=lw2)
     elif theme_key == "cool":
         draw.rectangle(
-            [x0, meta_top, x0 + 5, y],
+            [x0, meta_top, x0 + 5 * S, y],
             fill=t.get("meta_accent_bar", t["accent"]),
         )
 
-    y += 16
+    y += 16 * S
 
     # --- Items header ---
     if theme_key == "emoji":
@@ -627,11 +642,11 @@ def render_receipt_to_image(
         hdr = "— items —"
     else:
         hdr = "ITEMS"
-    tw = _text_w(draw, hdr, _sans_bold(12))
-    draw.text((x0 + (_INNER - tw) / 2, y), hdr, font=_sans_bold(12), fill=t["muted"])
-    y += _text_h(_sans_bold(12)) + 10
-    draw.line([x0, y, x1, y], fill=t["rule"], width=1)
-    y += 12
+    tw = _text_w(draw, hdr, f_hdr_small)
+    draw.text((x0 + (inner - tw) / 2, y), hdr, font=f_hdr_small, fill=t["muted"])
+    y += _text_h(f_hdr_small) + 10 * S
+    draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
+    y += 12 * S
 
     items: list[dict[str, Any]] = data.get("items", [])
     for item in items:
@@ -641,44 +656,44 @@ def render_receipt_to_image(
         total = item.get("line_total", qty * unit)
         price_s = f"${float(total):.2f}"
         if qty > 1:
-            for ln in _wrap_text(name, f_item, draw, _INNER - 80):
+            for ln in _wrap_text(name, f_item, draw, inner - 80 * S):
                 draw.text((x0, y), ln, font=f_item, fill=t["text"])
-                y += _text_h(f_item) + 1
+                y += _text_h(f_item) + max(1, S)
             detail = f"  {qty} × ${float(unit):.2f}"
             pw = _text_w(draw, price_s, f_money)
             draw.text((x0, y), detail, font=f_small, fill=t["muted"])
             draw.text((x1 - pw, y), price_s, font=f_money, fill=t["text"])
-            y += _text_h(f_money) + 8
+            y += _text_h(f_money) + 8 * S
         else:
-            lines = _wrap_text(name, f_item, draw, _INNER - 72)
+            lines = _wrap_text(name, f_item, draw, inner - 72 * S)
             pw = _text_w(draw, price_s, f_money)
             for i, ln in enumerate(lines):
                 draw.text((x0, y), ln, font=f_item, fill=t["text"])
                 if i == 0:
                     draw.text((x1 - pw, y), price_s, font=f_money, fill=t["text"])
-                y += _text_h(f_item) + 1
-            y += 6
+                y += _text_h(f_item) + max(1, S)
+            y += 6 * S
 
-    draw.line([x0, y, x1, y], fill=t["rule"], width=1)
-    y += 14
+    draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
+    y += 14 * S
 
     # --- You saved ---
     if data.get("you_saved") is not None:
         try:
             ys = float(data["you_saved"])
-            banner_h = 58
-            _fill_rounded(draw, (x0, y, x1, y + banner_h), 8, t["saved_bg"])
+            banner_h = 58 * S
+            _fill_rounded(draw, (x0, y, x1, y + banner_h), max(2, 8 * S), t["saved_bg"])
             msg = f"YOU SAVED  ${ys:.2f}"
             if theme_key == "emoji":
                 msg = f"💚 YOU SAVED  ${ys:.2f}  💚"
             tw = _text_w(draw, msg, f_saved)
             draw.text(
-                (x0 + (_INNER - tw) / 2, y + (banner_h - _text_h(f_saved)) // 2),
+                (x0 + (inner - tw) / 2, y + (banner_h - _text_h(f_saved)) // 2),
                 msg,
                 font=f_saved,
                 fill=t["saved_text"],
             )
-            y += banner_h + 16
+            y += banner_h + 16 * S
         except (TypeError, ValueError):
             pass
 
@@ -691,26 +706,26 @@ def render_receipt_to_image(
         draw.text((x0, y), label, font=font_l, fill=t["muted"])
         vw = _text_w(draw, value, font_v)
         draw.text((x1 - vw, y), value, font=font_v, fill=t["text"])
-        y += max(_text_h(font_l), _text_h(font_v)) + (10 if big else 6)
+        y += max(_text_h(font_l), _text_h(font_v)) + (10 * S if big else 6 * S)
 
     if theme_key == "emoji":
         tw = _text_w(draw, "💵 Totals", f_label)
-        draw.text((x0 + (_INNER - tw) / 2, y), "💵 Totals", font=f_label, fill=t["accent"])
-        y += _text_h(f_label) + 8
+        draw.text((x0 + (inner - tw) / 2, y), "💵 Totals", font=f_label, fill=t["accent"])
+        y += _text_h(f_label) + 8 * S
 
     _lr_money("Subtotal", f"${subtotal:.2f}", f_sub, f_money)
     if tax:
         _lr_money("Tax", f"${tax:.2f}", f_sub, f_money)
-    _lr_money("TOTAL", f"${total:.2f}", _sans_bold(18), f_total, big=True)
-    y += 8
+    _lr_money("TOTAL", f"${total:.2f}", f_total_row_label, f_total, big=True)
+    y += 8 * S
 
-    draw.line([x0, y, x1, y], fill=t["rule"], width=1)
-    y += 14
+    draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
+    y += 14 * S
 
     if theme_key == "emoji":
         tw = _text_w(draw, "💳 Payment", f_label)
-        draw.text((x0 + (_INNER - tw) / 2, y), "💳 Payment", font=f_label, fill=t["accent"])
-        y += _text_h(f_label) + 8
+        draw.text((x0 + (inner - tw) / 2, y), "💳 Payment", font=f_label, fill=t["accent"])
+        y += _text_h(f_label) + 8 * S
 
     if data.get("payment_method"):
         _lr_money("Payment", str(data["payment_method"]), f_sub, f_money)
@@ -719,48 +734,48 @@ def render_receipt_to_image(
     if data.get("change") is not None:
         _lr_money("Change", f"${float(data['change']):.2f}", f_sub, f_money)
 
-    y += 10
+    y += 10 * S
     footer = data.get("footer", "Thank you for shopping at Eco-Thrift!")
     for part in str(footer).split("\n"):
         if part.strip():
-            for ln in _wrap_text(part.strip(), f_small, draw, _INNER):
+            for ln in _wrap_text(part.strip(), f_small, draw, inner):
                 tw = _text_w(draw, ln, f_small)
-                draw.text((x0 + (_INNER - tw) / 2, y), ln, font=f_small, fill=t["muted"])
-                y += _text_h(f_small) + 2
-    y += 10
+                draw.text((x0 + (inner - tw) / 2, y), ln, font=f_small, fill=t["muted"])
+                y += _text_h(f_small) + 2 * S
+    y += 10 * S
 
     if data.get("store_address"):
-        draw.line([x0, y, x1, y], fill=t["rule"], width=1)
-        y += 14
+        draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
+        y += 14 * S
         loc = "Location"
-        lw = _text_w(draw, loc, _sans_bold(11))
-        draw.text((x0 + (_INNER - lw) / 2, y), loc, font=_sans_bold(11), fill=t["muted"])
-        y += _text_h(_sans_bold(11)) + 8
+        lw = _text_w(draw, loc, f_loc)
+        draw.text((x0 + (inner - lw) / 2, y), loc, font=f_loc, fill=t["muted"])
+        y += _text_h(f_loc) + 8 * S
         for part in str(data["store_address"]).split("\n"):
             if part.strip():
-                for ln in _wrap_text(part.strip(), f_sub, draw, _INNER):
+                for ln in _wrap_text(part.strip(), f_sub, draw, inner):
                     tw = _text_w(draw, ln, f_sub)
-                    draw.text((x0 + (_INNER - tw) / 2, y), ln, font=f_sub, fill=t["text"])
-                    y += _text_h(f_sub) + 2
-        y += 10
+                    draw.text((x0 + (inner - tw) / 2, y), ln, font=f_sub, fill=t["text"])
+                    y += _text_h(f_sub) + 2 * S
+        y += 10 * S
 
     # --- Policy (very visible) ---
     policy_top = y
     policy_body: list[str] = []
     for pl in RECEIPT_POLICY_LINES:
-        policy_body.extend(_wrap_text(pl, f_policy_s, draw, _INNER - 24))
-    lh_pol = _text_h(f_policy_s) + 2
-    policy_h = 92 + len(policy_body) * lh_pol
-    policy_h = max(policy_h, 150)
+        policy_body.extend(_wrap_text(pl, f_policy_s, draw, inner - 24 * S))
+    lh_pol = _text_h(f_policy_s) + 2 * S
+    policy_h = 92 * S + len(policy_body) * lh_pol
+    policy_h = max(policy_h, 150 * S)
 
-    _fill_rounded(draw, (x0, policy_top, x1, policy_top + policy_h), 10, t["policy_bg"])
+    _fill_rounded(draw, (x0, policy_top, x1, policy_top + policy_h), max(2, 10 * S), t["policy_bg"])
 
     headline = RECEIPT_POLICY_PNG_HEADLINE
     if theme_key == "emoji":
         headline = f"⛔ {RECEIPT_POLICY_PNG_HEADLINE} ⛔"
     hw = _text_w(draw, headline, f_policy_h)
     draw.text(
-        (x0 + (_INNER - hw) / 2, policy_top + 12),
+        (x0 + (inner - hw) / 2, policy_top + 12 * S),
         headline,
         font=f_policy_h,
         fill=t["policy_text"],
@@ -768,19 +783,19 @@ def render_receipt_to_image(
     subh = RECEIPT_POLICY_PNG_SUB
     sw = _text_w(draw, subh, f_policy_m)
     draw.text(
-        (x0 + (_INNER - sw) / 2, policy_top + 50),
+        (x0 + (inner - sw) / 2, policy_top + 50 * S),
         subh,
         font=f_policy_m,
         fill=t["policy_sub"],
     )
-    py = policy_top + 78
+    py = policy_top + 78 * S
     for ln in policy_body:
         lw = _text_w(draw, ln, f_policy_s)
-        draw.text((x0 + (_INNER - lw) / 2, py), ln, font=f_policy_s, fill=t["policy_text"])
+        draw.text((x0 + (inner - lw) / 2, py), ln, font=f_policy_s, fill=t["policy_text"])
         py += lh_pol
 
-    y = policy_top + policy_h + _MARGIN
-    return im.crop((0, 0, CANVAS_W, min(y, H_WORK)))
+    y = policy_top + policy_h + margin
+    return im.crop((0, 0, canvas_w, min(y, h_work)))
 
 
 def render_receipt_text_to_image(text: str, *, dpi: int = 203) -> Image.Image:

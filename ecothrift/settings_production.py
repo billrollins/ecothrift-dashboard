@@ -7,11 +7,12 @@ import dj_database_url
 
 DEBUG = False
 
-# Database — use Heroku DATABASE_URL
+# Database — use Heroku DATABASE_URL; target the ecothrift schema
 DATABASES['default'] = dj_database_url.config(  # noqa: F405
     conn_max_age=600,
     ssl_require=True,
 )
+DATABASES['default'].setdefault('OPTIONS', {})['options'] = '-c search_path=ecothrift'  # noqa: F405
 
 # Security
 SECURE_SSL_REDIRECT = True

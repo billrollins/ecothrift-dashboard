@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T19:00:00-05:00 -->
+<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -13,7 +13,7 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 
 | Initiative | Notes |
 |------------|--------|
-| [create_location_label.md](./create_location_label.md) | **Location / inventory-scan** thermal label (3×2 in, QR + aisle/shelf/category) per [`workspace/notes/ecothrift_label_spec.txt`](../../workspace/notes/ecothrift_label_spec.txt). Planning only until implementation. |
+| *—* | *No active initiatives. See [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md) (especially **pending**).* |
 
 **Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables.
 
@@ -62,7 +62,8 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 ## How to archive (short)
 
 1. **Confirm with the user** that the initiative should leave the active index.
-2. Follow [`.ai/initiatives/_archived/ARCHIVE.md`](./_archived/ARCHIVE.md) — disposition, `git mv`, archive marker, update **`ARCHIVE.md`** and **this** `_index.md` in one commit.
+2. Follow [`.ai/initiatives/_archived/ARCHIVE.md`](./_archived/ARCHIVE.md) — disposition, `git mv`, archive marker, update **`ARCHIVE.md`** and **this** `_index.md` in one pass.
+3. Prefer the matching file under [`.ai/initiatives/_archived/_protocols/`](./_archived/_protocols/README.md) (`move_initiative_to_*`, `activate_initiative`) plus [`.ai/protocols/review_bump.md`](../protocols/review_bump.md) so **`.ai/context.md`** and **`CHANGELOG.md`** stay aligned.
 
 ---
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T21:00:00-05:00 -->
+<!-- Last updated: 2026-03-28T23:00:00-05:00 -->
 # Protocol: Review, Version Bump, Pre-Commit, Handoff
 
 Single gate for **documentation audit**, **release bookkeeping**, **commit discipline**, and **session handoff**.
@@ -22,7 +22,7 @@ Single gate for **documentation audit**, **release bookkeeping**, **commit disci
 4. **Initiatives (required context).**
    - Read **`.ai/initiatives/_index.md`** for **active**, **on hold**, and **backlog** rows, and **`.ai/initiatives/_archived/ARCHIVE.md`** for archived work. Priorities also live in `CHANGELOG.md` (`[Unreleased]`) and the user’s message.
    - **Traceability:** Shipping code should map to a **named initiative** (file + row in `_index.md`) when the work is feature-sized or multi-session. If the work is an emergency hotfix or outside initiative tracking, that should be explicit in `[Unreleased]` / the release notes.
-   - **Archiving:** Moving an initiative to `_archived/` is **out of scope** for a routine review unless the **user asked** for it. Never archive initiatives silently; **ask** for explicit confirmation.
+   - **Archiving:** Moving an initiative to `_archived/` is **out of scope** for a routine review unless the **user asked** for it. Never archive initiatives silently; **ask** for explicit confirmation. Initiative **lifecycle** steps (`activate_initiative`, `move_initiative_to_pending`, `_backlog`, `_completed`, `_abandoned`) live under [`.ai/initiatives/_archived/_protocols/`](../initiatives/_archived/_protocols/README.md) (see **`README.md`** there). The stub [`.ai/protocols/move_to_pending.md`](./move_to_pending.md) redirects to `move_initiative_to_pending.md`.
 
 5. **Root `CHANGELOG.md`.**
    - Verify the latest released entry matches what shipped; keep `[Unreleased]` at the top for work-in-progress notes when appropriate.

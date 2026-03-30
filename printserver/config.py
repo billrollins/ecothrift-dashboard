@@ -415,6 +415,8 @@ PORT = 8888
 LABEL_DPI = 203
 # Default Windows printer queue for local/dev label scripts (Rollo thermal, etc.).
 DEFAULT_LABEL_PRINTER = "Rollo Printer"
+# Default Windows queue name for receipt role when unset / not saved (must match an installed printer).
+DEFAULT_RECEIPT_PRINTER = "Receipt Printer"
 # Legacy fallback if preset unknown (prefer label_size_preset in settings.json).
 LABEL_WIDTH_INCHES = 2.25
 LABEL_HEIGHT_INCHES = 1.25
@@ -427,6 +429,11 @@ LABEL_SIZE_PRESETS: dict[str, tuple[float, float]] = {
 DEFAULT_LABEL_SIZE_PRESET = "3x2"
 
 RECEIPT_WIDTH_CHARS = 48  # 80mm thermal printers ≈ 48 chars at standard font
+
+# Native render scale for ``render_receipt_to_image`` (canvas, fonts, spacing) and matching
+# ``send_image(..., source_dpi=LABEL_DPI * RECEIPT_RENDER_SCALE)`` so physical width stays ~80mm
+# while Pillow rasterizes at higher resolution.
+RECEIPT_RENDER_SCALE = 3
 
 DRAWER_PIN = 0  # 0 = pin 2 (most common), 1 = pin 5
 DRAWER_ON_MS = 25

@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from config import DEFAULT_RECEIPT_PRINTER
+
 logger = logging.getLogger(__name__)
 
 # When frozen (PyInstaller), store next to the .exe; otherwise next to main.py.
@@ -20,7 +22,7 @@ SETTINGS_FILE = _BASE_DIR / "settings.json"
 
 _DEFAULTS: dict[str, Any] = {
     "label_printer": None,
-    "receipt_printer": None,
+    "receipt_printer": DEFAULT_RECEIPT_PRINTER,
     # "3x2" (local/testing) or "1.5x1" (production) — see config.LABEL_SIZE_PRESETS
     "label_size_preset": "3x2",
     # URL to the public version-check endpoint on the dashboard backend.

@@ -2,6 +2,21 @@
 
 JSON files are `receipt_data` objects (same shape as `POST /print/receipt`). Use them with the local PNG renderer or the API.
 
+## Where the code lives (PNG vs print)
+
+| Path | What it does |
+|------|----------------|
+| [`printserver/services/receipt_printer.py`](../services/receipt_printer.py) **`render_receipt_to_image`** | Rich receipt **PNG** (logo, TRANSACTION box, ITEMS, savings bar, policy card). Themes: `receipt_layout` / `receipt_style` (`professional`, `cool`, `emoji`). Optional **`render_scale`** (default 1) multiplies canvas and fonts for native hi-res output. |
+| Same file **`format_receipt_text`** | **Plain text** for Windows GDI printing (`Consolas`, `RECEIPT_WIDTH_CHARS` wide). |
+| Same file **`format_receipt`** | **ESC/POS bytes** for raw thermal streams — present in code but **not** used by `POST /print/receipt` (that route uses `format_receipt_text` + `send_text` only). See [`printserver/routers/receipts.py`](../routers/receipts.py). |
+| **Architecture / dashboard integration** | [`.ai/extended/print-server.md`](../../.ai/extended/print-server.md) |
+
+**Preview:** run [`printserver/scripts/print_receipt_local_test.py`](../scripts/print_receipt_local_test.py) on a fixture; PNGs go under `printserver/output/`. **Live print:** dashboard calls the print server with the same `receipt_data` dict; output is **plain text**, not the pixel layout of the PNG.
+
+**Print the rich template to a physical printer (3 sample payloads):** [`printserver/scripts/print_receipt_template_batch.py`](../scripts/print_receipt_template_batch.py) — `render_receipt_to_image(..., render_scale=N)` (native hi-res layout; default `RECEIPT_RENDER_SCALE` in [`config.py`](../config.py), typically 3) + `send_image` with `source_dpi = LABEL_DPI * N` so paper width stays ~80mm while detail increases. Override: `--scale N`. **Compare on paper (3rd fixture only, ascending scales):** `--sweep-third-receipt` (default scales `1 2 3 4 5`) or `--sweep-third-receipt --sweep-scales 1 2 3 4 5 6`. Convenience: [`workspace/receipt_printer/print_three_template_receipts.bat`](../../workspace/receipt_printer/print_three_template_receipts.bat), [`workspace/receipt_printer/print_showcase_scale_sweep.bat`](../../workspace/receipt_printer/print_showcase_scale_sweep.bat).
+
+**If printed output should match the PNG layout** (future): rasterize the PNG and use `send_image` (label-style), extend `format_receipt_text`, or wire `format_receipt` + `send_raw` for ESC/POS — see *Receipt template (PNG vs print)* in [`.ai/extended/print-server.md`](../../.ai/extended/print-server.md).
+
 ## Header vs address (print + PNG)
 
 - **Under the store name:** `store_phone` (labeled **Phone**), optional **`store_hours`** (labeled **Hours**, multi-line with `\n`). Do not put the street address here.
@@ -15,7 +30,7 @@ JSON files are `receipt_data` objects (same shape as `POST /print/receipt`). Use
 
 Structured PNGs use `render_receipt_to_image`: full-width logo (no separate pad strip), transaction block (monospace receipt # / date-time on `professional`), items, savings banner, totals, payment, footer, **Location** + address, then the policy card (headline + subhead + two policy sentences).
 
-Windows print / `POST /print/receipt` use `format_receipt_text` / `format_receipt` with the same header/footer/address order.
+`POST /print/receipt` uses **`format_receipt_text`** only (GDI text), with the same logical field order as the PNG (header, meta, items, totals, payment, footer, address, policy lines). ESC/POS `format_receipt` is a separate code path and is not the HTTP print path today.
 
 ## Render to PNG (batch)
 

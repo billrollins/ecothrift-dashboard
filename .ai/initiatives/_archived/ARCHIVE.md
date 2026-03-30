@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T19:00:00-05:00 -->
+<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
 # Archive index — initiatives
 
 ## What this is
@@ -6,6 +6,10 @@
 This folder, **`.ai/initiatives/_archived/`**, holds initiative markdown files that are **no longer tracked** on the [main initiatives index](../_index.md): work that is **done**, **parked**, **paused off the main list**, or **abandoned**. Files are grouped into subfolders by **disposition** so you can find them later without mixing “completed” with “we might never do this.”
 
 **`ARCHIVE.md`** (this file) is the **table of contents** for all archived files and the **procedure** for archiving and maintaining the archive.
+
+### Initiative lifecycle protocols (`_protocols/`)
+
+Step-by-step protocols (which files to edit, `git mv`, `review_bump.md`) live in **[`_protocols/README.md`](./_protocols/README.md)** — **`activate_initiative`**, **`move_initiative_to_pending`**, **`move_initiative_to_backlog`**, **`move_initiative_to_completed`**, **`move_initiative_to_abandoned`**. Use those when the user drops a protocol into chat with an initiative name.
 
 ---
 
@@ -31,11 +35,11 @@ This folder, **`.ai/initiatives/_archived/`**, holds initiative markdown files t
    `<!-- Archived YYYY-MM-DD: disposition=completed ... -->`
 3. Update **[`.ai/initiatives/_index.md`](../_index.md)** — remove the initiative from Active / On hold / Backlog.
 4. Update **this file** (`ARCHIVE.md`) — add a row to the matching TOC section below.
-5. Prefer **one commit** that moves the file and updates **both** the main **`_index.md`** and **`ARCHIVE.md`**.
+5. Prefer **one pass** that moves the file and updates **both** the main **`_index.md`** and **`ARCHIVE.md`**.
 
 ### 3. How to update **ARCHIVE.md**
 
-Whenever you **add**, **remove**, or **move** an archived initiative: edit the **TOC tables** in this file and bump the `<!-- Last updated: ... -->` timestamp. If the initiative was listed on the main index, that index must stay in sync (same commit).
+Whenever you **add**, **remove**, or **move** an archived initiative: edit the **TOC tables** in this file and bump the `<!-- Last updated: ... -->` timestamp. If the initiative was listed on the main index, that index must stay in sync in the **same update pass**.
 
 ---
 
@@ -68,9 +72,10 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
-| [print_server_receipt_format.md](./_pending/print_server_receipt_format.md) | GDI receipt layout, width, POS `receipt_data` parity; paused off main index until E2E stable or ready to ship polish. | 2026-03-27 |
 | [bstock_scraper.md](./_pending/bstock_scraper.md) | B-Stock notebook scraper; Phase 1 package in place; manifests/pipeline deferred (moved from `_backlog` 2026-03-27). | 2026-03-27 |
 | [historical_data_export.md](./_pending/historical_data_export.md) | **Phase 1 done** (pickles + manifest). **Phase 2** (seed V3, reporting slice, DS/embeddings) paused off main index. | 2026-03-28 |
+| [create_location_label.md](./_pending/create_location_label.md) | **Inventory-scan** thermal location label (3×2, QR + aisle/shelf/category) per `workspace/notes/ecothrift_label_spec.txt`. Workspace render/CLI exists; **product integration** deferred. | 2026-03-28 |
+| [print_server_receipt_format.md](./_pending/print_server_receipt_format.md) | GDI receipt layout, `receipt_data` parity, PNG vs plain-text paths; **paused** off main index pre-production (2026-03-28); `render_scale` + workspace GDI tooling shipped for reference. | 2026-03-28 |
 
 ---
 

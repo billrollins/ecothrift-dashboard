@@ -84,6 +84,9 @@ DATABASES = {
         'PASSWORD': config('DATABASE_PASSWORD', default='password'),
         'HOST': config('DATABASE_HOST', default='localhost'),
         'PORT': config('DATABASE_PORT', default='5432'),
+        'OPTIONS': {
+            'options': '-c search_path=ecothrift',
+        },
     }
 }
 

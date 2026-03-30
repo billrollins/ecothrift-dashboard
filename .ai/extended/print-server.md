@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T12:30:00-05:00 -->
+<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
 
 # Print Server — Extended Context
 
@@ -45,6 +45,15 @@ Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe` v
 **IT optional:** [`printserver/installer/uninstall_legacy_prior.bat`](../../printserver/installer/uninstall_legacy_prior.bat) — best-effort CMD mirror (not uploaded separately to S3 by default).
 
 **Not used:** Windows Services, Task Scheduler (for both stacks per reference).
+
+## Receipt template (PNG vs print)
+
+- **Data:** one `receipt_data` dict (JSON fixtures: [`printserver/fixtures/README.md`](../../printserver/fixtures/README.md), same shape as `ReceiptPrintRequest` in [`printserver/models.py`](../../printserver/models.py)).
+- **Rich preview (mockup / marketing layout):** [`printserver/services/receipt_printer.py`](../../printserver/services/receipt_printer.py) **`render_receipt_to_image`** — logo from `assets/ecothrift_logo_bw.png`, themes `professional` / `cool` / `emoji`. Local PNG: [`printserver/scripts/print_receipt_local_test.py`](../../printserver/scripts/print_receipt_local_test.py).
+- **Production print today:** same module **`format_receipt_text`** → [`printer_manager.send_text`](../../printserver/services/printer_manager.py) — monospace plain text, **not** the pixel-perfect PNG layout.
+- **ESC/POS:** **`format_receipt`** (bytes) exists in `receipt_printer.py` but is **not** wired to [`printserver/routers/receipts.py`](../../printserver/routers/receipts.py).
+
+**Future parity** (if thermal output should match the PNG): (1) raster — `render_receipt_to_image` → crop → `send_image` with width/DPI tuned for 80mm; (2) richer plain text in `format_receipt_text`; (3) raw thermal — `format_receipt` + `send_raw`. Tracked initiative (pending): [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](../initiatives/_archived/_pending/print_server_receipt_format.md).
 
 ## Design intent
 

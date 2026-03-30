@@ -88,7 +88,8 @@ def _installed_names() -> set[str]:
 def resolve_printer(requested: str | None, role: str | None = None) -> str:
     """Resolve which printer to use.
 
-    Priority: explicit request > saved setting for role > system default.
+    Priority: explicit request > saved setting for role > config default (receipt
+    only, if installed) > system default.
     Validates that the resolved name actually exists on this machine.
     """
     from services.settings_store import get as get_setting
@@ -109,6 +110,13 @@ def resolve_printer(requested: str | None, role: str | None = None) -> str:
         saved = get_setting(f"{role}_printer")
         if saved and saved in installed:
             return saved
+
+    # 2b. Config default queue for receipt (if installed and no saved role match)
+    if role == "receipt":
+        from config import DEFAULT_RECEIPT_PRINTER
+
+        if DEFAULT_RECEIPT_PRINTER in installed:
+            return DEFAULT_RECEIPT_PRINTER
 
     # 3. System default
     default = get_default_printer()
@@ -158,13 +166,13 @@ def send_image(
     drivers report a ``VERTRES`` taller than one label; vertical centering splits
     the bitmap across two feeds or clips the top of the first label.
 
-    If ``fit_to_printable`` is False the bitmap fills the **full physical
-    page** (``PHYSICALWIDTH`` × ``PHYSICALHEIGHT``), drawn from
-    ``(-PHYSICALOFFSETX, -PHYSICALOFFSETY)`` so it starts at the physical
-    edge, not the printable origin.  Use for **pre-sized** rasters (e.g.
-    location labels at 3×2) that must fill the entire label stock.  Falls
-    back to filling ``HORZRES × VERTRES`` at ``(0, 0)`` if the driver does
-    not report physical page dimensions.
+    If ``fit_to_printable`` is False the DPI-scaled size is kept (correct
+    physical inches even when the driver paper size is wrong) and drawing
+    starts at ``(-PHYSICALOFFSETX, -PHYSICALOFFSETY)`` so the bitmap
+    begins at the physical page edge rather than the printable origin.
+    Use for **pre-sized** rasters (e.g. location labels rendered at
+    3×2 @ 203 DPI) that must fill the actual stock regardless of what
+    paper size the driver reports.
     """
     if image.mode != "RGB":
         image = image.convert("RGB")
@@ -191,22 +199,12 @@ def send_image(
         px = max(0, (printable_w - dst_w) // 2)
         py = 0  # top of printable = start of label; do not center vertically on roll stock
     elif not fit_to_printable:
-        # Full-bleed: fill the entire physical page.  GDI (0,0) is the
-        # *printable* origin which is already PHYSICALOFFSETX from the
-        # physical edge — drawing there shifts the image right.  Compensate
-        # with negative coords so the bitmap covers the whole label.
-        phys_w = hdc.GetDeviceCaps(win32con.PHYSICALWIDTH)
-        phys_h = hdc.GetDeviceCaps(win32con.PHYSICALHEIGHT)
-        if phys_w > 0 and phys_h > 0:
-            dst_w = phys_w
-            dst_h = phys_h
-            px = -phys_off_x
-            py = -phys_off_y
-        else:
-            # Driver doesn't report physical dims — fill the printable rect.
-            dst_w = printable_w
-            dst_h = printable_h
-            px, py = 0, 0
+        # Keep DPI-computed dst_w/dst_h (maps to the correct physical inches)
+        # but start at the physical page edge.  GDI (0,0) is the *printable*
+        # origin, already PHYSICALOFFSETX from the physical left — negate it
+        # so the bitmap isn't shifted right on the stock.
+        px = -phys_off_x
+        py = -phys_off_y
     else:
         px, py = 0, 0
 

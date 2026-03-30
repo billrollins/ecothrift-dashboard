@@ -166,6 +166,17 @@ class Command(BaseCommand):
             f'\nDone. Total historical sold items in DB3: {total:,}\n'
         ))
 
+    @staticmethod
+    def _next_sku_counter():
+        """Return a starting counter for sequential SKU generation."""
+        last = Item.objects.order_by('-id').first()
+        if last:
+            try:
+                return int(last.sku.replace('ITM', '')) + 1
+            except (ValueError, AttributeError):
+                return Item.objects.count() + 1
+        return 1
+
     def _import_db2_sold(self, dry_run, limit):
         self.stdout.write('\n--- Fetching DB2 sold items ---')
         try:
@@ -179,10 +190,10 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING('DRY RUN — skipping write.'))
             return
 
-        # Find already-imported SKUs to stay idempotent
         existing_notes = _get_existing_notes_prefixes('db2')
         existing_skus = {n.split('HISTORICAL:db2:')[1].split(' ')[0] for n in existing_notes if 'HISTORICAL:db2:' in n}
 
+        sku_counter = self._next_sku_counter()
         new_items = []
         skipped = 0
         for row in rows:
@@ -191,7 +202,7 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
             new_items.append(Item(
-                sku=Item.generate_sku(),
+                sku=f'ITM{sku_counter:07d}',
                 title=row['title'] or '',
                 brand=row['brand'] or '',
                 price=row['price'] or 0,
@@ -204,6 +215,7 @@ class Command(BaseCommand):
                 notes=f'HISTORICAL:db2:{legacy_sku}',
                 listed_at=row['sold_at'],
             ))
+            sku_counter += 1
 
         if new_items:
             Item.objects.bulk_create(new_items, batch_size=BATCH_SIZE)
@@ -227,6 +239,7 @@ class Command(BaseCommand):
         existing_notes = _get_existing_notes_prefixes('db1')
         existing_skus = {n.split('HISTORICAL:db1:')[1].split(' ')[0] for n in existing_notes if 'HISTORICAL:db1:' in n}
 
+        sku_counter = self._next_sku_counter()
         new_items = []
         skipped = 0
         for row in rows:
@@ -235,7 +248,7 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
             new_items.append(Item(
-                sku=Item.generate_sku(),
+                sku=f'ITM{sku_counter:07d}',
                 title=row['title'] or '',
                 brand=row['brand'] or '',
                 price=row['price'] or 0,
@@ -248,6 +261,7 @@ class Command(BaseCommand):
                 notes=f'HISTORICAL:db1:{legacy_sku}',
                 listed_at=row['sold_at'],
             ))
+            sku_counter += 1
 
         if new_items:
             Item.objects.bulk_create(new_items, batch_size=BATCH_SIZE)

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T21:00:00-05:00 -->
+<!-- Last updated: 2026-03-28T23:00:00-05:00 -->
 # Protocol: Session Startup
 
 How to begin a new AI session on this project.
@@ -17,7 +17,7 @@ How to begin a new AI session on this project.
    - Read the top of repo root `CHANGELOG.md` (latest 1–2 sections, including `[Unreleased]` if present).
 
 4. **Check initiatives.**
-   - Read **`.ai/initiatives/_index.md`** for **active**, **on hold**, and **backlog** initiatives, and **`.ai/initiatives/_archived/ARCHIVE.md`** for archived work. Priorities also live in `CHANGELOG.md` (`[Unreleased]`) and the user’s message.
+   - Read **`.ai/initiatives/_index.md`** for **active**, **on hold**, and **backlog** initiatives, and **`.ai/initiatives/_archived/ARCHIVE.md`** for archived work. **Lifecycle how-tos** (`activate_initiative`, `move_initiative_to_*`): **`.ai/initiatives/_archived/_protocols/README.md`**. Priorities also live in `CHANGELOG.md` (`[Unreleased]`) and the user’s message.
    - **Alignment:** Substantial or multi-session work should map to a **named initiative** (file + row in `_index.md`). **Repo version bumps** (major / minor / patch) relate to **what shipped** and should stay traceable to initiatives and user-visible/API semver — see `.ai/protocols/review_bump.md` Part C. If it is unclear **which initiative** the session continues or which one a release would fulfill, **ask the user** to name it or to **create** a new initiative (add `.md` + row in `_index.md`) before treating scope as settled.
 
 5. **Load extended context only when needed.**

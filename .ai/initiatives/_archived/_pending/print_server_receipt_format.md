@@ -1,12 +1,11 @@
-<!-- Archived 2026-03-27: disposition=pending paused off main initiatives index; resume when ready to ship receipt layout/width/GDI polish. -->
-<!-- Last updated: 2026-03-27T14:00:00-05:00 -->
+<!-- Archived 2026-03-28: disposition=pending paused off main index (pre-production handoff; resume receipt layout / parity when prioritized) -->
+<!-- initiative: slug=print-server-receipt-format status=pending updated=2026-03-28 -->
+<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
 # Initiative: Print server — receipt format (V3)
 
-**Status: ARCHIVED — pending (off main index).** Priority was [E2E — Retag history + Quick reprice](../_completed/e2e_retag_quick_reprice_fixes.md) (completed 2026-03-28) until inventory/retag/POS paths are fully reliable end-to-end. Resume this initiative when ready to ship receipt layout/width/GDI polish.
+**Status: Pending** — parked off the main initiatives index before production push. **Resume when** further **POS receipt** polish is in scope: plain-text/GDI layout parity, PNG vs thermal alignment, or `receipt_data` contract changes.
 
----
-
-Improve **POS receipt** output from the local print server: layout, typography, width, and alignment on **Windows GDI** (`send_text`), while keeping the HTTP contract stable unless we intentionally version.
+**Shipped for reference (2026-03):** `RECEIPT_RENDER_SCALE` on `render_receipt_to_image` (native canvas scaling; avoids misleading upscale sweeps); default receipt queue **Receipt Printer**; smoke/workspace tooling under `workspace/receipt_printer/` (direct GDI script `print_receipt_gdi.py`, batch runners). Production path remains **`format_receipt_text`** → `send_text` unless you intentionally switch to raster/raw.
 
 **Current behavior (baseline):**
 

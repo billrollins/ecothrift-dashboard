@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T19:00:00-05:00 -->
+<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,6 +10,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+### Steering
+
+- **Initiatives — lifecycle protocols:** [`.ai/initiatives/_archived/_protocols/README.md`](.ai/initiatives/_archived/_protocols/README.md) — `activate_initiative`, `move_initiative_to_pending`, `_backlog`, `_completed`, `_abandoned`; [`.ai/protocols/move_to_pending.md`](.ai/protocols/move_to_pending.md) stubs to `move_initiative_to_pending.md`.
+- **Initiatives:** Location label initiative moved to **pending** — [`.ai/initiatives/_archived/_pending/create_location_label.md`](.ai/initiatives/_archived/_pending/create_location_label.md) (off the active index; resume when product/UI integration for location labels is in scope).
+- **Initiatives:** Print server — receipt format moved to **pending** — [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](.ai/initiatives/_archived/_pending/print_server_receipt_format.md) (off the active index pre-production; resume for POS/plain-text or PNG/thermal parity). Reference shipped in-repo: `RECEIPT_RENDER_SCALE` / `render_receipt_to_image`, default queue **Receipt Printer**, workspace GDI receipt scripts under `workspace/receipt_printer/`.
 
 ### Dashboard (dev tooling)
 

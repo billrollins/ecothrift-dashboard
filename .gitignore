@@ -87,3 +87,6 @@ workspace/notebooks/historical-data/pickle/
 workspace/notebooks/db-explorer/pickles/
 workspace/notebooks/.env
 workspace/notebooks/__pycache__/
+
+# Deploy — local production DB dumps (scripts/deploy/1_backup_prod.bat)
+scripts/deploy/backups/

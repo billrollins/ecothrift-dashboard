@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T19:00:00-05:00 -->
+<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -36,8 +36,8 @@ ecothrift-dashboard/
 ├── printserver/            Local print server (FastAPI, Python, Windows installer)
 ├── scripts/                Committed dev/deploy automation (see `.ai/extended/development.md`)
 ├── .ai/                    AI steering: context, protocols, initiatives, extended, reference, prototype
-│   ├── protocols/          startup.md, review_bump.md
-│   ├── initiatives/        _index.md (active); _archived/ARCHIVE.md + buckets (_completed, _backlog, _pending, _abandoned)
+│   ├── protocols/          startup.md, review_bump.md, move_to_pending.md (stub → initiatives/_archived/_protocols/)
+│   ├── initiatives/        _index.md (active); _archived/ARCHIVE.md + buckets + _protocols/ (lifecycle how-tos)
 │   ├── extended/           Deep-dive domain docs (load on demand)
 │   ├── reference/          Third-party / external context (optional)
 │   └── prototype/          Design prototypes and archived explorations
@@ -141,7 +141,7 @@ ecothrift-dashboard/
 
 ### Next focus and backlog
 
-**`.ai/initiatives/_index.md`** lists **active** initiatives (none at 2026-03-28 — prior E2E retag/Quick reprice work is [archived completed](initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md)). **[`.ai/initiatives/_archived/ARCHIVE.md`](initiatives/_archived/ARCHIVE.md)** catalogs completed, backlog, **pending**, and abandoned work. **Initiatives are archived only when the user explicitly approves** — see protocols and `_index.md`. Priorities also live in **`CHANGELOG.md`** and the user’s session message.
+**`.ai/initiatives/_index.md`** lists **active** initiatives (none at the moment — see **pending** below). Prior E2E retag/Quick reprice work is [archived completed](initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md). **Receipt format** and **location labels** are **pending** off the main index — [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](initiatives/_archived/_pending/print_server_receipt_format.md), [`.ai/initiatives/_archived/_pending/create_location_label.md`](initiatives/_archived/_pending/create_location_label.md). **[`.ai/initiatives/_archived/ARCHIVE.md`](initiatives/_archived/ARCHIVE.md)** catalogs completed, backlog, **pending**, and abandoned work. **Initiatives are archived only when the user explicitly approves** — see protocols and `_index.md`. Priorities also live in **`CHANGELOG.md`** and the user’s session message.
 
 **Initiatives and versioning:** **Major, minor, and patch** bumps (repo `.version`, root `package.json`, `CHANGELOG.md`) follow **user-visible behavior and API contract** — not a 1:1 rule with initiative files (see `_index.md` under “CHANGELOG, `.version`, and releases”). Even so, **shipping work should stay traceable to named initiatives** in `_index.md` unless the change is explicitly outside that model (e.g. hotfix). If an AI session or a **review_bump** pass cannot tell **which initiative** is being worked on or released, that is a **process gap**: the user should **name** the initiative or **create** one (new `.md` + row in `_index.md`). See `.ai/protocols/startup.md` (step 4) and `.ai/protocols/review_bump.md` (Part A item 4, Part C gate).
 
@@ -155,7 +155,7 @@ ecothrift-dashboard/
 4. **Do NOT amend commits** unless the conditions in the system prompt are met.
 5. **Use timestamps** (ISO 8601, America/Chicago timezone) on all documentation updates.
 6. **Load `.ai/extended/<domain>.md` only when the task touches that domain** — filenames are self-explanatory (e.g. `backend.md`, `inventory-pipeline.md`). Do not read all extended files at once.
-7. **Follow protocols** in `.ai/protocols/` (`startup.md`, `review_bump.md`). **Initiatives** live in `.ai/initiatives/` (`_index.md` for active; `_archived/ARCHIVE.md` for the archive catalog).
+7. **Follow protocols** in `.ai/protocols/` (`startup.md`, `review_bump.md`). **Initiative lifecycle** (`activate_initiative`, `move_initiative_to_*`) — [`.ai/initiatives/_archived/_protocols/README.md`](initiatives/_archived/_protocols/README.md). **Initiatives** live in `.ai/initiatives/` (`_index.md` for active; `_archived/ARCHIVE.md` for the archive catalog).
 8. **Initiatives vs releases** — Tie substantial work and **version bumps** to **named initiatives** when possible; **patch/minor/major** still follows product semver (see `_index.md`). If initiative scope is **ambiguous**, ask the user or add an initiative — do not guess.
 9. **Initiative archiving** — Do **not** move an initiative to `.ai/initiatives/_archived/` unless the **user explicitly** approves or instructs. **Ask** before archiving.
 10. **Verify before changing** — read files before editing, check lints after editing.
@@ -198,7 +198,7 @@ ecothrift-dashboard/
 | Initiatives (active, on hold, backlog) | `.ai/initiatives/_index.md` |
 | Archived initiatives (historical) | `.ai/initiatives/_archived/ARCHIVE.md` |
 | Deep-dive context | `.ai/extended/*.md` (load by domain) |
-| Protocols | `.ai/protocols/startup.md`, `review_bump.md` |
+| Protocols | `.ai/protocols/startup.md`, `review_bump.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
 | Dev scripts (repo) | `scripts/dev/` |
 | Personal scratch | `workspace/` (mostly gitignored) |
 | E2E test templates | `workspace/testing/` (tracked checklist + README) |
