@@ -3888,13 +3888,13 @@ def retag_v2_lookup_view(request):
 @api_view(['POST'])
 @perm_classes([IsAuthenticated, IsStaff])
 def retag_v2_create_view(request):
-    """Create a new DB3 Item from a DB2 legacy item (Retag v2 workflow).
+    """Create one or more DB3 Items from a DB2 legacy item (Retag v2 workflow).
 
-    Always creates a fresh Item — scanning the same old SKU twice produces two DB3 items.
+    Always creates fresh Items — use ``quantity`` to create N units in one request (N unique SKUs).
     Every successful create is recorded in RetagLog (temporary scaffolding).
 
     POST /api/inventory/retag/v2/create/
-    Body: { old_sku, title, brand?, condition, source, price, cost?, location?, notes? }
+    Body: { old_sku, title, brand?, condition, source, price, cost?, location?, notes?, quantity? }
     """
     from .models import TempLegacyItem, RetagLog
     from .retag_condition import normalize_legacy_condition
@@ -3903,6 +3903,20 @@ def retag_v2_create_view(request):
     old_sku = (request.data.get('old_sku') or '').strip().upper()
     if not old_sku:
         return Response({'detail': 'old_sku is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    raw_qty = request.data.get('quantity', 1)
+    try:
+        quantity = int(raw_qty)
+    except (TypeError, ValueError):
+        return Response(
+            {'detail': 'quantity must be a whole number between 1 and 50.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if quantity < 1 or quantity > 50:
+        return Response(
+            {'detail': 'quantity must be between 1 and 50.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     try:
         staged = TempLegacyItem.objects.get(legacy_sku=old_sku, source_db='db2')
@@ -3930,63 +3944,86 @@ def retag_v2_create_view(request):
     except (ValueError, TypeError):
         cost = None
 
-    new_sku = Item.generate_sku()
     notes_parts = [f'RETAGGED_FROM_DB2:{old_sku}']
     if extra_notes:
         notes_parts.append(extra_notes)
+    notes_joined = ' | '.join(notes_parts)
+    product_model = (staged.model or '').strip() or None
 
-    new_item = Item.objects.create(
-        sku=new_sku,
-        title=title,
-        brand=brand,
-        category=staged.model or '',
-        price=price,
-        cost=cost,
-        source=source,
-        status='on_shelf',
-        condition=condition,
-        location=location,
-        notes=' | '.join(notes_parts),
-        listed_at=tz.now(),
-    )
+    created = []
+    last_item = None
 
-    ItemHistory.objects.create(
-        item=new_item,
-        event_type='created',
-        note=f'Retagged from DB2 legacy item {old_sku}',
-        created_by=request.user,
-    )
+    with transaction.atomic():
+        for _ in range(quantity):
+            new_sku = Item.generate_sku()
+            new_item = Item.objects.create(
+                sku=new_sku,
+                title=title,
+                brand=brand,
+                category=staged.model or '',
+                price=price,
+                cost=cost,
+                source=source,
+                status='on_shelf',
+                condition=condition,
+                location=location,
+                notes=notes_joined,
+                listed_at=tz.now(),
+            )
 
-    # Record this event in the retag log (one row per scan)
-    RetagLog.objects.create(
-        legacy_sku=old_sku,
-        new_item_sku=new_sku,
-        title=title,
-        price=price,
-        retail_amt=staged.retail_amt,
-        retagged_by=request.user,
-    )
+            ItemHistory.objects.create(
+                item=new_item,
+                event_type='created',
+                note=f'Retagged from DB2 legacy item {old_sku}',
+                created_by=request.user,
+            )
 
-    # Update the staging row to track most-recent tag (retagged=True lets lookup know it's been done)
-    staged.retagged = True
-    staged.new_item_sku = new_sku
-    staged.retagged_at = tz.now()
-    staged.save(update_fields=['retagged', 'new_item_sku', 'retagged_at'])
+            RetagLog.objects.create(
+                legacy_sku=old_sku,
+                new_item_sku=new_sku,
+                title=title,
+                price=price,
+                retail_amt=staged.retail_amt,
+                retagged_by=request.user,
+            )
+
+            payload = {
+                'qr_data': new_item.sku,
+                'text': f'${price:.2f}',
+                'product_title': new_item.title,
+                'include_text': True,
+                'product_brand': brand or None,
+                'product_model': product_model,
+            }
+            created.append({
+                'new_sku': new_item.sku,
+                'title': new_item.title,
+                'price': str(new_item.price),
+                'print_payload': payload,
+            })
+            last_item = new_item
+
+        staged.retagged = True
+        staged.new_item_sku = last_item.sku
+        staged.retagged_at = tz.now()
+        staged.save(update_fields=['retagged', 'new_item_sku', 'retagged_at'])
 
     return Response({
-        'new_sku': new_item.sku,
-        'title': new_item.title,
-        'price': str(new_item.price),
-        'category': new_item.category,
+        'quantity': quantity,
+        'created': created,
+        'new_sku': last_item.sku,
+        'title': last_item.title,
+        'price': str(last_item.price),
+        'category': last_item.category,
         'old_sku': old_sku,
         'already_retagged': False,
         'print_payload': {
-            'qr_data': new_item.sku,
+            'qr_data': last_item.sku,
             'text': f'${price:.2f}',
-            'product_title': new_item.title,
+            'product_title': last_item.title,
             'include_text': True,
             'product_brand': brand or None,
-            'product_model': (staged.model or '').strip() or None,
+            'product_model': product_model,
         },
     })
 

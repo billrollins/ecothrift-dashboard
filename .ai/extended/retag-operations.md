@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-26T21:00:00-05:00 -->
+<!-- Last updated: 2026-03-31T18:00:00-05:00 -->
 
 # Retag operations (AI reference)
 
@@ -8,6 +8,10 @@ Single place for **day-of** and **post-cutover** pointers. Technical detail live
 
 - Refresh staging: `python manage.py import_db2_staging --update-existing` (after a current DB2 snapshot). Default import includes **sold + active** legacy rows; use `--active-only` for floor inventory only.
 - Staging table: `inventory_templegacyitem` (`TempLegacyItem`).
+
+## During retag day
+
+- **Bulk shelf units:** Retag UI **Labels / qty** (1–50) maps to **`POST /api/inventory/retag/v2/create/`** body **`quantity`**; each unit is a new DB3 `Item` with a unique SKU. Labels print via the local print server one job at a time (staggered **`POST /print/label`**). After a multi-unit success, the qty control resets to **1**.
 
 ## After retag day (cleanup)
 

@@ -978,9 +978,27 @@ export interface RetagV2CreateRequest {
   cost?: number | string;
   location?: string;
   notes?: string;
+  /** 1–50; default 1 */
+  quantity?: number;
+}
+
+export interface RetagV2CreateRow {
+  new_sku: string;
+  title: string;
+  price: string;
+  print_payload: {
+    qr_data: string;
+    text: string;
+    product_title: string;
+    include_text: boolean;
+    product_brand?: string | null;
+    product_model?: string | null;
+  };
 }
 
 export interface RetagV2CreateResponse {
+  quantity: number;
+  created: RetagV2CreateRow[];
   new_sku: string;
   title: string;
   price: string;

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-26T20:00:00-05:00 -->
+<!-- Last updated: 2026-03-31T18:00:00-05:00 -->
 
 # Inventory Pipeline — Extended Context
 
@@ -434,7 +434,7 @@ All at `/api/inventory/retag/v2/`, all require `IsAuthenticated`.
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `retag/v2/lookup/` | Body: `{ sku }`. Returns `TempLegacyItem` data plus `retag_count` from `RetagLog`. |
-| POST | `retag/v2/create/` | Body: `{ legacy_sku, title, brand, price, retail_amt, condition, source }`. Always creates a new `Item` + `RetagLog` row + updates `TempLegacyItem`. Returns `print_payload`. |
+| POST | `retag/v2/create/` | Body: `{ old_sku, title, brand, price, condition, source, quantity? }` (optional **`quantity`**, 1–50, default 1). Creates N `Item` + N `RetagLog` rows + updates `TempLegacyItem` once. Returns **`created`** (array of `new_sku` + `print_payload` per item). |
 | GET | `retag/v2/stats/` | Summary stats: total retagged, sum price, sum retail. |
 | GET | `retag/v2/history/` | Paginated `RetagLog` rows. Query params: `search`, `since` (ISO datetime), `page`, `page_size`. Response includes summary stats. |
 

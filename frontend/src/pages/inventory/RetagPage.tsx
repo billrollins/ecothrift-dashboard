@@ -41,6 +41,7 @@ import {
   retagV2Stats,
   retagV2History,
   type RetagV2LookupResponse,
+  type RetagV2CreateRow,
   type RetagV2StatsResponse,
   type RetagHistoryResponse,
 } from '../../api/inventory.api';
@@ -145,6 +146,35 @@ function computeAppliedPrice(
   }
 }
 
+/** Same stagger as Processing check-in batch labels — one POST /print/label per label. */
+const RETAG_PRINT_STAGGER_MS = 200;
+
+async function printRetagLabelsStaggered(
+  rows: RetagV2CreateRow[],
+): Promise<{ ok: boolean; failed: number }> {
+  let failed = 0;
+  for (let i = 0; i < rows.length; i++) {
+    if (i > 0) {
+      await new Promise<void>(resolve => setTimeout(resolve, RETAG_PRINT_STAGGER_MS));
+    }
+    const p = rows[i].print_payload;
+    try {
+      const res = await localPrintService.printLabel({
+        qr_data: p.qr_data,
+        text: p.text,
+        product_title: p.product_title,
+        product_brand: p.product_brand?.trim() || undefined,
+        product_model: p.product_model?.trim() || undefined,
+        include_text: true,
+      });
+      if (!res.success) failed++;
+    } catch {
+      failed++;
+    }
+  }
+  return { ok: failed === 0, failed };
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function RetagPage() {
@@ -155,6 +185,7 @@ export default function RetagPage() {
   const [strategy, setStrategy] = useState<PriceStrategy>('pct_of_retail');
   const [strategyPct, setStrategyPct] = useState(35);
   const [autoPrint, setAutoPrint] = useState(true);
+  const [labelQty, setLabelQty] = useState(1);
   const [defaultSource, setDefaultSource] = useState('purchased');
   const [defaultCondition, setDefaultCondition] = useState('good');
 
@@ -321,11 +352,14 @@ export default function RetagPage() {
     title: string,
     condition: string,
     shouldPrint: boolean,
+    qty: number,
   ) => {
     if (isNaN(price) || price <= 0) {
       setError('Price could not be determined. Check the strategy settings and try again.');
       return;
     }
+
+    const quantity = Math.min(50, Math.max(1, Math.floor(qty) || 1));
 
     setError('');
     setCreateLoading(true);
@@ -339,49 +373,64 @@ export default function RetagPage() {
         source: defaultSource,
         price,
         location: editLocation.trim() || undefined,
+        quantity,
       });
 
       const isReprint = !!data.already_retagged;
+      const rows = data.created?.length ? data.created : [];
 
       let printOk = true;
-      if (shouldPrint && data.print_payload) {
-        printOk = await localPrintService
-          .printLabel({
-            qr_data: data.print_payload.qr_data,
-            text: data.print_payload.text,
-            product_title: data.print_payload.product_title,
-            product_brand: data.print_payload.product_brand?.trim() || undefined,
-            product_model: data.print_payload.product_model?.trim() || undefined,
-            include_text: true,
-          })
-          .then(() => true)
-          .catch(() => false);
+      let printPartial = false;
+      if (shouldPrint && rows.length > 0) {
+        const { ok, failed } = await printRetagLabelsStaggered(rows);
+        printOk = ok;
+        printPartial = failed > 0 && failed < rows.length;
       }
 
-      const entry: SessionEntry = {
-        seq: seqCounter,
+      const now = new Date();
+      const baseSeq = seqCounter;
+      const additions: SessionEntry[] = rows.map((row, i) => ({
+        seq: baseSeq + i,
         oldSku: data.old_sku,
-        newSku: data.new_sku,
-        title: data.title,
+        newSku: row.new_sku,
+        title: row.title,
         price,
         strategy,
-        taggedAt: new Date(),
-      };
-      setHistory(h => [entry, ...h].slice(0, 50));
-      setSeqCounter(c => c + 1);
+        taggedAt: now,
+      }));
+      setSeqCounter(baseSeq + rows.length);
+      setHistory(h => [...additions, ...h].slice(0, 50));
+
+      const firstSku = rows[0]?.new_sku ?? data.new_sku;
+      const lastSku = rows[rows.length - 1]?.new_sku ?? data.new_sku;
+      const skuSummary =
+        quantity > 1 && firstSku !== lastSku
+          ? `${firstSku} … ${lastSku}`
+          : lastSku;
 
       if (isReprint) {
         enqueueSnackbar(
-          `Reprinted existing tag: ${data.old_sku} → ${data.new_sku}${!printOk ? ' (print server offline)' : ''}`,
+          `Reprinted existing tag: ${data.old_sku} → ${skuSummary}${!printOk ? ' (print server offline)' : ''}`,
           {
             variant: !printOk ? 'warning' : 'info',
             autoHideDuration: 4000,
             anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
           },
         );
+      } else if (quantity > 1) {
+        enqueueSnackbar(
+          `Tagged ${quantity}× ${data.old_sku} → ${skuSummary}${shouldPrint && !printOk ? ' (print issue)' : ''}${
+            shouldPrint && printPartial ? ' — some labels failed to print' : ''
+          }`,
+          {
+            variant:
+              shouldPrint && (!printOk || printPartial) ? 'warning' : 'success',
+            autoHideDuration: 3500,
+          },
+        );
       } else {
         enqueueSnackbar(
-          `Tagged! ${data.old_sku} → ${data.new_sku}${shouldPrint && !printOk ? ' (print server offline)' : ''}`,
+          `Tagged! ${data.old_sku} → ${lastSku}${shouldPrint && !printOk ? ' (print server offline)' : ''}`,
           { variant: shouldPrint && !printOk ? 'warning' : 'success', autoHideDuration: 2500 },
         );
       }
@@ -389,6 +438,9 @@ export default function RetagPage() {
       refreshStats();
       fetchHistory(1, historySearch, sessionOnly);
       setHistoryPage(1);
+      if (quantity > 1) {
+        setLabelQty(1);
+      }
       clearItem();
     } catch (err: unknown) {
       const axiosDetail =
@@ -455,6 +507,7 @@ export default function RetagPage() {
           data.legacy_item.title,
           immediateCondition,
           true,
+          labelQty,
         );
       }
     } catch (err: unknown) {
@@ -466,7 +519,7 @@ export default function RetagPage() {
     } finally {
       setLookupLoading(false);
     }
-  }, [skuInput, autoPrint, strategy, strategyPct, defaultCondition, executeCreate]);
+  }, [skuInput, autoPrint, strategy, strategyPct, defaultCondition, executeCreate, labelQty]);
 
   // Manual confirm — used when auto-print is OFF so staff can review/edit first
   const handleCreate = useCallback(async () => {
@@ -478,8 +531,9 @@ export default function RetagPage() {
       editTitle,
       editCondition,
       false,  // no print in manual mode
+      labelQty,
     );
-  }, [lookupResult, editPrice, editTitle, editCondition, executeCreate]);
+  }, [lookupResult, editPrice, editTitle, editCondition, executeCreate, labelQty]);
 
   const handleSkuKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleLookup();
@@ -636,6 +690,24 @@ export default function RetagPage() {
               </FormControl>
 
               <Divider />
+
+              <TextField
+                label="Labels / qty"
+                value={labelQty}
+                onChange={e => {
+                  const v = Number(e.target.value);
+                  if (Number.isNaN(v)) {
+                    setLabelQty(1);
+                    return;
+                  }
+                  setLabelQty(Math.min(50, Math.max(1, Math.floor(v))));
+                }}
+                type="number"
+                inputProps={{ min: 1, max: 50, step: 1 }}
+                size="small"
+                fullWidth
+                helperText="Creates this many new DB3 items (unique SKUs); labels print one at a time"
+              />
 
               {/* Auto Print Toggle */}
               <FormControlLabel
@@ -953,7 +1025,11 @@ export default function RetagPage() {
                   {autoPrint ? (
                     <Chip
                       icon={<CheckCircle />}
-                      label="Will create + print on next scan"
+                      label={
+                        labelQty > 1
+                          ? `Will create ${labelQty} + print on next scan`
+                          : 'Will create + print on next scan'
+                      }
                       color="primary"
                       variant="outlined"
                       size="medium"
@@ -969,7 +1045,11 @@ export default function RetagPage() {
                       size="large"
                       sx={{ minWidth: 220 }}
                     >
-                      {createLoading ? 'Creating...' : 'Create DB3 Tag (no print)'}
+                      {createLoading
+                        ? 'Creating...'
+                        : labelQty > 1
+                          ? `Create ${labelQty} DB3 tags (no print)`
+                          : 'Create DB3 Tag (no print)'}
                     </Button>
                   )}
                 </Stack>

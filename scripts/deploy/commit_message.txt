@@ -1,18 +1,14 @@
-fix: move Django contrib.admin to /db-admin so React /admin/* refreshes work
+feat(retag): bulk label qty on create, staggered print, reset qty after multi-unit
 
-Full page loads were hitting contrib.admin under the same /admin/ prefix as the
-React staff pages (e.g. /admin/settings), which showed Django admin login.
-Mount admin at /db-admin/, let the SPA serve /admin/*, proxy /db-admin in Vite,
-and redirect exact /admin and /admin/ to /db-admin/ for old bookmarks.
+- POST /api/inventory/retag/v2/create/ accepts optional quantity (1–50, default 1);
+  transaction creates N Items and RetagLog rows, updates TempLegacyItem once; returns
+  quantity, created[] (new_sku + print_payload per row), and legacy top-level fields
+  for the last item (apps/inventory/views.py).
+- RetagPage: Session "Labels / qty"; passes quantity to create; prints each label via
+  existing POST /print/label with 200 ms stagger; after a successful multi-unit run,
+  resets Labels / qty to 1 (frontend/src/pages/inventory/RetagPage.tsx).
+- Client types: RetagV2CreateRequest.quantity, RetagV2CreateRow, RetagV2CreateResponse.created
+  (frontend/src/api/inventory.api.ts).
 
-See CHANGELOG [Unreleased] and .ai/initiatives/django_admin_legacy_navigation.md.
-
-Also — retag v2 history API and today-only history defaults:
-
-- retag_v2_history_view: serialize retagged_by with User.full_name (custom User
-  has no get_full_name(); AbstractUser-only API).
-- RetagPage: default today-only filter on; since = start of local calendar day
-  (date-fns startOfDay); initial fetch matches the toggle; search debounce uses
-  sessionOnlyRef.
-
-See CHANGELOG.md [Unreleased] when inventory/retag notes are added.
+Release: v2.2.5 bulk retag + print; v2.2.6 qty reset UX (CHANGELOG.md). Steering:
+.ai/context.md, .ai/extended/inventory-pipeline.md. Outside named initiative — retag ops.

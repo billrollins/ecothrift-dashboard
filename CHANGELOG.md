@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
+<!-- Last updated: 2026-03-31T18:00:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -32,6 +32,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Dev:** `printserver/dev_print_e2e_3_labels.bat` — first three rows from `workspace/testing/data/retag_e2e_10_items.json`. **`printserver/scripts/label_price_fringe_grid.py`** — fringe-case PNGs + fit summary to `printserver/output_label_fringe_review/` (gitignored).
 - **Samples:** `label_test_data.py` prices `$1.99`, `$25.00`, `$1,123.75`; consultant notes under `.ai/reference/Consult Label/to-be-checked/`.
 - **Steering:** Label price layout work archived — [`.ai/initiatives/_archived/_completed/print_server_label_price_layout.md`](.ai/initiatives/_archived/_completed/print_server_label_price_layout.md) (print server **v1.2.35–v1.2.38**); see [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md).
+
+---
+
+## [2.2.6] — 2026-03-31
+
+### Changed
+
+- **Inventory — Retag:** After a successful multi-unit tag (**Labels / qty** > 1), the qty control resets to **1** for the next scan. **Outside initiative** — UX polish (`RetagPage.tsx`).
+
+---
+
+## [2.2.5] — 2026-03-31
+
+### Added
+
+- **Inventory — Retag:** **Labels / qty** (1–50) on **`/inventory/retag`** creates that many new DB3 items (unique SKUs, one `RetagLog` per unit) per scan or manual confirm. **`POST /api/inventory/retag/v2/create/`** accepts optional **`quantity`** (default 1) and returns **`created`** (per-item `new_sku` + `print_payload`). The browser prints each label with the existing local print server **`POST /print/label`** only, staggered **200 ms** between jobs (no new print-server routes).
 
 ---
 
