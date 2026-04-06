@@ -1,8 +1,9 @@
-<!-- initiative: slug=pos-cart-total-stale-prefetch status=shipped updated=2026-04-06 -->
+<!-- Archived 2026-04-06: disposition=completed (Cart.recalculate stale prefetch fix; v2.2.7) -->
+<!-- initiative: slug=pos-cart-total-stale-prefetch status=completed updated=2026-04-06 -->
 <!-- Last updated: 2026-04-06T18:30:00-05:00 -->
 # Initiative: POS — cart total out of sync with line totals
 
-**Priority:** **Fixed** in **v2.2.7** (see `CHANGELOG.md`). **Scope:** diagnostic + acceptance; confirm then archive per user.
+**Status: Completed** — Fixed in **v2.2.7**; see **`CHANGELOG.md`**.
 
 ---
 
@@ -71,4 +72,4 @@ Relevant code paths:
 
 ## See also
 
-- `.ai/initiatives/pos_sold_item_scan_ux_and_audit_trail.md` — separate POS launch issue (sold SKU messaging).
+- [`pos_sold_item_scan_ux_and_audit_trail.md`](./pos_sold_item_scan_ux_and_audit_trail.md) — related POS launch issue (sold SKU messaging; v2.2.8).

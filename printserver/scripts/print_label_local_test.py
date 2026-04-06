@@ -142,6 +142,7 @@ def main() -> int:
             product_title=row.get("product_title"),
             product_brand=row.get("product_brand"),
             product_model=row.get("product_model"),
+            green_label_stock=bool(row.get("green_label_stock", False)),
         )
         image = generate_label(req, label_size_preset=args.preset)
         if args.dry_run:

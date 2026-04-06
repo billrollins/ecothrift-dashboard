@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, type FormEvent } from 'react';
 import {
   Alert,
   Box,
@@ -52,6 +52,7 @@ import {
   useDrawers,
   useCreateCart,
   useAddItemToCart,
+  useAddManualLineToCart,
   useAddResaleCopyToCart,
   useUpdateCartLine,
   useRemoveCartLine,
@@ -115,6 +116,9 @@ function deriveTerminalState({
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+const DEFAULT_MANUAL_LINE_TITLE = 'Pink Tag Item';
+const DEFAULT_MANUAL_LINE_PRICE = '0.50';
+
 function formatCurrency(value: string | number | null | undefined): string {
   const num = typeof value === 'string' ? parseFloat(value) : (value ?? 0);
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
@@ -151,6 +155,7 @@ export default function TerminalPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
   const skuInputRef = useRef<HTMLInputElement>(null);
+  const manualDescriptionInputRef = useRef<HTMLInputElement>(null);
   const { config, isRegister, registerId } = useDeviceConfig();
   const printStatus = useLocalPrintStatus();
 
@@ -180,6 +185,9 @@ export default function TerminalPage() {
     sku?: string;
     title?: string;
   } | null>(null);
+  const [unscannableDialogOpen, setUnscannableDialogOpen] = useState(false);
+  const [manualDescription, setManualDescription] = useState(DEFAULT_MANUAL_LINE_TITLE);
+  const [manualUnitPrice, setManualUnitPrice] = useState(DEFAULT_MANUAL_LINE_PRICE);
 
   // Stable date string — only recomputes at midnight
   const todayLocalISO = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
@@ -236,6 +244,7 @@ export default function TerminalPage() {
 
   const createCartMutation = useCreateCart();
   const addItemMutation = useAddItemToCart();
+  const addManualLineMutation = useAddManualLineToCart();
   const addResaleCopyMutation = useAddResaleCopyToCart();
   const updateLineMutation = useUpdateCartLine();
   const removeLineMutation = useRemoveCartLine();
@@ -376,6 +385,86 @@ export default function TerminalPage() {
     lookupCustomerMutation,
     enqueueSnackbar,
   ]);
+
+  useEffect(() => {
+    if (!unscannableDialogOpen) return;
+    const id = requestAnimationFrame(() => {
+      manualDescriptionInputRef.current?.focus();
+      manualDescriptionInputRef.current?.select();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [unscannableDialogOpen]);
+
+  const handleOpenUnscannableDialog = useCallback(() => {
+    setManualDescription(DEFAULT_MANUAL_LINE_TITLE);
+    setManualUnitPrice(DEFAULT_MANUAL_LINE_PRICE);
+    setUnscannableDialogOpen(true);
+  }, []);
+
+  const handleSubmitManualLine = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      const desc = manualDescription.trim();
+      if (!desc) {
+        enqueueSnackbar('Description is required.', { variant: 'warning' });
+        return;
+      }
+      const priceStr = manualUnitPrice.trim();
+      const unitPrice = priceStr === '' ? 0.5 : parseFloat(priceStr);
+      if (Number.isNaN(unitPrice) || unitPrice < 0) {
+        enqueueSnackbar('Enter a valid price.', { variant: 'error' });
+        return;
+      }
+
+      let activeCart = cart;
+      if (!activeCart) {
+        const liveDrawer = todayDrawerRef.current;
+        const targetDrawerId: number | undefined = isRegister
+          ? (typeof liveDrawer?.id === 'number' ? liveDrawer.id : undefined)
+          : typeof managerDrawerId === 'number'
+            ? managerDrawerId
+            : undefined;
+
+        if (typeof targetDrawerId !== 'number') {
+          enqueueSnackbar('Open a drawer first before scanning items.', { variant: 'warning' });
+          return;
+        }
+        try {
+          const newCart = await createCartMutation.mutateAsync({ drawer: targetDrawerId });
+          activeCart = newCart as unknown as Cart;
+          setCart(activeCart);
+        } catch {
+          enqueueSnackbar('Failed to create cart', { variant: 'error' });
+          return;
+        }
+      }
+
+      try {
+        const updated = await addManualLineMutation.mutateAsync({
+          cartId: activeCart.id,
+          description: desc,
+          unit_price: unitPrice,
+        });
+        setCart(updated as unknown as Cart);
+        setUnscannableDialogOpen(false);
+        setManualDescription(DEFAULT_MANUAL_LINE_TITLE);
+        setManualUnitPrice(DEFAULT_MANUAL_LINE_PRICE);
+        skuInputRef.current?.focus();
+      } catch {
+        enqueueSnackbar('Failed to add line', { variant: 'error' });
+      }
+    },
+    [
+      cart,
+      manualDescription,
+      manualUnitPrice,
+      isRegister,
+      managerDrawerId,
+      createCartMutation,
+      addManualLineMutation,
+      enqueueSnackbar,
+    ],
+  );
 
   const handleRemoveLine = useCallback(async (lineId: number) => {
     if (!cart) return;
@@ -857,9 +946,33 @@ export default function TerminalPage() {
                             }
                           >
                             <ListItemText
-                              primary={line.description}
+                              primary={
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  <Typography component="span" sx={{ fontWeight: 500 }}>
+                                    {line.description}
+                                  </Typography>
+                                  {line.item == null && (
+                                    <Chip
+                                      size="small"
+                                      label="Pink tag"
+                                      sx={{
+                                        height: 22,
+                                        fontSize: '0.7rem',
+                                        bgcolor: 'rgba(233, 30, 99, 0.14)',
+                                      }}
+                                    />
+                                  )}
+                                </Box>
+                              }
                               secondary={`${line.quantity} × ${formatCurrency(line.unit_price)}`}
-                              primaryTypographyProps={{ fontWeight: 500 }}
+                              slotProps={{ primary: { component: 'div' } }}
                             />
                             <Typography variant="body2" sx={{ ml: 1, mr: 6 }}>
                               {formatCurrency(line.line_total)}
@@ -899,26 +1012,39 @@ export default function TerminalPage() {
                 <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                   Add item
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <TextField
-                    inputRef={skuInputRef}
+                <Stack spacing={1}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                      inputRef={skuInputRef}
+                      fullWidth
+                      size="small"
+                      placeholder="Scan or type SKU (or CUS-XXXX)"
+                      value={skuInput}
+                      onChange={(e) => setSkuInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleScanInput()}
+                      autoFocus
+                    />
+                    <Button
+                      variant="contained"
+                      startIcon={<Search />}
+                      onClick={handleScanInput}
+                      disabled={
+                        !skuInput.trim() || addItemMutation.isPending || createCartMutation.isPending
+                      }
+                    >
+                      Add
+                    </Button>
+                  </Box>
+                  <Button
+                    variant="outlined"
                     fullWidth
                     size="small"
-                    placeholder="Scan or type SKU (or CUS-XXXX)"
-                    value={skuInput}
-                    onChange={(e) => setSkuInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleScanInput()}
-                    autoFocus
-                  />
-                  <Button
-                    variant="contained"
-                    startIcon={<Search />}
-                    onClick={handleScanInput}
-                    disabled={!skuInput.trim() || addItemMutation.isPending || createCartMutation.isPending}
+                    onClick={handleOpenUnscannableDialog}
+                    disabled={addManualLineMutation.isPending}
                   >
-                    Add
+                    Unscannable item
                   </Button>
-                </Box>
+                </Stack>
               </Paper>
 
               <Paper sx={{ p: 2 }}>
@@ -1163,6 +1289,59 @@ export default function TerminalPage() {
             {addResaleCopyMutation.isPending ? 'Working…' : 'Create copy and add to cart'}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={unscannableDialogOpen}
+        onClose={() => {
+          setUnscannableDialogOpen(false);
+          skuInputRef.current?.focus();
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <form onSubmit={handleSubmitManualLine}>
+          <DialogTitle>Unscannable item</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                inputRef={manualDescriptionInputRef}
+                label="Description"
+                fullWidth
+                size="small"
+                value={manualDescription}
+                onChange={(e) => setManualDescription(e.target.value)}
+              />
+              <TextField
+                label="Price"
+                type="number"
+                fullWidth
+                size="small"
+                value={manualUnitPrice}
+                onChange={(e) => setManualUnitPrice(e.target.value)}
+                slotProps={{ input: { inputProps: { min: 0, step: 0.01 } } }}
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              type="button"
+              onClick={() => {
+                setUnscannableDialogOpen(false);
+                skuInputRef.current?.focus();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={addManualLineMutation.isPending || createCartMutation.isPending}
+            >
+              {addManualLineMutation.isPending ? 'Adding…' : 'OK'}
+            </Button>
+          </DialogActions>
+        </form>
       </Dialog>
 
       {/* Void sale confirmation */}

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-30T15:00:00-05:00 -->
+<!-- Last updated: 2026-04-06T20:00:00-05:00 -->
 # Archive index — initiatives
 
 ## What this is
@@ -57,6 +57,8 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [e2e_retag_quick_reprice_fixes.md](./_completed/e2e_retag_quick_reprice_fixes.md) | E2E retag history + Quick reprice (SKU filter, sold flows, session list, item Print/Reprice); label reminder + Quick Reprice 10% / session persistence — shipped **dashboard v2.2.3**. | 2026-03-28 |
 | [add_item_dialog_and_sources.md](./_completed/add_item_dialog_and_sources.md) | Add Item flow (Items panel + `ItemForm`), AI suggest, misc/PO/consignment sources, hierarchical dev logging (`LOG_ADD_ITEM_*`). Estimated retail left for a future product decision. | 2026-03-28 |
 | [django_admin_legacy_navigation.md](./_completed/django_admin_legacy_navigation.md) | Django **`contrib.admin`** at **`/db-admin/`**; React **`/admin/*`** no longer collides — hard refresh loads SPA; Vite proxies **`/db-admin`** only. Shipped 2026-03-30 (`CHANGELOG` `[Unreleased]`). | 2026-03-30 |
+| [pos_cart_total_stale_prefetch_bug.md](./_completed/pos_cart_total_stale_prefetch_bug.md) | POS cart **subtotal/total** one step behind line totals — **`Cart.recalculate()`** uses fresh DB lines (stale `prefetch_related` fix); shipped **v2.2.7**. | 2026-04-06 |
+| [pos_sold_item_scan_ux_and_audit_trail.md](./_completed/pos_sold_item_scan_ux_and_audit_trail.md) | Sold-SKU messaging, **`ItemScanHistory`** outcomes, **`add-resale-copy`**, staff-only resale captions; customer-safe receipts; shipped **v2.2.8**. | 2026-04-06 |
 
 ---
 
@@ -66,6 +68,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 |------|---------|----------|
 | [schema_public_to_ecothrift.md](./_backlog/schema_public_to_ecothrift.md) | Move V3 Django tables from `public` to schema `ecothrift` for shared Postgres with `darkhorse`. | 2026-03-28 |
 | [category_taxonomy_from_sales_history.md](./_backlog/category_taxonomy_from_sales_history.md) | Derive canonical category set from historical sales/inventory; map legacy labels → V3 seeds. | 2026-03-28 |
+| [item_retail_price_on_instance.md](./_backlog/item_retail_price_on_instance.md) | Retail/estimated retail on `Item` (not Product); migrations, backfill, API/UI; foundation for DS. Parked — interim SQL uses RetagLog + ManifestRow. | 2026-04-06 |
 
 ---
 

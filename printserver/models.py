@@ -37,6 +37,10 @@ class LabelPrintRequest(BaseModel):
     product_title: str | None = None
     product_brand: str | None = Field(None, description="Product brand line(s) on label")
     product_model: str | None = Field(None, description="Model / style / product number line(s)")
+    green_label_stock: bool = Field(
+        False,
+        description="Colored label stock (e.g. lime): black price band with green price text (RGB); title/QR as black on paper",
+    )
 
 
 class TestPrintRequest(BaseModel):

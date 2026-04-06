@@ -26,6 +26,8 @@ export interface LocalPrintRequest {
   product_title?: string;
   product_brand?: string;
   product_model?: string;
+  /** Lime/colored stock: black price band, green price text; title/QR black on paper. */
+  green_label_stock?: boolean;
 }
 
 export interface LocalPrintResponse {

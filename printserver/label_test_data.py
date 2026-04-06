@@ -26,3 +26,12 @@ SAMPLE_LABEL_ROWS: list[dict[str, str]] = [
         "product_model": "MB-12C-BLK",
     },
 ]
+
+# Green-stock test render (same shape as SAMPLE_LABEL_ROWS); normal product lines, not signage.
+CUSTOMER_INFO_TEST_ROW: dict[str, str] = {
+    "text": "$26.25",
+    "qr_data": "DEMO-LAMP-002",
+    "product_title": "Natural Polyresin Floor Lamp — Room Essentials",
+    "product_brand": "Room Essentials",
+    "product_model": "RE-FLAMP-001",
+}

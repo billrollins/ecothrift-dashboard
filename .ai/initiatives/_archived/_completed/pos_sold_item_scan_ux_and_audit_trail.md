@@ -1,8 +1,9 @@
-<!-- initiative: slug=pos-sold-item-scan-audit status=shipped updated=2026-04-06 -->
+<!-- Archived 2026-04-06: disposition=completed (sold-SKU UX, audit, resale copy API; v2.2.8) -->
+<!-- initiative: slug=pos-sold-item-scan-audit status=completed updated=2026-04-06 -->
 <!-- Last updated: 2026-04-06T18:30:00-05:00 -->
 # Initiative: POS — sold-item scan UX + audit trail
 
-**Priority:** **Shipped** in **v2.2.8** (confirm then archive per user). Core UX, audit, resale copy API, and staff-only transaction captions are in production notes below.
+**Status: Completed** — Shipped **v2.2.8**; see **`CHANGELOG.md`**. Core UX, audit, resale copy API, and staff-only transaction captions are documented below.
 
 ---
 
@@ -63,13 +64,13 @@
 **Shipped (implementation):**
 
 - **Audit:** `ItemScanHistory` with `outcome` (`added_to_cart` | `pos_blocked_sold` | `public_lookup` | `audit_scan`), optional `cart`, `created_by`. Failed `add-item` on sold SKU logs `pos_blocked_sold` before the 400.
-- **Staff-only disclosure (not customer-facing):** Internal resale context appears in three places: (1) cashier **modal** on [`TerminalPage`](../../frontend/src/pages/pos/TerminalPage.tsx) after a sold scan — Cancel vs **Create copy and add to cart**; (2) **`Item` / DB** — duplicate-for-resale notes on the new unit as today; (3) **Transactions** detail on [`/pos/transactions`](../../frontend/src/pages/pos/TransactionListPage.tsx) — caption when `resale_source_sku` is set. **Receipts / print:** line items use normal product **description** only — no resale provenance on what the customer sees; **print server** not modified for this.
-- **API:** `add-item` returns `ITEM_ALREADY_SOLD` + `item_id`, `sku`, `title`. **`POST /pos/carts/{id}/add-resale-copy/`** duplicates atomically via [`apps/inventory/services/resale_duplicate.py`](../../apps/inventory/services/resale_duplicate.py). **`CartLine`** stores `resale_source_sku` / `resale_source_item_id` for staff/history, not for customer receipt text.
-- **Tests:** [`apps/pos/tests/test_cart_add_item_audit.py`](../../apps/pos/tests/test_cart_add_item_audit.py), [`apps/pos/tests/test_cart_add_resale_copy.py`](../../apps/pos/tests/test_cart_add_resale_copy.py).
+- **Staff-only disclosure (not customer-facing):** Internal resale context appears in three places: (1) cashier **modal** on [`TerminalPage`](../../../../frontend/src/pages/pos/TerminalPage.tsx) after a sold scan — Cancel vs **Create copy and add to cart**; (2) **`Item` / DB** — duplicate-for-resale notes on the new unit as today; (3) **Transactions** detail on [`/pos/transactions`](../../../../frontend/src/pages/pos/TransactionListPage.tsx) — caption when `resale_source_sku` is set. **Receipts / print:** line items use normal product **description** only — no resale provenance on what the customer sees; **print server** not modified for this.
+- **API:** `add-item` returns `ITEM_ALREADY_SOLD` + `item_id`, `sku`, `title`. **`POST /pos/carts/{id}/add-resale-copy/`** duplicates atomically via [`apps/inventory/services/resale_duplicate.py`](../../../../apps/inventory/services/resale_duplicate.py). **`CartLine`** stores `resale_source_sku` / `resale_source_item_id` for staff/history, not for customer receipt text.
+- **Tests:** [`apps/pos/tests/test_cart_add_item_audit.py`](../../../../apps/pos/tests/test_cart_add_item_audit.py), [`apps/pos/tests/test_cart_add_resale_copy.py`](../../../../apps/pos/tests/test_cart_add_resale_copy.py).
 
 ---
 
 ## See also
 
-- `.ai/initiatives/_index.md` — initiative registry.
-- Archived initiative notes on duplicate / mark-on-shelf / Quick reprice: `.ai/initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md` (patterns may apply; confirm current APIs).
+- [Initiatives index](../../_index.md) — initiative registry.
+- [`e2e_retag_quick_reprice_fixes.md`](./e2e_retag_quick_reprice_fixes.md) — duplicate / mark-on-shelf / Quick reprice patterns (confirm current APIs).

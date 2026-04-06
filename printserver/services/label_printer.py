@@ -37,6 +37,9 @@ BRAND_MAX_LINES = 1
 # Price stripe: try scales 1.0 → 0.5 step 0.01; int(font sizes) may plateau across steps.
 _PRICE_SCALE_STEPS = tuple(round(1.0 - i * 0.01, 2) for i in range(51))
 
+# Single lime/chartreuse for green stock: price ink on black band + preview paper tint (same hue).
+GREEN_LABEL_STOCK = (200, 228, 130)
+
 
 def _assets_dir() -> Path:
     if getattr(sys, "frozen", False):
@@ -129,6 +132,8 @@ def _draw_price_zero_whole_block(
     fs: float,
     cents: str,
     price_fit_stats: dict[str, Any] | None,
+    *,
+    price_text_fill: int | tuple[int, int, int],
 ) -> None:
     """Black band: ``$`` top-left; **cents only** (hero) bottom-right — no whole-dollar digit line."""
     sym = "$"
@@ -167,8 +172,8 @@ def _draw_price_zero_whole_block(
         price_fit_stats["first_fit_scale"] = chosen_scale
         price_fit_stats["used_fallback"] = chosen_scale is None
 
-    draw.text((pad_x, pad_y), sym, font=font_dollar, fill=255, anchor="lt")
-    draw.text((cx, cy), cents, font=font_cents, fill=255, anchor="rb")
+    draw.text((pad_x, pad_y), sym, font=font_dollar, fill=price_text_fill, anchor="lt")
+    draw.text((cx, cy), cents, font=font_cents, fill=price_text_fill, anchor="rb")
 
 
 def _make_qr(data: str, box_px: int) -> Image.Image:
@@ -294,12 +299,15 @@ def _draw_price_block(
     req: LabelPrintRequest,
     fs: float,
     price_fit_stats: dict[str, Any] | None = None,
+    *,
+    band_fill: int | tuple[int, int, int],
+    price_text_fill: int | tuple[int, int, int],
 ) -> None:
-    """Black band: large ``$`` top-left; **dollars** between ``$`` and cents; **cents** bottom-right.
+    """Black band with **white** (thermal) or **green** (``GREEN_LABEL_STOCK``) price glyphs.
 
     When whole dollars are **0**, only ``$`` + cents are drawn (no middle ``0`` line). No SKU.
     """
-    draw.rectangle((0, 0, col1_w, price_blk_h), fill=0)
+    draw.rectangle((0, 0, col1_w, price_blk_h), fill=band_fill)
     pad_x = max(2, col1_w // 36)
     pad_y = max(1, col1_w // 48)
     # Large dollar digits: left-aligned but inset past the band edge (and past the $ glyph).
@@ -319,7 +327,7 @@ def _draw_price_block(
         y: int,
     ) -> int:
         x = center_x(text, font)
-        draw.text((x, y), text, font=font, fill=255, anchor="lt")
+        draw.text((x, y), text, font=font, fill=price_text_fill, anchor="lt")
         b = draw.textbbox((x, y), text, font=font, anchor="lt")
         return b[3]
 
@@ -358,6 +366,7 @@ def _draw_price_block(
             fs,
             cents,
             price_fit_stats,
+            price_text_fill=price_text_fill,
         )
         return
 
@@ -440,9 +449,9 @@ def _draw_price_block(
     mid_bottom = cents_top - gap
     mid_h = mid_bottom - mid_top
     y_dollar = mid_top + max(0, (mid_h - h_d) // 2)
-    draw.text((pad_x, pad_y), sym, font=font_dollar, fill=255, anchor="lt")
-    draw.text((dollars_x, y_dollar), dollars, font=font_big, fill=255, anchor="lt")
-    draw.text((cx, cy), cents, font=font_cents, fill=255, anchor="rb")
+    draw.text((pad_x, pad_y), sym, font=font_dollar, fill=price_text_fill, anchor="lt")
+    draw.text((dollars_x, y_dollar), dollars, font=font_big, fill=price_text_fill, anchor="lt")
+    draw.text((cx, cy), cents, font=font_cents, fill=price_text_fill, anchor="rb")
 
 
 def generate_label(
@@ -451,7 +460,7 @@ def generate_label(
     label_size_preset: str | None = None,
     price_fit_stats: dict[str, Any] | None = None,
 ) -> Image.Image:
-    """Two columns: (1) **⅓** width — top **half** black price, bottom **half** QR; (2) **⅔** text + logo.
+    """Two columns: (1) **⅓** width — top **half** price, bottom **half** QR; (2) **⅔** text + logo.
 
     Same *proportions* for ``3x2`` and ``1.5x1`` (3:2 aspect): one code path; small stock is half-scale via ``fs``.
     QR target is derived from stripe width (same relative size on both presets), clamped to the lower cell.
@@ -459,12 +468,25 @@ def generate_label(
     If ``price_fit_stats`` is a dict, it is filled with ``first_fit_scale`` (``float`` or ``None``) and
     ``used_fallback`` (``bool``) for the price stripe fit (ignored for N/A / no-text rows).
 
-    Only black (0) and white (255) for thermal-friendly output.
+    ``req.green_label_stock``: colored stock — **black** price band, **green** price text (RGB); title/QR black on white.
+
+    Default mode is grayscale (``L``) only. Green-stock mode uses ``RGB`` for the price color.
     """
     w_px, h_px, _ = _label_dimensions_px(label_size_preset)
     fs = _scale_fs(w_px, h_px)
 
-    label = Image.new("L", (w_px, h_px), 255)
+    green_stock = bool(req.green_label_stock)
+    if green_stock:
+        label = Image.new("RGB", (w_px, h_px), (255, 255, 255))
+        band_fill: int | tuple[int, int, int] = (0, 0, 0)
+        price_text_fill: int | tuple[int, int, int] = GREEN_LABEL_STOCK
+        ink: int | tuple[int, int, int] = (0, 0, 0)
+    else:
+        label = Image.new("L", (w_px, h_px), 255)
+        band_fill = 0
+        price_text_fill = 255
+        ink = 0
+
     draw = ImageDraw.Draw(label)
 
     # Column 1: exactly one third of label width; column 2 gets the remainder (≈⅔ minus gap/margins).
@@ -478,7 +500,16 @@ def generate_label(
     price_blk_h = h_px // 2
     qr_area_h = h_px - price_blk_h
 
-    _draw_price_block(draw, col1_w, price_blk_h, req, fs, price_fit_stats)
+    _draw_price_block(
+        draw,
+        col1_w,
+        price_blk_h,
+        req,
+        fs,
+        price_fit_stats,
+        band_fill=band_fill,
+        price_text_fill=price_text_fill,
+    )
 
     # Same layout on 3×2 and 1.5×1: target QR side ~ full stripe width (matches former 1″ / 0.5″ at 203 DPI).
     qr_target_px = max(24, int(round(col1_w * 0.98)))
@@ -487,12 +518,14 @@ def generate_label(
     qr_inner_h = max(16, qr_area_h - 2 * inner_m)
     qr_size = max(24, min(qr_target_px, qr_inner_w, qr_inner_h))
     qr_img = _make_qr(req.qr_data, qr_size)
+    if green_stock:
+        qr_img = qr_img.convert("RGB")
     qx = (col1_w - qr_size) // 2
     qy = price_blk_h + (qr_area_h - qr_size) // 2
     label.paste(qr_img, (qx, qy))
 
     # Column divider
-    draw.line((col1_w, 0, col1_w, h_px - 1), fill=0, width=1)
+    draw.line((col1_w, 0, col1_w, h_px - 1), fill=ink, width=1)
 
     # --- Right column (≈⅔): text upper band, legacy BW logo band at bottom ---
     text_margin = max(1, int(3 * min(fs, 1.35)))
@@ -517,7 +550,7 @@ def generate_label(
             for line in lines:
                 if y_t >= text_bottom - 2:
                     return
-                draw.text((x_text, y_t), line, font=font, fill=0)
+                draw.text((x_text, y_t), line, font=font, fill=ink)
                 y_t += draw.textbbox((0, 0), line, font=font)[3] + max(1, _sy(2, h_px))
 
         if title_text:
@@ -536,20 +569,74 @@ def generate_label(
             for line in _wrap_lines(draw, brand_text, meta_font, text_max_w, BRAND_MAX_LINES):
                 if y_t >= text_bottom - 2:
                     break
-                draw.text((x_text, y_t), line, font=meta_font, fill=0)
+                draw.text((x_text, y_t), line, font=meta_font, fill=ink)
                 y_t += draw.textbbox((0, 0), line, font=meta_font)[3] + max(1, _sy(1, h_px))
 
     # Legacy full logo: uniform scale to fit footer band; centered in band.
     logo = _load_logo_bw_contain(right_w, logo_zone_h)
     if logo:
+        if green_stock:
+            logo = logo.convert("RGB")
         lx = right_x + (right_w - logo.width) // 2
         ly = h_px - logo_zone_h + (logo_zone_h - logo.height) // 2
         ly = min(ly, h_px - 2 - logo.height)
         label.paste(logo, (lx, ly))
 
-    draw.rectangle((0, 0, w_px - 1, h_px - 1), outline=0, width=1)
+    draw.rectangle((0, 0, w_px - 1, h_px - 1), outline=ink, width=1)
 
     return label
+
+
+def _near_green_label_stock(r: int, gch: int, b: int) -> bool:
+    """True if pixel matches ``GREEN_LABEL_STOCK`` (price text on black)."""
+    gr, gg, gb = GREEN_LABEL_STOCK
+    dr, dg, db = r - gr, gch - gg, b - gb
+    return dr * dr + dg * dg + db * db <= 55 * 55
+
+
+def rgb_green_stock_preview(img: Image.Image) -> Image.Image:
+    """Simulate stock: paper (white) → ``GREEN_LABEL_STOCK``; preserve black and same-green price ink."""
+    gr, gg, gb = GREEN_LABEL_STOCK
+
+    if img.mode == "L":
+        w, h = img.size
+        out = Image.new("RGB", (w, h))
+        px = img.load()
+        op = out.load()
+        for y in range(h):
+            for x in range(w):
+                v = px[x, y]
+                ink = (255 - v) / 255.0
+                op[x, y] = (
+                    int(gr * (1.0 - ink)),
+                    int(gg * (1.0 - ink)),
+                    int(gb * (1.0 - ink)),
+                )
+        return out
+
+    img = img.convert("RGB")
+    w, h = img.size
+    out = Image.new("RGB", (w, h))
+    px = img.load()
+    op = out.load()
+    for y in range(h):
+        for x in range(w):
+            r, gch, b = px[x, y]
+            lum = 0.299 * r + 0.587 * gch + 0.114 * b
+            if _near_green_label_stock(r, gch, b):
+                op[x, y] = (r, gch, b)
+            elif lum > 250:
+                op[x, y] = GREEN_LABEL_STOCK
+            elif lum < 22:
+                op[x, y] = (0, 0, 0)
+            else:
+                ink_amt = (255.0 - lum) / 255.0
+                op[x, y] = (
+                    int(gr * (1.0 - ink_amt)),
+                    int(gg * (1.0 - ink_amt)),
+                    int(gb * (1.0 - ink_amt)),
+                )
+    return out
 
 
 def generate_test_label() -> Image.Image:
@@ -567,3 +654,26 @@ def generate_test_label() -> Image.Image:
             product_model=row.get("product_model"),
         )
     )
+
+
+def generate_customer_info_test_label(*, label_size_preset: str | None = None, green_stock_preview: bool = False) -> Image.Image:
+    """Green-stock sample (``CUSTOMER_INFO_TEST_ROW``); optional paper-color preview PNG."""
+    from label_test_data import CUSTOMER_INFO_TEST_ROW
+    from models import LabelPrintRequest
+
+    row = CUSTOMER_INFO_TEST_ROW
+    img = generate_label(
+        LabelPrintRequest(
+            text=row["text"],
+            qr_data=row["qr_data"],
+            include_text=True,
+            product_title=row["product_title"],
+            product_brand=row.get("product_brand"),
+            product_model=row.get("product_model"),
+            green_label_stock=True,
+        ),
+        label_size_preset=label_size_preset,
+    )
+    if green_stock_preview:
+        return rgb_green_stock_preview(img)
+    return img

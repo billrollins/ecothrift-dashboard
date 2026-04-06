@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.db.models import Sum, Q, Count
 from django.db.models.functions import TruncMonth, TruncYear, TruncWeek
@@ -594,6 +594,68 @@ class CartViewSet(viewsets.ModelViewSet):
                 cart=cart,
                 created_by=request.user,
             )
+
+        cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
+        return Response(CartSerializer(cart).data)
+
+    @action(detail=True, methods=['post'], url_path='add-manual-line')
+    def add_manual_line(self, request, pk=None):
+        """Add a cart line without an inventory item (e.g. pink tag / unscannable)."""
+        cart = self.get_object()
+        if cart.status != 'open':
+            return Response(
+                {'detail': 'Cart is not open.', 'code': 'CART_NOT_OPEN'},
+                status=400,
+            )
+
+        description = (request.data.get('description') or '').strip()
+        if not description:
+            return Response(
+                {'detail': 'Description is required.', 'code': 'DESCRIPTION_REQUIRED'},
+                status=400,
+            )
+        if len(description) > 300:
+            return Response(
+                {'detail': 'Description is too long.', 'code': 'DESCRIPTION_TOO_LONG'},
+                status=400,
+            )
+
+        raw_price = request.data.get('unit_price', '0.50')
+        try:
+            unit_price = Decimal(str(raw_price))
+        except InvalidOperation:
+            return Response(
+                {'detail': 'Invalid unit_price.', 'code': 'INVALID_UNIT_PRICE'},
+                status=400,
+            )
+        if unit_price < 0:
+            return Response(
+                {'detail': 'unit_price must not be negative.', 'code': 'INVALID_UNIT_PRICE'},
+                status=400,
+            )
+
+        qty_raw = request.data.get('quantity', 1)
+        try:
+            quantity = int(qty_raw)
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'Invalid quantity.', 'code': 'INVALID_QUANTITY'},
+                status=400,
+            )
+        if quantity < 1:
+            return Response(
+                {'detail': 'quantity must be at least 1.', 'code': 'INVALID_QUANTITY'},
+                status=400,
+            )
+
+        CartLine.objects.create(
+            cart=cart,
+            item=None,
+            description=description,
+            quantity=quantity,
+            unit_price=unit_price,
+        )
 
         cart.recalculate()
         cart = self.get_queryset().get(pk=cart.pk)
