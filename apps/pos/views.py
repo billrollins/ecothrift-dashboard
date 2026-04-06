@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.db import transaction
 from django.db.models import Sum, Q, Count
 from django.db.models.functions import TruncMonth, TruncYear, TruncWeek
 from django.utils import timezone
@@ -12,6 +13,7 @@ from rest_framework.filters import OrderingFilter
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee
 from apps.core.models import WorkLocation
 from apps.inventory.models import Item, ItemScanHistory
+from apps.inventory.services.resale_duplicate import duplicate_item_for_resale
 from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
@@ -469,17 +471,40 @@ class CartViewSet(viewsets.ModelViewSet):
     def add_item(self, request, pk=None):
         """Add item to cart by SKU."""
         cart = self.get_object()
-        sku = request.data.get('sku')
+        sku = (request.data.get('sku') or '').strip()
         if not sku:
-            return Response({'detail': 'SKU is required.'}, status=400)
+            return Response(
+                {'detail': 'SKU is required.', 'code': 'SKU_REQUIRED'},
+                status=400,
+            )
 
         try:
             item = Item.objects.get(sku=sku)
         except Item.DoesNotExist:
-            return Response({'detail': 'Item not found.'}, status=404)
+            return Response(
+                {'detail': 'Item not found.', 'code': 'ITEM_NOT_FOUND'},
+                status=404,
+            )
 
         if item.status == 'sold':
-            return Response({'detail': 'Item already sold.'}, status=400)
+            ItemScanHistory.objects.create(
+                item=item,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                source='pos_terminal',
+                outcome='pos_blocked_sold',
+                cart=cart,
+                created_by=request.user,
+            )
+            return Response(
+                {
+                    'detail': 'Item already sold.',
+                    'code': 'ITEM_ALREADY_SOLD',
+                    'item_id': item.pk,
+                    'sku': item.sku,
+                    'title': item.title,
+                },
+                status=400,
+            )
 
         existing = cart.lines.filter(item=item).first()
         if existing:
@@ -494,12 +519,81 @@ class CartViewSet(viewsets.ModelViewSet):
                 unit_price=item.price,
             )
 
-        # Log POS scan
         ItemScanHistory.objects.create(
             item=item,
             ip_address=request.META.get('REMOTE_ADDR'),
             source='pos_terminal',
+            outcome='added_to_cart',
+            cart=cart,
+            created_by=request.user,
         )
+
+        cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
+        return Response(CartSerializer(cart).data)
+
+    @action(detail=True, methods=['post'], url_path='add-resale-copy')
+    def add_resale_copy(self, request, pk=None):
+        """Create a new on-shelf item from a sold unit and add it to this cart (atomic)."""
+        cart = self.get_object()
+        if cart.status != 'open':
+            return Response(
+                {'detail': 'Cart is not open.', 'code': 'CART_NOT_OPEN'},
+                status=400,
+            )
+
+        raw_id = request.data.get('source_item_id')
+        sku = (request.data.get('sku') or '').strip()
+        if raw_id is not None and raw_id != '':
+            try:
+                src = Item.objects.get(pk=int(raw_id))
+            except (Item.DoesNotExist, ValueError, TypeError):
+                return Response(
+                    {'detail': 'Item not found.', 'code': 'ITEM_NOT_FOUND'},
+                    status=404,
+                )
+        elif sku:
+            try:
+                src = Item.objects.get(sku=sku)
+            except Item.DoesNotExist:
+                return Response(
+                    {'detail': 'Item not found.', 'code': 'ITEM_NOT_FOUND'},
+                    status=404,
+                )
+        else:
+            return Response(
+                {'detail': 'source_item_id or sku is required.', 'code': 'SOURCE_REQUIRED'},
+                status=400,
+            )
+
+        if src.status != 'sold':
+            return Response(
+                {
+                    'detail': 'Only sold items can be duplicated for resale at the register.',
+                    'code': 'NOT_SOLD_FOR_RESALE',
+                },
+                status=400,
+            )
+
+        with transaction.atomic():
+            new_item = duplicate_item_for_resale(request.user, src)
+            CartLine.objects.create(
+                cart=cart,
+                item=new_item,
+                description=new_item.title,
+                quantity=1,
+                unit_price=new_item.price,
+                resale_source_sku=src.sku,
+                resale_source_item_id=src.pk,
+            )
+            ItemScanHistory.objects.create(
+                item=new_item,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                source='pos_terminal',
+                outcome='added_to_cart',
+                cart=cart,
+                created_by=request.user,
+            )
 
         cart.recalculate()
         cart = self.get_queryset().get(pk=cart.pk)

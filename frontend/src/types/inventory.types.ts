@@ -65,7 +65,7 @@ export type ManifestPricingStage = 'unpriced' | 'draft' | 'final';
 /**
  * Item scan source choices
  */
-export type ItemScanSource = 'public_lookup' | 'pos_terminal';
+export type ItemScanSource = 'public_lookup' | 'pos_terminal' | 'audit_scan';
 
 export interface ColumnMapping {
   source: string;
@@ -353,10 +353,19 @@ export interface ItemHistory {
   created_at: string;
 }
 
+export type ItemScanOutcome =
+  | 'added_to_cart'
+  | 'pos_blocked_sold'
+  | 'public_lookup'
+  | 'audit_scan';
+
 export interface ItemScanHistory {
   id: number;
   item: number;
   scanned_at: string;
   ip_address: string | null;
   source: ItemScanSource;
+  outcome?: ItemScanOutcome;
+  cart?: number | null;
+  created_by?: number | null;
 }

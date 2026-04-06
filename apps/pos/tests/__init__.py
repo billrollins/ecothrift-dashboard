@@ -1,0 +1,1 @@
+# POS app tests package

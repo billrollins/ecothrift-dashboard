@@ -3311,6 +3311,7 @@ def item_lookup(request, sku):
         item=item,
         ip_address=request.META.get('REMOTE_ADDR'),
         source='public_lookup',
+        outcome='public_lookup',
     )
 
     return Response(ItemPublicSerializer(item).data)
@@ -3334,6 +3335,7 @@ def verify_present_view(request, pk):
         item=item,
         ip_address=request.META.get('REMOTE_ADDR'),
         source='audit_scan',
+        outcome='audit_scan',
     )
     return Response({
         'sku': item.sku,
@@ -3473,47 +3475,9 @@ def duplicate_item_for_resale_view(request, pk):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    base_notes = (src.notes or '').strip()
-    dup_line = f'DUPLICATE_FOR_RESALE_FROM:{src.sku}'
-    new_notes = f'{base_notes}\n{dup_line}' if base_notes else dup_line
-    if src.source == 'consignment':
-        new_notes = f'{new_notes}\nORIGINAL_WAS_CONSIGNMENT:{src.sku}'
+    from apps.inventory.services.resale_duplicate import duplicate_item_for_resale
 
-    new_source = 'purchased' if src.source == 'consignment' else src.source
-    now = timezone.now()
-
-    with transaction.atomic():
-        new_item = Item.objects.create(
-            sku=Item.generate_sku(),
-            product=src.product,
-            purchase_order=src.purchase_order,
-            manifest_row=src.manifest_row,
-            batch_group=src.batch_group,
-            processing_tier=src.processing_tier,
-            title=src.title,
-            brand=src.brand,
-            category=src.category,
-            price=src.price,
-            cost=src.cost,
-            source=new_source,
-            status='on_shelf',
-            condition=src.condition,
-            specifications=src.specifications if src.specifications is not None else {},
-            location=src.location,
-            notes=new_notes,
-            listed_at=now,
-            checked_in_at=now,
-            checked_in_by=request.user,
-        )
-        ItemHistory.objects.create(
-            item=new_item,
-            event_type='created',
-            old_value='',
-            new_value=new_item.sku,
-            note=f'Duplicate for resale from sold item {src.sku}',
-            created_by=request.user,
-        )
-
+    new_item = duplicate_item_for_resale(request.user, src)
     return Response(ItemSerializer(new_item).data, status=status.HTTP_201_CREATED)
 
 

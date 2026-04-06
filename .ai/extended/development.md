@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
+<!-- Last updated: 2026-04-06T12:00:00-05:00 -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -54,6 +54,11 @@ python manage.py runserver
 cd frontend
 npm run dev
 ```
+
+## Backend tests
+
+- Run Django tests: `python manage.py test` (uses your configured database; creates a test DB).
+- If PostgreSQL test DB / schema setup fails locally, POS tests can run against SQLite in-memory: `python manage.py test apps.pos.tests --settings=ecothrift.test_settings` (see [`ecothrift/test_settings.py`](../../ecothrift/test_settings.py)).
 
 Open `http://localhost:5173`. Login: `bill_rollins@ecothrift.us` / `JAckel13`
 

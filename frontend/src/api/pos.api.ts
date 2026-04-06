@@ -149,6 +149,13 @@ export function addItemToCart(cartId: number, sku: string): Promise<{ data: Cart
   return api.post<Cart>(`/pos/carts/${cartId}/add-item/`, { sku });
 }
 
+export function addResaleCopyToCart(
+  cartId: number,
+  body: { source_item_id: number } | { sku: string },
+): Promise<{ data: Cart }> {
+  return api.post<Cart>(`/pos/carts/${cartId}/add-resale-copy/`, body);
+}
+
 export function updateCartLine(
   cartId: number,
   lineId: number,

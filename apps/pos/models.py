@@ -221,8 +221,9 @@ class Cart(models.Model):
 
     def recalculate(self):
         """Recalculate subtotal, tax, and total from lines."""
-        lines = self.lines.all()
-        self.subtotal = sum(line.line_total for line in lines)
+        # Query CartLine directly so we never sum a stale prefetch_related cache on `cart.lines`.
+        lines = self.lines.model.objects.filter(cart_id=self.pk)
+        self.subtotal = sum((line.line_total for line in lines), Decimal('0'))
         self.tax_amount = (self.subtotal * self.tax_rate).quantize(Decimal('0.01'))
         self.total = self.subtotal + self.tax_amount
         self.save(update_fields=['subtotal', 'tax_amount', 'total'])
@@ -237,6 +238,8 @@ class CartLine(models.Model):
     quantity = models.IntegerField(default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     line_total = models.DecimalField(max_digits=10, decimal_places=2)
+    resale_source_sku = models.CharField(max_length=20, blank=True, default='')
+    resale_source_item_id = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

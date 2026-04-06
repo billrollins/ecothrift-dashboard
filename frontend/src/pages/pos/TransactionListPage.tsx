@@ -43,7 +43,6 @@ import {
   type HistoricalRevenueResponse,
   type HistoricalRevenueDataPoint,
 } from '../../api/pos.api';
-
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num ?? 0);
@@ -469,13 +468,24 @@ export default function TransactionListPage() {
                     sx={{
                       display: 'flex',
                       justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: 1,
                       py: 0.5,
                     }}
                   >
-                    <Typography variant="body2">
-                      {line.description} × {line.quantity}
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body2">
+                        {line.description} × {line.quantity}
+                      </Typography>
+                      {line.resale_source_sku ? (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Resale copy from {line.resale_source_sku}
+                        </Typography>
+                      ) : null}
+                    </Box>
+                    <Typography variant="body2" sx={{ flexShrink: 0 }}>
+                      {formatCurrency(line.line_total)}
                     </Typography>
-                    <Typography variant="body2">{formatCurrency(line.line_total)}</Typography>
                   </Box>
                 ))}
               </Box>

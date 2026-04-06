@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-26T18:00:00-06:00 -->
+<!-- Last updated: 2026-04-06T18:30:00-05:00 -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -39,13 +39,14 @@
 - **Payment methods**: `cash` | `card` | `split`
 - Belongs to `Drawer`, `cashier`; optional `customer`
 - `subtotal`, `tax_rate`, `tax_amount`, `total`, `payment_method`, `cash_tendered`, `change_given`, `card_amount`, `completed_at`
-- `recalculate()` updates subtotal/tax/total from lines
+- `recalculate()` updates subtotal/tax/total from lines (queries `CartLine` by `cart_id` so totals never read a stale `prefetch_related` cache on `cart.lines`)
 - `cashier`, `subtotal`, `tax_amount`, `total`, `tax_rate` are **read-only** in `CartSerializer` (server-set)
 
 ### CartLine
 
 - `cart`, `item` (inventory.Item, nullable), `description`, `quantity`, `unit_price`, `line_total`
 - `line_total` auto-calculated on save
+- **`resale_source_sku` / `resale_source_item_id` (optional):** set when a line is created via the register **sold-SKU resale copy** flow (`POST .../add-resale-copy/`). Used for **staff-only** context: POS modal (cashier decision), **Transactions** detail dialog on `/pos/transactions`, inventory/DB views on the `Item`. **Do not** put internal resale provenance on **customer-facing** receipt payloads (printed receipt uses line `description` / product title only; print server unchanged).
 
 ### Receipt
 
@@ -76,7 +77,7 @@ Denomination counts (JSON) are used at each step for reconciliation.
 ## Cart / Sale Flow
 
 1. **Create cart** — `POST /pos/carts/` with `drawer`; tax rate from AppSetting `tax_rate` (default 0.07); only valid if drawer `status == 'open'`
-2. **Add items** — `POST /pos/carts/{id}/add-item/` with `sku`; looks up Item by SKU; rejects if `sold`; if same item already in cart, **increments quantity** on existing line (no duplicate lines); creates CartLine otherwise; recalculates cart; response re-fetches fresh cart from DB (bypasses prefetch cache)
+2. **Add items** — `POST /pos/carts/{id}/add-item/` with `sku`; looks up Item by SKU; rejects if `sold` (response includes `ITEM_ALREADY_SOLD` + `sku`/`title` for staff UI); if same item already in cart, **increments quantity** on existing line (no duplicate lines); creates CartLine otherwise; `recalculate()` then persists correct aggregates; response re-fetches cart with prefetched lines for serialization. **`POST .../add-resale-copy/`** — atomic duplicate-for-resale + line with `resale_source_*` when cashier confirms from the sold-SKU modal.
 3. **Update line** — `PATCH /pos/carts/{id}/lines/{line_id}/` — updates `quantity`, `description`, and/or `unit_price`; recalculates
 4. **Remove line** — `DELETE /pos/carts/{id}/lines/{line_id}/` — removes line; recalculates
    - Lines 3 and 4 are served by the single `manage_line` action (`url_path='lines/(?P<line_id>[^/.]+)'`) which dispatches on HTTP method

@@ -247,4 +247,4 @@ class ItemScanHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ItemScanHistory
         fields = '__all__'
-        read_only_fields = ['id', 'scanned_at']
+        read_only_fields = ['id', 'scanned_at', 'outcome', 'cart', 'created_by']

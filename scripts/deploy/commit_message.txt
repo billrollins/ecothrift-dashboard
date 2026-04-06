@@ -1,14 +1,30 @@
-feat(retag): bulk label qty on create, staggered print, reset qty after multi-unit
+fix: POS cart totals stale prefetch; release v2.2.7
 
-- POST /api/inventory/retag/v2/create/ accepts optional quantity (1–50, default 1);
-  transaction creates N Items and RetagLog rows, updates TempLegacyItem once; returns
-  quantity, created[] (new_sku + print_payload per row), and legacy top-level fields
-  for the last item (apps/inventory/views.py).
-- RetagPage: Session "Labels / qty"; passes quantity to create; prints each label via
-  existing POST /print/label with 200 ms stagger; after a successful multi-unit run,
-  resets Labels / qty to 1 (frontend/src/pages/inventory/RetagPage.tsx).
-- Client types: RetagV2CreateRequest.quantity, RetagV2CreateRow, RetagV2CreateResponse.created
-  (frontend/src/api/inventory.api.ts).
+- Cart.recalculate() sums CartLine rows from the DB so aggregates never use a
+  stale prefetch_related cache after add-item or line edits.
+- Add apps/pos/tests/test_cart_totals.py and ecothrift/test_settings.py for
+  SQLite-backed test runs.
+- Ship [Unreleased] fixes: POS totals (initiative pos_cart_total_stale_prefetch_bug.md),
+  Django admin /db-admin routing (django_admin_legacy_navigation).
 
-Release: v2.2.5 bulk retag + print; v2.2.6 qty reset UX (CHANGELOG.md). Steering:
-.ai/context.md, .ai/extended/inventory-pipeline.md. Outside named initiative — retag ops.
+See CHANGELOG.md [2.2.7].
+
+---
+
+chore(release): v2.2.8 — POS sold SKU, audit, resale copy
+
+- ItemScanHistory outcomes + cart add-resale-copy; CartLine resale_source_* for
+  staff/transaction detail; Terminal modal; customer receipts unchanged
+  (description only). Migrations: inventory + pos.
+- Docs: CHANGELOG, .ai/context.md, initiatives index, pos_sold initiative.
+- See CHANGELOG.md [2.2.8]; initiatives pos_sold_item_scan_ux_and_audit_trail.md,
+  pos_cart_total_stale_prefetch_bug.md (fixed 2.2.7).
+
+---
+
+docs(protocol): review_bump — commit_message append semantics
+
+- Part D: scripts/deploy/commit_message.txt is a running log since last commit;
+  append new work; do not replace prior blocks unless file is --- / empty.
+- After commit, reset file to --- (per §16).
+- Timestamp on .ai/protocols/review_bump.md.

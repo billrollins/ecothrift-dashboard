@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
+<!-- Last updated: 2026-04-06T18:30:00-05:00 -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -13,7 +13,8 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 
 | Initiative | Notes |
 |------------|--------|
-| [`django_admin_legacy_navigation.md`](./django_admin_legacy_navigation.md) | **Shipped:** Django admin at **`/db-admin/`**; React **`/admin/*`** no longer collides. Confirm prod, then archive. |
+| [`pos_sold_item_scan_ux_and_audit_trail.md`](./pos_sold_item_scan_ux_and_audit_trail.md) | **Shipped v2.2.8** — sold-SKU UX, audit, resale copy endpoint; confirm then archive. |
+| [`pos_cart_total_stale_prefetch_bug.md`](./pos_cart_total_stale_prefetch_bug.md) | **Fixed v2.2.7** — cart totals vs lines; confirm then archive. |
 
 **Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables.
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-30T18:00:00-05:00 -->
+<!-- Last updated: 2026-04-06T19:00:00-05:00 -->
 # Protocol: Review, Version Bump, Pre-Commit, Handoff
 
 Single gate for **documentation audit**, **release bookkeeping**, **commit discipline**, and **session handoff**.
@@ -23,7 +23,7 @@ Single gate for **documentation audit**, **release bookkeeping**, **commit disci
    - Read **`.ai/initiatives/_index.md`** for **active**, **on hold**, and **backlog** rows, and **`.ai/initiatives/_archived/ARCHIVE.md`** for archived work. Priorities also live in `CHANGELOG.md` (`[Unreleased]`) and the user’s message.
    - **Traceability:** Shipping code should map to a **named initiative** (file + row in `_index.md`) when the work is feature-sized or multi-session. If the work is an emergency hotfix or outside initiative tracking, that should be explicit in `[Unreleased]` / the release notes.
    - **Archiving:** Moving an initiative to `_archived/` is **out of scope** for a routine review unless the **user asked** for it. Never archive initiatives silently; **ask** for explicit confirmation. Initiative **lifecycle** steps (`activate_initiative`, `move_initiative_to_pending`, `_backlog`, `_completed`, `_abandoned`) live under [`.ai/initiatives/_archived/_protocols/`](../initiatives/_archived/_protocols/README.md) (see **`README.md`** there). The stub [`.ai/protocols/move_to_pending.md`](./move_to_pending.md) redirects to `move_initiative_to_pending.md`.
-   - **Django admin vs React `/admin/*`:** `contrib.admin` is mounted at **`/db-admin/`**; React staff routes (settings, users, POS setup, etc.) stay under **`/admin/*`**. When reviewing or editing **`ecothrift/urls.py`** or **`frontend/vite.config.ts`**, do not reintroduce **`path('admin/', admin.site.urls)`** or a Vite proxy of **`/admin`** to Django — that breaks hard refresh on in-app admin pages. See [`.ai/extended/frontend.md`](../extended/frontend.md) (Vite proxy) and initiative [`django_admin_legacy_navigation.md`](../initiatives/django_admin_legacy_navigation.md).
+   - **Django admin vs React `/admin/*`:** `contrib.admin` is mounted at **`/db-admin/`**; React staff routes (settings, users, POS setup, etc.) stay under **`/admin/*`**. When reviewing or editing **`ecothrift/urls.py`** or **`frontend/vite.config.ts`**, do not reintroduce **`path('admin/', admin.site.urls)`** or a Vite proxy of **`/admin`** to Django — that breaks hard refresh on in-app admin pages. See [`.ai/extended/frontend.md`](../extended/frontend.md) (Vite proxy) and initiative [`django_admin_legacy_navigation.md`](../initiatives/_archived/_completed/django_admin_legacy_navigation.md) (archived completed).
    - **Retag v2 history (`GET /api/inventory/retag/v2/history/`):** `RetagLog.retagged_by` is **`accounts.User`** (`AbstractBaseUser` + `PermissionsMixin`, not `AbstractUser`). Use **`user.full_name`** (property: `first_name` + `last_name`) in serializers/views — not **`get_full_name()`**, which Django only defines on **`AbstractUser`**. A mistaken **`get_full_name()`** call returns HTTP 500. Frontend retag history defaults and **`since`** behavior live in **`frontend/src/pages/inventory/RetagPage.tsx`**; see [`.ai/extended/retag-operations.md`](../extended/retag-operations.md) when retag workflows change.
 
 5. **Root `CHANGELOG.md`.**
@@ -61,7 +61,12 @@ After edits: update `<!-- Last updated: ... -->` on every file you changed. Repo
 
 ## Part D — Commit message staging
 
-13. **Write the next commit message** to `scripts/deploy/commit_message.txt` (not the placeholder `---`). Use a **complete** summary and optional body (what changed and why); cite **`CHANGELOG.md`** `[Unreleased]` and the relevant **initiative** `.md` when the commit ships tracked work.
+13. **`scripts/deploy/commit_message.txt` — append, do not replace.**
+    - The file is a **running log of work done since the last git commit** (across sessions until the user commits).
+    - **Do not overwrite** existing content when new work is staged for the same upcoming commit. **Append** new entries (e.g. a dated or titled block per session or per batch of changes).
+    - Each append should add enough detail to be useful at commit time: what changed, why, paths or areas touched; cite **`CHANGELOG.md`** (`[Unreleased]` or the version section being prepared) and relevant **initiative** `.md` files when the work is tracked.
+    - If the file is still the placeholder `---` or empty, you may start the log from scratch for that commit window.
+    - Optional separator between append blocks (e.g. `---` or `### 2026-04-06` / session note) keeps multi-session logs readable.
 
 14. **Pre-commit checklist**
     - `cd frontend && npx tsc --noEmit`
@@ -80,7 +85,7 @@ After edits: update `<!-- Last updated: ... -->` on every file you changed. Repo
 
 Types: `feat`, `fix`, `refactor`, `docs`, `style`, `chore`.
 
-16. **Commit only when the user explicitly asks.** Then reset `scripts/deploy/commit_message.txt` to `---` for the next commit.
+16. **Commit only when the user explicitly asks.** After a successful commit, **reset** `scripts/deploy/commit_message.txt` to the placeholder `---` so the next work window starts a **new** log (append cycle begins again from empty/placeholder).
 
 17. **Push to GitHub** (when user asks): `git push origin main` — remote `origin`, branch `main`. Never force-push; never `--no-verify`; do not amend pushed commits.
 

@@ -50,7 +50,11 @@ class CartAdmin(admin.ModelAdmin):
 
 @admin.register(CartLine)
 class CartLineAdmin(admin.ModelAdmin):
-    list_display = ('cart', 'description', 'quantity', 'unit_price', 'line_total')
+    list_display = (
+        'cart', 'description', 'quantity', 'unit_price', 'line_total',
+        'resale_source_sku', 'resale_source_item_id',
+    )
+    list_filter = ('cart__status',)
 
 
 @admin.register(Receipt)

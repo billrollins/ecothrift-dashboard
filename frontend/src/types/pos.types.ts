@@ -144,6 +144,8 @@ export interface CartLine {
   quantity: number;
   unit_price: string;
   line_total: string;
+  resale_source_sku?: string;
+  resale_source_item_id?: number | null;
   created_at: string;
 }
 

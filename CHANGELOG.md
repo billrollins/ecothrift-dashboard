@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-31T18:00:00-05:00 -->
+<!-- Last updated: 2026-04-06T18:30:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,10 +10,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
-
-### Fixed
-
-- **Routing — Django admin vs React `/admin/*`:** Django **`contrib.admin`** moved from **`/admin/`** to **`/db-admin/`** so hard refresh and direct URLs to in-app pages (e.g. **`/admin/settings`**, **`/admin/users`**) load the React SPA instead of Django’s admin login. Production SPA fallback no longer excludes **`admin/`**; Vite dev proxy targets **`/db-admin`** only. Exact **`/admin`** / **`/admin/`** redirects to **`/db-admin/`** for bookmarks to the old Django admin root. Superusers who used Django Admin at **`/admin/`** should open **`/db-admin/`**. Initiative: [`.ai/initiatives/django_admin_legacy_navigation.md`](.ai/initiatives/django_admin_legacy_navigation.md).
 
 ### Steering
 
@@ -32,6 +28,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Dev:** `printserver/dev_print_e2e_3_labels.bat` — first three rows from `workspace/testing/data/retag_e2e_10_items.json`. **`printserver/scripts/label_price_fringe_grid.py`** — fringe-case PNGs + fit summary to `printserver/output_label_fringe_review/` (gitignored).
 - **Samples:** `label_test_data.py` prices `$1.99`, `$25.00`, `$1,123.75`; consultant notes under `.ai/reference/Consult Label/to-be-checked/`.
 - **Steering:** Label price layout work archived — [`.ai/initiatives/_archived/_completed/print_server_label_price_layout.md`](.ai/initiatives/_archived/_completed/print_server_label_price_layout.md) (print server **v1.2.35–v1.2.38**); see [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md).
+
+---
+
+## [2.2.8] — 2026-04-06
+
+### Added
+
+- **POS — sold SKU and resale copy:** Scanning a sold unit returns structured errors (`ITEM_ALREADY_SOLD`, `sku`, `title`). **`ItemScanHistory`** extended with `outcome`, optional `cart` and `created_by`; blocked scans log `pos_blocked_sold`. **`POST /api/pos/carts/{id}/add-resale-copy/`** atomically duplicates a sold item for resale ([`apps/inventory/services/resale_duplicate.py`](apps/inventory/services/resale_duplicate.py)) and adds a line with **`resale_source_sku`** / **`resale_source_item_id`** for staff reporting. Terminal: modal (**Cancel** vs **Create copy and add to cart**). Transactions detail (`/pos/transactions`) shows a staff-only resale caption; printed receipts use normal line **description** only (no internal provenance on the customer copy). Tests: `apps/pos/tests/test_cart_add_item_audit.py`, `test_cart_add_resale_copy.py`. Initiative: [`.ai/initiatives/pos_sold_item_scan_ux_and_audit_trail.md`](.ai/initiatives/pos_sold_item_scan_ux_and_audit_trail.md).
+
+### Deployment
+
+- **Migrations:** apply `inventory` (ItemScanHistory) and `pos` (CartLine resale columns): `python manage.py migrate`.
+
+---
+
+## [2.2.7] — 2026-04-06
+
+### Fixed
+
+- **POS — cart totals:** `Cart.recalculate()` now sums line totals from the database instead of `cart.lines.all()`, which could reuse a stale `prefetch_related` cache after `add-item` or line edits so header/footer totals lagged line rows. Regression tests: `apps/pos/tests/test_cart_totals.py`. Initiative: [`.ai/initiatives/pos_cart_total_stale_prefetch_bug.md`](.ai/initiatives/pos_cart_total_stale_prefetch_bug.md). For local runs without a PostgreSQL test database, use `python manage.py test apps.pos.tests --settings=ecothrift.test_settings` (SQLite in-memory via [`ecothrift/test_settings.py`](ecothrift/test_settings.py)).
+
+- **Routing — Django admin vs React `/admin/*`:** Django **`contrib.admin`** moved from **`/admin/`** to **`/db-admin/`** so hard refresh and direct URLs to in-app pages (e.g. **`/admin/settings`**, **`/admin/users`**) load the React SPA instead of Django’s admin login. Production SPA fallback no longer excludes **`admin/`**; Vite dev proxy targets **`/db-admin`** only. Exact **`/admin`** / **`/admin/`** redirects to **`/db-admin/`** for bookmarks to the old Django admin root. Superusers who used Django Admin at **`/admin/`** should open **`/db-admin/`**. Initiative (archived completed): [`.ai/initiatives/_archived/_completed/django_admin_legacy_navigation.md`](.ai/initiatives/_archived/_completed/django_admin_legacy_navigation.md).
 
 ---
 

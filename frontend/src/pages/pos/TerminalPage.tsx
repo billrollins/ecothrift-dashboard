@@ -52,6 +52,7 @@ import {
   useDrawers,
   useCreateCart,
   useAddItemToCart,
+  useAddResaleCopyToCart,
   useUpdateCartLine,
   useRemoveCartLine,
   useCompleteCart,
@@ -69,6 +70,10 @@ import { localPrintService } from '../../services/localPrintService';
 import type { Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfig } from '../../types/pos.types';
 import type { DenominationBreakdown } from '../../types/pos.types';
 import type { Customer } from '../../api/accounts.api';
+import {
+  parsePosAddItemError,
+  snackbarVariantForPosAddItemError,
+} from '../../utils/posAddItemError';
 
 // ── Terminal state machine ─────────────────────────────────────────────────
 
@@ -170,6 +175,11 @@ export default function TerminalPage() {
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState({ quantity: '', description: '', unit_price: '' });
   const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
+  const [soldScanDialog, setSoldScanDialog] = useState<{
+    itemId: number;
+    sku?: string;
+    title?: string;
+  } | null>(null);
 
   // Stable date string — only recomputes at midnight
   const todayLocalISO = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
@@ -226,6 +236,7 @@ export default function TerminalPage() {
 
   const createCartMutation = useCreateCart();
   const addItemMutation = useAddItemToCart();
+  const addResaleCopyMutation = useAddResaleCopyToCart();
   const updateLineMutation = useUpdateCartLine();
   const removeLineMutation = useRemoveCartLine();
   const completeCartMutation = useCompleteCart();
@@ -338,12 +349,33 @@ export default function TerminalPage() {
     try {
       const updated = await addItemMutation.mutateAsync({ cartId: activeCart.id, sku: input });
       setCart(updated as unknown as Cart);
-    } catch {
-      enqueueSnackbar('Item not found', { variant: 'error' });
+    } catch (err: unknown) {
+      const parsed = parsePosAddItemError(err);
+      if (parsed.kind === 'already_sold' && parsed.itemId != null) {
+        setSoldScanDialog({
+          itemId: parsed.itemId,
+          sku: parsed.sku,
+          title: parsed.title,
+        });
+        setSkuInput('');
+        return;
+      }
+      enqueueSnackbar(parsed.message, {
+        variant: snackbarVariantForPosAddItemError(parsed.kind),
+      });
     }
     setSkuInput('');
     skuInputRef.current?.focus();
-  }, [cart, isRegister, managerDrawerId, skuInput, createCartMutation, addItemMutation, lookupCustomerMutation, enqueueSnackbar]);
+  }, [
+    cart,
+    isRegister,
+    managerDrawerId,
+    skuInput,
+    createCartMutation,
+    addItemMutation,
+    lookupCustomerMutation,
+    enqueueSnackbar,
+  ]);
 
   const handleRemoveLine = useCallback(async (lineId: number) => {
     if (!cart) return;
@@ -1070,6 +1102,65 @@ export default function TerminalPage() {
             disabled={openDrawerMutation.isPending}
           >
             {openDrawerMutation.isPending ? 'Opening…' : 'Open'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={!!soldScanDialog}
+        onClose={() => {
+          setSoldScanDialog(null);
+          skuInputRef.current?.focus();
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>This item is already sold</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Inventory shows this SKU as sold. If this tag is still on the floor, you can create a
+            new shelf item from this record and add it to the sale.
+          </Typography>
+          {soldScanDialog?.sku && (
+            <Typography variant="body2" fontWeight={600}>
+              SKU: {soldScanDialog.sku}
+            </Typography>
+          )}
+          {soldScanDialog?.title && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              {soldScanDialog.title}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button
+            onClick={() => {
+              setSoldScanDialog(null);
+              skuInputRef.current?.focus();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!cart || addResaleCopyMutation.isPending}
+            onClick={async () => {
+              if (!soldScanDialog || !cart) return;
+              try {
+                const updated = await addResaleCopyMutation.mutateAsync({
+                  cartId: cart.id,
+                  sourceItemId: soldScanDialog.itemId,
+                });
+                setCart(updated as unknown as Cart);
+                setSoldScanDialog(null);
+                enqueueSnackbar('New item created and added to cart', { variant: 'success' });
+              } catch {
+                enqueueSnackbar('Could not create resale copy. Try again.', { variant: 'error' });
+              }
+              skuInputRef.current?.focus();
+            }}
+          >
+            {addResaleCopyMutation.isPending ? 'Working…' : 'Create copy and add to cart'}
           </Button>
         </DialogActions>
       </Dialog>

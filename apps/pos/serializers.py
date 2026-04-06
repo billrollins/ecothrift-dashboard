@@ -126,9 +126,14 @@ class CartLineSerializer(serializers.ModelSerializer):
         model = CartLine
         fields = [
             'id', 'cart', 'item', 'description',
-            'quantity', 'unit_price', 'line_total', 'created_at',
+            'quantity', 'unit_price', 'line_total',
+            'resale_source_sku', 'resale_source_item_id',
+            'created_at',
         ]
-        read_only_fields = ['id', 'line_total', 'created_at']
+        read_only_fields = [
+            'id', 'line_total', 'created_at',
+            'resale_source_sku', 'resale_source_item_id',
+        ]
 
 
 class ReceiptSerializer(serializers.ModelSerializer):

@@ -656,10 +656,36 @@ class ItemScanHistory(models.Model):
         ('audit_scan', 'Audit Scan'),
     ]
 
+    OUTCOME_CHOICES = [
+        ('added_to_cart', 'Added to cart'),
+        ('pos_blocked_sold', 'POS blocked (already sold)'),
+        ('public_lookup', 'Public lookup'),
+        ('audit_scan', 'Audit scan'),
+    ]
+
     item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='scans')
     scanned_at = models.DateTimeField(auto_now_add=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='public_lookup')
+    outcome = models.CharField(
+        max_length=30,
+        choices=OUTCOME_CHOICES,
+        default='added_to_cart',
+    )
+    cart = models.ForeignKey(
+        'pos.Cart',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='item_scan_events',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='item_scans',
+    )
 
     class Meta:
         ordering = ['-scanned_at']

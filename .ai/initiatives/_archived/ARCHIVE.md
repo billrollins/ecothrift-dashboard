@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
+<!-- Last updated: 2026-03-30T15:00:00-05:00 -->
 # Archive index — initiatives
 
 ## What this is
@@ -56,6 +56,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [retag_cutover.md](./_completed/retag_cutover.md) | Retag + old-dash cutover checklist; superseded by ops docs. | 2026-03-27 (migration) |
 | [e2e_retag_quick_reprice_fixes.md](./_completed/e2e_retag_quick_reprice_fixes.md) | E2E retag history + Quick reprice (SKU filter, sold flows, session list, item Print/Reprice); label reminder + Quick Reprice 10% / session persistence — shipped **dashboard v2.2.3**. | 2026-03-28 |
 | [add_item_dialog_and_sources.md](./_completed/add_item_dialog_and_sources.md) | Add Item flow (Items panel + `ItemForm`), AI suggest, misc/PO/consignment sources, hierarchical dev logging (`LOG_ADD_ITEM_*`). Estimated retail left for a future product decision. | 2026-03-28 |
+| [django_admin_legacy_navigation.md](./_completed/django_admin_legacy_navigation.md) | Django **`contrib.admin`** at **`/db-admin/`**; React **`/admin/*`** no longer collides — hard refresh loads SPA; Vite proxies **`/db-admin`** only. Shipped 2026-03-30 (`CHANGELOG` `[Unreleased]`). | 2026-03-30 |
 
 ---
 

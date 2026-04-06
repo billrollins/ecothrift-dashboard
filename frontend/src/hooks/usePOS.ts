@@ -11,6 +11,7 @@ import {
   drawerTakeover,
   createCart,
   addItemToCart,
+  addResaleCopyToCart,
   updateCartLine,
   removeCartLine,
   completeCart,
@@ -180,6 +181,26 @@ export function useAddItemToCart() {
       sku: string;
     }) => {
       const { data } = await addItemToCart(cartId, sku);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['carts'] });
+    },
+  });
+}
+
+export function useAddResaleCopyToCart() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      cartId,
+      sourceItemId,
+    }: {
+      cartId: number;
+      sourceItemId: number;
+    }) => {
+      const { data } = await addResaleCopyToCart(cartId, { source_item_id: sourceItemId });
       return data;
     },
     onSuccess: () => {

@@ -81,4 +81,9 @@ class ItemHistoryAdmin(admin.ModelAdmin):
 
 @admin.register(ItemScanHistory)
 class ItemScanHistoryAdmin(admin.ModelAdmin):
-    list_display = ('item', 'scanned_at', 'source', 'ip_address')
+    list_display = ('item', 'scanned_at', 'source', 'outcome', 'cart', 'created_by', 'ip_address')
+    list_filter = ('source', 'outcome')
+    readonly_fields = ('item', 'scanned_at', 'ip_address', 'source', 'outcome', 'cart', 'created_by')
+
+    def has_add_permission(self, request):
+        return False
