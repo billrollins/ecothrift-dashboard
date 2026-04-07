@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-06T20:30:00-05:00 -->
+<!-- Last updated: 2026-04-06T21:00:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,6 +10,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+### Steering
+
+- **Initiatives — category intelligence completed:** [`.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md`](.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md) — Phases 0–7 delivered (2026-04-06); actionable buying recommendations; onboarding [`workspace/notebooks/category-research/README.md`](workspace/notebooks/category-research/README.md). Active initiatives table cleared in [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md). Protocols: [`.ai/initiatives/_protocols/move_initiative_to_completed.md`](.ai/initiatives/_protocols/move_initiative_to_completed.md), [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md).
+
+### Changed
+
+- **Category research layout:** Artifacts moved from **`workspace/testing/Category Research/`** to **`workspace/notebooks/category-research/`** (`exports/`, **`logs/`** with `extraction_runs.log` and **`logs/categorization/`** for AI JSONL, `categorized_exports/`, `reports/`, `model_compare/`). Canonical paths in **`apps/inventory/category_research_paths.py`**. Taxonomy files: **`taxonomy_v1.example.json`**, **`docs/taxonomy_input_schema.md`**.
+
+### Added
+
+- **Category research — unified notebook extracts:** SQL [`scripts/sql/unified_bin1_public.sql`](scripts/sql/unified_bin1_public.sql), [`unified_bin2_public.sql`](scripts/sql/unified_bin2_public.sql), [`unified_bin3_public.sql`](scripts/sql/unified_bin3_public.sql) (identical columns + `vendor_name`; Bin 3 via ecothrift retag notes; PO table `public.inventory_purchase_order`); discovery SQL [`workspace/notebooks/category-research/ai_scripts/sql/category_research_discovery.sql`](workspace/notebooks/category-research/ai_scripts/sql/category_research_discovery.sql) with runner [`ai_execute_sql.py`](workspace/notebooks/category-research/ai_scripts/ai_execute_sql.py) → `ai_scripts/output/*.csv` (gitignored); pointer [`scripts/sql/category_research_discovery.sql`](scripts/sql/category_research_discovery.sql); package [`workspace/notebooks/category-research/cr/`](workspace/notebooks/category-research/cr/) and [`category_research.ipynb`](workspace/notebooks/category-research/category_research.ipynb).
 
 ### Steering
 
@@ -31,11 +43,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.2.10] — 2026-04-07
+
+### Changed
+
+- **Category research — single-database exports:** **`export_category_bins`** uses Django’s **`default`** connection only. Bins 1–2 run schema-qualified SQL against **`public.*`** (V2-era inventory/POS); Bin 3 uses **`ecothrift.*`**. Removed optional **`DATABASES['legacy']`** / **`CATEGORY_LEGACY_DATABASE_NAME`** from settings — one Postgres database can hold both schemas. SQL script headers and **`workspace/testing/Category Research/`** docs updated accordingly. Initiative (now archived): [`.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md`](.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md).
+
+---
+
 ## [2.2.9] — 2026-04-06
 
 ### Added
 
-- **POS — unscannable (pink tag) line:** **`POST /api/pos/carts/{id}/add-manual-line/`** adds a cart line **without** an inventory item (`item` null): `description` (required), optional `unit_price` (default **0.50**), optional `quantity` (default 1). Rejects non-open carts. No `ItemScanHistory` row. Terminal: **Unscannable item** button, dialog (defaults **Pink Tag Item** / **0.50**), description field selected on open, **OK** / Enter submits; cart lines show a **Pink tag** chip when `item` is null. Tests: `apps/pos/tests/test_cart_manual_line.py`. Initiative: [`.ai/initiatives/pos_unscannable_manual_line.md`](.ai/initiatives/pos_unscannable_manual_line.md).
+- **POS — unscannable (pink tag) line:** **`POST /api/pos/carts/{id}/add-manual-line/`** adds a cart line **without** an inventory item (`item` null): `description` (required), optional `unit_price` (default **0.50**), optional `quantity` (default 1). Rejects non-open carts. No `ItemScanHistory` row. Terminal: **Unscannable item** button, dialog (defaults **Pink Tag Item** / **0.50**), description field selected on open, **OK** / Enter submits; cart lines show a **Pink tag** chip when `item` is null. Tests: `apps/pos/tests/test_cart_manual_line.py`. Initiative: [`.ai/initiatives/_archived/_completed/pos_unscannable_manual_line.md`](.ai/initiatives/_archived/_completed/pos_unscannable_manual_line.md).
 
 ---
 

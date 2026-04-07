@@ -1,13 +1,7 @@
 -- Sold items summary by category since 2026-01-01.
--- Read-only SELECT. Run in psql, pgAdmin, or DBeaver.
+-- Read-only SELECT. All tables schema-qualified (no SET search_path).
 --
 -- Retail is derived per item: latest RetagLog.retail_amt by SKU, else ManifestRow.retail_value.
--- sold_for / price come from inventory_item (actual sale and tagged shelf price at time of sale
--- is not versioned; price is current column value on the sold row).
---
--- Django uses schema "ecothrift" (see settings DATABASES OPTIONS search_path).
-
-SET search_path TO ecothrift;
 
 WITH item_retail AS (
   SELECT
@@ -17,22 +11,21 @@ WITH item_retail AS (
     COALESCE(
       (
         SELECT r.retail_amt
-        FROM inventory_retaglog r
+        FROM ecothrift.inventory_retaglog r
         WHERE r.new_item_sku = i.sku
         ORDER BY r.retagged_at DESC
         LIMIT 1
       ),
       (
         SELECT m.retail_value
-        FROM inventory_manifestrow m
+        FROM ecothrift.inventory_manifestrow m
         WHERE m.id = i.manifest_row_id
       )
     )::numeric AS retail_price
-  FROM inventory_item i
+  FROM ecothrift.inventory_item i
   WHERE i.status = 'sold'
     AND i.sold_at IS NOT NULL
     AND i.sold_for IS NOT NULL
-    -- Calendar day in America/Chicago (store local); adjust if session TZ differs.
     AND (i.sold_at AT TIME ZONE 'America/Chicago')::date >= DATE '2026-01-01'
 )
 SELECT

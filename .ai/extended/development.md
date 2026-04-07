@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-06T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-07T21:00:00-05:00 -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -109,6 +109,8 @@ Defined in `.env` (gitignored):
 | `ALLOWED_HOSTS` | Comma-separated hosts | `localhost,127.0.0.1` |
 | `ANTHROPIC_API_KEY` | Optional AI integration key | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest when `browser` is enabled in `.ai/debug/log.config` | `false` |
+
+**PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `ecothrift_v2`). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. Use **`scripts/deploy/0_pull_prod_to_local.bat`** to load production (including `public` + `ecothrift`) into that local DB. See root **`.env.example`**.
 
 ## Adding a New Feature
 

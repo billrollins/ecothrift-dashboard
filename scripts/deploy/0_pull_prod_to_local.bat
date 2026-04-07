@@ -5,8 +5,13 @@ echo   ECOTHRIFT - PULL PRODUCTION DB TO LOCAL
 echo   Full dump - restores ALL schemas into ecothrift_v2
 echo ========================================
 echo.
+echo   Django (.env DATABASE_*): same DB — ORM uses schema ecothrift (search_path).
+echo   Legacy / V2 data lives in schema public (same database^) — used for category
+echo   extracts (Bins 1-2^), not for Django models.
+echo.
 echo This will OVERWRITE local schemas: public, darkhorse, ecothrift
 echo Local database: ecothrift_v2 (localhost)
+echo   Ensure root .env DATABASE_NAME=ecothrift_v2 and host/port/user match below.
 echo.
 
 :: -------------------------------------------------------
@@ -68,6 +73,7 @@ echo.
 echo     - public
 echo     - darkhorse
 echo     - ecothrift
+echo     - heroku_ext (Heroku extensions schema — must drop or pg_restore fails^)
 echo.
 echo   Local DB: ecothrift_v2 (localhost)
 echo ----------------------------------------
@@ -107,7 +113,27 @@ if !errorlevel! neq 0 (
     pause
     exit /b 1
 )
+psql -h localhost -p 5432 -U postgres -d ecothrift_v2 -c "DROP SCHEMA IF EXISTS heroku_ext CASCADE;"
+if !errorlevel! neq 0 (
+    echo ERROR: Failed to drop local heroku_ext schema.
+    del "%DUMP_FILE%" 2>nul
+    pause
+    exit /b 1
+)
 echo        Local schemas dropped.
+echo.
+:: After CASCADE, the database may have NO public schema. pg_restore can replay
+:: constraints before CREATE SCHEMA public in the archive, causing hundreds of
+:: "schema public does not exist" errors. Recreate empty public before restore.
+echo [Step 4b] Recreating empty schema public (required for clean pg_restore^)...
+psql -h localhost -p 5432 -U postgres -d ecothrift_v2 -c "CREATE SCHEMA IF NOT EXISTS public; GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO PUBLIC;"
+if !errorlevel! neq 0 (
+    echo ERROR: Failed to recreate public schema.
+    del "%DUMP_FILE%" 2>nul
+    pause
+    exit /b 1
+)
+echo        Schema public ready.
 echo.
 
 :: -------------------------------------------------------

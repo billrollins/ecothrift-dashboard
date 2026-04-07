@@ -8,6 +8,8 @@
 pandas>=2.2
 SQLAlchemy>=2.0
 psycopg2-binary>=2.9
+anthropic>=0.40
+tqdm>=4.66
 
 # --- B-Stock scraper (workspace/notebooks/bstock-scraper/Scraper/) ---
 requests>=2.31

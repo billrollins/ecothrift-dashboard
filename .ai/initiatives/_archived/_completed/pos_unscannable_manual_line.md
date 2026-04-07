@@ -1,7 +1,10 @@
-<!-- initiative: slug=pos-unscannable-manual-line status=active updated=2026-04-06 -->
-<!-- Last updated: 2026-04-06T20:30:00-05:00 -->
+<!-- Archived 2026-04-06: disposition=completed (unscannable manual line API + terminal; v2.2.9) -->
+<!-- initiative: slug=pos-unscannable-manual-line status=completed updated=2026-04-06 -->
+<!-- Last updated: 2026-04-06T20:45:00-05:00 -->
 
 # POS — Unscannable (pink tag) manual cart line
+
+**Status: Completed** — Shipped **v2.2.9**; see **`CHANGELOG.md`** section **[2.2.9]**.
 
 ## Outcome
 
@@ -16,6 +19,6 @@ Cashiers can add **inventory-free** cart lines for unscannable merchandise (e.g.
 
 ## See also
 
-- [CHANGELOG](../../CHANGELOG.md) **v2.2.9**
+- [CHANGELOG.md](../../../../CHANGELOG.md) section **[2.2.9]**
 - `apps/pos/views.py` — `add_manual_line`
 - `frontend/src/pages/pos/TerminalPage.tsx`

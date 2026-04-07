@@ -1,0 +1,27 @@
+{
+  "version": "taxonomy_v1",
+  "title": "Canonical category list — category intelligence (Bins 2–3 AI mapping)",
+  "created_utc": "2026-04-07",
+  "notes": "19 categories. Path: workspace/notebooks/category-research/taxonomy_v1.example.json — use with categorize_category_bins --taxonomy, or copy to taxonomy_v1.json locally. Boundaries: large appliances → Kitchen & dining; computers/TVs/gadgets → Electronics; patio sets → Outdoor & patio furniture; nursery case goods → Furniture; physical books/CDs → Books & media; brand-only manifest labels map by product type, not brand name.",
+  "categories": [
+    { "index": 1, "name": "Kitchen & dining" },
+    { "index": 2, "name": "Furniture" },
+    { "index": 3, "name": "Outdoor & patio furniture" },
+    { "index": 4, "name": "Home décor & lighting" },
+    { "index": 5, "name": "Household & cleaning" },
+    { "index": 6, "name": "Bedding & bath" },
+    { "index": 7, "name": "Storage & organization" },
+    { "index": 8, "name": "Toys & games" },
+    { "index": 9, "name": "Sports & outdoors" },
+    { "index": 10, "name": "Tools & hardware" },
+    { "index": 11, "name": "Office & school supplies" },
+    { "index": 12, "name": "Electronics" },
+    { "index": 13, "name": "Baby & kids" },
+    { "index": 14, "name": "Health, beauty & personal care" },
+    { "index": 15, "name": "Apparel & accessories" },
+    { "index": 16, "name": "Books & media" },
+    { "index": 17, "name": "Pet supplies" },
+    { "index": 18, "name": "Party, seasonal & novelty" },
+    { "index": 19, "name": "Mixed lots & uncategorized" }
+  ]
+}

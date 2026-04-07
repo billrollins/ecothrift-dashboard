@@ -1,12 +1,7 @@
 -- Inventory summary by category and status (all items).
--- Read-only SELECT. Run in psql, pgAdmin, or DBeaver.
+-- Read-only SELECT. All tables schema-qualified (no SET search_path).
 --
 -- Retail is derived per item: latest RetagLog.retail_amt by SKU, else ManifestRow.retail_value.
--- When Item.retail_price exists in the future, prefer that column in this query instead.
---
--- Django uses schema "ecothrift" (see settings DATABASES OPTIONS search_path).
-
-SET search_path TO ecothrift;
 
 WITH item_retail AS (
   SELECT
@@ -16,18 +11,18 @@ WITH item_retail AS (
     COALESCE(
       (
         SELECT r.retail_amt
-        FROM inventory_retaglog r
+        FROM ecothrift.inventory_retaglog r
         WHERE r.new_item_sku = i.sku
         ORDER BY r.retagged_at DESC
         LIMIT 1
       ),
       (
         SELECT m.retail_value
-        FROM inventory_manifestrow m
+        FROM ecothrift.inventory_manifestrow m
         WHERE m.id = i.manifest_row_id
       )
     )::numeric AS retail_price
-  FROM inventory_item i
+  FROM ecothrift.inventory_item i
 )
 SELECT
   CASE WHEN GROUPING(category) = 1 THEN '(TOTAL)' ELSE category END AS category,

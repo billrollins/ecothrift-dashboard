@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-06T20:30:00-05:00 -->
+<!-- Last updated: 2026-04-06T21:00:00-05:00 -->
 ```
                     ╔═══════════════════════════════════════════════════════════╗
                     ║                                                           ║
@@ -88,8 +88,10 @@ Built different. Built fast. Built to last.
 |-----|---------|
 | [`.ai/context.md`](.ai/context.md) | Living **current state** (what works, known gaps). |
 | [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) | **Active** initiatives (bounded work tracked as one `.md` each). |
-| [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md) | **Archived** initiatives (completed, backlog, pending, abandoned). |
+| [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md) | **Archived** initiatives (completed, backlog, pending, abandoned). Example: [category intelligence](.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md) (Phases 0–7, 2026-04-06). |
 | [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md) | Doc audit, version bump, pre-commit, handoff (includes keeping this README in sync). |
+
+**Notebook research:** [workspace/notebooks/category-research/README.md](workspace/notebooks/category-research/README.md) — category bins, taxonomy, Claude categorization, sell-through analysis (handoff for future sessions).
 
 Detailed setup beyond **Quick Start** lives in [`.ai/extended/development.md`](.ai/extended/development.md).
 

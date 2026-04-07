@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-06T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-06T21:00:00-05:00 -->
 # Archive index — initiatives
 
 ## What this is
@@ -59,6 +59,8 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [django_admin_legacy_navigation.md](./_completed/django_admin_legacy_navigation.md) | Django **`contrib.admin`** at **`/db-admin/`**; React **`/admin/*`** no longer collides — hard refresh loads SPA; Vite proxies **`/db-admin`** only. Shipped 2026-03-30 (`CHANGELOG` `[Unreleased]`). | 2026-03-30 |
 | [pos_cart_total_stale_prefetch_bug.md](./_completed/pos_cart_total_stale_prefetch_bug.md) | POS cart **subtotal/total** one step behind line totals — **`Cart.recalculate()`** uses fresh DB lines (stale `prefetch_related` fix); shipped **v2.2.7**. | 2026-04-06 |
 | [pos_sold_item_scan_ux_and_audit_trail.md](./_completed/pos_sold_item_scan_ux_and_audit_trail.md) | Sold-SKU messaging, **`ItemScanHistory`** outcomes, **`add-resale-copy`**, staff-only resale captions; customer-safe receipts; shipped **v2.2.8**. | 2026-04-06 |
+| [pos_unscannable_manual_line.md](./_completed/pos_unscannable_manual_line.md) | **`add-manual-line`** API + terminal **Unscannable item** dialog; pink-tag chip for `item`-null lines; shipped **v2.2.9**. | 2026-04-06 |
+| [category_sales_inventory_and_taxonomy.md](./_completed/category_sales_inventory_and_taxonomy.md) | Category intelligence: unified bin SQL, 19-category `taxonomy_v1`, manifest mapping (`cr/taxonomy_estimate.py`), Claude categorization (`cr/prompts.py`, `cr/categorize.py`), Bin 2 vs Bin 3 sell-through; **actionable buying recommendations**; workspace [`README.md`](../../../workspace/notebooks/category-research/README.md). Phases 0–7 complete. | 2026-04-06 |
 
 ---
 

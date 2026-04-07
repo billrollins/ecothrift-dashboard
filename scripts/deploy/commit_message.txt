@@ -1,23 +1,24 @@
-### 2026-04-06 — review_bump (POS v2.2.9 + docs)
+### 2026-04-06 — category intelligence closeout (README + archive initiative)
 
-**Release:** Patch **v2.2.9** — POS unscannable (pink tag) manual cart line (already implemented in code this session).
+- **`workspace/notebooks/category-research/README.md`:** Rewrote onboarding for a cold-start AI/human (purpose, accomplishments, key findings, full tree, reusable pieces, rerun order, explicit non-goals).
+- **Initiative:** `category_sales_inventory_and_taxonomy.md` → `.ai/initiatives/_archived/_completed/` (Phases 0–7 complete 2026-04-06; actionable buying recommendations; relative links fixed). Updated `.ai/initiatives/_index.md`, `.ai/initiatives/_archived/ARCHIVE.md`, `.ai/context.md`, `workspace/notebooks/README.md`, `.ai/extended/databases.md`, root `README.md`, `CHANGELOG.md` `[Unreleased]` (and **[2.2.10]** initiative link → archived path).
+- Protocols: `.ai/initiatives/_protocols/move_initiative_to_completed.md`, `.ai/protocols/review_bump.md`. **No** `.version` bump (docs / lifecycle only).
 
-**CHANGELOG:** [2.2.9] section — `POST /api/pos/carts/{id}/add-manual-line/`, terminal Unscannable item dialog, tests `test_cart_manual_line.py`.
+---
 
-**Initiative:** `.ai/initiatives/pos_unscannable_manual_line.md` + row in `.ai/initiatives/_index.md`.
+### 2026-04-06 — archive initiative `pos_unscannable_manual_line` (completed)
 
-**Bookkeeping:** `.version` → `v2.2.9`, root `package.json` version aligned. `.ai/context.md`, `.ai/extended/pos-system.md`, `README.md` timestamps.
+- `git mv` → `.ai/initiatives/_archived/_completed/pos_unscannable_manual_line.md` (archive marker, status completed, fixed CHANGELOG link).
+- Updated: `.ai/initiatives/_index.md` (active empty), `.ai/initiatives/_archived/ARCHIVE.md` (TOC row), `.ai/context.md`, root `CHANGELOG.md` initiative path.
+- Protocol: `.ai/initiatives/_archived/_protocols/move_initiative_to_completed.md`.
 
-**Protocol:** `.ai/protocols/review_bump.md` Parts A–C (initiative gate satisfied), D (this file), E handoff in session reply.
+---
 
-Suggested conventional commit:
+### 2026-04-07 — category research: single-DB `export_category_bins` + review bump (v2.2.10)
 
-```
-feat(pos): unscannable manual line API and terminal (v2.2.9)
-
-- POST .../add-manual-line/ for item-null cart lines
-- Terminal dialog + Pink tag chip; tests
-- Docs: initiative, CHANGELOG, context, pos-system
-```
+- **`export_category_bins`:** uses **`connections['default']`** only; Bins 1–2 **`public.*`**, Bin 3 **`ecothrift.*`**; removed **`DATABASES['legacy']`** / **`CATEGORY_LEGACY_DATABASE_NAME`** from `ecothrift/settings.py`.
+- SQL comment headers: `scripts/sql/public_bin1_2025_processed.sql`, `public_bin2_2026_sold_pos.sql`.
+- Docs: `workspace/testing/Category Research/README.md`, `EXTRACTION_LOG.md`; `.ai/initiatives/category_sales_inventory_and_taxonomy.md`; `.ai/context.md` “Current State”; `.ai/extended/databases.md` (category research subsection).
+- Release: `.version` **v2.2.10**, root `package.json`, `CHANGELOG.md` **[2.2.10]** — initiative **category_sales_inventory_and_taxonomy.md**; protocol **`.ai/protocols/review_bump.md`**.
 
 ---

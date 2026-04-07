@@ -1,0 +1,2 @@
+bin,row_key,item_id,sku,manifest_row_id,manifest_has_row,manifest_category,manifest_subcategory,manifest_description,manifest_retail_value,product_title,product_brand,product_model,item_retail_amt,item_starting_price,cart_id,cart_completed_at,cart_status,cart_subtotal,cart_total,cart_line_id,quantity,unit_price,line_total
+bin2,1-1,1,SKU1,,False,,,,,Title,B,M,,,1,2026-01-01T00:00:00+00:00,completed,1,1,1,1,1,1
