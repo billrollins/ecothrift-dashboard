@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'apps.pos',
     'apps.consignment',
     'apps.ai',
+    'apps.buying',
 ]
 
 MIDDLEWARE = [
@@ -137,6 +138,12 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:8888',
     'http://localhost:8888',
 ]
+# Bookmarklet on bstock.com POSTs JWT to local runserver (api/buying/token/)
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = list(CORS_ALLOWED_ORIGINS) + [
+        'https://bstock.com',
+        'https://www.bstock.com',
+    ]
 CORS_ALLOW_CREDENTIALS = True
 
 # ── Internationalization ──────────────────────────────────────────────────────
@@ -186,6 +193,14 @@ else:
 
 # ── AI / Anthropic ───────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
+
+# ── Buying / B-Stock (search POST is unauthenticated; other calls need JWT) ─
+BSTOCK_AUTH_TOKEN = config('BSTOCK_AUTH_TOKEN', default='')
+BUYING_REQUEST_DELAY_SECONDS = config(
+    'BUYING_REQUEST_DELAY_SECONDS', default=2.0, cast=float
+)
+BSTOCK_MAX_RETRIES = config('BSTOCK_MAX_RETRIES', default=3, cast=int)
+BSTOCK_SEARCH_MAX_PAGES = config('BSTOCK_SEARCH_MAX_PAGES', default=5000, cast=int)
 
 # ── Default primary key ──────────────────────────────────────────────────────
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

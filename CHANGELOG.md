@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-06T21:00:00-05:00 -->
+<!-- Last updated: 2026-04-07T23:00:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -40,6 +40,34 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Dev:** `printserver/dev_print_e2e_3_labels.bat` — first three rows from `workspace/testing/data/retag_e2e_10_items.json`. **`printserver/scripts/label_price_fringe_grid.py`** — fringe-case PNGs + fit summary to `printserver/output_label_fringe_review/` (gitignored).
 - **Samples:** `label_test_data.py` prices `$1.99`, `$25.00`, `$1,123.75`; consultant notes under `.ai/reference/Consult Label/to-be-checked/`.
 - **Steering:** Label price layout work archived — [`.ai/initiatives/_archived/_completed/print_server_label_price_layout.md`](.ai/initiatives/_archived/_completed/print_server_label_price_layout.md) (print server **v1.2.35–v1.2.38**); see [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md).
+
+---
+
+## [2.4.0] — 2026-04-07
+
+### Added
+
+- **Buying / B-Stock (Phase 1 complete):** Django app **`apps/buying/`** with models, services (**`scraper`**, **`pipeline`**, **`normalize`**), management commands **`sweep_auctions`**, **`pull_manifests`**, **`bstock_token`**; **`POST /api/buying/token/`** (DEBUG or localhost) writes **`workspace/.bstock_token`**; rejects JWE cookie tokens (`eyJhbGciOiJSU0EtT0FF`). **`scripts/refresh_bstock.bat`**. Bookmarklet and docs: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. Notebook workbench: **`workspace/notebooks/bstock-intelligence/README.md`**. Initiative: [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
+
+### Changed
+
+- **Buying / B-Stock scraper:** Microservice URLs (`search.bstock.com`, `auction.bstock.com`, `listing.bstock.com`, `order-process.bstock.com`, `shipment.bstock.com`). Settings: **`BSTOCK_AUTH_TOKEN`**, **`BUYING_REQUEST_DELAY_SECONDS`**, **`BSTOCK_MAX_RETRIES`**, **`BSTOCK_SEARCH_MAX_PAGES`**. **`DEBUG`** CORS adds **`https://bstock.com`** / **`https://www.bstock.com`** for bookmarklet **`fetch`**. **`get_manifest`**: **`limit`** capped at **1000** per request; paginates with **`offset`** until **`total`** rows. Search listing mapping: **`categories`**, **`winningBidAmount`**, **`numberOfBids`**, **`auctionUrl`**, **`has_manifest`** when **`lotId`** is set; **`merge_auction_state_into_fields`** fills **`startPrice`**, **`buyNow.price`**, **`winningBidAmount`**; money helper treats integers **>= 10000** as cents.
+
+- **Docs / env:** **`.env.example`**, **`.ai/extended/backend.md`**, **`.ai/extended/development.md`**, **`.ai/context.md`**, **`README.md`**, **`workspace/notebooks/README.md`**, **`workspace/notebooks/_shared/README.md`**, **`.ai/initiatives/_index.md`** (B-Stock row).
+
+### Baseline (release verification)
+
+- **`python manage.py sweep_auctions`:** **97** listing rows upserted across **6** active marketplaces (full pagination run).
+- **`python manage.py pull_manifests`:** ran; **0** new manifest rows written in this run (existing rows already present for eligible auctions).
+- **Postgres snapshot after sweep:** **98** `Auction` rows, **67,276** `ManifestRow` rows (cumulative across this and prior sessions).
+
+---
+
+## [2.3.0] — 2026-04-07
+
+### Added
+
+- **Buying / B-Stock (Phase 1):** New Django app **`apps/buying/`** for auction intelligence: models `Marketplace`, `Auction`, `AuctionSnapshot`, `ManifestRow`, `WatchlistEntry`, `Bid`, `Outcome`; server-side services **`discover_auctions`**, **`get_auction_detail`**, **`get_manifest`** (manifest URL optional until DevTools capture); **`python manage.py sweep_auctions`** and **`python manage.py pull_manifests`**; Postgres-backed persistence; Django admin registration. Configuration via **`BSTOCK_*`** and **`BUYING_REQUEST_DELAY_SECONDS`** in `.env` (see **`.env.example`**). Explicit **`requests`** dependency in **`requirements.txt`**. Notebook workbench: **`workspace/notebooks/bstock-intelligence/README.md`**. Initiative: [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
 
 ---
 

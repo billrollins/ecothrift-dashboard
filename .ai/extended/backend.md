@@ -1,10 +1,10 @@
-<!-- Last updated: 2026-02-18T16:00:00-06:00 -->
+<!-- Last updated: 2026-04-07T20:00:00-05:00 -->
 
 # Eco-Thrift Dashboard — Backend Context
 
 ## Project Structure
 
-Django project with **7 apps** under `apps/`:
+Django project with **8 apps** under `apps/`:
 
 | App | Purpose |
 |-----|---------|
@@ -15,8 +15,9 @@ Django project with **7 apps** under `apps/`:
 | `apps.ai` | Claude API proxy: chat endpoint, model list |
 | `apps.pos` | Registers, drawers, carts, receipts, cash management |
 | `apps.consignment` | Consignment agreements, items, payouts |
+| `apps.buying` | B-Stock auction intelligence: marketplaces, auctions, manifests, watchlist, bids, outcomes; management commands `sweep_auctions`, `pull_manifests`; dev-only `POST /api/buying/token/` for JWT ingest |
 
-Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/inventory/`, `api/ai/`, `api/pos/`, `api/consignment/`.
+Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/inventory/`, `api/ai/`, `api/pos/`, `api/consignment/`, `api/buying/` (token helper only). (**`apps.buying`** has no auction CRUD API until a future phase.)
 
 ---
 
@@ -218,3 +219,12 @@ consignment.ConsignmentPayout → User (consignee)
 - String concatenation with `+`, quoted string literals
 - `evaluate_formula(formula_str, row_dict) -> str` public entry point
 - `normalize_row()` in views.py checks for `formula` key (new path) vs `source` + `transforms` (legacy path)
+
+## Buying / B-Stock (`apps/buying/`) — Added v2.3.0
+
+- **Models:** `Marketplace`, `Auction`, `AuctionSnapshot`, `ManifestRow`, `WatchlistEntry`, `Bid`, `Outcome`
+- **Commands:** `python manage.py sweep_auctions` (POST `search.bstock.com/v1/all-listings/listings`), `python manage.py pull_manifests` (`order-process.bstock.com/v1/manifests/{lotId}`)
+- **Services:** `apps.buying.services.scraper`, `normalize`, `pipeline`
+- **Settings:** `workspace/.bstock_token` (from `python manage.py bstock_token`) preferred over `BSTOCK_AUTH_TOKEN`; `BUYING_REQUEST_DELAY_SECONDS`, `BSTOCK_MAX_RETRIES`, `BSTOCK_SEARCH_MAX_PAGES` (see `ecothrift/settings.py`, `.env.example`). Bookmarklet: `apps/buying/bookmarklet/bstock_elt_bookmarklet.md`
+- **Dev:** `POST /api/buying/token/` saves JWT to `workspace/.bstock_token` (DEBUG or localhost only)
+- **UI:** Django admin at `/db-admin/` in Phase 1

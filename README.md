@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-06T21:00:00-05:00 -->
+<!-- Last updated: 2026-04-07T23:00:00-05:00 -->
 ```
                     ╔═══════════════════════════════════════════════════════════╗
                     ║                                                           ║
@@ -91,7 +91,7 @@ Built different. Built fast. Built to last.
 | [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md) | **Archived** initiatives (completed, backlog, pending, abandoned). Example: [category intelligence](.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md) (Phases 0–7, 2026-04-06). |
 | [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md) | Doc audit, version bump, pre-commit, handoff (includes keeping this README in sync). |
 
-**Notebook research:** [workspace/notebooks/category-research/README.md](workspace/notebooks/category-research/README.md) — category bins, taxonomy, Claude categorization, sell-through analysis (handoff for future sessions).
+**Notebook research:** [workspace/notebooks/category-research/README.md](workspace/notebooks/category-research/README.md) — category bins, taxonomy, Claude categorization, sell-through analysis. **B-Stock / buying:** [workspace/notebooks/bstock-intelligence/README.md](workspace/notebooks/bstock-intelligence/README.md) (analysis against **`apps/buying/`** data); initiative [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
 
 Detailed setup beyond **Quick Start** lives in [`.ai/extended/development.md`](.ai/extended/development.md).
 
@@ -122,7 +122,7 @@ Then open **http://localhost:5173** and log in.
 
 ```
 ecothrift-dashboard/
-├── apps/                Django apps (accounts, core, hr, inventory, pos, consignment, ai)
+├── apps/                Django apps (accounts, core, hr, inventory, pos, consignment, ai, buying)
 ├── ecothrift/           Django project package (settings, urls, wsgi)
 ├── manage.py            Django CLI entry (same tree = “backend” for local dev)
 ├── frontend/            React + TypeScript + MUI (Vite)
@@ -132,7 +132,7 @@ ecothrift-dashboard/
 ├── .version             App semver (single line)
 ├── CHANGELOG.md         Version history
 ├── package.json         Heroku heroku-postbuild → frontend build only
-└── workspace/           Local scratch; only select files under workspace/notebooks/ (e.g. _shared/, db-explorer/, historical-data/, bstock-scraper/) may be tracked
+└── workspace/           Local scratch; only select files under workspace/notebooks/ (e.g. _shared/, db-explorer/, historical-data/, bstock-scraper/, bstock-intelligence/) may be tracked
 ```
 
 **Print server:** Develop in `printserver/`. The Windows installer deploys under `%LOCALAPPDATA%\EcoThrift\PrintServer\` and, on **Install**, removes legacy V2 print-server folders/Startup hooks before laying down the new exe (see `printserver/installer/setup.py`).

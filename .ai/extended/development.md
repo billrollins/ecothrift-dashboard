@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-04-07T21:00:00-05:00 -->
+<!-- Last updated: 2026-04-07T20:00:00-05:00 -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
 
 | Path | Role |
 |------|------|
-| `manage.py`, `ecothrift/`, `apps/` | **Backend** — Django project + domain apps (`INSTALLED_APPS`); no separate `backend/` folder. |
+| `manage.py`, `ecothrift/`, `apps/` | **Backend** — Django project + domain apps (`INSTALLED_APPS`), including **`buying/`** (B-Stock auction intelligence); no separate `backend/` folder. |
 | `frontend/` | **Frontend** — Vite + React; production build consumed by WhiteNoise/Heroku. |
 | `printserver/` | **Local print server** — FastAPI on `127.0.0.1:8888`; build/installer here. Installed exe lives under `%LOCALAPPDATA%\EcoThrift\PrintServer\` (not source). |
 | `.ai/` | AI steering: `context.md`, `protocols/`, `initiatives/`, **`extended/`** (this file and domain deep-dives). |
@@ -77,7 +77,7 @@ If **POS registers** or **supplemental drawer** rows are missing (e.g. after `re
 
 **Jupyter (DB1 / DB2 / DB3):** See `workspace/notebooks/_shared/README.md`. From repo root: `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` (and `jupyter` / `jupyterlab` as needed). Secrets go in gitignored `workspace/notebooks/_shared/config_local.py`.
 
-**B-Stock notebook scraper:** Tracked package `workspace/notebooks/bstock-scraper/Scraper/` (`BStockScraper`, `python -m Scraper` from `workspace/notebooks/bstock-scraper`). API tokens and `bstock_config_local.py` live under `Scraper/` (gitignored); see `_shared/README.md`.
+**B-Stock (production):** **`apps/buying/`** — `python manage.py sweep_auctions`, `pull_manifests`, **`bstock_token`** (writes **`workspace/.bstock_token`**, gitignored; scraper prefers it over **`BSTOCK_AUTH_TOKEN`**). **`BUYING_REQUEST_DELAY_SECONDS`**, **`BSTOCK_MAX_RETRIES`**, **`BSTOCK_SEARCH_MAX_PAGES`** in root `.env`. Search listings POST is unauthenticated. Bookmarklet to copy JWT from the `elt` cookie: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. See **`workspace/notebooks/bstock-intelligence/README.md`** for notebooks. **Legacy** notebook package `workspace/notebooks/bstock-scraper/Scraper/` remains reference-only; see `_shared/README.md`.
 
 **Print server (V3):** AI-oriented notes in [`.ai/extended/print-server.md`](print-server.md). The Windows **installer** (`printserver/installer/setup.py`) removes legacy V2 artifacts before installing V3; optional IT batch: `printserver/installer/uninstall_legacy_prior.bat`. **Installer / S3 release version** is `VERSION` in [`printserver/config.py`](../../printserver/config.py) (not the same as repo root `.version`, which tracks the dashboard app). Build + upload: `printserver/distribute.bat`. For fast label/receipt iteration, use `printserver/dev_print_label_test.bat` and `printserver/dev_print_receipt_test.bat` (see table above).
 
@@ -109,6 +109,10 @@ Defined in `.env` (gitignored):
 | `ALLOWED_HOSTS` | Comma-separated hosts | `localhost,127.0.0.1` |
 | `ANTHROPIC_API_KEY` | Optional AI integration key | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest when `browser` is enabled in `.ai/debug/log.config` | `false` |
+| `BSTOCK_AUTH_TOKEN` | Fallback JWT if `workspace/.bstock_token` is missing (from `python manage.py bstock_token` or DevTools) | — |
+| `BUYING_REQUEST_DELAY_SECONDS` | Minimum delay between scraper HTTP requests | `2.0` |
+| `BSTOCK_MAX_RETRIES` | Retries after HTTP 429 | `3` |
+| `BSTOCK_SEARCH_MAX_PAGES` | Safety cap on search pagination pages per marketplace | `5000` |
 
 **PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `ecothrift_v2`). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. Use **`scripts/deploy/0_pull_prod_to_local.bat`** to load production (including `public` + `ecothrift`) into that local DB. See root **`.env.example`**.
 

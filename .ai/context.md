@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-04-06T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-07T23:00:00-05:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** See repo root `.version` (e.g. `v2.2.10`).
+**Current version:** See repo root `.version` (e.g. `v2.4.0`).
 
 ---
 
@@ -21,7 +21,8 @@ ecothrift-dashboard/
 │   ├── hr/                 Time clock, departments, sick leave
 │   ├── inventory/          Vendors, POs, products, items, processing
 │   ├── pos/                Registers, drawers, carts, receipts, cash mgmt
-│   └── consignment/        Agreements, consignment items, payouts
+│   ├── consignment/        Agreements, consignment items, payouts
+│   └── buying/             B-Stock auction intelligence (models, scraper services, management commands)
 ├── frontend/src/
 │   ├── api/                Axios service functions (one per backend app)
 │   ├── components/         Layout, common, feedback, forms
@@ -56,7 +57,7 @@ ecothrift-dashboard/
 ## Current State
 
 ### Working
-- All 6 backend apps with models, serializers, views, URLs, admin
+- All 8 backend apps with models, serializers, views, URLs, admin (including **`apps/buying/`** for B-Stock auction intelligence: Phase 1 models, **`sweep_auctions`** / **`pull_manifests`** commands, Django admin; no REST API yet)
 - 28+ frontend pages rendering and connected to API
 - JWT auth with httpOnly cookie refresh + in-memory access token
 - Database migrations and seed data command
@@ -111,7 +112,7 @@ ecothrift-dashboard/
 - **`very_good` condition**: Added `('very_good', 'Very Good')` to `CONDITION_CHOICES` on `Item`, `ManifestRow`, and `BatchGroup`.
 - **Database audits**: Long-form schema exports for DB1/DB2/DB3 are kept locally under `workspace/` if you maintain them; routing notes in `.ai/extended/databases.md`.
 - **Category research exports (v2.2.10+):** **`python manage.py export_category_bins`** writes CSVs from the **`default`** DB only, using **`public.*`** for Bins 1–2 and **`ecothrift.*`** for Bin 3 (no second `DATABASES` entry). Artifacts live under **`workspace/notebooks/category-research/`**; see that **[`README.md`](../workspace/notebooks/category-research/README.md)**. The category-intelligence initiative (unified extracts, 19-category taxonomy, manifest mapping, Claude categorization, Bin 2 vs Bin 3 sell-through) is **[archived completed](initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md)** — delivered actionable buying recommendations (2026-04-06).
-- **B-Stock notebook scraper** (v2.2.0): Tracked package `workspace/notebooks/bstock-scraper/Scraper/` — `BStockScraper` with `get_auctions()` / `update()` / `save_to_disk()`; CLI `python -m Scraper` from `workspace/notebooks/bstock-scraper`; Playwright fallback `python -m Scraper.browser`; config + secrets in gitignored `Scraper/bstock_config_local.py`. `get_manifests()` is Phase 2 (NotImplementedError until manifest XHR is wired). See `workspace/notebooks/_shared/README.md`, `.ai/initiatives/_archived/_pending/bstock_scraper.md`.
+- **B-Stock auction intelligence (v2.3.0+):** Production data and scraping live in **`apps/buying/`** (`workspace/.bstock_token` from **`python manage.py bstock_token`**, or **`BSTOCK_AUTH_TOKEN`** in `.env`; fixed microservice URLs in **`scraper.py`**). **`sweep_auctions`**, **`pull_manifests`**. Marketplaces seeded with storeFrontId; **`Auction`** stores listing, lot, and auction ids. Bookmarklet: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. Notebook workbench: **`workspace/notebooks/bstock-intelligence/README.md`**. Initiative: [`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md).
 
 ### Known Issues
 - **Concurrent AI cleanup needs testing/hardening**: The concurrent batch processing (16 threads x 5 rows) was just implemented. The user reported "there's a lot wrong" but did not specify what. The next session should test the concurrent cleanup flow end-to-end and fix any issues. Possible problems: race conditions in offset assignment, duplicate row processing, error handling when multiple workers fail, progress counter accuracy.
@@ -142,7 +143,7 @@ ecothrift-dashboard/
 
 ### Next focus and backlog
 
-**`.ai/initiatives/_index.md`** lists **active** initiatives (see the table there — may be empty). **Category intelligence** (`export_category_bins`, notebooks under `workspace/notebooks/category-research/`) is [archived completed](initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md). **Django admin vs React `/admin/*`** fix is [archived completed](initiatives/_archived/_completed/django_admin_legacy_navigation.md) (**`contrib.admin`** at **`/db-admin/`**). Prior E2E retag/Quick reprice work is [archived completed](initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md). **POS:** [cart totals / stale prefetch (v2.2.7)](initiatives/_archived/_completed/pos_cart_total_stale_prefetch_bug.md); [sold-SKU UX, audit, resale copy (v2.2.8)](initiatives/_archived/_completed/pos_sold_item_scan_ux_and_audit_trail.md); [unscannable manual line (v2.2.9)](initiatives/_archived/_completed/pos_unscannable_manual_line.md). **Receipt format** and **location labels** are **pending** off the main index — [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](initiatives/_archived/_pending/print_server_receipt_format.md), [`.ai/initiatives/_archived/_pending/create_location_label.md`](initiatives/_archived/_pending/create_location_label.md). **[`.ai/initiatives/_archived/ARCHIVE.md`](initiatives/_archived/ARCHIVE.md)** catalogs completed, backlog, **pending**, and abandoned work. **Initiatives are archived only when the user explicitly approves** — see protocols and `_index.md`. Priorities also live in **`CHANGELOG.md`** and the user’s session message.
+**`.ai/initiatives/_index.md`** lists **active** initiatives; **B-Stock auction intelligence** is [active](initiatives/bstock_auction_intelligence.md) (Phase 1 shipped in v2.3.0). **Category intelligence** (`export_category_bins`, notebooks under `workspace/notebooks/category-research/`) is [archived completed](initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md). **Django admin vs React `/admin/*`** fix is [archived completed](initiatives/_archived/_completed/django_admin_legacy_navigation.md) (**`contrib.admin`** at **`/db-admin/`**). Prior E2E retag/Quick reprice work is [archived completed](initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md). **POS:** [cart totals / stale prefetch (v2.2.7)](initiatives/_archived/_completed/pos_cart_total_stale_prefetch_bug.md); [sold-SKU UX, audit, resale copy (v2.2.8)](initiatives/_archived/_completed/pos_sold_item_scan_ux_and_audit_trail.md); [unscannable manual line (v2.2.9)](initiatives/_archived/_completed/pos_unscannable_manual_line.md). **Receipt format** and **location labels** are **pending** off the main index — [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](initiatives/_archived/_pending/print_server_receipt_format.md), [`.ai/initiatives/_archived/_pending/create_location_label.md`](initiatives/_archived/_pending/create_location_label.md). **[`.ai/initiatives/_archived/ARCHIVE.md`](initiatives/_archived/ARCHIVE.md)** catalogs completed, backlog, **pending**, and abandoned work. **Initiatives are archived only when the user explicitly approves** — see protocols and `_index.md`. Priorities also live in **`CHANGELOG.md`** and the user’s session message.
 
 **Initiatives and versioning:** **Major, minor, and patch** bumps (repo `.version`, root `package.json`, `CHANGELOG.md`) follow **user-visible behavior and API contract** — not a 1:1 rule with initiative files (see `_index.md` under “CHANGELOG, `.version`, and releases”). Even so, **shipping work should stay traceable to named initiatives** in `_index.md` unless the change is explicitly outside that model (e.g. hotfix). If an AI session or a **review_bump** pass cannot tell **which initiative** is being worked on or released, that is a **process gap**: the user should **name** the initiative or **create** one (new `.md` + row in `_index.md`). See `.ai/protocols/startup.md` (step 4) and `.ai/protocols/review_bump.md` (Part A item 4, Part C gate).
 

@@ -52,7 +52,11 @@ Then pick **Python (ecothrift venv)**.
 - **`db-explorer/pickles/`** — default folder for `df_to_pickle` / `df_from_pickle` in db_explorer (gitignored). Created automatically if missing.
 - **`bstock-scraper/Scraper/output/`** — B-Stock scraper CSV/JSON exports (gitignored).
 
-## B-Stock scraper (`bstock-scraper/Scraper/`)
+## B-Stock Django app (`apps/buying/`)
+
+Production auction data lives in Postgres via **`apps/buying/`** (management commands **`sweep_auctions`**, **`pull_manifests`**, **`bstock_token`**). Prefer **`python manage.py bstock_token`** so the JWT is stored in **`workspace/.bstock_token`**; otherwise set **`BSTOCK_AUTH_TOKEN`** in **`.env`** (see **`.env.example`**). Notebook workbench: **`../bstock-intelligence/README.md`**.
+
+## Legacy B-Stock scraper (`bstock-scraper/Scraper/`)
 
 Python package under **`workspace/notebooks/bstock-scraper/Scraper/`** (tracked). **Do not automate B-Stock login** (CAPTCHA / Cloudflare). Capture JSON XHR from DevTools (often `search.bstock.com` or `auction.bstock.com`, not guessed `bstock.com/api/...` HTML). Initiative and constraints: [`.ai/initiatives/_archived/_pending/bstock_scraper.md`](../../.ai/initiatives/_archived/_pending/bstock_scraper.md).
 

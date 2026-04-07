@@ -37,6 +37,7 @@ media/
 
 # Personal workspace — almost everything ignored; only the notebook whitelist below is tracked.
 workspace/*
+workspace/.bstock_token
 !workspace/notebooks/
 !workspace/testing/
 workspace/testing/*
@@ -114,6 +115,8 @@ workspace/notebooks/bstock-scraper/Scraper/*
 !workspace/notebooks/bstock-scraper/Scraper/examples/
 workspace/notebooks/bstock-scraper/Scraper/examples/*
 !workspace/notebooks/bstock-scraper/Scraper/examples/bstock_quickstart.ipynb
+!workspace/notebooks/bstock-intelligence/
+!workspace/notebooks/bstock-intelligence/README.md
 workspace/notebooks/_shared/config_local.py
 workspace/notebooks/bstock_config_local.py
 workspace/notebooks/bstock_auth/
