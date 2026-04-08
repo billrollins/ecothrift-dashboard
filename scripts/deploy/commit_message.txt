@@ -1,1 +1,14 @@
+docs: Phase 4.1A close-out — initiative, extended, consultant, CHANGELOG
+
 ---
+### 2026-04-11 Phase 4.1A manual validation close-out (docs-only)
+- .ai/extended/backend.md, frontend.md — buying upload, fast_cat, create_test_auctions, 400 codes
+- .ai/initiatives/bstock_auction_intelligence.md — 4.1A acceptance + validation + 4.1B pointer
+- .ai/consultant_context.md — Phase 4.1A validation, gotcha (343-key coverage), phase table 4.1A row
+- .ai/context.md, .ai/initiatives/_index.md, README.md — steering
+- CHANGELOG [Unreleased] — manual E2E validation bullets
+- workspace/notes/to_consultant/phase_4_1a_closeout.md — handoff
+No .version bump (4.1A shipped v2.6.1).
+
+---
+review_bump 2026-04-11: .ai/extended/frontend.md + backend.md (buying v2.6.1); .ai/consultant_context.md (detail UI, wrapping legend, taxonomyV1); CHANGELOG [Unreleased]; README + review_bump protocol + _index timestamps. No .version bump.

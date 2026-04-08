@@ -1,5 +1,5 @@
-<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-10 -->
-<!-- Last updated: 2026-04-10T18:45:00-05:00 -->
+<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-11 -->
+<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -71,7 +71,7 @@ Highest-value deliverable: see auctions, dig into manifests, and mark auctions t
 **2B: Auction detail page** (`/buying/auctions/:id`) — **done (2026-04-08T20:00:00-05:00; v2.5.0)**
 
 - **DRF:** `GET /api/buying/auctions/{id}/` (detail includes `lot_id`, prices, `watchlist_entry`, `manifest_row_count`); `GET …/manifest_rows/` (server pagination, **50** per page); `POST …/pull_manifest/`; `POST` / `DELETE …/watchlist/` (POST idempotent **200**; DELETE always **204**)
-- **UI:** `AuctionDetailPage` — metadata + manifest layout (see **v2.6.1** for two-column summary card + manifest card with CSV drop zone and **Open on B-Stock**); watchlist **star** toggle
+- **UI:** `AuctionDetailPage` — section labels **Auction Details** / **Manifest**; **auction title** + optional **View on B-Stock** icon (listing URL); **marketplace** chip in metadata card; two-column **metadata** | **manifest** (CSV drop / replace, **Choose file**, **Download from B-Stock** when empty); watchlist **star** toggle (**v2.6.1**)
 - **Manifest:** desktop **`md+`** — MUI **DataGrid** with **`paginationMode="server"`**; below **`md`** — cards + **Load more** (same paged API). **v2.6.1+:** optional **`search`** / **`category`** query params on manifest rows.
 - **Primary manifest path (production):** **CSV upload** via UI (`POST …/upload_manifest/`). **Pull manifest** (JWT) when **`manifest_row_count === 0`** and **`lot_id`** present remains for dev; **401** inline alerts for `bstock_token_missing` / `bstock_token_expired`; **400** when `lot_id` missing (button disabled + tooltip)
 - **Manifest field mapping:** `apps/buying/services/normalize.py` maps order-process JSON (nested **`attributes`**, **`attributes.ids`**, **`uniqueIds`**, **`categories`**, **`itemCondition`**, etc.) onto `ManifestRow` columns; full line items remain in **`raw_data`**. After changing heuristics, re-apply without B-Stock JWT: **`python manage.py renormalize_manifest_rows`** (optional `--auction-id`, `--marketplace`, `--limit`, `--dry-run`).
@@ -115,14 +115,18 @@ Every manifest row gets tagged with one of **19 canonical categories** (**taxono
 
 **Manifest retail normalization:** `normalize.py` maps unit/extended retail to dollars; integer minor units (cents) are converted where the heuristic applies. **`renormalize_manifest_rows`** reapplies normalization after fixes.
 
-**Acceptance:** `CategoryMapping` + `ManifestRow.canonical_category` / `category_confidence` migrated; seed + categorize commands exist; auction detail API exposes **`category_distribution`**; manifest UI shows canonical chips and a **horizontal category mix** bar (**all** categories + not yet categorized); retail display corrected for cents vs dollars where applicable.
+**Acceptance:** `CategoryMapping` + `ManifestRow.canonical_category` / `category_confidence` migrated; seed + categorize commands exist; auction detail API exposes **`category_distribution`**; manifest UI shows canonical chips and a **category mix** stacked bar + **wrapping** legend (**all** categories + not yet categorized; **v2.6.1+** uses distinct colors per taxonomy category in **`frontend/src/constants/taxonomyV1.ts`**); retail display corrected for cents vs dollars where applicable.
 
-### Phase 4.1A: Manifest templates and `fast_cat_key` **done**
+### Phase 4.1A: Manifest templates and `fast_cat_key` **done** (manual validation 2026-04)
 
-- **`ManifestTemplate`** (per marketplace + CSV header signature): column mapping and **`fast_cat_key`** composition rules.
-- **Staff CSV upload:** **`POST /api/buying/auctions/{id}/upload_manifest/`** replaces manifest rows; sets **`has_manifest`** on success.
-- **Static seed:** **`python manage.py seed_fast_cat_mappings`** — 343 consultant-reviewed `source_key` → `canonical_category` rows (Amazon/Target/Walmart), fully inlined in the command module.
-- **UI:** Auction list/detail polish (sortable columns, retail source, marketplace chips, two-column detail layout, manifest search/filter, refetch on return to list) — **v2.6.1**.
+- **`ManifestTemplate`** (per marketplace + CSV header signature): **`column_map`**, **`category_fields`**, **`is_reviewed`**, and **`fast_cat_key`** composition via **`build_fast_cat_key`**. **`python manage.py seed_manifest_templates`** seeds **four** reviewed templates (Target 17-col, Walmart 13-col, Amazon 16-col, Amazon 17-col with Pallet ID) (DEBUG or **`--force`**).
+- **Staff CSV upload:** **`POST /api/buying/auctions/{id}/upload_manifest/`** (multipart **`file`**) replaces manifest rows; sets **`has_manifest`**; populates **`fast_cat_key`** / **`fast_cat_value`** and **`category_confidence`** = **`fast_cat`** when the key hits **`CategoryMapping`**. Unknown headers: **HTTP 400**, **`code=unknown_template`**, **stub** **`ManifestTemplate`** for admin; unreviewed template match returns **`template_not_reviewed`**. Upload path does **not** run **`categorize_manifest_rows`** (canonical tiers remain separate from fast-cat lookup).
+- **Static seed:** **`python manage.py seed_fast_cat_mappings`** — **343** consultant-reviewed keys (inlined). Coverage is **intentionally** from three source manifests (Target **beauty**-heavy, Walmart general merch, Amazon mixed home/toys) — vendor paths outside that set (e.g. Target **electronics** keys) may yield **0** **`fast_cat_value`** until **Phase 4.1B** expands mappings — **not** an upload bug.
+- **Local testing:** **`python manage.py create_test_auctions`** — creates/updates **10** placeholder auctions (seeded + unseeded marketplaces) for CSV matrix testing **without** B-Stock API calls.
+- **API:** Auction detail may include **`manifest_template_name`**; list/detail retail annotations and manifest_rows **`search`** / **`category`** (see **`CHANGELOG`** **[2.6.1]**).
+- **UI (v2.6.1):** Auction list — sortable grid, retail source tooltips, marketplace chip filters, **refetchOnMount** when returning from detail. Auction detail — two-column layout, **Category Mix** bar + **wrapping** legend; **Manifest Rows** with search + fast-category filter; CSV drop zone. **Steering:** [`.ai/consultant_context.md`](../consultant_context.md); [`.ai/extended/frontend.md`](../extended/frontend.md) / [`backend.md`](../extended/backend.md).
+
+**Manual validation (2026-04):** Five seeded vendor CSVs uploaded successfully (full **`fast_cat_value`** coverage on beauty/general/mixed manifests; one Target electronics file produced keys with **0** seed hits — expected gap). One **unseeded** vendor (Costco) returned **400** with stub message. **Phase 4.1B** = expand **`CategoryMapping`** / templates for additional header shapes and category paths.
 
 ### Phase 5: Auction valuation scaffold
 
@@ -146,6 +150,7 @@ Record what actually happened: **hammer price**, **fees**, **shipping**, **per-i
 - [x] **Phase 2 complete:** React pages for auction list, auction detail with manifests, and watchlist; API endpoints for all three; sweep and manifest pull triggerable from UI
 - [x] **Phase 3 complete:** watchlist polling produces time-series snapshots; price history visible in UI; rate limits documented
 - [x] **Phase 4 complete:** manifest rows carry canonical category from taxonomy_v1; rules persisted; categorization command; category on rows in UI; distribution summary on auction detail; manifest retail cents/dollars normalization applied
+- [x] **Phase 4.1A complete (v2.6.1 + manual validation 2026-04):** **`ManifestTemplate`** + CSV **`upload_manifest`** + **`seed_manifest_templates`** / **`seed_fast_cat_mappings`** + **`fast_cat_key`** / **`fast_cat_value`** / **`category_confidence`** **`fast_cat`**; auction list/detail UX per **`CHANGELOG` [2.6.1]**; unknown-template stub **400**; **`create_test_auctions`** for local matrix; seed coverage limits documented (343 keys, **Phase 4.1B** for expansion)
 - [ ] **Phase 5 complete:** per-line and auction rollup valuation in UI; pricing rules table; pluggable v1 margin path from Bin 2; list + detail surfaces
 - [ ] **Phase 6 complete:** outcome schema implemented; hammer/fees/shipping/per-line outcomes capturable; outcomes visible in UI per auction
 

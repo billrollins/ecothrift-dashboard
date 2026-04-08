@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence
 
-<!-- Last updated: 2026-04-10T18:45:00-05:00 -->
+<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on the **B-Stock auction intelligence** initiative for **Eco-Thrift Dashboard**. The reader may have **no repo access** or limited time: everything critical should be reachable in one pass.
 
@@ -181,7 +181,7 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **Services:** **`scraper.py`** performs HTTP calls with retries, backoff, and rate limiting; **`normalize.py`** maps B-Stock manifest JSON into **`ManifestRow`** columns (with **`raw_data`** retaining the full payload); **`pipeline.py`** orchestrates discovery and manifest pulls.
 
-**Management commands:** **`sweep_auctions`**, **`pull_manifests`**, **`bstock_token`**, **`renormalize_manifest_rows`** (re-apply normalization to stored **`raw_data`** without a live JWT — optional filters and dry-run). The **`POST /api/buying/token/`** view supports the bookmarklet workflow.
+**Management commands:** **`sweep_auctions`**, **`pull_manifests`**, **`bstock_token`**, **`renormalize_manifest_rows`** (re-apply normalization to stored **`raw_data`** without a live JWT — optional filters and dry-run), **`seed_manifest_templates`**, **`seed_fast_cat_mappings`**, **`create_test_auctions`** (10 local test auctions for CSV matrix — no B-Stock calls). The **`POST /api/buying/token/`** view supports the bookmarklet workflow.
 
 **Data:** Six marketplaces are seeded with the **storeFrontId** values above via migrations. **Bookmarklet** documentation lives at **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**.
 
@@ -191,7 +191,7 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **Auction list** (`/buying/auctions`, **v2.4.1**; UX **v2.6.1**): server-paginated **DataGrid** on desktop (`md+`) and **infinite-scroll cards** on mobile; **marketplace chip** filters (single-click isolate one vendor, **Ctrl/⌘+click** multi-select; comma-separated slugs on the API) with global summary counts; status and has-manifest filters; **all columns sortable**; **Total retail** shows manifest vs listing source (**`total_retail_display`** / **`retail_source`**); urgency styling for time remaining; row/card navigation to detail; **Refresh auctions** runs **`POST /api/buying/sweep/?marketplace=`** **sequentially** per marketplace with inline progress and partial-failure reporting; list refetches on mount when returning from detail.
 
-**Auction detail** (`/buying/auctions/:id`): two-column layout (**metadata** | **manifest** card with CSV drop zone and **Open on B-Stock**); **CSV upload** primary path; **pull manifest** (JWT) when needed for dev; **watchlist star** (add/remove via **`POST`/`DELETE …/watchlist/`**); **manifest** table (**DataGrid**, server pagination, 50 per page) on desktop or **card list + load more** on mobile via **`GET …/manifest_rows/`** (**optional `search` / `category`** filters, **v2.6.1**).
+**Auction detail** (`/buying/auctions/:id`, **v2.6.1**): **Auction title** as page heading + optional **View on B-Stock** icon (**`Auction.url`**); **marketplace** chip in **Auction Details** metadata card (not in header). Two-column sections **Auction Details** | **Manifest**: CSV **drag/drop** + **Choose file**; empty state **Download from B-Stock** when URL present; replace strip when manifest exists. **Category Mix** stacked bar + **wrapping** legend (19 taxonomy colors in **`frontend/src/constants/taxonomyV1.ts`**; hatch for **Not yet categorized**). **Manifest Rows** under a divider: **search** + **fast category** filter (server-side **`search`** / **`category`** on **`GET …/manifest_rows/`**); **DataGrid** (50/page) or mobile cards. **CSV upload** primary path; **pull manifest** (JWT) for dev; **watchlist star** (**`POST`/`DELETE …/watchlist/`**).
 
 **Manifest normalization:** **`normalize.py`** flattens nested B-Stock structures (**`attributes`**, **`attributes.ids`**, **`uniqueIds`**, **`customAttributes`**, **`categories`**, **`itemCondition`**, pick heuristics for SKU/title, etc.); optional warnings when important fields are empty and unmapped keys remain (**`row_id`** helps pinpoint rows). **`renormalize_manifest_rows`** bulk-updates rows from stored **`raw_data`**. **Retail:** unit/extended retail is converted to dollars; **integer minor units (cents)** use a documented heuristic (see **`normalize.py`**).
 
@@ -205,15 +205,15 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 ### Phase 4 — fast categorization (shipped)
 
-**Models:** **`CategoryMapping`** (global **`source_key`** → **`canonical_category`**, **`rule_origin`** seeded/ai/manual). **`ManifestRow`** adds **`canonical_category`**, **`category_confidence`** (direct / ai_mapped / fallback).
+**Models:** **`CategoryMapping`** (global **`source_key`** → **`canonical_category`**, **`rule_origin`** seeded/ai/manual). **`ManifestRow`** adds **`canonical_category`**, **`category_confidence`** (direct / ai_mapped / **`fast_cat`** / fallback).
 
 **Commands:** **`seed_category_mappings`** (from `workspace/notebooks/category-research/cr/taxonomy_estimate.py`); **`categorize_manifests`** (tier 1 + tier 3; **`--ai`** for Claude tier 2 with **`--ai-limit`**). After **`pull_manifest`**, **`categorize_manifest_rows`** runs tier 1 + 3 automatically (no AI).
 
 **API:** Auction detail includes **`category_distribution`** (full category list per manifest; **no** rolled-up “Other” bucket); manifest rows include canonical fields.
 
-**UI:** Auction detail shows a **horizontal category mix** bar (**all** categories + not yet categorized) and **chips** per manifest line by confidence.
+**UI:** Auction detail shows a **category mix** stacked bar + **wrapping** legend (full **`category_distribution`**; no rolled-up “Other”) and **chips** per manifest line by confidence.
 
-**Phase 4.1A:** **`ManifestTemplate`**, **`fast_cat_key`** on ingest, **`seed_fast_cat_mappings`** (343 static mappings), CSV upload.
+**Phase 4.1A (v2.6.1; manual E2E validation 2026-04):** **`ManifestTemplate`** (per marketplace **header signature**, **`column_map`**, **`category_fields`**, **`is_reviewed`**); **`POST …/upload_manifest/`** (multipart **`file`**) — **`fast_cat_key`** / **`fast_cat_value`** from **`CategoryMapping`** lookup; **`category_confidence`** = **`fast_cat`** when mapped; **does not** run **`categorize_manifest_rows`**. **`seed_manifest_templates`** (four templates: Target 17-col, Walmart 13-col, Amazon 16- and 17-col); **`seed_fast_cat_mappings`** (**343** keys — consultant-reviewed from **three** source manifests: Target **beauty**-heavy, Walmart, Amazon mixed; **not** all vendor category paths). Unknown CSV headers: **HTTP 400**, stub template for admin (**`unknown_template`**). Unseeded vendor example (Costco): **400** with stub — **expected**. Target **electronics** sample produced **`fast_cat_key`** on all rows but **0** **`fast_cat_value`** — keys **outside** the 343 seed (**expected**; **Phase 4.1B** = broader **`CategoryMapping`** / templates). **`create_test_auctions`** for local uploads without API. Auction detail API may expose **`manifest_template_name`**.
 
 ---
 
@@ -247,6 +247,7 @@ The initiative file is authoritative. At a high level:
 | **2** | Staff auction list, detail + manifests, watchlist page, normalization + renormalize command. **Done (v2.4.1 + v2.5.0).** |
 | **3** | Watchlist polling, **`AuctionSnapshot`**, snapshots API, price history, Poll now. **Done.** |
 | **4** | **`CategoryMapping`**, 3-tier categorization, seed/categorize commands, **`category_distribution`**, UI bar + chips, retail cents fix. **Done.** |
+| **4.1A** | **`ManifestTemplate`**, CSV **`upload_manifest`**, **`fast_cat_key`** / **`fast_cat_value`**, **`seed_manifest_templates`** + **`seed_fast_cat_mappings`** (343 keys), unknown-template stub, **`create_test_auctions`**. **Done (v2.6.1).** E2E validated **2026-04**. **4.1B** = expand template/mapping coverage. |
 | **5** | Auction valuation scaffold. **Next.** |
 | **6** | Outcome tracking. **Future.** |
 
@@ -267,6 +268,8 @@ The plan was **reordered** so the **frontend** lands before heavy backend-only i
 **Public search:** `search.bstock.com` listings POST **without auth** enables **scheduled discovery** on Heroku without storing a live JWT for sweeps only.
 
 **JWE vs JWT:** See **Authentication** above. Wrong token type manifests as **400** on some services, not a clean **401**.
+
+**Fast-cat seed coverage (Phase 4.1A):** The **343** **`seed_fast_cat_mappings`** keys are **not** exhaustive for every B-Stock category string. Rows still get a **`fast_cat_key`** when category columns parse; **`fast_cat_value`** is **null** if the key is absent from **`CategoryMapping`**. Interpreting **0** mapped rows as an upload bug is **incorrect** when the manifest mix is outside the seeded slice (e.g. Target electronics vs beauty-heavy seed).
 
 **Heroku IPs:** If B-Stock blocks **Heroku egress IPs**, server-side scraping may fail. **Mitigation** is not finalized; **local push** to production APIs is the documented fallback idea.
 

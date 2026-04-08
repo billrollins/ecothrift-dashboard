@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -31,9 +31,9 @@
 
 **Public routes:** `/login`, `/pricing`, `/pricing/:sku` (PublicItemLookupPage)
 
-**Staff routes** (MainLayout): Dashboard, HR (time-clock, time-history, employees, sick-leave), Inventory (vendors, orders, processing, products, items), POS (terminal, drawers, cash, transactions), Consignment (Manager+), **Buying** (`/buying/auctions`, `/buying/auctions/:id`, `/buying/watchlist` — **v2.5.0**), Admin (Admin only)
+**Staff routes** (MainLayout): Dashboard, HR (time-clock, time-history, employees, sick-leave), Inventory (vendors, orders, processing, products, items), POS (terminal, drawers, cash, transactions), Consignment (Manager+), **Buying** (`/buying/auctions`, `/buying/auctions/:id`, `/buying/watchlist` — **v2.6.1**), Admin (Admin only)
 
-**Buying (StaffRoute):** **`AuctionListPage`** at **`/buying/auctions`**; **`AuctionDetailPage`** at **`/buying/auctions/:id`** (manifest table/cards, pull manifest, watchlist star, **Recharts** price history + **Poll now** when watched); **`WatchlistPage`** at **`/buying/watchlist`**. **`buying.api.ts`**, hooks **`useBuyingAuctions`**, **`useBuyingAuctionsInfinite`**, **`useBuyingAuctionSummary`**, **`useBuyingMarketplaces`**, **`useBuyingAuctionDetail`**, **`useBuyingManifestRows`**, **`useBuyingAuctionSnapshots`**, **`useBuyingWatchlist`**, **`useBuyingWatchlistInfinite`**. Initiative: **`.ai/initiatives/bstock_auction_intelligence.md`**.
+**Buying (StaffRoute):** **`AuctionListPage`** at **`/buying/auctions`** (sortable grid, marketplace chip filters — single-click one vendor, Ctrl/⌘ multi-select; retail tooltips; **refetchOnMount** on list + summary when returning from detail); **`AuctionDetailPage`** at **`/buying/auctions/:id`** — section labels **Auction Details** / **Manifest**; **auction title** + optional **View on B-Stock** icon in header; **marketplace** chip in metadata card; **CategoryDistributionBar** (stacked % bar + **wrapping** legend; 19 canonical colors in **`frontend/src/constants/taxonomyV1.ts`**, hatch for **Not yet categorized**); **Manifest Rows** block with **Category Mix**, server-side **search** + **fast category** filter, **DataGrid** or mobile cards; CSV **upload** / replace drop zone, **Choose file** — API errors (e.g. unknown manifest format **400** with stub template id) surface via snackbar from response **`detail`** / **`code`**; **Download from B-Stock** when empty; **Recharts** price history + **Poll now** when watched. **`WatchlistPage`** at **`/buying/watchlist`**. **`buying.api.ts`**, hooks **`useBuyingAuctions`**, **`useBuyingAuctionsInfinite`**, **`useBuyingAuctionSummary`**, **`useBuyingMarketplaces`**, **`useBuyingAuctionDetail`**, **`useBuyingManifestRows`**, **`useBuyingAuctionSnapshots`**, **`useBuyingWatchlist`**, **`useBuyingWatchlistInfinite`**. Initiative: **`.ai/initiatives/bstock_auction_intelligence.md`**.
 
 **Inventory route behavior (M3)**:
 - `OrderDetailPage` handles order status management, manifest upload, and post-preprocessing actions (Match Products, Build Check-In Queue, Open Item Processor, Mark Complete). "Start Preprocessing" button navigates to `/inventory/preprocessing/:id`.

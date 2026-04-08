@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-10T18:45:00-05:00 -->
+<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -50,6 +50,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+### Documentation
+
+- **Buying — Phase 4.1A manual validation (2026-04):** Documented E2E CSV upload against **`seed_manifest_templates`** / **`seed_fast_cat_mappings`**: five seeded vendor files succeeded; one unseeded vendor (**Costco**) returned **400** with stub template (**expected**); one Target electronics-heavy file produced **`fast_cat_key`** on all rows with **0** **`fast_cat_value`** hits — **seed coverage gap** (343 keys from three consultant sources), **not** an upload defect — **Phase 4.1B** expands mappings/templates. **`create_test_auctions`** noted for local matrix testing.
+- **review_bump (Phase 4.1A close-out):** Aligned [`.ai/extended/frontend.md`](.ai/extended/frontend.md) and [`.ai/extended/backend.md`](.ai/extended/backend.md) with buying UI/API through **v2.6.1**; updated [`.ai/consultant_context.md`](.ai/consultant_context.md) (Phase **4.1A** validation, **`fast_cat`**, seed-coverage gotcha, **`create_test_auctions`**); [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) (4.1A acceptance + **4.1B** pointer). No app version bump (docs-only).
 
 ### Steering
 
