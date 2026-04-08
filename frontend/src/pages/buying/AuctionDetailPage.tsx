@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -11,11 +11,11 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Divider,
   FormControl,
   Grid,
   IconButton,
   InputLabel,
-  Link,
   MenuItem,
   Paper,
   Select,
@@ -32,7 +32,6 @@ import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import CategoryDistributionBar from '../../components/buying/CategoryDistributionBar';
-import { PageHeader } from '../../components/common/PageHeader';
 import {
   deleteBuyingWatchlist,
   postBuyingUploadManifest,
@@ -153,6 +152,12 @@ function formatEndTime(iso: string | null): string {
   }
 }
 
+function dragHasFiles(e: DragEvent): boolean {
+  const types = e.dataTransfer?.types;
+  if (!types) return false;
+  return [...types].includes('Files');
+}
+
 export default function AuctionDetailPage() {
   const theme = useTheme();
   const isMdUp = useMediaQuery(theme.breakpoints.up('md'));
@@ -261,6 +266,10 @@ export default function AuctionDetailPage() {
   });
 
   const manifestFileInputRef = useRef<HTMLInputElement>(null);
+  const fullManifestDropDepth = useRef(0);
+  const replaceManifestDropDepth = useRef(0);
+  const [fullManifestDropOver, setFullManifestDropOver] = useState(false);
+  const [replaceManifestDropOver, setReplaceManifestDropOver] = useState(false);
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => postBuyingUploadManifest(auctionId!, file),
@@ -349,6 +358,74 @@ export default function AuctionDetailPage() {
     e.target.value = '';
   };
 
+  const handleFullManifestDragEnter = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fullManifestDropDepth.current += 1;
+    if (dragHasFiles(e)) {
+      setFullManifestDropOver(true);
+    }
+  };
+
+  const handleFullManifestDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fullManifestDropDepth.current -= 1;
+    if (fullManifestDropDepth.current <= 0) {
+      fullManifestDropDepth.current = 0;
+      setFullManifestDropOver(false);
+    }
+  };
+
+  const handleFullManifestDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleFullManifestDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fullManifestDropDepth.current = 0;
+    setFullManifestDropOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f && auctionId) uploadMutation.mutate(f);
+  };
+
+  const handleReplaceManifestDragEnter = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    replaceManifestDropDepth.current += 1;
+    if (dragHasFiles(e)) {
+      setReplaceManifestDropOver(true);
+    }
+  };
+
+  const handleReplaceManifestDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    replaceManifestDropDepth.current -= 1;
+    if (replaceManifestDropDepth.current <= 0) {
+      replaceManifestDropDepth.current = 0;
+      setReplaceManifestDropOver(false);
+    }
+  };
+
+  const handleReplaceManifestDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleReplaceManifestDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    replaceManifestDropDepth.current = 0;
+    setReplaceManifestDropOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f && auctionId) uploadMutation.mutate(f);
+  };
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Button
@@ -360,119 +437,181 @@ export default function AuctionDetailPage() {
         Auctions
       </Button>
 
-      <PageHeader
-        title="Auction"
-        subtitle={detail.marketplace?.name}
-        action={
-          <Tooltip title={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
-            <span>
-              <IconButton
-                aria-label={watched ? 'Remove from watchlist' : 'Add to watchlist'}
-                color={watched ? 'warning' : 'default'}
-                disabled={watchlistBusy}
-                onClick={onToggleWatchlist}
-                size="large"
-              >
-                {watchlistBusy ? (
-                  <CircularProgress size={24} />
-                ) : watched ? (
-                  <StarIcon />
-                ) : (
-                  <StarBorderIcon />
-                )}
-              </IconButton>
-            </span>
-          </Tooltip>
-        }
-      />
-
-      <Grid container spacing={2} sx={{ mb: 2, alignItems: 'stretch' }}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card variant="outlined" sx={{ p: 1.5, height: '100%' }}>
-            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.25, lineHeight: 1.35 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 2,
+          mb: 2.5,
+        }}
+      >
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25, minWidth: 0, flex: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flexWrap: 'wrap' }}>
+            <Typography
+              variant="h4"
+              component="h1"
+              fontWeight={600}
+              sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}
+            >
               {detail.title}
             </Typography>
-            <Grid container spacing={1} columnSpacing={2}>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
-                  Marketplace
-                </Typography>
-                {detail.marketplace?.name ? (
-                  <Chip size="small" label={detail.marketplace.name} sx={{ mt: 0.5 }} />
-                ) : (
-                  <Typography variant="body2" sx={{ mt: 0.25 }}>
-                    —
-                  </Typography>
-                )}
-              </Grid>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
-                  Status
-                </Typography>
-                <Chip size="small" label={detail.status} sx={{ mt: 0.5 }} variant="outlined" />
-              </Grid>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+            {detail.url ? (
+              <Tooltip title="View on B-Stock">
+                <IconButton
+                  component="a"
+                  href={detail.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="small"
+                  aria-label="View on B-Stock"
+                  sx={{ color: 'text.secondary', flexShrink: 0 }}
+                >
+                  <OpenInNewIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            ) : null}
+          </Box>
+        </Box>
+        <Tooltip title={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
+          <span>
+            <IconButton
+              aria-label={watched ? 'Remove from watchlist' : 'Add to watchlist'}
+              color={watched ? 'warning' : 'default'}
+              disabled={watchlistBusy}
+              onClick={onToggleWatchlist}
+              size="large"
+              sx={{ flexShrink: 0 }}
+            >
+              {watchlistBusy ? (
+                <CircularProgress size={24} />
+              ) : watched ? (
+                <StarIcon />
+              ) : (
+                <StarBorderIcon />
+              )}
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Box>
+
+      <input
+        ref={manifestFileInputRef}
+        id="auction-manifest-upload-input"
+        type="file"
+        accept=".csv,text/csv"
+        hidden
+        onChange={onPickManifestFile}
+      />
+
+      <Grid container spacing={1.5} sx={{ mb: 3, alignItems: 'stretch' }}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Typography
+            variant="subtitle2"
+            color="text.secondary"
+            sx={{ display: 'block', fontWeight: 700, letterSpacing: 0.04, mb: 0.75, textTransform: 'none' }}
+          >
+            Auction Details
+          </Typography>
+          <Card variant="outlined" sx={{ p: 1.25, height: '100%' }}>
+            {detail.marketplace?.name ? (
+              <Box sx={{ mb: 1.25 }}>
+                <Chip size="small" label={detail.marketplace.name} color="primary" variant="outlined" />
+                <Divider sx={{ mt: 1.25 }} />
+              </Box>
+            ) : null}
+            <Typography variant="overline" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, mb: 0.5 }}>
+              Pricing
+            </Typography>
+            <Grid container spacing={0.75} columns={12} sx={{ mb: 1.25 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
                   Current price
                 </Typography>
-                <Typography variant="body2" fontWeight={600} sx={{ mt: 0.25 }}>
+                <Typography variant="body2" fontWeight={600} sx={{ mt: 0.2 }}>
                   {formatCurrency(detail.current_price)}
                 </Typography>
               </Grid>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
                   Starting price
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatCurrency(detail.starting_price)}</Typography>
+                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatCurrency(detail.starting_price)}</Typography>
               </Grid>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
                   Buy now price
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatCurrency(detail.buy_now_price)}</Typography>
+                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatCurrency(detail.buy_now_price)}</Typography>
               </Grid>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
-                  Bid count
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
+                  Total retail (listing)
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatNumber(detail.bid_count)}</Typography>
+                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatCurrencyWhole(detail.total_retail_value)}</Typography>
               </Grid>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
-                  Condition
+            </Grid>
+
+            <Typography variant="overline" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, mb: 0.5 }}>
+              Timing
+            </Typography>
+            <Grid container spacing={0.75} columns={12} sx={{ mb: 1.25 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
+                  End time
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 0.25 }}>{detail.condition_summary || '—'}</Typography>
+                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatEndTime(detail.end_time)}</Typography>
               </Grid>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
                   Time remaining
                 </Typography>
-                <Typography variant="body2" sx={[{ mt: 0.25 }, timeRemainingSx(detail.end_time)]}>
+                <Typography variant="body2" sx={[{ mt: 0.2 }, timeRemainingSx(detail.end_time)]}>
                   {formatTimeRemaining(detail.end_time)}
                 </Typography>
               </Grid>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
-                  End time
+            </Grid>
+
+            <Typography variant="overline" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, mb: 0.5 }}>
+              Auction
+            </Typography>
+            <Grid container spacing={0.75} columns={12}>
+              <Grid size={{ xs: 6, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
+                  Status
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatEndTime(detail.end_time)}</Typography>
+                <Chip size="small" label={detail.status} sx={{ mt: 0.35 }} variant="outlined" />
               </Grid>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+              <Grid size={{ xs: 6, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
+                  Condition
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.2 }}>{detail.condition_summary || '—'}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
+                  Bid count
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatNumber(detail.bid_count)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
                   Lot size
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatNumber(detail.lot_size)}</Typography>
+                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatNumber(detail.lot_size)}</Typography>
               </Grid>
-              <Grid size={{ xs: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
-                  Total retail (listing)
+              <Grid size={{ xs: 6, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
+                  Listing type
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatCurrencyWhole(detail.total_retail_value)}</Typography>
+                <Typography variant="body2" sx={{ mt: 0.2 }}>{detail.listing_type || '—'}</Typography>
               </Grid>
             </Grid>
+
             {detail.description ? (
-              <Box sx={{ mt: 1.5 }}>
-                <Typography variant="caption" color="text.secondary">
+              <Box sx={{ mt: 1.25 }}>
+                <Typography variant="caption" color="text.secondary" display="block">
                   Description
                 </Typography>
                 <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.25 }}>
@@ -482,120 +621,221 @@ export default function AuctionDetailPage() {
             ) : null}
           </Card>
         </Grid>
+
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card
-            variant="outlined"
-            sx={{
-              p: 1.5,
-              height: '100%',
-              borderStyle: 'dashed',
-              borderWidth: hasManifestRows ? 1 : 2,
-            }}
+          <Typography
+            variant="subtitle2"
+            color="text.secondary"
+            sx={{ display: 'block', fontWeight: 700, letterSpacing: 0.04, mb: 0.75, textTransform: 'none' }}
           >
-            <Stack spacing={1.25}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
-                <Typography variant="subtitle2" component="h2">
-                  Manifest
-                </Typography>
-                <Chip
-                  size="small"
-                  label={
-                    hasManifestRows
-                      ? `Has manifest (${formatNumber(detail.manifest_row_count)} rows)`
-                      : 'No manifest'
-                  }
-                  color={hasManifestRows ? 'primary' : 'default'}
-                  variant={hasManifestRows ? 'filled' : 'outlined'}
+            Manifest
+          </Typography>
+          {!hasManifestRows ? (
+            <Card
+              variant="outlined"
+              onDragEnter={handleFullManifestDragEnter}
+              onDragLeave={handleFullManifestDragLeave}
+              onDragOver={handleFullManifestDragOver}
+              onDrop={handleFullManifestDrop}
+              onClick={() => !uploadMutation.isPending && manifestFileInputRef.current?.click()}
+              sx={{
+                position: 'relative',
+                minHeight: 260,
+                height: '100%',
+                borderStyle: 'dashed',
+                borderWidth: 2,
+                borderColor: fullManifestDropOver ? 'primary.main' : 'divider',
+                bgcolor: fullManifestDropOver ? 'action.selected' : 'background.paper',
+                cursor: uploadMutation.isPending ? 'wait' : 'pointer',
+                overflow: 'hidden',
+                transition: 'border-color 0.15s ease, background-color 0.15s ease',
+              }}
+            >
+              {fullManifestDropOver ? (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    bgcolor: 'primary.main',
+                    opacity: 0.12,
+                    pointerEvents: 'none',
+                    zIndex: 1,
+                  }}
                 />
-              </Stack>
-              {hasManifestRows ? (
-                <Typography variant="body2" color="text.secondary">
-                  {formatNumber(detail.manifest_row_count ?? 0)} lines · {formatNumber(categorizedRows)} categorized
-                </Typography>
               ) : null}
-              {hasManifestRows && detail.category_distribution && detail.category_distribution.total_rows > 0 ? (
-                <CategoryDistributionBar dist={detail.category_distribution} />
-              ) : null}
-              <input
-                ref={manifestFileInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                hidden
-                onChange={onPickManifestFile}
-              />
-              <Box
-                onClick={() => manifestFileInputRef.current?.click()}
-                onDragOver={(ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                }}
-                onDrop={(ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  const f = ev.dataTransfer.files?.[0];
-                  if (f && auctionId) uploadMutation.mutate(f);
-                }}
+              <Stack
+                alignItems="center"
+                justifyContent="center"
+                spacing={2}
                 sx={{
-                  py: hasManifestRows ? 1 : 2,
-                  px: 1,
-                  textAlign: 'center',
-                  cursor: uploadMutation.isPending ? 'wait' : 'pointer',
-                  borderRadius: 1,
-                  bgcolor: 'action.hover',
+                  position: 'relative',
+                  zIndex: 2,
+                  minHeight: 260,
+                  px: 2,
+                  py: 3,
+                  pointerEvents: uploadMutation.isPending ? 'none' : 'auto',
                 }}
               >
+                <Typography variant="h6" align="center" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  Drop manifest CSV here
+                </Typography>
+                <Typography variant="body2" align="center" color="text.secondary">
+                  Or click the card to browse, or use Choose file below.
+                </Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    htmlFor="auction-manifest-upload-input"
+                    disabled={uploadMutation.isPending}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Choose file
+                  </Button>
+                  {detail.url ? (
+                    <Button
+                      variant="text"
+                      color="primary"
+                      component="a"
+                      href={detail.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      startIcon={<OpenInNewIcon fontSize="small" />}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Download from B-Stock
+                    </Button>
+                  ) : null}
+                </Stack>
                 {uploadMutation.isPending ? (
-                  <Stack direction="row" alignItems="center" justifyContent="center" spacing={1}>
+                  <Stack direction="row" alignItems="center" spacing={1}>
                     <CircularProgress size={22} />
                     <Typography variant="body2">Processing manifest…</Typography>
                   </Stack>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    {hasManifestRows
-                      ? 'Drop CSV to replace manifest or click to browse'
-                      : 'Drop manifest CSV here or click to browse'}
-                  </Typography>
-                )}
+                ) : null}
+              </Stack>
+            </Card>
+          ) : (
+            <Card
+              variant="outlined"
+              sx={{
+                minHeight: 380,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <Box sx={{ p: 1.25, pb: 1, flexShrink: 0 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0 }}>
+                  {formatNumber(detail.manifest_row_count ?? 0)} rows · {formatNumber(categorizedRows)} categorized
+                  {detail.manifest_template_name ? ` · ${detail.manifest_template_name}` : ''}
+                </Typography>
               </Box>
-              {detail.url ? (
-                <Link href={detail.url} target="_blank" rel="noopener noreferrer" variant="body2">
-                  Open on B-Stock <OpenInNewIcon sx={{ fontSize: 14, verticalAlign: 'middle', ml: 0.25 }} />
-                </Link>
-              ) : null}
-            </Stack>
-          </Card>
+
+              <Box
+                onDragEnter={handleReplaceManifestDragEnter}
+                onDragLeave={handleReplaceManifestDragLeave}
+                onDragOver={handleReplaceManifestDragOver}
+                onDrop={handleReplaceManifestDrop}
+                onClick={() => !uploadMutation.isPending && manifestFileInputRef.current?.click()}
+                sx={{
+                  position: 'relative',
+                  mt: 'auto',
+                  minHeight: 120,
+                  flex: '1 1 auto',
+                  borderTop: '2px dashed',
+                  borderTopColor: replaceManifestDropOver ? 'primary.main' : 'divider',
+                  px: 2,
+                  py: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: uploadMutation.isPending ? 'wait' : 'pointer',
+                  bgcolor: replaceManifestDropOver ? 'action.selected' : 'action.hover',
+                  transition: 'background-color 0.15s ease, border-color 0.15s ease',
+                }}
+              >
+                {replaceManifestDropOver ? (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      bgcolor: 'primary.main',
+                      opacity: 0.1,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ) : null}
+                <Stack alignItems="center" spacing={1} sx={{ position: 'relative', zIndex: 1 }}>
+                  {uploadMutation.isPending ? (
+                    <>
+                      <CircularProgress size={22} />
+                      <Typography variant="body2">Processing manifest…</Typography>
+                    </>
+                  ) : (
+                    <>
+                      <Typography variant="body2" color="text.secondary" align="center" fontWeight={500}>
+                        Replace manifest — drop CSV here or click
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        component="label"
+                        htmlFor="auction-manifest-upload-input"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Choose file
+                      </Button>
+                    </>
+                  )}
+                </Stack>
+              </Box>
+            </Card>
+          )}
         </Grid>
       </Grid>
 
-      <Typography variant="h6" component="h2" sx={{ mt: 2, mb: 1 }}>
-        Manifest rows
-      </Typography>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }} alignItems={{ sm: 'stretch' }}>
-        <TextField
-          size="small"
-          fullWidth
-          label="Search rows"
-          placeholder="Title, brand, SKU, UPC, category…"
-          value={manifestSearch}
-          onChange={(e) => setManifestSearch(e.target.value)}
-        />
-        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
-          <InputLabel id="manifest-cat-filter">Fast category</InputLabel>
-          <Select
-            labelId="manifest-cat-filter"
-            label="Fast category"
-            value={manifestCategoryFilter}
-            onChange={(e) => setManifestCategoryFilter(e.target.value)}
-          >
-            <MenuItem value="">All categories</MenuItem>
-            {categoryFilterOptions.map((o) => (
-              <MenuItem key={o.value} value={o.value}>
-                {o.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Stack>
+      <Divider sx={{ mb: 2 }} />
+
+      <Box sx={{ mb: 3, minWidth: 0 }}>
+        <Typography variant="subtitle1" component="h2" fontWeight={600} sx={{ mb: 1.5 }}>
+          Manifest Rows
+        </Typography>
+        {detail.category_distribution && detail.category_distribution.total_rows > 0 ? (
+          <CategoryDistributionBar dist={detail.category_distribution} />
+        ) : null}
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1.5}
+          sx={{ mt: detail.category_distribution?.total_rows ? 1.5 : 0 }}
+          alignItems={{ sm: 'flex-start' }}
+        >
+          <TextField
+            size="small"
+            fullWidth
+            label="Search rows"
+            placeholder="Title, brand, SKU, UPC, category…"
+            value={manifestSearch}
+            onChange={(e) => setManifestSearch(e.target.value)}
+          />
+          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
+            <InputLabel id="manifest-cat-filter">Fast category</InputLabel>
+            <Select
+              labelId="manifest-cat-filter"
+              label="Fast category"
+              value={manifestCategoryFilter}
+              onChange={(e) => setManifestCategoryFilter(e.target.value)}
+            >
+              <MenuItem value="">All categories</MenuItem>
+              {categoryFilterOptions.map((o) => (
+                <MenuItem key={o.value} value={o.value}>
+                  {o.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Stack>
+      </Box>
 
       {isMdUp ? (
         <Box sx={{ flex: 1, minHeight: 400 }}>

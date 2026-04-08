@@ -165,6 +165,7 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     )
     watchlist_entry = WatchlistEntrySerializer(read_only=True, allow_null=True)
     category_distribution = serializers.SerializerMethodField()
+    manifest_template_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -190,11 +191,23 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'status',
             'has_manifest',
             'manifest_row_count',
+            'manifest_template_name',
             'category_distribution',
             'watchlist_entry',
             'last_updated_at',
             'first_seen_at',
         ]
+
+    def get_manifest_template_name(self, obj: Auction) -> str | None:
+        r = (
+            ManifestRow.objects.filter(auction=obj)
+            .select_related('manifest_template')
+            .order_by('row_number')
+            .first()
+        )
+        if r and r.manifest_template_id:
+            return r.manifest_template.display_name
+        return None
 
     def get_category_distribution(self, obj: Auction) -> dict:
         """All categories by row % (canonical_category or fast_cat_value); not-yet mapped bucket."""

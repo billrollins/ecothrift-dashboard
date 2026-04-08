@@ -1,9 +1,1 @@
-feat(buying): v2.6.1 manifest path, buying UI polish, steering docs sync
 ---
-Review bump (.ai/protocols/review_bump.md) 2026-04-10. Initiative: bstock_auction_intelligence.md.
-
-Release bookkeeping: v2.6.1 — .version, package.json, CHANGELOG [2.6.1] (Phase 4.1A manifest templates + upload, list/detail UX, API list retail + manifest_rows search/category, category_distribution all categories, has_manifest on upload).
-
-Docs: .ai/context.md, README.md timestamp, initiatives/_index.md, initiatives/bstock_auction_intelligence.md (Phase 4.1A section), consultant_context.md, extended/bstock.md.
-
-Pre-commit: cd frontend && npx tsc --noEmit; python compileall apps/buying (recommended).

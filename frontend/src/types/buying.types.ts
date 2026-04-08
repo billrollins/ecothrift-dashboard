@@ -92,6 +92,8 @@ export interface BuyingAuctionDetail extends BuyingAuctionListItem {
   starting_price: string | null;
   buy_now_price: string | null;
   manifest_row_count: number;
+  /** Display name of manifest template used for current rows (from first row), if any. */
+  manifest_template_name?: string | null;
   /** Aggregated manifest canonical categories (top 5, Other, not yet categorized). */
   category_distribution?: BuyingCategoryDistribution;
   watchlist_entry: BuyingWatchlistEntry | null;

@@ -1,42 +1,54 @@
-import { Box, Stack, Tooltip, Typography, useTheme } from '@mui/material';
+import { Box, Tooltip, Typography } from '@mui/material';
 import type { BuyingCategoryDistribution } from '../../types/buying.types';
+import {
+  NOT_YET_CATEGORIZED_BAR_BG,
+  NOT_YET_CATEGORIZED_HATCH,
+  colorForTaxonomyCategory,
+} from '../../constants/taxonomyV1';
+
+type Seg = {
+  key: string;
+  label: string;
+  pct: number;
+  fill: 'solid' | 'hatch';
+  color: string;
+};
+
+function buildSegments(dist: BuyingCategoryDistribution): Seg[] {
+  const segments: Seg[] = [];
+  dist.top.forEach((t) => {
+    segments.push({
+      key: t.canonical_category,
+      label: t.canonical_category,
+      pct: t.pct,
+      fill: 'solid',
+      color: colorForTaxonomyCategory(t.canonical_category),
+    });
+  });
+  if (dist.not_yet_categorized.pct > 0) {
+    segments.push({
+      key: '__not_yet__',
+      label: 'Not yet categorized',
+      pct: dist.not_yet_categorized.pct,
+      fill: 'hatch',
+      color: NOT_YET_CATEGORIZED_BAR_BG,
+    });
+  }
+  return segments;
+}
 
 /**
  * Full-width stacked bar: one segment per category (no "Other" rollup).
  */
 export default function CategoryDistributionBar({ dist }: { dist: BuyingCategoryDistribution }) {
-  const theme = useTheme();
   if (!dist || dist.total_rows === 0) return null;
 
-  const barColors = [
-    theme.palette.primary.main,
-    theme.palette.secondary.main,
-    theme.palette.success.main,
-    theme.palette.warning.main,
-    theme.palette.info.main,
-  ];
-
-  type Seg = { label: string; pct: number; color: string };
-  const segments: Seg[] = [];
-  dist.top.forEach((t, i) => {
-    segments.push({
-      label: t.canonical_category,
-      pct: t.pct,
-      color: barColors[i % barColors.length],
-    });
-  });
-  if (dist.not_yet_categorized.pct > 0) {
-    segments.push({
-      label: 'Not yet categorized',
-      pct: dist.not_yet_categorized.pct,
-      color: theme.palette.action.disabledBackground,
-    });
-  }
+  const segments = buildSegments(dist);
 
   return (
-    <Box sx={{ mb: 2 }}>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75 }}>
-        Category mix (manifest lines)
+    <Box sx={{ mb: 2, width: '100%' }}>
+      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75, fontWeight: 600 }}>
+        Category Mix
       </Typography>
       <Box
         sx={{
@@ -48,32 +60,65 @@ export default function CategoryDistributionBar({ dist }: { dist: BuyingCategory
           borderColor: 'divider',
         }}
       >
-        {segments.map((s, i) => (
-          <Tooltip key={i} title={`${s.label}: ${s.pct}%`} placement="top">
+        {segments.map((s) => (
+          <Tooltip key={s.key} title={`${s.label}: ${s.pct}%`} placement="top">
             <Box
               sx={{
                 flexGrow: s.pct,
                 flexShrink: 1,
                 flexBasis: 0,
                 minWidth: s.pct > 0 ? 2 : 0,
-                bgcolor: s.color,
+                ...(s.fill === 'hatch'
+                  ? {
+                      backgroundImage: NOT_YET_CATEGORIZED_HATCH,
+                      backgroundColor: NOT_YET_CATEGORIZED_BAR_BG,
+                    }
+                  : { bgcolor: s.color }),
               }}
             />
           </Tooltip>
         ))}
       </Box>
-      <Stack direction="row" flexWrap="wrap" gap={1.5} sx={{ mt: 1 }} useFlexGap>
-        {dist.top.map((t) => (
-          <Typography key={t.canonical_category} variant="caption" color="text.secondary">
-            {t.canonical_category}: {t.pct}%
-          </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '4px 12px',
+          mt: 1,
+        }}
+      >
+        {segments.map((s) => (
+          <Box
+            key={s.key}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+            }}
+          >
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                flexShrink: 0,
+                bgcolor: s.fill === 'solid' ? s.color : NOT_YET_CATEGORIZED_BAR_BG,
+                ...(s.fill === 'hatch'
+                  ? {
+                      backgroundImage: NOT_YET_CATEGORIZED_HATCH,
+                      backgroundColor: NOT_YET_CATEGORIZED_BAR_BG,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                    }
+                  : {}),
+              }}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+              {s.label}: {s.pct}%
+            </Typography>
+          </Box>
         ))}
-        {dist.not_yet_categorized.count > 0 ? (
-          <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.85 }}>
-            Not yet categorized: {dist.not_yet_categorized.pct}%
-          </Typography>
-        ) : null}
-      </Stack>
+      </Box>
     </Box>
   );
 }
