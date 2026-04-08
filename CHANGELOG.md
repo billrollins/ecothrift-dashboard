@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-10T18:45:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,24 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.6.1] — 2026-04-10
+
+### Added
+
+- **Buying — Phase 4.1A (manifest templates, `fast_cat_key`, static seed):** `ManifestTemplate` model; **`POST /api/buying/auctions/{id}/upload_manifest/`** (multipart CSV); template detection + **`python manage.py seed_fast_cat_mappings`** (343 vendor `fast_cat_key` → taxonomy_v1 rows, fully inlined — no workspace file dependency). See initiative.
+
+### Changed
+
+- **Buying — auction list UI:** All DataGrid columns sortable (including marketplace, title, condition, status, manifest); **Total retail** shows whole dollars with **manifest sum vs listing sweep** via API fields **`total_retail_display`** / **`retail_source`** (tooltip); **Manifest** column shows row count when present; marketplace chip UX: single-click isolates one vendor, **Ctrl/⌘+click** multi-select, helper copy + info tooltip; React Query **refetchOnMount** for auction list and summary so returning from detail shows fresh manifest flags.
+- **Buying — auction detail UI:** Two-column layout (metadata card | manifest card); **Open on B-Stock** link lives under manifest drop zone; **Has manifest** badge driven by row count; category mix bar shows **all** canonical categories (no rolled-up “Other”); manifest table **search** + **fast category** filter (server-side **`search`** / **`category`** on **`GET …/manifest_rows/`**).
+- **Buying — API:** List queryset annotates manifest retail sum and **`retail_sort`** for ordering; auction detail **`category_distribution`** returns full category list; successful CSV upload sets **`Auction.has_manifest`**.
+
+### Initiative
+
+- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — Phase **4.1A** manifest upload + fast-cat seed shipped; Phase **5** (valuation) still next.
 
 ---
 

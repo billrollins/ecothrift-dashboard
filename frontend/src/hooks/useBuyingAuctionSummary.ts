@@ -6,5 +6,6 @@ export function useBuyingAuctionSummary(params: BuyingAuctionSummaryParams) {
   return useQuery({
     queryKey: ['buying', 'auctions', 'summary', params] as const,
     queryFn: () => fetchBuyingAuctionSummary(params),
+    refetchOnMount: 'always',
   });
 }

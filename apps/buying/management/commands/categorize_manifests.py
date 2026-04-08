@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = (
-        'Set ManifestRow canonical_category from CategoryMapping (tier 1) and auction '
+        'Set ManifestRow canonical_category from CategoryMapping (tier 1: fast_cat_key) and auction '
         'listing strings (tier 3). Use --ai for Claude tier 2; --limit caps AI calls per run.'
     )
 

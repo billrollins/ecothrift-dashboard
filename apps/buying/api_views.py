@@ -3,12 +3,25 @@
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 
-from django.db.models import Count, F, Max
+from django.db.models import (
+    Case,
+    Count,
+    DecimalField,
+    F,
+    Max,
+    Q,
+    Sum,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -27,9 +40,32 @@ from apps.buying.serializers import (
     WatchlistEntrySerializer,
     WatchlistEntryWriteSerializer,
 )
-from apps.buying.services import pipeline, scraper
+from apps.buying.services import pipeline
+from apps.buying.services.manifest_upload import process_manifest_upload
 
 logger = logging.getLogger(__name__)
+
+
+def annotate_auction_list_extras(qs):
+    """Manifest row count, retail sum, and hybrid retail_sort for list ordering."""
+    return qs.annotate(
+        _manifest_row_count=Count('manifest_rows', distinct=True),
+        _manifest_retail_sum=Sum('manifest_rows__retail_value'),
+    ).annotate(
+        retail_sort=Case(
+            When(
+                _manifest_row_count__gt=0,
+                then=Coalesce(F('_manifest_retail_sum'), Value(Decimal('0'))),
+            ),
+            default=Coalesce(F('total_retail_value'), Value(Decimal('0'))),
+            output_field=DecimalField(max_digits=14, decimal_places=2),
+        ),
+    )
+
+# Token-backed B-Stock HTTP from the API is disabled; use CSV upload. Management commands may still be run manually.
+_TOKEN_BACKED_BSTOCK_DISABLED = (
+    'Token-backed B-Stock calls are disabled. Use CSV upload instead.'
+)
 
 
 class WatchlistAuctionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
@@ -43,11 +79,25 @@ class WatchlistAuctionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = AuctionWatchlistListSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = WatchlistAuctionFilter
-    ordering_fields = ['end_time', 'current_price', 'total_retail_value', 'added_at']
+    ordering_fields = [
+        'end_time',
+        'current_price',
+        'bid_count',
+        'last_updated_at',
+        'total_retail_value',
+        'retail_sort',
+        'marketplace__name',
+        'title',
+        'condition_summary',
+        'status',
+        'has_manifest',
+        'lot_size',
+        'added_at',
+    ]
     ordering = ['end_time']
 
     def get_queryset(self):
-        return (
+        return annotate_auction_list_extras(
             Auction.objects.filter(watchlist_entry__isnull=False)
             .exclude(listing_type__iexact=Auction.LISTING_TYPE_CONTRACT)
             .select_related('marketplace', 'watchlist_entry')
@@ -84,6 +134,13 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         'bid_count',
         'last_updated_at',
         'total_retail_value',
+        'retail_sort',
+        'marketplace__name',
+        'title',
+        'condition_summary',
+        'status',
+        'has_manifest',
+        'lot_size',
     ]
     ordering = ['-end_time']
 
@@ -91,12 +148,15 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         qs = super().get_queryset().select_related('marketplace')
         if self.action in ('list', 'summary'):
             qs = qs.exclude(listing_type__iexact=Auction.LISTING_TYPE_CONTRACT)
+        if self.action == 'list':
+            qs = annotate_auction_list_extras(qs)
         if self.action == 'retrieve':
             qs = qs.annotate(manifest_rows_count=Count('manifest_rows', distinct=True))
             qs = qs.select_related('watchlist_entry')
         elif self.action in (
             'manifest_rows',
             'pull_manifest',
+            'upload_manifest',
             'watchlist',
             'snapshots',
             'poll',
@@ -140,6 +200,23 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         """Paginated manifest line items for this auction (50 per page, server-side only)."""
         auction = self.get_object()
         qs = ManifestRow.objects.filter(auction=auction).order_by('row_number')
+        search = request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(title__icontains=search)
+                | Q(brand__icontains=search)
+                | Q(sku__icontains=search)
+                | Q(upc__icontains=search)
+                | Q(fast_cat_value__icontains=search)
+                | Q(canonical_category__icontains=search)
+            )
+        category = request.query_params.get('category', '').strip()
+        if category == '__uncategorized__':
+            qs = qs.filter(
+                Q(canonical_category__isnull=True) | Q(canonical_category=''),
+            ).filter(Q(fast_cat_value__isnull=True) | Q(fast_cat_value=''))
+        elif category:
+            qs = qs.filter(Q(canonical_category=category) | Q(fast_cat_value=category))
         paginator = ManifestRowsPagination()
         page = paginator.paginate_queryset(qs, request, view=self)
         serializer = ManifestRowSerializer(page, many=True)
@@ -147,37 +224,38 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='pull_manifest')
     def pull_manifest(self, request, pk=None):
-        """Run pipeline manifest pull for this auction (requires B-Stock JWT on server)."""
+        """Disabled: use CSV upload. See ``python manage.py pull_manifests`` for manual JWT-backed pulls."""
+        return Response(
+            {'detail': _TOKEN_BACKED_BSTOCK_DISABLED, 'code': 'token_backed_bstock_disabled'},
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='upload_manifest',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_manifest(self, request, pk=None):
+        """Upload a manifest CSV; replaces existing ManifestRow rows for this auction."""
         auction = self.get_object()
-        if not (auction.lot_id or '').strip():
+        upload = request.FILES.get('file')
+        if not upload:
             return Response(
-                {
-                    'detail': (
-                        'This auction has no lot_id; the B-Stock manifest API path uses '
-                        'lotId. Refresh listing data (sweep) or verify the listing in B-Stock.'
-                    ),
-                },
+                {'detail': 'Missing multipart file field "file".', 'code': 'missing_file'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            summary = pipeline.run_manifest_pull(auction_ids=[auction.pk], force=False)
-        except ValueError as e:
-            msg = str(e)
-            if 'No B-Stock token' in msg or 'bstock_token' in msg.lower():
-                return Response(
-                    {'detail': msg, 'code': 'bstock_token_missing'},
-                    status=status.HTTP_401_UNAUTHORIZED,
-                )
-            raise
-        except scraper.BStockAuthError:
+            raw = upload.read()
+        except Exception as e:
+            logger.exception('manifest upload read failed')
             return Response(
-                {
-                    'detail': scraper.AUTH_TOKEN_EXPIRED_MESSAGE,
-                    'code': 'bstock_token_expired',
-                },
-                status=status.HTTP_401_UNAUTHORIZED,
+                {'detail': f'Could not read file: {e}', 'code': 'read_error'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        return Response(summary)
+        name = getattr(upload, 'name', '') or 'manifest.csv'
+        body, code = process_manifest_upload(auction, raw, name)
+        return Response(body, status=code)
 
     @action(detail=True, methods=['post', 'delete'], url_path='watchlist')
     def watchlist(self, request, pk=None):
@@ -216,41 +294,11 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='poll')
     def poll(self, request, pk=None):
-        """Run watch poll for this auction only (requires watchlist + B-Stock JWT on server)."""
-        auction = self.get_object()
-        if not getattr(auction, 'watchlist_entry', None):
-            return Response(
-                {
-                    'detail': (
-                        'Add this auction to your watchlist before polling. '
-                        'Polling updates price history for watched auctions only.'
-                    ),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
-            summary = pipeline.run_watch_poll(
-                auction_ids=[auction.pk],
-                force=True,
-                dry_run=False,
-            )
-        except ValueError as e:
-            msg = str(e)
-            if 'No B-Stock token' in msg or 'bstock_token' in msg.lower():
-                return Response(
-                    {'detail': msg, 'code': 'bstock_token_missing'},
-                    status=status.HTTP_401_UNAUTHORIZED,
-                )
-            raise
-        except scraper.BStockAuthError:
-            return Response(
-                {
-                    'detail': scraper.AUTH_TOKEN_EXPIRED_MESSAGE,
-                    'code': 'bstock_token_expired',
-                },
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-        return Response(summary)
+        """Disabled: use CSV upload for manifests. See ``python manage.py watch_auctions`` for manual JWT polls."""
+        return Response(
+            {'detail': _TOKEN_BACKED_BSTOCK_DISABLED, 'code': 'token_backed_bstock_disabled'},
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )
 
 
 class SweepView(APIView):

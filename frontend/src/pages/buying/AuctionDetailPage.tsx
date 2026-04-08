@@ -1,22 +1,26 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import StarIcon from '@mui/icons-material/Star';
 import {
-  Alert,
   Box,
   Button,
   Card,
   CardContent,
   Chip,
   CircularProgress,
+  FormControl,
   Grid,
   IconButton,
+  InputLabel,
   Link,
+  MenuItem,
   Paper,
+  Select,
   Stack,
+  TextField,
   Tooltip,
   Typography,
   useMediaQuery,
@@ -27,11 +31,11 @@ import { isAxiosError } from 'axios';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
+import CategoryDistributionBar from '../../components/buying/CategoryDistributionBar';
 import { PageHeader } from '../../components/common/PageHeader';
 import {
   deleteBuyingWatchlist,
-  postBuyingPoll,
-  postBuyingPullManifest,
+  postBuyingUploadManifest,
   postBuyingWatchlist,
 } from '../../api/buying.api';
 import { useBuyingAuctionDetail } from '../../hooks/useBuyingAuctionDetail';
@@ -40,8 +44,8 @@ import {
   useBuyingManifestRowsInfinite,
   useBuyingManifestRowsPage,
 } from '../../hooks/useBuyingManifestRows';
-import type { BuyingCategoryDistribution, BuyingManifestRow } from '../../types/buying.types';
-import { formatCurrency, formatNumber } from '../../utils/format';
+import type { BuyingManifestRow } from '../../types/buying.types';
+import { formatCurrency, formatCurrencyWhole, formatNumber } from '../../utils/format';
 import {
   CartesianGrid,
   Legend,
@@ -57,104 +61,43 @@ import { formatTimeRemaining, timeRemainingSx } from '../../utils/buyingAuctionL
 const MANIFEST_PAGE_SIZE = 50;
 
 function categoryConfidenceChipProps(conf: string | null | undefined): {
-  color: 'primary' | 'warning' | 'default';
+  color: 'primary' | 'secondary' | 'warning' | 'default';
   variant: 'filled' | 'outlined';
 } {
   if (conf === 'direct') return { color: 'primary', variant: 'filled' };
   if (conf === 'ai_mapped') return { color: 'warning', variant: 'filled' };
+  if (conf === 'fast_cat') return { color: 'secondary', variant: 'filled' };
   return { color: 'default', variant: 'outlined' };
-}
-
-function CategoryDistributionBar({ dist }: { dist: BuyingCategoryDistribution }) {
-  const theme = useTheme();
-  if (!dist || dist.total_rows === 0) return null;
-
-  const barColors = [
-    theme.palette.primary.main,
-    theme.palette.secondary.main,
-    theme.palette.success.main,
-    theme.palette.warning.main,
-    theme.palette.info.main,
-  ];
-
-  type Seg = { label: string; pct: number; color: string };
-  const segments: Seg[] = [];
-  dist.top.forEach((t, i) => {
-    segments.push({
-      label: t.canonical_category,
-      pct: t.pct,
-      color: barColors[i % barColors.length],
-    });
-  });
-  if (dist.other && dist.other.pct > 0) {
-    segments.push({
-      label: 'Other',
-      pct: dist.other.pct,
-      color: theme.palette.grey[400],
-    });
-  }
-  if (dist.not_yet_categorized.pct > 0) {
-    segments.push({
-      label: 'Not yet categorized',
-      pct: dist.not_yet_categorized.pct,
-      color: theme.palette.action.disabledBackground,
-    });
-  }
-
-  return (
-    <Box sx={{ mb: 2 }}>
-      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75 }}>
-        Category mix (manifest lines)
-      </Typography>
-      <Box
-        sx={{
-          display: 'flex',
-          height: 12,
-          borderRadius: 1,
-          overflow: 'hidden',
-          border: 1,
-          borderColor: 'divider',
-        }}
-      >
-        {segments.map((s, i) => (
-          <Tooltip key={i} title={`${s.label}: ${s.pct}%`} placement="top">
-            <Box
-              sx={{
-                flexGrow: s.pct,
-                flexShrink: 1,
-                flexBasis: 0,
-                minWidth: s.pct > 0 ? 4 : 0,
-                bgcolor: s.color,
-              }}
-            />
-          </Tooltip>
-        ))}
-      </Box>
-      <Stack direction="row" flexWrap="wrap" gap={1.5} sx={{ mt: 1 }} useFlexGap>
-        {dist.top.map((t) => (
-          <Typography key={t.canonical_category} variant="caption" color="text.secondary">
-            {t.canonical_category}: {t.pct}%
-          </Typography>
-        ))}
-        {dist.other ? (
-          <Typography variant="caption" color="text.secondary">
-            Other: {dist.other.pct}%
-          </Typography>
-        ) : null}
-        {dist.not_yet_categorized.count > 0 ? (
-          <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.85 }}>
-            Not yet categorized: {dist.not_yet_categorized.pct}%
-          </Typography>
-        ) : null}
-      </Stack>
-    </Box>
-  );
 }
 
 const manifestColumns: GridColDef<BuyingManifestRow>[] = [
   { field: 'row_number', headerName: '#', width: 70, type: 'number' },
   { field: 'title', headerName: 'Title', flex: 1, minWidth: 160 },
   { field: 'brand', headerName: 'Brand', width: 120 },
+  {
+    field: 'fast_cat_key',
+    headerName: 'Fast key',
+    width: 130,
+    sortable: false,
+    renderCell: (params) => {
+      const k = params.row.fast_cat_key;
+      if (!k) {
+        return (
+          <Typography variant="body2" color="text.secondary">
+            —
+          </Typography>
+        );
+      }
+      const short = k.length > 36 ? `${k.slice(0, 36)}…` : k;
+      return (
+        <Tooltip title={k}>
+          <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+            {short}
+          </Typography>
+        </Tooltip>
+      );
+    },
+  },
   {
     field: 'canonical_category',
     headerName: 'Category',
@@ -163,7 +106,8 @@ const manifestColumns: GridColDef<BuyingManifestRow>[] = [
     sortable: false,
     renderCell: (params) => {
       const row = params.row;
-      if (!row.canonical_category) {
+      const label = row.canonical_category ?? row.fast_cat_value;
+      if (!label) {
         return (
           <Typography variant="body2" color="text.secondary">
             —
@@ -174,7 +118,7 @@ const manifestColumns: GridColDef<BuyingManifestRow>[] = [
       return (
         <Chip
           size="small"
-          label={row.canonical_category}
+          label={label}
           color={chip.color}
           variant={chip.variant}
         />
@@ -225,8 +169,26 @@ export default function AuctionDetailPage() {
     page: 0,
     pageSize: MANIFEST_PAGE_SIZE,
   });
-  const [pullTokenCode, setPullTokenCode] = useState<string | null>(null);
-  const [pollTokenCode, setPollTokenCode] = useState<string | null>(null);
+  const [manifestSearch, setManifestSearch] = useState('');
+  const [debouncedManifestSearch, setDebouncedManifestSearch] = useState('');
+  const [manifestCategoryFilter, setManifestCategoryFilter] = useState('');
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedManifestSearch(manifestSearch), 300);
+    return () => window.clearTimeout(t);
+  }, [manifestSearch]);
+
+  useEffect(() => {
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
+  }, [debouncedManifestSearch, manifestCategoryFilter]);
+
+  const manifestFilters = useMemo(
+    () => ({
+      search: debouncedManifestSearch.trim() || undefined,
+      category: manifestCategoryFilter || undefined,
+    }),
+    [debouncedManifestSearch, manifestCategoryFilter]
+  );
 
   const { data: detail, isLoading: detailLoading, isError: detailError } =
     useBuyingAuctionDetail(auctionId);
@@ -237,10 +199,28 @@ export default function AuctionDetailPage() {
   const manifestPage = useBuyingManifestRowsPage(
     auctionId,
     paginationModel.page,
+    manifestFilters,
     Boolean(isMdUp && auctionId)
   );
 
-  const manifestInfinite = useBuyingManifestRowsInfinite(auctionId, Boolean(!isMdUp && auctionId));
+  const manifestInfinite = useBuyingManifestRowsInfinite(
+    auctionId,
+    manifestFilters,
+    Boolean(!isMdUp && auctionId)
+  );
+
+  const categoryFilterOptions = useMemo(() => {
+    const d = detail?.category_distribution;
+    if (!d || d.total_rows === 0) return [];
+    const opts: { value: string; label: string }[] = d.top.map((t) => ({
+      value: t.canonical_category,
+      label: t.canonical_category,
+    }));
+    if (d.not_yet_categorized.count > 0) {
+      opts.push({ value: '__uncategorized__', label: 'Not yet categorized' });
+    }
+    return opts;
+  }, [detail]);
 
   const flatManifestRows = useMemo(() => {
     if (!manifestInfinite.data?.pages?.length) return [];
@@ -250,45 +230,13 @@ export default function AuctionDetailPage() {
   const invalidateAuctionAndManifest = () => {
     void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'detail', auctionId] });
     void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', auctionId, 'manifest_rows'] });
+    void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
   };
 
   const invalidateAuctionSnapshots = () => {
     void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'detail', auctionId] });
     void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', auctionId, 'snapshots'] });
   };
-
-  const pullMutation = useMutation({
-    mutationFn: () => postBuyingPullManifest(auctionId!),
-    onMutate: () => {
-      setPullTokenCode(null);
-    },
-    onSuccess: (data) => {
-      invalidateAuctionAndManifest();
-      enqueueSnackbar(
-        data.manifest_rows_saved > 0
-          ? `Saved ${data.manifest_rows_saved} manifest row(s).`
-          : 'Manifest pull completed.',
-        { variant: 'success' }
-      );
-    },
-    onError: (err: unknown) => {
-      if (isAxiosError(err)) {
-        const status = err.response?.status;
-        const data = err.response?.data as { code?: string; detail?: string } | undefined;
-        if (status === 401 && data?.code) {
-          setPullTokenCode(data.code);
-          return;
-        }
-        const msg =
-          typeof data?.detail === 'string'
-            ? data.detail
-            : err.message || 'Could not pull manifest.';
-        enqueueSnackbar(msg, { variant: 'error' });
-        return;
-      }
-      enqueueSnackbar('Could not pull manifest.', { variant: 'error' });
-    },
-  });
 
   const addWatchlist = useMutation({
     mutationFn: () => postBuyingWatchlist(auctionId!),
@@ -312,29 +260,29 @@ export default function AuctionDetailPage() {
     },
   });
 
-  const pollMutation = useMutation({
-    mutationFn: () => postBuyingPoll(auctionId!),
-    onMutate: () => setPollTokenCode(null),
-    onSuccess: () => {
-      invalidateAuctionSnapshots();
-      enqueueSnackbar('Poll completed. Price history updated.', { variant: 'success' });
+  const manifestFileInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => postBuyingUploadManifest(auctionId!, file),
+    onSuccess: async (data) => {
+      invalidateAuctionAndManifest();
+      await queryClient.refetchQueries({ queryKey: ['buying', 'auctions', 'detail', auctionId] });
+      await queryClient.refetchQueries({
+        queryKey: ['buying', 'auctions', auctionId, 'manifest_rows'],
+      });
+      enqueueSnackbar(
+        `Saved ${data.rows_created} row(s). ${data.rows_with_fast_cat_value} with fast category mapping.`,
+        { variant: 'success' }
+      );
     },
     onError: (err: unknown) => {
       if (isAxiosError(err)) {
-        const status = err.response?.status;
-        const data = err.response?.data as { code?: string; detail?: string } | undefined;
-        if (status === 401 && data?.code) {
-          setPollTokenCode(data.code);
-          return;
-        }
-        const msg =
-          typeof data?.detail === 'string'
-            ? data.detail
-            : err.message || 'Could not poll auction.';
+        const data = err.response?.data as { detail?: string } | undefined;
+        const msg = typeof data?.detail === 'string' ? data.detail : 'Could not upload manifest.';
         enqueueSnackbar(msg, { variant: 'error' });
         return;
       }
-      enqueueSnackbar('Could not poll auction.', { variant: 'error' });
+      enqueueSnackbar('Could not upload manifest.', { variant: 'error' });
     },
   });
 
@@ -389,8 +337,17 @@ export default function AuctionDetailPage() {
   }
 
   const watched = Boolean(detail.watchlist_entry);
-  const canPullManifest = (detail.manifest_row_count ?? 0) === 0;
-  const hasLotId = Boolean((detail.lot_id ?? '').trim());
+  const hasManifestRows = (detail.manifest_row_count ?? 0) > 0;
+  const categorizedRows =
+    detail.category_distribution != null
+      ? detail.category_distribution.total_rows - detail.category_distribution.not_yet_categorized.count
+      : 0;
+
+  const onPickManifestFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f && auctionId) uploadMutation.mutate(f);
+    e.target.value = '';
+  };
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -404,7 +361,7 @@ export default function AuctionDetailPage() {
       </Button>
 
       <PageHeader
-        title={detail.title}
+        title="Auction"
         subtitle={detail.marketplace?.name}
         action={
           <Tooltip title={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
@@ -429,153 +386,216 @@ export default function AuctionDetailPage() {
         }
       />
 
-      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Typography variant="caption" color="text.secondary">
-              Current price
+      <Grid container spacing={2} sx={{ mb: 2, alignItems: 'stretch' }}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card variant="outlined" sx={{ p: 1.5, height: '100%' }}>
+            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.25, lineHeight: 1.35 }}>
+              {detail.title}
             </Typography>
-            <Typography variant="body1" fontWeight={600}>
-              {formatCurrency(detail.current_price)}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Typography variant="caption" color="text.secondary">
-              Total retail
-            </Typography>
-            <Typography variant="body1">{formatCurrency(detail.total_retail_value)}</Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Typography variant="caption" color="text.secondary">
-              Bids
-            </Typography>
-            <Typography variant="body1">{formatNumber(detail.bid_count)}</Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Typography variant="caption" color="text.secondary">
-              Time remaining
-            </Typography>
-            <Typography variant="body1" sx={timeRemainingSx(detail.end_time)}>
-              {formatTimeRemaining(detail.end_time)}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Typography variant="caption" color="text.secondary">
-              Ends
-            </Typography>
-            <Typography variant="body1">{formatEndTime(detail.end_time)}</Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Typography variant="caption" color="text.secondary">
-              Condition
-            </Typography>
-            <Typography variant="body1">{detail.condition_summary || '—'}</Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Typography variant="caption" color="text.secondary">
-              Status
-            </Typography>
-            <Typography variant="body1">{detail.status}</Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Typography variant="caption" color="text.secondary">
-              Listing type
-            </Typography>
-            <Typography variant="body1">{detail.listing_type || '—'}</Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Typography variant="caption" color="text.secondary">
-              Starting / Buy now
-            </Typography>
-            <Typography variant="body1">
-              {formatCurrency(detail.starting_price)} / {formatCurrency(detail.buy_now_price)}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Typography variant="caption" color="text.secondary">
-              Lot ID
-            </Typography>
-            <Typography variant="body1" sx={{ wordBreak: 'break-all' }}>
-              {detail.lot_id || '—'}
-            </Typography>
-          </Grid>
-          <Grid size={12}>
-            <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
-              {detail.marketplace?.name && (
-                <Chip size="small" label={detail.marketplace.name} variant="outlined" />
-              )}
-              <Chip
-                size="small"
-                label={detail.has_manifest ? 'Has manifest' : 'No manifest'}
-                color={detail.has_manifest ? 'primary' : 'default'}
-                variant={detail.has_manifest ? 'filled' : 'outlined'}
+            <Grid container spacing={1} columnSpacing={2}>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  Marketplace
+                </Typography>
+                {detail.marketplace?.name ? (
+                  <Chip size="small" label={detail.marketplace.name} sx={{ mt: 0.5 }} />
+                ) : (
+                  <Typography variant="body2" sx={{ mt: 0.25 }}>
+                    —
+                  </Typography>
+                )}
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  Status
+                </Typography>
+                <Chip size="small" label={detail.status} sx={{ mt: 0.5 }} variant="outlined" />
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  Current price
+                </Typography>
+                <Typography variant="body2" fontWeight={600} sx={{ mt: 0.25 }}>
+                  {formatCurrency(detail.current_price)}
+                </Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  Starting price
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatCurrency(detail.starting_price)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  Buy now price
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatCurrency(detail.buy_now_price)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  Bid count
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatNumber(detail.bid_count)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  Condition
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.25 }}>{detail.condition_summary || '—'}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  Time remaining
+                </Typography>
+                <Typography variant="body2" sx={[{ mt: 0.25 }, timeRemainingSx(detail.end_time)]}>
+                  {formatTimeRemaining(detail.end_time)}
+                </Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  End time
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatEndTime(detail.end_time)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  Lot size
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatNumber(detail.lot_size)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.2 }}>
+                  Total retail (listing)
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.25 }}>{formatCurrencyWhole(detail.total_retail_value)}</Typography>
+              </Grid>
+            </Grid>
+            {detail.description ? (
+              <Box sx={{ mt: 1.5 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Description
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.25 }}>
+                  {detail.description}
+                </Typography>
+              </Box>
+            ) : null}
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Card
+            variant="outlined"
+            sx={{
+              p: 1.5,
+              height: '100%',
+              borderStyle: 'dashed',
+              borderWidth: hasManifestRows ? 1 : 2,
+            }}
+          >
+            <Stack spacing={1.25}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                <Typography variant="subtitle2" component="h2">
+                  Manifest
+                </Typography>
+                <Chip
+                  size="small"
+                  label={
+                    hasManifestRows
+                      ? `Has manifest (${formatNumber(detail.manifest_row_count)} rows)`
+                      : 'No manifest'
+                  }
+                  color={hasManifestRows ? 'primary' : 'default'}
+                  variant={hasManifestRows ? 'filled' : 'outlined'}
+                />
+              </Stack>
+              {hasManifestRows ? (
+                <Typography variant="body2" color="text.secondary">
+                  {formatNumber(detail.manifest_row_count ?? 0)} lines · {formatNumber(categorizedRows)} categorized
+                </Typography>
+              ) : null}
+              {hasManifestRows && detail.category_distribution && detail.category_distribution.total_rows > 0 ? (
+                <CategoryDistributionBar dist={detail.category_distribution} />
+              ) : null}
+              <input
+                ref={manifestFileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                hidden
+                onChange={onPickManifestFile}
               />
+              <Box
+                onClick={() => manifestFileInputRef.current?.click()}
+                onDragOver={(ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                }}
+                onDrop={(ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  const f = ev.dataTransfer.files?.[0];
+                  if (f && auctionId) uploadMutation.mutate(f);
+                }}
+                sx={{
+                  py: hasManifestRows ? 1 : 2,
+                  px: 1,
+                  textAlign: 'center',
+                  cursor: uploadMutation.isPending ? 'wait' : 'pointer',
+                  borderRadius: 1,
+                  bgcolor: 'action.hover',
+                }}
+              >
+                {uploadMutation.isPending ? (
+                  <Stack direction="row" alignItems="center" justifyContent="center" spacing={1}>
+                    <CircularProgress size={22} />
+                    <Typography variant="body2">Processing manifest…</Typography>
+                  </Stack>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    {hasManifestRows
+                      ? 'Drop CSV to replace manifest or click to browse'
+                      : 'Drop manifest CSV here or click to browse'}
+                  </Typography>
+                )}
+              </Box>
               {detail.url ? (
                 <Link href={detail.url} target="_blank" rel="noopener noreferrer" variant="body2">
                   Open on B-Stock <OpenInNewIcon sx={{ fontSize: 14, verticalAlign: 'middle', ml: 0.25 }} />
                 </Link>
               ) : null}
             </Stack>
-          </Grid>
-          {detail.description ? (
-            <Grid size={12}>
-              <Typography variant="caption" color="text.secondary">
-                Description
-              </Typography>
-              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                {detail.description}
-              </Typography>
-            </Grid>
-          ) : null}
+          </Card>
         </Grid>
-      </Paper>
+      </Grid>
 
-      <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} sx={{ mb: 2 }}>
-        <Typography variant="h6" component="h2">
-          Manifest
-          {detail.manifest_row_count != null ? (
-            <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-              ({formatNumber(detail.manifest_row_count)} lines)
-            </Typography>
-          ) : null}
-        </Typography>
-        {canPullManifest ? (
-          <Tooltip
-            title={
-              !hasLotId
-                ? 'Cannot pull: this auction has no lotId in the database. Run a sweep or verify the listing.'
-                : ''
-            }
+      <Typography variant="h6" component="h2" sx={{ mt: 2, mb: 1 }}>
+        Manifest rows
+      </Typography>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }} alignItems={{ sm: 'stretch' }}>
+        <TextField
+          size="small"
+          fullWidth
+          label="Search rows"
+          placeholder="Title, brand, SKU, UPC, category…"
+          value={manifestSearch}
+          onChange={(e) => setManifestSearch(e.target.value)}
+        />
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
+          <InputLabel id="manifest-cat-filter">Fast category</InputLabel>
+          <Select
+            labelId="manifest-cat-filter"
+            label="Fast category"
+            value={manifestCategoryFilter}
+            onChange={(e) => setManifestCategoryFilter(e.target.value)}
           >
-            <span>
-              <Button
-                variant="contained"
-                disabled={!hasLotId || pullMutation.isPending}
-                onClick={() => pullMutation.mutate()}
-              >
-                {pullMutation.isPending ? <CircularProgress size={22} color="inherit" /> : 'Pull manifest'}
-              </Button>
-            </span>
-          </Tooltip>
-        ) : null}
+            <MenuItem value="">All categories</MenuItem>
+            {categoryFilterOptions.map((o) => (
+              <MenuItem key={o.value} value={o.value}>
+                {o.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
       </Stack>
-
-      {pullTokenCode === 'bstock_token_missing' ? (
-        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setPullTokenCode(null)}>
-          No B-Stock JWT on the server. Configure <code>bstock_token</code> in <code>.env</code>, run{' '}
-          <code>python manage.py bstock_token</code>, or use the bookmarklet workflow (see{' '}
-          <code>apps/buying/bookmarklet/bstock_elt_bookmarklet.md</code> in the repo).
-        </Alert>
-      ) : null}
-      {pullTokenCode === 'bstock_token_expired' ? (
-        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setPullTokenCode(null)}>
-          B-Stock token expired. Refresh it via the bookmarklet or CLI, then try again.
-        </Alert>
-      ) : null}
-
-      {detail?.category_distribution && detail.category_distribution.total_rows > 0 ? (
-        <CategoryDistributionBar dist={detail.category_distribution} />
-      ) : null}
 
       {isMdUp ? (
         <Box sx={{ flex: 1, minHeight: 400 }}>
@@ -616,10 +636,10 @@ export default function AuctionDetailPage() {
                     {row.model ? ` · ${row.model}` : ''}
                   </Typography>
                   <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
-                    {row.canonical_category ? (
+                    {row.canonical_category || row.fast_cat_value ? (
                       <Chip
                         size="small"
-                        label={row.canonical_category}
+                        label={row.canonical_category ?? row.fast_cat_value ?? ''}
                         color={categoryConfidenceChipProps(row.category_confidence).color}
                         variant={categoryConfidenceChipProps(row.category_confidence).variant}
                       />
@@ -638,7 +658,7 @@ export default function AuctionDetailPage() {
             ))
           )}
           {!manifestInfinite.isLoading && flatManifestRows.length === 0 ? (
-            <Typography color="text.secondary">No manifest rows yet. Pull the manifest if available.</Typography>
+            <Typography color="text.secondary">No manifest rows yet. Upload a CSV above.</Typography>
           ) : null}
           {manifestInfinite.hasNextPage ? (
             <Button
@@ -658,36 +678,13 @@ export default function AuctionDetailPage() {
           Price history
         </Typography>
         {detail.watchlist_entry ? (
-          <Stack direction="row" alignItems="center" spacing={2} flexWrap="wrap" useFlexGap>
-            <Typography variant="body2" color="text.secondary">
-              {detail.watchlist_entry.last_polled_at
-                ? `Last polled ${formatDistanceToNow(parseISO(detail.watchlist_entry.last_polled_at), { addSuffix: true })}`
-                : 'Not polled yet'}
-            </Typography>
-            <Button
-              variant="outlined"
-              size="small"
-              disabled={pollMutation.isPending}
-              onClick={() => pollMutation.mutate()}
-            >
-              {pollMutation.isPending ? <CircularProgress size={20} color="inherit" /> : 'Poll now'}
-            </Button>
-          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            {detail.watchlist_entry.last_polled_at
+              ? `Last polled ${formatDistanceToNow(parseISO(detail.watchlist_entry.last_polled_at), { addSuffix: true })}`
+              : 'Not polled yet'}
+          </Typography>
         ) : null}
       </Stack>
-
-      {pollTokenCode === 'bstock_token_missing' ? (
-        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setPollTokenCode(null)}>
-          No B-Stock JWT on the server. Configure <code>bstock_token</code> in <code>.env</code>, run{' '}
-          <code>python manage.py bstock_token</code>, or use the bookmarklet workflow (see{' '}
-          <code>apps/buying/bookmarklet/bstock_elt_bookmarklet.md</code> in the repo).
-        </Alert>
-      ) : null}
-      {pollTokenCode === 'bstock_token_expired' ? (
-        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setPollTokenCode(null)}>
-          B-Stock token expired. Refresh it via the bookmarklet or CLI, then try again.
-        </Alert>
-      ) : null}
 
       {snapshotsQuery.isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>

@@ -44,10 +44,10 @@ class CategoryMapping(models.Model):
     ]
 
     source_key = models.CharField(
-        max_length=400,
+        max_length=500,
         unique=True,
         db_index=True,
-        help_text='Normalized key: strip() only; case preserved (matches ManifestRow.category.strip()).',
+        help_text='Lookup key: typically ManifestRow.fast_cat_key (vendor-prefixed slug).',
     )
     canonical_category = models.CharField(max_length=64, choices=TAXONOMY_V1_CHOICES)
     rule_origin = models.CharField(max_length=16, choices=RULE_ORIGIN_CHOICES)
@@ -60,6 +60,42 @@ class CategoryMapping(models.Model):
 
     def __str__(self) -> str:
         return f'{self.source_key[:40]}… → {self.canonical_category}' if len(self.source_key) > 40 else f'{self.source_key} → {self.canonical_category}'
+
+
+class ManifestTemplate(models.Model):
+    """Vendor + CSV header signature: column mapping and fast_cat_key rules (Phase 4.1A)."""
+
+    marketplace = models.ForeignKey(
+        Marketplace,
+        on_delete=models.CASCADE,
+        related_name='manifest_templates',
+    )
+    header_signature = models.CharField(max_length=2000, db_index=True)
+    display_name = models.CharField(max_length=200)
+    column_map = models.JSONField(default=dict, blank=True)
+    category_fields = models.JSONField(default=list, blank=True)
+    category_field_transforms = models.JSONField(default=dict, blank=True)
+    min_fill_threshold = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=0.05,
+    )
+    is_reviewed = models.BooleanField(default=False, db_index=True)
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['marketplace', 'header_signature']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['marketplace', 'header_signature'],
+                name='buying_manifesttemplate_marketplace_header_uniq',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.marketplace.slug}: {self.display_name[:60]}'
 
 
 class Auction(models.Model):
@@ -216,10 +252,12 @@ class ManifestRow(models.Model):
     CONF_DIRECT = 'direct'
     CONF_AI_MAPPED = 'ai_mapped'
     CONF_FALLBACK = 'fallback'
+    CONF_FAST_CAT = 'fast_cat'
     CATEGORY_CONFIDENCE_CHOICES = [
         (CONF_DIRECT, 'Direct match'),
         (CONF_AI_MAPPED, 'AI mapped'),
         (CONF_FALLBACK, 'Auction fallback'),
+        (CONF_FAST_CAT, 'Fast category (manifest template)'),
     ]
 
     auction = models.ForeignKey(
@@ -229,10 +267,23 @@ class ManifestRow(models.Model):
     )
     row_number = models.PositiveIntegerField()
     raw_data = models.JSONField(default=dict, blank=True)
+    manifest_template = models.ForeignKey(
+        ManifestTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='manifest_rows',
+    )
     title = models.CharField(max_length=500, blank=True, default='')
     brand = models.CharField(max_length=300, blank=True, default='')
     model = models.CharField(max_length=300, blank=True, default='')
-    category = models.CharField(max_length=300, blank=True, default='')
+    fast_cat_key = models.CharField(max_length=500, blank=True, default='')
+    fast_cat_value = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        choices=TAXONOMY_V1_CHOICES,
+    )
     sku = models.CharField(max_length=200, blank=True, default='')
     upc = models.CharField(max_length=64, blank=True, default='')
     quantity = models.PositiveIntegerField(null=True, blank=True)

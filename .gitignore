@@ -34,6 +34,7 @@ Thumbs.db
 *.sqlite3
 staticfiles/
 media/
+logs/
 
 # Personal workspace — almost everything ignored; only the notebook whitelist below is tracked.
 workspace/*

@@ -14,7 +14,6 @@ from django.utils.dateparse import parse_datetime
 
 from apps.buying.models import Auction, AuctionSnapshot, ManifestRow, Marketplace, WatchlistEntry
 from apps.buying.services import normalize, scraper
-from apps.buying.services.categorize_manifest import categorize_manifest_rows
 
 logger = logging.getLogger(__name__)
 
@@ -545,27 +544,26 @@ def run_manifest_pull(
                     auction=auction,
                     row_number=i,
                     raw_data=raw,
+                    manifest_template=None,
                     title=norm['title'],
                     brand=norm['brand'],
                     model=norm['model'],
-                    category=norm['category'],
+                    fast_cat_key='',
+                    fast_cat_value=None,
                     sku=norm['sku'],
                     upc=norm['upc'],
                     quantity=norm['quantity'],
                     retail_value=norm['retail_value'],
                     condition=norm['condition'],
                     notes=norm['notes'],
+                    canonical_category=None,
+                    category_confidence=None,
                 )
             )
         ManifestRow.objects.bulk_create(bulk)
         rows_saved += len(bulk)
-        try:
-            categorize_manifest_rows(auction)
-        except Exception:
-            logger.exception(
-                'categorize_manifest_rows failed after manifest pull for auction_id=%s',
-                auction.pk,
-            )
+        # Phase 4.1A: do not run categorize_manifest_rows after API pull (canonical stays null
+        # until downstream processing / manual categorize_manifests command).
 
     return {
         'auctions_processed': processed,

@@ -21,6 +21,14 @@ export interface BuyingAuctionListItem {
   lot_size: number | null;
   /** Extended retail from B-Stock search (e.g. retailPrice), dollars */
   total_retail_value: string | null;
+  /** Row count from manifest lines (list endpoint only). */
+  manifest_row_count?: number;
+  /** Hybrid sort key: manifest sum or listing total (list endpoint only). */
+  retail_sort?: string | null;
+  /** Dollars to display in list (manifest sum when rows exist, else sweep listing). */
+  total_retail_display?: string | null;
+  /** Where `total_retail_display` comes from. */
+  retail_source?: 'manifest' | 'listing';
   condition_summary: string;
   status: string;
   has_manifest: boolean;
@@ -64,8 +72,10 @@ export interface BuyingCategoryDistributionTop {
 
 export interface BuyingCategoryDistribution {
   total_rows: number;
+  /** All categories (sorted by count desc); no rolled-up "Other" bucket. */
   top: BuyingCategoryDistributionTop[];
-  other: { count: number; pct: number } | null;
+  /** Deprecated: always null; kept for API compatibility. */
+  other?: { count: number; pct: number } | null;
   not_yet_categorized: { count: number; pct: number };
 }
 
@@ -95,10 +105,13 @@ export interface BuyingManifestRow {
   title: string;
   brand: string;
   model: string;
-  category: string;
-  /** taxonomy_v1 canonical name when categorized */
+  /** Vendor manifest fast-cat key (slugified category columns). */
+  fast_cat_key: string;
+  /** taxonomy_v1 value from CategoryMapping lookup at upload; not final canonical. */
+  fast_cat_value: string | null;
+  /** Set by downstream processing / categorize_manifests; may stay null after CSV upload. */
   canonical_category: string | null;
-  /** direct | ai_mapped | fallback */
+  /** direct | ai_mapped | fallback | fast_cat */
   category_confidence: string | null;
   sku: string;
   upc: string;
@@ -110,6 +123,20 @@ export interface BuyingManifestRow {
 
 export interface BuyingManifestRowsParams {
   page?: number;
+  search?: string;
+  /** Canonical or fast_cat value, or `__uncategorized__`. */
+  category?: string;
+}
+
+/** POST /api/buying/auctions/:id/upload_manifest/ (multipart field `file`) */
+export interface BuyingUploadManifestResponse {
+  rows_created: number;
+  rows_with_fast_cat_value: number;
+  rows_without_fast_cat_value: number;
+  manifest_template_id: number;
+  template_display_name: string;
+  header_signature: string;
+  warnings: string[];
 }
 
 /** POST /api/buying/auctions/:id/pull_manifest/ */

@@ -10,5 +10,6 @@ export function useBuyingAuctions(
     queryKey: ['buying', 'auctions', params] as const,
     queryFn: () => fetchBuyingAuctions(params),
     enabled: options?.enabled ?? true,
+    refetchOnMount: 'always',
   });
 }

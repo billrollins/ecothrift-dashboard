@@ -1,17 +1,22 @@
-"""Re-apply normalize_manifest_row to stored ManifestRow.raw_data without calling B-Stock."""
+"""Re-apply normalization to stored ManifestRow.raw_data without calling B-Stock."""
 
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand
 
-from apps.buying.models import ManifestRow
+from apps.buying.models import CategoryMapping, ManifestRow
 from apps.buying.services import normalize
+from apps.buying.services.manifest_template import (
+    build_fast_cat_key,
+    row_fill_rates_for_template,
+    standardize_row,
+    effective_category_fields,
+)
 
-_BULK_FIELDS = [
+_BULK_FIELDS_BSTOCK = [
     'title',
     'brand',
     'model',
-    'category',
     'sku',
     'upc',
     'quantity',
@@ -20,11 +25,22 @@ _BULK_FIELDS = [
     'notes',
 ]
 
+_BULK_FIELDS_TEMPLATE = _BULK_FIELDS_BSTOCK + [
+    'fast_cat_key',
+    'fast_cat_value',
+    'category_confidence',
+]
+
+
+def _mapping() -> dict[str, str]:
+    return dict(CategoryMapping.objects.values_list('source_key', 'canonical_category'))
+
 
 class Command(BaseCommand):
     help = (
         'Re-normalize manifest line fields from existing JSON raw_data. '
-        'Does not require JWT or HTTP. Use after expanding normalize.py heuristics.'
+        'Rows with manifest_template: template standardize + fast_cat. '
+        'Legacy API rows: normalize_manifest_row only. Does not require JWT or HTTP.'
     )
 
     def add_arguments(self, parser) -> None:
@@ -65,7 +81,9 @@ class Command(BaseCommand):
         batch_size = max(1, int(options['batch_size']))
         dry_run = options['dry_run']
 
-        qs = ManifestRow.objects.all().order_by('pk')
+        qs = ManifestRow.objects.select_related(
+            'auction__marketplace', 'manifest_template'
+        ).order_by('pk')
         if auction_id is not None:
             qs = qs.filter(auction_id=auction_id)
         if marketplace:
@@ -80,28 +98,65 @@ class Command(BaseCommand):
 
         processed = 0
         batch: list[ManifestRow] = []
+        mp = _mapping()
 
         for row in qs.iterator(chunk_size=batch_size):
-            norm = normalize.normalize_manifest_row(row.raw_data or {}, row_id=row.pk)
-            row.title = norm['title']
-            row.brand = norm['brand']
-            row.model = norm['model']
-            row.category = norm['category']
-            row.sku = norm['sku']
-            row.upc = norm['upc']
-            row.quantity = norm['quantity']
-            row.retail_value = norm['retail_value']
-            row.condition = norm['condition']
-            row.notes = norm['notes']
-            batch.append(row)
+            raw = row.raw_data if isinstance(row.raw_data, dict) else {}
+            tmpl = row.manifest_template
+            if tmpl is not None:
+                std = standardize_row(tmpl, raw)
+                fr = row_fill_rates_for_template(tmpl, raw)
+                eff = effective_category_fields(tmpl, fr)
+                fck = build_fast_cat_key(row.auction.marketplace, tmpl, raw, eff)
+                fcv = mp.get(fck) if fck else None
+                if fcv:
+                    row.fast_cat_key = fck
+                    row.fast_cat_value = fcv
+                    row.category_confidence = ManifestRow.CONF_FAST_CAT
+                else:
+                    row.fast_cat_key = fck
+                    row.fast_cat_value = None
+                    row.category_confidence = None
+                row.title = std['title']
+                row.brand = std['brand']
+                row.model = std['model']
+                row.sku = std['sku']
+                row.upc = std['upc']
+                row.quantity = std['quantity']
+                row.retail_value = std['retail_value']
+                row.condition = std['condition']
+                row.notes = std['notes']
+                fields = _BULK_FIELDS_TEMPLATE
+            else:
+                norm = normalize.normalize_manifest_row(raw, row_id=row.pk)
+                row.title = norm['title']
+                row.brand = norm['brand']
+                row.model = norm['model']
+                row.sku = norm['sku']
+                row.upc = norm['upc']
+                row.quantity = norm['quantity']
+                row.retail_value = norm['retail_value']
+                row.condition = norm['condition']
+                row.notes = norm['notes']
+                fields = _BULK_FIELDS_BSTOCK
+
+            batch.append((row, fields))
             if len(batch) >= batch_size:
-                ManifestRow.objects.bulk_update(batch, _BULK_FIELDS)
+                self._flush_batch(batch)
                 processed += len(batch)
                 self.stdout.write(f'Updated {processed}/{total}...')
                 batch.clear()
 
         if batch:
-            ManifestRow.objects.bulk_update(batch, _BULK_FIELDS)
+            self._flush_batch(batch)
             processed += len(batch)
 
         self.stdout.write(self.style.SUCCESS(f'Done. Re-normalized {processed} manifest row(s).'))
+
+    def _flush_batch(self, batch: list[tuple[ManifestRow, list[str]]]) -> None:
+        by_fields: dict[tuple[str, ...], list[ManifestRow]] = {}
+        for row, fields in batch:
+            key = tuple(fields)
+            by_fields.setdefault(key, []).append(row)
+        for fields_t, rows in by_fields.items():
+            ManifestRow.objects.bulk_update(rows, list(fields_t))

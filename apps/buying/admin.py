@@ -6,6 +6,7 @@ from apps.buying.models import (
     Bid,
     CategoryMapping,
     ManifestRow,
+    ManifestTemplate,
     Marketplace,
     Outcome,
     WatchlistEntry,
@@ -17,6 +18,20 @@ class CategoryMappingAdmin(admin.ModelAdmin):
     list_display = ('source_key', 'canonical_category', 'rule_origin', 'updated_at')
     list_filter = ('rule_origin', 'canonical_category')
     search_fields = ('source_key', 'ai_reasoning')
+
+
+@admin.register(ManifestTemplate)
+class ManifestTemplateAdmin(admin.ModelAdmin):
+    list_display = (
+        'display_name',
+        'marketplace',
+        'header_signature',
+        'is_reviewed',
+        'updated_at',
+    )
+    list_filter = ('marketplace', 'is_reviewed')
+    search_fields = ('display_name', 'header_signature')
+    raw_id_fields = ('marketplace',)
 
 
 @admin.register(Marketplace)
@@ -63,7 +78,8 @@ class ManifestRowAdmin(admin.ModelAdmin):
         'row_number',
         'title',
         'brand',
-        'category',
+        'fast_cat_key',
+        'fast_cat_value',
         'canonical_category',
         'category_confidence',
         'retail_value',

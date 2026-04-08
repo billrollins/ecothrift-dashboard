@@ -204,5 +204,40 @@ BUYING_REQUEST_DELAY_SECONDS = config(
 BSTOCK_MAX_RETRIES = config('BSTOCK_MAX_RETRIES', default=3, cast=int)
 BSTOCK_SEARCH_MAX_PAGES = config('BSTOCK_SEARCH_MAX_PAGES', default=5000, cast=int)
 
+# B-Stock outbound HTTP audit log (apps.buying.services.scraper → logger buying.scraper)
+_LOGS_DIR = BASE_DIR / 'logs'
+_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'bstock_api': {
+            'format': '%(asctime)s | %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+    },
+    'handlers': {
+        'bstock_console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'bstock_api',
+        },
+        'bstock_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(_LOGS_DIR / 'bstock_api.log'),
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 5,
+            'formatter': 'bstock_api',
+        },
+    },
+    'loggers': {
+        'buying.scraper': {
+            'handlers': ['bstock_console', 'bstock_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
 # ── Default primary key ──────────────────────────────────────────────────────
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

@@ -1,5 +1,8 @@
 """Poll B-Stock auction state for watched auctions (requires JWT)."""
 
+# Watch polling is disabled on the REST API (POST …/poll/ returns 501).
+# Run this command manually with a valid JWT when server-side auction state polling is required.
+
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand

@@ -23,8 +23,11 @@ from typing import Any
 import requests
 from django.apps import apps as django_apps
 from django.conf import settings
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+# Dedicated logger for one-line outbound request audit (console + logs/bstock_api.log via settings).
+bstock_logger = logging.getLogger('buying.scraper')
 
 SEARCH_LISTINGS_URL = 'https://search.bstock.com/v1/all-listings/listings'
 LISTING_GROUPS_URL = 'https://listing.bstock.com/v1/groups'
@@ -159,6 +162,34 @@ def _is_manifest_url(url: str) -> bool:
     return 'order-process.bstock.com' in url and '/manifests/' in url
 
 
+def _bstock_url_display(full_url: str) -> str:
+    """Host + path + query, no scheme (matches ops log line style)."""
+    p = urlparse(full_url)
+    if not p.netloc:
+        return full_url[:400]
+    q = f'?{p.query}' if p.query else ''
+    base = f'{p.netloc}{p.path}{q}'.rstrip('/') or p.netloc
+    return base
+
+
+def _log_bstock_request(
+    method: str,
+    full_url: str,
+    *,
+    auth: bool,
+    status_code: int | str,
+    elapsed_ms: float,
+) -> None:
+    bstock_logger.info(
+        '%s %s | auth=%s | %s | %.0fms',
+        method.upper(),
+        _bstock_url_display(full_url),
+        'jwt' if auth else 'none',
+        status_code,
+        elapsed_ms,
+    )
+
+
 def _merge_headers(auth: bool) -> dict[str, str]:
     if auth:
         return get_auth_headers()
@@ -194,6 +225,14 @@ def _request_json(
     headers = _headers_for_request(method, auth)
     backoff_base = 2.0
 
+    try:
+        prepared = requests.Request(
+            method.upper(), url, params=params, json=json_body
+        ).prepare()
+        prepared_url = prepared.url
+    except Exception:
+        prepared_url = url
+
     for attempt in range(max_retries + 1):
         start = time.perf_counter()
         try:
@@ -206,17 +245,21 @@ def _request_json(
                 timeout=timeout,
             )
         except requests.exceptions.RequestException as e:
+            elapsed_ms = (time.perf_counter() - start) * 1000.0
+            _log_bstock_request(
+                method, prepared_url, auth=auth, status_code='ERR', elapsed_ms=elapsed_ms
+            )
             logger.error('B-Stock request error %s %s: %s', method, url[:160], e)
             return None
 
         elapsed_ms = (time.perf_counter() - start) * 1000.0
-        log_url = getattr(resp, 'url', None) or url
-        logger.info(
-            'B-Stock %s %s status=%s time_ms=%.0f',
-            method.upper(),
-            log_url[:200],
-            resp.status_code,
-            elapsed_ms,
+        effective_url = getattr(resp, 'url', None) or prepared_url
+        _log_bstock_request(
+            method,
+            effective_url,
+            auth=auth,
+            status_code=resp.status_code,
+            elapsed_ms=elapsed_ms,
         )
 
         if resp.status_code == 401:

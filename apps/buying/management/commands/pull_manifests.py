@@ -1,5 +1,8 @@
 """Pull manifest line items from order-process.bstock.com using each Auction.lot_id."""
 
+# Token-backed pulls are disabled on the REST API (POST …/pull_manifest/ returns 501).
+# Run this command manually with a valid JWT when server-side manifest fetch is required.
+
 from __future__ import annotations
 
 import logging

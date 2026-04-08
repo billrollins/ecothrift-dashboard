@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence
 
-<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-10T18:45:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on the **B-Stock auction intelligence** initiative for **Eco-Thrift Dashboard**. The reader may have **no repo access** or limited time: everything critical should be reachable in one pass.
 
@@ -46,7 +46,7 @@ The dashboard UI is **React** (TypeScript, MUI, React Query). **Buying** staff r
 
 **Soft touch vs invasive:** **Soft touch** (default) means using the **public listings API** (`search.bstock.com` POST) **without a JWT**. It is appropriate for **frequent or scheduled sweeps** and minimizes ban risk. **Invasive** flows use a **Bearer JWT** for **token-backed** endpoints: **order-process manifests**, **auction.bstock.com** batch state, authenticated **listing** calls, etc. Invasive calls should be **rare**, **manually approved**, and tied to **intent to bid** or **must-have enrichment**.
 
-**Manual manifest path (production direction):** For **Heroku** and production, the preferred direction is **manual download** of manifest CSV/JSON from B-Stock and **upload via UI drag/drop** (future implementation). **Server-side** `pull_manifest` using a stored token remains useful for **local development** but is **not** the default production story, because cloud token automation is awkward and token-heavy calls drove **account blocks** during development.
+**Manual manifest path (production):** **CSV upload** in the React **auction detail** page is **shipped** (**v2.6.1**, Phase 4.1A): **`POST /api/buying/auctions/{id}/upload_manifest/`** with `ManifestTemplate` detection. **Server-side** `pull_manifest` using a stored token remains useful for **local development** but is **not** the default production story, because cloud token automation is awkward and token-heavy calls drove **account blocks** during development.
 
 **Ban mitigation:** If token-backed actions are blocked, **soft-touch discovery** can continue. Standard practices: **delays between requests**, **backoff on HTTP 429/403**, **logging response codes**, and **separating** listing sweeps from manifest pulls. See initiative **Open questions** for follow-up on per-account vs per-IP limits.
 
@@ -119,6 +119,8 @@ The **search** response includes **`listingId`** and **`lotId`**. The **manifest
 
 The **Essendant** marketplace on the old **Magento** stack does **not** use **`search.bstock.com`** for discovery the same way. It is **out of scope** for the current Phase 1 pipeline unless a separate integration is funded.
 
+Full scraper endpoint map with auth requirements and triggers is documented in `.ai/extended/bstock.md`.
+
 ---
 
 ## StoreFront IDs (marketplace seeds)
@@ -187,9 +189,9 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 ### Phase 2 — staff React UI and APIs (shipped)
 
-**Auction list** (`/buying/auctions`, **v2.4.1**): server-paginated **DataGrid** on desktop (`md+`) and **infinite-scroll cards** on mobile; **marketplace chip** toggle filters (comma-separated slugs on the API) with global summary counts; status and has-manifest filters; urgency styling for time remaining; row/card navigation to detail; **Refresh auctions** runs **`POST /api/buying/sweep/?marketplace=`** **sequentially** per marketplace with inline progress and partial-failure reporting.
+**Auction list** (`/buying/auctions`, **v2.4.1**; UX **v2.6.1**): server-paginated **DataGrid** on desktop (`md+`) and **infinite-scroll cards** on mobile; **marketplace chip** filters (single-click isolate one vendor, **Ctrl/⌘+click** multi-select; comma-separated slugs on the API) with global summary counts; status and has-manifest filters; **all columns sortable**; **Total retail** shows manifest vs listing source (**`total_retail_display`** / **`retail_source`**); urgency styling for time remaining; row/card navigation to detail; **Refresh auctions** runs **`POST /api/buying/sweep/?marketplace=`** **sequentially** per marketplace with inline progress and partial-failure reporting; list refetches on mount when returning from detail.
 
-**Auction detail** (`/buying/auctions/:id`): auction metadata, **pull manifest** when needed, **watchlist star** (add/remove via **`POST`/`DELETE …/watchlist/`**); **manifest** table (**DataGrid**, server pagination, 50 per page) on desktop or **card list + load more** on mobile via **`GET …/manifest_rows/`**.
+**Auction detail** (`/buying/auctions/:id`): two-column layout (**metadata** | **manifest** card with CSV drop zone and **Open on B-Stock**); **CSV upload** primary path; **pull manifest** (JWT) when needed for dev; **watchlist star** (add/remove via **`POST`/`DELETE …/watchlist/`**); **manifest** table (**DataGrid**, server pagination, 50 per page) on desktop or **card list + load more** on mobile via **`GET …/manifest_rows/`** (**optional `search` / `category`** filters, **v2.6.1**).
 
 **Manifest normalization:** **`normalize.py`** flattens nested B-Stock structures (**`attributes`**, **`attributes.ids`**, **`uniqueIds`**, **`customAttributes`**, **`categories`**, **`itemCondition`**, pick heuristics for SKU/title, etc.); optional warnings when important fields are empty and unmapped keys remain (**`row_id`** helps pinpoint rows). **`renormalize_manifest_rows`** bulk-updates rows from stored **`raw_data`**. **Retail:** unit/extended retail is converted to dollars; **integer minor units (cents)** use a documented heuristic (see **`normalize.py`**).
 
@@ -207,9 +209,11 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **Commands:** **`seed_category_mappings`** (from `workspace/notebooks/category-research/cr/taxonomy_estimate.py`); **`categorize_manifests`** (tier 1 + tier 3; **`--ai`** for Claude tier 2 with **`--ai-limit`**). After **`pull_manifest`**, **`categorize_manifest_rows`** runs tier 1 + 3 automatically (no AI).
 
-**API:** Auction detail includes **`category_distribution`**; manifest rows include canonical fields.
+**API:** Auction detail includes **`category_distribution`** (full category list per manifest; **no** rolled-up “Other” bucket); manifest rows include canonical fields.
 
-**UI:** Auction detail shows a **horizontal category mix** bar (top categories + Other + not yet categorized) and **chips** per manifest line by confidence.
+**UI:** Auction detail shows a **horizontal category mix** bar (**all** categories + not yet categorized) and **chips** per manifest line by confidence.
+
+**Phase 4.1A:** **`ManifestTemplate`**, **`fast_cat_key`** on ingest, **`seed_fast_cat_mappings`** (343 static mappings), CSV upload.
 
 ---
 
@@ -221,11 +225,15 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **Heroku Scheduler** (or a worker dyno) for production jobs may be partial; confirm deployment docs.
 
-**Manual manifest upload** in the React UI (drag/drop) is **planned**, not built.
+**Manual manifest upload** in the React UI (drag/drop) is **shipped** (**v2.6.1**).
 
 **Bid** and **Outcome** models exist; full outcome tracking UI and workflows are **Phase 6**.
 
 Optional UX gaps: **sidebar watchlist badge**; **inline** priority/status editing on the watchlist page.
+
+### Future direction
+
+Item processing AI: a future initiative will send standardized manifest rows through AI during item processing for improved metadata (title, brand, model, notes), better canonical category assignment, retail value validation, and price recommendations. Price recommendations will draw from multiple estimate sources (category margin rates, scoring models, cost-based minimums) with a dynamic admin-level pricing throttle. This is separate from the buying/auction intelligence initiative and depends on the fast categorization and standardization infrastructure being built in Phase 4.1.
 
 ---
 

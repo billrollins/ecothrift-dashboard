@@ -67,7 +67,7 @@ class NormalizeManifestRowTests(SimpleTestCase):
         self.assertEqual(out['brand'], 'Acme Toys')
         self.assertEqual(out['title'], 'Example product title')
         self.assertEqual(out['retail_value'], Decimal('49.99'))
-        self.assertEqual(out['category'], 'TOYS')
+        self.assertNotIn('category', out)
         self.assertEqual(out['quantity'], 2)
         self.assertEqual(out['condition'], 'new')
         self.assertEqual(out['upc'], '194735235797')
@@ -79,7 +79,7 @@ class NormalizeManifestRowTests(SimpleTestCase):
         self.assertEqual(out['sku'], 'B0DZ6HYYLT')
         self.assertEqual(out['brand'], 'Amazon Basics')
         self.assertEqual(out['retail_value'], Decimal('19.99'))
-        self.assertEqual(out['category'], 'BUILDING_AND_HARDWARE')
+        self.assertNotIn('category', out)
 
     def test_walmart_model_and_unique_ids_sku(self) -> None:
         out = normalize_manifest_row(WALMART_LIKE)
@@ -87,7 +87,7 @@ class NormalizeManifestRowTests(SimpleTestCase):
         self.assertEqual(out['sku'], '930837711-100010')
         self.assertEqual(out['upc'], '76611962486')
         self.assertEqual(out['brand'], 'WM Vendor')
-        self.assertEqual(out['category'], 'CELL_PHONE_ACCESSORIES')
+        self.assertNotIn('category', out)
 
     def test_custom_attributes_subcategory_when_no_categories_list(self) -> None:
         raw = {
@@ -100,7 +100,7 @@ class NormalizeManifestRowTests(SimpleTestCase):
             'customAttributes': {'subCategory': 'Pendant Lights'},
         }
         out = normalize_manifest_row(raw)
-        self.assertEqual(out['category'], 'Pendant Lights')
+        self.assertNotIn('category', out)
 
     def test_unit_retail_integer_cents(self) -> None:
         """B-Stock often sends minor units as integers (e.g. 6000 = $60.00)."""

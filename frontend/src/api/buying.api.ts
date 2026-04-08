@@ -7,9 +7,11 @@ import type {
   BuyingAuctionSummaryParams,
   BuyingAuctionSummaryResponse,
   BuyingManifestRow,
+  BuyingManifestRowsParams,
   BuyingMarketplace,
   BuyingPollResponse,
   BuyingPullManifestResponse,
+  BuyingUploadManifestResponse,
   BuyingSweepResponse,
   BuyingWatchlistAuctionItem,
   BuyingWatchlistEntry,
@@ -26,6 +28,7 @@ export type {
   BuyingMarketplace,
   BuyingPollResponse,
   BuyingPullManifestResponse,
+  BuyingUploadManifestResponse,
   BuyingSweepResponse,
   BuyingWatchlistAuctionItem,
   BuyingWatchlistEntry,
@@ -98,13 +101,15 @@ export async function fetchBuyingAuction(id: number): Promise<BuyingAuctionDetai
 
 export async function fetchBuyingManifestRows(
   auctionId: number,
-  params: { page?: number } = {}
+  params: BuyingManifestRowsParams = {}
 ): Promise<PaginatedResponse<BuyingManifestRow>> {
+  const q: Record<string, string | number> = {};
+  if (params.page != null) q.page = params.page;
+  if (params.search) q.search = params.search;
+  if (params.category) q.category = params.category;
   const { data } = await api.get<PaginatedResponse<BuyingManifestRow>>(
     `/buying/auctions/${auctionId}/manifest_rows/`,
-    {
-      params: params.page != null ? { page: params.page } : {},
-    }
+    { params: q }
   );
   return data;
 }
@@ -112,6 +117,30 @@ export async function fetchBuyingManifestRows(
 export async function postBuyingPullManifest(auctionId: number): Promise<BuyingPullManifestResponse> {
   const { data } = await api.post<BuyingPullManifestResponse>(
     `/buying/auctions/${auctionId}/pull_manifest/`
+  );
+  return data;
+}
+
+export async function postBuyingUploadManifest(
+  auctionId: number,
+  file: File
+): Promise<BuyingUploadManifestResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await api.post<BuyingUploadManifestResponse>(
+    `/buying/auctions/${auctionId}/upload_manifest/`,
+    form,
+    {
+      // Default axios Content-Type: application/json breaks multipart; browser must set boundary.
+      transformRequest: [
+        (body, headers) => {
+          if (body instanceof FormData) {
+            delete headers['Content-Type'];
+          }
+          return body;
+        },
+      ],
+    }
   );
   return data;
 }

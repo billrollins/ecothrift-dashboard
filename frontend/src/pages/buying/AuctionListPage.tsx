@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -143,20 +143,42 @@ export default function AuctionListPage() {
   }, [lastRefreshedAt, relativeTick]);
 
   const handleToggleMarketplace = useCallback(
-    (slug: string) => {
+    (slug: string, event: MouseEvent) => {
+      if (!marketplaces?.length) return;
+      const allSlugs = marketplaces.map((m) => m.slug);
+      const ctrl = event.ctrlKey || event.metaKey;
+
       setActiveSlugs((prev) => {
-        if (!prev || !marketplaces?.length) return prev;
-        // Last active chip: tap resets to all on (natural reset gesture).
+        if (!prev) return prev;
+
+        const allSelected = prev.size === marketplaces.length && marketplaces.every((m) => prev.has(m.slug));
+
+        if (ctrl) {
+          const next = new Set(prev);
+          if (next.has(slug)) {
+            next.delete(slug);
+          } else {
+            next.add(slug);
+          }
+          if (next.size === 0) {
+            return new Set(allSlugs);
+          }
+          return next;
+        }
+
+        if (allSelected) {
+          return new Set([slug]);
+        }
+
         if (prev.size === 1 && prev.has(slug)) {
-          return new Set(marketplaces.map((m) => m.slug));
+          return new Set(allSlugs);
         }
-        const next = new Set(prev);
-        if (next.has(slug)) {
-          next.delete(slug);
-        } else {
-          next.add(slug);
+
+        if (prev.size === 1 && !prev.has(slug)) {
+          return new Set([slug]);
         }
-        return next;
+
+        return new Set([slug]);
       });
       setPaginationModel((pm) => ({ ...pm, page: 0 }));
     },

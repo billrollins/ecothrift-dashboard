@@ -1,5 +1,5 @@
 <!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-10 -->
-<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-10T18:45:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -71,9 +71,9 @@ Highest-value deliverable: see auctions, dig into manifests, and mark auctions t
 **2B: Auction detail page** (`/buying/auctions/:id`) — **done (2026-04-08T20:00:00-05:00; v2.5.0)**
 
 - **DRF:** `GET /api/buying/auctions/{id}/` (detail includes `lot_id`, prices, `watchlist_entry`, `manifest_row_count`); `GET …/manifest_rows/` (server pagination, **50** per page); `POST …/pull_manifest/`; `POST` / `DELETE …/watchlist/` (POST idempotent **200**; DELETE always **204**)
-- **UI:** `AuctionDetailPage` — metadata grid (marketplace chip, current price, total retail, bids, time remaining + end time with list color rules, condition, status, listing type, starting/buy now, lot id, description); B-Stock link (new tab); watchlist **star** toggle
-- **Manifest:** desktop **`md+`** — MUI **DataGrid** with **`paginationMode="server"`**; below **`md`** — cards + **Load more** (same paged API)
-- **Pull manifest** when **`manifest_row_count === 0`** and **`lot_id`** present; **401** inline alerts for `bstock_token_missing` / `bstock_token_expired`; **400** when `lot_id` missing (button disabled + tooltip)
+- **UI:** `AuctionDetailPage` — metadata + manifest layout (see **v2.6.1** for two-column summary card + manifest card with CSV drop zone and **Open on B-Stock**); watchlist **star** toggle
+- **Manifest:** desktop **`md+`** — MUI **DataGrid** with **`paginationMode="server"`**; below **`md`** — cards + **Load more** (same paged API). **v2.6.1+:** optional **`search`** / **`category`** query params on manifest rows.
+- **Primary manifest path (production):** **CSV upload** via UI (`POST …/upload_manifest/`). **Pull manifest** (JWT) when **`manifest_row_count === 0`** and **`lot_id`** present remains for dev; **401** inline alerts for `bstock_token_missing` / `bstock_token_expired`; **400** when `lot_id` missing (button disabled + tooltip)
 - **Manifest field mapping:** `apps/buying/services/normalize.py` maps order-process JSON (nested **`attributes`**, **`attributes.ids`**, **`uniqueIds`**, **`categories`**, **`itemCondition`**, etc.) onto `ManifestRow` columns; full line items remain in **`raw_data`**. After changing heuristics, re-apply without B-Stock JWT: **`python manage.py renormalize_manifest_rows`** (optional `--auction-id`, `--marketplace`, `--limit`, `--dry-run`).
 
 **2C: Watchlist page** (`/buying/watchlist`) — **done (2026-04-08T20:00:00-05:00; v2.5.0)**
@@ -115,7 +115,14 @@ Every manifest row gets tagged with one of **19 canonical categories** (**taxono
 
 **Manifest retail normalization:** `normalize.py` maps unit/extended retail to dollars; integer minor units (cents) are converted where the heuristic applies. **`renormalize_manifest_rows`** reapplies normalization after fixes.
 
-**Acceptance:** `CategoryMapping` + `ManifestRow.canonical_category` / `category_confidence` migrated; seed + categorize commands exist; auction detail API exposes **`category_distribution`**; manifest UI shows canonical chips and a **horizontal category mix** bar (top 5 + Other + not yet categorized); retail display corrected for cents vs dollars where applicable.
+**Acceptance:** `CategoryMapping` + `ManifestRow.canonical_category` / `category_confidence` migrated; seed + categorize commands exist; auction detail API exposes **`category_distribution`**; manifest UI shows canonical chips and a **horizontal category mix** bar (**all** categories + not yet categorized); retail display corrected for cents vs dollars where applicable.
+
+### Phase 4.1A: Manifest templates and `fast_cat_key` **done**
+
+- **`ManifestTemplate`** (per marketplace + CSV header signature): column mapping and **`fast_cat_key`** composition rules.
+- **Staff CSV upload:** **`POST /api/buying/auctions/{id}/upload_manifest/`** replaces manifest rows; sets **`has_manifest`** on success.
+- **Static seed:** **`python manage.py seed_fast_cat_mappings`** — 343 consultant-reviewed `source_key` → `canonical_category` rows (Amazon/Target/Walmart), fully inlined in the command module.
+- **UI:** Auction list/detail polish (sortable columns, retail source, marketplace chips, two-column detail layout, manifest search/filter, refetch on return to list) — **v2.6.1**.
 
 ### Phase 5: Auction valuation scaffold
 
@@ -128,7 +135,7 @@ Record what actually happened: **hammer price**, **fees**, **shipping**, **per-i
 ### Operational notes (B-Stock ingestion)
 
 - **Two sweep modes:** **Soft touch** (default) uses the **public listings API only**, requires **no JWT**, and is safe for scheduled or frequent use. **Invasive** (manual approval) uses **token-backed** endpoints (manifests, auction detail enrichment) and should only run when the owner intends to bid on specific auctions.
-- **Manual manifest path:** For production and Heroku, manifests are obtained by **manual download** from B-Stock and **upload via UI drag/drop** (future work). Server-side manifest pull remains available for **local dev** but is **not** the default production workflow. This reduces token exposure and ban risk.
+- **Manual manifest path:** For production and Heroku, manifests are obtained by **manual download** from B-Stock and **upload via UI drag/drop** (**shipped** — **v2.6.1** / Phase 4.1A). Server-side manifest pull remains available for **local dev** but is **not** the default production workflow. This reduces token exposure and ban risk.
 - **Ban mitigation:** If B-Stock blocks token-backed actions, the soft-touch sweep continues to work. **Rate limits**, **backoff on 429/403**, and **logging of response codes** should be standard. A detailed ops playbook can be added to open questions or a separate operations doc when needed.
 
 ---
@@ -153,6 +160,17 @@ Record what actually happened: **hammer price**, **fees**, **shipping**, **per-i
 - **`avg_days_to_sell`** did not populate in **Bin 2** extracts. **Timestamp join** needs investigation before days-to-sell can feed any model.
 - **B-Stock ban/block risk:** the account was temporarily blocked during development. Soft-touch mode (listings-only, no JWT) appears unaffected. Token-backed calls (manifests, auction enrichment) are the risk surface. Investigate whether limits are per-account, per-IP, or per-token. Document minimum safe intervals for token-backed calls.
 - Retrospective validation (comparing estimates to actuals, MAE by category) is deferred until outcome data exists. It may become part of a future scoring model initiative or an appendix to Phase 6.
+
+---
+
+## Future ideas (logged, not scoped)
+
+- **AI-enhanced item processing row:** when an item enters the processing pipeline, send the standardized manifest row to AI for improved title, brand, model, notes, better canonical category assignment, retail value confidence check, and price recommendation. Multiple price estimate inputs: retail multiplied by category average sale price, modeled estimates (pluggable scoring models), cost-based estimate (minimum margin requirement based on acquisition cost). AI makes the final pricing decision from all inputs.
+- **Dynamic pricing throttle:** admin-level setting to steer pricing appetite globally or by category. Examples: "price toys to sell fast this month", "summer closeout: mark down summer items X% even if below cost-required price." Overrides the default pricing logic when set.
+- **Multiple valuation models:** ability to build, register, and run many scoring models in parallel. AI or rules pick the final price from multiple model outputs. Supports A/B testing of pricing strategies.
+- **Cost-based pricing input:** "I need to make X on this item based on what I spent" as one of several pricing inputs fed to the final price decision.
+- **Fast-cat accuracy tracking:** compare `fast_cat_value` (assigned at manifest ingestion) to `canonical_category` (assigned during item processing) over time. Use the delta to measure fast-cat quality, identify weak mappings, and improve template rules and AI prompts.
+- **Two-category architecture:** `fast_cat_value` is what you know at bid time (used for auction valuation and scoring models). `canonical_category` is the real category assigned during item processing (used for merchandising, shelf placement, and outcome analysis). Models must train on `fast_cat_value` to avoid information leakage from future data.
 
 ---
 

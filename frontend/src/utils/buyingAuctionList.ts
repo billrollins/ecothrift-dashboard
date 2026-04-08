@@ -46,6 +46,13 @@ const ORDERING_FIELDS = [
   'bid_count',
   'last_updated_at',
   'total_retail_value',
+  'retail_sort',
+  'marketplace__name',
+  'title',
+  'condition_summary',
+  'status',
+  'has_manifest',
+  'lot_size',
 ] as const;
 
 export function orderingFromSortModel(model: GridSortModel): string {

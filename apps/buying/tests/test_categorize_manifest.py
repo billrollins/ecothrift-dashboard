@@ -23,6 +23,11 @@ class CategorizeManifestTests(TestCase):
             category='',
         )
         CategoryMapping.objects.create(
+            source_key='test-kitchen-small-appliances',
+            canonical_category='Kitchen & dining',
+            rule_origin=CategoryMapping.RULE_SEEDED,
+        )
+        CategoryMapping.objects.create(
             source_key='Kitchen Small Appliances',
             canonical_category='Kitchen & dining',
             rule_origin=CategoryMapping.RULE_SEEDED,
@@ -37,11 +42,11 @@ class CategorizeManifestTests(TestCase):
         row = ManifestRow(
             auction=self.auction,
             row_number=1,
-            category='Kitchen Small Appliances',
+            fast_cat_key='test-kitchen-small-appliances',
         )
         canonical, conf = apply_tier1_tier3_for_row(row, mapping)
         self.assertEqual(canonical, 'Kitchen & dining')
-        self.assertEqual(conf, ManifestRow.CONF_DIRECT)
+        self.assertEqual(conf, ManifestRow.CONF_FAST_CAT)
 
     def test_tier3_auction_category_lookup(self) -> None:
         self.auction.category = 'Kitchen Small Appliances'
@@ -50,7 +55,7 @@ class CategorizeManifestTests(TestCase):
         row = ManifestRow(
             auction=self.auction,
             row_number=1,
-            category='Unknown Line Label',
+            fast_cat_key='',
         )
         canonical, conf = apply_tier1_tier3_for_row(row, mapping)
         self.assertEqual(canonical, 'Kitchen & dining')
@@ -68,7 +73,7 @@ class CategorizeManifestTests(TestCase):
         row = ManifestRow(
             auction=self.auction,
             row_number=1,
-            category='Z',
+            fast_cat_key='',
         )
         canonical, conf = apply_tier1_tier3_for_row(row, mapping)
         self.assertEqual(canonical, 'Apparel & accessories')
@@ -79,7 +84,7 @@ class CategorizeManifestTests(TestCase):
         row = ManifestRow(
             auction=self.auction,
             row_number=1,
-            category='Totally Unknown Label',
+            fast_cat_key='',
         )
         canonical, conf = apply_tier1_tier3_for_row(row, mapping)
         self.assertEqual(canonical, MIXED_LOTS_UNCATEGORIZED)
@@ -89,21 +94,24 @@ class CategorizeManifestTests(TestCase):
         ManifestRow.objects.create(
             auction=self.auction,
             row_number=1,
-            category='a',
-            canonical_category='Kitchen & dining',
-            category_confidence=ManifestRow.CONF_DIRECT,
+            fast_cat_key='a',
+            fast_cat_value='Kitchen & dining',
+            canonical_category=None,
+            category_confidence=ManifestRow.CONF_FAST_CAT,
         )
         ManifestRow.objects.create(
             auction=self.auction,
             row_number=2,
-            category='b',
-            canonical_category='Kitchen & dining',
-            category_confidence=ManifestRow.CONF_DIRECT,
+            fast_cat_key='b',
+            fast_cat_value='Kitchen & dining',
+            canonical_category=None,
+            category_confidence=ManifestRow.CONF_FAST_CAT,
         )
         ManifestRow.objects.create(
             auction=self.auction,
             row_number=3,
-            category='c',
+            fast_cat_key='c',
+            fast_cat_value=None,
             canonical_category=None,
             category_confidence=None,
         )

@@ -299,7 +299,6 @@ def _maybe_log_unmapped(
     important_empty = (
         not (result.get('brand') or '').strip()
         or not (result.get('model') or '').strip()
-        or not (result.get('category') or '').strip()
         or not (result.get('sku') or '').strip()
         or not (result.get('upc') or '').strip()
         or result.get('retail_value') is None
@@ -392,8 +391,6 @@ def normalize_manifest_row(raw_row: dict[str, Any], row_id: int | None = None) -
     if not model:
         model = _model_from_item(item_obj)
 
-    category = _category_from_row(merged, pick)[:300]
-
     sku = (
         _str_or_empty(sku_from_ids_asin)
         or _str_or_empty(sku_from_ids_tcin)
@@ -442,7 +439,6 @@ def normalize_manifest_row(raw_row: dict[str, Any], row_id: int | None = None) -
         'title': title[:500] if title else '',
         'brand': brand[:300] if brand else '',
         'model': model[:300] if model else '',
-        'category': category[:300] if category else '',
         'sku': sku[:200] if sku else '',
         'upc': upc[:64] if upc else '',
         'quantity': quantity,

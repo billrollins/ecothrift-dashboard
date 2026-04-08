@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from django.db.models import Count
+from django.db.models import CharField, Count
+from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
 from apps.buying.models import Auction, AuctionSnapshot, ManifestRow, Marketplace, WatchlistEntry
@@ -18,6 +19,15 @@ class MarketplaceSerializer(serializers.ModelSerializer):
 
 class AuctionListSerializer(serializers.ModelSerializer):
     marketplace = MarketplaceSerializer(read_only=True)
+    manifest_row_count = serializers.SerializerMethodField()
+    retail_sort = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        read_only=True,
+        coerce_to_string=True,
+    )
+    total_retail_display = serializers.SerializerMethodField()
+    retail_source = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -31,11 +41,31 @@ class AuctionListSerializer(serializers.ModelSerializer):
             'time_remaining_seconds',
             'lot_size',
             'total_retail_value',
+            'manifest_row_count',
+            'retail_sort',
+            'total_retail_display',
+            'retail_source',
             'condition_summary',
             'status',
             'has_manifest',
             'last_updated_at',
         ]
+
+    def get_manifest_row_count(self, obj: Auction) -> int | None:
+        v = getattr(obj, '_manifest_row_count', None)
+        return v
+
+    def get_total_retail_display(self, obj: Auction) -> str | None:
+        if getattr(obj, '_manifest_row_count', 0) > 0:
+            s = getattr(obj, '_manifest_retail_sum', None)
+            return str(s) if s is not None else None
+        v = obj.total_retail_value
+        return str(v) if v is not None else None
+
+    def get_retail_source(self, obj: Auction) -> str:
+        if getattr(obj, '_manifest_row_count', 0) > 0:
+            return 'manifest'
+        return 'listing'
 
 
 class WatchlistEntrySerializer(serializers.ModelSerializer):
@@ -114,7 +144,8 @@ class ManifestRowSerializer(serializers.ModelSerializer):
             'title',
             'brand',
             'model',
-            'category',
+            'fast_cat_key',
+            'fast_cat_value',
             'canonical_category',
             'category_confidence',
             'sku',
@@ -166,8 +197,14 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_category_distribution(self, obj: Auction) -> dict:
-        """Top 5 canonical categories by row %, Other, and not-yet-categorized (null canonical)."""
-        rows = ManifestRow.objects.filter(auction=obj)
+        """All categories by row % (canonical_category or fast_cat_value); not-yet mapped bucket."""
+        rows = ManifestRow.objects.filter(auction=obj).annotate(
+            display_cat=Coalesce(
+                'canonical_category',
+                'fast_cat_value',
+                output_field=CharField(max_length=64),
+            )
+        )
         total = rows.count()
         if total == 0:
             return {
@@ -177,20 +214,16 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
                 'not_yet_categorized': {'count': 0, 'pct': 0.0},
             }
 
-        not_cat = rows.filter(canonical_category__isnull=True).count()
+        not_cat = rows.filter(display_cat__isnull=True).count()
         not_pct = round(100.0 * not_cat / total, 2)
 
         agg = (
-            rows.exclude(canonical_category__isnull=True)
-            .values('canonical_category')
+            rows.exclude(display_cat__isnull=True)
+            .values('display_cat')
             .annotate(c=Count('id'))
         )
-        items = [(r['canonical_category'], r['c']) for r in agg]
+        items = [(r['display_cat'], r['c']) for r in agg]
         items.sort(key=lambda x: -x[1])
-
-        top5 = items[:5]
-        rest = items[5:]
-        other_count = sum(c for _name, c in rest)
 
         top = [
             {
@@ -198,18 +231,12 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
                 'count': c,
                 'pct': round(100.0 * c / total, 2),
             }
-            for name, c in top5
+            for name, c in items
         ]
-        other = None
-        if other_count:
-            other = {
-                'count': other_count,
-                'pct': round(100.0 * other_count / total, 2),
-            }
 
         return {
             'total_rows': total,
             'top': top,
-            'other': other,
+            'other': None,
             'not_yet_categorized': {'count': not_cat, 'pct': not_pct},
         }

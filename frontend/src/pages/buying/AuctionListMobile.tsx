@@ -10,10 +10,11 @@ import {
   MenuItem,
   Select,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
 import {
   formatTimeRemaining,
   MOBILE_SORT_OPTIONS,
@@ -118,9 +119,17 @@ export default function AuctionListMobile({
                       <Typography variant="body2" fontWeight={700} component="span" sx={{ fontSize: '0.95rem' }}>
                         {formatCurrency(row.current_price)}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                        Retail {formatCurrency(row.total_retail_value)}
-                      </Typography>
+                      <Tooltip
+                        title={
+                          row.retail_source === 'manifest'
+                            ? `From manifest: ${formatCurrencyWhole(row.total_retail_display ?? row.total_retail_value)}`
+                            : `From listing: ${formatCurrencyWhole(row.total_retail_display ?? row.total_retail_value)}`
+                        }
+                      >
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                          Retail {formatCurrencyWhole(row.total_retail_display ?? row.total_retail_value)}
+                        </Typography>
+                      </Tooltip>
                     </Stack>
                     <Box
                       sx={(theme) => {

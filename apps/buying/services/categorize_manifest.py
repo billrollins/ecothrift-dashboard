@@ -14,8 +14,8 @@ from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED
 logger = logging.getLogger(__name__)
 
 
-def manifest_row_source_key(category: str | None) -> str:
-    return (category or '').strip()
+def manifest_row_source_key(fast_cat_key: str | None) -> str:
+    return (fast_cat_key or '').strip()
 
 
 def load_source_key_to_canonical() -> dict[str, str]:
@@ -42,13 +42,13 @@ def apply_tier1_tier3_for_row(
     mapping: dict[str, str],
 ) -> tuple[str, str]:
     """
-    Tier 1: ManifestRow.category.strip() → CategoryMapping.
+    Tier 1: ManifestRow.fast_cat_key → CategoryMapping (vendor fast-cat key).
     Tier 3: Auction.category (full + segments) → CategoryMapping, else mixed lots.
     """
     auction = row.auction
-    sk = manifest_row_source_key(row.category)
+    sk = manifest_row_source_key(row.fast_cat_key)
     if sk and sk in mapping:
-        return mapping[sk], ManifestRow.CONF_DIRECT
+        return mapping[sk], ManifestRow.CONF_FAST_CAT
     for key in auction_tier3_lookup_keys(auction):
         if key in mapping:
             return mapping[key], ManifestRow.CONF_FALLBACK
@@ -117,10 +117,10 @@ def _bulk_apply_tier1_tier3(
 def rows_by_source_key(
     qs: QuerySet[ManifestRow],
 ) -> dict[str, list[ManifestRow]]:
-    """Group manifest rows by tier-1 source_key (strip)."""
+    """Group manifest rows by tier-1 source_key (fast_cat_key strip)."""
     groups: dict[str, list[ManifestRow]] = defaultdict(list)
     for row in qs.order_by('auction_id', 'row_number'):
-        sk = manifest_row_source_key(row.category)
+        sk = manifest_row_source_key(row.fast_cat_key)
         groups[sk].append(row)
     return dict(groups)
 
