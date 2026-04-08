@@ -4,11 +4,19 @@ from apps.buying.models import (
     Auction,
     AuctionSnapshot,
     Bid,
+    CategoryMapping,
     ManifestRow,
     Marketplace,
     Outcome,
     WatchlistEntry,
 )
+
+
+@admin.register(CategoryMapping)
+class CategoryMappingAdmin(admin.ModelAdmin):
+    list_display = ('source_key', 'canonical_category', 'rule_origin', 'updated_at')
+    list_filter = ('rule_origin', 'canonical_category')
+    search_fields = ('source_key', 'ai_reasoning')
 
 
 @admin.register(Marketplace)
@@ -56,6 +64,8 @@ class ManifestRowAdmin(admin.ModelAdmin):
         'title',
         'brand',
         'category',
+        'canonical_category',
+        'category_confidence',
         'retail_value',
     )
     list_filter = ('auction',)

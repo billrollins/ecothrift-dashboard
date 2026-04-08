@@ -1,1 +1,60 @@
+feat(buying): complete Phase 3-4 and bump to v2.6.0
+
+Watchlist polling, snapshots, categorization, retail normalization. See CHANGELOG.md [2.6.0] and bstock_auction_intelligence.md.
+
 ---
+### 2026-04-08 — review_bump (v2.4.1 B-Stock Phase 2A)
+
+**Release:** Patch **v2.4.1** — B-Stock auction list (staff API + React UI). Initiative: `.ai/initiatives/bstock_auction_intelligence.md`.
+
+**Version / bookkeeping:** `.version` → `v2.4.1`, root `package.json` `version` → `2.4.1`, `CHANGELOG.md` new section `[2.4.1] — 2026-04-08`.
+
+**Docs updated:** `.ai/context.md` (Current State — buying list + API), `.ai/initiatives/_index.md` + `bstock_auction_intelligence.md` (Phase 2A marked shipped), `.ai/extended/frontend.md` (Buying routes, hooks, api), `README.md` timestamp.
+
+**Unreleased:** Existing `[Unreleased]` bullets (category research, etc.) left in place — not part of this release.
+
+**Suggested conventional commit:**
+```
+feat(buying): ship auction list UI and API (v2.4.1)
+
+Staff auction list, summary, sweep, marketplace filters, mobile cards.
+See CHANGELOG.md [2.4.1] and initiative bstock_auction_intelligence.md.
+```
+
+---
+
+### 2026-04-08 — review_bump (v2.5.0 B-Stock Phase 2 close-out)
+
+**Release:** Minor **v2.5.0** — B-Stock buying UI Phase 2 complete (2B detail + manifests + watchlist page, manifest normalization + `renormalize_manifest_rows`). Initiative: `.ai/initiatives/bstock_auction_intelligence.md`.
+
+**Version / bookkeeping:** `.version` → `v2.5.0`, root `package.json` `version` → `2.5.0`, `CHANGELOG.md` new section `[2.5.0] — 2026-04-08`.
+
+**Docs updated:** `.ai/context.md`, `.ai/initiatives/bstock_auction_intelligence.md` (2A/2B/2C timestamps; Phase 2 acceptance), `.ai/initiatives/_index.md`, `workspace/notes/consultant_context.md`, `.ai/extended/frontend.md`, `.ai/extended/backend.md`, `README.md` timestamp.
+
+**Unreleased:** Existing `[Unreleased]` bullets (category research, etc.) left in place — not part of this release.
+
+**Suggested conventional commit:**
+```
+feat(buying): complete Phase 2 staff UI and bump to v2.5.0
+
+Auction detail, watchlist page, manifest normalization CLI. See CHANGELOG.md [2.5.0] and bstock_auction_intelligence.md.
+```
+
+---
+
+### 2026-04-10 — review_bump (v2.6.0 B-Stock Phases 3–4 close-out)
+
+**Release:** Minor **v2.6.0** — B-Stock buying: Phase 3 (watchlist polling, `AuctionSnapshot`, snapshots API, price history, poll); Phase 4 (`CategoryMapping`, categorization commands, `category_distribution`, UI bar + chips); manifest retail cents/dollars fix via `normalize.py` + `renormalize_manifest_rows`. Initiative: `.ai/initiatives/bstock_auction_intelligence.md`.
+
+**Version / bookkeeping:** `.version` → `v2.6.0`, root `package.json` `version` → `2.6.0`, `CHANGELOG.md` new section `[2.6.0] — 2026-04-10`.
+
+**Docs updated:** `.ai/context.md`, `.ai/initiatives/bstock_auction_intelligence.md` (Phase 3–4 acceptance, Phase 7 removed, Operational notes, Open questions), `.ai/consultant_context.md`, `.ai/initiatives/_index.md`, `.ai/extended/backend.md` timestamp, `README.md` timestamp.
+
+**Protocol:** `.ai/protocols/review_bump.md` (Part A–C).
+
+**Suggested conventional commit:**
+```
+feat(buying): complete Phase 3–4 and bump to v2.6.0
+
+Watchlist polling, snapshots, categorization, retail normalization. See CHANGELOG.md [2.6.0] and bstock_auction_intelligence.md.
+```

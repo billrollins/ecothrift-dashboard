@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-07T16:00:00-05:00 -->
+<!-- Last updated: 2026-04-07T18:30:00-05:00 -->
 # Protocol: Review, Version Bump, Pre-Commit, Handoff
 
 Single gate for **documentation audit**, **release bookkeeping**, **commit discipline**, and **session handoff**.
@@ -63,10 +63,12 @@ After edits: update `<!-- Last updated: ... -->` on every file you changed. Repo
 
 13. **`scripts/deploy/commit_message.txt` — append, do not replace.**
     - The file is a **running log of work done since the last git commit** (across sessions until the user commits).
+    - **Deploy scripts use only the first line.** `scripts/deploy/2_push_github.bat` (and the other deploy `.bat` files that read this file) take the **first line** and use it as the **entire** `git commit -F` message. It treats the first line as a **not-ready** placeholder if it is exactly `---` or the legacy string `update this with your next commit message`. **Before push, line 1 must be a real conventional commit subject** (see §15), not `---`.
+    - **Never put `---` on line 1** when you intend to commit or push. After a successful push/commit reset, the file may be reset to a single line `---` (see §16); that is only for the **start** of the next work window. As soon as you write a subject for the upcoming commit, **put that subject on line 1**. Optional body text can follow on lines 2+ for human reading, but the batch file **does not** forward those lines to `git commit` — only line 1 is committed via that script.
     - **Do not overwrite** existing content when new work is staged for the same upcoming commit. **Append** new entries (e.g. a dated or titled block per session or per batch of changes).
     - Each append should add enough detail to be useful at commit time: what changed, why, paths or areas touched; cite **`CHANGELOG.md`** (`[Unreleased]` or the version section being prepared) and relevant **initiative** `.md` files when the work is tracked.
-    - If the file is still the placeholder `---` or empty, you may start the log from scratch for that commit window.
-    - Optional separator between append blocks (e.g. `---` or `### 2026-04-06` / session note) keeps multi-session logs readable.
+    - If the file is still the placeholder `---` or empty, you may start the log from scratch for that commit window — but **before** the user runs `2_push_github.bat`, replace line 1 with the real subject (you can keep `---` **below** line 1 as a separator between the subject and older review_bump blocks).
+    - Optional separator **between** append blocks (e.g. `---` after the subject, or `### 2026-04-06` / session note) keeps multi-session logs readable — use **`---` only after line 1**, not as line 1.
 
 14. **Pre-commit checklist**
     - `cd frontend && npx tsc --noEmit`
@@ -85,7 +87,7 @@ After edits: update `<!-- Last updated: ... -->` on every file you changed. Repo
 
 Types: `feat`, `fix`, `refactor`, `docs`, `style`, `chore`.
 
-16. **Commit only when the user explicitly asks.** After a successful commit, **reset** `scripts/deploy/commit_message.txt` to the placeholder `---` so the next work window starts a **new** log (append cycle begins again from empty/placeholder).
+16. **Commit only when the user explicitly asks.** After a successful manual commit, **reset** `scripts/deploy/commit_message.txt` to the placeholder `---` so the next work window starts a **new** log (append cycle begins again from empty/placeholder). **`2_push_github.bat` (standalone)** also overwrites the file with `---` after a successful push — same rule: the **next** run will error until line 1 is a real subject again. Do not leave only `---` on line 1 once the user is ready to ship; set the conventional subject on line 1 first, then append detail.
 
 17. **Push to GitHub** (when user asks): `git push origin main` — remote `origin`, branch `main`. Never force-push; never `--no-verify`; do not amend pushed commits.
 

@@ -1,6 +1,6 @@
 {
   "name": "ecothrift-dashboard",
-  "version": "2.4.0",
+  "version": "2.6.0",
   "engines": {
     "node": "18.x",
     "npm": "9.x"

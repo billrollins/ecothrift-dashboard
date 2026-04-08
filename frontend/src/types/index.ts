@@ -8,3 +8,4 @@ export * from './hr.types';
 export * from './inventory.types';
 export * from './pos.types';
 export * from './consignment.types';
+export * from './buying.types';

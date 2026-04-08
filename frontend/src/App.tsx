@@ -41,6 +41,9 @@ import CustomerListPage from './pages/admin/CustomerListPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import PublicItemLookupPage from './pages/PublicItemLookupPage';
+import AuctionListPage from './pages/buying/AuctionListPage';
+import AuctionDetailPage from './pages/buying/AuctionDetailPage';
+import WatchlistPage from './pages/buying/WatchlistPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -121,6 +124,9 @@ export default function App() {
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         <Route path="/pos/cash" element={<CashManagementPage />} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
+        <Route path="/buying/auctions" element={<AuctionListPage />} />
+        <Route path="/buying/auctions/:id" element={<AuctionDetailPage />} />
+        <Route path="/buying/watchlist" element={<WatchlistPage />} />
         <Route
           path="/admin/pos-setup"
           element={

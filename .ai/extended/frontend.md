@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
+<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -31,7 +31,9 @@
 
 **Public routes:** `/login`, `/pricing`, `/pricing/:sku` (PublicItemLookupPage)
 
-**Staff routes** (MainLayout): Dashboard, HR (time-clock, time-history, employees, sick-leave), Inventory (vendors, orders, processing, products, items), POS (terminal, drawers, cash, transactions), Consignment (Manager+), Admin (Admin only)
+**Staff routes** (MainLayout): Dashboard, HR (time-clock, time-history, employees, sick-leave), Inventory (vendors, orders, processing, products, items), POS (terminal, drawers, cash, transactions), Consignment (Manager+), **Buying** (`/buying/auctions`, `/buying/auctions/:id`, `/buying/watchlist` — **v2.5.0**), Admin (Admin only)
+
+**Buying (StaffRoute):** **`AuctionListPage`** at **`/buying/auctions`**; **`AuctionDetailPage`** at **`/buying/auctions/:id`** (manifest table/cards, pull manifest, watchlist star, **Recharts** price history + **Poll now** when watched); **`WatchlistPage`** at **`/buying/watchlist`**. **`buying.api.ts`**, hooks **`useBuyingAuctions`**, **`useBuyingAuctionsInfinite`**, **`useBuyingAuctionSummary`**, **`useBuyingMarketplaces`**, **`useBuyingAuctionDetail`**, **`useBuyingManifestRows`**, **`useBuyingAuctionSnapshots`**, **`useBuyingWatchlist`**, **`useBuyingWatchlistInfinite`**. Initiative: **`.ai/initiatives/bstock_auction_intelligence.md`**.
 
 **Inventory route behavior (M3)**:
 - `OrderDetailPage` handles order status management, manifest upload, and post-preprocessing actions (Match Products, Build Check-In Queue, Open Item Processor, Mark Complete). "Start Preprocessing" button navigates to `/inventory/preprocessing/:id`.
@@ -68,10 +70,10 @@
 
 ## Code Organization
 
-- **api/** — one module per backend app: `core.api`, `accounts.api`, `hr.api`, `inventory.api`, `ai.api`, `pos.api`, `consignment.api`, `client.ts`
-- **hooks/** — one per domain: `useAuth`, `usePOS`, `useEmployees`, `useInventory`, `useAI`, `useDashboard`, `useConsignment`, `useCashManagement`, `useSickLeave`, `useTimeClock`, `useTimeEntries`
-- **pages/** — by section: `hr/`, `inventory/`, `pos/`, `consignment/`, `consignee/`, `admin/`
-- **types/** — one per app: `accounts.types`, `pos.types`, `inventory.types`, `consignment.types`, `hr.types`, `common.types`
+- **api/** — one module per backend app: `core.api`, `accounts.api`, `hr.api`, `inventory.api`, `ai.api`, `pos.api`, `consignment.api`, **`buying.api`**, `client.ts`
+- **hooks/** — one per domain: `useAuth`, `usePOS`, `useEmployees`, `useInventory`, `useAI`, `useDashboard`, `useConsignment`, `useCashManagement`, `useSickLeave`, `useTimeClock`, `useTimeEntries`, **`useBuyingAuctions`**, **`useBuyingAuctionsInfinite`**, **`useBuyingAuctionSummary`**, **`useBuyingMarketplaces`**, **`useBuyingAuctionDetail`**, **`useBuyingManifestRows`**, **`useBuyingAuctionSnapshots`**, **`useBuyingWatchlist`**, **`useBuyingWatchlistInfinite`**
+- **pages/** — by section: `hr/`, `inventory/`, `pos/`, `consignment/`, `consignee/`, `admin/`, **`buying/`**
+- **types/** — one per app: `accounts.types`, `pos.types`, `inventory.types`, `consignment.types`, `hr.types`, **`buying.types`**, `common.types`
 
 ## Theme
 

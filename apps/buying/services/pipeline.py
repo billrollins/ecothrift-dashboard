@@ -12,8 +12,9 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from apps.buying.models import Auction, ManifestRow, Marketplace
+from apps.buying.models import Auction, AuctionSnapshot, ManifestRow, Marketplace, WatchlistEntry
 from apps.buying.services import normalize, scraper
+from apps.buying.services.categorize_manifest import categorize_manifest_rows
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,26 @@ def _to_int(v: Any) -> int | None:
             return int(float(str(v)))
         except (TypeError, ValueError):
             return None
+
+
+def _retail_value_from_listing(raw: dict[str, Any]) -> Decimal | None:
+    """
+    Extended retail from search listing (e.g. retailPrice). Values are dollars (float),
+    not cent-scaled — do not use _price_to_dollars (large integers would be misread).
+    """
+    v = _first(
+        raw,
+        'retailPrice',
+        'totalRetailValue',
+        'extendedRetail',
+        'totalRetail',
+    )
+    if v is None:
+        return None
+    d = _to_decimal(v)
+    if d is None:
+        return None
+    return d.quantize(Decimal('0.01'))
 
 
 def _price_to_dollars(val: Any) -> Decimal | None:
@@ -162,6 +183,23 @@ def merge_auction_state_into_fields(
     et = _parse_end_time(state)
     if et is not None:
         fields['end_time'] = et
+    st = _first(state, 'status', 'auctionStatus', 'state')
+    if st is not None:
+        fields['status'] = _normalize_status(st)
+
+
+def apply_closed_inference(fields: dict[str, Any], now: datetime) -> None:
+    """If auction has clearly ended, set status to closed (does not change WatchlistEntry)."""
+    et = fields.get('end_time')
+    if et is not None:
+        if timezone.is_naive(et):
+            et = timezone.make_aware(et, timezone.get_current_timezone())
+        if et <= now:
+            fields['status'] = Auction.STATUS_CLOSED
+            return
+    tr = fields.get('time_remaining_seconds')
+    if tr is not None and tr == 0:
+        fields['status'] = Auction.STATUS_CLOSED
 
 
 def _extract_group_id_from_listing(raw: dict[str, Any]) -> str | None:
@@ -231,6 +269,11 @@ def map_listing_raw_to_auction_fields(
 
     lot_size = _to_int(_first(raw, 'lotSize', 'itemCount', 'quantity', 'units'))
 
+    lt_raw = _first(raw, 'listingType', 'listing_type')
+    listing_type = str(lt_raw).strip()[:32] if lt_raw is not None else ''
+
+    total_retail_value = _retail_value_from_listing(raw)
+
     current_price = _price_to_dollars(
         _first(
             raw,
@@ -281,6 +324,8 @@ def map_listing_raw_to_auction_fields(
         'category': category,
         'condition_summary': condition_summary,
         'lot_size': lot_size,
+        'listing_type': listing_type,
+        'total_retail_value': total_retail_value,
         'current_price': current_price,
         'starting_price': starting_price,
         'buy_now_price': buy_now_price,
@@ -312,7 +357,12 @@ def run_discovery(
     marketplaces = list(qs.order_by('slug'))
     if not marketplaces:
         logger.warning('No active marketplaces. Add one in Django admin.')
-        return {'marketplaces': 0, 'rows': 0, 'upserted': 0}
+        return {
+            'marketplaces': 0,
+            'rows': 0,
+            'upserted': 0,
+            'refreshed_at': timezone.now().isoformat(),
+        }
 
     total_raw = 0
     upserted = 0
@@ -370,6 +420,8 @@ def run_discovery(
                         'category': fields['category'],
                         'condition_summary': fields['condition_summary'],
                         'lot_size': fields['lot_size'],
+                        'listing_type': fields.get('listing_type') or '',
+                        'total_retail_value': fields.get('total_retail_value'),
                         'current_price': fields['current_price'],
                         'starting_price': fields['starting_price'],
                         'buy_now_price': fields['buy_now_price'],
@@ -394,6 +446,8 @@ def run_discovery(
                         'category',
                         'condition_summary',
                         'lot_size',
+                        'listing_type',
+                        'total_retail_value',
                         'current_price',
                         'starting_price',
                         'buy_now_price',
@@ -417,6 +471,7 @@ def run_discovery(
         'dry_run': dry_run,
         'page_limit': page_limit,
         'max_pages': max_pages,
+        'refreshed_at': timezone.now().isoformat(),
     }
 
 
@@ -504,9 +559,200 @@ def run_manifest_pull(
             )
         ManifestRow.objects.bulk_create(bulk)
         rows_saved += len(bulk)
+        try:
+            categorize_manifest_rows(auction)
+        except Exception:
+            logger.exception(
+                'categorize_manifest_rows failed after manifest pull for auction_id=%s',
+                auction.pk,
+            )
 
     return {
         'auctions_processed': processed,
         'manifest_rows_saved': rows_saved,
         'logged_first_manifest_schema': logged_schema,
+    }
+
+
+def _auction_to_merge_fields(auction: Auction) -> dict[str, Any]:
+    """Build field dict for merge_auction_state_into_fields from a persisted Auction."""
+    return {
+        'external_id': auction.external_id,
+        'lot_id': auction.lot_id,
+        'group_id': auction.group_id,
+        'auction_ext_id': auction.auction_ext_id,
+        'seller_id': auction.seller_id,
+        'title': auction.title or '',
+        'description': auction.description or '',
+        'url': auction.url or '',
+        'category': auction.category or '',
+        'condition_summary': auction.condition_summary or '',
+        'lot_size': auction.lot_size,
+        'listing_type': auction.listing_type or '',
+        'total_retail_value': auction.total_retail_value,
+        'current_price': auction.current_price,
+        'starting_price': auction.starting_price,
+        'buy_now_price': auction.buy_now_price,
+        'bid_count': auction.bid_count,
+        'time_remaining_seconds': auction.time_remaining_seconds,
+        'end_time': auction.end_time,
+        'status': auction.status,
+        'has_manifest': auction.has_manifest,
+    }
+
+
+def _apply_merge_fields_to_auction(auction: Auction, fields: dict[str, Any], now: datetime) -> None:
+    """Write merged poll fields onto Auction (same column set as discovery upsert)."""
+    for name in (
+        'lot_id',
+        'group_id',
+        'auction_ext_id',
+        'seller_id',
+        'title',
+        'description',
+        'url',
+        'category',
+        'condition_summary',
+        'lot_size',
+        'listing_type',
+        'total_retail_value',
+        'current_price',
+        'starting_price',
+        'buy_now_price',
+        'bid_count',
+        'time_remaining_seconds',
+        'end_time',
+        'status',
+        'has_manifest',
+    ):
+        setattr(auction, name, fields[name])
+    auction.last_updated_at = now
+    auction.save(
+        update_fields=list(
+            (
+                'lot_id',
+                'group_id',
+                'auction_ext_id',
+                'seller_id',
+                'title',
+                'description',
+                'url',
+                'category',
+                'condition_summary',
+                'lot_size',
+                'listing_type',
+                'total_retail_value',
+                'current_price',
+                'starting_price',
+                'buy_now_price',
+                'bid_count',
+                'time_remaining_seconds',
+                'end_time',
+                'status',
+                'has_manifest',
+                'last_updated_at',
+            )
+        )
+    )
+
+
+def run_watch_poll(
+    auction_ids: list[int] | None = None,
+    *,
+    force: bool = False,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """
+    Poll auction.bstock.com for watched auctions (JWT required), write snapshots,
+    update Auction rows, set WatchlistEntry.last_polled_at. Does not change
+    WatchlistEntry.status when auction closes (no outcome data).
+    """
+    now = timezone.now()
+
+    qs = (
+        Auction.objects.filter(watchlist_entry__isnull=False)
+        .exclude(listing_type__iexact=Auction.LISTING_TYPE_CONTRACT)
+        .exclude(status__in=[Auction.STATUS_CLOSED, Auction.STATUS_CANCELLED])
+        .select_related('watchlist_entry', 'marketplace')
+    )
+    if auction_ids is not None:
+        qs = qs.filter(pk__in=auction_ids)
+
+    candidates: list[Auction] = []
+    for auction in qs.order_by('id'):
+        we = auction.watchlist_entry
+        if not force and we.last_polled_at:
+            elapsed = (now - we.last_polled_at).total_seconds()
+            if elapsed < we.poll_interval_seconds:
+                continue
+        candidates.append(auction)
+
+    if dry_run:
+        return {
+            'dry_run': True,
+            'would_poll': len(candidates),
+            'auction_ids': [a.pk for a in candidates],
+        }
+
+    if not candidates:
+        return {
+            'polled': 0,
+            'snapshots': 0,
+            'skipped': 0,
+            'errors': [],
+        }
+
+    listing_ids = [a.external_id for a in candidates]
+    states: dict[str, dict[str, Any]] = {}
+    try:
+        states = scraper.get_auction_states_batch(listing_ids)
+    except ValueError as e:
+        msg = str(e)
+        if 'No B-Stock token' in msg or 'bstock_token' in msg.lower():
+            raise
+        raise
+    except scraper.BStockAuthError:
+        raise
+
+    polled = 0
+    snapshots_n = 0
+    errors: list[str] = []
+    skipped = 0
+
+    for auction in candidates:
+        try:
+            state = states.get(auction.external_id.strip())
+            if not state:
+                skipped += 1
+                logger.warning(
+                    'Watch poll: no auction state for listing_id=%s', auction.external_id
+                )
+                continue
+
+            fields = _auction_to_merge_fields(auction)
+            merge_auction_state_into_fields(fields, state)
+            apply_closed_inference(fields, now)
+            with transaction.atomic():
+                _apply_merge_fields_to_auction(auction, fields, now)
+                AuctionSnapshot.objects.create(
+                    auction=auction,
+                    price=fields.get('current_price'),
+                    bid_count=fields.get('bid_count'),
+                    time_remaining_seconds=fields.get('time_remaining_seconds'),
+                )
+                WatchlistEntry.objects.filter(pk=auction.watchlist_entry.pk).update(
+                    last_polled_at=now
+                )
+            polled += 1
+            snapshots_n += 1
+        except Exception as e:
+            logger.exception('Watch poll failed for auction_id=%s', auction.pk)
+            errors.append(f'auction {auction.pk}: {e}')
+
+    return {
+        'polled': polled,
+        'snapshots': snapshots_n,
+        'skipped': skipped,
+        'errors': errors,
+        'refreshed_at': timezone.now().isoformat(),
     }

@@ -16,6 +16,8 @@ import Inventory from '@mui/icons-material/Inventory';
 import LocalHospital from '@mui/icons-material/LocalHospital';
 import People from '@mui/icons-material/People';
 import PointOfSale from '@mui/icons-material/PointOfSale';
+import Gavel from '@mui/icons-material/Gavel';
+import Star from '@mui/icons-material/Star';
 import Security from '@mui/icons-material/Security';
 import Settings from '@mui/icons-material/Settings';
 import ShoppingCart from '@mui/icons-material/ShoppingCart';
@@ -82,6 +84,14 @@ const navSections: NavSection[] = [
       { path: '/pos/drawers', label: 'Drawers', icon: <AccountBalance /> },
       { path: '/pos/cash', label: 'Cash Management', icon: <AccountBalance /> },
       { path: '/pos/transactions', label: 'Transactions', icon: <Inventory /> },
+    ],
+  },
+  {
+    label: 'Buying',
+    collapsible: true,
+    items: [
+      { path: '/buying/auctions', label: 'Auctions', icon: <Gavel /> },
+      { path: '/buying/watchlist', label: 'Watchlist', icon: <Star /> },
     ],
   },
   {
@@ -171,6 +181,7 @@ export function Sidebar() {
     HR: true,
     Inventory: true,
     POS: true,
+    Buying: true,
     Consignment: true,
     Admin: true,
   });

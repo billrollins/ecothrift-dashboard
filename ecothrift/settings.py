@@ -193,6 +193,8 @@ else:
 
 # ── AI / Anthropic ───────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
+# Optional override for apps.buying.services.category_ai (defaults to claude-sonnet-4-6).
+BUYING_CATEGORY_AI_MODEL = config('BUYING_CATEGORY_AI_MODEL', default='')
 
 # ── Buying / B-Stock (search POST is unauthenticated; other calls need JWT) ─
 BSTOCK_AUTH_TOKEN = config('BSTOCK_AUTH_TOKEN', default='')

@@ -424,6 +424,52 @@ def get_auction_detail(listing_id: str) -> dict[str, Any]:
     return auctions[0]
 
 
+def _listing_id_from_auction_object(obj: dict[str, Any]) -> str | None:
+    for k in ('listingId', 'listing_id'):
+        v = obj.get(k)
+        if v is not None and v != '':
+            return str(v).strip()
+    return None
+
+
+def get_auction_states_batch(
+    listing_ids: list[str],
+    *,
+    chunk_size: int = 25,
+) -> dict[str, dict[str, Any]]:
+    """
+    GET auction.bstock.com/v1/auctions with comma-separated listingId (batch).
+
+    Auth required. Returns mapping listing_id -> auction state dict (last wins if
+    duplicates). Chunks requests to respect URL length and rate limits.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    seen: list[str] = []
+    for raw in listing_ids:
+        x = (raw or '').strip()
+        if x and x not in seen:
+            seen.append(x)
+    for i in range(0, len(seen), chunk_size):
+        chunk = seen[i : i + chunk_size]
+        listing_param = ','.join(chunk)
+        params: dict[str, Any] = {'listingId': listing_param, 'limit': 100}
+        data = _request_json('GET', AUCTION_STATE_URL, params=params, auth=True)
+        if data is None:
+            logger.warning(
+                'Batch auction state returned no data for chunk starting %s', chunk[:1]
+            )
+            continue
+        auctions = _extract_auction_objects(data)
+        for obj in auctions:
+            if not isinstance(obj, dict):
+                continue
+            lid = _listing_id_from_auction_object(obj)
+            if lid:
+                out[lid] = obj
+        _delay_between_requests()
+    return out
+
+
 def get_lot_detail(lot_id: str) -> dict[str, Any]:
     """
     GET listing.bstock.com/v1/groups?lotId=...

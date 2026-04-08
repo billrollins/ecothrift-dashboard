@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-07T23:00:00-05:00 -->
+<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,28 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.6.0] — 2026-04-10
+
+### Added
+
+- **Buying — Phase 3 (watchlist polling, snapshots, price history):** **`python manage.py watch_auctions`**; **`GET /api/buying/auctions/{id}/snapshots/`**; **`POST /api/buying/auctions/{id}/poll/`**; auction detail price chart (Recharts) / table on small screens; **`AuctionSnapshot`** time series.
+
+- **Buying — Phase 4 (fast categorization):** **`CategoryMapping`** model; **`ManifestRow.canonical_category`** / **`category_confidence`**; **`apps/buying/taxonomy_v1.py`**; **`seed_category_mappings`**, **`categorize_manifests`** (tier 1 + 3; **`--ai`** / **`--ai-limit`** for Claude tier 2); **`categorize_manifest_rows`** after manifest pull; API **`category_distribution`**; auction detail **category bar** + **chips**.
+
+### Fixed
+
+- **Buying — manifest retail:** **`normalize.py`** converts B-Stock minor-unit integers to dollars where applicable (**`_manifest_retail_to_dollars`**); **`renormalize_manifest_rows`** reapplies to existing rows.
+
+### Changed
+
+- **Initiative** [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md): Phases **3–4** acceptance complete; **Phase 7** removed from phased plan; **Operational notes** (soft-touch vs invasive sweep, manual manifest path, ban mitigation); **Open questions** updated (ban risk, retrospective deferred). **Consultant:** [`.ai/consultant_context.md`](.ai/consultant_context.md) aligned.
+
+### Initiative
+
+- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — **Phases 3–4 complete.** **Next: Phase 5** (auction valuation).
 
 ---
 
@@ -40,6 +62,38 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Dev:** `printserver/dev_print_e2e_3_labels.bat` — first three rows from `workspace/testing/data/retag_e2e_10_items.json`. **`printserver/scripts/label_price_fringe_grid.py`** — fringe-case PNGs + fit summary to `printserver/output_label_fringe_review/` (gitignored).
 - **Samples:** `label_test_data.py` prices `$1.99`, `$25.00`, `$1,123.75`; consultant notes under `.ai/reference/Consult Label/to-be-checked/`.
 - **Steering:** Label price layout work archived — [`.ai/initiatives/_archived/_completed/print_server_label_price_layout.md`](.ai/initiatives/_archived/_completed/print_server_label_price_layout.md) (print server **v1.2.35–v1.2.38**); see [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md).
+
+---
+
+## [2.5.0] — 2026-04-08
+
+### Added
+
+- **Buying — Phase 2 close-out (2B auction detail, 2C watchlist page, manifest normalization):** Staff React routes **`/buying/auctions/:id`** (`AuctionDetailPage`) and **`/buying/watchlist`** (`WatchlistPage`); sidebar **Buying** links **Auctions** + **Watchlist**. Detail: metadata, pull manifest, star watchlist toggle, manifest **DataGrid** (server pagination, 50/page) or mobile cards + load more. **Watchlist:** **`GET /api/buying/watchlist/`** (auction list shape + nested **`watchlist_entry`**, filters **`priority`** / **`watchlist_status`**, ordering **`end_time`**, **`current_price`**, **`total_retail_value`**, **`added_at`**; default **`end_time`** ascending); remove via existing **`DELETE /api/buying/auctions/:id/watchlist/`** with list invalidation. **Manifest normalization:** **`apps/buying/services/normalize.py`** maps B-Stock order-process JSON (nested **`attributes`**, **`attributes.ids`**, **`uniqueIds`**, **`categories`**, **`itemCondition`**, etc.); optional unmapped-key warnings; **`python manage.py renormalize_manifest_rows`** (no JWT). Unit tests: **`apps/buying/tests/test_normalize_manifest.py`**.
+
+### Changed
+
+- **Phase 2A** (auction list UI) shipped in **v2.4.1**; this minor release completes **Phase 2** under [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
+
+### Initiative
+
+- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — **Phase 2 (2A–2C) complete.** Next: **Phase 3** (watchlist polling, **`AuctionSnapshot`**, price history).
+
+---
+
+## [2.4.1] — 2026-04-08
+
+### Added
+
+- **Buying — auction list API (staff):** **`GET /api/buying/auctions/`** (paginated, filters, ordering), **`GET /api/buying/auctions/:id/`**, **`GET /api/buying/marketplaces/`**, **`GET /api/buying/auctions/summary/`** (global `last_refreshed_at` + per-marketplace counts), **`POST /api/buying/sweep/`** (runs `pipeline.run_discovery`). **`AuctionFilter`:** `marketplace` accepts comma-separated slugs (`__in`). Contract listings (`listingType` **CONTRACT**) excluded from default list queryset; detail by id still allowed. Model fields **`listing_type`**, **`total_retail_value`** (from B-Stock search `listingType` / `retailPrice`); migration **`0004_auction_listing_type_total_retail`**.
+
+### Changed
+
+- **Frontend — Buying:** Staff routes **`/buying/auctions`** — DataGrid (desktop) + card list with infinite scroll (below **`md`**); marketplace chips as toggle filters with **All** reset (tap last-only chip resets all); global summary counts; last-refreshed label; sequential **Refresh auctions** per marketplace with progress text, spinner, snackbar (partial failures listed); **Load more (N remaining)** on mobile. Shared helpers **`frontend/src/utils/buyingAuctionList.ts`**; split **`AuctionListDesktop`**, **`AuctionListMobile`**, **`AuctionMarketplaceChips`**; **`useBuyingAuctionsInfinite`**. Removed unused **`useBuyingSweep`** hook (sweep calls **`postBuyingSweep`** directly).
+
+### Initiative
+
+- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — Phase 2A auction list shipped; Phase 2B detail / manifests / watchlist next.
 
 ---
 

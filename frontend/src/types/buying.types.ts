@@ -1,0 +1,184 @@
+/**
+ * Types for B-Stock buying / auction intelligence API (`apps/buying/`).
+ */
+
+export interface BuyingMarketplace {
+  id: number;
+  name: string;
+  slug: string;
+  external_id: string | null;
+}
+
+/** Row from GET /api/buying/auctions/ */
+export interface BuyingAuctionListItem {
+  id: number;
+  marketplace: BuyingMarketplace;
+  title: string;
+  current_price: string | null;
+  bid_count: number | null;
+  end_time: string | null;
+  time_remaining_seconds: number | null;
+  lot_size: number | null;
+  /** Extended retail from B-Stock search (e.g. retailPrice), dollars */
+  total_retail_value: string | null;
+  condition_summary: string;
+  status: string;
+  has_manifest: boolean;
+  last_updated_at: string | null;
+}
+
+/** Watchlist entry (OneToOne per auction). */
+export interface BuyingWatchlistEntry {
+  id: number;
+  priority: string;
+  status: string;
+  notes: string;
+  /** Seconds between automatic polls (server command); default 300. */
+  poll_interval_seconds: number;
+  /** ISO datetime of last successful watch poll, or null. */
+  last_polled_at: string | null;
+  added_at: string;
+}
+
+/** Row from GET /api/buying/watchlist/ */
+export type BuyingWatchlistAuctionItem = BuyingAuctionListItem & {
+  watchlist_entry: BuyingWatchlistEntry;
+  /** Duplicates watchlist_entry.added_at; set when API annotates for ordering. */
+  added_at?: string | null;
+};
+
+export interface BuyingWatchlistParams {
+  page?: number;
+  page_size?: number;
+  ordering?: string;
+  priority?: string;
+  watchlist_status?: string;
+}
+
+/** Canonical category mix for manifest rows (auction detail). */
+export interface BuyingCategoryDistributionTop {
+  canonical_category: string;
+  count: number;
+  pct: number;
+}
+
+export interface BuyingCategoryDistribution {
+  total_rows: number;
+  top: BuyingCategoryDistributionTop[];
+  other: { count: number; pct: number } | null;
+  not_yet_categorized: { count: number; pct: number };
+}
+
+/** GET /api/buying/auctions/:id/ */
+export interface BuyingAuctionDetail extends BuyingAuctionListItem {
+  external_id: string;
+  description: string;
+  url: string;
+  category: string;
+  /** B-Stock lotId (manifest API path segment). */
+  lot_id: string | null;
+  /** B-Stock listingType (e.g. SPOT, CONTRACT) */
+  listing_type: string;
+  starting_price: string | null;
+  buy_now_price: string | null;
+  manifest_row_count: number;
+  /** Aggregated manifest canonical categories (top 5, Other, not yet categorized). */
+  category_distribution?: BuyingCategoryDistribution;
+  watchlist_entry: BuyingWatchlistEntry | null;
+  first_seen_at: string | null;
+}
+
+/** Row from GET /api/buying/auctions/:id/manifest_rows/ */
+export interface BuyingManifestRow {
+  id: number;
+  row_number: number;
+  title: string;
+  brand: string;
+  model: string;
+  category: string;
+  /** taxonomy_v1 canonical name when categorized */
+  canonical_category: string | null;
+  /** direct | ai_mapped | fallback */
+  category_confidence: string | null;
+  sku: string;
+  upc: string;
+  quantity: number | null;
+  retail_value: string | null;
+  condition: string;
+  notes: string;
+}
+
+export interface BuyingManifestRowsParams {
+  page?: number;
+}
+
+/** POST /api/buying/auctions/:id/pull_manifest/ */
+export interface BuyingPullManifestResponse {
+  auctions_processed: number;
+  manifest_rows_saved: number;
+  logged_first_manifest_schema: boolean;
+}
+
+export interface BuyingWatchlistPostBody {
+  priority?: string;
+}
+
+export interface BuyingAuctionListParams {
+  page?: number;
+  page_size?: number;
+  ordering?: string;
+  marketplace?: string;
+  status?: string;
+  has_manifest?: boolean;
+}
+
+/** Same filters as the auction list, without pagination (for GET …/summary/). */
+export interface BuyingAuctionSummaryParams {
+  marketplace?: string;
+  status?: string;
+  has_manifest?: boolean;
+}
+
+export interface BuyingAuctionSummaryMarketplaceRow {
+  marketplace_id: number;
+  name: string;
+  slug: string;
+  count: number;
+}
+
+/** GET /api/buying/auctions/summary/ */
+export interface BuyingAuctionSummaryResponse {
+  last_refreshed_at: string | null;
+  by_marketplace: BuyingAuctionSummaryMarketplaceRow[];
+}
+
+/** Row from GET /api/buying/auctions/:id/snapshots/ */
+export interface BuyingAuctionSnapshot {
+  id: number;
+  auction: number;
+  price: string | null;
+  bid_count: number | null;
+  time_remaining_seconds: number | null;
+  captured_at: string;
+}
+
+/** POST /api/buying/auctions/:id/poll/ (pipeline.run_watch_poll summary). */
+export interface BuyingPollResponse {
+  polled: number;
+  snapshots: number;
+  skipped: number;
+  errors: string[];
+  refreshed_at?: string;
+}
+
+/** Response from POST /api/buying/sweep/ (pipeline.run_discovery summary). */
+export interface BuyingSweepResponse {
+  marketplaces: number;
+  rows: number;
+  upserted: number;
+  dry_run: boolean;
+  page_limit: number;
+  max_pages: number | null;
+  /** ISO timestamp when the sweep finished (pipeline clock). */
+  refreshed_at?: string;
+}

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-07T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -15,9 +15,9 @@ Django project with **8 apps** under `apps/`:
 | `apps.ai` | Claude API proxy: chat endpoint, model list |
 | `apps.pos` | Registers, drawers, carts, receipts, cash management |
 | `apps.consignment` | Consignment agreements, items, payouts |
-| `apps.buying` | B-Stock auction intelligence: marketplaces, auctions, manifests, watchlist, bids, outcomes; management commands `sweep_auctions`, `pull_manifests`; dev-only `POST /api/buying/token/` for JWT ingest |
+| `apps.buying` | B-Stock auction intelligence: marketplaces, auctions, manifests, watchlist, bids, outcomes; `CategoryMapping` + manifest canonical fields; management commands `sweep_auctions`, `pull_manifests`, `renormalize_manifest_rows`, `seed_category_mappings`, `categorize_manifests`, `watch_auctions`; dev-only `POST /api/buying/token/` for JWT ingest |
 
-Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/inventory/`, `api/ai/`, `api/pos/`, `api/consignment/`, `api/buying/` (token helper only). (**`apps.buying`** has no auction CRUD API until a future phase.)
+Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/inventory/`, `api/ai/`, `api/pos/`, `api/consignment/`, `api/buying/` (staff auction list/detail/summary, sweep, manifest rows, pull manifest, watchlist; dev-only token ingest — see Buying section below).
 
 ---
 
@@ -222,9 +222,11 @@ consignment.ConsignmentPayout → User (consignee)
 
 ## Buying / B-Stock (`apps/buying/`) — Added v2.3.0
 
-- **Models:** `Marketplace`, `Auction`, `AuctionSnapshot`, `ManifestRow`, `WatchlistEntry`, `Bid`, `Outcome`
-- **Commands:** `python manage.py sweep_auctions` (POST `search.bstock.com/v1/all-listings/listings`), `python manage.py pull_manifests` (`order-process.bstock.com/v1/manifests/{lotId}`)
-- **Services:** `apps.buying.services.scraper`, `normalize`, `pipeline`
+- **Models:** `Marketplace`, `Auction`, `AuctionSnapshot`, `ManifestRow`, `WatchlistEntry`, `Bid`, `Outcome`, **`CategoryMapping`** (global `source_key` → taxonomy_v1 canonical name; origins `seeded` / `ai` / `manual`). **`ManifestRow`** adds **`canonical_category`** and **`category_confidence`** (`direct` / `ai_mapped` / `fallback`).
+- **Taxonomy:** `apps/buying/taxonomy_v1.py` — `TAXONOMY_V1_CATEGORY_NAMES` (19 names; sync with `workspace/notebooks/category-research/taxonomy_v1.example.json`).
+- **Commands:** `python manage.py sweep_auctions` (POST `search.bstock.com/v1/all-listings/listings`), `python manage.py pull_manifests` (`order-process.bstock.com/v1/manifests/{lotId}`; after save, **tier 1 + tier 3** categorization runs for new manifest rows), `python manage.py renormalize_manifest_rows` (re-apply `normalize_manifest_row` to stored `ManifestRow.raw_data` — no JWT; optional `--auction-id`, `--marketplace`, `--limit`, `--dry-run`), **`python manage.py seed_category_mappings`** (loads rules from `workspace/notebooks/category-research/cr/taxonomy_estimate.py`; refuses when `DEBUG` is False unless `--force`), **`python manage.py categorize_manifests`** (tier 1 + tier 3; **`--ai`** for Claude tier 2 with **`--ai-limit`** default 10), `python manage.py watch_auctions` (JWT: batch `GET auction.bstock.com/v1/auctions` with comma-separated `listingId`; writes `AuctionSnapshot`, updates `Auction`, sets `WatchlistEntry.last_polled_at`; flags `--dry-run`, `--auction-id`, `--force`). **Heroku Scheduler:** run `watch_auctions` on a cadence **longer** than worst-case runtime (e.g. every 10+ minutes); server must have a valid JWT in `workspace/.bstock_token` or `BSTOCK_AUTH_TOKEN`.
+- **Services:** `apps.buying.services.scraper`, `normalize` (maps nested B-Stock `attributes`, `attributes.ids`, `uniqueIds`, `categories`, `itemCondition`, etc. to `ManifestRow` columns), `pipeline`, **`categorize_manifest`** (tier 1 + 3), **`category_ai`** (optional Claude tier 2; `ANTHROPIC_API_KEY`, optional `BUYING_CATEGORY_AI_MODEL`)
 - **Settings:** `workspace/.bstock_token` (from `python manage.py bstock_token`) preferred over `BSTOCK_AUTH_TOKEN`; `BUYING_REQUEST_DELAY_SECONDS`, `BSTOCK_MAX_RETRIES`, `BSTOCK_SEARCH_MAX_PAGES` (see `ecothrift/settings.py`, `.env.example`). Bookmarklet: `apps/buying/bookmarklet/bstock_elt_bookmarklet.md`
 - **Dev:** `POST /api/buying/token/` saves JWT to `workspace/.bstock_token` (DEBUG or localhost only)
-- **UI:** Django admin at `/db-admin/` in Phase 1
+- **API (staff, v2.4.1+):** `GET/POST` sweep; `GET` auctions (list), `GET` auctions/summary/, marketplaces/; `GET` auctions/{id}/ (**includes `category_distribution`** on manifest aggregates), manifest_rows/ (**includes `canonical_category`, `category_confidence`**), `GET` auctions/{id}/snapshots/ (200/page), `POST` pull_manifest/, `POST` poll/; `POST`/`DELETE` auctions/{id}/watchlist/; `GET` watchlist/ (collection).
+- **UI:** Django admin at `/db-admin/`; staff React under `/buying/*` (see `frontend.md`)
