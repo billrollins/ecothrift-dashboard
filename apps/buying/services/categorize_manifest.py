@@ -173,9 +173,15 @@ def run_categorize_manifest_command(
             for sk in to_process:
                 rows_g = groups[sk]
                 sample = sample_rows_for_ai(rows_g, limit=8)
+                row0 = rows_g[0] if rows_g else None
+                auc = getattr(row0, 'auction', None) if row0 else None
+                mp_slug = getattr(auc.marketplace, 'slug', None) if auc else None
                 try:
                     canonical, reasoning = category_ai.suggest_category_for_source_key(
-                        sk, sample
+                        sk,
+                        sample,
+                        auction_id=getattr(auc, 'pk', None),
+                        marketplace_slug=mp_slug,
                     )
                 except Exception as e:
                     log.warning('AI mapping failed for source_key=%r: %s', sk, e)

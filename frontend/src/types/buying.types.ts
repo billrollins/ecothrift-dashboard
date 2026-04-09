@@ -132,13 +132,36 @@ export interface BuyingManifestRowsParams {
 
 /** POST /api/buying/auctions/:id/upload_manifest/ (multipart field `file`) */
 export interface BuyingUploadManifestResponse {
-  rows_created: number;
-  rows_with_fast_cat_value: number;
-  rows_without_fast_cat_value: number;
+  rows_saved: number;
+  rows_with_fast_cat: number;
+  template_source: 'existing' | 'ai_created';
+  ai_mappings_created: number;
+  unmapped_key_count: number;
+  total_batches: number;
   manifest_template_id: number;
   template_display_name: string;
   header_signature: string;
   warnings: string[];
+}
+
+/** POST /api/buying/auctions/:id/map_fast_cat_batch/ (body `{}`) */
+export interface BuyingMapFastCatBatchResponse {
+  error?: 'ai_not_configured' | string;
+  keys_mapped?: number;
+  keys_remaining?: number;
+  has_more?: boolean;
+  mappings?: Array<{
+    fast_cat_key: string;
+    canonical_category: string;
+    confidence: string;
+  }>;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_tokens: number;
+    cache_read_tokens: number;
+  };
+  estimated_cost_usd?: number;
 }
 
 /** POST /api/buying/auctions/:id/pull_manifest/ */

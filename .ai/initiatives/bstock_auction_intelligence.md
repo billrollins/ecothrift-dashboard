@@ -1,5 +1,5 @@
-<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-11 -->
-<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
+<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-08 -->
+<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -16,7 +16,7 @@ B-Stock auctions are time-sensitive: final price is often decided in the last se
 
 **Code today:** **`apps/buying/`** replaces the prior `Scraper/` package. Reference the old notebook package only for DevTools and HTTP patterns. Use the **RS256 JWT** from **`__NEXT_DATA__.props.pageProps.accessToken`** (or **`POST /api/buying/token/`** when **`DEBUG`**), not the **JWE** in the **`elt`** cookie. Manifest pull paginates until **`total`** manifest lines are stored.
 
-**Priority:** **Phase 4** (fast categorization) is **complete**. **Phase 5** (auction valuation) is next.
+**Priority:** **Phase 4** (fast categorization) and **Phases 4.1A–4.1B** (manifest templates + AI mapping) are **complete** (**v2.7.0**). **Phase 5** (auction valuation) is next.
 
 ---
 
@@ -126,7 +126,19 @@ Every manifest row gets tagged with one of **19 canonical categories** (**taxono
 - **API:** Auction detail may include **`manifest_template_name`**; list/detail retail annotations and manifest_rows **`search`** / **`category`** (see **`CHANGELOG`** **[2.6.1]**).
 - **UI (v2.6.1):** Auction list — sortable grid, retail source tooltips, marketplace chip filters, **refetchOnMount** when returning from detail. Auction detail — two-column layout, **Category Mix** bar + **wrapping** legend; **Manifest Rows** with search + fast-category filter; CSV drop zone. **Steering:** [`.ai/consultant_context.md`](../consultant_context.md); [`.ai/extended/frontend.md`](../extended/frontend.md) / [`backend.md`](../extended/backend.md).
 
-**Manual validation (2026-04):** Five seeded vendor CSVs uploaded successfully (full **`fast_cat_value`** coverage on beauty/general/mixed manifests; one Target electronics file produced keys with **0** seed hits — expected gap). One **unseeded** vendor (Costco) returned **400** with stub message. **Phase 4.1B** = expand **`CategoryMapping`** / templates for additional header shapes and category paths.
+**Manual validation (2026-04):** Five seeded vendor CSVs uploaded successfully (full **`fast_cat_value`** coverage on beauty/general/mixed manifests; one Target electronics file produced keys with **0** seed hits — expected gap before AI expansion). One **unseeded** vendor (Costco) returned **400** with stub message prior to **4.1B** AI template path.
+
+### Phase 4.1B: AI template creation, AI key mapping, upload UX **done** (v2.7.0; validated 2026-04)
+
+- **AI template creation:** Unknown CSV headers → Claude proposes **`column_map`** and **`category_fields`** via **`apps/buying/services/ai_manifest_template.py`** (`propose_manifest_template_with_ai`); **`ManifestTemplate`** saved with **`is_reviewed=True`**; upload continues in one request flow.
+- **AI key mapping:** Unmapped **`fast_cat_key`** values batched (**10** per **`POST /api/buying/auctions/{id}/map_fast_cat_batch/`**); **`apps/buying/services/ai_key_mapping.py`** (`map_one_fast_cat_batch`); new **`CategoryMapping`** rows with **`rule_origin='ai'`**; **`ManifestRow.fast_cat_value`** updated. **`__no_key__`** sentinels (no category fields) excluded from batches and counts.
+- **Upload split:** Stage **1** — **`POST …/upload_manifest/`** returns **`unmapped_key_count`**, **`total_batches`**. Stage **2** — browser drives concurrent workers calling **`map_fast_cat_batch`** until complete or cancel.
+- **Other API:** **`DELETE /api/buying/auctions/{id}/manifest/`** — deletes **`ManifestRow`** only; templates and **`CategoryMapping`** preserved. TODO on **`DELETE`** for wrong-marketplace stale AI prefixes (admin tooling later).
+- **AI usage logging:** **`workspace/logs/ai_usage.jsonl`**; four token fields + **Decimal** cost from **`AI_PRICING`**; **`scripts/ai/summarize_ai_usage.py`** (+ **`.bat`**).
+- **Settings:** **`AI_MODEL`**, **`AI_MODEL_FAST`**, **`AI_PRICING`**; **`BUYING_CATEGORY_AI_MODEL`** → **`AI_MODEL`**; **`cache_control`** on system prompts.
+- **Frontend:** **`ManifestUploadProgress`**; **four** workers; progress, est. cost, latest mapping, cancel; debounced query invalidation (~**1** s); remove manifest in card; drop/replace hidden during **MAPPING**; flex column height alignment.
+
+**Manual validation (2026-04):** Five seeded CSVs instant upload / seed mapping; five unseeded CSVs (Costco, Home Depot, Wayfair, Essendant, Amazon 20-col) — AI template + AI key mapping successful; cancel mid-mapping preserves partial categories; remove manifest + re-upload reuses templates/mappings; total test cost ~**$0.72** across **51** AI calls. **Known:** prompt cache hit rate ~**0** (under **2048**-token threshold); **`DELETE manifest`** wrong-marketplace TODO — documented, not blocking.
 
 ### Phase 5: Auction valuation scaffold
 
@@ -150,7 +162,8 @@ Record what actually happened: **hammer price**, **fees**, **shipping**, **per-i
 - [x] **Phase 2 complete:** React pages for auction list, auction detail with manifests, and watchlist; API endpoints for all three; sweep and manifest pull triggerable from UI
 - [x] **Phase 3 complete:** watchlist polling produces time-series snapshots; price history visible in UI; rate limits documented
 - [x] **Phase 4 complete:** manifest rows carry canonical category from taxonomy_v1; rules persisted; categorization command; category on rows in UI; distribution summary on auction detail; manifest retail cents/dollars normalization applied
-- [x] **Phase 4.1A complete (v2.6.1 + manual validation 2026-04):** **`ManifestTemplate`** + CSV **`upload_manifest`** + **`seed_manifest_templates`** / **`seed_fast_cat_mappings`** + **`fast_cat_key`** / **`fast_cat_value`** / **`category_confidence`** **`fast_cat`**; auction list/detail UX per **`CHANGELOG` [2.6.1]**; unknown-template stub **400**; **`create_test_auctions`** for local matrix; seed coverage limits documented (343 keys, **Phase 4.1B** for expansion)
+- [x] **Phase 4.1A complete (v2.6.1 + manual validation 2026-04):** **`ManifestTemplate`** + CSV **`upload_manifest`** + **`seed_manifest_templates`** / **`seed_fast_cat_mappings`** + **`fast_cat_key`** / **`fast_cat_value`** / **`category_confidence`** **`fast_cat`**; auction list/detail UX per **`CHANGELOG` [2.6.1]**; unknown-template stub **400**; **`create_test_auctions`** for local matrix; seed coverage limits documented (343 keys).
+- [x] **Phase 4.1B complete (v2.7.0 + validation 2026-04):** AI template + AI key mapping + split upload + **`map_fast_cat_batch`** + **`DELETE manifest`** + usage logging + buying UI (**`ManifestUploadProgress`**, workers, cancel, remove manifest, **`__no_key__`** exclusion). See **`CHANGELOG` [2.7.0]**.
 - [ ] **Phase 5 complete:** per-line and auction rollup valuation in UI; pricing rules table; pluggable v1 margin path from Bin 2; list + detail surfaces
 - [ ] **Phase 6 complete:** outcome schema implemented; hammer/fees/shipping/per-line outcomes capturable; outcomes visible in UI per auction
 

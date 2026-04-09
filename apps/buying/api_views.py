@@ -28,7 +28,14 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsStaff
 from apps.buying.filters import AuctionFilter, WatchlistAuctionFilter
-from apps.buying.models import Auction, AuctionSnapshot, ManifestRow, Marketplace, WatchlistEntry
+from apps.buying.models import (
+    Auction,
+    AuctionSnapshot,
+    CategoryMapping,
+    ManifestRow,
+    Marketplace,
+    WatchlistEntry,
+)
 from apps.buying.pagination import ManifestRowsPagination, SnapshotPagination
 from apps.buying.serializers import (
     AuctionDetailSerializer,
@@ -41,6 +48,7 @@ from apps.buying.serializers import (
     WatchlistEntryWriteSerializer,
 )
 from apps.buying.services import pipeline
+from apps.buying.services.ai_key_mapping import map_one_fast_cat_batch
 from apps.buying.services.manifest_upload import process_manifest_upload
 
 logger = logging.getLogger(__name__)
@@ -157,6 +165,8 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
             'manifest_rows',
             'pull_manifest',
             'upload_manifest',
+            'map_fast_cat_batch',
+            'manifest',
             'watchlist',
             'snapshots',
             'poll',
@@ -256,6 +266,27 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         name = getattr(upload, 'name', '') or 'manifest.csv'
         body, code = process_manifest_upload(auction, raw, name)
         return Response(body, status=code)
+
+    @action(detail=True, methods=['post'], url_path='map_fast_cat_batch')
+    def map_fast_cat_batch(self, request, pk=None):
+        """One batch of AI fast_cat key mapping (Phase 4.1B enhancement). POST body: {}."""
+        auction = self.get_object()
+        mapping = dict(CategoryMapping.objects.values_list('source_key', 'canonical_category'))
+        body = map_one_fast_cat_batch(auction, mapping=mapping)
+        return Response(body, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['delete'], url_path='manifest')
+    def manifest(self, request, pk=None):
+        """Delete all manifest rows for this auction; keep templates and CategoryMappings."""
+        # TODO: If a CSV was uploaded to the wrong marketplace (e.g., Target CSV on a
+        # Costco auction), AI-created CategoryMappings with the wrong prefix persist
+        # after manifest removal. Consider adding purge_ai_mappings option or admin
+        # tooling to review/delete AI-origin mappings by marketplace prefix.
+        auction = self.get_object()
+        auction.manifest_rows.all().delete()
+        auction.has_manifest = False
+        auction.save(update_fields=['has_manifest'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post', 'delete'], url_path='watchlist')
     def watchlist(self, request, pk=None):

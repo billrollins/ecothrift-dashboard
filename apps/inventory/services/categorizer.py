@@ -249,10 +249,26 @@ def _llm_classify(title: str, brand: Optional[str], model: Optional[str]) -> Opt
             '\n\nReply with ONLY the category path in the format: "Parent > Subcategory". '
             'No explanation.'
         )
+        _model_id = getattr(settings, 'AI_MODEL_FAST', None) or 'claude-haiku-4-5'
         message = client.messages.create(
-            model='claude-3-haiku-20240307',
+            model=_model_id,
             max_tokens=50,
-            messages=[{'role': 'user', 'content': prompt}],
+            messages=[
+                {
+                    'role': 'user',
+                    'content': [
+                        {'type': 'text', 'text': prompt, 'cache_control': {'type': 'ephemeral'}}
+                    ],
+                }
+            ],
+        )
+        from apps.core.services.ai_usage_log import log_ai_usage_from_response
+
+        log_ai_usage_from_response(
+            'inventory_llm_classify',
+            message,
+            model=_model_id,
+            detail='categorizer._llm_classify',
         )
         result = message.content[0].text.strip()
         if ' > ' in result:

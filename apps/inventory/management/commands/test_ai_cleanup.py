@@ -137,6 +137,14 @@ class Command(BaseCommand):
                     messages=[{'role': 'user', 'content': payload_str}],
                     timeout=90.0,
                 )
+                from apps.core.services.ai_usage_log import log_ai_usage_from_response
+
+                log_ai_usage_from_response(
+                    'ai_cleanup_rows',
+                    response,
+                    model=model_id,
+                    detail=f'test_ai_cleanup batch={batch_num}',
+                )
             except Exception as e:
                 timings['api_call'] = time.perf_counter() - t0
                 self.stdout.write(self.style.ERROR(

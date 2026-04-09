@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,29 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.7.0] — 2026-04-08
+
+### Added
+
+- **Buying — Phase 4.1B (AI template creation, AI key mapping, upload progress):** Unknown CSV headers → Claude proposes **`column_map`** and **`category_fields`**; new or matched **`ManifestTemplate`** saved with **`is_reviewed=True`**; upload continues in one flow. **`POST /api/buying/auctions/{id}/map_fast_cat_batch/`** processes up to **10** unmapped **`fast_cat_key`** values per request; persists **`CategoryMapping`** with **`rule_origin='ai'`** and updates **`ManifestRow.fast_cat_value`**. **`POST …/upload_manifest/`** Stage **1** (template + rows, synchronous) returns **`unmapped_key_count`** and **`total_batches`**. **`DELETE /api/buying/auctions/{id}/manifest/`** deletes manifest rows only (**`ManifestTemplate`** and **`CategoryMapping`** retained). **`fast_cat_key`** values containing **`__no_key__`** (no category fields on the row) are excluded from AI batches and from unmapped counts. See initiative.
+- **AI usage logging:** Append-only **`workspace/logs/ai_usage.jsonl`** with **input** / **output** / **cache_creation** / **cache_read** token fields, **Decimal** cost from **`AI_PRICING`** in **`ecothrift/settings.py`**; **`log_ai_usage`** and **`log_ai_usage_from_response`** in **`apps/core/services/ai_usage_log.py`**; retrofitted across AI call sites (chat proxy, inventory AI, buying **`category_ai`**, management commands, 4.1B services). **`scripts/ai/summarize_ai_usage.py`** and **`scripts/ai/summarize_ai_usage.bat`** — totals, by source, by marketplace, by date, last **10** calls, cache stats, interactive clear.
+- **Frontend — Buying:** **`ManifestUploadProgress`** and Stage **2** driver (**four** concurrent **`map_fast_cat_batch`** workers); progress bar, running estimated cost, latest mapping label, cancel; **debounced** React Query invalidation (~**1** s) for live **Manifest Rows** and category mix; **Remove manifest** inside manifest card with confirmation; drop/replace controls hidden while **`mapping`**; two-column layout aligned with flex (**`flex: 1`** manifest content card). **`frontend/src/components/buying/ManifestUploadProgress.tsx`**, **`AuctionDetailPage`**.
+
+### Changed
+
+- **Settings / pricing:** **`AI_MODEL`**, **`AI_MODEL_FAST`** (from **`.env`** with defaults in **`ecothrift/settings.py`**); **`AI_PRICING`** per-model rates (Sonnet, Opus, Haiku — input, output, cache write, cache read per million tokens); **`BUYING_CATEGORY_AI_MODEL`** unified as alias to **`AI_MODEL`**. Prompt caching via **`cache_control: {"type": "ephemeral"}`** on system content blocks. **`.env.example`** updated.
+
+### Notes (documented, non-blocking)
+
+- **`DELETE manifest`:** TODO on wrong-marketplace CSV leaving stale AI **`CategoryMapping`** prefixes after row removal — future admin tooling or **`purge_ai_mappings`** option ([`apps/buying/api_views.py`](apps/buying/api_views.py)).
+- **Cache hit rate ~0** on fast-cat key batches: prompts under Sonnet **2048**-token minimum cache threshold; no action required.
+
+### Initiative
+
+- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — Phase **4.1B** shipped; **next: Phase 5** (auction valuation).
 
 ---
 
@@ -50,11 +73,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
-
-### Documentation
-
-- **Buying — Phase 4.1A manual validation (2026-04):** Documented E2E CSV upload against **`seed_manifest_templates`** / **`seed_fast_cat_mappings`**: five seeded vendor files succeeded; one unseeded vendor (**Costco**) returned **400** with stub template (**expected**); one Target electronics-heavy file produced **`fast_cat_key`** on all rows with **0** **`fast_cat_value`** hits — **seed coverage gap** (343 keys from three consultant sources), **not** an upload defect — **Phase 4.1B** expands mappings/templates. **`create_test_auctions`** noted for local matrix testing.
-- **review_bump (Phase 4.1A close-out):** Aligned [`.ai/extended/frontend.md`](.ai/extended/frontend.md) and [`.ai/extended/backend.md`](.ai/extended/backend.md) with buying UI/API through **v2.6.1**; updated [`.ai/consultant_context.md`](.ai/consultant_context.md) (Phase **4.1A** validation, **`fast_cat`**, seed-coverage gotcha, **`create_test_auctions`**); [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) (4.1A acceptance + **4.1B** pointer). No app version bump (docs-only).
 
 ### Steering
 

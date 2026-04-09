@@ -339,6 +339,14 @@ class Command(BaseCommand):
                         system=system_prompt,
                         messages=[{'role': 'user', 'content': user_content}],
                     )
+                    from apps.core.services.ai_usage_log import log_ai_usage_from_response
+
+                    log_ai_usage_from_response(
+                        'categorize_category_bins',
+                        response,
+                        model=options['model'],
+                        detail='categorize_category_bins',
+                    )
                 except anthropic_mod.APIError as e:
                     raise CommandError(f'Anthropic API error: {e}') from e
 

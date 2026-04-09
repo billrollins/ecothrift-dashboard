@@ -165,6 +165,14 @@ class Command(BaseCommand):
                         system=system_prompt,
                         messages=[{'role': 'user', 'content': user_content}],
                     )
+                    from apps.core.services.ai_usage_log import log_ai_usage_from_response
+
+                    log_ai_usage_from_response(
+                        'compare_category_taxonomy_models',
+                        response,
+                        model=model_id,
+                        detail=f'batch start={start}',
+                    )
                 except anthropic_mod.APIError as e:
                     raise CommandError(f'{model_id} API error: {e}') from e
 

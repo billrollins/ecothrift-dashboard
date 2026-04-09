@@ -13,12 +13,16 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes as perm_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
+
+DEFAULT_AI_MODEL = getattr(settings, 'AI_MODEL', 'claude-sonnet-4-6')
 from apps.core.logging import get_logger
 from apps.core.models import S3File
+from apps.core.services.ai_usage_log import log_ai_usage, log_ai_usage_from_response
 from .formula_engine import evaluate_formula, FormulaError
 
 logger = get_logger(__name__, 'LOG_INVENTORY')
@@ -1134,13 +1138,20 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         try:
             client = anthropic_lib.Anthropic(api_key=api_key)
             if not model_id:
-                model_id = 'claude-sonnet-4-6'
+                model_id = DEFAULT_AI_MODEL
 
             response = client.messages.create(
                 model=model_id,
                 max_tokens=2048,
-                system=system_prompt,
+                system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
                 messages=[{'role': 'user', 'content': '\n'.join(user_message_parts)}],
+            )
+
+            log_ai_usage_from_response(
+                'ai_suggest_formulas',
+                response,
+                model=model_id,
+                detail=f'order={order.pk} suggest-formulas',
             )
 
             content_text = ''
@@ -1165,6 +1176,16 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         except anthropic_lib.APIError as e:
             logger.error('Anthropic API error in suggest-formulas: %s', e)
+            _mid = (self.request.data.get('model', '') or DEFAULT_AI_MODEL)
+            log_ai_usage(
+                'ai_suggest_formulas',
+                _mid,
+                0,
+                0,
+                detail=f'order={order.pk} suggest-formulas',
+                success=False,
+                error=str(e),
+            )
             return Response(
                 {'error': f'AI service error: {e}'},
                 status=status.HTTP_502_BAD_GATEWAY,
@@ -1197,7 +1218,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             from django.conf import settings as django_settings
 
             order = self.get_object()
-            model_id = request.data.get('model', '') or 'claude-sonnet-4-6'
+            model_id = request.data.get('model', '') or DEFAULT_AI_MODEL
             batch_size = int(request.data.get('batch_size', 25))
             offset = int(request.data.get('offset', 0))
             api_key = getattr(django_settings, 'ANTHROPIC_API_KEY', '')
@@ -1275,7 +1296,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     response = client.messages.create(
                         model=model_id,
                         max_tokens=calculated_max_tokens,
-                        system=system_prompt,
+                        system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
                         messages=[{'role': 'user', 'content': json_lib.dumps(batch_data)}],
                         timeout=90.0,
                     )
@@ -1290,6 +1311,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             timing['retries'] = attempt
 
             stop_reason = getattr(response, 'stop_reason', None)
+
+            log_ai_usage_from_response(
+                'ai_cleanup_rows',
+                response,
+                model=model_id,
+                detail=f'order={order.pk} ai-cleanup offset={offset} batch={len(batch)}',
+            )
 
             t0 = _time.perf_counter()
             content_text = ''
@@ -1358,6 +1386,16 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         except anthropic_lib.APIError as e:
             timing['total_ms'] = round((_time.perf_counter() - t_total_start) * 1000, 1)
             cleanup_logger.error('AI cleanup API error: %s', e)
+            _mid = (request.data.get('model', '') or DEFAULT_AI_MODEL)
+            log_ai_usage(
+                'ai_cleanup_rows',
+                _mid,
+                0,
+                0,
+                detail=f'order={order.pk} ai-cleanup',
+                success=False,
+                error=str(e),
+            )
             return Response(
                 {'error': f'AI service error: {e}', 'timing': timing},
                 status=status.HTTP_502_BAD_GATEWAY,
@@ -1697,7 +1735,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             import anthropic as anthropic_lib
             try:
                 client = anthropic_lib.Anthropic(api_key=api_key)
-                model_id = ai_model or 'claude-sonnet-4-6'
+                model_id = ai_model or DEFAULT_AI_MODEL
 
                 pending_rows = ManifestRow.objects.filter(
                     purchase_order=order,
@@ -1733,11 +1771,18 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     response = client.messages.create(
                         model=model_id,
                         max_tokens=4096,
-                        system=system_prompt,
+                        system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
                         messages=[{
                             'role': 'user',
                             'content': json_lib.dumps(batch_data),
                         }],
+                    )
+
+                    log_ai_usage_from_response(
+                        'ai_match_products',
+                        response,
+                        model=model_id,
+                        detail=f'order={order.pk} match-products batch={i // batch_size}',
                     )
 
                     content_text = ''
@@ -1991,13 +2036,20 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         try:
             client = anthropic_lib.Anthropic(api_key=api_key)
             if not model_id:
-                model_id = 'claude-sonnet-4-6'
+                model_id = DEFAULT_AI_MODEL
 
             response = client.messages.create(
                 model=model_id,
                 max_tokens=4096,
-                system=system_prompt,
+                system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
                 messages=[{'role': 'user', 'content': json_lib.dumps(rows_data)}],
+            )
+
+            log_ai_usage_from_response(
+                'ai_suggest_finalization',
+                response,
+                model=model_id,
+                detail=f'order={order.pk} suggest-finalization',
             )
 
             content_text = ''
@@ -2936,7 +2988,7 @@ class ItemViewSet(viewsets.ModelViewSet):
             fields = request.data.get('fields') or []
             context = request.data.get('context') or {}
             # Default to Sonnet — same proven id as manifest AI cleanup; Haiku id varies by account/GA date.
-            model_id = (request.data.get('model') or '').strip() or 'claude-sonnet-4-6'
+            model_id = (request.data.get('model') or '').strip() or DEFAULT_AI_MODEL
 
             if not isinstance(fields, list) or not fields:
                 return Response(
@@ -3002,11 +3054,18 @@ class ItemViewSet(viewsets.ModelViewSet):
             response = client.messages.create(
                 model=model_id,
                 max_tokens=1024,
-                system=system_prompt,
+                system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
                 messages=[{'role': 'user', 'content': user_message_json}],
                 timeout=60.0,
             )
             timing['api_ms'] = round((_time.perf_counter() - t0) * 1000, 1)
+
+            log_ai_usage_from_response(
+                'suggest_item',
+                response,
+                model=model_id,
+                detail='POST suggest_item',
+            )
 
             content_text = ''
             for block in response.content:

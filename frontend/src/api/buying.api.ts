@@ -8,6 +8,7 @@ import type {
   BuyingAuctionSummaryResponse,
   BuyingManifestRow,
   BuyingManifestRowsParams,
+  BuyingMapFastCatBatchResponse,
   BuyingMarketplace,
   BuyingPollResponse,
   BuyingPullManifestResponse,
@@ -25,6 +26,7 @@ export type {
   BuyingAuctionListItem,
   BuyingAuctionSnapshot,
   BuyingManifestRow,
+  BuyingMapFastCatBatchResponse,
   BuyingMarketplace,
   BuyingPollResponse,
   BuyingPullManifestResponse,
@@ -143,6 +145,20 @@ export async function postBuyingUploadManifest(
     }
   );
   return data;
+}
+
+export async function postBuyingMapFastCatBatch(
+  auctionId: number
+): Promise<BuyingMapFastCatBatchResponse> {
+  const { data } = await api.post<BuyingMapFastCatBatchResponse>(
+    `/buying/auctions/${auctionId}/map_fast_cat_batch/`,
+    {}
+  );
+  return data;
+}
+
+export async function deleteBuyingManifest(auctionId: number): Promise<void> {
+  await api.delete(`/buying/auctions/${auctionId}/manifest/`);
 }
 
 export async function fetchBuyingSnapshots(

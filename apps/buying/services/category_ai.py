@@ -10,6 +10,7 @@ from typing import Any
 from django.conf import settings
 
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
+from apps.core.services.ai_usage_log import log_ai_usage, log_ai_usage_from_response
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,7 @@ def get_anthropic_client():
 
 
 def _default_model() -> str:
-    m = (getattr(settings, 'BUYING_CATEGORY_AI_MODEL', None) or '').strip()
-    return m if m else 'claude-sonnet-4-6'
+    return (getattr(settings, 'AI_MODEL', None) or 'claude-sonnet-4-6').strip()
 
 
 def build_system_prompt() -> str:
@@ -87,6 +87,9 @@ def parse_ai_category_json(text: str) -> dict[str, Any]:
 def suggest_category_for_source_key(
     source_key: str,
     sample_rows: list[Any],
+    *,
+    auction_id: int | None = None,
+    marketplace_slug: str | None = None,
 ) -> tuple[str, str]:
     """
     One Claude call: returns (canonical_category, reasoning) or raises.
@@ -111,12 +114,32 @@ def suggest_category_for_source_key(
         response = client.messages.create(
             model=model,
             max_tokens=1024,
-            system=system,
+            system=[{'type': 'text', 'text': system, 'cache_control': {'type': 'ephemeral'}}],
             messages=[{'role': 'user', 'content': user}],
         )
     except anthropic.APIError as e:  # type: ignore[attr-defined]
         logger.warning('Anthropic API error in category_ai: %s', e)
+        log_ai_usage(
+            'categorize_manifests',
+            model,
+            0,
+            0,
+            auction_id=auction_id,
+            marketplace=marketplace_slug,
+            detail=f'source_key={source_key[:120]!r}',
+            success=False,
+            error=str(e),
+        )
         raise
+
+    log_ai_usage_from_response(
+        'categorize_manifests',
+        response,
+        model=model,
+        auction_id=auction_id,
+        marketplace=marketplace_slug,
+        detail=f'source_key={source_key[:120]!r}',
+    )
 
     content_text = ''
     for block in response.content:

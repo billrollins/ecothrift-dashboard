@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence
 
-<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on the **B-Stock auction intelligence** initiative for **Eco-Thrift Dashboard**. The reader may have **no repo access** or limited time: everything critical should be reachable in one pass.
 
@@ -46,7 +46,7 @@ The dashboard UI is **React** (TypeScript, MUI, React Query). **Buying** staff r
 
 **Soft touch vs invasive:** **Soft touch** (default) means using the **public listings API** (`search.bstock.com` POST) **without a JWT**. It is appropriate for **frequent or scheduled sweeps** and minimizes ban risk. **Invasive** flows use a **Bearer JWT** for **token-backed** endpoints: **order-process manifests**, **auction.bstock.com** batch state, authenticated **listing** calls, etc. Invasive calls should be **rare**, **manually approved**, and tied to **intent to bid** or **must-have enrichment**.
 
-**Manual manifest path (production):** **CSV upload** in the React **auction detail** page is **shipped** (**v2.6.1**, Phase 4.1A): **`POST /api/buying/auctions/{id}/upload_manifest/`** with `ManifestTemplate` detection. **Server-side** `pull_manifest` using a stored token remains useful for **local development** but is **not** the default production story, because cloud token automation is awkward and token-heavy calls drove **account blocks** during development.
+**Manual manifest path (production):** **CSV upload** in the React **auction detail** page is **shipped** (**v2.7.0**, Phases 4.1A–4.1B): **`POST /api/buying/auctions/{id}/upload_manifest/`** with `ManifestTemplate` detection; optional **Claude** template completion for unknown headers; Stage **2** **`map_fast_cat_batch`** for unmapped **`fast_cat_key`** values. **Server-side** `pull_manifest` using a stored token remains useful for **local development** but is **not** the default production story, because cloud token automation is awkward and token-heavy calls drove **account blocks** during development.
 
 **Ban mitigation:** If token-backed actions are blocked, **soft-touch discovery** can continue. Standard practices: **delays between requests**, **backoff on HTTP 429/403**, **logging response codes**, and **separating** listing sweeps from manifest pulls. See initiative **Open questions** for follow-up on per-account vs per-IP limits.
 
@@ -173,7 +173,7 @@ Scheduled **sweeps** on Heroku can run **without** a token if only search is use
 
 ---
 
-## What is implemented (Phases 1–4)
+## What is implemented (Phases 1–4 + 4.1A–4.1B)
 
 ### Phase 1 (shipped)
 
@@ -189,9 +189,9 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 ### Phase 2 — staff React UI and APIs (shipped)
 
-**Auction list** (`/buying/auctions`, **v2.4.1**; UX **v2.6.1**): server-paginated **DataGrid** on desktop (`md+`) and **infinite-scroll cards** on mobile; **marketplace chip** filters (single-click isolate one vendor, **Ctrl/⌘+click** multi-select; comma-separated slugs on the API) with global summary counts; status and has-manifest filters; **all columns sortable**; **Total retail** shows manifest vs listing source (**`total_retail_display`** / **`retail_source`**); urgency styling for time remaining; row/card navigation to detail; **Refresh auctions** runs **`POST /api/buying/sweep/?marketplace=`** **sequentially** per marketplace with inline progress and partial-failure reporting; list refetches on mount when returning from detail.
+**Auction list** (`/buying/auctions`, **v2.4.1**; UX **v2.7.0**): server-paginated **DataGrid** on desktop (`md+`) and **infinite-scroll cards** on mobile; **marketplace chip** filters (single-click isolate one vendor, **Ctrl/⌘+click** multi-select; comma-separated slugs on the API) with global summary counts; status and has-manifest filters; **all columns sortable**; **Total retail** shows manifest vs listing source (**`total_retail_display`** / **`retail_source`**); urgency styling for time remaining; row/card navigation to detail; **Refresh auctions** runs **`POST /api/buying/sweep/?marketplace=`** **sequentially** per marketplace with inline progress and partial-failure reporting; list refetches on mount when returning from detail.
 
-**Auction detail** (`/buying/auctions/:id`, **v2.6.1**): **Auction title** as page heading + optional **View on B-Stock** icon (**`Auction.url`**); **marketplace** chip in **Auction Details** metadata card (not in header). Two-column sections **Auction Details** | **Manifest**: CSV **drag/drop** + **Choose file**; empty state **Download from B-Stock** when URL present; replace strip when manifest exists. **Category Mix** stacked bar + **wrapping** legend (19 taxonomy colors in **`frontend/src/constants/taxonomyV1.ts`**; hatch for **Not yet categorized**). **Manifest Rows** under a divider: **search** + **fast category** filter (server-side **`search`** / **`category`** on **`GET …/manifest_rows/`**); **DataGrid** (50/page) or mobile cards. **CSV upload** primary path; **pull manifest** (JWT) for dev; **watchlist star** (**`POST`/`DELETE …/watchlist/`**).
+**Auction detail** (`/buying/auctions/:id`, **v2.7.0**): **Auction title** as page heading + optional **View on B-Stock** icon (**`Auction.url`**); **marketplace** chip in **Auction Details** metadata card (not in header). Two-column flex sections **Auction Details** | **Manifest**: **`ManifestUploadProgress`** when uploading/mapping; CSV **drag/drop** + **Choose file** (hidden during **MAPPING**); **Remove manifest** in manifest card; empty state **Download from B-Stock** when URL present; replace strip when manifest exists and not mapping. **Category Mix** stacked bar + **wrapping** legend (19 taxonomy colors in **`frontend/src/constants/taxonomyV1.ts`**; hatch for **Not yet categorized**). **Manifest Rows** under a divider: **search** + **fast category** filter (server-side **`search`** / **`category`** on **`GET …/manifest_rows/`**); **DataGrid** (50/page) or mobile cards. **CSV upload** primary path; **pull manifest** (JWT) for dev; **watchlist star** (**`POST`/`DELETE …/watchlist/`**).
 
 **Manifest normalization:** **`normalize.py`** flattens nested B-Stock structures (**`attributes`**, **`attributes.ids`**, **`uniqueIds`**, **`customAttributes`**, **`categories`**, **`itemCondition`**, pick heuristics for SKU/title, etc.); optional warnings when important fields are empty and unmapped keys remain (**`row_id`** helps pinpoint rows). **`renormalize_manifest_rows`** bulk-updates rows from stored **`raw_data`**. **Retail:** unit/extended retail is converted to dollars; **integer minor units (cents)** use a documented heuristic (see **`normalize.py`**).
 
@@ -213,7 +213,9 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **UI:** Auction detail shows a **category mix** stacked bar + **wrapping** legend (full **`category_distribution`**; no rolled-up “Other”) and **chips** per manifest line by confidence.
 
-**Phase 4.1A (v2.6.1; manual E2E validation 2026-04):** **`ManifestTemplate`** (per marketplace **header signature**, **`column_map`**, **`category_fields`**, **`is_reviewed`**); **`POST …/upload_manifest/`** (multipart **`file`**) — **`fast_cat_key`** / **`fast_cat_value`** from **`CategoryMapping`** lookup; **`category_confidence`** = **`fast_cat`** when mapped; **does not** run **`categorize_manifest_rows`**. **`seed_manifest_templates`** (four templates: Target 17-col, Walmart 13-col, Amazon 16- and 17-col); **`seed_fast_cat_mappings`** (**343** keys — consultant-reviewed from **three** source manifests: Target **beauty**-heavy, Walmart, Amazon mixed; **not** all vendor category paths). Unknown CSV headers: **HTTP 400**, stub template for admin (**`unknown_template`**). Unseeded vendor example (Costco): **400** with stub — **expected**. Target **electronics** sample produced **`fast_cat_key`** on all rows but **0** **`fast_cat_value`** — keys **outside** the 343 seed (**expected**; **Phase 4.1B** = broader **`CategoryMapping`** / templates). **`create_test_auctions`** for local uploads without API. Auction detail API may expose **`manifest_template_name`**.
+**Phase 4.1A (v2.6.1; manual E2E validation 2026-04):** **`ManifestTemplate`** (per marketplace **header signature**, **`column_map`**, **`category_fields`**, **`is_reviewed`**); **`POST …/upload_manifest/`** (multipart **`file`**) — **`fast_cat_key`** / **`fast_cat_value`** from **`CategoryMapping`** lookup when keys exist; **`category_confidence`** = **`fast_cat`** when mapped; **does not** run **`categorize_manifest_rows`**. **`seed_manifest_templates`** (four templates: Target 17-col, Walmart 13-col, Amazon 16- and 17-col); **`seed_fast_cat_mappings`** (**343** keys — consultant-reviewed from **three** source manifests). **`create_test_auctions`** for local uploads without API. Auction detail API may expose **`manifest_template_name`**.
+
+**Phase 4.1B (v2.7.0; validated 2026-04):** **Claude** proposes **`column_map`** / **`category_fields`** for unknown headers (**`ai_manifest_template.propose_manifest_template_with_ai`**); template saved **`is_reviewed=True`**. **`POST …/map_fast_cat_batch/`** — up to **10** keys per call (**`ai_key_mapping.map_one_fast_cat_batch`**); new **`CategoryMapping`** with **`rule_origin='ai'`**; **`ManifestRow.fast_cat_value`** filled. Upload response includes **`unmapped_key_count`**, **`total_batches`**. **`DELETE …/manifest/`** removes **`ManifestRow`** only — templates and **`CategoryMapping`** persist; **TODO** on wrong-marketplace stale AI prefixes. **`fast_cat_key`** containing **`__no_key__`** excluded from AI. **Usage:** **`workspace/logs/ai_usage.jsonl`**, **`AI_PRICING`**, **`scripts/ai/summarize_ai_usage.py`**. **UI:** **`ManifestUploadProgress`**, **four** concurrent workers, cancel, remove manifest, debounced invalidation; drop/replace hidden during **MAPPING**. **Gotcha:** Sonnet prompt-cache hits ~**0** on small key batches (under **2048**-token cache minimum).
 
 ---
 
@@ -225,7 +227,7 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **Heroku Scheduler** (or a worker dyno) for production jobs may be partial; confirm deployment docs.
 
-**Manual manifest upload** in the React UI (drag/drop) is **shipped** (**v2.6.1**).
+**Manual manifest upload** in the React UI (drag/drop) is **shipped** (**v2.7.0** with **4.1B** AI flows).
 
 **Bid** and **Outcome** models exist; full outcome tracking UI and workflows are **Phase 6**.
 
@@ -247,7 +249,8 @@ The initiative file is authoritative. At a high level:
 | **2** | Staff auction list, detail + manifests, watchlist page, normalization + renormalize command. **Done (v2.4.1 + v2.5.0).** |
 | **3** | Watchlist polling, **`AuctionSnapshot`**, snapshots API, price history, Poll now. **Done.** |
 | **4** | **`CategoryMapping`**, 3-tier categorization, seed/categorize commands, **`category_distribution`**, UI bar + chips, retail cents fix. **Done.** |
-| **4.1A** | **`ManifestTemplate`**, CSV **`upload_manifest`**, **`fast_cat_key`** / **`fast_cat_value`**, **`seed_manifest_templates`** + **`seed_fast_cat_mappings`** (343 keys), unknown-template stub, **`create_test_auctions`**. **Done (v2.6.1).** E2E validated **2026-04**. **4.1B** = expand template/mapping coverage. |
+| **4.1A** | **`ManifestTemplate`**, CSV **`upload_manifest`**, **`fast_cat_key`** / **`fast_cat_value`**, **`seed_manifest_templates`** + **`seed_fast_cat_mappings`** (343 keys), unknown-template stub, **`create_test_auctions`**. **Done (v2.6.1).** E2E validated **2026-04**. |
+| **4.1B** | AI template creation, AI key mapping, **`map_fast_cat_batch`**, **`DELETE manifest`**, usage logging, **`ManifestUploadProgress`**, **`__no_key__`** exclusion. **Done (v2.7.0).** |
 | **5** | Auction valuation scaffold. **Next.** |
 | **6** | Outcome tracking. **Future.** |
 
@@ -269,7 +272,9 @@ The plan was **reordered** so the **frontend** lands before heavy backend-only i
 
 **JWE vs JWT:** See **Authentication** above. Wrong token type manifests as **400** on some services, not a clean **401**.
 
-**Fast-cat seed coverage (Phase 4.1A):** The **343** **`seed_fast_cat_mappings`** keys are **not** exhaustive for every B-Stock category string. Rows still get a **`fast_cat_key`** when category columns parse; **`fast_cat_value`** is **null** if the key is absent from **`CategoryMapping`**. Interpreting **0** mapped rows as an upload bug is **incorrect** when the manifest mix is outside the seeded slice (e.g. Target electronics vs beauty-heavy seed).
+**Fast-cat seed coverage (Phase 4.1A):** The **343** **`seed_fast_cat_mappings`** keys are **not** exhaustive for every B-Stock category string. Rows still get a **`fast_cat_key`** when category columns parse; **`fast_cat_value`** is **null** if the key is absent from **`CategoryMapping`**. **Phase 4.1B** adds **Claude** mapping for unknown keys (**`rule_origin='ai'`**) and UI-driven batch completion.
+
+**Wrong marketplace + `DELETE manifest`:** Removing manifest rows does **not** delete **`CategoryMapping`**; a CSV uploaded against the wrong marketplace can leave **AI** mappings with a misleading prefix — **`DELETE`** handler **TODO**; use admin review until tooling ships.
 
 **Heroku IPs:** If B-Stock blocks **Heroku egress IPs**, server-side scraping may fail. **Mitigation** is not finalized; **local push** to production APIs is the documented fallback idea.
 

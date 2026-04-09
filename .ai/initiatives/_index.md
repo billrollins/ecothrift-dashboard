@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -13,7 +13,7 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 
 | Initiative | Notes |
 |------------|--------|
-| [bstock_auction_intelligence.md](./bstock_auction_intelligence.md) | B-Stock: Phases **1–4** + **4.1A** complete (**v2.6.1** — manifest templates, CSV upload, fast-cat seed, buying UI polish; **manual E2E validation 2026-04**); **4.1B** = expand template/mapping coverage; **next Phase 5** auction valuation; then outcomes (**Phase 6**). |
+| [bstock_auction_intelligence.md](./bstock_auction_intelligence.md) | B-Stock: Phases **1–4** + **4.1A** + **4.1B** complete (**v2.7.0** — AI template creation, AI key mapping, upload progress UI, usage logging, **`DELETE …/manifest/`**); **next Phase 5** auction valuation; then outcomes (**Phase 6**). |
 
 **Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent POS work: [cart totals v2.2.7](./_archived/_completed/pos_cart_total_stale_prefetch_bug.md), [sold-SKU / audit v2.2.8](./_archived/_completed/pos_sold_item_scan_ux_and_audit_trail.md), [unscannable manual line v2.2.9](./_archived/_completed/pos_unscannable_manual_line.md).
 

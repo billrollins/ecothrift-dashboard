@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-07T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -77,7 +77,7 @@ If **POS registers** or **supplemental drawer** rows are missing (e.g. after `re
 
 **Jupyter (DB1 / DB2 / DB3):** See `workspace/notebooks/_shared/README.md`. From repo root: `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` (and `jupyter` / `jupyterlab` as needed). Secrets go in gitignored `workspace/notebooks/_shared/config_local.py`.
 
-**B-Stock (production):** **`apps/buying/`** — `python manage.py sweep_auctions`, `pull_manifests`, **`bstock_token`** (writes **`workspace/.bstock_token`**, gitignored; scraper prefers it over **`BSTOCK_AUTH_TOKEN`**). **`BUYING_REQUEST_DELAY_SECONDS`**, **`BSTOCK_MAX_RETRIES`**, **`BSTOCK_SEARCH_MAX_PAGES`** in root `.env`. Search listings POST is unauthenticated. Bookmarklet to copy JWT from the `elt` cookie: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. See **`workspace/notebooks/bstock-intelligence/README.md`** for notebooks. **Legacy** notebook package `workspace/notebooks/bstock-scraper/Scraper/` remains reference-only; see `_shared/README.md`.
+**B-Stock (production):** **`apps/buying/`** — `python manage.py sweep_auctions`, `pull_manifests`, **`bstock_token`** (writes **`workspace/.bstock_token`**, gitignored; scraper prefers it over **`BSTOCK_AUTH_TOKEN`**). **`BUYING_REQUEST_DELAY_SECONDS`**, **`BSTOCK_MAX_RETRIES`**, **`BSTOCK_SEARCH_MAX_PAGES`** in root `.env`. Search listings POST is unauthenticated. Bookmarklet to copy JWT from the `elt` cookie: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. See **`workspace/notebooks/bstock-intelligence/README.md`** for notebooks. **Legacy** notebook package `workspace/notebooks/bstock-scraper/Scraper/` remains reference-only; see `_shared/README.md`. **AI usage log (all Claude call sites):** append-only **`workspace/logs/ai_usage.jsonl`** (gitignored); summarize with **`python scripts/ai/summarize_ai_usage.py`** or **`scripts/ai/summarize_ai_usage.bat`**.
 
 **Print server (V3):** AI-oriented notes in [`.ai/extended/print-server.md`](print-server.md). The Windows **installer** (`printserver/installer/setup.py`) removes legacy V2 artifacts before installing V3; optional IT batch: `printserver/installer/uninstall_legacy_prior.bat`. **Installer / S3 release version** is `VERSION` in [`printserver/config.py`](../../printserver/config.py) (not the same as repo root `.version`, which tracks the dashboard app). Build + upload: `printserver/distribute.bat`. For fast label/receipt iteration, use `printserver/dev_print_label_test.bat` and `printserver/dev_print_receipt_test.bat` (see table above).
 
@@ -107,7 +107,10 @@ Defined in `.env` (gitignored):
 | `AWS_STORAGE_BUCKET_NAME` | S3 bucket name | — |
 | `AWS_S3_REGION_NAME` | S3 region | `us-east-2` |
 | `ALLOWED_HOSTS` | Comma-separated hosts | `localhost,127.0.0.1` |
-| `ANTHROPIC_API_KEY` | Optional AI integration key | — |
+| `ANTHROPIC_API_KEY` | Anthropic API key (Claude — buying 4.1B, inventory AI, `apps/ai`, etc.) | — |
+| `AI_MODEL` | Default Claude model id (`ecothrift/settings.py` default e.g. Sonnet) | see `settings.py` |
+| `AI_MODEL_FAST` | Optional faster/cheaper model id where used | see `settings.py` |
+| `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs logged to **`workspace/logs/ai_usage.jsonl`** | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest when `browser` is enabled in `.ai/debug/log.config` | `false` |
 | `BSTOCK_AUTH_TOKEN` | Fallback JWT if `workspace/.bstock_token` is missing (from `python manage.py bstock_token` or DevTools) | — |
 | `BUYING_REQUEST_DELAY_SECONDS` | Minimum delay between scraper HTTP requests | `2.0` |

@@ -109,6 +109,17 @@ def _one_row(
         system=SYSTEM_PROMPT,
         messages=[{'role': 'user', 'content': user_text}],
     )
+    try:
+        from apps.core.services.ai_usage_log import log_ai_usage_from_response
+
+        log_ai_usage_from_response(
+            'category_research_categorize',
+            msg,
+            model=model,
+            detail=f'cr/categorize row_index={row_index}',
+        )
+    except Exception:
+        pass
     text = ''
     for block in msg.content:
         if getattr(block, 'type', None) == 'text' and hasattr(block, 'text'):

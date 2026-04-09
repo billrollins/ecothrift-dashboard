@@ -2,6 +2,7 @@
 Django settings for ecothrift project — development.
 """
 import os
+from decimal import Decimal
 from pathlib import Path
 from datetime import timedelta
 from decouple import Config, Csv, RepositoryEnv, RepositoryEmpty
@@ -193,8 +194,34 @@ else:
 
 # ── AI / Anthropic ───────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
-# Optional override for apps.buying.services.category_ai (defaults to claude-sonnet-4-6).
-BUYING_CATEGORY_AI_MODEL = config('BUYING_CATEGORY_AI_MODEL', default='')
+# Default model for most AI calls (buying, chat proxy, inventory cleanup, etc.).
+AI_MODEL = config('AI_MODEL', default='claude-sonnet-4-6')
+# Reserved for cheaper high-volume paths (optional; not required for all features).
+AI_MODEL_FAST = config('AI_MODEL_FAST', default='claude-haiku-4-5')
+# Backward compatibility: single knob — same as AI_MODEL.
+BUYING_CATEGORY_AI_MODEL = AI_MODEL
+
+# USD per 1M tokens (update when Anthropic changes pricing; restart required).
+AI_PRICING = {
+    'claude-sonnet-4-6': {
+        'input': Decimal('3.00'),
+        'output': Decimal('15.00'),
+        'cache_write': Decimal('3.75'),
+        'cache_read': Decimal('0.30'),
+    },
+    'claude-opus-4-6': {
+        'input': Decimal('5.00'),
+        'output': Decimal('25.00'),
+        'cache_write': Decimal('6.25'),
+        'cache_read': Decimal('0.50'),
+    },
+    'claude-haiku-4-5': {
+        'input': Decimal('1.00'),
+        'output': Decimal('5.00'),
+        'cache_write': Decimal('1.25'),
+        'cache_read': Decimal('0.10'),
+    },
+}
 
 # ── Buying / B-Stock (search POST is unauthenticated; other calls need JWT) ─
 BSTOCK_AUTH_TOKEN = config('BSTOCK_AUTH_TOKEN', default='')

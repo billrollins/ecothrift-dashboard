@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -11,6 +11,10 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   FormControl,
   Grid,
@@ -33,7 +37,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import CategoryDistributionBar from '../../components/buying/CategoryDistributionBar';
 import {
+  ManifestUploadProgress,
+  type ManifestMappingPhase,
+} from '../../components/buying/ManifestUploadProgress';
+import {
+  deleteBuyingManifest,
   deleteBuyingWatchlist,
+  postBuyingMapFastCatBatch,
   postBuyingUploadManifest,
   postBuyingWatchlist,
 } from '../../api/buying.api';
@@ -43,7 +53,7 @@ import {
   useBuyingManifestRowsInfinite,
   useBuyingManifestRowsPage,
 } from '../../hooks/useBuyingManifestRows';
-import type { BuyingManifestRow } from '../../types/buying.types';
+import type { BuyingManifestRow, BuyingUploadManifestResponse } from '../../types/buying.types';
 import { formatCurrency, formatCurrencyWhole, formatNumber } from '../../utils/format';
 import {
   CartesianGrid,
@@ -238,6 +248,101 @@ export default function AuctionDetailPage() {
     void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
   };
 
+  const debounceMappingInvalidateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleDebouncedManifestInvalidate = useCallback(() => {
+    if (debounceMappingInvalidateRef.current != null) return;
+    debounceMappingInvalidateRef.current = setTimeout(() => {
+      debounceMappingInvalidateRef.current = null;
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'detail', auctionId] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', auctionId, 'manifest_rows'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
+    }, 1000);
+  }, [auctionId, queryClient]);
+
+  const cancelMappingRef = useRef(false);
+  const mappingRunningRef = useRef(false);
+  const aiUnavailableRef = useRef(false);
+
+  const [mappingPhase, setMappingPhase] = useState<ManifestMappingPhase>('idle');
+  const [step1Info, setStep1Info] = useState<BuyingUploadManifestResponse | null>(null);
+  const [unmappedKeyCountStart, setUnmappedKeyCountStart] = useState(0);
+  const [mappingKeysRemaining, setMappingKeysRemaining] = useState<number | null>(null);
+  const [mappingTotalCost, setMappingTotalCost] = useState(0);
+  const [mappingLatest, setMappingLatest] = useState<string | null>(null);
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+
+  useEffect(() => {
+    setMappingPhase('idle');
+    setStep1Info(null);
+    setUnmappedKeyCountStart(0);
+    setMappingKeysRemaining(null);
+    setMappingTotalCost(0);
+    setMappingLatest(null);
+    cancelMappingRef.current = false;
+  }, [auctionId]);
+
+  const runMappingWorkers = useCallback(async () => {
+    if (!auctionId || mappingRunningRef.current) return;
+    mappingRunningRef.current = true;
+    cancelMappingRef.current = false;
+    aiUnavailableRef.current = false;
+
+    const worker = async () => {
+      while (!cancelMappingRef.current && !aiUnavailableRef.current) {
+        const res = await postBuyingMapFastCatBatch(auctionId);
+        setMappingKeysRemaining(res.keys_remaining ?? null);
+        setMappingTotalCost((c) => c + (res.estimated_cost_usd ?? 0));
+        if (res.mappings?.length) {
+          const m = res.mappings[res.mappings.length - 1];
+          setMappingLatest(`${m.fast_cat_key} → ${m.canonical_category}`);
+        }
+        scheduleDebouncedManifestInvalidate();
+        if (res.error === 'ai_not_configured') {
+          aiUnavailableRef.current = true;
+          setMappingPhase('ai_unavailable');
+          break;
+        }
+        if (!res.has_more) break;
+      }
+    };
+
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    await queryClient.refetchQueries({ queryKey: ['buying', 'auctions', 'detail', auctionId] });
+    await queryClient.refetchQueries({ queryKey: ['buying', 'auctions', auctionId, 'manifest_rows'] });
+    mappingRunningRef.current = false;
+
+    if (aiUnavailableRef.current) return;
+    if (cancelMappingRef.current) {
+      setMappingPhase('cancelled');
+    } else {
+      setMappingPhase('complete');
+      window.setTimeout(() => {
+        setMappingPhase('idle');
+        setStep1Info(null);
+      }, 5000);
+    }
+  }, [auctionId, queryClient, scheduleDebouncedManifestInvalidate]);
+
+  const onCancelMapping = () => {
+    cancelMappingRef.current = true;
+  };
+
+  const removeManifestMutation = useMutation({
+    mutationFn: () => deleteBuyingManifest(auctionId!),
+    onSuccess: async () => {
+      cancelMappingRef.current = true;
+      setMappingPhase('idle');
+      setStep1Info(null);
+      setRemoveDialogOpen(false);
+      await queryClient.refetchQueries({ queryKey: ['buying', 'auctions', 'detail', auctionId] });
+      await queryClient.refetchQueries({ queryKey: ['buying', 'auctions', auctionId, 'manifest_rows'] });
+      enqueueSnackbar('Manifest removed.', { variant: 'success' });
+    },
+    onError: () => {
+      enqueueSnackbar('Could not remove manifest.', { variant: 'error' });
+    },
+  });
+
   const invalidateAuctionSnapshots = () => {
     void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'detail', auctionId] });
     void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', auctionId, 'snapshots'] });
@@ -274,15 +379,32 @@ export default function AuctionDetailPage() {
   const uploadMutation = useMutation({
     mutationFn: (file: File) => postBuyingUploadManifest(auctionId!, file),
     onSuccess: async (data) => {
+      setStep1Info(data);
+      if (data.unmapped_key_count > 0) {
+        setUnmappedKeyCountStart(data.unmapped_key_count);
+        setMappingKeysRemaining(data.unmapped_key_count);
+        setMappingTotalCost(0);
+        setMappingLatest(null);
+      }
       invalidateAuctionAndManifest();
       await queryClient.refetchQueries({ queryKey: ['buying', 'auctions', 'detail', auctionId] });
       await queryClient.refetchQueries({
         queryKey: ['buying', 'auctions', auctionId, 'manifest_rows'],
       });
       enqueueSnackbar(
-        `Saved ${data.rows_created} row(s). ${data.rows_with_fast_cat_value} with fast category mapping.`,
+        `Saved ${data.rows_saved} row(s). ${data.rows_with_fast_cat} with fast category. Template: ${data.template_source}.`,
         { variant: 'success' }
       );
+      if (data.unmapped_key_count > 0) {
+        setMappingPhase('mapping');
+        void runMappingWorkers();
+      } else {
+        setMappingPhase('complete');
+        window.setTimeout(() => {
+          setMappingPhase('idle');
+          setStep1Info(null);
+        }, 4000);
+      }
     },
     onError: (err: unknown) => {
       if (isAxiosError(err)) {
@@ -347,10 +469,17 @@ export default function AuctionDetailPage() {
 
   const watched = Boolean(detail.watchlist_entry);
   const hasManifestRows = (detail.manifest_row_count ?? 0) > 0;
+  const showRemoveManifest =
+    hasManifestRows ||
+    mappingPhase === 'mapping' ||
+    mappingPhase === 'complete' ||
+    mappingPhase === 'cancelled' ||
+    mappingPhase === 'ai_unavailable';
   const categorizedRows =
     detail.category_distribution != null
       ? detail.category_distribution.total_rows - detail.category_distribution.not_yet_categorized.count
       : 0;
+  const isMappingBatch = mappingPhase === 'mapping';
 
   const onPickManifestFile = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -506,7 +635,7 @@ export default function AuctionDetailPage() {
       />
 
       <Grid container spacing={1.5} sx={{ mb: 3, alignItems: 'stretch' }}>
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <Typography
             variant="subtitle2"
             color="text.secondary"
@@ -514,7 +643,7 @@ export default function AuctionDetailPage() {
           >
             Auction Details
           </Typography>
-          <Card variant="outlined" sx={{ p: 1.25, height: '100%' }}>
+          <Card variant="outlined" sx={{ p: 1.25, flex: 1, minHeight: 0, overflow: 'auto' }}>
             {detail.marketplace?.name ? (
               <Box sx={{ mb: 1.25 }}>
                 <Chip size="small" label={detail.marketplace.name} color="primary" variant="outlined" />
@@ -622,7 +751,7 @@ export default function AuctionDetailPage() {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 6 }}>
+        <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <Typography
             variant="subtitle2"
             color="text.secondary"
@@ -630,168 +759,205 @@ export default function AuctionDetailPage() {
           >
             Manifest
           </Typography>
-          {!hasManifestRows ? (
-            <Card
-              variant="outlined"
-              onDragEnter={handleFullManifestDragEnter}
-              onDragLeave={handleFullManifestDragLeave}
-              onDragOver={handleFullManifestDragOver}
-              onDrop={handleFullManifestDrop}
-              onClick={() => !uploadMutation.isPending && manifestFileInputRef.current?.click()}
-              sx={{
-                position: 'relative',
-                minHeight: 260,
-                height: '100%',
-                borderStyle: 'dashed',
-                borderWidth: 2,
-                borderColor: fullManifestDropOver ? 'primary.main' : 'divider',
-                bgcolor: fullManifestDropOver ? 'action.selected' : 'background.paper',
-                cursor: uploadMutation.isPending ? 'wait' : 'pointer',
-                overflow: 'hidden',
-                transition: 'border-color 0.15s ease, background-color 0.15s ease',
-              }}
-            >
-              {fullManifestDropOver ? (
-                <Box
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, gap: 1.5 }}>
+            <ManifestUploadProgress
+              phase={uploadMutation.isPending ? 'uploading' : mappingPhase}
+              step1={step1Info}
+              isUploadPending={uploadMutation.isPending}
+              unmappedKeyCountStart={unmappedKeyCountStart}
+              keysRemaining={mappingKeysRemaining}
+              totalCostUsd={mappingTotalCost}
+              latestMapping={mappingLatest}
+              showCancel={mappingPhase === 'mapping'}
+              onCancel={onCancelMapping}
+            />
+            {!hasManifestRows ? (
+              isMappingBatch ? (
+                <Box sx={{ flex: 1, minHeight: 0 }} />
+              ) : (
+                <Card
+                  variant="outlined"
+                  onDragEnter={handleFullManifestDragEnter}
+                  onDragLeave={handleFullManifestDragLeave}
+                  onDragOver={handleFullManifestDragOver}
+                  onDrop={handleFullManifestDrop}
+                  onClick={() => !uploadMutation.isPending && manifestFileInputRef.current?.click()}
                   sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    bgcolor: 'primary.main',
-                    opacity: 0.12,
-                    pointerEvents: 'none',
-                    zIndex: 1,
+                    position: 'relative',
+                    flex: 1,
+                    minHeight: 0,
+                    borderStyle: 'dashed',
+                    borderWidth: 2,
+                    borderColor: fullManifestDropOver ? 'primary.main' : 'divider',
+                    bgcolor: fullManifestDropOver ? 'action.selected' : 'background.paper',
+                    cursor: uploadMutation.isPending ? 'wait' : 'pointer',
+                    overflow: 'hidden',
+                    transition: 'border-color 0.15s ease, background-color 0.15s ease',
                   }}
-                />
-              ) : null}
-              <Stack
-                alignItems="center"
-                justifyContent="center"
-                spacing={2}
-                sx={{
-                  position: 'relative',
-                  zIndex: 2,
-                  minHeight: 260,
-                  px: 2,
-                  py: 3,
-                  pointerEvents: uploadMutation.isPending ? 'none' : 'auto',
-                }}
-              >
-                <Typography variant="h6" align="center" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Drop manifest CSV here
-                </Typography>
-                <Typography variant="body2" align="center" color="text.secondary">
-                  Or click the card to browse, or use Choose file below.
-                </Typography>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    htmlFor="auction-manifest-upload-input"
-                    disabled={uploadMutation.isPending}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Choose file
-                  </Button>
-                  {detail.url ? (
-                    <Button
-                      variant="text"
-                      color="primary"
-                      component="a"
-                      href={detail.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      startIcon={<OpenInNewIcon fontSize="small" />}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Download from B-Stock
-                    </Button>
+                >
+                  {fullManifestDropOver ? (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        inset: 0,
+                        bgcolor: 'primary.main',
+                        opacity: 0.12,
+                        pointerEvents: 'none',
+                        zIndex: 1,
+                      }}
+                    />
                   ) : null}
-                </Stack>
-                {uploadMutation.isPending ? (
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <CircularProgress size={22} />
-                    <Typography variant="body2">Processing manifest…</Typography>
-                  </Stack>
-                ) : null}
-              </Stack>
-            </Card>
-          ) : (
-            <Card
-              variant="outlined"
-              sx={{
-                minHeight: 380,
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              <Box sx={{ p: 1.25, pb: 1, flexShrink: 0 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0 }}>
-                  {formatNumber(detail.manifest_row_count ?? 0)} rows · {formatNumber(categorizedRows)} categorized
-                  {detail.manifest_template_name ? ` · ${detail.manifest_template_name}` : ''}
-                </Typography>
-              </Box>
-
-              <Box
-                onDragEnter={handleReplaceManifestDragEnter}
-                onDragLeave={handleReplaceManifestDragLeave}
-                onDragOver={handleReplaceManifestDragOver}
-                onDrop={handleReplaceManifestDrop}
-                onClick={() => !uploadMutation.isPending && manifestFileInputRef.current?.click()}
-                sx={{
-                  position: 'relative',
-                  mt: 'auto',
-                  minHeight: 120,
-                  flex: '1 1 auto',
-                  borderTop: '2px dashed',
-                  borderTopColor: replaceManifestDropOver ? 'primary.main' : 'divider',
-                  px: 2,
-                  py: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: uploadMutation.isPending ? 'wait' : 'pointer',
-                  bgcolor: replaceManifestDropOver ? 'action.selected' : 'action.hover',
-                  transition: 'background-color 0.15s ease, border-color 0.15s ease',
-                }}
-              >
-                {replaceManifestDropOver ? (
-                  <Box
+                  <Stack
+                    alignItems="center"
+                    justifyContent="center"
+                    spacing={2}
                     sx={{
-                      position: 'absolute',
-                      inset: 0,
-                      bgcolor: 'primary.main',
-                      opacity: 0.1,
-                      pointerEvents: 'none',
+                      position: 'relative',
+                      zIndex: 2,
+                      minHeight: 260,
+                      height: '100%',
+                      px: 2,
+                      py: 3,
+                      pointerEvents: uploadMutation.isPending ? 'none' : 'auto',
                     }}
-                  />
-                ) : null}
-                <Stack alignItems="center" spacing={1} sx={{ position: 'relative', zIndex: 1 }}>
-                  {uploadMutation.isPending ? (
-                    <>
-                      <CircularProgress size={22} />
-                      <Typography variant="body2">Processing manifest…</Typography>
-                    </>
-                  ) : (
-                    <>
-                      <Typography variant="body2" color="text.secondary" align="center" fontWeight={500}>
-                        Replace manifest — drop CSV here or click
-                      </Typography>
+                  >
+                    <Typography variant="h6" align="center" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Drop manifest CSV here
+                    </Typography>
+                    <Typography variant="body2" align="center" color="text.secondary">
+                      Or click the card to browse, or use Choose file below.
+                    </Typography>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
                       <Button
                         variant="outlined"
-                        size="small"
                         component="label"
                         htmlFor="auction-manifest-upload-input"
+                        disabled={uploadMutation.isPending}
                         onClick={(e) => e.stopPropagation()}
                       >
                         Choose file
                       </Button>
-                    </>
-                  )}
-                </Stack>
-              </Box>
-            </Card>
-          )}
+                      {detail.url ? (
+                        <Button
+                          variant="text"
+                          color="primary"
+                          component="a"
+                          href={detail.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          startIcon={<OpenInNewIcon fontSize="small" />}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Download from B-Stock
+                        </Button>
+                      ) : null}
+                    </Stack>
+                    {uploadMutation.isPending ? (
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <CircularProgress size={22} />
+                        <Typography variant="body2">Processing manifest…</Typography>
+                      </Stack>
+                    ) : null}
+                  </Stack>
+                </Card>
+              )
+            ) : (
+              <Card
+                variant="outlined"
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <Box
+                  sx={{
+                    p: 1.25,
+                    pb: 1,
+                    flexShrink: 0,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: 1,
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0, flex: 1, minWidth: 0 }}>
+                    {formatNumber(detail.manifest_row_count ?? 0)} rows · {formatNumber(categorizedRows)} categorized
+                    {detail.manifest_template_name ? ` · ${detail.manifest_template_name}` : ''}
+                  </Typography>
+                  {showRemoveManifest ? (
+                    <Button size="small" variant="text" color="inherit" onClick={() => setRemoveDialogOpen(true)} sx={{ flexShrink: 0 }}>
+                      Remove manifest
+                    </Button>
+                  ) : null}
+                </Box>
+
+                {!isMappingBatch ? (
+                  <Box
+                    onDragEnter={handleReplaceManifestDragEnter}
+                    onDragLeave={handleReplaceManifestDragLeave}
+                    onDragOver={handleReplaceManifestDragOver}
+                    onDrop={handleReplaceManifestDrop}
+                    onClick={() => !uploadMutation.isPending && manifestFileInputRef.current?.click()}
+                    sx={{
+                      position: 'relative',
+                      mt: 'auto',
+                      minHeight: 120,
+                      flex: '1 1 auto',
+                      borderTop: '2px dashed',
+                      borderTopColor: replaceManifestDropOver ? 'primary.main' : 'divider',
+                      px: 2,
+                      py: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: uploadMutation.isPending ? 'wait' : 'pointer',
+                      bgcolor: replaceManifestDropOver ? 'action.selected' : 'action.hover',
+                      transition: 'background-color 0.15s ease, border-color 0.15s ease',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {replaceManifestDropOver ? (
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          inset: 0,
+                          bgcolor: 'primary.main',
+                          opacity: 0.1,
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    ) : null}
+                    <Stack alignItems="center" spacing={1} sx={{ position: 'relative', zIndex: 1 }}>
+                      {uploadMutation.isPending ? (
+                        <>
+                          <CircularProgress size={22} />
+                          <Typography variant="body2">Processing manifest…</Typography>
+                        </>
+                      ) : (
+                        <>
+                          <Typography variant="body2" color="text.secondary" align="center" fontWeight={500}>
+                            Replace manifest — drop CSV here or click
+                          </Typography>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            component="label"
+                            htmlFor="auction-manifest-upload-input"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Choose file
+                          </Button>
+                        </>
+                      )}
+                    </Stack>
+                  </Box>
+                ) : null}
+              </Card>
+            )}
+          </Box>
         </Grid>
       </Grid>
 
@@ -996,6 +1162,26 @@ export default function AuctionDetailPage() {
           </ResponsiveContainer>
         </Box>
       )}
+
+      <Dialog open={removeDialogOpen} onClose={() => setRemoveDialogOpen(false)}>
+        <DialogTitle>Remove manifest?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            This will delete all {formatNumber(detail.manifest_row_count ?? 0)} manifest rows. Category mappings
+            created by AI will be kept for future use.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRemoveDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={() => removeManifestMutation.mutate()}
+            disabled={removeManifestMutation.isPending}
+            color="primary"
+          >
+            Remove
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
