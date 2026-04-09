@@ -85,7 +85,7 @@ WSGI_APPLICATION = 'ecothrift.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DATABASE_NAME', default='ecothrift_v2'),
+        'NAME': config('DATABASE_NAME', default='ecothrift_v3'),
         'USER': config('DATABASE_USER', default='postgres'),
         'PASSWORD': config('DATABASE_PASSWORD', default='password'),
         'HOST': config('DATABASE_HOST', default='localhost'),

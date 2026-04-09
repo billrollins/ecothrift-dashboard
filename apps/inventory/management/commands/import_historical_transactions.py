@@ -24,7 +24,7 @@ from apps.pos.models import HistoricalTransaction
 DB2_CONFIG = {
     'host': 'localhost',
     'port': 5432,
-    'dbname': 'db2',
+    'dbname': 'ecothrift_v2',
     'user': 'postgres',
     'password': 'password',
 }
@@ -32,7 +32,7 @@ DB2_CONFIG = {
 DB1_CONFIG = {
     'host': 'localhost',
     'port': 5432,
-    'dbname': 'old_production_db',
+    'dbname': 'ecothrift_v1',
     'user': 'postgres',
     'password': 'password',
 }

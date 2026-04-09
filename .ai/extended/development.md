@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T12:00:00-05:00 -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -34,7 +34,7 @@ source venv/bin/activate       # macOS/Linux
 pip install -r requirements.txt
 
 # 3. Create the database
-psql -U postgres -c "CREATE DATABASE ecothrift_v2 OWNER postgres;"
+psql -U postgres -c "CREATE DATABASE ecothrift_v3 OWNER postgres;"
 
 # 4. Run migrations
 python manage.py migrate
@@ -96,7 +96,7 @@ Defined in `.env` (gitignored):
 | `SECRET_KEY` | Django secret key | (generated) |
 | `DEBUG` | Debug mode | `True` |
 | `ENVIRONMENT` | Runtime environment label | `development` |
-| `DATABASE_NAME` | PostgreSQL database name | `ecothrift_v2` |
+| `DATABASE_NAME` | PostgreSQL database name | `ecothrift_v3` |
 | `DATABASE_USER` | PostgreSQL user | `postgres` |
 | `DATABASE_PASSWORD` | PostgreSQL password | `password` |
 | `DATABASE_HOST` | PostgreSQL host | `localhost` |
@@ -117,7 +117,7 @@ Defined in `.env` (gitignored):
 | `BSTOCK_MAX_RETRIES` | Retries after HTTP 429 | `3` |
 | `BSTOCK_SEARCH_MAX_PAGES` | Safety cap on search pagination pages per marketplace | `5000` |
 
-**PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `ecothrift_v2`). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. Use **`scripts/deploy/0_pull_prod_to_local.bat`** to load production (including `public` + `ecothrift`) into that local DB. See root **`.env.example`**.
+**PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `ecothrift_v3`). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. Use **`scripts/deploy/0_pull_prod_to_local.bat`** to load production (including `public` + `ecothrift`) into that local DB. See root **`.env.example`**. Separate local archives **`ecothrift_v1`** (V1) and **`ecothrift_v2`** (V2 **`public`** only) are optional for historical tooling; see **`.ai/extended/databases.md`**.
 
 ## Adding a New Feature
 

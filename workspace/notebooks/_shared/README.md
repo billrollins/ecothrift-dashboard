@@ -16,7 +16,7 @@ Project notebooks live in slug folders: **`db-explorer/`**, **`historical-data/`
 
 2. **`config_local.py`** (gitignored) — either:
    - Copy **`config.example.py`** → **`config_local.py`** in this `_shared/` folder and edit credentials, or
-   - Use the repo’s generated **`config_local.py`**, which reads **`DATABASE_*`** from the project root **`.env`** (same as Django). The **`dev`** entry uses **`schema: ecothrift`** (matches Django `search_path`). DB1/DB2 use database names `old_production_db` and `db2` on that same server; change those in `config_local.py` if your local names differ.
+   - Use the repo’s generated **`config_local.py`**, which reads **`DATABASE_*`** from the project root **`.env`** (same as Django). The **`dev`** entry uses **`schema: ecothrift`** (matches Django `search_path`). DB1/DB2 notebook keys use **`ecothrift_v1`** and **`ecothrift_v2`** on **`localhost`** by default (see **`config.example.py`**).
 
 3. For DB1/DB2 on **different** hosts or passwords than `.env`, edit **`config_local.py`** or switch to the static template from `config.example.py`.
 

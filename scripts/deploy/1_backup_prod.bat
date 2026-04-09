@@ -94,11 +94,11 @@ echo   (and any other objects in the shared production database.)
 echo.
 echo   Restore examples (pick one):
 echo     Full DB into empty local DB:
-echo       pg_restore --no-owner --no-acl -h localhost -U postgres -d ecothrift_v2 "!DUMP_FILE!"
+echo       pg_restore --no-owner --no-acl -h localhost -U postgres -d ecothrift_v3 "!DUMP_FILE!"
 echo     Single schema only:
-echo       pg_restore --no-owner --no-acl -n public -h localhost -U postgres -d ecothrift_v2 "!DUMP_FILE!"
-echo       pg_restore --no-owner --no-acl -n darkhorse -h localhost -U postgres -d ecothrift_v2 "!DUMP_FILE!"
-echo       pg_restore --no-owner --no-acl -n ecothrift -h localhost -U postgres -d ecothrift_v2 "!DUMP_FILE!"
+echo       pg_restore --no-owner --no-acl -n public -h localhost -U postgres -d ecothrift_v3 "!DUMP_FILE!"
+echo       pg_restore --no-owner --no-acl -n darkhorse -h localhost -U postgres -d ecothrift_v3 "!DUMP_FILE!"
+echo       pg_restore --no-owner --no-acl -n ecothrift -h localhost -U postgres -d ecothrift_v3 "!DUMP_FILE!"
 echo.
 
 if "%~1"=="" pause

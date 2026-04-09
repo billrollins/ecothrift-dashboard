@@ -1,20 +1,23 @@
-<!-- Last updated: 2026-04-06T21:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T12:00:00-05:00 -->
 
 # Databases — Three Generations
 
-Eco-Thrift has three PostgreSQL databases in play: **Old Production** (archive), **Production** (current v2 app), and **Dev** (this repo / v3 schema). Names are easy to confuse because the **dev** database is still called `ecothrift_v2` locally.
+Eco-Thrift uses **multiple PostgreSQL databases** locally: frozen archives for V1 and V2, and an **active dev** database for this Django app (V3). **Remote production** on Heroku still uses whatever database name Heroku assigns (unchanged here).
 
 ---
 
 ## Names in this doc vs servers
 
-| Label here | Generation | Typical database name | Role |
-|------------|------------|----------------------|------|
-| **Old Production** | 1st (DB1) | `old_production_db` | Archive / migration source |
-| **Production** | 2nd (DB2) | Heroku DB name (e.g. `d4op06smk6i192`) or local restore `db2` | Live store until v3 cutover |
-| **Dev** | 3rd (DB3) | `ecothrift_v2` (local) | This Django project — **not** the same as “v2 generation” |
+| Label here | Generation | Typical local database name | Role |
+|------------|------------|----------------------------|------|
+| **Old Production** | 1st (DB1) | `ecothrift_v1` | Frozen V1 archive / migration source (formerly `old_production_db`) |
+| **V2 archive** | 2nd (DB2) | `ecothrift_v2` | Frozen snapshot: **`public`** schema only (legacy / V2-era tables) |
+| **Dev** | 3rd (DB3) | `ecothrift_v3` | This Django project — full local prod restore target; **not** the same as “v2 generation” |
+| **Production (Heroku)** | live | Heroku-assigned name (e.g. `d4op06smk6i192`) | Current hosted DB until cutover; **not** renamed by local conventions |
 
-**Local dev after `scripts/deploy/0_pull_prod_to_local.bat`:** One database (`ecothrift_v2`) holds a **full production restore**, including **`public`** (legacy / V2-era tables) and **`ecothrift`** (V3 app). Django connects with `search_path=ecothrift` — ORM uses **`ecothrift.*`**. Category research SQL reads **`public.*`** and **`ecothrift.*`** explicitly for exports; **`public`** is not the Django default schema.
+**Local dev after `scripts/deploy/0_pull_prod_to_local.bat`:** The script restores a **full production dump** into **`ecothrift_v3`**, including **`public`** (legacy / V2-era tables), **`ecothrift`** (V3 app), **`darkhorse`**, etc. Django connects with `search_path=ecothrift` — ORM uses **`ecothrift.*`**. Category research SQL reads **`public.*`** and **`ecothrift.*`** explicitly for exports (same database as **`DATABASE_*`**); **`public`** is not the Django default schema.
+
+**Separate frozen DBs:** **`ecothrift_v1`** and **`ecothrift_v2`** are optional local archives for introspection and commands that connect to DB1/DB2 **by name** (e.g. historical imports). They are **not** the Django `default` connection.
 
 ---
 
@@ -40,9 +43,9 @@ Long-form audit markdown for DB1/DB2/DB3 is **not committed** in this repo. Keep
 
 `workspace/notebooks/_shared/config_local.py` should define a dict `CONNECTIONS` with these keys (see `_shared/config.example.py`):
 
-- `old_production` — DB1 archive
-- `production` — DB2 (Heroku or local snapshot)
-- `dev` — DB3 / this project
+- `old_production` — DB1 archive (`ecothrift_v1` locally)
+- `production` — DB2 local frozen snapshot (`ecothrift_v2`)
+- `dev` — DB3 / this project (`ecothrift_v3`, same as `DATABASE_NAME`)
 
 Each entry: `host`, `port`, `database`, `user`, `password`, and optional `schema` (default `public`) for `search_path` / introspection.
 
@@ -57,7 +60,7 @@ Each entry: `host`, `port`, `database`, `user`, `password`, and optional `schema
 
 ## Category research (`export_category_bins`)
 
-The management command **`export_category_bins`** uses Django’s **`default`** connection only. It does **not** require a second database alias. In a typical production restore, **V2-era** tables live under **`public`** and **V3** app tables under **`ecothrift`** in the **same** Postgres database; SQL files use schema-qualified names (`public.*`, `ecothrift.*`). See **`workspace/notebooks/category-research/README.md`** and the archived initiative [`.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md`](../initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md).
+The management command **`export_category_bins`** uses Django’s **`default`** connection only. It does **not** require a second database alias. In a typical production restore into **`ecothrift_v3`**, **V2-era** tables live under **`public`** and **V3** app tables under **`ecothrift`** in the **same** Postgres database; SQL files use schema-qualified names (`public.*`, `ecothrift.*`). See **`workspace/notebooks/category-research/README.md`** and the archived initiative [`.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md`](../initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md).
 
 ---
 

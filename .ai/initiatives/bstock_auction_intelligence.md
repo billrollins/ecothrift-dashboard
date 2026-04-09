@@ -1,5 +1,5 @@
 <!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-08 -->
-<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T12:00:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -141,6 +141,8 @@ Every manifest row gets tagged with one of **19 canonical categories** (**taxono
 **Manual validation (2026-04):** Five seeded CSVs instant upload / seed mapping; five unseeded CSVs (Costco, Home Depot, Wayfair, Essendant, Amazon 20-col) — AI template + AI key mapping successful; cancel mid-mapping preserves partial categories; remove manifest + re-upload reuses templates/mappings; total test cost ~**$0.72** across **51** AI calls. **Known:** prompt cache hit rate ~**0** (under **2048**-token threshold); **`DELETE manifest`** wrong-marketplace TODO — documented, not blocking.
 
 ### Phase 5: Auction valuation scaffold
+
+**Blocked on:** [`historical_sell_through_analysis.md`](./historical_sell_through_analysis.md) Phase **3** output (per-category sell-through rates). Phase **5** build work starts after pricing rules are populated.
 
 **Per-line** estimated sale price on **`ManifestRow`**. **Auction-level rollup:** projected revenue, estimated costs, **suggested max bid**. Pricing function is **pluggable**: **v1** uses category-level **`avg_margin`** from **Bin 2** sell-through analysis (real data, not a flat guess). **Pricing rules** stored in a database table (category, margin rate, avg sale price, sample size, version date). **Bid calculator:** `projected_revenue` vs **total cost** (bid + fees + shipping + shrinkage estimate). **UI** shows valuation on **auction detail** and **summary on auction list**. When a better scoring model exists later, it **swaps into the same interface**.
 

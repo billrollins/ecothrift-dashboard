@@ -44,7 +44,7 @@ logger = get_logger(__name__, 'LOG_INVENTORY_IMPORT')
 #
 #   DATABASES['legacy'] = {
 #       'ENGINE': 'django.db.backends.postgresql',
-#       'NAME': 'ecothrift_v2',        # same DB, different schema, OR old DB name
+#       'NAME': 'ecothrift_v3',        # same DB, different schema, OR old DB name
 #       'USER': '...',
 #       'PASSWORD': '...',
 #       'HOST': 'localhost',

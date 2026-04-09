@@ -27,7 +27,7 @@ from apps.inventory.models import Item
 DB2_CONFIG = {
     'host': 'localhost',
     'port': 5432,
-    'dbname': 'db2',
+    'dbname': 'ecothrift_v2',
     'user': 'postgres',
     'password': 'password',
 }
@@ -35,7 +35,7 @@ DB2_CONFIG = {
 DB1_CONFIG = {
     'host': 'localhost',
     'port': 5432,
-    'dbname': 'old_production_db',
+    'dbname': 'ecothrift_v1',
     'user': 'postgres',
     'password': 'password',
 }
@@ -101,7 +101,7 @@ def _fetch_db2_sold(limit=None):
 
 
 def _fetch_db1_sold(limit=None):
-    """Query old_production_db directly for sold items via cart + cart_line join."""
+    """Query ecothrift_v1 (DB1 archive) directly for sold items via cart + cart_line join."""
     clause = f'LIMIT {limit}' if limit else ''
     conn = psycopg2.connect(**DB1_CONFIG)
     try:

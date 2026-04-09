@@ -30,12 +30,12 @@ def get_db2_connection_params():
     """Postgres connection for the DB2 (legacy dashboard) database.
 
     Override via env (or .env through python-decouple): DB2_HOST, DB2_PORT, DB2_NAME,
-    DB2_USER, DB2_PASSWORD. Defaults match local restore `db2` on localhost.
+    DB2_USER, DB2_PASSWORD. Defaults match local V2 archive database `ecothrift_v2` on localhost.
     """
     return {
         'host': config('DB2_HOST', default='localhost'),
         'port': config('DB2_PORT', default=5432, cast=int),
-        'dbname': config('DB2_NAME', default='db2'),
+        'dbname': config('DB2_NAME', default='ecothrift_v2'),
         'user': config('DB2_USER', default='postgres'),
         'password': config('DB2_PASSWORD', default='password'),
     }
