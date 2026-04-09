@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T18:30:00-05:00 -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -14,7 +14,7 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 | Initiative | Notes |
 |------------|--------|
 | [bstock_auction_intelligence.md](./bstock_auction_intelligence.md) | B-Stock: Phases **1–4** + **4.1A** + **4.1B** complete (**v2.7.0** — AI template creation, AI key mapping, upload progress UI, usage logging, **`DELETE …/manifest/`**); **Phase 5** auction valuation **blocked on** [historical sell-through](./historical_sell_through_analysis.md) Phase **3** output; then outcomes (**Phase 6**). |
-| [historical_sell_through_analysis.md](./historical_sell_through_analysis.md) | Per-category sell-through (`sum(sold_price)/sum(retail_value)` per **`fast_cat_value`**) from V1/V2/V3 + historical manifests via fast-cat pipeline; **feeds Phase 5** pricing rules. |
+| [historical_sell_through_analysis.md](./historical_sell_through_analysis.md) | Per-category sell-through (`sum(sold_price)/sum(retail_value)` per **`fast_cat_value`**) from V1/V2/V3 + historical manifests via fast-cat pipeline; **feeds Phase 5** pricing rules. **Shipped:** multi-DB PO extract → **`workspace/notes/to_consultant/purchase_orders_all_details.csv`** (**v2.7.1**; see initiative **Delivered tooling**). |
 
 **Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent POS work: [cart totals v2.2.7](./_archived/_completed/pos_cart_total_stale_prefetch_bug.md), [sold-SKU / audit v2.2.8](./_archived/_completed/pos_sold_item_scan_ux_and_audit_trail.md), [unscannable manual line v2.2.9](./_archived/_completed/pos_unscannable_manual_line.md).
 

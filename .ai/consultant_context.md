@@ -1,10 +1,30 @@
-# Consultant context: B-Stock auction intelligence
+# Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T18:30:00-05:00 -->
 
-**Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on the **B-Stock auction intelligence** initiative for **Eco-Thrift Dashboard**. The reader may have **no repo access** or limited time: everything critical should be reachable in one pass.
+**Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
 **Why not only `initiatives/` and `extended/`?** Those trees are **modular** so **coding agents** load only what a task needs and avoid irrelevant context. A **consultant** needs the **whole picture**—business, architecture, APIs, phases, gotchas, open questions—without opening many files. This document **consolidates** that; it does **not** replace **`.ai/initiatives/bstock_auction_intelligence.md`** for phase checklists and acceptance criteria—**keep both aligned** when either changes.
+
+---
+
+## Historical sell-through — legacy Purchase Order extract (v2.7.1)
+
+**Initiative:** [`.ai/initiatives/historical_sell_through_analysis.md`](.ai/initiatives/historical_sell_through_analysis.md) (active; feeds **B-Stock Phase 5** pricing rules after per-category rates exist).
+
+**What runs:** From repo root, `python workspace/notes/to_consultant/extract_po_descriptions.py` (requires **`psycopg2`**, `pip install` as needed; reads root **`.env`** `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_USER`, `DATABASE_PASSWORD`). It opens **three** PostgreSQL databases by name: **`ecothrift_v1`**, **`ecothrift_v2`**, and **`ecothrift_v3`** (V3 only returns PO rows if **`public.inventory_purchaseorder`** exists—otherwise V3 is skipped with a logged message; apply inventory migrations or point at a DB that has Django inventory tables).
+
+**Outputs (generated; gitignored except the `.py` script):**
+
+| Artifact | Location |
+|----------|----------|
+| Full PO list + parsed description fields | `workspace/notes/to_consultant/purchase_orders_all_details.csv` (consultant copy) |
+| Same rows (data dir) | `workspace/data/po_descriptions_all.csv` |
+| Vendor × cleaned_category counts | `workspace/data/po_category_distribution.csv` |
+| Sell-through join vs `sell_through_by_po.csv` | `workspace/data/po_category_sell_through.csv` |
+| Short markdown report | `workspace/notes/to_consultant/po_description_analysis.md` |
+
+**Semantics:** `sold_line_count` in the sell-through aggregation counts **POs that matched** the sell-through file on `po_number`, not per–cart-line counts (see analysis markdown). **`.gitignore`** whitelists **`extract_po_descriptions.py`** under `workspace/notes/to_consultant/` so the script is versioned; CSV/MD outputs stay local.
 
 ---
 

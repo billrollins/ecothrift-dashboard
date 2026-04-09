@@ -62,6 +62,30 @@ class CategoryMapping(models.Model):
         return f'{self.source_key[:40]}… → {self.canonical_category}' if len(self.source_key) > 40 else f'{self.source_key} → {self.canonical_category}'
 
 
+class PricingRule(models.Model):
+    """Per–canonical-category sell-through stats for auction valuation (Phase 5)."""
+
+    category = models.CharField(max_length=200, unique=True, db_index=True)
+    sell_through_rate = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        help_text='Ratio sold/retail (e.g. 0.4448 = 44.48%).',
+    )
+    avg_retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    avg_sold_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    sample_size = models.IntegerField(default=0)
+    version_date = models.DateField()
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-sample_size']
+
+    def __str__(self) -> str:
+        return f'{self.category} ({self.sell_through_rate:.2%})'
+
+
 class ManifestTemplate(models.Model):
     """Vendor + CSV header signature: column mapping and fast_cat_key rules (Phase 4.1A)."""
 

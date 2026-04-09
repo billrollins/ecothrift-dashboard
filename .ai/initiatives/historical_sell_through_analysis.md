@@ -1,9 +1,15 @@
-<!-- initiative: slug=historical-sell-through-analysis status=active updated=2026-04-08 -->
+<!-- initiative: slug=historical-sell-through-analysis status=active updated=2026-04-09 -->
 # Initiative: Historical sell-through analysis
 
 **Status:** Active
 
 **Dependency for:** `bstock_auction_intelligence.md` Phase 5 (auction valuation). Phase 5 needs per-category sell-through rates that this initiative produces.
+
+---
+
+## Delivered tooling (partial — toward Phase 3)
+
+- [x] **PO extract (app v2.7.1):** `python workspace/notes/to_consultant/extract_po_descriptions.py` — connects to **`ecothrift_v1`**, **`ecothrift_v2`**, **`ecothrift_v3`** (see script for V3 table guard). Writes **`workspace/notes/to_consultant/purchase_orders_all_details.csv`** (all POs, parsed description fields; consultant path), mirror **`workspace/data/po_descriptions_all.csv`**, **`po_category_distribution.csv`**, **`po_category_sell_through.csv`** (join **`workspace/data/sell_through_by_po.csv`**), **`workspace/notes/to_consultant/po_description_analysis.md`**. Documented in **`CHANGELOG`** **[2.7.1]**, **`.ai/consultant_context.md`**, **`.gitignore`** whitelist for the script path.
 
 ---
 

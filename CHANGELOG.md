@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-08T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T18:30:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,22 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.7.1] — 2026-04-09
+
+### Added
+
+- **Historical sell-through — consultant PO export:** `python workspace/notes/to_consultant/extract_po_descriptions.py` reads Purchase Orders from local **V1** (`ecothrift_v1`), **V2** (`ecothrift_v2`), and **V3** when `public.inventory_purchaseorder` exists; writes **`workspace/notes/to_consultant/purchase_orders_all_details.csv`** (full PO-level rows, same columns as **`workspace/data/po_descriptions_all.csv`**), plus category distribution / sell-through join outputs and **`po_description_analysis.md`**. Requires root **`.env`** `DATABASE_*`; V3 yields zero rows until inventory migrations / correct DB. Script is tracked in git (see **`.gitignore`** whitelist under **`workspace/notes/to_consultant/`**).
+
+### Changed
+
+- **`.gitignore`:** Whitelist **`workspace/notes/to_consultant/extract_po_descriptions.py`** so the consultant extract is versioned; generated CSV/Markdown under that folder remain ignored.
+
+### Initiative
+
+- [`.ai/initiatives/historical_sell_through_analysis.md`](.ai/initiatives/historical_sell_through_analysis.md) — tooling toward Phase **3** (sales join); consultant deliverable path documented.
 
 ---
 

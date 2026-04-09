@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T18:30:00-05:00 -->
 
 # Databases — Three Generations
 
@@ -69,3 +69,4 @@ The management command **`export_category_bins`** uses Django’s **`default`** 
 - `.ai/extended/backend.md` — backend / ORM notes when maintained
 - `workspace/notebooks/_shared/README.md` — setup; **`db-explorer/db_explorer.ipynb`** — multi-DB exploration
 - Optional deps: `workspace/notebooks/_shared/requirements-notebooks.txt` (Jupyter/DB stack + pandas/SQLAlchemy/psycopg2; also ML libs used by pricing commands)
+- **Historical PO extract (V1/V2/V3 by DB name):** `python workspace/notes/to_consultant/extract_po_descriptions.py` — see [`.ai/initiatives/historical_sell_through_analysis.md`](../initiatives/historical_sell_through_analysis.md) and **`CHANGELOG`** **[2.7.1]**; uses **`ecothrift_v1`**, **`ecothrift_v2`**, **`ecothrift_v3`** with credentials from root **`.env`** (not Django `DATABASE_NAME` alone).

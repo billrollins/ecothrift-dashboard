@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T18:30:00-05:00 -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -70,6 +70,7 @@ If **POS registers** or **supplemental drawer** rows are missing (e.g. after `re
 |--------|-------------|
 | `scripts/dev/start_servers.bat` | Kills listeners on 8000/5173, starts Django + Vite in new windows (uses `venv` if present) |
 | `scripts/dev/kill_servers.bat` | Stops processes using ports 8000 and 5173 |
+| `python workspace/notes/to_consultant/extract_po_descriptions.py` | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3** (see script for V3 prerequisites); writes **`workspace/notes/to_consultant/purchase_orders_all_details.csv`** and related outputs (**`CHANGELOG`** **2.7.1**). Requires **`psycopg2`** and root **`.env`** DB vars. |
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |
 

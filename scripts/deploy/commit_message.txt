@@ -1,1 +1,5 @@
-chore: rename local databases to ecothrift_v1/v2/v3 and update all references
+chore(release): v2.7.1 historical sell-through PO export and doc sync
+
+Review bump per .ai/protocols/review_bump.md: .version, package.json, CHANGELOG [2.7.1], .gitignore whitelist for workspace/notes/to_consultant/extract_po_descriptions.py, .ai/context.md, consultant_context.md, initiatives (_index + historical_sell_through_analysis), README, development.md, databases.md, review_bump.md timestamp.
+
+Pre-commit: cd frontend && npx tsc --noEmit; python -c "import compileall; compileall.compile_dir('apps', quiet=1)".

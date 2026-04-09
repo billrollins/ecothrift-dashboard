@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-08T21:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T18:30:00-05:00 -->
 # Protocol: Review, Version Bump, Pre-Commit, Handoff
 
 Single gate for **documentation audit**, **release bookkeeping**, **commit discipline**, and **session handoff**.

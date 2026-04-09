@@ -39,6 +39,16 @@ logs/
 # Personal workspace — almost everything ignored; only the notebook whitelist below is tracked.
 workspace/*
 workspace/.bstock_token
+# Generated sell-through outputs (script writes CSV/TXT; only .gitkeep tracked)
+!workspace/data/
+workspace/data/*
+!workspace/data/.gitkeep
+# Historical sell-through — only extract_po_descriptions.py under notes/ (never track all of notes/)
+!workspace/notes/
+workspace/notes/*
+!workspace/notes/to_consultant/
+workspace/notes/to_consultant/*
+!workspace/notes/to_consultant/extract_po_descriptions.py
 !workspace/notebooks/
 !workspace/testing/
 workspace/testing/*
