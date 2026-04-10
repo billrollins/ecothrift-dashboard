@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-10T14:15:00-05:00 -->
+<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
@@ -25,6 +25,18 @@
 | Short markdown report | `workspace/notes/to_consultant/po_description_analysis.md` |
 
 **Semantics:** `sold_line_count` in the sell-through aggregation counts **POs that matched** the sell-through file on `po_number`, not per–cart-line counts (see analysis markdown). **`.gitignore`** whitelists **`extract_po_descriptions.py`** under `workspace/notes/to_consultant/` so the script is versioned; CSV/MD outputs stay local.
+
+---
+
+## Historical data backfill (V1/V2 into V3) — active
+
+**Initiative:** [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) (**active**, **Phase 4 (sales — carts, cart lines, payments, sold-item updates) next** — Phases 0–3 loaders shipped).
+
+The V3 dashboard had near-zero historical data. Phase 0 removed a half-baked import; **Phases 1–3** load vendors/POs, products, manifest rows, and historical **`Item`** rows from legacy PostgreSQL **`ecothrift_v1`** / **`ecothrift_v2`** via management commands (see initiative). Pickle/CSV mirrors under `workspace/notebooks/historical-data/` remain for inspection; loaders use live legacy DB reads where implemented.
+
+**Phases:** 0 (recon/cleanup) → 1 (vendors/POs) → 2 (products/manifest rows) → 3 (items) → **4 (carts/cart lines/payments; update `sold_for` from cart lines where needed)** → 5 (taxonomy_v1 categorization + PricingRule update) → 6 (verify dashboards). After Phase 5, `PricingRule` rows will have data-backed sell-through rates, replacing the manually seeded flat rates from v2.8.0.
+
+**Relationship to sell-through initiative:** The pending `historical_sell_through_analysis` initiative's Phases 1-4 (legacy DB docs, CSV processing, sales join, data-backed rates) may be largely superseded by this backfill's Phases 3-5, which load actual sold items and compute sell-through from real cart data.
 
 ---
 
@@ -324,6 +336,31 @@ The plan was **reordered** so the **frontend** lands before heavy backend-only i
 
 ---
 
+## Extended docs — `.ai/extended/` TOC
+
+These are the domain deep-dive files that coding agents load on demand. Consultants do not normally read these directly (this file summarizes what you need), but the TOC is here so you know what exists and can request specific files if needed.
+
+| File | Domain | Description |
+|------|--------|-------------|
+| `auth-and-roles.md` | Auth | JWT flow (httpOnly refresh + in-memory access), roles, permissions, password flows |
+| `backend.md` | Backend | Django apps, models, serializers, API patterns, HR, AI proxy, management commands |
+| `bstock.md` | Buying | B-Stock API surface, scraper endpoints, auth requirements, service map |
+| `cash-management.md` | POS | Cash drops, pickups, drawer reconciliation, safe counts |
+| `consignment.md` | Consignment | Agreements, consignment items, payouts, consignee portal |
+| `databases.md` | Data | Three-generation DB overview (V1/V2/V3), connection patterns, `.env` keys |
+| `development.md` | Dev ops | Dev setup, scripts, environment, logging, Heroku config |
+| `frontend.md` | Frontend | React 18.3 + TS + MUI v7, pages, components, routing, React Query hooks |
+| `inventory-pipeline.md` | Inventory | PO processing, M3 pipeline, preprocessing, manifest templates, fast-cat |
+| `pos-system.md` | POS | Registers, drawers, carts, transactions, terminal UI, receipt flow |
+| `print-server.md` | Print | Local FastAPI print server — labels, receipts, drawer kick, Windows installer |
+| `retag-operations.md` | Inventory | Retag v2 day-of and post-cutover ops; cleanup instructions for temp models |
+
+---
+
 ## Document maintenance
 
-When APIs, phases, or shipped behavior change, update **this file** and **`.ai/initiatives/bstock_auction_intelligence.md`** together so advisors and implementers stay aligned. Prefer **density** (tables, tight bullets) over prose; avoid duplicating **`.ai/extended/`** verbatim—summarize what consultants must know. Session startup and context rules: **`.ai/protocols/startup.md`** (Audience: coding agent vs consultant), **`.ai/context.md`**.
+When APIs, phases, or shipped behavior change, update **this file** and the relevant **initiative files** together so advisors and implementers stay aligned. Prefer **density** (tables, tight bullets) over prose; avoid duplicating **`.ai/extended/`** verbatim—summarize what consultants must know.
+
+**Extended docs TOC:** When a file is **added, renamed, or removed** in `.ai/extended/`, the TOC table above **and** the matching table in **`.ai/context.md`** must both be updated.
+
+Session startup and context rules: **`.ai/protocols/startup.md`** (Audience: coding agent vs consultant), **`.ai/context.md`**.

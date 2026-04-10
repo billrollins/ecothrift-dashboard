@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-10T14:15:00-05:00 -->
+<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -56,21 +56,45 @@ ecothrift-dashboard/
 
 ---
 
+## Extended docs — `.ai/extended/` TOC
+
+Domain deep-dives loaded **on demand** (do not read all at session start). Each file is the authoritative reference for its domain.
+
+| File | Domain | Description |
+|------|--------|-------------|
+| [`auth-and-roles.md`](extended/auth-and-roles.md) | Auth | JWT flow (httpOnly refresh + in-memory access), roles, permissions, password flows |
+| [`backend.md`](extended/backend.md) | Backend | Django apps, models, serializers, API patterns, HR, AI proxy, management commands |
+| [`bstock.md`](extended/bstock.md) | Buying | B-Stock API surface, scraper endpoints, auth requirements, service map |
+| [`cash-management.md`](extended/cash-management.md) | POS | Cash drops, pickups, drawer reconciliation, safe counts |
+| [`consignment.md`](extended/consignment.md) | Consignment | Agreements, consignment items, payouts, consignee portal |
+| [`databases.md`](extended/databases.md) | Data | Three-generation DB overview (V1/V2/V3), connection patterns, `.env` keys |
+| [`development.md`](extended/development.md) | Dev ops | Dev setup, scripts, environment, logging, Heroku config |
+| [`frontend.md`](extended/frontend.md) | Frontend | React 18.3 + TS + MUI v7, pages, components, routing, React Query hooks |
+| [`inventory-pipeline.md`](extended/inventory-pipeline.md) | Inventory | PO processing, M3 pipeline, preprocessing, manifest templates, fast-cat |
+| [`pos-system.md`](extended/pos-system.md) | POS | Registers, drawers, carts, transactions, terminal UI, receipt flow |
+| [`print-server.md`](extended/print-server.md) | Print | Local FastAPI print server — labels, receipts, drawer kick, Windows installer |
+| [`retag-operations.md`](extended/retag-operations.md) | Inventory | Retag v2 day-of and post-cutover ops; cleanup instructions for temp models |
+
+**Maintenance rule:** When you **add, rename, or remove** a file in `.ai/extended/`, update this table **and** the matching table in `.ai/consultant_context.md`. See **How to Maintain Project Docs** below.
+
+---
+
 ## Current State
 
 ### Working
 
-Capability summary — **detail lives in** [`.ai/extended/`](extended/) and initiative files; do not duplicate long feature lists here.
+Capability summary — detail lives in the extended docs above and initiative files; do not duplicate long feature lists here.
 
-- **Accounts / auth:** JWT (httpOnly refresh + in-memory access), roles, password flows — [`.ai/extended/auth-and-roles.md`](extended/auth-and-roles.md)
-- **HR:** Time clock, sick leave, departments, time-entry requests — [`.ai/extended/backend.md`](extended/backend.md) (HR areas)
-- **Inventory:** POs, M3 processing, preprocessing (standard manifest, AI cleanup, matching, pricing), retag v2 — [`.ai/extended/inventory-pipeline.md`](extended/inventory-pipeline.md), [`.ai/extended/retag-operations.md`](extended/retag-operations.md)
-- **POS:** Terminal, drawers, carts, transactions, cash management — [`.ai/extended/pos-system.md`](extended/pos-system.md), [`.ai/extended/cash-management.md`](extended/cash-management.md)
-- **Consignment:** Agreements, items, payouts, portal — [`.ai/extended/consignment.md`](extended/consignment.md)
-- **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped (see `.version`); Phase 6 next — [`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md), [`.ai/extended/bstock.md`](extended/bstock.md)
-- **Print server:** Local FastAPI labels/receipts/drawer — [`.ai/extended/print-server.md`](extended/print-server.md)
-- **AI:** Claude proxy (`apps/ai/`), inventory/buying AI — [`.ai/extended/backend.md`](extended/backend.md)
-- **Core / ops:** Locations, settings, S3, dev logging — [`.ai/extended/development.md`](extended/development.md)
+- **Accounts / auth:** JWT, roles, password flows
+- **HR:** Time clock, sick leave, departments, time-entry requests
+- **Inventory:** POs, M3 processing, preprocessing (standard manifest, AI cleanup, matching, pricing), retag v2
+- **POS:** Terminal, drawers, carts, transactions, cash management
+- **Consignment:** Agreements, items, payouts, portal
+- **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped (see `.version`); Phase 6 next — see [bstock initiative](initiatives/bstock_auction_intelligence.md)
+- **Data backfill (V1/V2 → V3):** Phases 0–3 loaders shipped (`backfill_phase1_vendors_pos`, `backfill_phase2_products_manifests`, `backfill_phase3_items`); Phase 4 (carts / cart lines / sale data on items) next — see [data_backfill initiative](initiatives/data_backfill_initiative.md)
+- **Print server:** Local FastAPI labels/receipts/drawer
+- **AI:** Claude proxy (`apps/ai/`), inventory/buying AI
+- **Core / ops:** Locations, settings, S3, dev logging
 - **28+** React pages; TypeScript + Vite production build green; eight Django apps with CRUD where applicable.
 
 ### Known Issues
@@ -115,7 +139,7 @@ Capability summary — **detail lives in** [`.ai/extended/`](extended/) and init
 3. **Do NOT create documentation files** unless asked.
 4. **Do NOT amend commits** unless the conditions in the system prompt are met.
 5. **Use timestamps** (ISO 8601, America/Chicago timezone) on all documentation updates.
-6. **Load `.ai/extended/<domain>.md` only when the task touches that domain** — filenames are self-explanatory (e.g. `backend.md`, `inventory-pipeline.md`). Do not read all extended files at once. **`.ai/initiatives/`** and **`.ai/extended/`** are **modular** on purpose so coding sessions do not load irrelevant context. **External consultants** needing one **full** narrative for an initiative should use **`.ai/consultant_context.md`** (dense, all-in-one) rather than reading every extended file.
+6. **Load `.ai/extended/<domain>.md` only when the task touches that domain** — use the **Extended docs TOC** above to pick the right file. Do not read all extended files at once. **`.ai/initiatives/`** and **`.ai/extended/`** are **modular** on purpose so coding sessions do not load irrelevant context. **External consultants** needing one **full** narrative should use **`.ai/consultant_context.md`** (dense, all-in-one) rather than reading every extended file.
 7. **Follow protocols** in `.ai/protocols/` (`startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `collect_for_consultant.md`). **Cadence:** **`session_checkpoint`** several times per session; **`session_close`** at the end / before commit. **Initiative lifecycle** (`activate_initiative`, `move_initiative_to_*`) — [`.ai/initiatives/_archived/_protocols/README.md`](initiatives/_archived/_protocols/README.md). **Initiatives** live in `.ai/initiatives/` (`_index.md` for active; `_archived/ARCHIVE.md` for the archive catalog).
 8. **Initiatives vs releases** — Tie substantial work and **version bumps** to **named initiatives** when possible; **patch/minor/major** still follows product semver (see `_index.md`). If initiative scope is **ambiguous**, ask the user or add an initiative — do not guess.
 9. **Initiative archiving** — Do **not** move an initiative to `.ai/initiatives/_archived/` unless the **user explicitly** approves or instructs. **Ask** before archiving.
@@ -137,6 +161,7 @@ Capability summary — **detail lives in** [`.ai/extended/`](extended/) and init
 - When you add/change API endpoints or routes, update the relevant `.ai/extended/*.md` file or `context.md` “Current State”.
 - When you change auth or permissions, update `.ai/extended/auth-and-roles.md`.
 - When you add or rename databases / connection patterns, update `.ai/extended/databases.md` (never put secrets in `.ai/`).
+- **When you add, rename, or remove a file in `.ai/extended/`:** update the **Extended docs TOC** table in **this file** (`context.md`) **and** the matching table in **`.ai/consultant_context.md`**. Both TOCs must list every file in `.ai/extended/`.
 - When releasing a new version, bump repo root `.version`, bump root `package.json` `"version"` to match (numeric semver), and add an entry to repo root `CHANGELOG.md`. Anchor **major/minor/patch** in user-visible/API changes; link shipped work to **initiatives** in `_index.md` where applicable (see `.ai/protocols/session_close.md` Part 2). If the initiative in scope is unclear, resolve that before bumping.
 - When B-Stock / buying advisory material changes in a way that would matter to an external advisor, update **`.ai/consultant_context.md`** in the same pass as the relevant initiative or `apps/buying/` behavior (keep it information-dense; see that file’s maintenance note).
 - Always update the `<!-- Last updated: ... -->` timestamp at the top of any file you modify.
@@ -149,19 +174,15 @@ Capability summary — **detail lives in** [`.ai/extended/`](extended/) and init
 
 | Need | Where |
 |------|-------|
-| Tech stack and architecture | `.ai/context.md`, `.ai/extended/frontend.md` / `backend.md` as needed |
-| Database schema (Django / DB3) | `apps/*/models.py`, `.ai/extended/databases.md` |
-| Multi-DB overview (DB1/2/3) | `.ai/extended/databases.md` |
-| Local DB audit exports (optional) | `workspace/database-audits/` (gitignored) |
-| Jupyter multi-DB notebooks | `workspace/notebooks/` (see `_shared/README.md` for setup) |
-| Setup and dev guide | `.ai/extended/development.md` |
+| Tech stack and architecture | `.ai/context.md` (this file) |
+| Domain deep-dives | `.ai/extended/` — see **Extended docs TOC** above |
+| Database schema (Django / DB3) | `apps/*/models.py` |
 | Current version | Repo root `.version` |
 | Version history | Repo root `CHANGELOG.md` |
-| Initiatives (active, on hold, backlog) | `.ai/initiatives/_index.md` |
-| Archived initiatives (historical) | `.ai/initiatives/_archived/ARCHIVE.md` |
-| Consultant / external advisor (single dense file; buying initiative) | `.ai/consultant_context.md` |
-| Deep-dive context (coding agents: by domain) | `.ai/extended/*.md` (load by domain) |
-| Protocols | `.ai/protocols/startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `collect_for_consultant.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
-| Dev scripts (repo) | `scripts/dev/` |
-| Personal scratch | `workspace/` (mostly gitignored) |
-| E2E test templates | `workspace/testing/` (tracked checklist + README) |
+| Initiatives (active) | `.ai/initiatives/_index.md` |
+| Archived initiatives | `.ai/initiatives/_archived/ARCHIVE.md` |
+| Consultant handoff | `.ai/consultant_context.md` |
+| Protocols | `.ai/protocols/` — `startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `collect_for_consultant.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
+| Dev scripts | `scripts/dev/` |
+| Scratch / notebooks | `workspace/` (mostly gitignored) |
+| E2E test templates | `workspace/testing/` |

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-10T19:00:00-05:00 -->
 # Protocol: Session close (docs, version, commit)
 
 Run when you are ready to **finish a work session** and optionally **commit / release**. This replaces the old **`review_bump.md`** monolith: it is **one protocol** with three parts — record the session, update docs (scoped), stage the commit.
@@ -38,7 +38,7 @@ Run when you are ready to **finish a work session** and optionally **commit / re
 | Artifact | When to update |
 |----------|----------------|
 | **`.ai/context.md`** | Known Issue resolved, new capability in the pointer list, **Not Yet Implemented** item shipped, or **Working** section needs a new pointer line. Do **not** rewrite the whole Working section every session. |
-| **`.ai/extended/<domain>.md`** | You changed models, routes, URLs, auth, or domain behavior in that area. Bump the file’s `<!-- Last updated -->` timestamp. |
+| **`.ai/extended/<domain>.md`** | You changed models, routes, URLs, auth, or domain behavior in that area. Bump the file’s `<!-- Last updated -->` timestamp. If you **added, renamed, or removed** an extended file, update the **Extended docs TOC** in both **context.md** and **consultant_context.md**. |
 | **`.ai/initiatives/_index.md`** | Initiative phase or one-sentence Notes changed. |
 | **`.ai/consultant_context.md`** | **Required** when a **phase acceptance box is checked** or **initiative status** changes. Optional for small fixes otherwise. |
 | **Root `CHANGELOG.md`** | Add **`[Unreleased]`** bullets for user-visible or API-relevant work. **Style:** 1–2 sentences per bullet; cite initiative filename; avoid implementation-detail paragraphs. |

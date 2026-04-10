@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-10T19:00:00-05:00 -->
 # Protocol: Session Startup
 
 How to begin a new AI session on this project.
@@ -32,7 +32,7 @@ How to begin a new AI session on this project.
    - **Alignment:** Substantial or multi-session work should map to a **named initiative** (file + row in `_index.md`). **Repo version bumps** (major / minor / patch) relate to **what shipped** and should stay traceable to initiatives and user-visible/API semver — see `.ai/protocols/session_close.md` Part 2 (version bump gate). If it is unclear **which initiative** the session continues or which one a release would fulfill, **ask the user** to name it or to **create** a new initiative (add `.md` + row in `_index.md`) before treating scope as settled.
 
 5. **Load extended context only when needed.**
-   - Open `.ai/extended/<domain>.md` for the area you are working on (e.g. `backend.md`, `frontend.md`, `inventory-pipeline.md`). Do **not** read all extended files at session start. (Consultants needing a **single full picture** for the buying initiative should use **`.ai/consultant_context.md`** instead of reading every extended file — see **Audience** above.)
+   - The **Extended docs TOC** in **`.ai/context.md`** lists every file in `.ai/extended/` with a one-line description. Use it to pick the right file for your domain. Do **not** read all extended files at session start. (Consultants needing a **single full picture** should use **`.ai/consultant_context.md`** instead — see **Audience** above.)
 
 6. **Check for open terminals or running processes.**
    - List the terminals folder to see if Django or Vite are already running.

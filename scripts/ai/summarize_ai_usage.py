@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Summarize workspace/logs/ai_usage.jsonl (Phase 4.1B).
 
+Interactive clear: 0=no, 1=drop older than 7 days (rolling), 2=delete log,
+3=keep N calendar days in America/Chicago (0=today only, 1=today+yesterday, …).
+
 Cache hit % (when cache fields present):
   cache_read / (input_tokens + cache_creation_tokens + cache_read_tokens)
   i.e. share of input-side (billable) tokens that were served from cache reads.
@@ -14,6 +17,10 @@ import sys
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+# Log timestamps are typically offset from America/Chicago; option 3 uses this zone for “calendar day”.
+_CHI = ZoneInfo('America/Chicago')
 
 # Repo root: scripts/ai/ -> parents[2]
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -144,7 +151,9 @@ def main() -> int:
     if not sys.stdin.isatty():
         return 0
     try:
-        choice = input('Clear logs? (0=no, 1=older than 7 days, 2=all): ').strip()
+        choice = input(
+            'Clear logs? (0=no, 1=older than 7 days, 2=all, 3=other — keep N calendar days): '
+        ).strip()
     except EOFError:
         return 0
 
@@ -174,6 +183,47 @@ def main() -> int:
         with open(LOG_PATH, 'w', encoding='utf-8') as f:
             f.writelines(kept)
         print(f'Kept {len(kept)} line(s); removed older than 7 days.')
+        return 0
+    if choice == '3':
+        try:
+            n_str = input(
+                'Days to keep (0=today only, 1=today+yesterday, 2=last 3 days, …): '
+            ).strip()
+            n = int(n_str)
+        except ValueError:
+            print('Invalid number.')
+            return 0
+        if n < 0:
+            print('N must be >= 0.')
+            return 0
+        if not LOG_PATH.is_file():
+            return 0
+        # America/Chicago calendar days (matches typical log offsets like -05:00).
+        today_chi = datetime.now(_CHI).date()
+        first_day = today_chi - timedelta(days=n)
+        day_cutoff = datetime.combine(
+            first_day, datetime.min.time(), tzinfo=_CHI
+        )
+        kept2: list[str] = []
+        for r in records:
+            ts = r.get('timestamp') or ''
+            try:
+                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                kept2.append(json.dumps(r, ensure_ascii=False) + '\n')
+                continue
+            if dt >= day_cutoff:
+                kept2.append(json.dumps(r, ensure_ascii=False) + '\n')
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(LOG_PATH, 'w', encoding='utf-8') as f:
+            f.writelines(kept2)
+        span = n + 1
+        print(
+            f'Kept {len(kept2)} line(s); removed before {day_cutoff.isoformat()} '
+            f'({span} calendar day(s) America/Chicago, N={n}).'
+        )
         return 0
 
     return 0
