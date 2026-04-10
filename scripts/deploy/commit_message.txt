@@ -1,5 +1,15 @@
-chore(release): v2.7.1 historical sell-through PO export and doc sync
+feat(buying): Phase 5 auction valuation engine (v2.8.0)
 
-Review bump per .ai/protocols/review_bump.md: .version, package.json, CHANGELOG [2.7.1], .gitignore whitelist for workspace/notes/to_consultant/extract_po_descriptions.py, .ai/context.md, consultant_context.md, initiatives (_index + historical_sell_through_analysis), README, development.md, databases.md, review_bump.md timestamp.
+Phase 5: PricingRule and CategoryWantVote; Auction valuation fields and
+Marketplace defaults; valuation.py (recompute_auction_valuation,
+recompute_all_open_auctions, manifest distribution, sweep AI batch);
+ai_title_category_estimate (estimate_batch, AI_MODEL_FAST, title_echo);
+category-need / category-want APIs, want_vote decay; thumbs-up and
+valuation-inputs PATCH with recompute; serializers, ordering, filters;
+seed_pricing_rules, seed_marketplace_pricing_defaults,
+estimate_auction_categories, recompute_buying_valuations; manifest upload
+hooks; tests (test_valuation, test_phase5_category_need). Migrations 0009–0010.
 
-Pre-commit: cd frontend && npx tsc --noEmit; python -c "import compileall; compileall.compile_dir('apps', quiet=1)".
+Docs: initiative design decisions, backend/consultant/context; protocols
+get_bearing and collect_for_consultant; personas Scout and Christina;
+README and CHANGELOG. App version v2.8.0.

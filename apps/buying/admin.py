@@ -5,6 +5,7 @@ from apps.buying.models import (
     AuctionSnapshot,
     Bid,
     CategoryMapping,
+    CategoryWantVote,
     ManifestRow,
     ManifestTemplate,
     Marketplace,
@@ -36,10 +37,25 @@ class ManifestTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(Marketplace)
 class MarketplaceAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'external_id', 'is_active', 'created_at')
+    list_display = (
+        'name',
+        'slug',
+        'external_id',
+        'default_fee_rate',
+        'default_shipping_rate',
+        'is_active',
+        'created_at',
+    )
     list_filter = ('is_active',)
     search_fields = ('name', 'slug')
     prepopulated_fields = {'slug': ('name',)}
+
+
+@admin.register(CategoryWantVote)
+class CategoryWantVoteAdmin(admin.ModelAdmin):
+    list_display = ('user', 'category', 'value', 'voted_at')
+    list_filter = ('category',)
+    raw_id_fields = ('user',)
 
 
 @admin.register(Auction)

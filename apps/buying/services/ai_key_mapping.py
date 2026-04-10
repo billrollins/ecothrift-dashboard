@@ -329,6 +329,16 @@ def map_one_fast_cat_batch(
         )
 
     keys_rem = count_distinct_unmapped_keys_after_rows(auction)
+    if keys_rem == 0:
+        from apps.buying.services.valuation import (
+            compute_and_save_manifest_distribution,
+            recompute_auction_valuation,
+        )
+
+        auction.refresh_from_db()
+        compute_and_save_manifest_distribution(auction)
+        auction.refresh_from_db()
+        recompute_auction_valuation(auction)
     return {
         'keys_mapped': keys_mapped_count,
         'keys_remaining': keys_rem,

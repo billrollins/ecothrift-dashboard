@@ -1,5 +1,5 @@
-<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-08 -->
-<!-- Last updated: 2026-04-09T12:00:00-05:00 -->
+<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-09 -->
+<!-- Last updated: 2026-04-09T21:00:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -16,7 +16,7 @@ B-Stock auctions are time-sensitive: final price is often decided in the last se
 
 **Code today:** **`apps/buying/`** replaces the prior `Scraper/` package. Reference the old notebook package only for DevTools and HTTP patterns. Use the **RS256 JWT** from **`__NEXT_DATA__.props.pageProps.accessToken`** (or **`POST /api/buying/token/`** when **`DEBUG`**), not the **JWE** in the **`elt`** cookie. Manifest pull paginates until **`total`** manifest lines are stored.
 
-**Priority:** **Phase 4** (fast categorization) and **Phases 4.1A–4.1B** (manifest templates + AI mapping) are **complete** (**v2.7.0**). **Phase 5** (auction valuation) is next.
+**Priority:** **Phases 1–4** and **4.1A–4.1B** are **complete** (**v2.7.0**). **Phase 5** (auction valuation — API, services, seeds, hooks) is **implemented** (**v2.8.0**). **Phase 6** (outcome tracking) is next.
 
 ---
 
@@ -25,7 +25,7 @@ B-Stock auctions are time-sensitive: final price is often decided in the last se
 1. **Daily-use dashboard:** auction browser, manifests, and watchlist in the React app so buying work happens in the product, not only in Django admin or pgAdmin. **Shipped (Phase 2).**
 2. **Fresh watchlist data:** polling and **`AuctionSnapshot`** once the watchlist is visible and manageable in the UI. **Shipped (Phase 3).**
 3. **Canonical categorization:** every manifest line tagged to **taxonomy_v1** (19 categories) via rules, targeted AI for new patterns, and auction-level fallback—with rules persisted and visible in the UI. **Shipped (Phase 4).**
-4. **Auction valuation:** pluggable per-line and rollup estimates (revenue, costs, suggested max bid) grounded in real category economics, with UI on list and detail (**Phase 5**).
+4. **Auction valuation:** category mix × **`PricingRule.sell_through_rate`** rollup (estimated revenue, fees/shipping/cost, shrinkage, profitability, need score, priority), staff overrides, AI title–category estimates when no manifest mix — **API and server recompute shipped (Phase 5)**; **React** list/detail **do not yet** show valuation columns (data is on list/detail serializers for follow-up UX).
 5. **Outcome truth:** record hammer, fees, shipping, and per-line results so future models have labeled data (**Phase 6**).
 
 ---
@@ -140,11 +140,27 @@ Every manifest row gets tagged with one of **19 canonical categories** (**taxono
 
 **Manual validation (2026-04):** Five seeded CSVs instant upload / seed mapping; five unseeded CSVs (Costco, Home Depot, Wayfair, Essendant, Amazon 20-col) — AI template + AI key mapping successful; cancel mid-mapping preserves partial categories; remove manifest + re-upload reuses templates/mappings; total test cost ~**$0.72** across **51** AI calls. **Known:** prompt cache hit rate ~**0** (under **2048**-token threshold); **`DELETE manifest`** wrong-marketplace TODO — documented, not blocking.
 
-### Phase 5: Auction valuation scaffold
+### Phase 5: Auction valuation **done (API + services; 2026-04)**
 
-**Blocked on:** [`historical_sell_through_analysis.md`](./historical_sell_through_analysis.md) Phase **3** output (per-category sell-through rates). Phase **5** build work starts after pricing rules are populated.
+**Pricing rules:** Flat **`PricingRule`** rows (one per taxonomy_v1 category) with **`sell_through_rate`**; seed from **`workspace/data/sell_through_by_category.csv`** via **`python manage.py seed_pricing_rules`** (also sets **`AppSetting`** keys: **`pricing_shrinkage_factor`**, **`pricing_profit_factor`**, **`pricing_need_window_days`**, **`buying_want_vote_decay_per_day`**). **`python manage.py seed_marketplace_pricing_defaults`** — marketplace fee/shipping fractions.
 
-**Per-line** estimated sale price on **`ManifestRow`**. **Auction-level rollup:** projected revenue, estimated costs, **suggested max bid**. Pricing function is **pluggable**: **v1** uses category-level **`avg_margin`** from **Bin 2** sell-through analysis (real data, not a flat guess). **Pricing rules** stored in a database table (category, margin rate, avg sale price, sample size, version date). **Bid calculator:** `projected_revenue` vs **total cost** (bid + fees + shipping + shrinkage estimate). **UI** shows valuation on **auction detail** and **summary on auction list**. When a better scoring model exists later, it **swaps into the same interface**.
+**Mix source:** **`manifest_category_distribution`** (counts of **`ManifestRow.fast_cat_value`**, null → Mixed lots) when present; else **`ai_category_estimates`** from **`apps/buying/services/ai_title_category_estimate.py`** (**`estimate_batch`**, **`AI_MODEL_FAST`**, few-shot from same marketplace). **`get_valuation_source`** → `manifest` | `ai` | `none`.
+
+**Rollup:** **`apps/buying/services/valuation.py`** — **`recompute_auction_valuation`**, **`recompute_all_open_auctions`**; retail base = manifest retail sum when **`has_manifest`** and sum &gt; 0 else **`total_retail_value`**; revenue = sumproduct(mix × sell-through); fees/shipping from **`fees_override`** / **`shipping_override`** or marketplace default rates × **`current_price`**; **`profitability_ratio`**, **`need_score`** (category need × mean effective want), **`priority`** 1–99 (formula unless **`priority_override`**).
+
+**Triggers:** After **`upload_manifest`** (and when **`unmapped_key_count == 0`**), after **`map_fast_cat_batch`** when no keys remain, after **`DELETE …/manifest/`**; **`POST /api/buying/sweep/`** runs a **limited** AI estimate batch for swept auctions without manifest mix then **`recompute_all_open_auctions`**.
+
+**Staff APIs:** **`GET /api/buying/category-need/`**, **`GET`/`POST /api/buying/category-want/`**; **`POST`/`DELETE …/thumbs-up/`** (Admin); **`PATCH …/valuation-inputs/`** (Admin). List: **`ordering`**, **`thumbs_up`** filter. Commands: **`estimate_auction_categories`**, **`recompute_buying_valuations`**.
+
+**UI gap:** serializers expose valuation fields; **React** auction list/detail have **not** added columns/panels for priority, revenue, profitability, thumbs-up yet (follow-up).
+
+**Design decisions (locked in code and docs):**
+
+- **Sell-through:** Flat **19** taxonomy **`sell_through_rate`** values only — **`PricingRule`** is one row per category (**no** vendor × category matrix). **`PricingRule`** shape is unchanged from that design (no extra dimensions).
+- **Revenue override:** **`revenue_override`** is a **USD** amount (not a sell-through or rate override). **Effective revenue** for margin math uses **`revenue_override` if set, else `estimated_revenue`** (`coalesce`), then **global shrinkage** applies. **`estimated_revenue`** is always the **pre-shrinkage** rollup from mix × rates × retail base.
+- **Fees / shipping overrides:** **`fees_override`** and **`shipping_override`** are **nullable USD** amounts only (**no** percentage toggle on overrides). When null, **`estimated_fees`** / **`estimated_shipping`** use **`Marketplace`** default **fractions** × **`current_price`**.
+- **Profitability:** **`profitability_ratio`** compares **effective revenue after shrinkage** to **`estimated_total_cost`** (hammer + fees + shipping).
+- **Valuation mix precedence / build order:** **`manifest_category_distribution`** (row counts from **`fast_cat_value`**) is used when present; **`ai_category_estimates`** only when there is no manifest mix. **Implementation order** followed that precedence — manifest distribution plumbing (**`compute_and_save_manifest_distribution`**, upload hooks) before the AI title–category estimate path (**`estimate_batch`** / sweep batch).
 
 ### Phase 6: Outcome tracking
 
@@ -166,7 +182,8 @@ Record what actually happened: **hammer price**, **fees**, **shipping**, **per-i
 - [x] **Phase 4 complete:** manifest rows carry canonical category from taxonomy_v1; rules persisted; categorization command; category on rows in UI; distribution summary on auction detail; manifest retail cents/dollars normalization applied
 - [x] **Phase 4.1A complete (v2.6.1 + manual validation 2026-04):** **`ManifestTemplate`** + CSV **`upload_manifest`** + **`seed_manifest_templates`** / **`seed_fast_cat_mappings`** + **`fast_cat_key`** / **`fast_cat_value`** / **`category_confidence`** **`fast_cat`**; auction list/detail UX per **`CHANGELOG` [2.6.1]**; unknown-template stub **400**; **`create_test_auctions`** for local matrix; seed coverage limits documented (343 keys).
 - [x] **Phase 4.1B complete (v2.7.0 + validation 2026-04):** AI template + AI key mapping + split upload + **`map_fast_cat_batch`** + **`DELETE manifest`** + usage logging + buying UI (**`ManifestUploadProgress`**, workers, cancel, remove manifest, **`__no_key__`** exclusion). See **`CHANGELOG` [2.7.0]**.
-- [ ] **Phase 5 complete:** per-line and auction rollup valuation in UI; pricing rules table; pluggable v1 margin path from Bin 2; list + detail surfaces
+- [x] **Phase 5 complete (backend/API):** **`PricingRule`** + **`seed_pricing_rules`**; **`valuation`** + **`ai_title_category_estimate`**; manifest/AI mix; **`CategoryNeed`** / **`CategoryWantVote`** APIs; **`fees_override`** / **`shipping_override`**; thumbs-up + valuation-inputs; list/detail serializers + ordering + **`thumbs_up`** filter; hooks + commands; unit tests in **`apps/buying/tests/test_valuation.py`**, **`apps/buying/tests/test_phase5_category_need.py`**
+- [ ] **Phase 5 UI (optional follow-up):** React auction list/detail show priority, estimated revenue, profitability, need score, thumbs-up, override controls (APIs exist)
 - [ ] **Phase 6 complete:** outcome schema implemented; hammer/fees/shipping/per-line outcomes capturable; outcomes visible in UI per auction
 
 ---

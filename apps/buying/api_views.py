@@ -26,16 +26,21 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsStaff
+from apps.accounts.permissions import IsAdmin, IsStaff
 from apps.buying.filters import AuctionFilter, WatchlistAuctionFilter
 from apps.buying.models import (
     Auction,
     AuctionSnapshot,
     CategoryMapping,
+    CategoryWantVote,
     ManifestRow,
     Marketplace,
     WatchlistEntry,
 )
+from apps.buying.services.buying_settings import get_pricing_need_window_days
+from apps.buying.services.category_need import build_category_need_rows
+from apps.buying.services.want_vote import effective_want_value
+from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
 from apps.buying.pagination import ManifestRowsPagination, SnapshotPagination
 from apps.buying.serializers import (
     AuctionDetailSerializer,
@@ -50,6 +55,11 @@ from apps.buying.serializers import (
 from apps.buying.services import pipeline
 from apps.buying.services.ai_key_mapping import map_one_fast_cat_batch
 from apps.buying.services.manifest_upload import process_manifest_upload
+from apps.buying.services.valuation import (
+    recompute_auction_valuation,
+    recompute_all_open_auctions,
+    run_ai_estimate_for_swept_auctions,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +111,10 @@ class WatchlistAuctionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         'has_manifest',
         'lot_size',
         'added_at',
+        'priority',
+        'estimated_revenue',
+        'profitability_ratio',
+        'need_score',
     ]
     ordering = ['end_time']
 
@@ -149,6 +163,10 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         'status',
         'has_manifest',
         'lot_size',
+        'priority',
+        'estimated_revenue',
+        'profitability_ratio',
+        'need_score',
     ]
     ordering = ['-end_time']
 
@@ -285,7 +303,10 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         auction = self.get_object()
         auction.manifest_rows.all().delete()
         auction.has_manifest = False
-        auction.save(update_fields=['has_manifest'])
+        auction.manifest_category_distribution = None
+        auction.save(update_fields=['has_manifest', 'manifest_category_distribution'])
+        auction.refresh_from_db()
+        recompute_auction_valuation(auction)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post', 'delete'], url_path='watchlist')
@@ -331,6 +352,62 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_501_NOT_IMPLEMENTED,
         )
 
+    @action(
+        detail=True,
+        methods=['post', 'delete'],
+        url_path='thumbs-up',
+        permission_classes=[IsAuthenticated, IsAdmin],
+    )
+    def thumbs_up(self, request, pk=None):
+        auction = self.get_object()
+        auction.thumbs_up = request.method == 'POST'
+        auction.save(update_fields=['thumbs_up'])
+        return Response({'thumbs_up': auction.thumbs_up}, status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        url_path='valuation-inputs',
+        permission_classes=[IsAuthenticated, IsAdmin],
+    )
+    def valuation_inputs(self, request, pk=None):
+        auction = self.get_object()
+        data = request.data
+        dec_fields = (
+            'fees_override',
+            'shipping_override',
+            'shrinkage_override',
+            'profit_target_override',
+            'revenue_override',
+        )
+        for name in dec_fields:
+            if name not in data:
+                continue
+            raw = data.get(name)
+            if raw is None or raw == '':
+                setattr(auction, name, None)
+            else:
+                setattr(auction, name, Decimal(str(raw)))
+        if 'priority' in data and data.get('priority') is not None and data.get('priority') != '':
+            try:
+                auction.priority = int(data.get('priority'))
+            except (TypeError, ValueError):
+                return Response(
+                    {'detail': 'priority must be an integer 1-99.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if auction.priority < 1 or auction.priority > 99:
+                return Response(
+                    {'detail': 'priority must be 1-99.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            auction.priority_override = True
+        auction.save()
+        auction.refresh_from_db()
+        recompute_auction_valuation(auction)
+        serializer = AuctionDetailSerializer(auction, context={'request': request})
+        return Response(serializer.data)
+
 
 class SweepView(APIView):
     """
@@ -360,4 +437,96 @@ class SweepView(APIView):
                 {'detail': 'Sweep failed. Check server logs.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+        ids = summary.get('upserted_auction_ids') or []
+        try:
+            ai_est = run_ai_estimate_for_swept_auctions(ids)
+            recomputed = recompute_all_open_auctions()
+            summary = {
+                **summary,
+                'ai_estimate': ai_est,
+                'recomputed_open_auctions': recomputed,
+            }
+        except Exception as e:
+            logger.exception('post-sweep valuation failed')
+            summary = {**summary, 'valuation_error': str(e)}
         return Response(summary)
+
+
+class CategoryNeedView(APIView):
+    """GET: category need panel aggregates (19 taxonomy rows + need_window_days)."""
+
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def get(self, request):
+        return Response(
+            {
+                'need_window_days': get_pricing_need_window_days(),
+                'categories': build_category_need_rows(),
+            }
+        )
+
+
+class CategoryWantView(APIView):
+    """GET/POST staff want votes per taxonomy category (decay on read)."""
+
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def get(self, request):
+        votes = {v.category: v for v in CategoryWantVote.objects.filter(user=request.user)}
+        out = []
+        for name in TAXONOMY_V1_CATEGORY_NAMES:
+            v = votes.get(name)
+            if v is not None:
+                out.append(
+                    {
+                        'category': name,
+                        'value': v.value,
+                        'voted_at': v.voted_at,
+                        'effective_value': effective_want_value(v.value, v.voted_at),
+                    }
+                )
+            else:
+                out.append(
+                    {
+                        'category': name,
+                        'value': None,
+                        'voted_at': None,
+                        'effective_value': 5.0,
+                    }
+                )
+        return Response(out)
+
+    def post(self, request):
+        cat = (request.data.get('category') or '').strip()
+        if cat not in TAXONOMY_V1_CATEGORY_NAMES:
+            return Response(
+                {'detail': 'Invalid or unknown category.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            val = int(request.data.get('value'))
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'value must be an integer 1-10.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if val < 1 or val > 10:
+            return Response(
+                {'detail': 'value must be 1-10.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        obj, _created = CategoryWantVote.objects.update_or_create(
+            user=request.user,
+            category=cat,
+            defaults={'value': val},
+        )
+        obj.refresh_from_db()
+        return Response(
+            {
+                'category': obj.category,
+                'value': obj.value,
+                'voted_at': obj.voted_at,
+                'effective_value': effective_want_value(obj.value, obj.voted_at),
+            },
+            status=status.HTTP_200_OK,
+        )

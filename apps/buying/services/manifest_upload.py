@@ -23,6 +23,10 @@ from apps.buying.services.manifest_template import (
     parse_csv_dict_rows,
     standardize_row,
 )
+from apps.buying.services.valuation import (
+    compute_and_save_manifest_distribution,
+    recompute_auction_valuation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +173,12 @@ def process_manifest_upload(
         .exclude(fast_cat_value='')
         .count()
     )
+
+    auction.refresh_from_db()
+    compute_and_save_manifest_distribution(auction)
+    if unmapped_key_count == 0:
+        auction.refresh_from_db()
+        recompute_auction_valuation(auction)
 
     return (
         {

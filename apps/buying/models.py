@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CHOICES
@@ -21,6 +23,20 @@ class Marketplace(models.Model):
     base_url = models.URLField(max_length=500, blank=True, default='')
     notes = models.TextField(blank=True, default='')
     is_active = models.BooleanField(default=True, db_index=True)
+    default_fee_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text='Historical avg fee as fraction of purchase price (e.g. 0.03 = 3%).',
+    )
+    default_shipping_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text='Historical avg shipping as fraction of purchase price.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -29,6 +45,34 @@ class Marketplace(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class CategoryWantVote(models.Model):
+    """Staff 1–10 want score per taxonomy category (Phase 5 category need panel)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='category_want_votes',
+    )
+    category = models.CharField(max_length=64, choices=TAXONOMY_V1_CHOICES, db_index=True)
+    value = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        help_text='1 = skip, 10 = want; neutral target is 5.',
+    )
+    voted_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'category'],
+                name='buying_categorywantvote_user_category_uniq',
+            ),
+        ]
+        ordering = ['category', 'user_id']
+
+    def __str__(self) -> str:
+        return f'{self.user_id} {self.category}: {self.value}'
 
 
 class CategoryMapping(models.Model):
@@ -232,6 +276,99 @@ class Auction(models.Model):
     first_seen_at = models.DateTimeField(null=True, blank=True)
     last_updated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # Phase 5 — auction valuation (computed fields populated in later steps)
+    ai_category_estimates = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Tier 1: AI-estimated category mix (% by taxonomy_v1 name).',
+    )
+    manifest_category_distribution = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Tier 2: distribution from manifest fast_cat_value counts.',
+    )
+    estimated_revenue = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Expected revenue before shrinkage (sumproduct of category mix × sell-through rates).',
+    )
+    revenue_override = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='User override dollar amount; downstream uses coalesce(override, estimated_revenue).',
+    )
+    fees_override = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Optional user override for fees in dollars; else fee rate times current price.',
+    )
+    shipping_override = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Optional user override for shipping in dollars; else shipping rate times current price.',
+    )
+    estimated_fees = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    estimated_shipping = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    estimated_total_cost = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    profitability_ratio = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+    )
+    need_score = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+    )
+    shrinkage_override = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text='Override global shrinkage factor for this auction.',
+    )
+    profit_target_override = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text='Override global profit factor (min revenue/cost ratio target).',
+    )
+    priority = models.PositiveSmallIntegerField(
+        default=50,
+        help_text='1–99; higher surfaces first when auto-ranked.',
+    )
+    priority_override = models.BooleanField(
+        default=False,
+        help_text='True when priority was set manually and should not be overwritten by auto recompute.',
+    )
+    thumbs_up = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-last_updated_at', '-created_at']

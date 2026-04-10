@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T18:30:00-05:00 -->
+<!-- Last updated: 2026-04-09T21:00:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,30 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+---
+
+## [2.8.0] — 2026-04-09
+
+### Added
+
+- **Buying — Phase 5 (auction valuation):** **`PricingRule`** (flat **`sell_through_rate`** per taxonomy_v1 category — **19** categories; **no** vendor × category matrix; model shape unchanged) and **`CategoryWantVote`** (staff **`value`** 1–10 per category, **`voted_at`**). **`Auction`** valuation fields: **`ai_category_estimates`**, **`manifest_category_distribution`**, **`estimated_revenue`**, **`revenue_override`**, **`fees_override`**, **`shipping_override`**, **`estimated_fees`**, **`estimated_shipping`**, **`estimated_total_cost`**, **`profitability_ratio`**, **`need_score`**, **`shrinkage_override`**, **`profit_target_override`**, **`priority`**, **`priority_override`**, **`thumbs_up`**. **`Marketplace`** defaults: **`default_fee_rate`**, **`default_shipping_rate`**. Migrations **`0009_phase5_auction_valuation`**, **`0010_auction_fee_shipping_overrides`**.
+- **Valuation engine:** **`apps/buying/services/valuation.py`** — **`recompute_auction_valuation`**, **`recompute_all_open_auctions`**, **`compute_and_save_manifest_distribution`**, **`get_valuation_source`**, **`run_ai_estimate_for_swept_auctions`**; retail base from manifest sum or **`total_retail_value`**; **`estimated_revenue`** stored **pre-shrinkage**; **`profitability_ratio`** uses **effective revenue after shrinkage** vs **`estimated_total_cost`**; **`revenue_override`** / **`fees_override`** / **`shipping_override`** semantics per initiative (**`coalesce`** for revenue; fee/shipping overrides **USD** only when set).
+- **AI title category estimation:** **`apps/buying/services/ai_title_category_estimate.py`** — **`estimate_batch`** with **`AI_MODEL_FAST`**, few-shot from marketplace, **title_echo** verification.
+- **Category need / want:** **`GET /api/buying/category-need/`**; **`GET`/`POST /api/buying/category-want/`** with **`effective_value`** (step decay toward **5** per **`buying_want_vote_decay_per_day`**). **`apps/buying/services/category_need.py`**, **`want_vote.py`**, **`buying_settings.py`**.
+- **Staff controls & serializers:** **`POST`/`DELETE /api/buying/auctions/{id}/thumbs-up/`** (Admin); **`PATCH /api/buying/auctions/{id}/valuation-inputs/`** (Admin) — **recompute** on change. **`AuctionFilter`** **`thumbs_up`**; list **`ordering`** includes **`priority`**, **`estimated_revenue`**, **`profitability_ratio`**, **`need_score`**; list/detail serializers expose **`valuation_source`**, **`has_revenue_override`**, **`effective_revenue_after_shrink`**, etc.
+- **Seeds & management commands:** **`python manage.py seed_pricing_rules`** (CSV + **`AppSetting`** keys); **`python manage.py seed_marketplace_pricing_defaults`**; **`python manage.py estimate_auction_categories`**; **`python manage.py recompute_buying_valuations`**.
+- **Manifest upload hooks:** **`manifest_upload`** computes **`manifest_category_distribution`** and triggers valuation **recompute** when mapping completes (**`upload_manifest`**, **`map_fast_cat_batch`** when queue clears, **`DELETE …/manifest/`**); **`pipeline`** sweep runs limited AI estimate batch + **`recompute_all_open_auctions`**.
+- **Tests:** **`apps/buying/tests/test_valuation.py`**, **`apps/buying/tests/test_phase5_category_need.py`**.
+- **Documentation & AI steering:** New protocols [`.ai/protocols/get_bearing.md`](.ai/protocols/get_bearing.md), [`.ai/protocols/collect_for_consultant.md`](.ai/protocols/collect_for_consultant.md); personas [`.ai/personas/Scout.md`](.ai/personas/Scout.md), [`.ai/personas/Christina.md`](.ai/personas/Christina.md); updates to **`.ai/context.md`**, **`.ai/extended/backend.md`**, **`.ai/extended/bstock.md`**, **`.ai/extended/frontend.md`**, **`.ai/consultant_context.md`**, **`.ai/initiatives/_index.md`**, **`bstock_auction_intelligence.md`**.
+
+### Initiative
+
+- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — Phase **5** backend/API shipped; **next:** Phase **5** React valuation columns (optional) or **Phase 6** outcomes.
 
 ---
 
@@ -85,40 +109,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Initiative
 
 - [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — **Phases 3–4 complete.** **Next: Phase 5** (auction valuation).
-
----
-
-## [Unreleased]
-
-### Steering
-
-- **Initiatives — category intelligence completed:** [`.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md`](.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md) — Phases 0–7 delivered (2026-04-06); actionable buying recommendations; onboarding [`workspace/notebooks/category-research/README.md`](workspace/notebooks/category-research/README.md). Active initiatives table cleared in [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md). Protocols: [`.ai/initiatives/_protocols/move_initiative_to_completed.md`](.ai/initiatives/_protocols/move_initiative_to_completed.md), [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md).
-
-### Changed
-
-- **Category research layout:** Artifacts moved from **`workspace/testing/Category Research/`** to **`workspace/notebooks/category-research/`** (`exports/`, **`logs/`** with `extraction_runs.log` and **`logs/categorization/`** for AI JSONL, `categorized_exports/`, `reports/`, `model_compare/`). Canonical paths in **`apps/inventory/category_research_paths.py`**. Taxonomy files: **`taxonomy_v1.example.json`**, **`docs/taxonomy_input_schema.md`**.
-
-### Added
-
-- **Category research — unified notebook extracts:** SQL [`scripts/sql/unified_bin1_public.sql`](scripts/sql/unified_bin1_public.sql), [`unified_bin2_public.sql`](scripts/sql/unified_bin2_public.sql), [`unified_bin3_public.sql`](scripts/sql/unified_bin3_public.sql) (identical columns + `vendor_name`; Bin 3 via ecothrift retag notes; PO table `public.inventory_purchase_order`); discovery SQL [`workspace/notebooks/category-research/ai_scripts/sql/category_research_discovery.sql`](workspace/notebooks/category-research/ai_scripts/sql/category_research_discovery.sql) with runner [`ai_execute_sql.py`](workspace/notebooks/category-research/ai_scripts/ai_execute_sql.py) → `ai_scripts/output/*.csv` (gitignored); pointer [`scripts/sql/category_research_discovery.sql`](scripts/sql/category_research_discovery.sql); package [`workspace/notebooks/category-research/cr/`](workspace/notebooks/category-research/cr/) and [`category_research.ipynb`](workspace/notebooks/category-research/category_research.ipynb).
-
-### Steering
-
-- **Initiatives — lifecycle protocols:** [`.ai/initiatives/_archived/_protocols/README.md`](.ai/initiatives/_archived/_protocols/README.md) — `activate_initiative`, `move_initiative_to_pending`, `_backlog`, `_completed`, `_abandoned`; [`.ai/protocols/move_to_pending.md`](.ai/protocols/move_to_pending.md) stubs to `move_initiative_to_pending.md`.
-- **Initiatives:** Location label initiative moved to **pending** — [`.ai/initiatives/_archived/_pending/create_location_label.md`](.ai/initiatives/_archived/_pending/create_location_label.md) (off the active index; resume when product/UI integration for location labels is in scope).
-- **Initiatives:** Print server — receipt format moved to **pending** — [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](.ai/initiatives/_archived/_pending/print_server_receipt_format.md) (off the active index pre-production; resume for POS/plain-text or PNG/thermal parity). Reference shipped in-repo: `RECEIPT_RENDER_SCALE` / `render_receipt_to_image`, default queue **Receipt Printer**, workspace GDI receipt scripts under `workspace/receipt_printer/`.
-
-### Dashboard (dev tooling)
-
-- **Add Item dev logging:** Hierarchical **`.ai/debug/log.config`** areas **`LOG_ADD_ITEM`**, **`LOG_ADD_ITEM_FORM`**, **`LOG_ADD_ITEM_AI`**; default committed config sets **`LOG_ADD_ITEM = file`** so AI prompt, raw response, and form action lines go to **`.ai/debug/debug.log`**. Endpoints **`GET /api/core/dev-log/config/`**, **`POST /api/core/dev-log/line/`** (DEBUG, staff). Frontend **`useDevLogConfig`**, **`ItemForm`** instrumentation. Initiative (completed): [`.ai/initiatives/_archived/_completed/add_item_dialog_and_sources.md`](.ai/initiatives/_archived/_completed/add_item_dialog_and_sources.md).
-
-### Print server (source — ship via `printserver/distribute.bat`; **dashboard Heroku not bumped**)
-
-- **Labels:** “Concept C” side stripe — ⅓ price+QR column (50/50 black/QR), ⅔ copy+logo; unified 3×2 / 1.5×1 layout; price stack (`$` / dollars with thousands commas / cents); **sub-dollar** amounts (`$0.75`, etc.): **`$` + cents only** (no middle `0`); **dollar digits** left-aligned with extra inset when whole dollars > 0; **v1.2.37+:** smaller **$**, larger dollar line and cents; **v1.2.38+:** `big_base` by digit count for long prices at scale 1.0; price fit search **1.0 → 0.5** step **0.01**; optional `price_fit_stats` on `generate_label`; GDI **`send_image`** fit to printable rect, center X, top Y (thermal alignment).
-- **Version:** `printserver/config.py` **1.2.38** (see `printserver/CHANGELOG.md`).
-- **Dev:** `printserver/dev_print_e2e_3_labels.bat` — first three rows from `workspace/testing/data/retag_e2e_10_items.json`. **`printserver/scripts/label_price_fringe_grid.py`** — fringe-case PNGs + fit summary to `printserver/output_label_fringe_review/` (gitignored).
-- **Samples:** `label_test_data.py` prices `$1.99`, `$25.00`, `$1,123.75`; consultant notes under `.ai/reference/Consult Label/to-be-checked/`.
-- **Steering:** Label price layout work archived — [`.ai/initiatives/_archived/_completed/print_server_label_price_layout.md`](.ai/initiatives/_archived/_completed/print_server_label_price_layout.md) (print server **v1.2.35–v1.2.38**); see [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md).
 
 ---
 

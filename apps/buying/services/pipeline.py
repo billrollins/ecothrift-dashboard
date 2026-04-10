@@ -360,11 +360,13 @@ def run_discovery(
             'marketplaces': 0,
             'rows': 0,
             'upserted': 0,
+            'upserted_auction_ids': [],
             'refreshed_at': timezone.now().isoformat(),
         }
 
     total_raw = 0
     upserted = 0
+    upserted_auction_ids: list[int] = []
     now = timezone.now()
 
     for mp in marketplaces:
@@ -462,11 +464,13 @@ def run_discovery(
                     auction.last_updated_at = now
                     auction.save()
                 upserted += 1
+                upserted_auction_ids.append(auction.pk)
 
     return {
         'marketplaces': len(marketplaces),
         'rows': total_raw,
         'upserted': upserted,
+        'upserted_auction_ids': upserted_auction_ids,
         'dry_run': dry_run,
         'page_limit': page_limit,
         'max_pages': max_pages,

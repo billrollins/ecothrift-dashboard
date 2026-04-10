@@ -17,7 +17,8 @@ from apps.core.models import AppSetting
 class Command(BaseCommand):
     help = (
         "Load sell-through rates into PricingRule from sell_through_by_category.csv. "
-        "Ensures AppSetting keys pricing_shrinkage_factor (0.10) and pricing_profit_factor (2.0) exist."
+        "Ensures AppSetting keys: pricing_shrinkage_factor, pricing_profit_factor, "
+        "pricing_need_window_days, buying_want_vote_decay_per_day."
     )
 
     def add_arguments(self, parser) -> None:
@@ -125,6 +126,16 @@ class Command(BaseCommand):
                 "pricing_profit_factor",
                 2.0,
                 "Target profit / cost recovery multiplier for max bid heuristics.",
+            ),
+            (
+                "pricing_need_window_days",
+                90,
+                "Sold-items window (days) for category need panel and sell-through column.",
+            ),
+            (
+                "buying_want_vote_decay_per_day",
+                1.0,
+                "Want vote decay: steps toward neutral (5) per day since last vote.",
             ),
         ]
         for key, value, description in defaults:

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from django.db.models import CharField, Count
 from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
 from apps.buying.models import Auction, AuctionSnapshot, ManifestRow, Marketplace, WatchlistEntry
+from apps.buying.services.valuation import get_global_shrinkage, get_valuation_source
 
 
 class MarketplaceSerializer(serializers.ModelSerializer):
@@ -28,6 +31,9 @@ class AuctionListSerializer(serializers.ModelSerializer):
     )
     total_retail_display = serializers.SerializerMethodField()
     retail_source = serializers.SerializerMethodField()
+    valuation_source = serializers.SerializerMethodField()
+    has_revenue_override = serializers.SerializerMethodField()
+    effective_revenue_after_shrink = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -45,6 +51,25 @@ class AuctionListSerializer(serializers.ModelSerializer):
             'retail_sort',
             'total_retail_display',
             'retail_source',
+            'ai_category_estimates',
+            'manifest_category_distribution',
+            'estimated_revenue',
+            'revenue_override',
+            'fees_override',
+            'shipping_override',
+            'estimated_fees',
+            'estimated_shipping',
+            'estimated_total_cost',
+            'profitability_ratio',
+            'need_score',
+            'shrinkage_override',
+            'profit_target_override',
+            'priority',
+            'priority_override',
+            'thumbs_up',
+            'valuation_source',
+            'has_revenue_override',
+            'effective_revenue_after_shrink',
             'condition_summary',
             'status',
             'has_manifest',
@@ -66,6 +91,19 @@ class AuctionListSerializer(serializers.ModelSerializer):
         if getattr(obj, '_manifest_row_count', 0) > 0:
             return 'manifest'
         return 'listing'
+    def get_valuation_source(self, obj: Auction) -> str:
+        return get_valuation_source(obj)
+
+    def get_has_revenue_override(self, obj: Auction) -> bool:
+        return obj.revenue_override is not None
+
+    def get_effective_revenue_after_shrink(self, obj: Auction) -> str | None:
+        base = obj.revenue_override if obj.revenue_override is not None else obj.estimated_revenue
+        if base is None:
+            return None
+        sh = obj.shrinkage_override if obj.shrinkage_override is not None else get_global_shrinkage()
+        eff = (base * (Decimal('1') - sh)).quantize(Decimal('0.01'))
+        return format(eff, 'f')
 
 
 class WatchlistEntrySerializer(serializers.ModelSerializer):
@@ -166,6 +204,9 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     watchlist_entry = WatchlistEntrySerializer(read_only=True, allow_null=True)
     category_distribution = serializers.SerializerMethodField()
     manifest_template_name = serializers.SerializerMethodField()
+    valuation_source = serializers.SerializerMethodField()
+    has_revenue_override = serializers.SerializerMethodField()
+    effective_revenue_after_shrink = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -196,7 +237,40 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'watchlist_entry',
             'last_updated_at',
             'first_seen_at',
+            'ai_category_estimates',
+            'manifest_category_distribution',
+            'estimated_revenue',
+            'revenue_override',
+            'fees_override',
+            'shipping_override',
+            'estimated_fees',
+            'estimated_shipping',
+            'estimated_total_cost',
+            'profitability_ratio',
+            'need_score',
+            'shrinkage_override',
+            'profit_target_override',
+            'priority',
+            'priority_override',
+            'thumbs_up',
+            'valuation_source',
+            'has_revenue_override',
+            'effective_revenue_after_shrink',
         ]
+
+    def get_valuation_source(self, obj: Auction) -> str:
+        return get_valuation_source(obj)
+
+    def get_has_revenue_override(self, obj: Auction) -> bool:
+        return obj.revenue_override is not None
+
+    def get_effective_revenue_after_shrink(self, obj: Auction) -> str | None:
+        base = obj.revenue_override if obj.revenue_override is not None else obj.estimated_revenue
+        if base is None:
+            return None
+        sh = obj.shrinkage_override if obj.shrinkage_override is not None else get_global_shrinkage()
+        eff = (base * (Decimal('1') - sh)).quantize(Decimal('0.01'))
+        return format(eff, 'f')
 
     def get_manifest_template_name(self, obj: Auction) -> str | None:
         r = (

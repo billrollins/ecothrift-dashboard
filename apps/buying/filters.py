@@ -24,10 +24,11 @@ class AuctionFilter(django_filters.FilterSet):
     marketplace = django_filters.CharFilter(method='filter_marketplace')
     status = django_filters.CharFilter(field_name='status')
     has_manifest = django_filters.BooleanFilter(field_name='has_manifest')
+    thumbs_up = django_filters.BooleanFilter(field_name='thumbs_up')
 
     class Meta:
         model = Auction
-        fields = ['marketplace', 'status', 'has_manifest']
+        fields = ['marketplace', 'status', 'has_manifest', 'thumbs_up']
 
     def filter_marketplace(self, queryset, name, value):
         if not value:
