@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-06T21:00:00-05:00 -->
+<!-- Last updated: 2026-04-10T14:15:00-05:00 -->
 # Archive index — initiatives
 
 ## What this is
@@ -9,7 +9,7 @@ This folder, **`.ai/initiatives/_archived/`**, holds initiative markdown files t
 
 ### Initiative lifecycle protocols (`_protocols/`)
 
-Step-by-step protocols (which files to edit, `git mv`, `review_bump.md`) live in **[`_protocols/README.md`](./_protocols/README.md)** — **`activate_initiative`**, **`move_initiative_to_pending`**, **`move_initiative_to_backlog`**, **`move_initiative_to_completed`**, **`move_initiative_to_abandoned`**. Use those when the user drops a protocol into chat with an initiative name.
+Step-by-step protocols (which files to edit, `git mv`, `session_close.md`) live in **[`_protocols/README.md`](./_protocols/README.md)** — **`activate_initiative`**, **`move_initiative_to_pending`**, **`move_initiative_to_backlog`**, **`move_initiative_to_completed`**, **`move_initiative_to_abandoned`**. Use those when the user drops a protocol into chat with an initiative name.
 
 ---
 
@@ -61,6 +61,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [pos_sold_item_scan_ux_and_audit_trail.md](./_completed/pos_sold_item_scan_ux_and_audit_trail.md) | Sold-SKU messaging, **`ItemScanHistory`** outcomes, **`add-resale-copy`**, staff-only resale captions; customer-safe receipts; shipped **v2.2.8**. | 2026-04-06 |
 | [pos_unscannable_manual_line.md](./_completed/pos_unscannable_manual_line.md) | **`add-manual-line`** API + terminal **Unscannable item** dialog; pink-tag chip for `item`-null lines; shipped **v2.2.9**. | 2026-04-06 |
 | [category_sales_inventory_and_taxonomy.md](./_completed/category_sales_inventory_and_taxonomy.md) | Category intelligence: unified bin SQL, 19-category `taxonomy_v1`, manifest mapping (`cr/taxonomy_estimate.py`), Claude categorization (`cr/prompts.py`, `cr/categorize.py`), Bin 2 vs Bin 3 sell-through; **actionable buying recommendations**; workspace [`README.md`](../../../workspace/notebooks/category-research/README.md). Phases 0–7 complete. | 2026-04-06 |
+|| [docs_restructure.md](./_completed/docs_restructure.md) | `.ai` documentation restructure: `session_close`, `startup` step 8, `get_bearing` protocols; `context.md` Working prune to capability pointers; domain warnings to `extended/`; `collect_for_consultant` generalized; session history in initiative files. No semver bump (docs-only). | 2026-04-10 |
 
 ---
 
@@ -82,6 +83,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [historical_data_export.md](./_pending/historical_data_export.md) | **Phase 1 done** (pickles + manifest). **Phase 2** (seed V3, reporting slice, DS/embeddings) paused off main index. | 2026-03-28 |
 | [create_location_label.md](./_pending/create_location_label.md) | **Inventory-scan** thermal location label (3×2, QR + aisle/shelf/category) per `workspace/notes/ecothrift_label_spec.txt`. Workspace render/CLI exists; **product integration** deferred. | 2026-03-28 |
 | [print_server_receipt_format.md](./_pending/print_server_receipt_format.md) | GDI receipt layout, `receipt_data` parity, PNG vs plain-text paths; **paused** off main index pre-production (2026-03-28); `render_scale` + workspace GDI tooling shipped for reference. | 2026-03-28 |
+|| [historical_sell_through_analysis.md](./_pending/historical_sell_through_analysis.md) | Historical sell-through rates by category; PO extract shipped (v2.7.1); manual `PricingRule` seeds live (v2.8.0); Phases 1–4 (legacy DB docs, CSV processing, sales join, data-backed rates) deferred until needed. | 2026-04-10 |
 
 ---
 

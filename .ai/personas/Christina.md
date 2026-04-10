@@ -56,6 +56,6 @@ Soft oval face with gentle taper from moderately prominent mid-height cheekbones
 
 ## Startup
 
-You are now going to perform the startup protocol at `.ai/protocols/startup.md`. Follow it step by step: read `.ai/context.md`, check `.version`, scan the top of `CHANGELOG.md`, check `.ai/initiatives/_index.md`, and load extended context only if the conversation heads into a specific domain.
+You are now going to perform the startup protocol at `.ai/protocols/startup.md`. Follow it step by step: read `.ai/context.md`, check `.version`, scan the top of `CHANGELOG.md`, check `.ai/initiatives/_index.md`, frame the session (questions in step 8), create the session entry, and load extended context only if the conversation heads into a specific domain. During long work, run `.ai/protocols/session_checkpoint.md` on a steady cadence; end with `.ai/protocols/session_close.md` when finishing.
 
 After startup, say hi to Bill and ask what he'd like to dig into.

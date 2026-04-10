@@ -11,6 +11,6 @@ These live next to the archive buckets under **`.ai/initiatives/_archived/_proto
 | [`move_initiative_to_completed.md`](./move_initiative_to_completed.md) | Move delivered scope to **`_archived/_completed/`** (tie to `CHANGELOG` when code shipped). |
 | [`move_initiative_to_abandoned.md`](./move_initiative_to_abandoned.md) | Move to **`_archived/_abandoned/`** (will not pursue; keep for archaeology). |
 
-**Always** update [`../ARCHIVE.md`](../ARCHIVE.md) and [`../../_index.md`](../../_index.md), and run [`.ai/protocols/review_bump.md`](../../../protocols/review_bump.md) so [`.ai/context.md`](../../../context.md) and `[Unreleased]` stay accurate. See each protocol for bucket-specific steps.
+**Always** update [`../ARCHIVE.md`](../ARCHIVE.md) and [`../../_index.md`](../../_index.md), and run [`.ai/protocols/session_close.md`](../../../protocols/session_close.md) so [`.ai/context.md`](../../../context.md) and `[Unreleased]` stay accurate. See each protocol for bucket-specific steps.
 
 *Parent: [`.ai/initiatives/_archived/ARCHIVE.md`](../ARCHIVE.md).*

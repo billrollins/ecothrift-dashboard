@@ -1,5 +1,5 @@
 <!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-09 -->
-<!-- Last updated: 2026-04-09T23:45:00-05:00 -->
+<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -171,6 +171,88 @@ Record what actually happened: **hammer price**, **fees**, **shipping**, **per-i
 - **Two sweep modes:** **Soft touch** (default) uses the **public listings API only**, requires **no JWT**, and is safe for scheduled or frequent use. **Invasive** (manual approval) uses **token-backed** endpoints (manifests, auction detail enrichment) and should only run when the owner intends to bid on specific auctions.
 - **Manual manifest path:** For production and Heroku, manifests are obtained by **manual download** from B-Stock and **upload via UI drag/drop** (**shipped** — **v2.6.1** / Phase 4.1A). Server-side manifest pull remains available for **local dev** but is **not** the default production workflow. This reduces token exposure and ban risk.
 - **Ban mitigation:** If B-Stock blocks token-backed actions, the soft-touch sweep continues to work. **Rate limits**, **backoff on 429/403**, and **logging of response codes** should be standard. A detailed ops playbook can be added to open questions or a separate operations doc when needed.
+
+---
+
+## Sessions
+
+_Session ID:_ count `### Session` headers below and add 1 for the next session. Keep full detail for the **3** most recent sessions; when starting session 4, collapse session 1 to one line (see **`.ai/initiatives/docs_restructure.md`** template if needed).
+
+- **Session 1** — 2026-04-07T09:15:00-05:00 — Phase 1 — est 2h — `apps/buying/` scaffold, initial models + migrations, admin registration — **Result:** committed as v2.4.0 at `145ccf4` (CHANGELOG **[2.3.0]** + **[2.4.0]** in same release).
+- **Session 2** — 2026-04-07T13:30:00-05:00 — Phase 1 — est 2h — `scraper`/`pipeline`/`normalize`, `sweep_auctions` + `pull_manifests`, manifest pagination — **Result:** committed as v2.4.0 at `145ccf4`.
+- **Session 3** — 2026-04-07T16:45:00-05:00 — Phase 1 — est 1h — `POST /api/buying/token/`, bookmarklet + `refresh_bstock.bat`, `.env.example` + docs — **Result:** committed as v2.4.0 at `145ccf4`.
+- **Session 4** — 2026-04-08T09:00:00-05:00 — Phase 2A — est 2h — DRF list/summary/sweep APIs + `AuctionListPage` (DataGrid + mobile infinite scroll) — **Result:** committed as v2.6.0 at `528f9ec` (CHANGELOG **[2.4.1]**).
+- **Session 5** — 2026-04-08T09:40:00-05:00 — Phase 2B — est 2h — `AuctionDetailPage`, manifest rows API + `normalize.py` heuristics — **Result:** committed as v2.6.0 at `528f9ec` (CHANGELOG **[2.5.0]**).
+- **Session 6** — 2026-04-08T10:05:00-05:00 — Phase 2C — est 1h — `WatchlistPage`, watchlist filters/ordering, `test_normalize_manifest` — **Result:** committed as v2.6.0 at `528f9ec`.
+- **Session 7** — 2026-04-08T10:20:00-05:00 — Phase 2 — est 1h — Sidebar routes, shared hooks (`useBuyingAuctions*`), sweep progress UX hardening — **Result:** committed as v2.6.0 at `528f9ec`.
+- **Session 8** — 2026-04-08T10:35:00-05:00 — Phase 3 — est 2h — `watch_auctions`, `AuctionSnapshot`, snapshots API + Recharts on detail — **Result:** committed as v2.6.0 at `528f9ec`.
+- **Session 9** — 2026-04-08T10:50:00-05:00 — Phase 4 — est 2h — `CategoryMapping`, `taxonomy_v1`, `categorize_manifests`, category bar on detail — **Result:** committed as v2.6.0 at `528f9ec`.
+- **Session 10** — 2026-04-08T15:38:00-05:00 — Phase 4.1A — est 1h — v2.6.1 list/detail polish, retail sort + manifest column behavior — **Result:** committed as v2.6.1 at `b8f95a2`.
+- **Session 11** — 2026-04-08T16:53:00-05:00 — Phase 4.1A — est 2h — `ManifestTemplate`, `upload_manifest`, `seed_fast_cat_mappings` — **Result:** committed (no bump) at `a1eb5af`.
+- **Session 12** — 2026-04-08T18:26:00-05:00 — Phase 4.1A — est 1h — Initiative + consultant + CHANGELOG close-out — **Result:** committed (no bump) at `a483b71`.
+- **Session 13** — 2026-04-08T19:30:00-05:00 — Phase 4.1B — est 2h — AI template + `map_fast_cat_batch` + upload Stage 1/2 + `DELETE` manifest semantics — **Result:** committed as v2.7.0 at `dc499d0`.
+- **Session 14** — 2026-04-08T19:50:00-05:00 — Phase 4.1B — est 1h — `AI_PRICING`, `AI_MODEL_FAST`, `.env.example` + prompt caching wiring — **Result:** committed as v2.7.0 at `dc499d0`.
+- **Session 15** — 2026-04-08T20:00:00-05:00 — Phase 4.1B — est 1h — `ai_usage.jsonl`, `ManifestUploadProgress` + four workers + cancel — **Result:** committed as v2.7.0 at `dc499d0`.
+- **Session 16** — 2026-04-08T20:10:00-05:00 — Phase 4.1B — est 1h — Buying UI layout (`flex: 1` manifest card), `__no_key__` exclusion, remove-manifest confirmation — **Result:** committed as v2.7.0 at `dc499d0`.
+- **Session 17** — 2026-04-08T20:12:00-05:00 — Phase 4.1B — est 1h — Settings review + initiative **[2.7.0]** parking-lot notes (wrong-marketplace `CategoryMapping` TODO) — **Result:** committed as v2.7.0 at `dc499d0`.
+
+### Session 18 — Phase 5 backend: valuation engine + seeds — est 2h — started 2026-04-09T15:00:00-05:00
+
+**Goal:** Ship stored valuation fields, recompute pipeline, category need / want votes, and staff controls so the API is ready before the React valuation UI.
+
+**Finish line:** `PricingRule` + migrations land; `recompute_*` paths exercised; list/detail serializers expose valuation + ordering; seeds documented in CHANGELOG **[2.8.0]**.
+
+**Scope:** `apps/buying/services/valuation.py`, `ai_title_category_estimate.py`, `category_need.py`, `want_vote.py`, serializers/filters, `seed_pricing_rules` / management commands, unit tests under `apps/buying/tests/`.
+
+#### Session updates
+
+- 2026-04-09T15:00:00-05:00 Session started — migrations + model fields first.
+- 2026-04-09T16:45:00-05:00 Valuation recompute + manifest/AI mix wired; category-need endpoint returning rows.
+- 2026-04-09T18:50:00-05:00 Thumbs-up + valuation-inputs endpoints tested; ready to tag.
+
+#### Result
+
+Completed — committed as v2.8.0 at `d863b4f`.
+
+---
+
+### Session 19 — Phase 5 React: auction list valuation + filters — est 2h — started 2026-04-10T09:30:00-05:00
+
+**Goal:** Expose profitability, need, revenue, priority, and thumbs-up on the auction grid with server-side filter chips aligned to `AuctionFilter`.
+
+**Finish line:** Desktop + mobile list show new columns; chip filters call list/watchlist APIs with parity; React Query keeps pagination stable (`keepPreviousData`).
+
+**Scope:** `AuctionListPage` / list components, `buying.api.ts`, filter chip UX, `WatchlistAuctionFilter` alignment, CHANGELOG **[2.9.0]** React bullets.
+
+#### Session updates
+
+- 2026-04-10T09:30:00-05:00 Session started — DataGrid columns + sort defaults (`-priority,end_time`).
+- 2026-04-10T10:40:00-05:00 Filter chips + marketplace row layout; watchlist tint query capped at 100 IDs.
+- 2026-04-10T11:50:00-05:00 Pagination snap-back fix + `has_manifest` filter consistency verified.
+
+#### Result
+
+Completed — committed as v2.9.0 at `0620237`.
+
+---
+
+### Session 20 — Phase 5 React: category need panel + valuation detail — est 2h — started 2026-04-10T11:45:00-05:00
+
+**Goal:** Desktop category-need analytics + auction detail valuation card with overrides and AI vs manifest comparison strip.
+
+**Finish line:** `GET /api/buying/category-need/` drives charts; detail page shows `AuctionValuationCard` + `AiManifestComparisonStrip` when applicable; JWT token-backed calls documented as disabled for ban mitigation.
+
+**Scope:** `category-need` UI, `AuctionDetailPage` valuation stack, API field consumption, CHANGELOG **[2.9.0]** notes + initiative parking-lot cross-links.
+
+#### Session updates
+
+- 2026-04-10T11:45:00-05:00 Session started — category panel sizing (min/window/full) + bar charts.
+- 2026-04-10T12:30:00-05:00 Want-vote slider debounce + `sell_through_rate` in category rows.
+- 2026-04-10T13:05:00-05:00 Detail valuation overrides + comparison strip; rechecked list/watchlist filter parity.
+
+#### Result
+
+Completed — committed as v2.9.0 at `0620237`.
 
 ---
 

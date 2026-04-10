@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T23:45:00-05:00 -->
+<!-- Last updated: 2026-04-10T14:15:00-05:00 -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,14 +11,15 @@
 
 Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `.ai/initiatives/*.md`):
 
-| Initiative | Notes |
-|------------|--------|
-| [bstock_auction_intelligence.md](./bstock_auction_intelligence.md) | B-Stock: Phases **1–5** (**API v2.8.0** + **React valuation UI v2.9.0**) + **4.1A** + **4.1B** shipped; **`PricingRule`**, **`valuation`**, **`category-need`** / **`category-want`**, list/detail filters and columns, category-need panel, **`valuation-inputs`**, hooks, commands. **Phase 6** outcomes next. |
-| [historical_sell_through_analysis.md](./historical_sell_through_analysis.md) | Per-category sell-through and PO extract; **feeds** **`seed_pricing_rules`** / research. **Shipped:** multi-DB PO extract → **`workspace/notes/to_consultant/purchase_orders_all_details.csv`** (**v2.7.1**; see initiative **Delivered tooling**). |
-| Data backfill (parked) | Import V1/V2 historical inventory/sales into new schema, tagged backfilled — see **Parking lot** in [bstock_auction_intelligence.md](./bstock_auction_intelligence.md). **Status:** parked. |
-| Groq / alternative AI cost optimization (parked) | Smaller/cheaper models for fast-cat mapping and related classifiers; see **Parking lot** in [bstock_auction_intelligence.md](./bstock_auction_intelligence.md). **Status:** parked. |
+| Initiative | Phase | Notes |
+|------------|-------|-------|
+| [bstock_auction_intelligence.md](./bstock_auction_intelligence.md) | Phase 6 planned | Phases 1–5 + 4.1A + 4.1B shipped (v2.9.0); outcome tracking next. |
+| Data backfill (parked) | Parked | See **Parking lot** in [bstock_auction_intelligence.md](./bstock_auction_intelligence.md). |
+| Groq / alternative AI cost optimization (parked) | Parked | See **Parking lot** in [bstock_auction_intelligence.md](./bstock_auction_intelligence.md). |
 
-**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent POS work: [cart totals v2.2.7](./_archived/_completed/pos_cart_total_stale_prefetch_bug.md), [sold-SKU / audit v2.2.8](./_archived/_completed/pos_sold_item_scan_ux_and_audit_trail.md), [unscannable manual line v2.2.9](./_archived/_completed/pos_unscannable_manual_line.md).
+**Current session details** (goal, finish line, updates) live **only** in each initiative file under **`## Sessions`** — not duplicated here.
+
+**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10).
 
 ---
 
@@ -49,14 +50,14 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 
 - **Do not** bump repo root [`.version`](../.version) or [CHANGELOG.md](../../CHANGELOG.md) **only** because an initiative file was added, edited, or archived. That keeps **product semver** separate from **steering docs**.
 - **Do** add **`[Unreleased]`** bullets when **shipping code** that fulfills an initiative; you may cite the initiative filename for traceability.
-- **On release:** follow [`.ai/protocols/review_bump.md`](../protocols/review_bump.md) (bump `.version`, root `package.json`, new `CHANGELOG` section). **Patch vs minor** follows user-visible/API semver for the app—not “one minor bump per initiative.”
+- **On release:** follow [`.ai/protocols/session_close.md`](../protocols/session_close.md) (bump `.version`, root `package.json`, new `CHANGELOG` section). **Patch vs minor** follows user-visible/API semver for the app—not “one minor bump per initiative.”
 
 ---
 
 ## How to create a new initiative
 
 1. Add `descriptive_snake_name.md` under **`.ai/initiatives/`**.
-2. Include context, objectives, acceptance, and “See also” links.
+2. Include context, objectives, acceptance, **`## Sessions`** (when work starts), and “See also” links.
 3. Add a row to **Active initiatives** above.
 4. Update the `<!-- Last updated: ... -->` timestamp on this file when you change the index.
 
@@ -66,7 +67,7 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 
 1. **Confirm with the user** that the initiative should leave the active index.
 2. Follow [`.ai/initiatives/_archived/ARCHIVE.md`](./_archived/ARCHIVE.md) — disposition, `git mv`, archive marker, update **`ARCHIVE.md`** and **this** `_index.md` in one pass.
-3. Prefer the matching file under [`.ai/initiatives/_archived/_protocols/`](./_archived/_protocols/README.md) (`move_initiative_to_*`, `activate_initiative`) plus [`.ai/protocols/review_bump.md`](../protocols/review_bump.md) so **`.ai/context.md`** and **`CHANGELOG.md`** stay aligned.
+3. Prefer the matching file under [`.ai/initiatives/_archived/_protocols/`](./_archived/_protocols/README.md) (`move_initiative_to_*`, `activate_initiative`) plus [`.ai/protocols/session_close.md`](../protocols/session_close.md) so **`.ai/context.md`** and **`CHANGELOG.md`** stay aligned.
 
 ---
 

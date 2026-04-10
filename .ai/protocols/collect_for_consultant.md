@@ -1,101 +1,51 @@
-<!-- Last updated: 2026-04-09T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
 # Protocol: Refresh docs and collect consultant handoff files
 
-Run this protocol after a build phase completes (typically before or alongside review_bump). It ensures documentation reflects what was actually built and collects files the Consultant needs into a single directory for easy handoff.
+Run when the user **explicitly** asks to prepare a **consultant handoff** (e.g. after a build phase). Ensures docs are not obviously stale and copies a **bundle** of files into **`workspace/notes/to_consultant/files-update/`** for easy sharing.
+
+**Typical order:** **`session_close.md`** should already have updated what shipped; this protocol **spot-checks** and **collects**.
 
 ---
 
-## Part A: Update stale documentation
+## Part A: Verify docs are current
 
-Work through each file below. For each one, read the current version, compare against what is actually in the codebase, and update anything that is out of date. Update the `<!-- Last updated: ... -->` timestamp on every file you change.
+1. Identify the **initiative(s)** in scope (from the user or **`.ai/initiatives/_index.md`**).
+2. Read the relevant **`.ai/initiatives/<name>.md`** file(s) and **`.ai/consultant_context.md`**.
+3. Skim **`.ai/context.md`** “Current State” for anything contradicting reality.
+4. If the initiative touches a domain, spot-check the matching **`.ai/extended/<domain>.md`** (from the initiative’s **See also** or your knowledge of what changed).
+5. Fix obvious staleness; update **`<!-- Last updated: ... -->`** on every file you edit.
 
-### 1. `.ai/initiatives/bstock_auction_intelligence.md`
-
-- Update the current phase section to reflect what was implemented (not just planned).
-- Mark completed sub-steps in the acceptance checklist.
-- Add any new commands, endpoints, models, or services that shipped.
-- Update the "Priority" line at the top if the active phase changed.
-- Do NOT archive or move the initiative without explicit user confirmation.
-
-### 2. `.ai/consultant_context.md`
-
-- Update "What is implemented" to cover all shipped phases and sub-phases.
-- Add new models, fields, endpoints, commands, services.
-- Update the phase summary table.
-- Add any new gotchas that consultants should know.
-- Keep it dense with pointers to extended docs. Do not duplicate extended doc content verbatim.
-- Ask yourself: if a consultant opened this file cold after this release, would they have the full picture? If not, fill the gaps.
-
-### 3. `.ai/extended/backend.md`
-
-- Update the `apps/buying` section with new models, fields, commands, services, and API endpoints.
-- Add any new AppSettings keys.
-- Update the models table if fields were added to existing models.
-
-### 4. `.ai/extended/bstock.md`
-
-- Update the API surface table with any new endpoints (internal Django endpoints, not B-Stock external endpoints).
-- Update operational safety section if new commands or triggers were added.
-
-### 5. `.ai/extended/frontend.md`
-
-- Update if any frontend changes shipped. Skip if no frontend work was done in this phase.
-
-### 6. `.ai/context.md`
-
-- Verify the "Current State" section matches reality.
-- Update if anything is stale.
-
-### 7. Root `CHANGELOG.md`
-
-- Verify the latest section matches what shipped. Add entries if work was done but not logged.
+**Bright line:** Update **`.ai/consultant_context.md`** when a **phase acceptance box** is checked or **initiative status** changes (same rule as **`session_close.md`** Part 2). For a pure handoff pass with no new shipping, Part A is a **consistency check**, not a full rewrite.
 
 ---
 
-## Part B: Collect files for consultant handoff
+## Part B: Collect files
 
-After Part A is complete, copy the following files into `workspace/notes/to_consultant/files-update/`. Create the directory if it does not exist. These are **copies**, not moves. The originals stay in place.
+1. Create the output directory if needed:
 
-```bash
-# Create the output directory
-mkdir -p workspace/notes/to_consultant/files-update
+   `workspace/notes/to_consultant/files-update/`
 
-# Core context
-cp .ai/context.md workspace/notes/to_consultant/files-update/
-cp .ai/consultant_context.md workspace/notes/to_consultant/files-update/
+2. **Always copy** these core files:
 
-# Initiative docs
-cp .ai/initiatives/bstock_auction_intelligence.md workspace/notes/to_consultant/files-update/
-cp .ai/initiatives/historical_sell_through_analysis.md workspace/notes/to_consultant/files-update/
-cp .ai/initiatives/_index.md workspace/notes/to_consultant/files-update/
+   - `.ai/context.md`
+   - `.ai/consultant_context.md`
+   - `.ai/initiatives/_index.md`
+   - `.version`
+   - `CHANGELOG.md`
+   - `.ai/protocols/startup.md`
+   - `.ai/protocols/session_close.md`
+   - `.ai/protocols/get_bearing.md`
 
-# Extended docs
-cp .ai/extended/backend.md workspace/notes/to_consultant/files-update/
-cp .ai/extended/frontend.md workspace/notes/to_consultant/files-update/
-cp .ai/extended/bstock.md workspace/notes/to_consultant/files-update/
+3. **Copy initiative file(s)** for the work in scope (e.g. `.ai/initiatives/bstock_auction_intelligence.md`).
 
-# Protocols
-cp .ai/protocols/review_bump.md workspace/notes/to_consultant/files-update/
-cp .ai/protocols/startup.md workspace/notes/to_consultant/files-update/
+4. **Copy extended docs** that the initiative depends on — choose from **`.ai/extended/*.md`** based on the initiative (e.g. `backend.md`, `frontend.md`, `bstock.md`, `databases.md`). Do not copy all extended files by default.
 
-# Solution designs (if they exist)
-cp workspace/notes/from_consultant/phase5_solution_design.md workspace/notes/to_consultant/files-update/ 2>/dev/null || true
+5. **Optional:** solution designs under **`workspace/notes/from_consultant/`**, notebook READMEs, taxonomy JSON — only if relevant to the handoff.
 
-# Taxonomy reference
-cp workspace/notebooks/category-research/taxonomy_v1.example.json workspace/notes/to_consultant/files-update/ 2>/dev/null || true
-
-# Category research README
-cp workspace/notebooks/category-research/README.md workspace/notes/to_consultant/files-update/category_research_README.md 2>/dev/null || true
-
-# Version and changelog
-cp .version workspace/notes/to_consultant/files-update/
-cp CHANGELOG.md workspace/notes/to_consultant/files-update/
-```
-
-After copying, list the directory contents with file sizes so the user can confirm everything is there.
+6. List the directory with file sizes so the user can confirm the bundle.
 
 ---
 
 ## Part C: Report
 
-Summarize what you changed in Part A (which files, what was stale, what you fixed). List any files from Part B that were missing or could not be copied. Flag anything you were unsure about and did not change.
+Summarize what you changed in Part A (which files, what was stale). List any Part B paths that were missing or skipped. Flag anything you were unsure about and did not change.

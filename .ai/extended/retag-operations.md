@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-31T18:00:00-05:00 -->
+<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
 
 # Retag operations (AI reference)
 
@@ -22,6 +22,11 @@ Single place for **day-of** and **post-cutover** pointers. Technical detail live
 5. Remove `retag_v2_*` API routes, `RetagPage.tsx`, sidebar link.
 
 Retag v2 endpoints are documented under **Retag v2 API Endpoints** in `inventory-pipeline.md`.
+
+### Retag history (`GET /api/inventory/retag/v2/history/`)
+
+- **`RetagLog.retagged_by`** references **`accounts.User`** (`AbstractBaseUser` + `PermissionsMixin`, **not** `AbstractUser`). In serializers/views use **`user.full_name`** (property: `first_name` + `last_name`) — **not** **`get_full_name()`**, which Django only defines on **`AbstractUser`**. Calling **`get_full_name()`** incorrectly can yield **HTTP 500**.
+- Frontend **`RetagPage.tsx`**: history fetch defaults and **`since`** query behavior.
 
 ## E2E manual test checklist
 

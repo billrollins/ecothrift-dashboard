@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-09T23:45:00-05:00 -->
+<!-- Last updated: 2026-04-10T14:15:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
@@ -10,7 +10,7 @@
 
 ## Historical sell-through — legacy Purchase Order extract (v2.7.1)
 
-**Initiative:** [`.ai/initiatives/historical_sell_through_analysis.md`](.ai/initiatives/historical_sell_through_analysis.md) (active; PO extract and joins **feed** **`seed_pricing_rules`** / category economics; Phase **5** valuation in **`apps/buying/`** consumes **`PricingRule`** rows seeded from CSV such as **`workspace/data/sell_through_by_category.csv`**).
+**Initiative:** [`.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md`](.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md) (**pending**; initial `PricingRule` rates seeded manually v2.8.0; data-backed refinement deferred until needed. PO extract and joins **feed** **`seed_pricing_rules`** / category economics; Phase **5** valuation in **`apps/buying/`** consumes **`PricingRule`** rows seeded from CSV such as **`workspace/data/sell_through_by_category.csv`**).
 
 **What runs:** From repo root, `python workspace/notes/to_consultant/extract_po_descriptions.py` (requires **`psycopg2`**, `pip install` as needed; reads root **`.env`** `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_USER`, `DATABASE_PASSWORD`). It opens **three** PostgreSQL databases by name: **`ecothrift_v1`**, **`ecothrift_v2`**, and **`ecothrift_v3`** (V3 only returns PO rows if **`public.inventory_purchaseorder`** exists—otherwise V3 is skipped with a logged message; apply inventory migrations or point at a DB that has Django inventory tables).
 

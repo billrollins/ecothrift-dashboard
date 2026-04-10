@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T23:45:00-05:00 -->
+<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -92,6 +92,8 @@
 - Port 5173
 - **Proxy**: `/api` and `/db-admin` (Django `contrib.admin`) → `http://127.0.0.1:8000`. **`/admin/*`** is **not** proxied — it is served by Vite as the React SPA (in-app admin pages: settings, users, etc.).
 - Build: `dist`, no sourcemaps
+
+**Guardrail — Django admin vs React `/admin/*`:** Do **not** add `path('admin/', admin.site.urls)` in `ecothrift/urls.py` or a Vite proxy of **`/admin`** to Django. That breaks **hard refresh** and direct URLs for React staff routes (`/admin/settings`, `/admin/users`, `/admin/pos-setup`, …). Keep Django **contrib.admin** at **`/db-admin/`** only; exact `/admin` may redirect to `/db-admin/` for bookmarks. See archived initiative **`.ai/initiatives/_archived/_completed/django_admin_legacy_navigation.md`**.
 
 ## Version Display
 

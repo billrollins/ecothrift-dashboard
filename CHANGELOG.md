@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T23:45:00-05:00 -->
+<!-- Last updated: 2026-04-10T14:15:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,6 +10,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+### Changed
+
+- **AI steering / protocols:** Replaced **`review_bump.md`** with **`session_close.md`**; rewrote **`startup.md`** (session entry step) and **`get_bearing.md`** (progress vs written session). Generalized **`collect_for_consultant.md`**. [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) uses **Phase** + **Notes** columns; session detail lives in initiative files only. [`.ai/context.md`](.ai/context.md) **Working** section is short capability pointers (detail in **`.ai/extended/`**). Cross-links updated (README, lifecycle protocols, CHANGELOG history where cited). Django admin vs React **`/admin/*`** and retag history serializer guardrails moved to [`.ai/extended/frontend.md`](.ai/extended/frontend.md) and [`.ai/extended/retag-operations.md`](.ai/extended/retag-operations.md).
+- **Initiative archiving:** [docs_restructure](.ai/initiatives/_archived/_completed/docs_restructure.md) archived as **completed**; [historical_sell_through_analysis](.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md) moved to **pending** (initial rates seeded manually v2.8.0; data-backed refinement deferred). Session history seeded in initiative files.
+- **AI steering / protocols (follow-up):** Added [`.ai/protocols/session_checkpoint.md`](.ai/protocols/session_checkpoint.md) for **mid-session** pulses (session updates, **`[Unreleased]`**, light extended-doc sync). **`startup.md`** now includes **framing questions** (success, intent, time, owner, out-of-scope, ship expectation) and points to checkpoints vs **`session_close`**. **`README`**, **`context`**, **`get_bearing`**, **`session_close`** cross-links updated.
 
 ---
 
@@ -274,7 +280,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **Steering:** Initiative **archiving** requires **explicit user approval** (documented in [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md), [`_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md), [`.ai/protocols/startup.md`](.ai/protocols/startup.md), [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md), [`.ai/context.md`](.ai/context.md)). Initiative [`e2e_retag_quick_reprice_fixes.md`](.ai/initiatives/e2e_retag_quick_reprice_fixes.md) **restored** to the active index with expanded scope *(now archived as [completed](.ai/initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md)).*
+- **Steering:** Initiative **archiving** requires **explicit user approval** (documented in [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md), [`_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md), [`.ai/protocols/startup.md`](.ai/protocols/startup.md), [`.ai/protocols/session_close.md`](.ai/protocols/session_close.md), [`.ai/context.md`](.ai/context.md)). Initiative [`e2e_retag_quick_reprice_fixes.md`](.ai/initiatives/e2e_retag_quick_reprice_fixes.md) **restored** to the active index with expanded scope *(now archived as [completed](.ai/initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md)).*
 - **Inventory — Quick reprice (sold units):** **`POST /api/inventory/items/:id/duplicate-for-resale/`** (staff) creates a new **on-shelf** item from a **sold** row; **`POST /api/inventory/items/:id/mark-on-shelf/`** (Manager/Admin) when no completed POS sale exists. **Quick Reprice** dialog: **Create unsold copy & reprice**, **Mark on shelf again**, **Cancel**.
 - **Inventory — Quick reprice UX:** **This Session** card with **expand/collapse** (chevron) listing all repriced items with links to **`/inventory/items/:id`**. **`?sku=`** query prefill when opening Quick Reprice from item detail.
 - **Inventory — Item detail:** **Print tag** and **Reprice** (deep-link to Quick Reprice with `?sku=`). Initiative: [`e2e_retag_quick_reprice_fixes.md`](.ai/initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md).
@@ -321,7 +327,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Added
 - **Purchase order reset safety:** `GET /api/inventory/orders/:id/delete-preview/` and `POST /api/inventory/orders/:id/purge-delete/` (order-number confirmation).
 - **Preprocessing preview search:** Server-side search over full raw manifest and full standardized output (top-100 preview window per endpoint).
-- **Project / AI layout (BEST-spec alignment):** Repo root `.version` and `CHANGELOG.md`; `.ai/protocols/` (`startup.md`, `review_bump.md`); `.ai/plans/_index.md` and `plans/archive/`; `.ai/reference/`; committed `scripts/dev/` (`start_servers.bat`, `kill_servers.bat`) and `scripts/deploy/commit_message.txt`.
+- **Project / AI layout (BEST-spec alignment):** Repo root `.version` and `CHANGELOG.md`; `.ai/protocols/` (`startup.md`, `session_close.md`, `get_bearing.md`); `.ai/plans/_index.md` and `plans/archive/`; `.ai/reference/`; committed `scripts/dev/` (`start_servers.bat`, `kill_servers.bat`) and `scripts/deploy/commit_message.txt`.
 - **Root spec:** `2.EcoThrift.project_build_spec.md` describing layout, versioning, and protocols.
 - **Multi-DB Jupyter:** Tracked `workspace/notebooks/` (selective gitignore): `README.md`, `config.example.py`, `db_explorer.ipynb` — SQLAlchemy + pandas helpers, pickles dir ignored; optional `requirements-notebooks.txt` (includes former ML deps).
 - **`.ai/extended/databases.md`:** DB1 / DB2 / DB3 overview; credentials stay out of repo; points to `docs/Database Audits/`.

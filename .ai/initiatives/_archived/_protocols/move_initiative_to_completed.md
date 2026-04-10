@@ -26,7 +26,7 @@ Drop this protocol into chat **with** the initiative to move. If ambiguous, **as
 
 5. **Update [`.ai/initiatives/_archived/ARCHIVE.md`](../ARCHIVE.md)** — add a row under **TOC — `_completed/`**; if the file moved from another bucket, remove the old row; bump timestamp.
 
-6. **[`.ai/protocols/review_bump.md`](../../../protocols/review_bump.md)** — align **`.ai/context.md`**, **`CHANGELOG.md`** (document shipped work in `[Unreleased]` or a release section when appropriate), and extended docs; **product semver** bumps follow **shipped behavior**, not “one bump per initiative file” — see [`.ai/initiatives/_index.md`](../../_index.md).
+6. **[`.ai/protocols/session_close.md`](../../../protocols/session_close.md)** — align **`.ai/context.md`**, **`CHANGELOG.md`** (document shipped work in `[Unreleased]` or a release section when appropriate), and extended docs; **product semver** bumps follow **shipped behavior**, not “one bump per initiative file” — see [`.ai/initiatives/_index.md`](../../_index.md).
 
 ---
 

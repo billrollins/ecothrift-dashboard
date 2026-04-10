@@ -1,10 +1,8 @@
-feat(buying): Phase 5 auction valuation UI + list polish (v2.9.0)
+docs: .ai restructure — session protocols, context prune, initiative archiving
 
-Phase 5 frontend close-out: auction list valuation columns, category-need
-panel, auction detail valuation card + overrides + AI/manifest strip;
-filter + marketplace chips; watchlist tint; keepPreviousData pagination;
-watchlist filter parity; platform-aware multi-select chip tooltips
-(multiSelectChipTooltip). Token-backed B-Stock REST disabled (ban
-prevention) documented. Version v2.9.0; CHANGELOG [2.9.0]; initiative
-bstock_auction_intelligence; context, consultant_context, README,
-frontend.md, _index.
+New session_close, session_checkpoint, get_bearing, startup protocols
+(replaces review_bump). context.md Working section pruned to capability
+pointers. Domain warnings moved to extended docs.
+collect_for_consultant generalized. Session history seeded in initiative
+files. docs_restructure archived completed; historical_sell_through
+moved to pending.

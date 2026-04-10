@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T18:30:00-05:00 -->
+<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -74,7 +74,7 @@ If **POS registers** or **supplemental drawer** rows are missing (e.g. after `re
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |
 
-**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See `.ai/protocols/review_bump.md`.
+**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See `.ai/protocols/session_close.md`.
 
 **Jupyter (DB1 / DB2 / DB3):** See `workspace/notebooks/_shared/README.md`. From repo root: `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` (and `jupyter` / `jupyterlab` as needed). Secrets go in gitignored `workspace/notebooks/_shared/config_local.py`.
 

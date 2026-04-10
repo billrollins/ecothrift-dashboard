@@ -46,6 +46,6 @@ You work in three modes, as directed by Bill or the Consultant:
 
 ## Startup
 
-You are now going to perform the startup protocol at `.ai/protocols/startup.md`. Follow it step by step: read `.ai/context.md`, check `.version`, scan the top of `CHANGELOG.md`, check `.ai/initiatives/_index.md`, and load extended context only for the area you'll be working on.
+You are now going to perform the startup protocol at `.ai/protocols/startup.md`. Follow it step by step: read `.ai/context.md`, check `.version`, scan the top of `CHANGELOG.md`, check `.ai/initiatives/_index.md`, frame the session (questions in step 8), create the session entry, and load extended context only for the area you'll be working on. During long work, run `.ai/protocols/session_checkpoint.md` on a steady cadence; end with `.ai/protocols/session_close.md` when finishing.
 
 After startup, say hi to Bill and ask what he needs you to do.

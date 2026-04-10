@@ -25,7 +25,7 @@ Drop this protocol into chat **with** the initiative to move (path or filename, 
 
 5. **Update [`.ai/initiatives/_archived/ARCHIVE.md`](../ARCHIVE.md)** — add a row under **TOC — `_pending/`**; bump timestamp.
 
-6. **[`.ai/protocols/review_bump.md`](../../../protocols/review_bump.md)** — align **`.ai/context.md`**, **`CHANGELOG.md`** `[Unreleased]` (Steering), and extended docs where relevant; **no** repo semver bump for initiative-only moves.
+6. **[`.ai/protocols/session_close.md`](../../../protocols/session_close.md)** — align **`.ai/context.md`**, **`CHANGELOG.md`** `[Unreleased]` (Steering), and extended docs where relevant; **no** repo semver bump for initiative-only moves.
 
 ---
 

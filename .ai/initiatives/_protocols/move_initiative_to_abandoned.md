@@ -25,7 +25,7 @@ Drop this protocol into chat **with** the initiative to move. If ambiguous, **as
 
 5. **Update [`.ai/initiatives/_archived/ARCHIVE.md`](../ARCHIVE.md)** — add a row under **TOC — `_abandoned/`** (summary + **why**); remove from prior bucket TOC if relocating; bump timestamp.
 
-6. **[`.ai/protocols/review_bump.md`](../../../protocols/review_bump.md)** — align **`.ai/context.md`**, **`CHANGELOG.md`** `[Unreleased]` if the steering change should be noted, and extended docs where relevant; no semver-only bump for initiative bookkeeping alone.
+6. **[`.ai/protocols/session_close.md`](../../../protocols/session_close.md)** — align **`.ai/context.md`**, **`CHANGELOG.md`** `[Unreleased]` if the steering change should be noted, and extended docs where relevant; no semver-only bump for initiative bookkeeping alone.
 
 ---
 

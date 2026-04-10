@@ -23,7 +23,7 @@ Drop this protocol into chat **with** the archived initiative path (e.g. `_archi
 
 5. **Update [`.ai/initiatives/_archived/ARCHIVE.md`](../ARCHIVE.md)** — **remove** the row from the matching **TOC** section (`_pending/`, `_backlog/`, etc.); bump timestamp.
 
-6. **[`.ai/protocols/review_bump.md`](../../../protocols/review_bump.md)** — align **`.ai/context.md`**, **`CHANGELOG.md`** `[Unreleased]`, and extended docs if the initiative domain is live again.
+6. **[`.ai/protocols/session_close.md`](../../../protocols/session_close.md)** — align **`.ai/context.md`**, **`CHANGELOG.md`** `[Unreleased]`, and extended docs if the initiative domain is live again.
 
 ---
 
