@@ -6,6 +6,8 @@ import type {
   BuyingAuctionSnapshot,
   BuyingAuctionSummaryParams,
   BuyingAuctionSummaryResponse,
+  BuyingCategoryNeedResponse,
+  BuyingCategoryWantRow,
   BuyingManifestRow,
   BuyingManifestRowsParams,
   BuyingMapFastCatBatchResponse,
@@ -14,6 +16,7 @@ import type {
   BuyingPullManifestResponse,
   BuyingUploadManifestResponse,
   BuyingSweepResponse,
+  BuyingValuationInputsPatch,
   BuyingWatchlistAuctionItem,
   BuyingWatchlistEntry,
   BuyingWatchlistParams,
@@ -36,6 +39,41 @@ export type {
   BuyingWatchlistEntry,
 };
 
+/** Stable React Query key: primitives only (avoid object identity churn). */
+export function buyingAuctionListQueryKey(params: BuyingAuctionListParams) {
+  return [
+    'buying',
+    'auctions',
+    params.page ?? 1,
+    params.page_size ?? 50,
+    params.ordering ?? '',
+    params.marketplace ?? '',
+    params.status ?? '',
+    params.has_manifest === true ? 't' : params.has_manifest === false ? 'f' : '',
+    params.thumbs_up === true ? '1' : '',
+    params.profitable === true ? '1' : '',
+    params.needed === true ? '1' : '',
+  ] as const;
+}
+
+export function buyingWatchlistQueryKey(params: BuyingWatchlistParams) {
+  return [
+    'buying',
+    'watchlist',
+    params.page ?? 1,
+    params.page_size ?? 50,
+    params.ordering ?? '',
+    params.marketplace ?? '',
+    params.status ?? '',
+    params.has_manifest === true ? 't' : params.has_manifest === false ? 'f' : '',
+    params.priority ?? '',
+    params.watchlist_status ?? '',
+    params.thumbs_up === true ? '1' : '',
+    params.profitable === true ? '1' : '',
+    params.needed === true ? '1' : '',
+  ] as const;
+}
+
 function buildAuctionParams(params: BuyingAuctionListParams): Record<string, string | number | boolean> {
   const q: Record<string, string | number | boolean> = {};
   if (params.page != null) q.page = params.page;
@@ -43,9 +81,14 @@ function buildAuctionParams(params: BuyingAuctionListParams): Record<string, str
   if (params.ordering) q.ordering = params.ordering;
   if (params.marketplace) q.marketplace = params.marketplace;
   if (params.status) q.status = params.status;
-  if (params.has_manifest !== undefined && params.has_manifest !== null) {
-    q.has_manifest = params.has_manifest;
+  if (params.has_manifest === true) {
+    q.has_manifest = 'true';
+  } else if (params.has_manifest === false) {
+    q.has_manifest = 'false';
   }
+  if (params.thumbs_up === true) q.thumbs_up = true;
+  if (params.profitable === true) q.profitable = true;
+  if (params.needed === true) q.needed = true;
   return q;
 }
 
@@ -53,19 +96,31 @@ function buildSummaryParams(params: BuyingAuctionSummaryParams): Record<string, 
   const q: Record<string, string | boolean> = {};
   if (params.marketplace) q.marketplace = params.marketplace;
   if (params.status) q.status = params.status;
-  if (params.has_manifest !== undefined && params.has_manifest !== null) {
-    q.has_manifest = params.has_manifest;
+  if (params.has_manifest === true) {
+    q.has_manifest = 'true';
+  } else if (params.has_manifest === false) {
+    q.has_manifest = 'false';
   }
   return q;
 }
 
-function buildWatchlistParams(params: BuyingWatchlistParams): Record<string, string | number> {
-  const q: Record<string, string | number> = {};
+function buildWatchlistParams(params: BuyingWatchlistParams): Record<string, string | number | boolean> {
+  const q: Record<string, string | number | boolean> = {};
   if (params.page != null) q.page = params.page;
   if (params.page_size != null) q.page_size = params.page_size;
   if (params.ordering) q.ordering = params.ordering;
   if (params.priority) q.priority = params.priority;
   if (params.watchlist_status) q.watchlist_status = params.watchlist_status;
+  if (params.marketplace) q.marketplace = params.marketplace;
+  if (params.status) q.status = params.status;
+  if (params.has_manifest === true) {
+    q.has_manifest = 'true';
+  } else if (params.has_manifest === false) {
+    q.has_manifest = 'false';
+  }
+  if (params.thumbs_up === true) q.thumbs_up = true;
+  if (params.profitable === true) q.profitable = true;
+  if (params.needed === true) q.needed = true;
   return q;
 }
 
@@ -207,5 +262,44 @@ export async function postBuyingSweep(marketplaceSlug?: string | null): Promise<
   const { data } = await api.post<BuyingSweepResponse>('/buying/sweep/', null, {
     params: marketplaceSlug ? { marketplace: marketplaceSlug } : {},
   });
+  return data;
+}
+
+export async function fetchBuyingCategoryNeed(): Promise<BuyingCategoryNeedResponse> {
+  const { data } = await api.get<BuyingCategoryNeedResponse>('/buying/category-need/');
+  return data;
+}
+
+export async function fetchBuyingCategoryWant(): Promise<BuyingCategoryWantRow[]> {
+  const { data } = await api.get<BuyingCategoryWantRow[]>('/buying/category-want/');
+  return data;
+}
+
+export async function postBuyingCategoryWant(body: {
+  category: string;
+  value: number;
+}): Promise<BuyingCategoryWantRow> {
+  const { data } = await api.post<BuyingCategoryWantRow>('/buying/category-want/', body);
+  return data;
+}
+
+export async function postBuyingThumbsUp(auctionId: number): Promise<{ thumbs_up: boolean }> {
+  const { data } = await api.post<{ thumbs_up: boolean }>(`/buying/auctions/${auctionId}/thumbs-up/`);
+  return data;
+}
+
+export async function deleteBuyingThumbsUp(auctionId: number): Promise<{ thumbs_up: boolean }> {
+  const { data } = await api.delete<{ thumbs_up: boolean }>(`/buying/auctions/${auctionId}/thumbs-up/`);
+  return data;
+}
+
+export async function patchBuyingValuationInputs(
+  auctionId: number,
+  body: BuyingValuationInputsPatch
+): Promise<BuyingAuctionDetail> {
+  const { data } = await api.patch<BuyingAuctionDetail>(
+    `/buying/auctions/${auctionId}/valuation-inputs/`,
+    body
+  );
   return data;
 }

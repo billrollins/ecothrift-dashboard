@@ -35,7 +35,10 @@ import { isAxiosError } from 'axios';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
+import AiManifestComparisonStrip from '../../components/buying/AiManifestComparisonStrip';
+import AuctionValuationCard from '../../components/buying/AuctionValuationCard';
 import CategoryDistributionBar from '../../components/buying/CategoryDistributionBar';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   ManifestUploadProgress,
   type ManifestMappingPhase,
@@ -174,6 +177,8 @@ export default function AuctionDetailPage() {
   const { id: rawId } = useParams<{ id: string }>();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole('Admin');
 
   const auctionId = useMemo(() => {
     const n = Number(rawId);
@@ -749,6 +754,8 @@ export default function AuctionDetailPage() {
               </Box>
             ) : null}
           </Card>
+          {detail ? <AiManifestComparisonStrip detail={detail} /> : null}
+          {detail ? <AuctionValuationCard detail={detail} isAdmin={isAdmin} /> : null}
         </Grid>
 
         <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>

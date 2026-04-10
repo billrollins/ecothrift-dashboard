@@ -9,6 +9,9 @@ export interface BuyingMarketplace {
   external_id: string | null;
 }
 
+/** Phase 5: mix source label from backend. */
+export type BuyingValuationSource = 'manifest' | 'ai' | 'none';
+
 /** Row from GET /api/buying/auctions/ */
 export interface BuyingAuctionListItem {
   id: number;
@@ -33,6 +36,26 @@ export interface BuyingAuctionListItem {
   status: string;
   has_manifest: boolean;
   last_updated_at: string | null;
+  /** Phase 5 valuation — see AuctionListSerializer */
+  ai_category_estimates?: Record<string, number> | null;
+  manifest_category_distribution?: Record<string, number> | null;
+  estimated_revenue?: string | null;
+  revenue_override?: string | null;
+  fees_override?: string | null;
+  shipping_override?: string | null;
+  estimated_fees?: string | null;
+  estimated_shipping?: string | null;
+  estimated_total_cost?: string | null;
+  profitability_ratio?: string | null;
+  need_score?: string | null;
+  shrinkage_override?: string | null;
+  profit_target_override?: string | null;
+  priority?: number | null;
+  priority_override?: boolean;
+  thumbs_up?: boolean;
+  valuation_source?: BuyingValuationSource;
+  has_revenue_override?: boolean;
+  effective_revenue_after_shrink?: string | null;
 }
 
 /** Watchlist entry (OneToOne per auction). */
@@ -61,6 +84,14 @@ export interface BuyingWatchlistParams {
   ordering?: string;
   priority?: string;
   watchlist_status?: string;
+  marketplace?: string;
+  status?: string;
+  has_manifest?: boolean;
+  thumbs_up?: boolean;
+  /** Server: profitability_ratio >= 1.5 */
+  profitable?: boolean;
+  /** Server: need_score > 0 */
+  needed?: boolean;
 }
 
 /** Canonical category mix for manifest rows (auction detail). */
@@ -182,6 +213,54 @@ export interface BuyingAuctionListParams {
   marketplace?: string;
   status?: string;
   has_manifest?: boolean;
+  thumbs_up?: boolean;
+  /** Server: profitability_ratio >= 1.5 */
+  profitable?: boolean;
+  /** Server: need_score > 0 */
+  needed?: boolean;
+}
+
+/** GET /api/buying/category-need/ */
+export interface BuyingCategoryNeedRow {
+  category: string;
+  shelf_count: number;
+  sold_count: number;
+  shelf_pct: string;
+  sold_pct: string;
+  avg_sale: string | null;
+  avg_retail: string | null;
+  avg_cost: string | null;
+  profit_per_item: string | null;
+  profit_sales_ratio: string | null;
+  return_on_cost: string | null;
+  sell_through_pct: string;
+  need_gap: string;
+  bar_scale_max: string;
+  /** From PricingRule — ratio 0–1 */
+  sell_through_rate: string;
+}
+
+export interface BuyingCategoryNeedResponse {
+  need_window_days: number;
+  categories: BuyingCategoryNeedRow[];
+}
+
+/** GET/POST /api/buying/category-want/ */
+export interface BuyingCategoryWantRow {
+  category: string;
+  value: number | null;
+  voted_at: string | null;
+  effective_value: number;
+}
+
+/** PATCH /api/buying/auctions/:id/valuation-inputs/ */
+export interface BuyingValuationInputsPatch {
+  fees_override?: string | null;
+  shipping_override?: string | null;
+  shrinkage_override?: string | null;
+  profit_target_override?: string | null;
+  revenue_override?: string | null;
+  priority?: number | null;
 }
 
 /** Same filters as the auction list, without pagination (for GET …/summary/). */

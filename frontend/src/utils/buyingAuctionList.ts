@@ -20,12 +20,40 @@ export function formatTimeRemaining(endTime: string | null): string {
   return `${m}m`;
 }
 
-/** Same color rules as desktop DataGrid time column. */
+const MS_6H = 6 * 60 * 60 * 1000;
+const SEC_10M = 10 * 60;
+
+/** Mobile list: tiered — >6h hours only; <6h but ≥10m hours+minutes; <10m minutes+seconds. */
+export function formatTimeRemainingShort(endTime: string | null): string {
+  const ms = msUntilEnd(endTime);
+  if (ms == null) return 'N/A';
+  if (ms <= 0) return 'Ended';
+  const totalSec = Math.floor(ms / 1000);
+
+  if (ms > MS_6H) {
+    const h = Math.floor(ms / (60 * 60 * 1000));
+    return `${h}h`;
+  }
+  if (totalSec >= SEC_10M) {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}m ${s}s`;
+}
+
+const MS_1H = 60 * 60 * 1000;
+const MS_4H = 4 * MS_1H;
+
+/** Spec: normal >4h, orange <4h, red <1h. */
 export function timeRemainingSx(endTime: string | null): Record<string, unknown> {
   const ms = msUntilEnd(endTime);
   if (ms == null || ms <= 0) return {};
-  if (ms <= 15 * 60 * 1000) return { color: 'error.main', fontWeight: 600 };
-  if (ms <= 60 * 60 * 1000) return { color: 'warning.main', fontWeight: 600 };
+  if (ms <= MS_1H) return { color: 'error.main', fontWeight: 600 };
+  if (ms <= MS_4H) return { color: 'warning.main', fontWeight: 600 };
   return {};
 }
 
@@ -35,8 +63,8 @@ export type TimeUrgency = 'none' | 'urgent' | 'soon';
 export function timeUrgency(endTime: string | null): TimeUrgency {
   const ms = msUntilEnd(endTime);
   if (ms == null || ms <= 0) return 'none';
-  if (ms <= 15 * 60 * 1000) return 'urgent';
-  if (ms <= 60 * 60 * 1000) return 'soon';
+  if (ms <= MS_1H) return 'urgent';
+  if (ms <= MS_4H) return 'soon';
   return 'none';
 }
 
@@ -53,31 +81,46 @@ const ORDERING_FIELDS = [
   'status',
   'has_manifest',
   'lot_size',
+  'priority',
+  'estimated_revenue',
+  'profitability_ratio',
+  'need_score',
 ] as const;
 
+const DEFAULT_LIST_ORDERING = '-priority,end_time';
+
 export function orderingFromSortModel(model: GridSortModel): string {
-  if (!model.length) return '-end_time';
+  if (!model.length) return DEFAULT_LIST_ORDERING;
   const { field, sort } = model[0];
   const allowed = ORDERING_FIELDS as unknown as string[];
-  if (!allowed.includes(field)) return '-end_time';
+  if (!allowed.includes(field)) return DEFAULT_LIST_ORDERING;
   const prefix = sort === 'desc' ? '-' : '';
-  return `${prefix}${field}`;
+  const base = `${prefix}${field}`;
+  if (field === 'priority') {
+    return sort === 'desc' ? '-priority,end_time' : 'priority,end_time';
+  }
+  return base;
 }
 
 export function sortModelFromOrdering(ordering: string): GridSortModel {
-  if (!ordering) return [{ field: 'end_time', sort: 'desc' }];
-  const desc = ordering.startsWith('-');
-  const field = (desc ? ordering.slice(1) : ordering) as (typeof ORDERING_FIELDS)[number];
+  if (!ordering) return [{ field: 'priority', sort: 'desc' }];
+  const first = ordering.split(',')[0].trim();
+  const desc = first.startsWith('-');
+  const field = (desc ? first.slice(1) : first) as (typeof ORDERING_FIELDS)[number];
   const allowed = ORDERING_FIELDS as unknown as string[];
-  if (!allowed.includes(field)) return [{ field: 'end_time', sort: 'desc' }];
+  if (!allowed.includes(field)) return [{ field: 'priority', sort: 'desc' }];
   return [{ field, sort: desc ? 'desc' : 'asc' }];
 }
 
-/** Mobile sort dropdown; values are API `ordering` strings. Total retail: high to low. */
+/** Mobile sort dropdown; values are API `ordering` strings. */
 export const MOBILE_SORT_OPTIONS = [
-  { value: '-end_time', label: 'Ending soon' },
+  { value: '-priority,end_time', label: 'Priority (default)' },
+  { value: 'end_time', label: 'Ending soonest' },
   { value: 'current_price', label: 'Price: low to high' },
   { value: '-current_price', label: 'Price: high to low' },
   { value: '-total_retail_value', label: 'Total retail (high to low)' },
+  { value: '-estimated_revenue', label: 'Est. revenue (high to low)' },
+  { value: '-profitability_ratio', label: 'Profitability (high to low)' },
+  { value: '-need_score', label: 'Need score (high to low)' },
   { value: '-last_updated_at', label: 'Recently updated' },
 ] as const;

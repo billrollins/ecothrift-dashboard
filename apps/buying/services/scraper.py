@@ -2,7 +2,10 @@
 B-Stock microservice HTTP client. Endpoints are fixed infrastructure URLs.
 
 Search listings POST does not require auth. Listing, auction, manifest, and
-shipment calls require a JWT. Token resolution (first match wins):
+shipment calls normally require a JWT; when ``JWT_BSTOCK_CALLS_DISABLED`` is
+True (ban prevention), those calls are skipped and return empty results—see
+each function's guard. Token resolution when JWT calls are enabled (first match
+wins):
 
 1. File ``workspace/.bstock_token`` (from ``python manage.py bstock_token``)
 2. Environment variable ``BSTOCK_AUTH_TOKEN``
@@ -28,6 +31,10 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 # Dedicated logger for one-line outbound request audit (console + logs/bstock_api.log via settings).
 bstock_logger = logging.getLogger('buying.scraper')
+
+# Ban prevention: skip all JWT-backed B-Stock HTTP calls. Public search (`discover_auctions`) is unchanged.
+# Set False to re-enable authenticated endpoints.
+JWT_BSTOCK_CALLS_DISABLED = True
 
 SEARCH_LISTINGS_URL = 'https://search.bstock.com/v1/all-listings/listings'
 LISTING_GROUPS_URL = 'https://listing.bstock.com/v1/groups'
@@ -454,6 +461,11 @@ def get_auction_detail(listing_id: str) -> dict[str, Any]:
 
     Auth required. Returns the first auction object as a flat dict for merging, or {}.
     """
+    if JWT_BSTOCK_CALLS_DISABLED:
+        logger.warning(
+            'JWT-backed B-Stock call disabled (ban prevention): %s', 'get_auction_detail'
+        )
+        return {}
     params: dict[str, Any] = {'listingId': listing_id, 'limit': 100}
     try:
         data = _request_json('GET', AUCTION_STATE_URL, params=params, auth=True)
@@ -486,6 +498,12 @@ def get_auction_states_batch(
     Auth required. Returns mapping listing_id -> auction state dict (last wins if
     duplicates). Chunks requests to respect URL length and rate limits.
     """
+    if JWT_BSTOCK_CALLS_DISABLED:
+        logger.warning(
+            'JWT-backed B-Stock call disabled (ban prevention): %s',
+            'get_auction_states_batch',
+        )
+        return {}
     out: dict[str, dict[str, Any]] = {}
     seen: list[str] = []
     for raw in listing_ids:
@@ -519,6 +537,11 @@ def get_lot_detail(lot_id: str) -> dict[str, Any]:
 
     Auth required.
     """
+    if JWT_BSTOCK_CALLS_DISABLED:
+        logger.warning(
+            'JWT-backed B-Stock call disabled (ban prevention): %s', 'get_lot_detail'
+        )
+        return {}
     params = {'lotId': lot_id}
     try:
         data = _request_json('GET', LISTING_GROUPS_URL, params=params, auth=True)
@@ -569,6 +592,11 @@ def get_manifest(
     Auth required. Path segment is B-Stock lotId (same as search listing row / Auction.lot_id).
     The API caps ``limit`` at 1000; larger values return 400. Paginates with ``offset`` until done.
     """
+    if JWT_BSTOCK_CALLS_DISABLED:
+        logger.warning(
+            'JWT-backed B-Stock call disabled (ban prevention): %s', 'get_manifest'
+        )
+        return []
     if not (lot_id or '').strip():
         logger.warning('get_manifest called with empty lot_id')
         return None
@@ -641,6 +669,12 @@ def get_shipping_quotes(listing_id: str) -> dict[str, Any] | None:
 
     Auth required. Returns parsed JSON or None.
     """
+    if JWT_BSTOCK_CALLS_DISABLED:
+        logger.warning(
+            'JWT-backed B-Stock call disabled (ban prevention): %s',
+            'get_shipping_quotes',
+        )
+        return {}
     params = {'listingId': listing_id, 'selected': 'true'}
     try:
         return _request_json('GET', SHIPMENT_QUOTES_URL, params=params, auth=True)
@@ -654,6 +688,12 @@ def get_unique_bid_counts(auction_ids_csv: str) -> dict[str, Any] | None:
 
     Comma-separated auction ids. Auth required.
     """
+    if JWT_BSTOCK_CALLS_DISABLED:
+        logger.warning(
+            'JWT-backed B-Stock call disabled (ban prevention): %s',
+            'get_unique_bid_counts',
+        )
+        return {}
     params = {'auctionId': auction_ids_csv, 'limit': 100}
     try:
         return _request_json('GET', AUCTION_UNIQUE_BIDS_URL, params=params, auth=True)

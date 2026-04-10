@@ -14,7 +14,8 @@ class Command(BaseCommand):
     help = (
         'Poll auction.bstock.com for auctions on the watchlist, write AuctionSnapshot '
         'rows, and update Auction. Respects WatchlistEntry.poll_interval_seconds unless '
-        '--force. Requires workspace/.bstock_token or BSTOCK_AUTH_TOKEN.'
+        '--force. Requires workspace/.bstock_token or BSTOCK_AUTH_TOKEN. '
+        'Currently disabled (JWT calls blocked for ban prevention).'
     )
 
     def add_arguments(self, parser):

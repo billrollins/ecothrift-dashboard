@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T21:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T23:45:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,6 +10,30 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+---
+
+## [2.9.0] — 2026-04-09
+
+### Added
+
+- **Buying — Phase 5 (React UI):** [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — **Auction list** (`/buying/auctions`): valuation **DataGrid** columns — **Profitability** / **Need** pills, **Est. revenue**, **Retail** (manifest vs listing tooltip), **Priority** with Admin **steppers**, **Thumbs up** toggle (Admin), **Time left** with color bands; default server sort **`-priority,end_time`**. **Filter chips** (server-side **`AuctionFilter`** / **`WatchlistAuctionFilter`**): **Profitable**, **Needed**, **Thumbs up**, **Watched**, **Has manifest** — multi-select with Ctrl/⌘ (plain click isolates / clears per row semantics); **marketplace** chips: **All** first, Ctrl/⌘ multi-vendor; layout: **Filters** + **Clear all**, then marketplace row, then filter row; mobile-scaled chips. **Category need panel** (desktop **`md+`**): **Min** / **Window** / **Full** sizing, bar charts, category detail, staff **want vote** slider (debounced). **Auction detail:** **AuctionValuationCard** (full computation breakdown, revenue/fees/shipping/shrinkage/profit-target/priority overrides, **max bid** line), **AiManifestComparisonStrip** when both AI and manifest mix exist. **Watchlist** row tint on main list (≤**100** watchlist IDs for tint query). **Mobile** list: scaled chips, time formatting, infinite scroll. **React Query:** `placeholderData: keepPreviousData` on auction + watchlist list queries so **server pagination** stays stable when the page param changes. **API:** **`GET /api/buying/category-need/`** category rows include **`sell_through_rate`**; list params **`profitable`**, **`needed`**; **`GET /api/buying/watchlist/`** accepts **`marketplace`**, **`status`**, **`has_manifest`**, **`profitable`**, **`needed`**, **`thumbs_up`** (watchlist filter parity with main list). **Backend:** `WatchlistAuctionFilter` extended for **`profitable`**, **`needed`**, **`thumbs_up`**; manifest-based **`has_manifest`** filtering aligned with list queryset.
+
+### Fixed
+
+- **Buying:** Pagination **snap-back** on alternate “next page” clicks (grid saw **`rowCount: 0`** while the next page was loading); **has_manifest** filter uses manifest-row existence consistently; **category distribution** mix math; want-vote slider **debouncing**.
+
+### Changed
+
+- **Buying — B-Stock JWT calls:** Token-backed **HTTP from the REST API** is **disabled** (`501` / `token_backed_bstock_disabled` on **`pull_manifest`**, **`poll`**, etc.) — **CSV upload** and soft-touch sweep remain; ban-risk mitigation (see [`apps/buying/api_views.py`](apps/buying/api_views.py)). **Management commands** may still be run manually where applicable.
+
+### Notes (documentation)
+
+- **Parking lot** entries in the initiative file (data backfill, **Groq** cost idea, **`ai_key_mapping.py`** → **`AI_MODEL_FAST`** one-liner, **`ai_key_mapping.py`** model-discussion follow-up). **AI steering:** tooltips on multi-select chips are one short platform-aware line (**`multiSelectChipTooltip`**).
+
+### Initiative
+
+- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — Phase **5** **React UI** shipped (**v2.9.0**); **Phase 6** (outcomes) next.
 
 ---
 

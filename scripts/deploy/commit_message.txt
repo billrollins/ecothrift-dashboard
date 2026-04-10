@@ -1,15 +1,10 @@
-feat(buying): Phase 5 auction valuation engine (v2.8.0)
+feat(buying): Phase 5 auction valuation UI + list polish (v2.9.0)
 
-Phase 5: PricingRule and CategoryWantVote; Auction valuation fields and
-Marketplace defaults; valuation.py (recompute_auction_valuation,
-recompute_all_open_auctions, manifest distribution, sweep AI batch);
-ai_title_category_estimate (estimate_batch, AI_MODEL_FAST, title_echo);
-category-need / category-want APIs, want_vote decay; thumbs-up and
-valuation-inputs PATCH with recompute; serializers, ordering, filters;
-seed_pricing_rules, seed_marketplace_pricing_defaults,
-estimate_auction_categories, recompute_buying_valuations; manifest upload
-hooks; tests (test_valuation, test_phase5_category_need). Migrations 0009–0010.
-
-Docs: initiative design decisions, backend/consultant/context; protocols
-get_bearing and collect_for_consultant; personas Scout and Christina;
-README and CHANGELOG. App version v2.8.0.
+Phase 5 frontend close-out: auction list valuation columns, category-need
+panel, auction detail valuation card + overrides + AI/manifest strip;
+filter + marketplace chips; watchlist tint; keepPreviousData pagination;
+watchlist filter parity; platform-aware multi-select chip tooltips
+(multiSelectChipTooltip). Token-backed B-Stock REST disabled (ban
+prevention) documented. Version v2.9.0; CHANGELOG [2.9.0]; initiative
+bstock_auction_intelligence; context, consultant_context, README,
+frontend.md, _index.

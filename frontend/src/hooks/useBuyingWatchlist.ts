@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { fetchBuyingWatchlist } from '../api/buying.api';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { buyingWatchlistQueryKey, fetchBuyingWatchlist } from '../api/buying.api';
 import type { BuyingWatchlistParams } from '../types/buying.types';
 
 export function useBuyingWatchlist(
@@ -7,8 +7,9 @@ export function useBuyingWatchlist(
   options?: { enabled?: boolean }
 ) {
   return useQuery({
-    queryKey: ['buying', 'watchlist', params] as const,
+    queryKey: buyingWatchlistQueryKey(params),
     queryFn: () => fetchBuyingWatchlist(params),
     enabled: options?.enabled ?? true,
+    placeholderData: keepPreviousData,
   });
 }

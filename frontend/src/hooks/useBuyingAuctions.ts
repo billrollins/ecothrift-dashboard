@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { fetchBuyingAuctions } from '../api/buying.api';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { buyingAuctionListQueryKey, fetchBuyingAuctions } from '../api/buying.api';
 import type { BuyingAuctionListParams } from '../types/buying.types';
 
 export function useBuyingAuctions(
@@ -7,9 +7,10 @@ export function useBuyingAuctions(
   options?: { enabled?: boolean }
 ) {
   return useQuery({
-    queryKey: ['buying', 'auctions', params] as const,
+    queryKey: buyingAuctionListQueryKey(params),
     queryFn: () => fetchBuyingAuctions(params),
     enabled: options?.enabled ?? true,
     refetchOnMount: 'always',
+    placeholderData: keepPreviousData,
   });
 }

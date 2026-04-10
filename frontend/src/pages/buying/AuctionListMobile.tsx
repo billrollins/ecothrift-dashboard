@@ -1,3 +1,5 @@
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import {
   Box,
   Button,
@@ -6,6 +8,7 @@ import {
   CardContent,
   CircularProgress,
   FormControl,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
@@ -13,15 +16,15 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
 import {
-  formatTimeRemaining,
+  formatTimeRemainingShort,
   MOBILE_SORT_OPTIONS,
   timeRemainingSx,
-  timeUrgency,
 } from '../../utils/buyingAuctionList';
 import type { BuyingAuctionListItem } from '../../types/buying.types';
+import NeedPill from '../../components/buying/NeedPill';
+import ProfitabilityPill from '../../components/buying/ProfitabilityPill';
 
 const MOBILE_PRESET_VALUES = new Set<string>(MOBILE_SORT_OPTIONS.map((o) => o.value));
 
@@ -36,6 +39,9 @@ export type AuctionListMobileProps = {
   remainingCount: number;
   onLoadMore: () => void;
   onRowNavigate: (id: number) => void;
+  watchlistIds?: Set<number>;
+  isAdmin?: boolean;
+  onThumbsToggle?: (id: number, next: boolean) => void;
 };
 
 export default function AuctionListMobile({
@@ -48,6 +54,9 @@ export default function AuctionListMobile({
   remainingCount,
   onLoadMore,
   onRowNavigate,
+  watchlistIds,
+  isAdmin = false,
+  onThumbsToggle,
 }: AuctionListMobileProps) {
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -77,107 +86,121 @@ export default function AuctionListMobile({
           </Box>
         ) : (
           <Stack spacing={0.5}>
-            {rows.map((row) => (
-              <Card key={row.id} variant="outlined" sx={{ borderRadius: 1 }}>
-                <CardActionArea onClick={() => onRowNavigate(row.id)}>
-                  <CardContent
-                    sx={{
-                      py: 0.75,
-                      px: 1.25,
-                      '&:last-child': { pb: 0.75 },
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color="primary"
-                      display="block"
-                      sx={{ fontWeight: 600, mb: 0.25, lineHeight: 1.2 }}
-                    >
-                      {row.marketplace?.name ?? '—'}
-                    </Typography>
-                    <Typography
-                      variant="body2"
+            {rows.map((row) => {
+              const watched = watchlistIds?.has(row.id);
+              return (
+                <Card
+                  key={row.id}
+                  variant="outlined"
+                  sx={{
+                    borderRadius: 1,
+                    bgcolor: watched ? '#fffde7' : undefined,
+                  }}
+                >
+                  <CardActionArea onClick={() => onRowNavigate(row.id)}>
+                    <CardContent
                       sx={{
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        lineHeight: 1.25,
-                        mb: 0.5,
-                        fontSize: '0.8125rem',
+                        py: 0.75,
+                        px: 1.25,
+                        '&:last-child': { pb: 0.75 },
                       }}
                     >
-                      {row.title}
-                    </Typography>
-                    <Stack
-                      direction="row"
-                      justifyContent="space-between"
-                      alignItems="baseline"
-                      flexWrap="wrap"
-                      gap={0.25}
-                    >
-                      <Typography variant="body2" fontWeight={700} component="span" sx={{ fontSize: '0.95rem' }}>
-                        {formatCurrency(row.current_price)}
-                      </Typography>
-                      <Tooltip
-                        title={
-                          row.retail_source === 'manifest'
-                            ? `From manifest: ${formatCurrencyWhole(row.total_retail_display ?? row.total_retail_value)}`
-                            : `From listing: ${formatCurrencyWhole(row.total_retail_display ?? row.total_retail_value)}`
-                        }
-                      >
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                          Retail {formatCurrencyWhole(row.total_retail_display ?? row.total_retail_value)}
-                        </Typography>
-                      </Tooltip>
-                    </Stack>
-                    <Box
-                      sx={(theme) => {
-                        const u = timeUrgency(row.end_time);
-                        const base = { mt: 0.5 };
-                        if (u === 'urgent') {
-                          return {
-                            ...base,
-                            pl: 1,
-                            pr: 0.75,
-                            py: 0.35,
-                            borderRadius: 1,
-                            borderLeft: '4px solid',
-                            borderColor: 'error.main',
-                            bgcolor: alpha(theme.palette.error.main, 0.12),
-                          };
-                        }
-                        if (u === 'soon') {
-                          return {
-                            ...base,
-                            pl: 1,
-                            pr: 0.75,
-                            py: 0.35,
-                            borderRadius: 1,
-                            borderLeft: '4px solid',
-                            borderColor: 'warning.main',
-                            bgcolor: alpha(theme.palette.warning.main, 0.14),
-                          };
-                        }
-                        return base;
-                      }}
-                    >
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" width="100%">
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                         <Typography
                           variant="caption"
-                          sx={{ ...timeRemainingSx(row.end_time), fontSize: '0.7rem' }}
+                          color="primary"
+                          display="block"
+                          sx={{ fontWeight: 600, mb: 0.25, lineHeight: 1.2 }}
                         >
-                          {formatTimeRemaining(row.end_time)}
+                          {row.marketplace?.name ?? '—'}
+                        </Typography>
+                        {isAdmin && onThumbsToggle ? (
+                          <IconButton
+                            size="small"
+                            aria-label="Thumbs up"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onThumbsToggle(row.id, !row.thumbs_up);
+                            }}
+                          >
+                            {row.thumbs_up ? (
+                              <ThumbUpIcon fontSize="small" color="primary" />
+                            ) : (
+                              <ThumbUpOutlinedIcon fontSize="small" color="disabled" />
+                            )}
+                          </IconButton>
+                        ) : row.thumbs_up ? (
+                          <ThumbUpIcon fontSize="small" color="primary" />
+                        ) : null}
+                      </Stack>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          lineHeight: 1.25,
+                          mb: 0.5,
+                          fontSize: '0.8125rem',
+                        }}
+                      >
+                        {row.title}
+                      </Typography>
+                      <Stack direction="row" spacing={0.75} sx={{ mb: 0.5 }} flexWrap="wrap" useFlexGap>
+                        <ProfitabilityPill ratio={row.profitability_ratio} />
+                        <NeedPill score={row.need_score} />
+                        <Typography variant="caption" color="text.secondary">
+                          P{row.priority ?? '—'}
+                        </Typography>
+                      </Stack>
+                      <Stack
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="baseline"
+                        flexWrap="wrap"
+                        gap={0.25}
+                      >
+                        <Typography variant="body2" fontWeight={700} component="span" sx={{ fontSize: '0.95rem' }}>
+                          {formatCurrency(row.current_price)}
+                        </Typography>
+                        <Tooltip
+                          title={
+                            row.retail_source === 'manifest'
+                              ? `From manifest: ${formatCurrencyWhole(row.total_retail_display ?? row.total_retail_value)}`
+                              : `From listing: ${formatCurrencyWhole(row.total_retail_display ?? row.total_retail_value)}`
+                          }
+                        >
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                            Retail {formatCurrencyWhole(row.total_retail_display ?? row.total_retail_value)}
+                          </Typography>
+                        </Tooltip>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+                        Est. revenue {formatCurrencyWhole(row.estimated_revenue)}
+                      </Typography>
+                      <Stack
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        width="100%"
+                        sx={{ mt: 0.5 }}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{ ...timeRemainingSx(row.end_time), fontSize: '0.75rem' }}
+                        >
+                          {formatTimeRemainingShort(row.end_time)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
                           {row.bid_count != null ? `${row.bid_count} bids` : '—'}
                         </Typography>
                       </Stack>
-                    </Box>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            ))}
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              );
+            })}
           </Stack>
         )}
       </Box>

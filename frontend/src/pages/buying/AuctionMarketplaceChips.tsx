@@ -1,19 +1,19 @@
-import { Box, Button, Chip, Tooltip, Typography } from '@mui/material';
-import InfoOutlined from '@mui/icons-material/InfoOutlined';
+import { Box, Button, Chip, Tooltip } from '@mui/material';
+import { useMemo, type MouseEvent } from 'react';
 import type { BuyingMarketplace } from '../../types/buying.types';
+import { multiSelectChipTooltip } from '../../utils/multiSelectChipTooltip';
 
 export type AuctionMarketplaceChipsProps = {
   marketplaces: BuyingMarketplace[];
   /** Counts from global summary (static; do not change per toggle). */
   countBySlug: Record<string, number>;
   activeSlugs: Set<string> | null;
-  onToggle: (slug: string, event: React.MouseEvent) => void;
+  onToggle: (slug: string, event: MouseEvent) => void;
   onResetAll: () => void;
 };
 
 /**
- * Marketplace filters: normal click from “all” selects one vendor; one selected + same click → all;
- * one selected + other click → only other; Ctrl/⌘+click toggles membership for multi-select.
+ * Marketplace filters: “All” first, then vendors. Plain / Ctrl+⌘ behavior matches AuctionListPage.
  */
 export default function AuctionMarketplaceChips({
   marketplaces,
@@ -22,6 +22,7 @@ export default function AuctionMarketplaceChips({
   onToggle,
   onResetAll,
 }: AuctionMarketplaceChipsProps) {
+  const tooltipTitle = useMemo(() => multiSelectChipTooltip(), []);
   const sorted = [...marketplaces].sort((a, b) => a.name.localeCompare(b.name));
   if (!sorted.length) return null;
 
@@ -33,41 +34,45 @@ export default function AuctionMarketplaceChips({
   return (
     <Box
       sx={{
-        display: 'flex',
+        display: 'inline-flex',
         flexWrap: 'wrap',
-        gap: 0.75,
-        mb: 1.5,
+        gap: 0.5,
         alignItems: 'center',
-        flexShrink: 0,
+        rowGap: 0.5,
+        maxWidth: '100%',
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
-        Marketplaces
-      </Typography>
-      <Tooltip title="Click to filter one vendor. From all vendors, one click isolates that marketplace. Click again (when only one is selected) clears back to all. Hold Ctrl (Windows) or ⌘ (Mac) while clicking to select or deselect multiple.">
-        <InfoOutlined sx={{ fontSize: 16, color: 'text.secondary', cursor: 'help', mr: 0.25 }} />
+      <Tooltip title={tooltipTitle} enterDelay={400} placement="top">
+        <Button
+          size="small"
+          variant="text"
+          onClick={onResetAll}
+          sx={{ minWidth: 0, px: 0.75, height: 26, fontSize: '0.75rem' }}
+          disabled={allActive}
+        >
+          All
+        </Button>
       </Tooltip>
       {sorted.map((m) => {
         const on = activeSlugs?.has(m.slug) ?? false;
         const count = countBySlug[m.slug] ?? 0;
         return (
-          <Chip
-            key={m.id}
-            size="small"
-            label={`${m.name}: ${count}`}
-            color={on ? 'primary' : 'default'}
-            variant={on ? 'filled' : 'outlined'}
-            onClick={(e) => onToggle(m.slug, e)}
-            sx={{ opacity: on ? 1 : 0.65 }}
-          />
+          <Tooltip key={m.id} title={tooltipTitle} enterDelay={400} placement="top">
+            <Chip
+              size="small"
+              label={`${m.name}: ${count}`}
+              color={on ? 'primary' : 'default'}
+              variant={on ? 'filled' : 'outlined'}
+              onClick={(e) => onToggle(m.slug, e)}
+              sx={{
+                opacity: on ? 1 : 0.65,
+                height: { xs: 24, sm: 26 },
+                fontSize: { xs: '0.7rem', sm: '0.75rem' },
+              }}
+            />
+          </Tooltip>
         );
       })}
-      <Button size="small" variant="text" onClick={onResetAll} sx={{ ml: 0.5 }} disabled={allActive}>
-        All
-      </Button>
-      <Typography variant="caption" color="text.secondary" sx={{ width: '100%', mt: 0.25 }}>
-        Tip: Ctrl+click (⌘+click on Mac) to combine marketplaces.
-      </Typography>
     </Box>
   );
 }

@@ -11,12 +11,21 @@ from typing import Any
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.buying.models import PricingRule
 from apps.buying.services.buying_settings import get_pricing_need_window_days
 from apps.buying.taxonomy_v1 import (
     MIXED_LOTS_UNCATEGORIZED,
     TAXONOMY_V1_CATEGORY_NAMES,
 )
 from apps.inventory.models import Item
+
+
+def _sell_through_by_category() -> dict[str, Decimal]:
+    """Flat PricingRule rates (same source as valuation sumproduct)."""
+    out: dict[str, Decimal] = {}
+    for pr in PricingRule.objects.all().only('category', 'sell_through_rate'):
+        out[pr.category] = pr.sell_through_rate
+    return out
 
 
 _TAXONOMY_SET = frozenset(TAXONOMY_V1_CATEGORY_NAMES)
@@ -100,6 +109,7 @@ def build_category_need_rows() -> list[dict[str, Any]]:
 
     total_shelf = sum(p.shelf_count for p in per.values())
     total_sold = sum(p.sold_count for p in per.values())
+    sell_through_rates = _sell_through_by_category()
 
     rows: list[dict[str, Any]] = []
     bar_max = Decimal('0')
@@ -150,6 +160,7 @@ def build_category_need_rows() -> list[dict[str, Any]]:
                 'return_on_cost': roc,
                 'sell_through_pct': sell_through_pct,
                 'need_gap': need_gap,
+                'sell_through_rate': sell_through_rates.get(name, Decimal('0')),
             }
         )
 

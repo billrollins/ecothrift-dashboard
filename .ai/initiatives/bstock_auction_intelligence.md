@@ -1,5 +1,5 @@
 <!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-09 -->
-<!-- Last updated: 2026-04-09T21:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T23:45:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -16,7 +16,7 @@ B-Stock auctions are time-sensitive: final price is often decided in the last se
 
 **Code today:** **`apps/buying/`** replaces the prior `Scraper/` package. Reference the old notebook package only for DevTools and HTTP patterns. Use the **RS256 JWT** from **`__NEXT_DATA__.props.pageProps.accessToken`** (or **`POST /api/buying/token/`** when **`DEBUG`**), not the **JWE** in the **`elt`** cookie. Manifest pull paginates until **`total`** manifest lines are stored.
 
-**Priority:** **Phases 1–4** and **4.1A–4.1B** are **complete** (**v2.7.0**). **Phase 5** (auction valuation — API, services, seeds, hooks) is **implemented** (**v2.8.0**). **Phase 6** (outcome tracking) is next.
+**Priority:** **Phases 1–4** and **4.1A–4.1B** are **complete** (**v2.7.0**). **Phase 5** (auction valuation — API, services, seeds, hooks, **React list/detail/category-need UI**) is **implemented** (**v2.8.0** API + **v2.9.0** frontend). **Phase 6** (outcome tracking) is next.
 
 ---
 
@@ -25,7 +25,7 @@ B-Stock auctions are time-sensitive: final price is often decided in the last se
 1. **Daily-use dashboard:** auction browser, manifests, and watchlist in the React app so buying work happens in the product, not only in Django admin or pgAdmin. **Shipped (Phase 2).**
 2. **Fresh watchlist data:** polling and **`AuctionSnapshot`** once the watchlist is visible and manageable in the UI. **Shipped (Phase 3).**
 3. **Canonical categorization:** every manifest line tagged to **taxonomy_v1** (19 categories) via rules, targeted AI for new patterns, and auction-level fallback—with rules persisted and visible in the UI. **Shipped (Phase 4).**
-4. **Auction valuation:** category mix × **`PricingRule.sell_through_rate`** rollup (estimated revenue, fees/shipping/cost, shrinkage, profitability, need score, priority), staff overrides, AI title–category estimates when no manifest mix — **API and server recompute shipped (Phase 5)**; **React** list/detail **do not yet** show valuation columns (data is on list/detail serializers for follow-up UX).
+4. **Auction valuation:** category mix × **`PricingRule.sell_through_rate`** rollup (estimated revenue, fees/shipping/cost, shrinkage, profitability, need score, priority), staff overrides, AI title–category estimates when no manifest mix — **API and server recompute shipped (Phase 5)**; **React** list/detail/category-need **valuation UI shipped (v2.9.0)**.
 5. **Outcome truth:** record hammer, fees, shipping, and per-line results so future models have labeled data (**Phase 6**).
 
 ---
@@ -152,7 +152,7 @@ Every manifest row gets tagged with one of **19 canonical categories** (**taxono
 
 **Staff APIs:** **`GET /api/buying/category-need/`**, **`GET`/`POST /api/buying/category-want/`**; **`POST`/`DELETE …/thumbs-up/`** (Admin); **`PATCH …/valuation-inputs/`** (Admin). List: **`ordering`**, **`thumbs_up`** filter. Commands: **`estimate_auction_categories`**, **`recompute_buying_valuations`**.
 
-**UI gap:** serializers expose valuation fields; **React** auction list/detail have **not** added columns/panels for priority, revenue, profitability, thumbs-up yet (follow-up).
+**React UI (v2.9.0):** auction list **DataGrid** — profitability/need pills, est. revenue, priority steppers (Admin), thumbs toggle, time colors, filter chips + marketplace multi-select, watchlist tint, stable server pagination (`keepPreviousData`); **category need panel** (Min/Window/Full, bars, want vote); **auction detail** — valuation card, overrides, AI vs manifest strip, max bid line.
 
 **Design decisions (locked in code and docs):**
 
@@ -183,7 +183,7 @@ Record what actually happened: **hammer price**, **fees**, **shipping**, **per-i
 - [x] **Phase 4.1A complete (v2.6.1 + manual validation 2026-04):** **`ManifestTemplate`** + CSV **`upload_manifest`** + **`seed_manifest_templates`** / **`seed_fast_cat_mappings`** + **`fast_cat_key`** / **`fast_cat_value`** / **`category_confidence`** **`fast_cat`**; auction list/detail UX per **`CHANGELOG` [2.6.1]**; unknown-template stub **400**; **`create_test_auctions`** for local matrix; seed coverage limits documented (343 keys).
 - [x] **Phase 4.1B complete (v2.7.0 + validation 2026-04):** AI template + AI key mapping + split upload + **`map_fast_cat_batch`** + **`DELETE manifest`** + usage logging + buying UI (**`ManifestUploadProgress`**, workers, cancel, remove manifest, **`__no_key__`** exclusion). See **`CHANGELOG` [2.7.0]**.
 - [x] **Phase 5 complete (backend/API):** **`PricingRule`** + **`seed_pricing_rules`**; **`valuation`** + **`ai_title_category_estimate`**; manifest/AI mix; **`CategoryNeed`** / **`CategoryWantVote`** APIs; **`fees_override`** / **`shipping_override`**; thumbs-up + valuation-inputs; list/detail serializers + ordering + **`thumbs_up`** filter; hooks + commands; unit tests in **`apps/buying/tests/test_valuation.py`**, **`apps/buying/tests/test_phase5_category_need.py`**
-- [ ] **Phase 5 UI (optional follow-up):** React auction list/detail show priority, estimated revenue, profitability, need score, thumbs-up, override controls (APIs exist)
+- [x] **Phase 5 complete (React UI, v2.9.0):** auction list valuation columns, filters, category-need panel, auction detail valuation card + overrides + comparison strip; see **`CHANGELOG`** **[2.9.0]**
 - [ ] **Phase 6 complete:** outcome schema implemented; hammer/fees/shipping/per-line outcomes capturable; outcomes visible in UI per auction
 
 ---
@@ -208,6 +208,18 @@ Record what actually happened: **hammer price**, **fees**, **shipping**, **per-i
 - **Cost-based pricing input:** "I need to make X on this item based on what I spent" as one of several pricing inputs fed to the final price decision.
 - **Fast-cat accuracy tracking:** compare `fast_cat_value` (assigned at manifest ingestion) to `canonical_category` (assigned during item processing) over time. Use the delta to measure fast-cat quality, identify weak mappings, and improve template rules and AI prompts.
 - **Two-category architecture:** `fast_cat_value` is what you know at bid time (used for auction valuation and scoring models). `canonical_category` is the real category assigned during item processing (used for merchandising, shelf placement, and outcome analysis). Models must train on `fast_cat_value` to avoid information leakage from future data.
+
+---
+
+## Parking lot (deferred)
+
+- **Mixed lots vs _NA_ taxonomy split:** treat “Mixed / Misc” as a real category with its own sell-through; use “_NA_” for uncategorized items where no key exists. Touches `taxonomy_v1` list, `PricingRule` seeds, fast-cat mapping.
+- **Auction detail page UX redesign:** restructure layout so decisions (price, profitability, need, max bid) stay at the top; compact overrides below; details and breakdown lower; manifest drop zone minimized.
+- **Groq Llama 3.1 8B for fast-cat key mapping:** cost optimization (~$0.05/M tokens vs current Sonnet/Haiku rates). Example: ~$1.19 for 310 keys on one manifest; simple classification task suitable for a smaller model.
+- **Switch `ai_key_mapping.py` to `AI_MODEL_FAST` instead of `AI_MODEL`:** one-line change to route key mapping through Haiku instead of Sonnet and cut cost immediately.
+- **`ai_key_mapping.py` / model choice:** future discussion on whether fast-cat mapping should use a smaller/cheaper model consistently (see also **Groq** idea above); no code change required for Phase 5 ship.
+- **Data backfill initiative:** import V1/V2 historical inventory and sales into the new schema, tagged as backfilled—needed for category-need panel real numbers and profit/sales bars.
+- **Postgres test DB schema fix:** test runner fails on Postgres when `ecothrift` schema is missing in the new test DB; low priority while SQLite `test_settings` works.
 
 ---
 

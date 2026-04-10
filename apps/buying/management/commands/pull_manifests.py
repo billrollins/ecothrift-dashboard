@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 class Command(BaseCommand):
     help = (
         'Fetch manifests for auctions with has_manifest=True (or specific IDs). '
-        'Requires JWT (workspace/.bstock_token or BSTOCK_AUTH_TOKEN) and Auction.lot_id.'
+        'Requires JWT (workspace/.bstock_token or BSTOCK_AUTH_TOKEN) and Auction.lot_id. '
+        'Currently disabled (JWT calls blocked for ban prevention). Use manual CSV upload instead.'
     )
 
     def add_arguments(self, parser) -> None:

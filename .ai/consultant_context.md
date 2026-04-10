@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-09T21:00:00-05:00 -->
+<!-- Last updated: 2026-04-09T23:45:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
@@ -237,7 +237,7 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **Phase 4.1B (v2.7.0; validated 2026-04):** **Claude** proposes **`column_map`** / **`category_fields`** for unknown headers (**`ai_manifest_template.propose_manifest_template_with_ai`**); template saved **`is_reviewed=True`**. **`POST …/map_fast_cat_batch/`** — up to **10** keys per call (**`ai_key_mapping.map_one_fast_cat_batch`**); new **`CategoryMapping`** with **`rule_origin='ai'`**; **`ManifestRow.fast_cat_value`** filled. Upload response includes **`unmapped_key_count`**, **`total_batches`**. **`DELETE …/manifest/`** removes **`ManifestRow`** only — templates and **`CategoryMapping`** persist; **TODO** on wrong-marketplace stale AI prefixes. **`fast_cat_key`** containing **`__no_key__`** excluded from AI. **Usage:** **`workspace/logs/ai_usage.jsonl`**, **`AI_PRICING`**, **`scripts/ai/summarize_ai_usage.py`**. **UI:** **`ManifestUploadProgress`**, **four** concurrent workers, cancel, remove manifest, debounced invalidation; drop/replace hidden during **MAPPING**. **Gotcha:** Sonnet prompt-cache hits ~**0** on small key batches (under **2048**-token cache minimum).
 
-### Phase 5 — auction valuation (shipped **v2.8.0**; API + server; React display deferred)
+### Phase 5 — auction valuation (API **v2.8.0**; React **v2.9.0**)
 
 - **Schema:** **`Auction`**: **`ai_category_estimates`**, **`manifest_category_distribution`**, **`estimated_revenue`**, **`revenue_override`**, **`fees_override`**, **`shipping_override`**, **`estimated_fees`**, **`estimated_shipping`**, **`estimated_total_cost`**, **`profitability_ratio`**, **`need_score`**, **`shrinkage_override`**, **`profit_target_override`**, **`priority`**, **`priority_override`**, **`thumbs_up`**. **`PricingRule`** (flat **`sell_through_rate`** per taxonomy category — **no** vendor × category matrix). **`CategoryWantVote`**. Seeds: **`seed_pricing_rules`** (CSV + **`AppSetting`** keys), **`seed_marketplace_pricing_defaults`**.
 - **Design:** **`revenue_override`** is **USD** (`coalesce` with **`estimated_revenue`** before shrinkage); **`fees_override`** / **`shipping_override`** are **USD** only when set (else **fraction** × **`current_price`**). **`estimated_revenue`** is **pre-shrinkage**; **`profitability_ratio`** uses **effective revenue after shrinkage**. **Mix:** manifest distribution before AI title estimates; manifest plumbing shipped before AI-only **`estimate_batch`** path.
@@ -245,7 +245,7 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 - **APIs:** **`GET /api/buying/category-need/`**, **`GET`/`POST /api/buying/category-want/`**; **`POST`/`DELETE …/thumbs-up/`** (Admin), **`PATCH …/valuation-inputs/`** (Admin); list **`ordering`** (e.g. **`-priority`**) and **`thumbs_up`** filter; list/detail serializers expose valuation fields (**`valuation_source`**, **`has_revenue_override`**, **`effective_revenue_after_shrink`**, etc.).
 - **Commands:** **`estimate_auction_categories`**, **`recompute_buying_valuations`**.
 - **Tests:** **`apps/buying/tests/test_valuation.py`**, **`apps/buying/tests/test_phase5_category_need.py`**.
-- **React:** Auction list/detail **do not** yet show priority / revenue / profitability columns or valuation controls — **backend ready** for a future UI pass.
+- **React (v2.9.0):** **`/buying/auctions`** — valuation columns, filter chips + marketplace multi-select, category-need panel (desktop), watchlist row tint, stable pagination (**`keepPreviousData`**). **`/buying/auctions/:id`** — valuation card, overrides, AI vs manifest strip. **`GET /api/buying/watchlist/`** list filters extended (**`profitable`**, **`needed`**, **`thumbs_up`**) to match main list. **Token-backed** B-Stock calls from the **REST API** are **disabled** (`501` / `token_backed_bstock_disabled`) — **CSV upload** + soft-touch sweep; see **`apps/buying/api_views.py`**.
 
 ---
 
@@ -259,7 +259,7 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **Bid** and **Outcome** models exist; full outcome tracking UI and workflows are **Phase 6**.
 
-Optional UX gaps: **sidebar watchlist badge**; **inline** priority/status editing on the watchlist page; **Buying** auction list/detail columns for **Phase 5** valuation fields (APIs exist).
+Optional UX gaps: **sidebar watchlist badge**; **inline** priority/status editing on the watchlist page.
 
 ### Future direction
 
@@ -279,7 +279,7 @@ The initiative file is authoritative. At a high level:
 | **4** | **`CategoryMapping`**, 3-tier categorization, seed/categorize commands, **`category_distribution`**, UI bar + chips, retail cents fix. **Done.** |
 | **4.1A** | **`ManifestTemplate`**, CSV **`upload_manifest`**, **`fast_cat_key`** / **`fast_cat_value`**, **`seed_manifest_templates`** + **`seed_fast_cat_mappings`** (343 keys), unknown-template stub, **`create_test_auctions`**. **Done (v2.6.1).** E2E validated **2026-04**. |
 | **4.1B** | AI template creation, AI key mapping, **`map_fast_cat_batch`**, **`DELETE manifest`**, usage logging, **`ManifestUploadProgress`**, **`__no_key__`** exclusion. **Done (v2.7.0).** |
-| **5** | Auction valuation: **`PricingRule`**, **`valuation`** + AI title mix, need/want APIs, overrides, thumbs-up, serializers + hooks + commands. **Done (API, v2.8.0).** React columns TBD. |
+| **5** | Auction valuation: **`PricingRule`**, **`valuation`** + AI title mix, need/want APIs, overrides, thumbs-up, serializers + hooks + commands + **React list/detail/category-need UI**. **Done (API v2.8.0, React v2.9.0).** |
 | **6** | Outcome tracking. **Future.** |
 
 The plan was **reordered** so the **frontend** lands before heavy backend-only intelligence, so the owner uses the product daily instead of only admin and SQL.

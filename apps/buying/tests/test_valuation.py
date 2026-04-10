@@ -6,8 +6,11 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
+from django.utils import timezone
 
-from apps.buying.models import Auction, Marketplace
+from apps.buying.filters import AuctionFilter
+from apps.buying.models import Auction, Marketplace, PricingRule
+from apps.buying.services.category_need import build_category_need_rows
 from apps.buying.services.valuation import (
     compute_and_save_manifest_distribution,
     get_valuation_source,
@@ -101,3 +104,53 @@ class ManifestDistributionTests(TestCase):
         self.assertIn("Electronics", out)
         self.assertAlmostEqual(sum(out.values()), 100.0, places=1)
         self.assertEqual(get_valuation_source(a), "manifest")
+
+
+class AuctionFilterProfitableNeededTests(TestCase):
+    def setUp(self):
+        self.mp = Marketplace.objects.create(name="FilterMp", slug="filter-mp")
+
+    def test_profitable_true_filters_gte_1_5(self):
+        hi = Auction.objects.create(
+            marketplace=self.mp,
+            external_id="pf-hi",
+            profitability_ratio=Decimal("2.0"),
+            need_score=Decimal("0"),
+        )
+        Auction.objects.create(
+            marketplace=self.mp,
+            external_id="pf-lo",
+            profitability_ratio=Decimal("1.0"),
+            need_score=Decimal("0"),
+        )
+        f = AuctionFilter(data={"profitable": True}, queryset=Auction.objects.all())
+        self.assertEqual(list(f.qs), [hi])
+
+    def test_needed_true_filters_need_score_positive(self):
+        hi = Auction.objects.create(
+            marketplace=self.mp,
+            external_id="nd-hi",
+            profitability_ratio=None,
+            need_score=Decimal("2"),
+        )
+        Auction.objects.create(
+            marketplace=self.mp,
+            external_id="nd-lo",
+            profitability_ratio=None,
+            need_score=Decimal("0"),
+        )
+        f = AuctionFilter(data={"needed": True}, queryset=Auction.objects.all())
+        self.assertEqual(list(f.qs), [hi])
+
+
+class CategoryNeedSellThroughRateTests(TestCase):
+    def test_sell_through_rate_from_pricing_rule(self):
+        cat = TAXONOMY_V1_CATEGORY_NAMES[0]
+        PricingRule.objects.create(
+            category=cat,
+            sell_through_rate=Decimal("0.1234"),
+            version_date=timezone.now().date(),
+        )
+        rows = build_category_need_rows()
+        row = next(r for r in rows if r["category"] == cat)
+        self.assertEqual(row["sell_through_rate"], Decimal("0.1234"))
