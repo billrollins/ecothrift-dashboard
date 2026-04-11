@@ -1,7 +1,1 @@
-feat: data backfill Phase 4 sales loader and historical revenue double-count fix
-
-Session 5 — data_backfill_initiative (Phase 4, session_close.md):
-- [`backfill_phase4_sales`](apps/inventory/management/commands/backfill_phase4_sales.py) — V1/V2 carts and cart lines; WorkLocation / Register `BACKFILL` / drawers by sale date / system user; BACKFILL item `sold_at` / `sold_for` / status; `--clean`, `--reset-item-sales`, `--delete-historical-transactions`, `--dry-run`, `--limit`, `--skip-v1` / `--skip-v2`, `--skip-item-updates`
-- [`apps/pos/views.py`](apps/pos/views.py) `historical_revenue` — when `HistoricalTransaction` has db1/db2 rows, db3 excludes BACKFILL register to avoid double-counting legacy sales
-- Initiative Session 5 **`#### Result`**; **`CHANGELOG`** `[Unreleased]`; **`.ai/context.md`**, **`.ai/consultant_context.md`**, **`.ai/initiatives/_index.md`** — Phase 5 (taxonomy / category enrichment) next
-- No `.version` bump (unreleased until a release is cut)
+---
