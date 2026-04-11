@@ -1,1 +1,5 @@
----
+feat: historical data backfill complete — v2.10.0 (taxonomy, PricingRule, verification)
+
+Session 6 — data_backfill_initiative.md: Phase 5 (V1 map-v1; V2 preclassify + classify_v2_iterate rules_001–008 + manual; import-v2; recompute-pricing; recompute_buying_valuations 137 auctions). Phase 6 verification (category-need API, admin counts, manage.py check, tsc).
+
+CHANGELOG [2.10.0], .version, package.json; .ai/context.md, consultant_context.md, initiatives/_index.md, data_backfill_initiative.md (acceptance boxes). Commit/push: Bill.

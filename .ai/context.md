@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-04-11T22:00:00-05:00 -->
+<!-- Last updated: 2026-04-11T22:30:00-05:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** See repo root `.version` (e.g. `v2.9.0`). **Buying Phase 5** (valuation APIs **v2.8.0** + React list/detail/category-need UI **v2.9.0**) shipped; documented in **`.ai/initiatives/bstock_auction_intelligence.md`**, **`.ai/extended/backend.md`**, **`.ai/extended/frontend.md`**.
+**Current version:** See repo root `.version` (e.g. **`v2.10.0`**). **Historical data backfill** (Phases 0–6) complete on the loaded dev DB — **`.ai/initiatives/data_backfill_initiative.md`**; buying panels now show multi-year category need / sell-through from backfilled **`Item`** + **`PricingRule`** data. **B-Stock** buying UI remains **`.ai/initiatives/bstock_auction_intelligence.md`**, **`.ai/extended/backend.md`**, **`.ai/extended/frontend.md`**.
 
 ---
 
@@ -91,7 +91,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 - **POS:** Terminal, drawers, carts, transactions, cash management
 - **Consignment:** Agreements, items, payouts, portal
 - **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped (see `.version`); Phase 6 next — see [bstock initiative](initiatives/bstock_auction_intelligence.md)
-- **Data backfill (V1/V2 → V3):** Phases 0–4 loaders shipped (`backfill_phase1_vendors_pos`, `backfill_phase2_products_manifests`, `backfill_phase3_items`, `backfill_phase4_sales`); Phase 5 (taxonomy) next — see [data_backfill initiative](initiatives/data_backfill_initiative.md)
+- **Data backfill (V1/V2 → V3):** Phases 0–4 loaders shipped (`backfill_phase1_vendors_pos`, `backfill_phase2_products_manifests`, `backfill_phase3_items`, `backfill_phase4_sales`); Phase 5 command `backfill_phase5_categories` (`--map-v1`, `--export-v2`, `--import-v2`, `--recompute-pricing`) — see [data_backfill initiative](initiatives/data_backfill_initiative.md)
 - **Print server:** Local FastAPI labels/receipts/drawer
 - **AI:** Claude proxy (`apps/ai/`), inventory/buying AI
 - **Core / ops:** Locations, settings, S3, dev logging

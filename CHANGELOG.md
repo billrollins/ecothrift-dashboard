@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11T22:00:00-05:00 -->
+<!-- Last updated: 2026-04-11T22:30:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,7 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [2.10.0] — 2026-04-11
+
+User-facing theme: **Buying dashboards and category need reflect ~3 years of real historical inventory and sales** after the V1/V2 backfill and taxonomy pipeline (local database where the backfill was run).
+
 ### Added
+
+- **Data backfill — Phase 5 (V2 classification + pricing):** [`backfill_phase5_categories`](apps/inventory/management/commands/backfill_phase5_categories.py) — V1 `--map-v1`; V2 CSV export/import; conservative **`--preclassify-v2`**; **[`classify_v2_iterate`](apps/inventory/management/commands/classify_v2_iterate.py)** (`--sample`, `--apply`, `--status`, `--apply-manual`) for iterative regex rules + manual `product_id` overrides; **`PricingRule`** recomputation from sold BACKFILL items. See [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) Session 6.
+- **Phase 5 (continued):** All **19** `PricingRule` categories with data-backed sell-through; `recompute_buying_valuations` over backfilled auctions.
+- **Phase 6 (verification):** Category-need API and admin counts verified against loaded data; release gate `manage.py check` + `tsc --noEmit`.
+
+### Added (Phases 0–4, same release)
 
 - **Data backfill (Phase 4):** [`backfill_phase4_sales`](apps/inventory/management/commands/backfill_phase4_sales.py) — load V1/V2 `cart` / `cart_line` and V2 `pos_cart` / `pos_cart_line` into V3 **`Cart`** / **`CartLine`**; `WorkLocation` "Eco-Thrift Main", Register **`BACKFILL`**, system user `backfill@system.local`, one **`Drawer`** per Chicago sale date; payment aggregation; V2 cashier map via legacy `core_user.email`; update BACKFILL **`Item`** `sold_at` / `sold_for` / `status=sold` from lines; flags `--clean`, `--reset-item-sales`, `--delete-historical-transactions`, `--dry-run`, `--limit`, `--skip-v1` / `--skip-v2`, `--skip-item-updates`. See [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) Session 5.
 - **Data backfill (Phase 3):** [`backfill_phase3_items`](apps/inventory/management/commands/backfill_phase3_items.py) — load V1/V2 historical `Item` rows from **`ecothrift_v1`** / **`ecothrift_v2`** (`psycopg2`); lookup maps from Phase 1–2 `Product` / `PurchaseOrder`; `bulk_create` with precomputed `search_text`; idempotent `BACKFILL:v1:{code}` / `BACKFILL:v2:{id}` notes; Misfit PO fallbacks; V2 numeric `ITM…` SKUs prefixed `V2-`; `--dry-run`, `--limit`, `--skip-v1` / `--skip-v2`. See [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) Session 4.
@@ -22,17 +34,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - **POS reporting:** [`historical_revenue`](apps/pos/views.py) excludes carts on register **`BACKFILL`** from db3 aggregates while **`HistoricalTransaction`** rows exist for db1/db2 (avoids double-counting legacy totals vs `import_historical_transactions`). After deleting db1/db2 historical rows or loading only via Phase 4, totals reflect Carts.
+- **Data backfill initiative (Phase 0 close / consultant pass):** Production deployment strategy (export CSVs + `import_backfill`); Phase 1–5 text corrections (inline PO enrichment, verify `PurchaseOrder` mappings before code, product dedup evaluation, backfilled items never `on_shelf`, taxonomy label count unverified). [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md). Added [`workspace/scripts/convert_pickles_to_csv.py`](workspace/scripts/convert_pickles_to_csv.py) — pickle→CSV using `pickle/manifest.json` (run in notebook venv if `read_pickle` fails).
+- **AI steering / protocols:** Replaced **`review_bump.md`** with **`session_close.md`**; rewrote **`startup.md`** (session entry step) and **`get_bearing.md`** (progress vs written session). Generalized **`collect_for_consultant.md`**. [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) uses **Phase** + **Notes** columns; session detail lives in initiative files only. [`.ai/context.md`](.ai/context.md) **Working** section is short capability pointers (detail in **`.ai/extended/`**). Cross-links updated (README, lifecycle protocols, CHANGELOG history where cited). Django admin vs React **`/admin/*`** and retag history serializer guardrails moved to [`.ai/extended/frontend.md`](.ai/extended/frontend.md) and [`.ai/extended/retag-operations.md`](.ai/extended/retag-operations.md).
+- **Initiative archiving:** [docs_restructure](.ai/initiatives/_archived/_completed/docs_restructure.md) archived as **completed**; [historical_sell_through_analysis](.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md) moved to **pending** (initial rates seeded manually v2.8.0; data-backed refinement deferred). Session history seeded in initiative files.
+- **AI steering / protocols (follow-up):** Added [`.ai/protocols/session_checkpoint.md`](.ai/protocols/session_checkpoint.md) for **mid-session** pulses (session updates, **`[Unreleased]`**, light extended-doc sync). **`startup.md`** now includes **framing questions** (success, intent, time, owner, out-of-scope, ship expectation) and points to checkpoints vs **`session_close`**. **`README`**, **`context`**, **`get_bearing`**, **`session_close`** cross-links updated.
 
 ### Fixed
 
 - **Data backfill (Phase 3):** [`backfill_phase3_items`](apps/inventory/management/commands/backfill_phase3_items.py) — V1 `SELECT` no longer `JOIN`s `product` on `code` when multiple legacy `product` rows share a code (use `LATERAL … LIMIT 1`); avoids duplicate result rows and bogus `skipped_exists`. Dry-run reports **`would_create`** instead of inflating **`created`**; **`bulk_create`** errors are logged and re-raised. [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) Session 4 close.
 
-### Changed
+### Initiative
 
-- **Data backfill initiative (Phase 0 close / consultant pass):** Production deployment strategy (export CSVs + `import_backfill`); Phase 1–5 text corrections (inline PO enrichment, verify `PurchaseOrder` mappings before code, product dedup evaluation, backfilled items never `on_shelf`, taxonomy label count unverified). [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md). Added [`workspace/scripts/convert_pickles_to_csv.py`](workspace/scripts/convert_pickles_to_csv.py) — pickle→CSV using `pickle/manifest.json` (run in notebook venv if `read_pickle` fails).
-- **AI steering / protocols:** Replaced **`review_bump.md`** with **`session_close.md`**; rewrote **`startup.md`** (session entry step) and **`get_bearing.md`** (progress vs written session). Generalized **`collect_for_consultant.md`**. [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) uses **Phase** + **Notes** columns; session detail lives in initiative files only. [`.ai/context.md`](.ai/context.md) **Working** section is short capability pointers (detail in **`.ai/extended/`**). Cross-links updated (README, lifecycle protocols, CHANGELOG history where cited). Django admin vs React **`/admin/*`** and retag history serializer guardrails moved to [`.ai/extended/frontend.md`](.ai/extended/frontend.md) and [`.ai/extended/retag-operations.md`](.ai/extended/retag-operations.md).
-- **Initiative archiving:** [docs_restructure](.ai/initiatives/_archived/_completed/docs_restructure.md) archived as **completed**; [historical_sell_through_analysis](.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md) moved to **pending** (initial rates seeded manually v2.8.0; data-backed refinement deferred). Session history seeded in initiative files.
-- **AI steering / protocols (follow-up):** Added [`.ai/protocols/session_checkpoint.md`](.ai/protocols/session_checkpoint.md) for **mid-session** pulses (session updates, **`[Unreleased]`**, light extended-doc sync). **`startup.md`** now includes **framing questions** (success, intent, time, owner, out-of-scope, ship expectation) and points to checkpoints vs **`session_close`**. **`README`**, **`context`**, **`get_bearing`**, **`session_close`** cross-links updated.
+- [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) — Phases **0–6** complete on loaded DB (**v2.10.0**); production CSV export / `import_backfill` deployment still deferred.
 
 ---
 

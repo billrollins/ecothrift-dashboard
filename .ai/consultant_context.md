@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-11T22:00:00-05:00 -->
+<!-- Last updated: 2026-04-11T22:30:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
@@ -28,15 +28,15 @@
 
 ---
 
-## Historical data backfill (V1/V2 into V3) — active
+## Historical data backfill (V1/V2 into V3) — **Phases 0–6 complete** (local DB)
 
-**Initiative:** [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) (**active**, **Phase 5 (taxonomy) next** — Phases 0–4 loaders shipped).
+**Initiative:** [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) (**active** until production export/deploy is executed). **v2.10.0:** Buying dashboards and category-need now reflect ~**3 years** of backfilled inventory and sales on Bill’s loaded database.
 
-The V3 dashboard had near-zero historical data. Phase 0 removed a half-baked import; **Phases 1–4** load vendors/POs, products, manifest rows, historical **`Item`** rows, and **`Cart` / `CartLine`** from legacy PostgreSQL **`ecothrift_v1`** / **`ecothrift_v2`** via management commands (see initiative). Pickle/CSV mirrors under `workspace/notebooks/historical-data/` remain for inspection; loaders use live legacy DB reads where implemented.
+**Pipeline (shipped):** [`backfill_phase1_vendors_pos`](../apps/inventory/management/commands/backfill_phase1_vendors_pos.py) through [`backfill_phase4_sales`](../apps/inventory/management/commands/backfill_phase4_sales.py); **[`backfill_phase5_categories`](../apps/inventory/management/commands/backfill_phase5_categories.py)** (`--map-v1`, `--export-v2`, `--preclassify-v2`, `--import-v2`, `--recompute-pricing`); V2 product classification via **[`classify_v2_iterate`](../apps/inventory/management/commands/classify_v2_iterate.py)** (regex rules under `workspace/data/v2_rules/`, samples under `workspace/data/v2_sample/`). Phase **6** verified: **`GET /api/buying/category-need/`** (19 categories, non-zero counts), admin counts, `manage.py check`.
 
-**Phases:** 0 (recon/cleanup) → 1 (vendors/POs) → 2 (products/manifest rows) → 3 (items) → 4 (carts/cart lines; BACKFILL item sale fields from cart lines) → **5 (taxonomy_v1 categorization + PricingRule update)** → 6 (verify dashboards). After Phase 5, `PricingRule` rows will have data-backed sell-through rates, replacing the manually seeded flat rates from v2.8.0.
+**Still deferred:** Portable CSV **export** + **`import_backfill`** into production (documented in initiative) — code path not the same as “local backfill complete.”
 
-**Relationship to sell-through initiative:** The pending `historical_sell_through_analysis` initiative's Phases 1-4 (legacy DB docs, CSV processing, sales join, data-backed rates) may be largely superseded by this backfill's Phases 3-5, which load actual sold items and compute sell-through from real cart data.
+**Relationship to sell-through initiative:** Backfill Phases 3–5 supersede much of the pending `historical_sell_through_analysis` work for data-backed **`PricingRule`** rates from real sold **`Item`** rows.
 
 ---
 
