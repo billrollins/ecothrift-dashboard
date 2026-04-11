@@ -1,5 +1,7 @@
-feat: historical data backfill complete — v2.10.0 (taxonomy, PricingRule, verification)
+docs: archive data backfill initiative + consultant handoff bundle
 
 Session 6 — data_backfill_initiative.md: Phase 5 (V1 map-v1; V2 preclassify + classify_v2_iterate rules_001–008 + manual; import-v2; recompute-pricing; recompute_buying_valuations 137 auctions). Phase 6 verification (category-need API, admin counts, manage.py check, tsc).
 
 CHANGELOG [2.10.0], .version, package.json; .ai/context.md, consultant_context.md, initiatives/_index.md, data_backfill_initiative.md (acceptance boxes). Commit/push: Bill.
+
+Session 21 (Scout) — Archived `data_backfill_initiative.md` to `.ai/initiatives/_archived/_completed/`; updated `ARCHIVE.md`, `_index.md`, `context.md`, `consultant_context.md`, `bstock_auction_intelligence.md` (Session 21 + parking lot). Consultant bundle: `workspace/notes/to_consultant/files-update/` + `consultant_instructions.txt`. No version bump (v2.10.0 already shipped). Commit/push: Bill.

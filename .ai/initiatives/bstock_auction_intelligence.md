@@ -1,5 +1,5 @@
-<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-09 -->
-<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
+<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-11 -->
+<!-- Last updated: 2026-04-11T23:15:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -256,6 +256,22 @@ Completed — committed as v2.9.0 at `0620237`.
 
 ---
 
+### Session 21 — archive + consultant handoff — est 1h — started 2026-04-11T23:00:00-05:00
+
+**Goal:** Archive completed data backfill initiative; refresh consultant file bundle for **Phase 6** (outcome tracking) prep.
+
+**Finish line:** Main `_index.md` lists only **B-Stock** as active; `workspace/notes/to_consultant/files-update/` contains refreshed copies; no semver bump (v2.10.0 already shipped).
+
+#### Session updates
+
+- 2026-04-11T23:00:00-05:00 `data_backfill_initiative.md` moved to `_archived/_completed/`; `ARCHIVE.md` + `_index.md` + `context.md` + `consultant_context.md` aligned; consultant bundle collected per `collect_for_consultant.md`.
+
+#### Result
+
+Completed — docs and handoff bundle only (not committed). No version bump. Commit/push when Bill is ready — see `scripts/deploy/commit_message.txt`.
+
+---
+
 ## Acceptance (initiative level)
 
 - [x] **Phase 1 complete:** sweep and manifest commands work; data in Postgres; token workflow documented
@@ -300,7 +316,7 @@ Completed — committed as v2.9.0 at `0620237`.
 - **Groq Llama 3.1 8B for fast-cat key mapping:** cost optimization (~$0.05/M tokens vs current Sonnet/Haiku rates). Example: ~$1.19 for 310 keys on one manifest; simple classification task suitable for a smaller model.
 - **Switch `ai_key_mapping.py` to `AI_MODEL_FAST` instead of `AI_MODEL`:** one-line change to route key mapping through Haiku instead of Sonnet and cut cost immediately.
 - **`ai_key_mapping.py` / model choice:** future discussion on whether fast-cat mapping should use a smaller/cheaper model consistently (see also **Groq** idea above); no code change required for Phase 5 ship.
-- **Data backfill initiative:** import V1/V2 historical inventory and sales into the new schema, tagged as backfilled—needed for category-need panel real numbers and profit/sales bars.
+- **Data backfill initiative:** **done** — see [archived initiative](./_archived/_completed/data_backfill_initiative.md) (v2.10.0). Production CSV export/deploy to other hosts remains deferred.
 - **Postgres test DB schema fix:** test runner fails on Postgres when `ecothrift` schema is missing in the new test DB; low priority while SQLite `test_settings` works.
 
 ---

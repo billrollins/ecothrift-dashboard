@@ -1,10 +1,11 @@
-<!-- initiative: slug=data-backfill status=active updated=2026-04-11 -->
-<!-- Last updated: 2026-04-11T22:00:00-05:00 -->
+<!-- Archived 2026-04-11: disposition=completed (Phases 0–6; v2.10.0) -->
+<!-- initiative: slug=data-backfill status=completed updated=2026-04-11 -->
+<!-- Last updated: 2026-04-11T23:00:00-05:00 -->
 # Initiative: Historical data backfill (V1/V2 into V3)
 
-**Status:** Active (Phases 0–6 complete; production export/deploy path deferred)
+**Status:** Completed — archived. Production CSV export + `import_backfill` deployment still deferred (see initiative body).
 
-**Current phase:** **Complete** — Phase 6 verification passed (Session 6). Taxonomy + `PricingRule` pipeline: [`backfill_phase5_categories`](../../apps/inventory/management/commands/backfill_phase5_categories.py); V2 iterative rules via [`classify_v2_iterate`](../../apps/inventory/management/commands/classify_v2_iterate.py).
+**Current phase:** **Complete** — Phase 6 verification passed (Session 6). Taxonomy + `PricingRule` pipeline: [`backfill_phase5_categories`](../../../../apps/inventory/management/commands/backfill_phase5_categories.py); V2 iterative rules via [`classify_v2_iterate`](../../../../apps/inventory/management/commands/classify_v2_iterate.py).
 
 ---
 
@@ -145,7 +146,7 @@ python manage.py shell -c "from apps.pos.models import Cart; print(f'Carts: {Car
 
 **Goal:** Load vendor records and all historical POs into V3.
 
-**Implementation:** Management command [`backfill_phase1_vendors_pos`](../../apps/inventory/management/commands/backfill_phase1_vendors_pos.py) — `psycopg2` reads from `ecothrift_v1` / `ecothrift_v2`; Django ORM `get_or_create` on `Vendor.code` and `PurchaseOrder.order_number`; inline description enrichment (JSON on last line of `notes`); skips Misfit POs.
+**Implementation:** Management command [`backfill_phase1_vendors_pos`](../../../../apps/inventory/management/commands/backfill_phase1_vendors_pos.py) — `psycopg2` reads from `ecothrift_v1` / `ecothrift_v2`; Django ORM `get_or_create` on `Vendor.code` and `PurchaseOrder.order_number`; inline description enrichment (JSON on last line of `notes`); skips Misfit POs.
 
 **Pickle / CSV reference (column names only — Phase 1 does not load these files):**
 - `db1/purchase_orders.pkl` (210 rows; columns include `number`, `price_amt`, `fee_amt`, `shipping_amt`, `paid_amt`, `retail_amt`, `quantity`, `description`, `condition_id`, `purchased_on`, `received_on`, `scheduled_delivery`, `paid_on`, `preprocessed_on`, `processed_on`, `created_on`, `delivery_address_cde`)
@@ -233,7 +234,7 @@ After PO rows are created, read all `description` fields and extract structured 
 
 **Goal:** Load product catalog and manifest line items.
 
-**Implementation:** [`backfill_phase2_products_manifests`](../../apps/inventory/management/commands/backfill_phase2_products_manifests.py) — legacy DB reads (`ecothrift_v1` / `ecothrift_v2`); products via individual `save()` (`PRD-*`); manifest rows via `bulk_create`; category + `legacy_*` in `specifications`; idempotency on `Product.description` and `ManifestRow.notes` tags.
+**Implementation:** [`backfill_phase2_products_manifests`](../../../../apps/inventory/management/commands/backfill_phase2_products_manifests.py) — legacy DB reads (`ecothrift_v1` / `ecothrift_v2`); products via individual `save()` (`PRD-*`); manifest rows via `bulk_create`; category + `legacy_*` in `specifications`; idempotency on `Product.description` and `ManifestRow.notes` tags.
 
 **Pickle / CSV reference only (Phase 2 does not load files):**
 - `db1/products.pkl` (~140K rows: code, title, brand, model)
@@ -293,7 +294,7 @@ V2 ManifestRow mapping (from `db2/manifest_rows.pkl`): Similar, with `inventory_
 
 ### Phase 3: Items — command implemented (Session 4)
 
-**Loader:** [`backfill_phase3_items`](../../apps/inventory/management/commands/backfill_phase3_items.py) — `psycopg2` reads from **`ecothrift_v1`** / **`ecothrift_v2`**; `bulk_create` with precomputed `search_text`; idempotent `BACKFILL:v1:{code}` / `BACKFILL:v2:{id}` notes; Misfit PO fallbacks; V1 sold from latest `item_status` (16/23); V2 `sold_at` / `sold_for` on `inventory_item`; V2 `ITM\\d+` SKUs prefixed `V2-`; **`sold_for`** V1 null (no legacy sold price on `item`); no cart joins.
+**Loader:** [`backfill_phase3_items`](../../../../apps/inventory/management/commands/backfill_phase3_items.py) — `psycopg2` reads from **`ecothrift_v1`** / **`ecothrift_v2`**; `bulk_create` with precomputed `search_text`; idempotent `BACKFILL:v1:{code}` / `BACKFILL:v2:{id}` notes; Misfit PO fallbacks; V1 sold from latest `item_status` (16/23); V2 `sold_at` / `sold_for` on `inventory_item`; V2 `ITM\\d+` SKUs prefixed `V2-`; **`sold_for`** V1 null (no legacy sold price on `item`); no cart joins.
 
 **Goal:** Load all historical inventory items with proper FK relationships.
 
@@ -355,7 +356,7 @@ python manage.py shell -c "import re; from apps.inventory.models import Item; it
 
 ### Phase 4: Sales (Carts, CartLines, Payments) — command implemented (Session 5)
 
-**Loader:** [`backfill_phase4_sales`](../../apps/inventory/management/commands/backfill_phase4_sales.py) — `psycopg2` reads from **`ecothrift_v1`** / **`ecothrift_v2`**; infrastructure register **`BACKFILL`** + drawers by Chicago sale date; V2 cashier via `core_user.email` → V3 `User` when possible; **`historical_revenue`** avoids double-count vs `HistoricalTransaction` (see `apps/pos/views.py`).
+**Loader:** [`backfill_phase4_sales`](../../../../apps/inventory/management/commands/backfill_phase4_sales.py) — `psycopg2` reads from **`ecothrift_v1`** / **`ecothrift_v2`**; infrastructure register **`BACKFILL`** + drawers by Chicago sale date; V2 cashier via `core_user.email` → V3 `User` when possible; **`historical_revenue`** avoids double-count vs `HistoricalTransaction` (see `apps/pos/views.py`).
 
 **Goal:** Load historical POS transactions so sales reports and sell-through calculations work.
 
@@ -448,11 +449,11 @@ python manage.py shell -c "from apps.inventory.models import Item; print('on_she
 
 ### Phase 5: Category enrichment — **done** (Session 6, 2026-04-11)
 
-**Goal:** Assign every backfilled `Item` / `Product` a valid [`taxonomy_v1`](../../apps/buying/taxonomy_v1.py) category; recompute [`PricingRule`](../../apps/buying/models.py) sell-through from real sold BACKFILL data; classify V2 products (rules + manual).
+**Goal:** Assign every backfilled `Item` / `Product` a valid [`taxonomy_v1`](../../../../apps/buying/taxonomy_v1.py) category; recompute [`PricingRule`](../../../../apps/buying/models.py) sell-through from real sold BACKFILL data; classify V2 products (rules + manual).
 
-**How V2 was classified:** `--preclassify-v2` (brand/PO rules) plus eight rounds of regex rules files (`rules_001.json` … `rules_008.json`) and one manual override JSON, driven by [`classify_v2_iterate`](../../apps/inventory/management/commands/classify_v2_iterate.py) (`--sample`, `--apply`, `--status`, `--apply-manual`); consultant iterated on patterns from `workspace/data/v2_sample/sample_for_review.csv`. Final stragglers fixed by `product_id`. Scout file `v2_products_001.csv` used merged manual map (`manual_merged.json`).
+**How V2 was classified:** `--preclassify-v2` (brand/PO rules) plus eight rounds of regex rules files (`rules_001.json` … `rules_008.json`) and one manual override JSON, driven by [`classify_v2_iterate`](../../../../apps/inventory/management/commands/classify_v2_iterate.py) (`--sample`, `--apply`, `--status`, `--apply-manual`); consultant iterated on patterns from `workspace/data/v2_sample/sample_for_review.csv`. Final stragglers fixed by `product_id`. Scout file `v2_products_001.csv` used merged manual map (`manual_merged.json`).
 
-**Command:** [`backfill_phase5_categories`](../../apps/inventory/management/commands/backfill_phase5_categories.py)
+**Command:** [`backfill_phase5_categories`](../../../../apps/inventory/management/commands/backfill_phase5_categories.py)
 
 | Step | Flag | Purpose |
 |------|------|---------|
@@ -544,7 +545,7 @@ _Session ID:_ count all session rows in `## Sessions` (collapsed one-liners and 
 
 #### Result
 
-Completed — committed (no semver bump) with docs restructure / Phase 0 bundle: Phase 0 DB cleanup + [`setup_misfit_backfill_pos`](../../apps/inventory/management/commands/setup_misfit_backfill_pos.py); initiative corrections + CSV path + production strategy; see **`CHANGELOG`** `[Unreleased]` and `scripts/deploy/commit_message.txt`.
+Completed — committed (no semver bump) with docs restructure / Phase 0 bundle: Phase 0 DB cleanup + [`setup_misfit_backfill_pos`](../../../../apps/inventory/management/commands/setup_misfit_backfill_pos.py); initiative corrections + CSV path + production strategy; see **`CHANGELOG`** `[Unreleased]` and `scripts/deploy/commit_message.txt`.
 
 ---
 
@@ -558,13 +559,13 @@ Completed — committed (no semver bump) with docs restructure / Phase 0 bundle:
 
 #### Session updates
 
-- 2026-04-10T21:00:00-05:00 Session started — implement [`backfill_phase1_vendors_pos`](../../apps/inventory/management/commands/backfill_phase1_vendors_pos.py).
+- 2026-04-10T21:00:00-05:00 Session started — implement [`backfill_phase1_vendors_pos`](../../../../apps/inventory/management/commands/backfill_phase1_vendors_pos.py).
 - 2026-04-10T21:30:00-05:00 **Model vs initiative reconciliation:** `PurchaseOrder.total_cost` computed in model `save()` from `purchase_cost` + `shipping_cost` + `fees` — not set manually. V1 `purchase_order` has no `shipped_date` source (left null). V2 observed statuses only: `confirmed`, `items_generated`, `received`. V1 condition names mapped: Fair/Good/Like New/New/Repairable/Very Good → V3 choices (Very Good → `good`). V2 condition values already mostly V3-shaped; `very_good` → `good`. `notes` layout: line 1 `BACKFILL:v1|v2:id`; optional plain-text legacy V2 `notes` on following lines; optional single-line JSON object on **last line** for enrichment.
 - 2026-04-10T21:35:00-05:00 Ran `python manage.py backfill_phase1_vendors_pos` — V1 POs 210 created, V2 POs 103 created; enrichment JSON appended to 271 PO(s) with parseable descriptions; re-run idempotent (0 created). Verified: `Vendor.objects.count()` = 11, `PurchaseOrder.objects.count()` = 315, duplicate `order_number` query empty; `manage.py check` OK.
 
 #### Result
 
-Completed — Phase 1 loader shipped: [`backfill_phase1_vendors_pos`](../../apps/inventory/management/commands/backfill_phase1_vendors_pos.py); initiative Phase 1 marked done; source-of-truth bullets updated for legacy-DB Phase 1; see **`CHANGELOG`** `[Unreleased]`.
+Completed — Phase 1 loader shipped: [`backfill_phase1_vendors_pos`](../../../../apps/inventory/management/commands/backfill_phase1_vendors_pos.py); initiative Phase 1 marked done; source-of-truth bullets updated for legacy-DB Phase 1; see **`CHANGELOG`** `[Unreleased]`.
 
 ---
 
@@ -578,14 +579,14 @@ Completed — Phase 1 loader shipped: [`backfill_phase1_vendors_pos`](../../apps
 
 #### Session updates
 
-- 2026-04-11T12:00:00-05:00 Session started — recon legacy schemas; implement [`backfill_phase2_products_manifests`](../../apps/inventory/management/commands/backfill_phase2_products_manifests.py).
+- 2026-04-11T12:00:00-05:00 Session started — recon legacy schemas; implement [`backfill_phase2_products_manifests`](../../../../apps/inventory/management/commands/backfill_phase2_products_manifests.py).
 - 2026-04-11T13:00:00-05:00 **Recon:** V1 tables `product`, `product_attrs`, `manifest`; V2 `inventory_product` (no UPC column), `inventory_manifest_rows`. `product_attrs` ~153K rows / ~79.4K distinct `product_cde` — pick one row per code via `LATERAL` subquery. Dedup sample (100+100 title/brand/upc): **0** overlap — no cross-system dedup. Runtime ~2 min products + manifests on dev machine.
 - 2026-04-11T14:00:00-05:00 **Model notes:** `Product`/`ManifestRow` have no `subcategory` field — `category` = `"Category / Subcategory"` (truncated); `specifications` holds `legacy_category` / `legacy_subcategory`. V1 `manifest` uses `retail_amt` then `ext_retail_amt`; `line_number` null → fallback to manifest `id` for `row_number`. Ran full backfill + idempotent re-run; spot-check 3 POs; `generate_product_number()` → `PRD-120920`.
-- 2026-04-11T15:30:00-05:00 **`session_close.md`** — Phase 2 session wrapped; **`consultant_context`** + **`context`** pointers refreshed; **`commit_message.txt`** appended for pending commit; no semver bump (unreleased backfill work). Next session: **Phase 3** (items) per [`startup.md`](../../protocols/startup.md).
+- 2026-04-11T15:30:00-05:00 **`session_close.md`** — Phase 2 session wrapped; **`consultant_context`** + **`context`** pointers refreshed; **`commit_message.txt`** appended for pending commit; no semver bump (unreleased backfill work). Next session: **Phase 3** (items) per [`startup.md`](../../../protocols/startup.md).
 
 #### Result
 
-**Session closed** — Phase 2 complete; **`CHANGELOG`** `[Unreleased]` includes Phase 2; acceptance checklist updated. **Commit:** not run (per protocol — commit when Bill is ready); see [`scripts/deploy/commit_message.txt`](../../scripts/deploy/commit_message.txt) for suggested subject and Session 3 summary.
+**Session closed** — Phase 2 complete; **`CHANGELOG`** `[Unreleased]` includes Phase 2; acceptance checklist updated. **Commit:** not run (per protocol — commit when Bill is ready); see [`scripts/deploy/commit_message.txt`](../../../../scripts/deploy/commit_message.txt) for suggested subject and Session 3 summary.
 
 ---
 
@@ -600,13 +601,13 @@ Completed — Phase 1 loader shipped: [`backfill_phase1_vendors_pos`](../../apps
 #### Session updates
 
 - 2026-04-11T16:00:00-05:00 Session started — legacy recon: V1 `item` (123,941), `item_status`/`list_status` (latest row per item; sold = status_id **16** or **23**), `item_condition`+`list_condition`; **no `sold_items` table** in this archive. V2 `inventory_item` (59,833), `sold_at`/`sold_for` on row; `inventory_item_history` for latest condition. V2 **3** SKUs match `^ITM[0-9]+$` — prefix `V2-`. **Model:** `Item.save()` sets `search_text` only; `sold_for` field exists; `generate_sku()` last-by-id fragile after mixed SKUs — verify max `ITM` after load.
-- 2026-04-11T18:00:00-05:00 **Checkpoint —** Implemented [`backfill_phase3_items`](../../apps/inventory/management/commands/backfill_phase3_items.py): maps from Phase 1–2 `Product`/`PurchaseOrder`, `bulk_create` batch 2000, `--dry-run`/`--limit`/`--skip-v1`/`--skip-v2`; cost from `purchase_cost/item_count`; `generate_sku` safety: pre-load max `ITM` suffix on current DB **155886** (9,009 `ITM\\d+` rows) — after full backfill, re-run max-suffix query; consider follow-up to scan max `^ITM\\d+$` instead of last-by-id.
+- 2026-04-11T18:00:00-05:00 **Checkpoint —** Implemented [`backfill_phase3_items`](../../../../apps/inventory/management/commands/backfill_phase3_items.py): maps from Phase 1–2 `Product`/`PurchaseOrder`, `bulk_create` batch 2000, `--dry-run`/`--limit`/`--skip-v1`/`--skip-v2`; cost from `purchase_cost/item_count`; `generate_sku` safety: pre-load max `ITM` suffix on current DB **155886** (9,009 `ITM\\d+` rows) — after full backfill, re-run max-suffix query; consider follow-up to scan max `^ITM\\d+$` instead of last-by-id.
 - 2026-04-11T19:30:00-05:00 **Fix —** V1 `SELECT` used `LEFT JOIN product` on `code`; legacy `product` has **multiple rows per code** (~35K codes), multiplying result rows (~272K vs 124K `item` rows) and inflating `skipped_exists`. Replaced with **`LEFT JOIN LATERAL (SELECT … ORDER BY id LIMIT 1)`** so one row per item. **Dry-run** had incremented `*_created` without writing — split **`would_create`** vs **`created`**; **`bulk_create`** wrapped in try/except re-raise. See **`CHANGELOG`** `[Unreleased]` Fixed.
 - 2026-04-11T20:00:00-05:00 **`session_close.md`** — Session 4 wrapped; **`_index`**, **`consultant_context`**, **`context`** Working pointer; **`commit_message.txt`** appended; no semver bump. **Next:** Phase 4 (carts, cart lines, update sold items with sale data) per initiative Phase 4 section.
 
 #### Result
 
-**Session closed** — Phase 3 complete (loader + fixes); **`CHANGELOG`** `[Unreleased]`; acceptance checklist Phase 3 remains **[x]**; **commit** when Bill is ready — see [`scripts/deploy/commit_message.txt`](../../scripts/deploy/commit_message.txt).
+**Session closed** — Phase 3 complete (loader + fixes); **`CHANGELOG`** `[Unreleased]`; acceptance checklist Phase 3 remains **[x]**; **commit** when Bill is ready — see [`scripts/deploy/commit_message.txt`](../../../../scripts/deploy/commit_message.txt).
 
 ---
 
@@ -616,7 +617,7 @@ Completed — Phase 1 loader shipped: [`backfill_phase1_vendors_pos`](../../apps
 
 **Finish line:** ~69K carts, ~217K cart lines; backfill items sale fields from cart data; `manage.py check`; Session notes + **`CHANGELOG`** `[Unreleased]`.
 
-**Scope:** [`backfill_phase4_sales`](../../apps/inventory/management/commands/backfill_phase4_sales.py); **`Receipt` / Payment rows** out of scope.
+**Scope:** [`backfill_phase4_sales`](../../../../apps/inventory/management/commands/backfill_phase4_sales.py); **`Receipt` / Payment rows** out of scope.
 
 #### Session updates
 
@@ -635,27 +636,27 @@ committed (no version bump) at 1dcad38
 
 **Finish line:** All BACKFILL items carry valid `TAXONOMY_V1_CATEGORY_NAMES`; `PricingRule` updated; V2 CSVs exported for review; `manage.py check`; Session notes + **`CHANGELOG`** `[Unreleased]`.
 
-**Scope:** [`backfill_phase5_categories`](../../apps/inventory/management/commands/backfill_phase5_categories.py); no migrations; no frontend. Manual after pricing: `recompute_buying_valuations`.
+**Scope:** [`backfill_phase5_categories`](../../../../apps/inventory/management/commands/backfill_phase5_categories.py); no migrations; no frontend. Manual after pricing: `recompute_buying_valuations`.
 
 #### Session updates
 
 - 2026-04-11T18:00:00-05:00 Session started — implement four-step command; `DEPARTMENT_TO_TAXONOMY` covers 57 V1 department prefixes from recon; unmapped → `Mixed lots & uncategorized`; export ~400 rows/file under `workspace/data/v2_classify/`.
-- 2026-04-11T22:00:00-05:00 **Phase 5 complete:** V1 `--map-v1` (123,941 items). V2: `--preclassify-v2` + eight rules files + manual overrides + per-id fixes; [`classify_v2_iterate`](../../apps/inventory/management/commands/classify_v2_iterate.py). `--import-v2`, `--recompute-pricing`, `recompute_buying_valuations` (137 auctions). Acceptance queries: zero empty/invalid BACKFILL categories; all `PricingRule` rows `sample_size > 0`.
+- 2026-04-11T22:00:00-05:00 **Phase 5 complete:** V1 `--map-v1` (123,941 items). V2: `--preclassify-v2` + eight rules files + manual overrides + per-id fixes; [`classify_v2_iterate`](../../../../apps/inventory/management/commands/classify_v2_iterate.py). `--import-v2`, `--recompute-pricing`, `recompute_buying_valuations` (137 auctions). Acceptance queries: zero empty/invalid BACKFILL categories; all `PricingRule` rows `sample_size > 0`.
 - 2026-04-11T22:00:00-05:00 **Phase 6 verification:** category-need API (19 categories, non-zero counts), admin counts (POs / Items / Carts), `manage.py check`, `tsc --noEmit`. **session_close:** `CHANGELOG` v2.10.0, `.version`, `package.json`, `commit_message.txt`; no git commit (Bill).
 
 #### Result
 
-**Session closed** — Phases 5–6 acceptance met; **v2.10.0** prepared (dashboards reflect ~3 years of backfilled historical data). Commit when ready — see [`scripts/deploy/commit_message.txt`](../../scripts/deploy/commit_message.txt).
+**Session closed** — Phases 5–6 acceptance met; **v2.10.0** prepared (dashboards reflect ~3 years of backfilled historical data). Commit when ready — see [`scripts/deploy/commit_message.txt`](../../../../scripts/deploy/commit_message.txt).
 
 ---
 
 ## Acceptance (initiative level)
 
 - [x] **Phase 0 complete:** Half-baked import removed; real V3 data preserved; clean state verified.
-- [x] **Phase 1 complete:** Vendors and 313 backfilled POs (+ 2 Misfit) loaded; [`backfill_phase1_vendors_pos`](../../apps/inventory/management/commands/backfill_phase1_vendors_pos.py); legacy DB reads.
-- [x] **Phase 2 complete:** Products and manifest rows loaded with PO linkage; [`backfill_phase2_products_manifests`](../../apps/inventory/management/commands/backfill_phase2_products_manifests.py).
-- [x] **Phase 3 complete:** Loader [`backfill_phase3_items`](../../apps/inventory/management/commands/backfill_phase3_items.py) shipped; run on legacy DBs to populate ~184K items (idempotent).
-- [x] **Phase 4 complete:** Loader [`backfill_phase4_sales`](../../apps/inventory/management/commands/backfill_phase4_sales.py) shipped; run on legacy DBs to load carts/lines and refresh BACKFILL item sale fields (`--clean` for reruns).
+- [x] **Phase 1 complete:** Vendors and 313 backfilled POs (+ 2 Misfit) loaded; [`backfill_phase1_vendors_pos`](../../../../apps/inventory/management/commands/backfill_phase1_vendors_pos.py); legacy DB reads.
+- [x] **Phase 2 complete:** Products and manifest rows loaded with PO linkage; [`backfill_phase2_products_manifests`](../../../../apps/inventory/management/commands/backfill_phase2_products_manifests.py).
+- [x] **Phase 3 complete:** Loader [`backfill_phase3_items`](../../../../apps/inventory/management/commands/backfill_phase3_items.py) shipped; run on legacy DBs to populate ~184K items (idempotent).
+- [x] **Phase 4 complete:** Loader [`backfill_phase4_sales`](../../../../apps/inventory/management/commands/backfill_phase4_sales.py) shipped; run on legacy DBs to load carts/lines and refresh BACKFILL item sale fields (`--clean` for reruns).
 - [x] **Phase 5 complete:** All backfilled items have taxonomy_v1 categories; `PricingRule` recomputed from sold BACKFILL data; V2 CSV pipeline + iterative rules.
 - [x] **Phase 6 complete:** Category-need API + admin spot-checks + `manage.py check` / `tsc` verification passed.
 

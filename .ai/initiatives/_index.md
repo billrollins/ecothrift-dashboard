@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11T22:30:00-05:00 -->
+<!-- Last updated: 2026-04-11T23:15:00-05:00 -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -13,13 +13,12 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [data_backfill_initiative.md](./data_backfill_initiative.md) | **Phases 0–6 complete** | Historical load + taxonomy + `PricingRule`; V2 iterative [`classify_v2_iterate`](../../apps/inventory/management/commands/classify_v2_iterate.py). Production CSV export/deploy still deferred. |
 | [bstock_auction_intelligence.md](./bstock_auction_intelligence.md) | Phase 6 planned | Phases 1–5 + 4.1A + 4.1B shipped (v2.9.0); outcome tracking next. |
 | Groq / alternative AI cost optimization (parked) | Parked | See **Parking lot** in [bstock_auction_intelligence.md](./bstock_auction_intelligence.md). |
 
 **Current session details** (goal, finish line, updates) live **only** in each initiative file under **`## Sessions`** — not duplicated here.
 
-**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10).
+**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md) (2026-04-11; v2.10.0), [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10).
 
 ---
 

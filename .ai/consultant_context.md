@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-11T22:30:00-05:00 -->
+<!-- Last updated: 2026-04-11T23:15:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
@@ -30,7 +30,7 @@
 
 ## Historical data backfill (V1/V2 into V3) — **Phases 0–6 complete** (local DB)
 
-**Initiative:** [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) (**active** until production export/deploy is executed). **v2.10.0:** Buying dashboards and category-need now reflect ~**3 years** of backfilled inventory and sales on Bill’s loaded database.
+**Initiative:** [`initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md) (**completed / archived** 2026-04-11). **v2.10.0:** Buying dashboards and category-need reflect ~**3 years** of backfilled inventory and sales on Bill’s loaded database.
 
 **Pipeline (shipped):** [`backfill_phase1_vendors_pos`](../apps/inventory/management/commands/backfill_phase1_vendors_pos.py) through [`backfill_phase4_sales`](../apps/inventory/management/commands/backfill_phase4_sales.py); **[`backfill_phase5_categories`](../apps/inventory/management/commands/backfill_phase5_categories.py)** (`--map-v1`, `--export-v2`, `--preclassify-v2`, `--import-v2`, `--recompute-pricing`); V2 product classification via **[`classify_v2_iterate`](../apps/inventory/management/commands/classify_v2_iterate.py)** (regex rules under `workspace/data/v2_rules/`, samples under `workspace/data/v2_sample/`). Phase **6** verified: **`GET /api/buying/category-need/`** (19 categories, non-zero counts), admin counts, `manage.py check`.
 
