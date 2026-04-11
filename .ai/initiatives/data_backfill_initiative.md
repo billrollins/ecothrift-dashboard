@@ -629,7 +629,7 @@ Completed — Phase 1 loader shipped: [`backfill_phase1_vendors_pos`](../../apps
 
 #### Result
 
-committed (no version bump) at e55b52a
+committed (no version bump) at 1dcad38
 
 ---
 
