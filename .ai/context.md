@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-11T22:00:00-05:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -91,7 +91,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 - **POS:** Terminal, drawers, carts, transactions, cash management
 - **Consignment:** Agreements, items, payouts, portal
 - **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped (see `.version`); Phase 6 next — see [bstock initiative](initiatives/bstock_auction_intelligence.md)
-- **Data backfill (V1/V2 → V3):** Phases 0–3 loaders shipped (`backfill_phase1_vendors_pos`, `backfill_phase2_products_manifests`, `backfill_phase3_items`); Phase 4 (carts / cart lines / sale data on items) next — see [data_backfill initiative](initiatives/data_backfill_initiative.md)
+- **Data backfill (V1/V2 → V3):** Phases 0–4 loaders shipped (`backfill_phase1_vendors_pos`, `backfill_phase2_products_manifests`, `backfill_phase3_items`, `backfill_phase4_sales`); Phase 5 (taxonomy) next — see [data_backfill initiative](initiatives/data_backfill_initiative.md)
 - **Print server:** Local FastAPI labels/receipts/drawer
 - **AI:** Claude proxy (`apps/ai/`), inventory/buying AI
 - **Core / ops:** Locations, settings, S3, dev logging

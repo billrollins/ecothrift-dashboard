@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-11T22:00:00-05:00 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -13,10 +13,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Data backfill (Phase 4):** [`backfill_phase4_sales`](apps/inventory/management/commands/backfill_phase4_sales.py) — load V1/V2 `cart` / `cart_line` and V2 `pos_cart` / `pos_cart_line` into V3 **`Cart`** / **`CartLine`**; `WorkLocation` "Eco-Thrift Main", Register **`BACKFILL`**, system user `backfill@system.local`, one **`Drawer`** per Chicago sale date; payment aggregation; V2 cashier map via legacy `core_user.email`; update BACKFILL **`Item`** `sold_at` / `sold_for` / `status=sold` from lines; flags `--clean`, `--reset-item-sales`, `--delete-historical-transactions`, `--dry-run`, `--limit`, `--skip-v1` / `--skip-v2`, `--skip-item-updates`. See [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) Session 5.
 - **Data backfill (Phase 3):** [`backfill_phase3_items`](apps/inventory/management/commands/backfill_phase3_items.py) — load V1/V2 historical `Item` rows from **`ecothrift_v1`** / **`ecothrift_v2`** (`psycopg2`); lookup maps from Phase 1–2 `Product` / `PurchaseOrder`; `bulk_create` with precomputed `search_text`; idempotent `BACKFILL:v1:{code}` / `BACKFILL:v2:{id}` notes; Misfit PO fallbacks; V2 numeric `ITM…` SKUs prefixed `V2-`; `--dry-run`, `--limit`, `--skip-v1` / `--skip-v2`. See [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) Session 4.
 - **Data backfill (Phase 2):** [`backfill_phase2_products_manifests`](apps/inventory/management/commands/backfill_phase2_products_manifests.py) — load V1/V2 `Product` and `ManifestRow` from **`ecothrift_v1`** / **`ecothrift_v2`**; products via `save()` for `PRD-*`; manifest rows `bulk_create`; PO linkage; `category` + `specifications` legacy fields; idempotent on `BACKFILL:` tags. See [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) Session 3.
 - **Data backfill (Phase 1):** [`backfill_phase1_vendors_pos`](apps/inventory/management/commands/backfill_phase1_vendors_pos.py) — load V1/V2 vendors and purchase orders from legacy PostgreSQL databases **`ecothrift_v1`** / **`ecothrift_v2`** (raw `psycopg2`, same `DATABASE_*` as V3); idempotent `get_or_create`; inline description metadata as JSON on the last line of `notes` (after optional legacy V2 plain-text lines). See [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) Session 2.
 - **Data backfill (Phase 0):** [`setup_misfit_backfill_pos`](apps/inventory/management/commands/setup_misfit_backfill_pos.py) — vendor **MIS** (“The Island of Misfit Items”) and placeholder POs **MISFIT-V1-2024** / **MISFIT-V2-2025** for orphan items. [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md) — removed ~146.9k `HISTORICAL:db1:`/`HISTORICAL:db2:` `inventory_item` rows; preserved 9,009 real V3 items; `pos_cart` / `pos_cartline` counts unchanged.
+
+### Changed
+
+- **POS reporting:** [`historical_revenue`](apps/pos/views.py) excludes carts on register **`BACKFILL`** from db3 aggregates while **`HistoricalTransaction`** rows exist for db1/db2 (avoids double-counting legacy totals vs `import_historical_transactions`). After deleting db1/db2 historical rows or loading only via Phase 4, totals reflect Carts.
 
 ### Fixed
 

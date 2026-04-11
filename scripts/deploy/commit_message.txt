@@ -1,21 +1,7 @@
-feat: data backfill Phase 1–3 loaders, Session 4 close, and steering docs
+feat: data backfill Phase 4 sales loader and historical revenue double-count fix
 
-Session 4 — data_backfill_initiative (Phase 3 close, session_close.md):
-- [`backfill_phase3_items`](apps/inventory/management/commands/backfill_phase3_items.py) — historical `Item` load from legacy DBs; Phase 3 fixes: V1 product `LATERAL` dedupe, dry-run `would_create` vs `created`, `bulk_create` try/except
-- Initiative Session 4 **`#### Result`**; **`CHANGELOG`** `[Unreleased]` (Added + Fixed); **`.ai/context.md`** Working; **`.ai/consultant_context.md`** + **`_index.md`** — Phase 4 next
-- No `.version` bump (unreleased until Bill cuts a release)
-
-Session 3 — data_backfill_initiative (Phase 2 close, session_close.md):
-- Management commands: [`backfill_phase1_vendors_pos`](apps/inventory/management/commands/backfill_phase1_vendors_pos.py), [`backfill_phase2_products_manifests`](apps/inventory/management/commands/backfill_phase2_products_manifests.py); Phase 0 [`setup_misfit_backfill_pos`](apps/inventory/management/commands/setup_misfit_backfill_pos.py)
-- Initiative Session 3 **`#### Result`**; **`CHANGELOG`** `[Unreleased]`; **`.ai/context.md`** Working bullet; **`.ai/consultant_context.md`** backfill phase pointer (Phases 0–2 done, Phase 3 next)
-- No `.version` bump (unreleased until Bill cuts a release)
-
-Session 2 — data_backfill_initiative (Phase 1):
-- Legacy DB vendors/POs; inline PO notes enrichment JSON
-
-Session 1 — data_backfill_initiative (Phase 0 + consultant close):
-- Removed HISTORICAL:db1/db2 inventory_item rows; setup_misfit_backfill_pos; Phase 0 acceptance
-- Initiative: production deployment strategy; Phase 1 PO enrichment (no extract_po_descriptions); verify PurchaseOrder mappings; dedup evaluate-first; V1 item status sold/scrapped only; taxonomy_estimate label count unverified
-- workspace/scripts/convert_pickles_to_csv.py; CSV paths in initiative context
-
-Steering / docs (bundle): session_checkpoint, startup framing, session_close, initiative archive moves, context — see full diff.
+Session 5 — data_backfill_initiative (Phase 4, session_close.md):
+- [`backfill_phase4_sales`](apps/inventory/management/commands/backfill_phase4_sales.py) — V1/V2 carts and cart lines; WorkLocation / Register `BACKFILL` / drawers by sale date / system user; BACKFILL item `sold_at` / `sold_for` / status; `--clean`, `--reset-item-sales`, `--delete-historical-transactions`, `--dry-run`, `--limit`, `--skip-v1` / `--skip-v2`, `--skip-item-updates`
+- [`apps/pos/views.py`](apps/pos/views.py) `historical_revenue` — when `HistoricalTransaction` has db1/db2 rows, db3 excludes BACKFILL register to avoid double-counting legacy sales
+- Initiative Session 5 **`#### Result`**; **`CHANGELOG`** `[Unreleased]`; **`.ai/context.md`**, **`.ai/consultant_context.md`**, **`.ai/initiatives/_index.md`** — Phase 5 (taxonomy / category enrichment) next
+- No `.version` bump (unreleased until a release is cut)

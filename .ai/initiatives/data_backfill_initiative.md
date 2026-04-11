@@ -1,10 +1,10 @@
 <!-- initiative: slug=data-backfill status=active updated=2026-04-11 -->
-<!-- Last updated: 2026-04-11T20:00:00-05:00 -->
+<!-- Last updated: 2026-04-11T23:20:00-05:00 -->
 # Initiative: Historical data backfill (V1/V2 into V3)
 
 **Status:** Active
 
-**Current phase:** Phase 4 (sales — carts, cart lines, payments, **`sold_for` / sale data on items**) — **next** (Session 5). Phase 3 loader shipped; run [`backfill_phase3_items`](../../apps/inventory/management/commands/backfill_phase3_items.py) against legacy DBs when ready to populate ~184K `Item` rows.
+**Current phase:** Phase 5 (taxonomy) — planned. Phase 4 loader [`backfill_phase4_sales`](../../apps/inventory/management/commands/backfill_phase4_sales.py) shipped (Session 5); run against legacy DBs for ~69K carts / ~217K lines + item sale updates.
 
 ---
 
@@ -353,7 +353,9 @@ python manage.py shell -c "import re; from apps.inventory.models import Item; it
 
 ---
 
-### Phase 4: Sales (Carts, CartLines, Payments) — planned
+### Phase 4: Sales (Carts, CartLines, Payments) — command implemented (Session 5)
+
+**Loader:** [`backfill_phase4_sales`](../../apps/inventory/management/commands/backfill_phase4_sales.py) — `psycopg2` reads from **`ecothrift_v1`** / **`ecothrift_v2`**; infrastructure register **`BACKFILL`** + drawers by Chicago sale date; V2 cashier via `core_user.email` → V3 `User` when possible; **`historical_revenue`** avoids double-count vs `HistoricalTransaction` (see `apps/pos/views.py`).
 
 **Goal:** Load historical POS transactions so sales reports and sell-through calculations work.
 
@@ -424,12 +426,23 @@ After CartLines are loaded, update the corresponding Item records:
 
 Create Receipt records for V2 carts (V2 has `db2/receipts.pkl`). V1 has no receipt model. Low priority; skip if it adds complexity.
 
-**Acceptance:**
+**Acceptance (target after full run on legacy-connected DB):**
 - Cart count: ~69K (53K V1 + 16K V2)
 - CartLine count: ~217K (173K V1 + 44K V2)
 - Every CartLine's `cart` FK is valid
 - Sold item count matches: number of items with `status='sold'` and `notes` containing BACKFILL should approximate the number of cart lines with item FKs
 - Spot check: 3 carts from each generation, verify line items, totals, dates
+
+**Pasteable verification (shell, from project root):**
+
+```bash
+python manage.py check
+python manage.py backfill_phase4_sales --dry-run
+python manage.py shell -c "from apps.pos.models import Cart, Register; r=Register.objects.get(code='BACKFILL'); print('backfill carts', Cart.objects.filter(drawer__register=r).count())"
+python manage.py shell -c "from apps.pos.models import CartLine; print('lines on backfill carts', CartLine.objects.filter(cart__drawer__register__code='BACKFILL').count())"
+python manage.py shell -c "from apps.inventory.models import Item; print('BACKFILL with sold_for', Item.objects.filter(notes__startswith='BACKFILL:', sold_for__isnull=False).count())"
+python manage.py shell -c "from apps.inventory.models import Item; print('on_shelf backfill', Item.objects.filter(notes__startswith='BACKFILL:', status='on_shelf').count())"
+```
 
 ---
 
@@ -601,13 +614,32 @@ Completed — Phase 1 loader shipped: [`backfill_phase1_vendors_pos`](../../apps
 
 ---
 
+### Session 5 — Phase 4: sales (`backfill_phase4_sales`) — est 12h — started 2026-04-11T21:00:00-05:00
+
+**Goal:** Load V1/V2 `Cart` / `CartLine` from legacy PostgreSQL; minimal `WorkLocation` / `Register` (`BACKFILL`) / `Drawer` (one per sale date) / system `User`; update backfilled `Item` rows with `sold_at` / `sold_for` from cart lines; optional `--delete-historical-transactions` to avoid double-count with `HistoricalTransaction`.
+
+**Finish line:** ~69K carts, ~217K cart lines; backfill items sale fields from cart data; `manage.py check`; Session notes + **`CHANGELOG`** `[Unreleased]`.
+
+**Scope:** [`backfill_phase4_sales`](../../apps/inventory/management/commands/backfill_phase4_sales.py); **`Receipt` / Payment rows** out of scope.
+
+#### Session updates
+
+- 2026-04-11T21:00:00-05:00 Session started — model recon: **`Cart`** has no `save()` override; **`CartLine.save()`** sets `line_total = unit_price * quantity` (bulk_create must set `line_total` explicitly). **`Drawer`** requires `current_cashier`, `opened_by`, `opened_at`, `opening_count`, `opening_total`; backfill fills with system user + synthetic open/close times. **`Cart.PAYMENT_METHODS`:** `cash` / `card` / `split`. Legacy recon: V1 `cart`, `cart_line`, `payment` (`type`: Cash/Credit/Debit/GiftCard); V2 `pos_cart`, `pos_cart_line`, `pos_payment` (`cash`|`card`), `core_user` for cashier email map.
+- 2026-04-11T23:20:00-05:00 **session_close** — `commit_message.txt`, pre-commit (`tsc`, `compileall`), commit + push; **next:** Phase 5 category enrichment (`taxonomy_v1` + PricingRule).
+
+#### Result
+
+committed (no version bump) at e55b52a
+
+---
+
 ## Acceptance (initiative level)
 
 - [x] **Phase 0 complete:** Half-baked import removed; real V3 data preserved; clean state verified.
 - [x] **Phase 1 complete:** Vendors and 313 backfilled POs (+ 2 Misfit) loaded; [`backfill_phase1_vendors_pos`](../../apps/inventory/management/commands/backfill_phase1_vendors_pos.py); legacy DB reads.
 - [x] **Phase 2 complete:** Products and manifest rows loaded with PO linkage; [`backfill_phase2_products_manifests`](../../apps/inventory/management/commands/backfill_phase2_products_manifests.py).
 - [x] **Phase 3 complete:** Loader [`backfill_phase3_items`](../../apps/inventory/management/commands/backfill_phase3_items.py) shipped; run on legacy DBs to populate ~184K items (idempotent).
-- [ ] **Phase 4 complete:** ~69K carts and ~217K cart lines loaded; sold items updated.
+- [x] **Phase 4 complete:** Loader [`backfill_phase4_sales`](../../apps/inventory/management/commands/backfill_phase4_sales.py) shipped; run on legacy DBs to load carts/lines and refresh BACKFILL item sale fields (`--clean` for reruns).
 - [ ] **Phase 5 complete:** All backfilled items have taxonomy_v1 categories; PricingRule updated.
 - [ ] **Phase 6 complete:** Dashboards show real data; integrity checks pass.
 
