@@ -42,6 +42,8 @@ from apps.inventory.models import Item, Product, PurchaseOrder
 
 TAXONOMY_SET = frozenset(TAXONOMY_V1_CATEGORY_NAMES)
 BATCH_SIZE = 2000
+# Smaller bulk_update batches for remote DBs (e.g. Heroku) — large batches can appear to hang.
+MAP_V1_BATCH_SIZE_REMOTE = 500
 V2_EXPORT_CHUNK = 400
 CSV_PREFIX = "v2_products_"
 TAXONOMY_LIST = list(TAXONOMY_V1_CATEGORY_NAMES)
@@ -378,9 +380,19 @@ class Command(BaseCommand):
         if options["preclassify_v2"]:
             self._step_preclassify_v2(dry_run)
 
+    def _map_v1_batch_size(self, db: str) -> int:
+        """Remote production DBs: smaller bulk_update batches to avoid long stalls."""
+        return MAP_V1_BATCH_SIZE_REMOTE if db == "production" else BATCH_SIZE
+
     def _step_map_v1(self, dry_run: bool, db: str) -> None:
         self.stdout.write(self.style.NOTICE("=== Step 1: --map-v1 (V1 -> taxonomy_v1) ==="))
+        self.stdout.flush()
+        bs = self._map_v1_batch_size(db)
         unmapped: set[str] = set()
+
+        # All reads/writes use *db* (e.g. production). No legacy ecothrift_v1 connection here.
+        self.stdout.write("Collecting distinct V1 category labels (query may take a moment)…")
+        self.stdout.flush()
 
         # Distinct labels → taxonomy
         raw_labels = (
@@ -399,6 +411,7 @@ class Command(BaseCommand):
             label_to_tax[norm] = map_department_to_taxonomy(norm, unmapped)
 
         self.stdout.write(f"Distinct normalized V1 labels: {len(label_to_tax)}")
+        self.stdout.flush()
         if unmapped:
             self.stdout.write(
                 self.style.WARNING(
@@ -407,24 +420,36 @@ class Command(BaseCommand):
             )
             for d in sorted(unmapped):
                 self.stdout.write(f"  {d}")
+            self.stdout.flush()
+
+        self.stdout.write(
+            f"Pass 1: remap items with category — iterator chunk_size={bs}, bulk_update batch_size={bs}…"
+        )
+        self.stdout.flush()
 
         updated_items = 0
         sim_counts: Counter[str] = Counter()
 
         batch: list[Item] = []
+        batch_num = 0
         qs1 = (
             Item.objects.using(db)
             .filter(notes__startswith="BACKFILL:v1:")
             .exclude(category="")
             .exclude(category__isnull=True)
+            .only("id", "category")
         )
-        for row in qs1.iterator(chunk_size=BATCH_SIZE):
+        for row in qs1.iterator(chunk_size=bs):
             norm = normalize_category_label(row.category)
             new_cat = label_to_tax.get(norm) or map_department_to_taxonomy(norm, unmapped)
             row.category = new_cat
             sim_counts[new_cat] += 1
             batch.append(row)
-            if len(batch) >= BATCH_SIZE:
+            if len(batch) >= bs:
+                batch_num += 1
+                verb = "would bulk_update" if dry_run else "bulk_update"
+                self.stdout.write(f"  Pass 1 batch {batch_num}: {verb} {len(batch)} items…")
+                self.stdout.flush()
                 if not dry_run:
                     Item.objects.using(db).bulk_update(batch, ["category"])
                     updated_items += len(batch)
@@ -432,21 +457,29 @@ class Command(BaseCommand):
                     updated_items += len(batch)
                 batch = []
         if batch:
+            batch_num += 1
+            verb = "would bulk_update" if dry_run else "bulk_update"
+            self.stdout.write(f"  Pass 1 batch {batch_num} (final): {verb} {len(batch)} items…")
+            self.stdout.flush()
             if not dry_run:
                 Item.objects.using(db).bulk_update(batch, ["category"])
                 updated_items += len(batch)
             else:
                 updated_items += len(batch)
 
+        self.stdout.write("Pass 2: aggregate taxonomy per product (values scan)…")
+        self.stdout.flush()
+
         # Per-product taxonomy counts from non-empty V1 items (after pass1 semantics)
         product_tax: defaultdict[int, Counter[str]] = defaultdict(Counter)
+        pass2_rows = 0
         for row in (
             Item.objects.using(db)
             .filter(notes__startswith="BACKFILL:v1:")
             .exclude(category="")
             .exclude(category__isnull=True)
             .values("product_id", "category")
-            .iterator(chunk_size=BATCH_SIZE)
+            .iterator(chunk_size=bs)
         ):
             pid = row["product_id"]
             if not pid:
@@ -454,12 +487,20 @@ class Command(BaseCommand):
             norm = normalize_category_label(row["category"])
             tx = label_to_tax.get(norm) or map_department_to_taxonomy(norm, unmapped)
             product_tax[pid][tx] += 1
+            pass2_rows += 1
+            if pass2_rows % 100_000 == 0:
+                self.stdout.write(f"  Pass 2 rows processed: {pass2_rows:,}…")
+                self.stdout.flush()
+
+        self.stdout.write("Pass 3: fill empty item categories from product consensus…")
+        self.stdout.flush()
 
         fix_batch: list[Item] = []
+        fix_batch_num = 0
         qs2 = Item.objects.using(db).filter(notes__startswith="BACKFILL:v1:").filter(
             Q(category="") | Q(category__isnull=True)
-        )
-        for row in qs2.iterator(chunk_size=BATCH_SIZE):
+        ).only("id", "category", "product_id")
+        for row in qs2.iterator(chunk_size=bs):
             new_cat = MIXED_LOTS_UNCATEGORIZED
             pid = row.product_id
             if pid and product_tax.get(pid):
@@ -467,7 +508,11 @@ class Command(BaseCommand):
             row.category = new_cat
             sim_counts[new_cat] += 1
             fix_batch.append(row)
-            if len(fix_batch) >= BATCH_SIZE:
+            if len(fix_batch) >= bs:
+                fix_batch_num += 1
+                verb = "would bulk_update" if dry_run else "bulk_update"
+                self.stdout.write(f"  Pass 3 batch {fix_batch_num}: {verb} {len(fix_batch)} items…")
+                self.stdout.flush()
                 if not dry_run:
                     Item.objects.using(db).bulk_update(fix_batch, ["category"])
                     updated_items += len(fix_batch)
@@ -475,19 +520,27 @@ class Command(BaseCommand):
                     updated_items += len(fix_batch)
                 fix_batch = []
         if fix_batch:
+            fix_batch_num += 1
+            verb = "would bulk_update" if dry_run else "bulk_update"
+            self.stdout.write(f"  Pass 3 batch {fix_batch_num} (final): {verb} {len(fix_batch)} items…")
+            self.stdout.flush()
             if not dry_run:
                 Item.objects.using(db).bulk_update(fix_batch, ["category"])
                 updated_items += len(fix_batch)
             else:
                 updated_items += len(fix_batch)
 
+        self.stdout.write("Pass 4: build per-product category histogram (full V1 item scan)…")
+        self.stdout.flush()
+
         # Final item category per product (for Product.category mode) — one scan
         product_item_cats: defaultdict[int, Counter[str]] = defaultdict(Counter)
+        pass4_rows = 0
         for row in (
             Item.objects.using(db)
             .filter(notes__startswith="BACKFILL:v1:")
             .values("product_id", "category")
-            .iterator(chunk_size=BATCH_SIZE)
+            .iterator(chunk_size=bs)
         ):
             pid = row["product_id"]
             if not pid:
@@ -501,16 +554,26 @@ class Command(BaseCommand):
                 if pid and product_tax.get(pid):
                     tx = product_tax[pid].most_common(1)[0][0]
             product_item_cats[pid][tx] += 1
+            pass4_rows += 1
+            if pass4_rows % 100_000 == 0:
+                self.stdout.write(f"  Pass 4 item rows scanned: {pass4_rows:,}…")
+                self.stdout.flush()
+
+        self.stdout.write("Pass 5: set Product.category from item histogram…")
+        self.stdout.flush()
 
         prod_qs = Product.objects.using(db).filter(description__startswith="BACKFILL:v1:")
         prod_updated = 0
-        for p in prod_qs.iterator(chunk_size=500):
+        for p in prod_qs.iterator(chunk_size=bs):
             mode = _mode_from_counter(product_item_cats.get(p.pk, Counter())) or MIXED_LOTS_UNCATEGORIZED
             if dry_run:
                 prod_updated += 1
             else:
                 Product.objects.using(db).filter(pk=p.pk).update(category=mode)
                 prod_updated += 1
+            if prod_updated % 2000 == 0:
+                self.stdout.write(f"  Pass 5 products updated: {prod_updated:,}…")
+                self.stdout.flush()
 
         self.stdout.write("\nV1 items per taxonomy_v1:")
         for name in TAXONOMY_V1_CATEGORY_NAMES:

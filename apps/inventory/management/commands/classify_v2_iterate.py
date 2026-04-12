@@ -19,6 +19,12 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
+from apps.inventory.management.command_db import (
+    add_database_argument,
+    add_no_input_argument,
+    confirm_production_write,
+    resolve_database_alias,
+)
 
 SAMPLE_SEED = 42
 SAMPLE_SIZE = 1000
@@ -146,6 +152,8 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
+        add_database_argument(parser)
+        add_no_input_argument(parser)
         parser.add_argument(
             "--sample",
             action="store_true",
@@ -174,11 +182,20 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        db = resolve_database_alias(options["database"])
+        dry_run = options["dry_run"]
+        confirm_production_write(
+            stdout=self.stdout,
+            stderr=self.stderr,
+            db_alias=db,
+            no_input=options["no_input"],
+            dry_run=dry_run,
+        )
+
         sample = options["sample"]
         apply_path = options["apply"]
         status = options["status"]
         apply_manual = options["apply_manual"]
-        dry_run = options["dry_run"]
 
         modes = [x for x in (sample, apply_path, status, apply_manual) if x]
         if len(modes) != 1:

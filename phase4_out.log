@@ -1,0 +1,3 @@
+HistoricalTransaction has 69,362 db1/db2 rows. Charts may double-count until you run with --delete-historical-transactions or delete those rows. historical_revenue excludes BACKFILL carts from db3 while db1/db2 HT rows exist.
+--clean: deleted 103268 Cart-related rows (CASCADE).
+Drawers available for 1038 distinct sale dates.

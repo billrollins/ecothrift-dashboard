@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-11T19:30:00-05:00 -->
+<!-- Last updated: 2026-04-12T12:00:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
@@ -34,11 +34,11 @@
 
 **Pipeline (shipped):** [`backfill_phase1_vendors_pos`](../apps/inventory/management/commands/backfill_phase1_vendors_pos.py) through [`backfill_phase4_sales`](../apps/inventory/management/commands/backfill_phase4_sales.py); **[`backfill_phase5_categories`](../apps/inventory/management/commands/backfill_phase5_categories.py)** (`--map-v1`, `--export-v2`, `--preclassify-v2`, `--import-v2`, `--recompute-pricing`); V2 product classification via **[`classify_v2_iterate`](../apps/inventory/management/commands/classify_v2_iterate.py)** (regex rules under `workspace/data/v2_rules/`, samples under `workspace/data/v2_sample/`). Phase **6** verified: **`GET /api/buying/category-need/`** (19 categories, non-zero counts), admin counts, `manage.py check`.
 
-**Still deferred:** Portable CSV **export** + **`import_backfill`** into production (documented in initiative) — code path not the same as “local backfill complete.”
+**Production (Heroku):** Phases **1–5** backfill and supporting migrations have been **deployed** to the production database; **`Item.retail_value`** is populated; **cost pipeline** (**`recompute_cost_pipeline`** and dependencies) runs on production (nightly scheduler). Portable CSV **`export` / `import_backfill`** to clone data into another host remains a **separate** documented path if ever needed — not required for the live Heroku V3 story.
 
 **Relationship to sell-through initiative:** Backfill Phases 3–5 supersede much of the pending `historical_sell_through_analysis` work for data-backed **`PricingRule`** rates from real sold **`Item`** rows.
 
-**Retag v2 scaffolding** (DB2→DB3 cutover) was **removed** from the codebase after March 2026; **[`retag-operations.md`](extended/retag-operations.md)** is historical reference only. Legacy Target duplicate vendor **TGT** was merged into **TRGET** (v2.11.0 data migration); **`workspace/notes/vendor_prefix_investigation.md`** remains as historical context.
+**Retag v2 scaffolding** (DB2→DB3 cutover) was **removed** from the codebase after March 2026; **[`retag-operations.md`](extended/retag-operations.md)** is historical reference only. Legacy Target duplicate vendor **TGT** was merged into **TRGET** (v2.11.0 data migration); historical note: **`workspace/notes/archived/session_v2.11.0/vendor_prefix_investigation.md`** (archived session bundle).
 
 ---
 
@@ -260,6 +260,8 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 - **Commands:** **`estimate_auction_categories`**, **`recompute_buying_valuations`**.
 - **Tests:** **`apps/buying/tests/test_valuation.py`**, **`apps/buying/tests/test_phase5_category_need.py`**.
 - **React (v2.9.0):** **`/buying/auctions`** — valuation columns, filter chips + marketplace multi-select, category-need panel (desktop), watchlist row tint, stable pagination (**`keepPreviousData`**). **`/buying/auctions/:id`** — valuation card, overrides, AI vs manifest strip. **`GET /api/buying/watchlist/`** list filters extended (**`profitable`**, **`needed`**, **`thumbs_up`**) to match main list. **Token-backed** B-Stock calls from the **REST API** are **disabled** (`501` / `token_backed_bstock_disabled`) — **CSV upload** + soft-touch sweep; see **`apps/buying/api_views.py`**.
+
+**Production inventory alignment:** Heroku **V3** now holds backfilled **Item** / **PricingRule** / cost data (see **CHANGELOG [2.11.1]**), so **category-need** and valuation inputs reflect live historical data where applicable. **B-Stock Phase 6** (outcome tracking) is next.
 
 ---
 

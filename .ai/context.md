@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-04-11 (v2.11.0) -->
+<!-- Last updated: 2026-04-12 (v2.11.1) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** See repo root `.version` (e.g. **`v2.11.0`**). **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; buying panels show multi-year category need / sell-through from backfilled **`Item`** + **`PricingRule`** data on the loaded DB. **Active initiative:** **B-Stock Phase 6** — **[`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md)** (outcome tracking); see also **`.ai/extended/backend.md`**, **`.ai/extended/frontend.md`**.
+**Current version:** See repo root `.version` (e.g. **`v2.11.1`**). **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; **Heroku production** has V1/V2→V3 data, **`Item.retail_value`**, categories, and **cost pipeline** deployed (see **CHANGELOG [2.11.1]**). **Active initiative:** **B-Stock Phase 6** — **[`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md)** (outcome tracking); see also **`.ai/extended/backend.md`**, **`.ai/extended/frontend.md`**.
 
 ---
 
@@ -44,7 +44,7 @@ ecothrift-dashboard/
 │   ├── extended/           Deep-dive domain docs (load on demand — keeps agent context small)
 │   ├── reference/          Third-party / external context (optional)
 │   └── prototype/          Design prototypes and archived explorations
-├── workspace/              Temp artifacts, notebooks, side projects (almost all gitignored); **`notes/to_consultant/extract_po_descriptions.py`** whitelisted for historical PO export
+├── workspace/              Temp artifacts, notebooks, side projects (almost all gitignored); **`notes/to_consultant/extract_po_descriptions.py`** whitelisted for historical PO export; **`notes/archived/session_*`** holds session diagnostic bundles when rotated out of the working tree
 │   └── notebooks/_shared/requirements-notebooks.txt  Optional Jupyter/DB + ML deps
 ├── project design/         Original build specification (historical reference)
 ├── .version                Single-line app semver (vMAJOR.MINOR.PATCH)
@@ -91,14 +91,14 @@ Capability summary — detail lives in the extended docs above and initiative fi
 - **POS:** Terminal, drawers, carts, transactions, cash management
 - **Consignment:** Agreements, items, payouts, portal
 - **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped (see `.version`); **Phase 6** (outcome tracking) next — see [bstock initiative](initiatives/bstock_auction_intelligence.md)
-- **Data backfill (V1/V2 → V3):** Complete (v2.10.0); initiative **[archived](initiatives/_archived/_completed/data_backfill_initiative.md)** — loaders `backfill_phase1_*` … `backfill_phase5_categories` + `classify_v2_iterate`; production CSV export / `import_backfill` deploy still deferred per archived doc
+- **Data backfill (V1/V2 → V3):** Complete (v2.10.0); initiative **[archived](initiatives/_archived/_completed/data_backfill_initiative.md)** — loaders `backfill_phase1_*` … `backfill_phase5_categories` + `classify_v2_iterate`; **production DB** populated (v2.11.1); optional **`--database production`** on inventory pipeline commands. Portable CSV **`import_backfill`** to other hosts remains a separate path if ever needed.
 - **Print server:** Local FastAPI labels/receipts/drawer
 - **AI:** Claude proxy (`apps/ai/`), inventory/buying AI
 - **Core / ops:** Locations, settings, S3, dev logging
 - **28+** React pages; TypeScript + Vite production build green; eight Django apps with CRUD where applicable.
 
 ### Known Issues
-- **Inventory — acquisition cost:** `Item.retail_value` holds vendor/manifest retail. **`Item.cost`** is populated by the nightly **`recompute_cost_pipeline`** management command (allocates `PurchaseOrder.total_cost` to sold items). **Category need** (`build_category_need_rows`) uses **`avg_cost`**, **profit**, and **ROC** when costs exist. Run **`populate_item_retail_value`** when backfilling retail from legacy data; run **`python manage.py recompute_cost_pipeline`** after deploy (Heroku Scheduler: nightly).
+- **Inventory — acquisition cost:** `Item.retail_value` holds vendor/manifest retail. **`Item.cost`** is populated by **`recompute_cost_pipeline`** (Heroku Scheduler: nightly on production). **Category need** (`build_category_need_rows`) uses **`avg_cost`**, **profit**, and **ROC** when costs exist; mixed window semantics (shelf all-time vs sold in pricing window) — see **`apps/buying/services/category_need.py`**. For new legacy loads: **`populate_item_retail_value`** then **`recompute_cost_pipeline`**.
 - **Buying — `DELETE manifest` edge case:** A CSV uploaded against the wrong marketplace can leave **`CategoryMapping`** rows with a misleading prefix after manifest rows are removed; **`DELETE …/manifest/`** TODO in **`api_views.py`** tracks future admin tooling (**not** blocking).
 - **AI manifest cleanup — concurrency > 1:** Default is **1** thread; higher values are experimental (progress, resume, and completion semantics are not fully hardened). Cancel increments a server-side generation so in-flight batches skip writes after **Cancel cleanup**.
 - **`anthropic` package must be installed in venv**: `pip install anthropic` in the venv. The import is lazy (won't crash server if missing) but AI features won't work without it.
@@ -109,7 +109,6 @@ Capability summary — detail lives in the extended docs above and initiative fi
 ### Not Yet Implemented
 - Email notifications (forgot-password tokens are returned in response, not emailed)
 - Broad automated test suite (POS cart totals regression tests exist under `apps/pos/tests/`; most domains still lack coverage)
-- Heroku deployment (config exists, not yet deployed)
 - Pricing ML model not yet trained — requires running `import_historical_sold` then `train_price_model` after retag day
 - `backfill_categories` not yet run — run after retag cleanup to improve pricing model accuracy
 - **Buying Phase 6:** outcome tracking (hammer, fees, per-line results) — see [bstock initiative](initiatives/bstock_auction_intelligence.md)

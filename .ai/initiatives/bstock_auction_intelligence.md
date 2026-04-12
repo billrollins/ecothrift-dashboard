@@ -1,5 +1,5 @@
 <!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-11 -->
-<!-- Last updated: 2026-04-11T23:15:00-05:00 -->
+<!-- Last updated: 2026-04-12T12:00:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -16,7 +16,7 @@ B-Stock auctions are time-sensitive: final price is often decided in the last se
 
 **Code today:** **`apps/buying/`** replaces the prior `Scraper/` package. Reference the old notebook package only for DevTools and HTTP patterns. Use the **RS256 JWT** from **`__NEXT_DATA__.props.pageProps.accessToken`** (or **`POST /api/buying/token/`** when **`DEBUG`**), not the **JWE** in the **`elt`** cookie. Manifest pull paginates until **`total`** manifest lines are stored.
 
-**Priority:** **Phases 1–4** and **4.1A–4.1B** are **complete** (**v2.7.0**). **Phase 5** (auction valuation — API, services, seeds, hooks, **React list/detail/category-need UI**) is **implemented** (**v2.8.0** API + **v2.9.0** frontend). **Phase 6** (outcome tracking) is next.
+**Priority:** **Phases 1–4** and **4.1A–4.1B** are **complete** (**v2.7.0**). **Phase 5** (auction valuation — API, services, seeds, hooks, **React list/detail/category-need UI**) is **complete** on production (**v2.8.0** API + **v2.9.0** frontend); **V3** backfill data (inventory, sales, categories, cost pipeline, `Item.retail_value`) is deployed to **Heroku** so category-need and buying panels reflect live data. **Phase 6** (outcome tracking) is next.
 
 ---
 
@@ -269,6 +269,25 @@ Completed — committed as v2.9.0 at `0620237`.
 #### Result
 
 Completed — docs and handoff bundle only (not committed). No version bump. Commit/push when Bill is ready — see `scripts/deploy/commit_message.txt`.
+
+---
+
+### Session 22 — production data + session closeout (v2.11.1) — est 2h — started 2026-04-12T12:00:00-05:00
+
+**Goal:** Close the major deployment session: archive workspace diagnostics, bump **v2.11.1**, align steering docs, record production state for buying + inventory.
+
+**Finish line:** `workspace/notes/archived/session_v2.11.0/` holds session artifacts; **CHANGELOG** **[2.11.1]**; `.version` / `package.json`; initiative + consultant context note **Heroku** backfill + cost pipeline live; **Phase 6** clearly next.
+
+**Scope:** Docs and `workspace/` archive only — no application code changes in this closeout.
+
+#### Session updates
+
+- 2026-04-12T12:00:00-05:00 Session started — archive consultant/SQL/diagnostic artifacts; version + CHANGELOG + context.
+- 2026-04-12T12:00:00-05:00 **Production (prior sessions):** V1/V2→V3 backfill **phases 1–5** deployed; **`Item.retail_value`** populated; **cost pipeline** (**`compute_vendor_metrics`**, **`compute_po_cost_analysis`**, **`compute_item_cost`**, pink-tag fulfillment below 0.15 allocation) run; **vendor merge** (TGT→TRGET), **PO data corrections** (WAL/TGT/WFR/CST/AMZ cases), **retag category inheritance** migration; **DB-aware** **`generate_product_number`** / **`generate_sku`** for **`--database production`**; **phase 2** collision handling; **phase 5** remote batch sizing; **`classify_v2_*`** **`--database` / `--no-input`**; **HISTORICAL** legacy rows cleaned; **`recompute_cost_pipeline`** on production.
+
+#### Result
+
+still open — v2.11.1 docs/version prepared; commit pending Bill
 
 ---
 

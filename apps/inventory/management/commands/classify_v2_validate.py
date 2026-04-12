@@ -9,6 +9,12 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
+from apps.inventory.management.command_db import (
+    add_database_argument,
+    add_no_input_argument,
+    confirm_production_write,
+    resolve_database_alias,
+)
 
 
 def _repo_root() -> Path:
@@ -58,6 +64,8 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
+        add_database_argument(parser)
+        add_no_input_argument(parser)
         parser.add_argument(
             "filename",
             nargs="?",
@@ -67,6 +75,15 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        db = resolve_database_alias(options["database"])
+        confirm_production_write(
+            stdout=self.stdout,
+            stderr=self.stderr,
+            db_alias=db,
+            no_input=options["no_input"],
+            dry_run=False,
+        )
+
         arg = (options.get("filename") or "").strip()
         base = _v2_classify_dir()
         if not base.is_dir():

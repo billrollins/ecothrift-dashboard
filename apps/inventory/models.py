@@ -354,13 +354,18 @@ class Product(models.Model):
         return self.title
 
     @staticmethod
-    def generate_product_number():
+    def generate_product_number(using=None):
         """Generate next product number like PRD-00001.
 
         Only rows matching ^PRD-\\d+$ participate (Postgres __regex); legacy rows do not
         affect the next value.
+
+        Pass ``using`` when saving to a non-default DB (e.g. management commands with
+        ``save(using='production')``) so the sequence matches that database.
         """
         qs = Product.objects.filter(product_number__regex=r'^PRD-\d+$')
+        if using:
+            qs = qs.using(using)
         agg = qs.annotate(
             _n=Cast(Substr('product_number', 5), output_field=IntegerField()),
         ).aggregate(m=Max('_n'))
@@ -368,8 +373,9 @@ class Product(models.Model):
         return f'PRD-{num:05d}'
 
     def save(self, *args, **kwargs):
+        using = kwargs.get('using')
         if not self.product_number:
-            self.product_number = Product.generate_product_number()
+            self.product_number = Product.generate_product_number(using=using)
         super().save(*args, **kwargs)
 
 
@@ -633,17 +639,25 @@ class Item(models.Model):
         return re.sub(r'\s+', ' ', text).strip()
 
     def save(self, *args, **kwargs):
+        using = kwargs.get('using')
+        if not self.sku:
+            self.sku = Item.generate_sku(using=using)
         self.search_text = self.rebuild_search_text()
         super().save(*args, **kwargs)
 
     @staticmethod
-    def generate_sku():
+    def generate_sku(using=None):
         """Generate next SKU like ITM0001234.
 
         Only rows matching ^ITM\\d+$ participate (Postgres __regex); legacy/backfill
         SKUs do not affect the next value.
+
+        Pass ``using`` when saving to a non-default DB (e.g. ``save(using='production')``)
+        so the sequence matches that database.
         """
         qs = Item.objects.filter(sku__regex=r'^ITM\d+$')
+        if using:
+            qs = qs.using(using)
         agg = qs.annotate(
             _n=Cast(Substr('sku', 4), output_field=IntegerField()),
         ).aggregate(m=Max('_n'))

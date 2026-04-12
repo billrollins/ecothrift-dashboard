@@ -17,6 +17,7 @@ from typing import Any
 import psycopg2
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.db import IntegrityError  # noqa: F401 — kept for future retry logic
 from psycopg2.extras import RealDictCursor
 
 from apps.inventory.management.command_db import (
@@ -115,8 +116,10 @@ class Command(BaseCommand):
         stats = {
             "v1_products_created": 0,
             "v1_products_skipped": 0,
+            "v1_products_integrity_skip": 0,
             "v2_products_created": 0,
             "v2_products_skipped": 0,
+            "v2_products_integrity_skip": 0,
             "manifests_created": 0,
             "manifests_skipped_exists": 0,
             "manifests_skipped_no_po": 0,
@@ -167,13 +170,28 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"V1 products: created={stats['v1_products_created']}, skipped={stats['v1_products_skipped']}\n"
-                f"V2 products: created={stats['v2_products_created']}, skipped={stats['v2_products_skipped']}\n"
+                f"V1 products: created={stats['v1_products_created']}, skipped={stats['v1_products_skipped']}, "
+                f"integrity_skip={stats['v1_products_integrity_skip']}\n"
+                f"V2 products: created={stats['v2_products_created']}, skipped={stats['v2_products_skipped']}, "
+                f"integrity_skip={stats['v2_products_integrity_skip']}\n"
                 f"Manifest rows: created={stats['manifests_created']}, "
                 f"skipped_existing={stats['manifests_skipped_exists']}, "
                 f"skipped_no_po={stats['manifests_skipped_no_po']}"
             )
         )
+
+    def _next_product_number_start(self, db: str) -> int:
+        """Return the next available numeric suffix for PRD-NNNNN on *db*."""
+        from django.db.models import Max, IntegerField
+        from django.db.models.functions import Cast, Substr
+
+        agg = (
+            Product.objects.using(db)
+            .filter(product_number__regex=r'^PRD-\d+$')
+            .annotate(_n=Cast(Substr('product_number', 5), output_field=IntegerField()))
+            .aggregate(m=Max('_n'))
+        )
+        return (agg['m'] or 0) + 1
 
     def _load_v1_products(self, existing: set, stats: dict, db: str) -> None:
         sql = """
@@ -197,6 +215,9 @@ class Command(BaseCommand):
             ) pa ON true
             ORDER BY p.id
         """
+        batch: list[Product] = []
+        batch_size = 500
+        next_num = self._next_product_number_start(db)
         n = 0
         with legacy_connect("ecothrift_v1") as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -218,6 +239,7 @@ class Command(BaseCommand):
                         sub = row.get("subcategory")
                         specs = build_legacy_specs(cat, sub)
                         p = Product(
+                            product_number=f"PRD-{next_num:05d}",
                             title=truncate(row.get("title"), 300) or "[no title]",
                             brand=truncate(row.get("brand"), 200),
                             model=truncate(row.get("model"), 200),
@@ -227,12 +249,26 @@ class Command(BaseCommand):
                             description=tag,
                             specifications=specs,
                         )
-                        p.save(using=db)
+                        batch.append(p)
                         existing.add(tag)
-                        stats["v1_products_created"] += 1
-                        n += 1
-                        if n % 5000 == 0:
-                            self.stdout.write(f"  V1 products... {n} saved")
+                        next_num += 1
+                        if len(batch) >= batch_size:
+                            Product.objects.using(db).bulk_create(
+                                batch, batch_size=batch_size, ignore_conflicts=True,
+                            )
+                            stats["v1_products_created"] += len(batch)
+                            n += len(batch)
+                            batch = []
+                            next_num = self._next_product_number_start(db)
+                            if n % 5000 < batch_size:
+                                self.stdout.write(f"  V1 products... {n} staged")
+                if batch:
+                    Product.objects.using(db).bulk_create(
+                        batch, batch_size=batch_size, ignore_conflicts=True,
+                    )
+                    stats["v1_products_created"] += len(batch)
+                    n += len(batch)
+        self.stdout.write(f"  V1 products done: {n} staged")
 
     def _load_v2_products(self, existing: set, stats: dict, db: str) -> None:
         sql = """
@@ -240,6 +276,9 @@ class Command(BaseCommand):
             FROM inventory_product
             ORDER BY id
         """
+        batch: list[Product] = []
+        batch_size = 500
+        next_num = self._next_product_number_start(db)
         n = 0
         with legacy_connect("ecothrift_v2") as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -255,6 +294,7 @@ class Command(BaseCommand):
                             stats["v2_products_skipped"] += 1
                             continue
                         p = Product(
+                            product_number=f"PRD-{next_num:05d}",
                             title=truncate(row.get("title"), 300) or "[no title]",
                             brand=truncate(row.get("brand"), 200),
                             model=truncate(row.get("model"), 200),
@@ -264,12 +304,26 @@ class Command(BaseCommand):
                             description=tag,
                             specifications={},
                         )
-                        p.save(using=db)
+                        batch.append(p)
                         existing.add(tag)
-                        stats["v2_products_created"] += 1
-                        n += 1
-                        if n % 5000 == 0:
-                            self.stdout.write(f"  V2 products... {n} saved")
+                        next_num += 1
+                        if len(batch) >= batch_size:
+                            Product.objects.using(db).bulk_create(
+                                batch, batch_size=batch_size, ignore_conflicts=True,
+                            )
+                            stats["v2_products_created"] += len(batch)
+                            n += len(batch)
+                            batch = []
+                            next_num = self._next_product_number_start(db)
+                            if n % 5000 < batch_size:
+                                self.stdout.write(f"  V2 products... {n} staged")
+                if batch:
+                    Product.objects.using(db).bulk_create(
+                        batch, batch_size=batch_size, ignore_conflicts=True,
+                    )
+                    stats["v2_products_created"] += len(batch)
+                    n += len(batch)
+        self.stdout.write(f"  V2 products done: {n} staged")
 
     def _load_v1_manifests(
         self,
@@ -349,12 +403,12 @@ class Command(BaseCommand):
                         existing_notes.add(tag)
                         n += 1
                         if len(batch) >= batch_size:
-                            ManifestRow.objects.bulk_create(batch, batch_size=batch_size, using=db)
+                            ManifestRow.objects.using(db).bulk_create(batch, batch_size=batch_size)
                             stats["manifests_created"] += len(batch)
                             batch = []
                             self.stdout.write(f"  V1 manifests... {n} staged")
                 if batch:
-                    ManifestRow.objects.bulk_create(batch, batch_size=batch_size, using=db)
+                    ManifestRow.objects.using(db).bulk_create(batch, batch_size=batch_size)
                     stats["manifests_created"] += len(batch)
 
     def _load_v2_manifests(
@@ -428,10 +482,10 @@ class Command(BaseCommand):
                         existing_notes.add(tag)
                         n += 1
                         if len(batch) >= batch_size:
-                            ManifestRow.objects.bulk_create(batch, batch_size=batch_size, using=db)
+                            ManifestRow.objects.using(db).bulk_create(batch, batch_size=batch_size)
                             stats["manifests_created"] += len(batch)
                             batch = []
                             self.stdout.write(f"  V2 manifests... {n} staged")
                 if batch:
-                    ManifestRow.objects.bulk_create(batch, batch_size=batch_size, using=db)
+                    ManifestRow.objects.using(db).bulk_create(batch, batch_size=batch_size)
                     stats["manifests_created"] += len(batch)

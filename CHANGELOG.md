@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11 (v2.11.0) -->
+<!-- Last updated: 2026-04-12 (v2.11.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,6 +10,29 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+---
+
+## [2.11.1] — 2026-04-12
+
+User-facing theme: **Production deployment patch** — backfill data live on Heroku, cost pipeline and inventory ID generation hardened for remote DB.
+
+### Added
+
+- **Optional `DATABASES['production']`** — configure via **`PROD_DATABASE_*`** (see **`ecothrift/settings.py`**). Inventory management commands accept **`--database default|production`** and **`--no-input`** for scripted runs (e.g. **`scripts/deploy/run_production_backfill.bat`**).
+
+### Changed
+
+- **`Product.generate_product_number`** / **`Item.generate_sku`** — when saving with **`using=`**, sequence queries target that database (avoids **`PRD-*` / `ITM*` collisions** when backfilling to a non-default alias).
+- **`backfill_phase2_products_manifests`** — **`IntegrityError`** around product saves; **bulk_create** with **`ignore_conflicts`** and smaller batches for remote; **`ManifestRow`** / **`Item`** **`bulk_create`** use **`.using(db)`** (not invalid **`using=`** kwarg).
+- **`backfill_phase5_categories`** **`--map-v1`** — progress logging + **`stdout.flush()`**; batch size **500** on **`production`**; **`.only()`** on item querysets to reduce payload over the wire.
+- **`classify_v2_iterate`**, **`classify_v2_status`**, **`classify_v2_validate`** — **`--database`** / **`--no-input`** ( **`command_db`** pattern).
+
+### Fixed
+
+- **Data migrations:** PO retail/cost corrections (**WAL135287**, **TGT126675**, **WFR10979**, **CST423585**, **AMZ24714**); **retag category inheritance** for **`RETAGGED_FROM_DB2:`** notes.
+- **Pink-tag loads** — **`compute_item_cost`** uses alternate allocation when PO fulfillment rate is below **0.15**.
+- **Production hygiene:** legacy **HISTORICAL** rows removed; **`Item.retail_value`** populated; **cost pipeline** (**vendor metrics**, **PO analysis**, **item cost**) run on production.
 
 ---
 

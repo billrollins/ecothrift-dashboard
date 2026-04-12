@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11 (v2.11.0 vendor merge + shrink decomposition) -->
+<!-- Last updated: 2026-04-12 (v2.11.1 production DB alias + ID generation) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -38,6 +38,8 @@ Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/in
 - **Timezone**: `America/Chicago`, `USE_TZ = True`
 - **CORS**: `localhost:5173`, `CORS_ALLOW_CREDENTIALS = True`
 - **Static**: WhiteNoise, optional S3 for media
+- **Optional `DATABASES['production']`:** When **`PROD_DATABASE_NAME`** (and related **`PROD_DATABASE_*`**) are set in the environment, **`ecothrift/settings.py`** registers alias **`production`** (same search path as V3). Used by **inventory** management commands that accept **`--database default|production`** and **`--no-input`** (skips interactive production confirmation) — see **`apps/inventory/management/command_db.py`**, **`recompute_cost_pipeline`**, **`backfill_phase*_*`**, **`populate_item_retail_value`**, **`classify_v2_*`**. Legacy **`psycopg2`** reads for V1/V2 still use the **`default`** connection unless a command documents otherwise.
+- **`Product` / `Item` ID generation:** **`Product.generate_product_number`** and **`Item.generate_sku`** accept optional **`using=`** so **`save(using='production')`** sequences against the target DB (avoids collisions when the default DB differs from the write alias).
 
 ---
 

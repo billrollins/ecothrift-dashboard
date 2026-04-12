@@ -395,7 +395,7 @@ class Command(BaseCommand):
             stats[f"{source}_would_create"] += n
             return
         try:
-            Item.objects.bulk_create(batch, batch_size=batch_size, using=db)
+            Item.objects.using(db).bulk_create(batch, batch_size=batch_size)
         except Exception as exc:
             self.stderr.write(
                 self.style.ERROR(f"Item bulk_create failed ({n} rows, source={source}): {exc}")

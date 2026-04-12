@@ -9,6 +9,13 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from apps.inventory.management.command_db import (
+    add_database_argument,
+    add_no_input_argument,
+    confirm_production_write,
+    resolve_database_alias,
+)
+
 
 def _repo_root() -> Path:
     return Path(settings.BASE_DIR)
@@ -30,7 +37,20 @@ class Command(BaseCommand):
         "completion; mark NEXT on first incomplete file."
     )
 
+    def add_arguments(self, parser):
+        add_database_argument(parser)
+        add_no_input_argument(parser)
+
     def handle(self, *args, **options):
+        db = resolve_database_alias(options["database"])
+        confirm_production_write(
+            stdout=self.stdout,
+            stderr=self.stderr,
+            db_alias=db,
+            no_input=options["no_input"],
+            dry_run=False,
+        )
+
         base = _v2_classify_dir()
         if not base.is_dir():
             self.stdout.write(self.style.ERROR(f"Missing directory: {base}"))

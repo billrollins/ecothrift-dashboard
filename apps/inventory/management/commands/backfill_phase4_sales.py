@@ -543,7 +543,7 @@ class Command(BaseCommand):
         label: str,
         db: str,
     ) -> None:
-        created = Cart.objects.bulk_create(batch, batch_size=len(batch), using=db)
+        created = Cart.objects.using(db).bulk_create(batch, batch_size=len(batch))
         for cart_obj, code in zip(created, batch_codes):
             dest[code] = cart_obj.pk
         stats[f"{label}_carts"] += len(created)
@@ -608,11 +608,11 @@ class Command(BaseCommand):
                             )
                         )
                         if len(batch) >= batch_size:
-                            CartLine.objects.bulk_create(batch, batch_size=batch_size, using=db)
+                            CartLine.objects.using(db).bulk_create(batch, batch_size=batch_size)
                             stats["v1_lines"] += len(batch)
                             batch = []
                 if batch and not dry_run:
-                    CartLine.objects.bulk_create(batch, batch_size=batch_size, using=db)
+                    CartLine.objects.using(db).bulk_create(batch, batch_size=batch_size)
                     stats["v1_lines"] += len(batch)
 
     def _load_v2_carts(
@@ -711,7 +711,7 @@ class Command(BaseCommand):
         stats: dict,
         db: str,
     ) -> None:
-        created = Cart.objects.bulk_create(batch, batch_size=len(batch), using=db)
+        created = Cart.objects.using(db).bulk_create(batch, batch_size=len(batch))
         for cart_obj, lid in zip(created, batch_ids):
             dest[lid] = cart_obj.pk
         stats["v2_carts"] += len(created)
@@ -777,11 +777,11 @@ class Command(BaseCommand):
                             )
                         )
                         if len(batch) >= batch_size:
-                            CartLine.objects.bulk_create(batch, batch_size=batch_size, using=db)
+                            CartLine.objects.using(db).bulk_create(batch, batch_size=batch_size)
                             stats["v2_lines"] += len(batch)
                             batch = []
                 if batch and not dry_run:
-                    CartLine.objects.bulk_create(batch, batch_size=batch_size, using=db)
+                    CartLine.objects.using(db).bulk_create(batch, batch_size=batch_size)
                     stats["v2_lines"] += len(batch)
 
     def _update_backfill_items(self, stats: dict, db: str) -> None:
