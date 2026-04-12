@@ -1,4 +1,9 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+/**
+ * AI manifest cleanup: default concurrency is 1 (sequential batches). Values above 1 run
+ * multiple client workers against the same offset queue; progress/resume/cancel edge cases
+ * are not fully hardened (see initiative backlog). Prefer 1 unless you accept the risk.
+ */
 import {
   Alert,
   Box,
@@ -8,6 +13,7 @@ import {
   Collapse,
   Divider,
   FormControl,
+  FormHelperText,
   IconButton,
   InputLabel,
   LinearProgress,
@@ -257,6 +263,13 @@ export function RowProcessingPanel({
             );
           }
 
+          if (result.cancelled) {
+            cancelledRef.current = true;
+            allDone = true;
+            addLogEntry('Cleanup cancelled — batch discarded (stale after cancel)', 'warning');
+            return;
+          }
+
           if (!result.has_more) {
             allDone = true;
           }
@@ -441,6 +454,7 @@ export function RowProcessingPanel({
           <Select value={concurrency} label="Threads" onChange={(e) => setConcurrency(Number(e.target.value))} disabled={cleanupState === 'running'}>
             {CONCURRENCY_OPTIONS.map((n) => (<MenuItem key={n} value={n}>{n} concurrent</MenuItem>))}
           </Select>
+          <FormHelperText>{concurrency > 1 ? 'Experimental: progress/resume may be wrong.' : 'Recommended'}</FormHelperText>
         </FormControl>
       </Box>
 

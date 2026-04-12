@@ -2,8 +2,7 @@
 Delete operational / transactional data while preserving users, employees, and vendors.
 
 Does NOT touch: User, auth Group/Permission, EmployeeProfile, ConsigneeProfile, CustomerProfile,
-WorkLocation, Department, Vendor, AppSetting, S3File, PrintServerRelease, HR time/sick records,
-TempLegacyItem (DB1/DB2 retag staging — re-import with import_db2_staging if you need a fresh copy).
+WorkLocation, Department, Vendor, AppSetting, S3File, PrintServerRelease, HR time/sick records.
 
 Run:
   python manage.py reset_business_data
@@ -26,8 +25,6 @@ from apps.inventory.models import (
     ItemScanHistory,
     Product,
     PurchaseOrder,
-    RetagLog,
-    TempLegacyItem,
     VendorProductRef,
 )
 from apps.pos.models import (
@@ -47,7 +44,7 @@ from apps.pos.models import (
 
 
 def _counts_to_delete():
-    """Row counts for models this command clears (excludes preserved TempLegacyItem)."""
+    """Row counts for models this command clears."""
     return {
         'consignment_items': ConsignmentItem.objects.count(),
         'consignment_payouts': ConsignmentPayout.objects.count(),
@@ -67,7 +64,6 @@ def _counts_to_delete():
         'item_scans': ItemScanHistory.objects.count(),
         'item_history': ItemHistory.objects.count(),
         'items': Item.objects.count(),
-        'retag_logs': RetagLog.objects.count(),
         'batch_groups': BatchGroup.objects.count(),
         'purchase_orders': PurchaseOrder.objects.count(),
         'vendor_product_refs': VendorProductRef.objects.count(),
@@ -80,7 +76,7 @@ def _counts_to_delete():
 class Command(BaseCommand):
     help = (
         'Remove inventory, POS, and consignment data. Keeps users, employees, vendors, '
-        'locations, app settings, and TempLegacyItem (retag staging) rows.'
+        'locations, and app settings.'
     )
 
     def add_arguments(self, parser):
@@ -93,13 +89,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         dry_run = options['dry_run']
         before = _counts_to_delete()
-        preserved_legacy = TempLegacyItem.objects.count()
         total = sum(before.values())
 
         self.stdout.write(self.style.MIGRATE_HEADING('reset_business_data'))
         for key, n in sorted(before.items()):
             self.stdout.write(f'  {key}: {n}')
-        self.stdout.write(f'  temp_legacy_items (preserved, not deleted): {preserved_legacy}')
         self.stdout.write(self.style.WARNING(f'  TOTAL rows to delete: {total}'))
 
         if dry_run:
@@ -134,7 +128,6 @@ class Command(BaseCommand):
             ItemScanHistory.objects.all().delete()
             ItemHistory.objects.all().delete()
             Item.objects.all().delete()
-            RetagLog.objects.all().delete()
             BatchGroup.objects.all().delete()
             # Cascades manifest rows + processing batches
             PurchaseOrder.objects.all().delete()
@@ -145,6 +138,4 @@ class Command(BaseCommand):
 
         after = _counts_to_delete()
         remaining = sum(after.values())
-        legacy_after = TempLegacyItem.objects.count()
-        self.stdout.write(self.style.SUCCESS(f'Done. Remaining operational rows (excl. legacy staging): {remaining}'))
-        self.stdout.write(self.style.SUCCESS(f'  temp_legacy_items still present: {legacy_after}'))
+        self.stdout.write(self.style.SUCCESS(f'Done. Remaining operational rows: {remaining}'))

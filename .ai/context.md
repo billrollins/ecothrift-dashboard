@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-04-11T23:15:00-05:00 -->
+<!-- Last updated: 2026-04-11 (v2.11.0) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** See repo root `.version` (e.g. **`v2.10.0`**). **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; buying panels show multi-year category need / sell-through from backfilled **`Item`** + **`PricingRule`** data on the loaded DB. **Active initiative:** **B-Stock Phase 6** — **[`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md)** (outcome tracking); see also **`.ai/extended/backend.md`**, **`.ai/extended/frontend.md`**.
+**Current version:** See repo root `.version` (e.g. **`v2.11.0`**). **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; buying panels show multi-year category need / sell-through from backfilled **`Item`** + **`PricingRule`** data on the loaded DB. **Active initiative:** **B-Stock Phase 6** — **[`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md)** (outcome tracking); see also **`.ai/extended/backend.md`**, **`.ai/extended/frontend.md`**.
 
 ---
 
@@ -87,7 +87,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 
 - **Accounts / auth:** JWT, roles, password flows
 - **HR:** Time clock, sick leave, departments, time-entry requests
-- **Inventory:** POs, M3 processing, preprocessing (standard manifest, AI cleanup, matching, pricing), retag v2
+- **Inventory:** POs, M3 processing, preprocessing (standard manifest, AI cleanup, matching, pricing)
 - **POS:** Terminal, drawers, carts, transactions, cash management
 - **Consignment:** Agreements, items, payouts, portal
 - **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped (see `.version`); **Phase 6** (outcome tracking) next — see [bstock initiative](initiatives/bstock_auction_intelligence.md)
@@ -98,14 +98,13 @@ Capability summary — detail lives in the extended docs above and initiative fi
 - **28+** React pages; TypeScript + Vite production build green; eight Django apps with CRUD where applicable.
 
 ### Known Issues
+- **Inventory — acquisition cost:** `Item.retail_value` holds vendor/manifest retail. **`Item.cost`** is populated by the nightly **`recompute_cost_pipeline`** management command (allocates `PurchaseOrder.total_cost` to sold items). **Category need** (`build_category_need_rows`) uses **`avg_cost`**, **profit**, and **ROC** when costs exist. Run **`populate_item_retail_value`** when backfilling retail from legacy data; run **`python manage.py recompute_cost_pipeline`** after deploy (Heroku Scheduler: nightly).
 - **Buying — `DELETE manifest` edge case:** A CSV uploaded against the wrong marketplace can leave **`CategoryMapping`** rows with a misleading prefix after manifest rows are removed; **`DELETE …/manifest/`** TODO in **`api_views.py`** tracks future admin tooling (**not** blocking).
-- **Concurrent AI cleanup needs testing/hardening**: The concurrent batch processing (16 threads x 5 rows) was just implemented. The user reported "there's a lot wrong" but did not specify what. The next session should test the concurrent cleanup flow end-to-end and fix any issues. Possible problems: race conditions in offset assignment, duplicate row processing, error handling when multiple workers fail, progress counter accuracy.
+- **AI manifest cleanup — concurrency > 1:** Default is **1** thread; higher values are experimental (progress, resume, and completion semantics are not fully hardened). Cancel increments a server-side generation so in-flight batches skip writes after **Cancel cleanup**.
 - **`anthropic` package must be installed in venv**: `pip install anthropic` in the venv. The import is lazy (won't crash server if missing) but AI features won't work without it.
 - Recharts ResponsiveContainer may log a width/height warning on initial render (cosmetic, does not affect functionality)
 - Large JS bundle (~1.7MB) — could benefit from code splitting via lazy routes
 - POS cash completion path should be hardened for malformed numeric payloads (e.g., `change_given` string coercion edge cases)
-- **Retag scaffolding must be dropped after March 16**: `TempLegacyItem` and `RetagLog` are temporary models. After retag day is verified successful, drop the tables (`DROP TABLE inventory_retaglog; DROP TABLE inventory_templegacyitem;`), remove the model classes, create a removal migration, and remove all retag v2 API endpoints, frontend page, and sidebar link. Full instructions in `.ai/extended/retag-operations.md`.
-- **DB2 staging import must be re-run before retag day**: Run `python manage.py import_db2_staging --update-existing` the night before or morning of March 16 to refresh the staging table with the latest DB2 prices. See `.ai/extended/retag-operations.md`.
 
 ### Not Yet Implemented
 - Email notifications (forgot-password tokens are returned in response, not emailed)

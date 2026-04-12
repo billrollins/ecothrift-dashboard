@@ -911,16 +911,8 @@ def historical_revenue(request):
         'weekly': TruncWeek,
     }.get(period, TruncMonth)
 
-    # Build DB3 current sales (pos_cart). While HistoricalTransaction still holds db1/db2
-    # aggregates from import_historical_transactions, exclude BACKFILL register carts so
-    # legacy totals are not double-counted with Phase 4 backfill Carts.
-    ht_exists = HistoricalTransaction.objects.filter(source_db__in=['db1', 'db2']).exists()
     db3_summary_qs = Cart.objects.filter(status='completed', completed_at__isnull=False)
-    if ht_exists:
-        db3_summary_qs = db3_summary_qs.exclude(drawer__register__code='BACKFILL')
     db3_qs = Cart.objects.filter(status='completed', completed_at__isnull=False)
-    if ht_exists:
-        db3_qs = db3_qs.exclude(drawer__register__code='BACKFILL')
     if years_str:
         years = [int(y.strip()) for y in years_str.split(',') if y.strip().isdigit()]
         db3_qs = db3_qs.filter(completed_at__year__in=years)

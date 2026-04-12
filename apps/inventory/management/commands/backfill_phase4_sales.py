@@ -28,6 +28,12 @@ from zoneinfo import ZoneInfo
 
 from apps.accounts.models import User
 from apps.core.models import WorkLocation
+from apps.inventory.management.command_db import (
+    add_database_argument,
+    add_no_input_argument,
+    confirm_production_write,
+    resolve_database_alias,
+)
 from apps.inventory.models import Item
 from apps.pos.models import Cart, CartLine, Drawer, HistoricalTransaction, Register
 
@@ -115,6 +121,8 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
+        add_database_argument(parser)
+        add_no_input_argument(parser)
         parser.add_argument(
             "--dry-run",
             action="store_true",
@@ -156,7 +164,15 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        db = resolve_database_alias(options["database"])
         dry_run = options["dry_run"]
+        confirm_production_write(
+            stdout=self.stdout,
+            stderr=self.stderr,
+            db_alias=db,
+            no_input=options["no_input"],
+            dry_run=dry_run,
+        )
         clean = options["clean"]
         reset_item_sales = options["reset_item_sales"]
         delete_ht = options["delete_historical_transactions"]
@@ -179,7 +195,7 @@ class Command(BaseCommand):
             "ht_deleted": 0,
         }
 
-        ht_count = HistoricalTransaction.objects.filter(source_db__in=["db1", "db2"]).count()
+        ht_count = HistoricalTransaction.objects.using(db).filter(source_db__in=["db1", "db2"]).count()
         if ht_count and not delete_ht and not dry_run:
             self.stdout.write(
                 self.style.WARNING(
@@ -189,8 +205,8 @@ class Command(BaseCommand):
                 )
             )
 
-        register = Register.objects.filter(code=BACKFILL_REGISTER_CODE).first()
-        if register and Cart.objects.filter(drawer__register=register).exists() and not clean:
+        register = Register.objects.using(db).filter(code=BACKFILL_REGISTER_CODE).first()
+        if register and Cart.objects.using(db).filter(drawer__register=register).exists() and not clean:
             raise CommandError(
                 "Backfill register already has carts. Re-run with --clean to delete them first, "
                 "or use --dry-run."
@@ -198,26 +214,26 @@ class Command(BaseCommand):
 
         if clean and not dry_run:
             if register:
-                deleted, _ = Cart.objects.filter(drawer__register=register).delete()
+                deleted, _ = Cart.objects.using(db).filter(drawer__register=register).delete()
                 self.stdout.write(self.style.WARNING(f"--clean: deleted {deleted} Cart-related rows (CASCADE)."))
             else:
                 self.stdout.write("No backfill register yet; --clean has nothing to delete.")
 
         if reset_item_sales and not dry_run:
-            n = Item.objects.filter(notes__startswith="BACKFILL:").update(sold_at=None, sold_for=None)
+            n = Item.objects.using(db).filter(notes__startswith="BACKFILL:").update(sold_at=None, sold_for=None)
             self.stdout.write(self.style.WARNING(f"--reset-item-sales: cleared sold_at/sold_for on {n:,} BACKFILL items."))
 
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN - no database writes except optional resets skipped."))
 
-        system_user = self._ensure_system_user(dry_run)
-        work_location = self._ensure_work_location(dry_run)
-        register = self._ensure_register(work_location, system_user, dry_run)
+        system_user = self._ensure_system_user(dry_run, db)
+        work_location = self._ensure_work_location(dry_run, db)
+        register = self._ensure_register(work_location, system_user, dry_run, db)
 
         v1_pay = self._load_v1_payment_map()
         v2_pay = self._load_v2_payment_map()
         sale_dates = self._distinct_sale_dates()
-        drawers_by_date = self._ensure_drawers(register, system_user, sale_dates, dry_run)
+        drawers_by_date = self._ensure_drawers(register, system_user, sale_dates, dry_run, db)
 
         v1_cart_to_pk: dict[str, int] = {}
         v2_cart_to_pk: dict[int, int] = {}
@@ -231,11 +247,12 @@ class Command(BaseCommand):
                 stats,
                 dry_run,
                 limit,
+                db,
             )
-            self._load_v1_lines(v1_cart_to_pk, stats, dry_run)
+            self._load_v1_lines(v1_cart_to_pk, stats, dry_run, db)
 
         if not skip_v2:
-            v2_cashier = self._build_v2_cashier_map(system_user)
+            v2_cashier = self._build_v2_cashier_map(system_user, db)
             self._load_v2_carts(
                 drawers_by_date,
                 system_user,
@@ -245,11 +262,12 @@ class Command(BaseCommand):
                 stats,
                 dry_run,
                 limit,
+                db,
             )
-            self._load_v2_lines(v2_cart_to_pk, stats, dry_run)
+            self._load_v2_lines(v2_cart_to_pk, stats, dry_run, db)
 
         if not skip_item_updates and not dry_run:
-            self._update_backfill_items(stats)
+            self._update_backfill_items(stats, db)
 
         if dry_run:
             if not skip_v1:
@@ -262,7 +280,7 @@ class Command(BaseCommand):
                 )
 
         if delete_ht and not dry_run:
-            del_count, _ = HistoricalTransaction.objects.filter(source_db__in=["db1", "db2"]).delete()
+            del_count, _ = HistoricalTransaction.objects.using(db).filter(source_db__in=["db1", "db2"]).delete()
             stats["ht_deleted"] = del_count
             self.stdout.write(self.style.SUCCESS(f"Deleted {del_count:,} HistoricalTransaction (db1/db2) rows."))
 
@@ -275,10 +293,10 @@ class Command(BaseCommand):
                 row = cur.fetchone()
                 return int(row[0] or 0)
 
-    def _ensure_system_user(self, dry_run: bool) -> User | None:
+    def _ensure_system_user(self, dry_run: bool, db: str) -> User | None:
         if dry_run:
             return None
-        u, created = User.objects.get_or_create(
+        u, created = User.objects.using(db).get_or_create(
             email=BACKFILL_USER_EMAIL,
             defaults={
                 "first_name": "Backfill",
@@ -287,22 +305,24 @@ class Command(BaseCommand):
         )
         if created:
             u.set_unusable_password()
-            u.save()
+            u.save(using=db)
         return u
 
-    def _ensure_work_location(self, dry_run: bool) -> WorkLocation | None:
+    def _ensure_work_location(self, dry_run: bool, db: str) -> WorkLocation | None:
         if dry_run:
             return None
-        wl, _ = WorkLocation.objects.get_or_create(
+        wl, _ = WorkLocation.objects.using(db).get_or_create(
             name=WORK_LOCATION_NAME,
             defaults={"address": "", "phone": ""},
         )
         return wl
 
-    def _ensure_register(self, work_location: WorkLocation | None, user: User | None, dry_run: bool) -> Register | None:
+    def _ensure_register(
+        self, work_location: WorkLocation | None, user: User | None, dry_run: bool, db: str
+    ) -> Register | None:
         if dry_run or not work_location or not user:
-            return Register.objects.filter(code=BACKFILL_REGISTER_CODE).first()
-        reg, _ = Register.objects.get_or_create(
+            return Register.objects.using(db).filter(code=BACKFILL_REGISTER_CODE).first()
+        reg, _ = Register.objects.using(db).get_or_create(
             code=BACKFILL_REGISTER_CODE,
             defaults={
                 "location": work_location,
@@ -387,13 +407,14 @@ class Command(BaseCommand):
         user: User | None,
         sale_dates: set[date],
         dry_run: bool,
+        db: str,
     ) -> dict[date, Drawer]:
         out: dict[date, Drawer] = {}
         if dry_run or not register or not user:
             return out
         for d in sorted(sale_dates):
             opened_at, closed_at = drawer_open_close_times(d)
-            dr, _ = Drawer.objects.get_or_create(
+            dr, _ = Drawer.objects.using(db).get_or_create(
                 register=register,
                 date=d,
                 defaults={
@@ -412,7 +433,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"Drawers available for {len(out)} distinct sale dates."))
         return out
 
-    def _build_v2_cashier_map(self, system_user: User | None) -> dict[int, int]:
+    def _build_v2_cashier_map(self, system_user: User | None, db: str) -> dict[int, int]:
         """Map legacy core_user.id -> V3 User pk (by email), else system user."""
         out: dict[int, int] = {}
         if not system_user:
@@ -425,7 +446,7 @@ class Command(BaseCommand):
         emails = [r["email"].strip().lower() for r in rows if r.get("email")]
         existing = {
             u.email.lower(): u.pk
-            for u in User.objects.filter(email__in=[r["email"] for r in rows if r.get("email")])
+            for u in User.objects.using(db).filter(email__in=[r["email"] for r in rows if r.get("email")])
         }
         for r in rows:
             lid = int(r["id"])
@@ -445,6 +466,7 @@ class Command(BaseCommand):
         stats: dict,
         dry_run: bool,
         limit: int | None,
+        db: str,
     ) -> None:
         sql = """
             SELECT code, close_time, subtotal_amt, sales_tax_percentage, tax_amt, total_amt
@@ -504,13 +526,13 @@ class Command(BaseCommand):
                         batch_codes.append(code)
                         n += 1
                         if len(batch) >= batch_size:
-                            self._flush_carts(batch, batch_codes, v1_cart_to_pk, stats, "v1")
+                            self._flush_carts(batch, batch_codes, v1_cart_to_pk, stats, "v1", db)
                             batch = []
                             batch_codes = []
                     if stop:
                         break
                 if batch and not dry_run:
-                    self._flush_carts(batch, batch_codes, v1_cart_to_pk, stats, "v1")
+                    self._flush_carts(batch, batch_codes, v1_cart_to_pk, stats, "v1", db)
 
     def _flush_carts(
         self,
@@ -519,8 +541,9 @@ class Command(BaseCommand):
         dest: dict[str, int],
         stats: dict,
         label: str,
+        db: str,
     ) -> None:
-        created = Cart.objects.bulk_create(batch, batch_size=len(batch))
+        created = Cart.objects.bulk_create(batch, batch_size=len(batch), using=db)
         for cart_obj, code in zip(created, batch_codes):
             dest[code] = cart_obj.pk
         stats[f"{label}_carts"] += len(created)
@@ -530,6 +553,7 @@ class Command(BaseCommand):
         v1_cart_to_pk: dict[str, int],
         stats: dict,
         dry_run: bool,
+        db: str,
     ) -> None:
         sql = """
             SELECT cart_cde, item_cde, line_description, quantity, unit_price_amt, total_price_amt
@@ -557,7 +581,12 @@ class Command(BaseCommand):
                         item_pk = None
                         if item_cde:
                             if item_cde not in sku_cache:
-                                sku_cache[item_cde] = Item.objects.filter(sku=item_cde).values_list("id", flat=True).first()
+                                sku_cache[item_cde] = (
+                                    Item.objects.using(db)
+                                    .filter(sku=item_cde)
+                                    .values_list("id", flat=True)
+                                    .first()
+                                )
                             item_pk = sku_cache[item_cde]
                         qty = int(row.get("quantity") or 1)
                         if qty < 1:
@@ -579,11 +608,11 @@ class Command(BaseCommand):
                             )
                         )
                         if len(batch) >= batch_size:
-                            CartLine.objects.bulk_create(batch, batch_size=batch_size)
+                            CartLine.objects.bulk_create(batch, batch_size=batch_size, using=db)
                             stats["v1_lines"] += len(batch)
                             batch = []
                 if batch and not dry_run:
-                    CartLine.objects.bulk_create(batch, batch_size=batch_size)
+                    CartLine.objects.bulk_create(batch, batch_size=batch_size, using=db)
                     stats["v1_lines"] += len(batch)
 
     def _load_v2_carts(
@@ -596,6 +625,7 @@ class Command(BaseCommand):
         stats: dict,
         dry_run: bool,
         limit: int | None,
+        db: str,
     ) -> None:
         sql = """
             SELECT id, completed_at, subtotal, tax_rate, tax_amount, total, cashier_id, status
@@ -612,7 +642,7 @@ class Command(BaseCommand):
         users_by_pk: dict[int, User] = {}
         if not dry_run and system_user:
             pks = set(v2_cashier.values()) | {system_user.pk}
-            users_by_pk = {u.pk: u for u in User.objects.filter(pk__in=pks)}
+            users_by_pk = {u.pk: u for u in User.objects.using(db).filter(pk__in=pks)}
         with legacy_connect("ecothrift_v2") as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(sql)
@@ -665,13 +695,13 @@ class Command(BaseCommand):
                         batch_ids.append(cid)
                         n += 1
                         if len(batch) >= batch_size:
-                            self._flush_v2_carts(batch, batch_ids, v2_cart_to_pk, stats)
+                            self._flush_v2_carts(batch, batch_ids, v2_cart_to_pk, stats, db)
                             batch = []
                             batch_ids = []
                     if stop:
                         break
                 if batch and not dry_run:
-                    self._flush_v2_carts(batch, batch_ids, v2_cart_to_pk, stats)
+                    self._flush_v2_carts(batch, batch_ids, v2_cart_to_pk, stats, db)
 
     def _flush_v2_carts(
         self,
@@ -679,8 +709,9 @@ class Command(BaseCommand):
         batch_ids: list[int],
         dest: dict[int, int],
         stats: dict,
+        db: str,
     ) -> None:
-        created = Cart.objects.bulk_create(batch, batch_size=len(batch))
+        created = Cart.objects.bulk_create(batch, batch_size=len(batch), using=db)
         for cart_obj, lid in zip(created, batch_ids):
             dest[lid] = cart_obj.pk
         stats["v2_carts"] += len(created)
@@ -690,9 +721,12 @@ class Command(BaseCommand):
         v2_cart_to_pk: dict[int, int],
         stats: dict,
         dry_run: bool,
+        db: str,
     ) -> None:
         v2_notes: dict[int, int] = {}
-        for iid, notes in Item.objects.filter(notes__startswith="BACKFILL:v2:").values_list("id", "notes"):
+        for iid, notes in Item.objects.using(db).filter(notes__startswith="BACKFILL:v2:").values_list(
+            "id", "notes"
+        ):
             m = V2_ITEM_TAG.match((notes or "").strip())
             if m:
                 v2_notes[int(m.group(1))] = iid
@@ -743,21 +777,23 @@ class Command(BaseCommand):
                             )
                         )
                         if len(batch) >= batch_size:
-                            CartLine.objects.bulk_create(batch, batch_size=batch_size)
+                            CartLine.objects.bulk_create(batch, batch_size=batch_size, using=db)
                             stats["v2_lines"] += len(batch)
                             batch = []
                 if batch and not dry_run:
-                    CartLine.objects.bulk_create(batch, batch_size=batch_size)
+                    CartLine.objects.bulk_create(batch, batch_size=batch_size, using=db)
                     stats["v2_lines"] += len(batch)
 
-    def _update_backfill_items(self, stats: dict) -> None:
+    def _update_backfill_items(self, stats: dict, db: str) -> None:
         best: dict[int, tuple[datetime, Decimal]] = {}
-        qs = CartLine.objects.filter(
+        qs = CartLine.objects.using(db).filter(
             item__isnull=False,
             item__notes__startswith="BACKFILL:",
         ).select_related("cart")
         scrapped_before = set(
-            Item.objects.filter(notes__startswith="BACKFILL:", status="scrapped").values_list("id", flat=True)
+            Item.objects.using(db)
+            .filter(notes__startswith="BACKFILL:", status="scrapped")
+            .values_list("id", flat=True)
         )
         for cl in qs.iterator(chunk_size=5000):
             cart = cl.cart
@@ -781,7 +817,7 @@ class Command(BaseCommand):
             )
         for i in range(0, len(to_update), 500):
             chunk = to_update[i : i + 500]
-            Item.objects.bulk_update(chunk, ["sold_at", "sold_for", "status"])
+            Item.objects.using(db).bulk_update(chunk, ["sold_at", "sold_for", "status"])
         stats["items_updated"] = len(to_update)
         stats["items_scrapped_to_sold"] = sum(1 for pk in best if pk in scrapped_before)
         self.stdout.write(

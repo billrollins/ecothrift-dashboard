@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.core.files.storage import default_storage
 from django.db import transaction
-from django.db.models import Avg, Count, Q, Sum, F
+from django.db.models import Avg, Count, F, Q, Sum
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, status
@@ -300,7 +300,8 @@ def _build_check_in_queue_from_manifest(order, user):
                 brand=row.brand or product.brand or '',
                 category=row.category or product.category or '',
                 price=item_price,
-                cost=row_cost,
+                retail_value=row_cost,
+                cost=None,
                 source='purchased',
                 status='intake',
                 condition=row.condition or 'unknown',
@@ -1218,6 +1219,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             from django.conf import settings as django_settings
 
             order = self.get_object()
+            generation_at_start = order.ai_cleanup_generation
             model_id = request.data.get('model', '') or DEFAULT_AI_MODEL
             batch_size = int(request.data.get('batch_size', 25))
             offset = int(request.data.get('offset', 0))
@@ -1361,6 +1363,23 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             timing['response_parse_ms'] = round((_time.perf_counter() - t0) * 1000, 1)
 
             t0 = _time.perf_counter()
+            order.refresh_from_db()
+            if order.ai_cleanup_generation != generation_at_start:
+                timing['db_save_ms'] = 0.0
+                timing['total_ms'] = round((_time.perf_counter() - t_total_start) * 1000, 1)
+                next_offset = offset + batch_size
+                return Response({
+                    'rows_processed': len(batch),
+                    'rows_saved': 0,
+                    'total_rows': total_rows,
+                    'offset': offset,
+                    'suggestions': [],
+                    'model_used': model_id,
+                    'has_more': next_offset < total_rows,
+                    'timing': timing,
+                    'stop_reason': stop_reason,
+                    'cancelled': True,
+                })
             if rows_to_update:
                 ManifestRow.objects.bulk_update(rows_to_update, [
                     'ai_suggested_title', 'ai_suggested_brand',
@@ -1432,6 +1451,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     def cancel_ai_cleanup(self, request, pk=None):
         """Clear AI-generated fields AND cascade-clear product matching (matching depends on cleaned data)."""
         order = self.get_object()
+        PurchaseOrder.objects.filter(pk=order.pk).update(
+            ai_cleanup_generation=F('ai_cleanup_generation') + 1,
+        )
         updated = ManifestRow.objects.filter(purchase_order=order).update(
             ai_suggested_title='',
             ai_suggested_brand='',
@@ -2296,8 +2318,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             parsed_price = parse_decimal(request.data.get('price'))
             if parsed_price is not None:
                 shared_updates['price'] = parsed_price
-        if 'cost' in request.data:
-            shared_updates['cost'] = parse_decimal(request.data.get('cost'))
+        if 'retail_value' in request.data:
+            shared_updates['retail_value'] = parse_decimal(request.data.get('retail_value'))
         for field in ['title', 'brand', 'category', 'condition', 'location', 'notes']:
             if field in request.data:
                 value = request.data.get(field)
@@ -2715,7 +2737,7 @@ class BatchGroupViewSet(viewsets.ModelViewSet):
                 if batch.unit_price is not None:
                     updates['price'] = batch.unit_price
                 if batch.unit_cost is not None:
-                    updates['cost'] = batch.unit_cost
+                    updates['retail_value'] = batch.unit_cost
                 if batch.condition:
                     updates['condition'] = batch.condition
                 if batch.location:
@@ -3233,8 +3255,8 @@ class ItemViewSet(viewsets.ModelViewSet):
             parsed_price = parse_decimal(request.data.get('price'))
             if parsed_price is not None:
                 updates['price'] = parsed_price
-        if 'cost' in request.data:
-            updates['cost'] = parse_decimal(request.data.get('cost'))
+        if 'retail_value' in request.data:
+            updates['retail_value'] = parse_decimal(request.data.get('retail_value'))
         for field in ['title', 'brand', 'category', 'condition', 'location', 'notes']:
             if field in request.data:
                 value = request.data.get(field)
@@ -3639,518 +3661,6 @@ def estimate_price_view(request):
         'method': result.method,
         'comparables': result.comparables,
         'notes': result.notes,
-    })
-
-
-@api_view(['POST'])
-@perm_classes([IsAuthenticated, IsStaff])
-def retag_lookup_view(request):
-    """Look up a legacy item by old SKU for the Retag workflow.
-
-    POST /api/inventory/retag/lookup/
-    Body: { old_sku }
-    Returns legacy item data plus classifier and estimator suggestions.
-    """
-    from .services.categorizer import classify_item
-    from .services.price_estimator import estimate_price
-
-    old_sku = (request.data.get('old_sku') or '').strip()
-    if not old_sku:
-        return Response({'detail': 'old_sku is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Check if already retagged in the new system
-    existing = Item.objects.filter(sku=old_sku).first()
-    if existing and not existing.notes.startswith('LEGACY:'):
-        return Response({
-            'already_retagged': True,
-            'existing_item': {
-                'sku': existing.sku,
-                'title': existing.title,
-                'price': str(existing.price),
-                'status': existing.status,
-            },
-        })
-
-    # The legacy item IS already in the DB (imported by import_legacy_data)
-    # or find it directly
-    legacy_item = Item.objects.filter(sku=old_sku).first()
-    if not legacy_item:
-        return Response({'detail': f'No item found with SKU {old_sku}.'}, status=404)
-
-    # Run classifier
-    cat_result = classify_item(
-        title=legacy_item.title,
-        brand=legacy_item.brand or None,
-        use_llm_fallback=True,
-    )
-
-    # Run price estimator
-    retail_val = None
-    if legacy_item.manifest_row and legacy_item.manifest_row.retail_value:
-        retail_val = legacy_item.manifest_row.retail_value
-
-    price_result = estimate_price(
-        title=legacy_item.title,
-        brand=legacy_item.brand or None,
-        category_name=cat_result.category_name,
-        condition=legacy_item.condition,
-        source=legacy_item.source,
-        retail_value=retail_val,
-    )
-
-    return Response({
-        'found': True,
-        'already_retagged': False,
-        'legacy_item': {
-            'sku': legacy_item.sku,
-            'title': legacy_item.title,
-            'brand': legacy_item.brand,
-            'category': legacy_item.category,
-            'condition': legacy_item.condition,
-            'source': legacy_item.source,
-            'price': str(legacy_item.price),
-            'cost': str(legacy_item.cost) if legacy_item.cost else None,
-            'location': legacy_item.location,
-            'notes': legacy_item.notes,
-            'status': legacy_item.status,
-        },
-        'suggested': {
-            'category_id': cat_result.category_id,
-            'category_name': cat_result.category_name,
-            'category_confidence': cat_result.confidence,
-            'estimated_price': str(price_result.estimated_price),
-            'price_low': str(price_result.low_estimate),
-            'price_high': str(price_result.high_estimate),
-            'price_confidence': price_result.confidence,
-            'price_method': price_result.method,
-            'comparables': price_result.comparables,
-        },
-    })
-
-
-@api_view(['POST'])
-@perm_classes([IsAuthenticated, IsStaff])
-def retag_create_view(request):
-    """Create a new Item from confirmed retag data and mark the old item as retagged.
-
-    POST /api/inventory/retag/create/
-    Body: {
-        old_sku,
-        title, brand, category_id?, condition, source, price, cost?, location?, notes?
-    }
-    Returns the new item.
-    """
-    old_sku = (request.data.get('old_sku') or '').strip()
-    if not old_sku:
-        return Response({'detail': 'old_sku is required.'}, status=400)
-
-    old_item = Item.objects.filter(sku=old_sku).first()
-    if not old_item:
-        return Response({'detail': f'Legacy item {old_sku} not found.'}, status=404)
-
-    title = (request.data.get('title') or old_item.title or '').strip()
-    if not title:
-        return Response({'detail': 'title is required.'}, status=400)
-
-    try:
-        price = Decimal(str(request.data.get('price', '0')))
-    except Exception:
-        return Response({'detail': 'price must be a number.'}, status=400)
-
-    cost_raw = request.data.get('cost')
-    try:
-        cost = Decimal(str(cost_raw)) if cost_raw else None
-    except Exception:
-        cost = None
-
-    category_id = request.data.get('category_id')
-    product = old_item.product
-
-    new_item = Item.objects.create(
-        sku=Item.generate_sku(),
-        product=product,
-        title=title,
-        brand=(request.data.get('brand') or old_item.brand or '').strip(),
-        category=(request.data.get('category') or old_item.category or '').strip(),
-        price=price,
-        cost=cost,
-        condition=request.data.get('condition') or old_item.condition or 'unknown',
-        source=request.data.get('source') or old_item.source or 'purchased',
-        location=(request.data.get('location') or old_item.location or '').strip(),
-        notes=(request.data.get('notes') or '').strip(),
-        status='on_shelf',
-        listed_at=timezone.now(),
-        checked_in_at=timezone.now(),
-        checked_in_by=request.user,
-    )
-
-    if category_id:
-        try:
-            from .models import Category as CategoryModel
-            cat = CategoryModel.objects.get(pk=category_id)
-            new_item.category = cat.name
-            new_item.save(update_fields=['category'])
-            if product:
-                product.category_ref = cat
-                product.save(update_fields=['category_ref'])
-        except Exception:
-            pass
-
-    ItemHistory.objects.create(
-        item=new_item,
-        event_type='created',
-        new_value=f'retag_from={old_sku}',
-        note=f'Created via Retag app from legacy SKU {old_sku}',
-        created_by=request.user,
-    )
-
-    # Mark old item as retagged
-    old_item.notes = f'LEGACY: retagged as {new_item.sku}. ' + (old_item.notes or '')
-    old_item.save(update_fields=['notes'])
-
-    return Response({
-        'new_sku': new_item.sku,
-        'title': new_item.title,
-        'price': str(new_item.price),
-        'category': new_item.category,
-        'old_sku': old_sku,
-        'print_payload': {
-            'qr_data': new_item.sku,
-            'text': f'${price:.2f}',
-            'product_title': new_item.title,
-            'include_text': True,
-            'product_brand': (new_item.brand or '').strip() or None,
-            'product_model': (
-                (new_item.product.product_number or '').strip()
-                if new_item.product_id
-                else None
-            ),
-        },
-    })
-
-
-@api_view(['POST'])
-@perm_classes([IsAuthenticated, IsStaff])
-def retag_v2_lookup_view(request):
-    """Look up a DB2 item by its legacy SKU for the Retag v2 (DB2 → DB3) workflow.
-
-    Always returns the full item data — retag_count from RetagLog is included so the
-    frontend can show a non-blocking warning if this SKU has been tagged before.
-
-    POST /api/inventory/retag/v2/lookup/
-    Body: { old_sku }
-    """
-    from .models import TempLegacyItem, RetagLog
-    from .retag_condition import normalize_legacy_condition
-    from .services.price_estimator import estimate_price
-
-    old_sku = (request.data.get('old_sku') or '').strip().upper()
-    if not old_sku:
-        return Response({'detail': 'old_sku is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    try:
-        staged = TempLegacyItem.objects.get(legacy_sku=old_sku, source_db='db2')
-    except TempLegacyItem.DoesNotExist:
-        return Response(
-            {'found': False, 'detail': f'No DB2 item found with SKU {old_sku}. '
-             'Ensure import_db2_staging has been run.'},
-            status=status.HTTP_404_NOT_FOUND,
-        )
-
-    # Count prior retags from the log — used for a non-blocking warning only
-    retag_count = RetagLog.objects.filter(legacy_sku=old_sku).count()
-    already_retagged = retag_count > 0
-
-    # Most recent log entry (for showing previous new SKU in the warning)
-    latest_log = (
-        RetagLog.objects.filter(legacy_sku=old_sku).order_by('-retagged_at').first()
-        if already_retagged else None
-    )
-
-    cond_norm = normalize_legacy_condition(staged.condition)
-    price_result = estimate_price(
-        title=staged.title,
-        brand=staged.brand or None,
-        category_name=None,
-        condition=cond_norm,
-        source='purchased',
-        retail_value=staged.retail_amt,
-    )
-
-    return Response({
-        'found': True,
-        'already_retagged': already_retagged,
-        'retag_count': retag_count,
-        'legacy_item': {
-            'sku': staged.legacy_sku,
-            'title': staged.title,
-            'brand': staged.brand,
-            'model': staged.model,
-            'condition': cond_norm,
-            'legacy_status': staged.legacy_status,
-            'price': str(staged.price) if staged.price else '0.00',
-            'retail_amt': str(staged.retail_amt) if staged.retail_amt else None,
-        },
-        'existing_item': {
-            'sku': latest_log.new_item_sku if latest_log else staged.new_item_sku,
-            'retagged_at': latest_log.retagged_at.isoformat() if latest_log else (
-                staged.retagged_at.isoformat() if staged.retagged_at else None
-            ),
-        } if already_retagged else None,
-        'suggested': {
-            'estimated_price': str(price_result.estimated_price),
-            'price_low': str(price_result.low_estimate),
-            'price_high': str(price_result.high_estimate),
-            'price_confidence': price_result.confidence,
-            'price_method': price_result.method,
-            'comparables': price_result.comparables,
-        },
-    })
-
-
-@api_view(['POST'])
-@perm_classes([IsAuthenticated, IsStaff])
-def retag_v2_create_view(request):
-    """Create one or more DB3 Items from a DB2 legacy item (Retag v2 workflow).
-
-    Always creates fresh Items — use ``quantity`` to create N units in one request (N unique SKUs).
-    Every successful create is recorded in RetagLog (temporary scaffolding).
-
-    POST /api/inventory/retag/v2/create/
-    Body: { old_sku, title, brand?, condition, source, price, cost?, location?, notes?, quantity? }
-    """
-    from .models import TempLegacyItem, RetagLog
-    from .retag_condition import normalize_legacy_condition
-    from django.utils import timezone as tz
-
-    old_sku = (request.data.get('old_sku') or '').strip().upper()
-    if not old_sku:
-        return Response({'detail': 'old_sku is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    raw_qty = request.data.get('quantity', 1)
-    try:
-        quantity = int(raw_qty)
-    except (TypeError, ValueError):
-        return Response(
-            {'detail': 'quantity must be a whole number between 1 and 50.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    if quantity < 1 or quantity > 50:
-        return Response(
-            {'detail': 'quantity must be between 1 and 50.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    try:
-        staged = TempLegacyItem.objects.get(legacy_sku=old_sku, source_db='db2')
-    except TempLegacyItem.DoesNotExist:
-        return Response(
-            {'detail': f'No DB2 staging row found for SKU {old_sku}.'},
-            status=status.HTTP_404_NOT_FOUND,
-        )
-
-    title = (request.data.get('title') or staged.title).strip()
-    brand = (request.data.get('brand') or staged.brand or '').strip()
-    condition = normalize_legacy_condition(
-        request.data.get('condition') or staged.condition,
-    )
-    source = request.data.get('source') or 'purchased'
-    location = (request.data.get('location') or '').strip()
-    extra_notes = (request.data.get('notes') or '').strip()
-
-    try:
-        price = float(request.data.get('price') or staged.price or 0)
-    except (ValueError, TypeError):
-        price = float(staged.price or 0)
-    try:
-        cost = float(request.data['cost']) if request.data.get('cost') else None
-    except (ValueError, TypeError):
-        cost = None
-
-    notes_parts = [f'RETAGGED_FROM_DB2:{old_sku}']
-    if extra_notes:
-        notes_parts.append(extra_notes)
-    notes_joined = ' | '.join(notes_parts)
-    product_model = (staged.model or '').strip() or None
-
-    created = []
-    last_item = None
-
-    with transaction.atomic():
-        for _ in range(quantity):
-            new_sku = Item.generate_sku()
-            new_item = Item.objects.create(
-                sku=new_sku,
-                title=title,
-                brand=brand,
-                category=staged.model or '',
-                price=price,
-                cost=cost,
-                source=source,
-                status='on_shelf',
-                condition=condition,
-                location=location,
-                notes=notes_joined,
-                listed_at=tz.now(),
-            )
-
-            ItemHistory.objects.create(
-                item=new_item,
-                event_type='created',
-                note=f'Retagged from DB2 legacy item {old_sku}',
-                created_by=request.user,
-            )
-
-            RetagLog.objects.create(
-                legacy_sku=old_sku,
-                new_item_sku=new_sku,
-                title=title,
-                price=price,
-                retail_amt=staged.retail_amt,
-                retagged_by=request.user,
-            )
-
-            payload = {
-                'qr_data': new_item.sku,
-                'text': f'${price:.2f}',
-                'product_title': new_item.title,
-                'include_text': True,
-                'product_brand': brand or None,
-                'product_model': product_model,
-            }
-            created.append({
-                'new_sku': new_item.sku,
-                'title': new_item.title,
-                'price': str(new_item.price),
-                'print_payload': payload,
-            })
-            last_item = new_item
-
-        staged.retagged = True
-        staged.new_item_sku = last_item.sku
-        staged.retagged_at = tz.now()
-        staged.save(update_fields=['retagged', 'new_item_sku', 'retagged_at'])
-
-    return Response({
-        'quantity': quantity,
-        'created': created,
-        'new_sku': last_item.sku,
-        'title': last_item.title,
-        'price': str(last_item.price),
-        'category': last_item.category,
-        'old_sku': old_sku,
-        'already_retagged': False,
-        'print_payload': {
-            'qr_data': last_item.sku,
-            'text': f'${price:.2f}',
-            'product_title': last_item.title,
-            'include_text': True,
-            'product_brand': brand or None,
-            'product_model': product_model,
-        },
-    })
-
-
-@api_view(['GET'])
-@perm_classes([IsAuthenticated, IsStaff])
-def retag_v2_stats_view(request):
-    """Return aggregate progress stats for the Retag v2 (DB2 → DB3) operation.
-
-    GET /api/inventory/retag/v2/stats/
-    Returns: { total_staged, total_retagged, remaining, pct_complete, source_db }
-    """
-    from .models import TempLegacyItem
-
-    total = TempLegacyItem.objects.filter(source_db='db2').count()
-    retagged = TempLegacyItem.objects.filter(source_db='db2', retagged=True).count()
-    remaining = total - retagged
-    pct = round((retagged / total * 100), 1) if total > 0 else 0.0
-
-    return Response({
-        'source_db': 'db2',
-        'total_staged': total,
-        'total_retagged': retagged,
-        'remaining': remaining,
-        'pct_complete': pct,
-    })
-
-
-@api_view(['GET'])
-@perm_classes([IsAuthenticated, IsStaff])
-def retag_v2_history_view(request):
-    """Paginated retag event log for the history panel.
-
-    GET /api/inventory/retag/v2/history/
-    Params:
-      search     — filter by legacy_sku or title (case-insensitive substring)
-      since      — ISO datetime; filters to rows at or after this time (session filter)
-      page       — 1-based page number (default 1)
-      page_size  — rows per page (default 25, max 100)
-
-    Summary totals (total_retagged, sum_price, sum_retail) always reflect ALL log rows,
-    independent of search/since filters.
-    """
-    from .models import RetagLog
-    from django.db.models import Count, Sum, Q
-
-    # ── Global summary (unfiltered) ──────────────────────────────────────────
-    summary = RetagLog.objects.aggregate(
-        total_retagged=Count('id'),
-        sum_price=Sum('price'),
-        sum_retail=Sum('retail_amt'),
-    )
-
-    # ── Filtered queryset ────────────────────────────────────────────────────
-    qs = RetagLog.objects.all()
-
-    search = (request.query_params.get('search') or '').strip()
-    if search:
-        qs = qs.filter(Q(legacy_sku__icontains=search) | Q(title__icontains=search))
-
-    since = request.query_params.get('since')
-    if since:
-        from django.utils.dateparse import parse_datetime
-        since_dt = parse_datetime(since)
-        if since_dt:
-            qs = qs.filter(retagged_at__gte=since_dt)
-
-    # ── Pagination ────────────────────────────────────────────────────────────
-    try:
-        page = max(1, int(request.query_params.get('page', 1)))
-    except (ValueError, TypeError):
-        page = 1
-    try:
-        page_size = min(100, max(1, int(request.query_params.get('page_size', 25))))
-    except (ValueError, TypeError):
-        page_size = 25
-
-    total_count = qs.count()
-    num_pages = max(1, (total_count + page_size - 1) // page_size)
-    page = min(page, num_pages)
-    offset = (page - 1) * page_size
-
-    rows = qs.order_by('-retagged_at')[offset: offset + page_size]
-
-    return Response({
-        'total_retagged': summary['total_retagged'] or 0,
-        'sum_price': str(summary['sum_price'] or 0),
-        'sum_retail': str(summary['sum_retail'] or 0),
-        'count': total_count,
-        'page': page,
-        'num_pages': num_pages,
-        'results': [
-            {
-                'id': row.id,
-                'legacy_sku': row.legacy_sku,
-                'new_item_sku': row.new_item_sku,
-                'title': row.title,
-                'price': str(row.price),
-                'retail_amt': str(row.retail_amt) if row.retail_amt is not None else None,
-                'retagged_at': row.retagged_at.isoformat(),
-                'retagged_by': row.retagged_by.full_name if row.retagged_by else None,
-            }
-            for row in rows
-        ],
     })
 
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11T22:30:00-05:00 -->
+<!-- Last updated: 2026-04-11 (v2.11.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,6 +10,23 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+---
+
+## [2.11.0] — 2026-04-11
+
+User-facing theme: **Acquisition cost pipeline hardened** — vendor merge, shrink vs misfit decomposition, nightly recompute on Heroku.
+
+### Added
+
+- **`Vendor.misfit_rate`** — Estimated share of PO retail gap from untracked/misfit sales (marketplace vendors only); **`shrinkage_rate`** now means **true** shrink after that share is removed. **`compute_vendor_metrics`** uses global decomposition (orphan POS lines vs missing retail) for codes `AMZ`, `CST`, `ESS`, `HMD`, `TRGET`, `WAL`, `WFR`; other vendors keep legacy composite shrinkage with `misfit_rate` null.
+- **Data migration** [`0018_merge_tgt_into_trget`](apps/inventory/migrations/0018_merge_tgt_into_trget.py) — Reassigns `PurchaseOrder`, `CSVTemplate`, and `VendorProductRef` from duplicate Target vendor **TGT** to canonical **TRGET**; **`TGT`** row retained with **`is_active=False`**.
+
+### Changed
+
+- **v2.10.0 cleanup (themes in this release notes bundle):** SKU / product number sequencing fix, retag scaffolding removal, historical transaction HT filter, AI cleanup cancel race, vendor prefix investigation.
+- **`Item.retail_value`** field (populated from legacy DBs via **`populate_item_retail_value`**); **`Item.cost`** repurposed as **allocated acquisition cost** (was incorrectly used for retail in older flows).
+- **Cost pipeline:** **`compute_vendor_metrics`**, **`compute_po_cost_analysis`**, **`compute_item_cost`**, wrapper **`recompute_cost_pipeline`**; Heroku Scheduler runs **`python manage.py recompute_cost_pipeline`** nightly.
 
 ---
 

@@ -2,6 +2,8 @@ import re
 
 from django.conf import settings
 from django.db import models
+from django.db.models import IntegerField, Max
+from django.db.models.functions import Cast, Substr
 from django.utils.text import slugify
 
 
@@ -23,6 +25,40 @@ class Vendor(models.Model):
     notes = models.TextField(blank=True, default='')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    shrinkage_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text=(
+            'Estimated true shrinkage rate after removing misfit/untracked share of missing retail. '
+            'Computed by recompute_cost_pipeline.'
+        ),
+    )
+    misfit_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text=(
+            'Estimated fraction of PO retail gap attributable to untracked/misfit sales. '
+            'Computed by recompute_cost_pipeline.'
+        ),
+    )
+    avg_sell_through = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text='Retail value of sold items divided by retail value of all items on costed POs.',
+    )
+    avg_fulfillment = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text='Sum of item retail on costed POs divided by sum of PO retail_value on those POs.',
+    )
 
     class Meta:
         ordering = ['name']
@@ -100,6 +136,10 @@ class PurchaseOrder(models.Model):
     description = models.CharField(max_length=500, blank=True, default='')
     item_count = models.IntegerField(default=0)
     notes = models.TextField(blank=True, default='')
+    ai_cleanup_generation = models.PositiveIntegerField(
+        default=0,
+        help_text='Incremented on cancel-ai-cleanup so in-flight batches skip writes.',
+    )
     manifest = models.ForeignKey(
         'core.S3File',
         on_delete=models.SET_NULL,
@@ -108,6 +148,27 @@ class PurchaseOrder(models.Model):
         related_name='purchase_orders',
     )
     manifest_preview = models.JSONField(null=True, blank=True)
+    shrink_retail_est = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Estimated retail still lost to shrinkage after sold retail, from vendor shrinkage rate.',
+    )
+    mistracked_retail = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='PO retail_value minus sold retail and shrink estimate (non-negative).',
+    )
+    misfit_sales_amt = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Share of misfit (no line item) sales attributed to this PO by mistracked retail.',
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -294,17 +355,16 @@ class Product(models.Model):
 
     @staticmethod
     def generate_product_number():
-        """Generate next product number like PRD-00001."""
-        last = Product.objects.exclude(product_number__isnull=True).exclude(
-            product_number='',
-        ).order_by('-id').first()
-        if last:
-            try:
-                num = int(last.product_number.replace('PRD-', '')) + 1
-            except (ValueError, AttributeError):
-                num = Product.objects.count() + 1
-        else:
-            num = 1
+        """Generate next product number like PRD-00001.
+
+        Only rows matching ^PRD-\\d+$ participate (Postgres __regex); legacy rows do not
+        affect the next value.
+        """
+        qs = Product.objects.filter(product_number__regex=r'^PRD-\d+$')
+        agg = qs.annotate(
+            _n=Cast(Substr('product_number', 5), output_field=IntegerField()),
+        ).aggregate(m=Max('_n'))
+        num = (agg['m'] or 0) + 1
         return f'PRD-{num:05d}'
 
     def save(self, *args, **kwargs):
@@ -381,7 +441,14 @@ class BatchGroup(models.Model):
     total_qty = models.IntegerField(default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Misnamed: stores manifest/vendor retail per unit, not acquisition cost. Rename to unit_retail in a future cleanup.
+    unit_cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Manifest/vendor retail per unit (legacy name unit_cost; not acquisition cost).',
+    )
     condition = models.CharField(max_length=20, choices=CONDITION_CHOICES, default='unknown')
     location = models.CharField(max_length=100, blank=True, default='')
     processed_by = models.ForeignKey(
@@ -431,7 +498,7 @@ class BatchGroup(models.Model):
         if self.unit_price is not None:
             updates['price'] = self.unit_price
         if self.unit_cost is not None:
-            updates['cost'] = self.unit_cost
+            updates['retail_value'] = self.unit_cost
         if self.condition:
             updates['condition'] = self.condition
         if self.location:
@@ -507,6 +574,7 @@ class Item(models.Model):
     brand = models.CharField(max_length=200, blank=True, default='')
     category = models.CharField(max_length=200, blank=True, default='')
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    retail_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='purchased')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='intake')
@@ -570,15 +638,16 @@ class Item(models.Model):
 
     @staticmethod
     def generate_sku():
-        """Generate next SKU like ITM0001234."""
-        last = Item.objects.order_by('-id').first()
-        if last:
-            try:
-                num = int(last.sku.replace('ITM', '')) + 1
-            except (ValueError, AttributeError):
-                num = Item.objects.count() + 1
-        else:
-            num = 1
+        """Generate next SKU like ITM0001234.
+
+        Only rows matching ^ITM\\d+$ participate (Postgres __regex); legacy/backfill
+        SKUs do not affect the next value.
+        """
+        qs = Item.objects.filter(sku__regex=r'^ITM\d+$')
+        agg = qs.annotate(
+            _n=Cast(Substr('sku', 4), output_field=IntegerField()),
+        ).aggregate(m=Max('_n'))
+        num = (agg['m'] or 0) + 1
         return f'ITM{num:07d}'
 
 
@@ -693,62 +762,3 @@ class ItemScanHistory(models.Model):
 
     def __str__(self):
         return f'{self.item.sku} scanned at {self.scanned_at}'
-
-
-class TempLegacyItem(models.Model):
-    """Staging table for items imported from DB1 or DB2 to support the Retag workflow.
-
-    Populated by the import_db2_staging and import_db1_staging management commands.
-    Once staff scans the legacy item and creates a new DB3 Item, retagged is set True.
-    """
-    SOURCE_CHOICES = [
-        ('db1', 'DB1 Legacy'),
-        ('db2', 'DB2 Production'),
-    ]
-
-    legacy_sku    = models.CharField(max_length=50, unique=True)
-    source_db     = models.CharField(max_length=10, choices=SOURCE_CHOICES)
-    title         = models.TextField()
-    brand         = models.CharField(max_length=200, blank=True, default='')
-    model         = models.CharField(max_length=200, blank=True, default='')
-    price         = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    retail_amt    = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    condition     = models.CharField(max_length=20, blank=True, default='')
-    legacy_status = models.CharField(max_length=20, blank=True, default='')
-    retagged      = models.BooleanField(default=False, db_index=True)
-    new_item_sku  = models.CharField(max_length=20, blank=True, default='')
-    retagged_at   = models.DateTimeField(null=True, blank=True)
-    imported_at   = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['legacy_sku']
-        indexes = [
-            models.Index(fields=['source_db', 'retagged']),
-        ]
-
-    def __str__(self):
-        return f'[{self.source_db.upper()}] {self.legacy_sku} — {self.title[:60]}'
-
-
-class RetagLog(models.Model):
-    """Per-scan audit log for Retag v2 (temporary scaffolding; see .ai/extended/retag-operations.md)."""
-
-    legacy_sku = models.CharField(max_length=50, db_index=True)
-    new_item_sku = models.CharField(max_length=20)
-    title = models.CharField(max_length=300)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    retail_amt = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    retagged_at = models.DateTimeField(auto_now_add=True, db_index=True)
-    retagged_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='retag_log_entries',
-    )
-
-    class Meta:
-        ordering = ['-retagged_at']
-
-    def __str__(self):
-        return f'{self.legacy_sku} → {self.new_item_sku} @ {self.retagged_at}'

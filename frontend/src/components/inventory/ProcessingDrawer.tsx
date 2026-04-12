@@ -41,7 +41,7 @@ export interface ProcessingFormState {
   condition: string;
   location: string;
   price: string;
-  cost: string;
+  retail_value: string;
   notes: string;
 }
 
@@ -52,7 +52,7 @@ export const EMPTY_FORM: ProcessingFormState = {
   condition: 'unknown',
   location: '',
   price: '',
-  cost: '',
+  retail_value: '',
   notes: '',
 };
 
@@ -67,7 +67,7 @@ export function buildItemForm(
     condition: item.condition || stickyDefaults?.condition || 'unknown',
     location: item.location || stickyDefaults?.location || '',
     price: item.price || '',
-    cost: item.cost || '',
+    retail_value: item.retail_value || '',
     notes: item.notes || '',
   };
 }
@@ -83,7 +83,7 @@ export function buildBatchForm(
     condition: batch.condition || stickyDefaults?.condition || 'unknown',
     location: batch.location || stickyDefaults?.location || '',
     price: batch.unit_price || '',
-    cost: batch.unit_cost || '',
+    retail_value: batch.unit_cost || '',
     notes: batch.notes || '',
   };
 }
@@ -225,7 +225,7 @@ export function ProcessingDrawer({
       {/* Scrollable form body */}
       <Box sx={{ flex: 1, overflow: 'auto', p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {/* Source context accordion */}
-        {isItem && item && (item.product_title || item.brand || item.cost) && (
+        {isItem && item && (item.product_title || item.brand || item.retail_value) && (
           <Accordion
             expanded={sourceExpanded}
             onChange={() => setSourceExpanded(!sourceExpanded)}
@@ -258,10 +258,10 @@ export function ProcessingDrawer({
                     <Typography variant="caption">{item.brand}</Typography>
                   </>
                 )}
-                {item.cost && (
+                {item.retail_value && (
                   <>
-                    <Typography variant="caption" color="text.secondary">Cost</Typography>
-                    <Typography variant="caption">${Number.parseFloat(item.cost).toFixed(2)}</Typography>
+                    <Typography variant="caption" color="text.secondary">Retail value</Typography>
+                    <Typography variant="caption">${Number.parseFloat(item.retail_value).toFixed(2)}</Typography>
                   </>
                 )}
                 {item.batch_group_number && (
@@ -494,10 +494,10 @@ export function ProcessingDrawer({
           <Grid size={{ xs: 6 }}>
             <TextField
               fullWidth size="small"
-              label={isBatch ? 'Unit Cost' : 'Cost'}
+              label={isBatch ? 'Unit retail (manifest)' : 'Retail value'}
               type="number"
-              value={form.cost}
-              onChange={(e) => set('cost', e.target.value)}
+              value={form.retail_value}
+              onChange={(e) => set('retail_value', e.target.value)}
               slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }}
             />
           </Grid>

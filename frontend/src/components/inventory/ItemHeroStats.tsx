@@ -81,10 +81,10 @@ export default function ItemHeroStats({ item }: { item: Item }) {
         <Stack direction="row" flexWrap="wrap" sx={{ gap: { xs: 1.25, sm: 2 }, rowGap: 1.25 }}>
           <Box sx={{ minWidth: { xs: '42%', sm: 120 } }}>
             <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-              Cost
+              Retail value
             </Typography>
             <Typography variant="body2" fontWeight={600}>
-              {formatCurrency(item.cost)}
+              {formatCurrency(item.retail_value)}
             </Typography>
           </Box>
           <Box sx={{ minWidth: { xs: '42%', sm: 120 } }}>

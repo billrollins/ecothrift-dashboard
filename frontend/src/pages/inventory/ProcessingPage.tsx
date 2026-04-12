@@ -175,7 +175,7 @@ export default function ProcessingPage() {
   const [scanInput, setScanInput] = useState('');
   const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
-  const [bulkForm, setBulkForm] = useState({ condition: '', location: '', price: '', cost: '' });
+  const [bulkForm, setBulkForm] = useState({ condition: '', location: '', price: '', retail_value: '' });
   const [printProgress, setPrintProgress] = useState<{ done: number; total: number } | null>(null);
   const [selectedCheckedInIds, setSelectedCheckedInIds] = useState<number[]>([]);
   const [selectedBatchIds, setSelectedBatchIds] = useState<number[]>([]);
@@ -354,7 +354,7 @@ export default function ProcessingPage() {
           data: {
             title: form.title, brand: form.brand, category: form.category,
             condition: form.condition, location: form.location,
-            price: form.price || undefined, cost: form.cost || undefined,
+            price: form.price || undefined, retail_value: form.retail_value || undefined,
             notes: form.notes,
           },
         });
@@ -369,7 +369,7 @@ export default function ProcessingPage() {
         await updateBatchGroup.mutateAsync({
           id: activeBatch.id,
           data: {
-            unit_price: form.price || undefined, unit_cost: form.cost || undefined,
+            unit_price: form.price || undefined, unit_cost: form.retail_value || undefined,
             condition: form.condition || undefined, location: form.location,
             notes: form.notes,
           },
@@ -391,7 +391,7 @@ export default function ProcessingPage() {
           data: {
             title: form.title, brand: form.brand, category: form.category,
             condition: form.condition, location: form.location,
-            price: form.price || undefined, cost: form.cost || undefined,
+            price: form.price || undefined, retail_value: form.retail_value || undefined,
             notes: form.notes,
           },
         });
@@ -426,7 +426,7 @@ export default function ProcessingPage() {
         const result = await checkInBatchGroup.mutateAsync({
           id: activeBatch.id,
           data: {
-            unit_price: form.price || undefined, unit_cost: form.cost || undefined,
+            unit_price: form.price || undefined, unit_cost: form.retail_value || undefined,
             condition: form.condition || undefined, location: form.location,
             ...(hasPartial && extra
               ? {
@@ -650,7 +650,7 @@ export default function ProcessingPage() {
           ...(bulkForm.condition ? { condition: bulkForm.condition } : {}),
           ...(bulkForm.location ? { location: bulkForm.location } : {}),
           ...(bulkForm.price ? { price: bulkForm.price } : {}),
-          ...(bulkForm.cost ? { cost: bulkForm.cost } : {}),
+          ...(bulkForm.retail_value ? { retail_value: bulkForm.retail_value } : {}),
         },
       });
       setSessionCount((c) => c + (result.checked_in ?? 0));
@@ -673,7 +673,7 @@ export default function ProcessingPage() {
 
       setSelectedItemIds([]);
       setBulkDialogOpen(false);
-      setBulkForm({ condition: '', location: '', price: '', cost: '' });
+      setBulkForm({ condition: '', location: '', price: '', retail_value: '' });
     } catch {
       enqueueSnackbar('Failed to bulk check in items', { variant: 'error' });
     }
@@ -1456,8 +1456,8 @@ export default function ProcessingPage() {
             <TextField size="small" label="Price Override" type="number" value={bulkForm.price}
               onChange={(e) => setBulkForm((p) => ({ ...p, price: e.target.value }))}
               slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }} />
-            <TextField size="small" label="Cost Override" type="number" value={bulkForm.cost}
-              onChange={(e) => setBulkForm((p) => ({ ...p, cost: e.target.value }))}
+            <TextField size="small" label="Retail value override" type="number" value={bulkForm.retail_value}
+              onChange={(e) => setBulkForm((p) => ({ ...p, retail_value: e.target.value }))}
               slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }} />
           </Box>
         </DialogContent>

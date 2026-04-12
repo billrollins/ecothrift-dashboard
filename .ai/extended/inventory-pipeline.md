@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-31T18:00:00-05:00 -->
+<!-- Last updated: 2026-04-11T19:00:00-05:00 -->
 
 # Inventory Pipeline — Extended Context
 
@@ -373,80 +373,11 @@ Tracks public lookups and POS scans.
 
 ---
 
-## Retag v2 — DB2→DB3 Migration System
+## Retag v2 (historical)
 
-On **March 16, 2026** every item in the store will be physically re-tagged using the Retag v2 app, migrating all inventory from DB2 (2nd-gen production) to DB3 (3rd-gen production).
+The **March 2026** DB2→DB3 retag cutover used temporary models (`TempLegacyItem`, `RetagLog`), staging import (`import_db2_staging`), API routes under `/api/inventory/retag/`, and the **`RetagPage`** UI. That scaffolding was **removed** after cutover (inventory migration removing those models; see git history around **v2.10.0 cleanup**).
 
-### Temporary Scaffolding Models
-
-Both models live in `apps/inventory/models.py` and are **temporary** — drop after retag day.
-
-**`TempLegacyItem`** (migration `0009_add_temp_legacy_item_and_historical_transaction`)
-Staging table of every active DB2 item imported from a local DB2 PostgreSQL snapshot.
-
-| Field | Type | Notes |
-|---|---|---|
-| legacy_sku | CharField(50) | unique; the DB2 SKU scanned by staff |
-| source_db | CharField | `db1` or `db2` |
-| title | TextField | |
-| brand | CharField(200) | |
-| model | CharField(200) | |
-| price | DecimalField | DB2 starting_price |
-| retail_amt | DecimalField | DB2 retail_amt |
-| condition | CharField | last known condition |
-| legacy_status | CharField | `on_shelf`, `processing`, or `sold` |
-| retagged | BooleanField | True once scanned and DB3 item created |
-| new_item_sku | CharField | the DB3 Item SKU created for this item |
-| retagged_at | DateTimeField | timestamp of first retag |
-
-**`RetagLog`** (migration `0011_add_retaglog`)
-One row per retag event (always created, even on duplicate scans).
-
-| Field | Type | Notes |
-|---|---|---|
-| legacy_sku | CharField(50) | indexed |
-| new_item_sku | CharField(20) | the DB3 Item SKU created |
-| title | CharField(300) | |
-| price | DecimalField | price at time of retag |
-| retail_amt | DecimalField | nullable |
-| retagged_at | DateTimeField | auto, indexed |
-| retagged_by | FK(User) | nullable |
-
-### `import_db2_staging` Management Command
-
-`apps/inventory/management/commands/import_db2_staging.py`
-
-Connects directly to the local `db2` PostgreSQL snapshot (see root `.env` `DB2_*` or `workspace/` connection notes in `.ai/extended/databases.md`) and bulk-inserts DB2 items into `TempLegacyItem`.
-
-```bash
-python manage.py import_db2_staging          # default: active + sold rows
-python manage.py import_db2_staging --dry-run
-python manage.py import_db2_staging --update-existing  # refresh prices
-python manage.py import_db2_staging --active-only      # unsold only (sold_at IS NULL)
-```
-
-Run `--update-existing` the morning of retag day after a fresh DB2 backup/restore.
-
-### Retag v2 API Endpoints
-
-All at `/api/inventory/retag/v2/`, all require `IsAuthenticated`.
-
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `retag/v2/lookup/` | Body: `{ sku }`. Returns `TempLegacyItem` data plus `retag_count` from `RetagLog`. |
-| POST | `retag/v2/create/` | Body: `{ old_sku, title, brand, price, condition, source, quantity? }` (optional **`quantity`**, 1–50, default 1). Creates N `Item` + N `RetagLog` rows + updates `TempLegacyItem` once. Returns **`created`** (array of `new_sku` + `print_payload` per item). |
-| GET | `retag/v2/stats/` | Summary stats: total retagged, sum price, sum retail. |
-| GET | `retag/v2/history/` | Paginated `RetagLog` rows. Query params: `search`, `since` (ISO datetime), `page`, `page_size`. Response includes summary stats. |
-
-### Frontend: `RetagPage.tsx`
-
-Route: `/inventory/retag` (Staff+). Located at `frontend/src/pages/inventory/RetagPage.tsx`.
-
-Key behaviours:
-- **Scan input**: debounced, fires `retag_v2_lookup` on input. If `autoPrint` is on, immediately calls `retag_v2_create` and prints.
-- **Price strategies**: `keep_current` | `pct_current` | `estimate` | `pct_retail`. Calculated reactively from lookup data.
-- **Always creates new item**: scanning a previously-retagged SKU shows a non-blocking snackbar warning but still creates a new DB3 `Item`.
-- **History panel**: paginated `RetagLog` table at bottom of page. Summary tiles: total tagged, sum price, sum retail. Search by title/SKU. Session-only filter (filter by `since=` page load timestamp).
+For the **archived operational narrative** (day-of workflow, cleanup checklist, and history-endpoint notes), see **[`.ai/extended/retag-operations.md`](retag-operations.md)**. Do not treat the sections below as live API surface unless you are reading old commits.
 
 ### Pricing Model Foundation Commands
 
@@ -459,13 +390,4 @@ Also in `apps/inventory/management/commands/` — scaffolded but not yet run:
 | `train_price_model` | Train gradient-boosted price estimator on sold items; saves to `workspace/models/price_model.joblib` |
 | `backfill_categories` | Retroactively classify all items into the `Category` taxonomy |
 
-Run these **after retag day** in the order listed.
-
-### Cleanup After Retag Day
-
-See `.ai/extended/retag-operations.md` (and this section). Key steps:
-1. `DROP TABLE inventory_retaglog; DROP TABLE inventory_templegacyitem;`
-2. Remove `TempLegacyItem` and `RetagLog` model classes from `models.py`
-3. Run `makemigrations inventory --name remove_retag_scaffolding` + `migrate`
-4. Remove `import_db2_staging` management command
-5. Remove `retag_v2_*` API endpoints, routes, frontend page, and sidebar link
+Run these when the pricing/ML initiative schedules them (legacy retag cutover is complete).

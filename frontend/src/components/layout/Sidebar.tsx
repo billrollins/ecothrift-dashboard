@@ -10,7 +10,6 @@ import AccountBalance from '@mui/icons-material/AccountBalance';
 import Dashboard from '@mui/icons-material/Dashboard';
 import Handshake from '@mui/icons-material/Handshake';
 import AutoFixHigh from '@mui/icons-material/AutoFixHigh';
-import LabelOutlined from '@mui/icons-material/LabelOutlined';
 import LocalOffer from '@mui/icons-material/LocalOffer';
 import Inventory from '@mui/icons-material/Inventory';
 import LocalHospital from '@mui/icons-material/LocalHospital';
@@ -72,7 +71,6 @@ const navSections: NavSection[] = [
       { path: '/inventory/processing', label: 'Processing', icon: <Inventory /> },
       { path: '/inventory/products', label: 'Products', icon: <Inventory /> },
       { path: '/inventory/items', label: 'Items', icon: <Inventory /> },
-      { path: '/inventory/retag', label: 'Retag (migration)', icon: <LabelOutlined /> },
       { path: '/inventory/quick-reprice', label: 'Quick Reprice', icon: <LocalOffer /> },
     ],
   },

@@ -18,6 +18,12 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from psycopg2.extras import RealDictCursor
 
+from apps.inventory.management.command_db import (
+    add_database_argument,
+    add_no_input_argument,
+    confirm_production_write,
+    resolve_database_alias,
+)
 from apps.inventory.models import PurchaseOrder, Vendor
 
 MISFIT_ORDER_NUMBERS = frozenset({'MISFIT-V1-2024', 'MISFIT-V2-2025'})
@@ -225,6 +231,8 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
+        add_database_argument(parser)
+        add_no_input_argument(parser)
         parser.add_argument(
             '--skip-enrichment',
             action='store_true',
@@ -232,6 +240,14 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        db = resolve_database_alias(options['database'])
+        confirm_production_write(
+            stdout=self.stdout,
+            stderr=self.stderr,
+            db_alias=db,
+            no_input=options['no_input'],
+            dry_run=False,
+        )
         skip_enrichment = options['skip_enrichment']
         v_created = v_existed = 0
         po_v1_c = po_v1_e = po_v2_c = po_v2_e = 0
@@ -257,14 +273,14 @@ class Command(BaseCommand):
                     'vendor_type': map_v2_vendor_type(row.get('vendor_type')),
                     'is_active': True,
                 }
-                _, created = Vendor.objects.get_or_create(code=code[:20], defaults=defaults)
+                _, created = Vendor.objects.using(db).get_or_create(code=code[:20], defaults=defaults)
                 if created:
                     v_created += 1
                 else:
                     v_existed += 1
 
         for code, (vc, vname) in V1_PREFIX_TO_VENDOR.items():
-            _, created = Vendor.objects.get_or_create(
+            _, created = Vendor.objects.using(db).get_or_create(
                 code=vc,
                 defaults={
                     'name': vname,
@@ -300,7 +316,7 @@ class Command(BaseCommand):
                 )
                 prefix = 'GEN'
             vcode, vname = V1_PREFIX_TO_VENDOR[prefix]
-            vendor, _ = Vendor.objects.get_or_create(
+            vendor, _ = Vendor.objects.using(db).get_or_create(
                 code=vcode,
                 defaults={'name': vname, 'vendor_type': 'other', 'is_active': True},
             )
@@ -331,7 +347,7 @@ class Command(BaseCommand):
                 'condition': cond,
                 'notes': build_v1_notes(row['id']),
             }
-            _, created = PurchaseOrder.objects.get_or_create(order_number=onum[:100], defaults=defaults)
+            _, created = PurchaseOrder.objects.using(db).get_or_create(order_number=onum[:100], defaults=defaults)
             if created:
                 po_v1_c += 1
             else:
@@ -357,7 +373,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(f'V2 PO id={row["id"]} missing vendor_code; skipping'))
                 continue
             try:
-                vendor = Vendor.objects.get(code=vcode[:20])
+                vendor = Vendor.objects.using(db).get(code=vcode[:20])
             except Vendor.DoesNotExist:
                 self.stdout.write(
                     self.style.WARNING(f'V2 PO {onum!r}: vendor {vcode!r} not in V3; skipping')
@@ -390,7 +406,7 @@ class Command(BaseCommand):
                 'condition': cond,
                 'notes': build_v2_notes(row['id'], row.get('notes')),
             }
-            _, created = PurchaseOrder.objects.get_or_create(order_number=onum[:100], defaults=defaults)
+            _, created = PurchaseOrder.objects.using(db).get_or_create(order_number=onum[:100], defaults=defaults)
             if created:
                 po_v2_c += 1
             else:
@@ -400,7 +416,8 @@ class Command(BaseCommand):
         if not skip_enrichment:
             tag_pat = re.compile(r'^BACKFILL:v[12]:\d+$')
             for po in (
-                PurchaseOrder.objects.exclude(order_number__in=MISFIT_ORDER_NUMBERS)
+                PurchaseOrder.objects.using(db)
+                .exclude(order_number__in=MISFIT_ORDER_NUMBERS)
                 .order_by('id')
                 .iterator(chunk_size=100)
             ):
@@ -415,7 +432,7 @@ class Command(BaseCommand):
                 new_notes = append_json_last_line(po.notes or '', meta)
                 if new_notes != (po.notes or ''):
                     po.notes = new_notes
-                    po.save(update_fields=['notes'])
+                    po.save(update_fields=['notes'], using=db)
                     enrich_updated += 1
 
         self.stdout.write(

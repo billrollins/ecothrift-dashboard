@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T21:00:00-05:00 -->
+<!-- Last updated: 2026-04-11 (v2.11.0 vendor merge + shrink decomposition) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -75,15 +75,15 @@ Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/in
 
 | Model | Key Fields |
 |-------|------------|
-| **Vendor** | name, code (unique), vendor_type (liquidation/retail/direct/other), is_active |
+| **Vendor** | name, code (unique), vendor_type (liquidation/retail/direct/other), is_active; **shrinkage_rate** (true shrink after misfit share removal), **misfit_rate** (untracked/misfit share of PO retail gap), **avg_sell_through**, **avg_fulfillment** — computed by `compute_vendor_metrics` from costed non-MISFIT POs. Legacy duplicate **TGT** merged into **TRGET** (migration `0018_merge_tgt_into_trget`); **TGT** row kept with `is_active=False`. |
 | **Category** | name, slug, parent (self-FK), spec_template (JSON) |
-| **PurchaseOrder** | vendor, order_number, status (ordered→paid→shipped→delivered→processing→complete), ordered_date, paid/shipped/delivered dates, manifest (FK core.S3File), manifest_preview (JSON) |
+| **PurchaseOrder** | vendor, order_number, status (ordered→paid→shipped→delivered→processing→complete), ordered_date, paid/shipped/delivered dates, purchase/shipping/fees, **total_cost** (sum of components), **retail_value**, **shrink_retail_est**, **mistracked_retail**, **misfit_sales_amt** (computed by `compute_po_cost_analysis`; exclude MISFIT POs `order_number` starting with `MISFIT`), manifest (FK core.S3File), manifest_preview (JSON) |
 | **CSVTemplate** | vendor, name, header_signature, column_mappings (JSON), is_default |
 | **ManifestRow** | purchase_order, row_number, quantity, description, title, brand, model, category, condition, retail_value, proposed_price, final_price, pricing_stage, pricing_notes, upc, vendor_item_number, batch_flag, search_tags, specifications (JSON), matched_product, matched_product_title, matched_product_number, match_status, match_candidates (JSON), ai_match_decision, ai_reasoning, ai_suggested_title, ai_suggested_brand, ai_suggested_model, notes |
 | **Product** | product_number, title, brand, model, category, category_ref (FK Category), specifications (JSON), default_price, upc |
 | **VendorProductRef** | vendor, product, vendor_item_number, vendor_description, last_unit_cost, times_seen, last_seen_date |
-| **BatchGroup** | batch_number, product, purchase_order, manifest_row, total_qty, status, unit_price, unit_cost, condition, location, processed_by/at |
-| **Item** | sku (unique), product (FK), purchase_order (FK), manifest_row (FK), batch_group (FK), processing_tier, title, price, cost, source, status, condition, location, listed_at, checked_in_at/by, sold_at |
+| **BatchGroup** | batch_number, product, purchase_order, manifest_row, total_qty, status, unit_price, **unit_cost** (legacy name — stores **manifest/vendor retail per unit**, not acquisition cost; rename to `unit_retail` planned), condition, location, processed_by/at |
+| **Item** | sku (unique), product (FK), purchase_order (FK), manifest_row (FK), batch_group (FK), processing_tier, title, price, **retail_value** (vendor/manifest MSRP-style retail), **cost** (nullable — allocated acquisition cost from PO via **`compute_item_cost`** / **`recompute_cost_pipeline**`; read-only on API), source, status, condition, location, listed_at, checked_in_at/by, sold_at |
 | **ProcessingBatch** | purchase_order, status, total_rows, processed_count, items_created |
 | **ItemHistory** | item, event_type, old_value, new_value, note, created_by, created_at |
 | **ItemScanHistory** | item, scanned_at, ip_address, source (public_lookup/pos_terminal) |
@@ -169,6 +169,16 @@ consignment.ConsignmentPayout → User (consignee)
 ### Timestamps
 
 - All `created_at` / `updated_at` use `auto_now_add` / `auto_now`; stored in `America/Chicago` (USE_TZ=True).
+
+---
+
+## Nightly cost pipeline (`apps/inventory/management/commands/`)
+
+- **`compute_vendor_metrics`** — Sets `Vendor.avg_sell_through`, `avg_fulfillment` from item retail on costed non-MISFIT POs (`total_cost > 0`). Sold retail uses **one `retail_value` per item** (distinct items with a completed `CartLine`). For **marketplace** vendor codes (`AMZ`, `CST`, `ESS`, `HMD`, `TRGET`, `WAL`, `WFR`), splits the PO retail gap into **`misfit_rate`** (orphan POS lines vs global missing retail) and **`shrinkage_rate`** (remainder — true shrink). Other vendors: **`shrinkage_rate`** = legacy composite (1 minus sold item retail over total item retail), **`misfit_rate`** = null.
+- **`compute_po_cost_analysis`** — Per non-MISFIT costed PO: `shrink_retail_est`, `mistracked_retail`; distributes **`misfit_sales_amt`** from POS lines with no `item_id` proportional to mistracked retail. MISFIT POs get `misfit_sales_amt = 0`.
+- **`compute_item_cost`** — Retail-weighted allocation of `po.total_cost` to **sold** items (`retail_value > 0`, completed cart line); unsold and MISFIT PO items get `cost = null`. Idempotent: clears `cost` on affected items before writing.
+- **`recompute_cost_pipeline`** — Runs all three; **`--dry-run`**, **`--vendor-only`**, **`--po-only`** (stops after PO analysis).
+- **Heroku Scheduler:** run `python manage.py recompute_cost_pipeline` nightly (Bill configures schedule).
 
 ---
 

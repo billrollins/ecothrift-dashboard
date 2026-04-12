@@ -90,6 +90,11 @@ export interface Vendor {
   notes: string;
   is_active: boolean;
   created_at: string;
+  /** Nightly cost pipeline (`recompute_cost_pipeline`). */
+  shrinkage_rate: string | null;
+  misfit_rate: string | null;
+  avg_sell_through: string | null;
+  avg_fulfillment: string | null;
 }
 
 export interface MatchCandidate {
@@ -150,6 +155,9 @@ export interface PurchaseOrder {
   fees: string | null;
   total_cost: string | null;
   retail_value: string | null;
+  shrink_retail_est: string | null;
+  mistracked_retail: string | null;
+  misfit_sales_amt: string | null;
   condition: PurchaseOrderCondition;
   description: string;
   item_count: number;
@@ -259,6 +267,7 @@ export interface Item {
   brand: string;
   category: string;
   price: string;
+  retail_value: string | null;
   cost: string | null;
   source: ItemSource;
   status: ItemStatus;

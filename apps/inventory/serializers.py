@@ -11,7 +11,14 @@ class VendorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vendor
         fields = '__all__'
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = [
+            'id',
+            'created_at',
+            'shrinkage_rate',
+            'misfit_rate',
+            'avg_sell_through',
+            'avg_fulfillment',
+        ]
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -68,12 +75,23 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'status', 'ordered_date', 'paid_date', 'shipped_date',
             'expected_delivery', 'delivered_date',
             'purchase_cost', 'shipping_cost', 'fees',
-            'total_cost', 'retail_value', 'condition', 'description',
+            'total_cost', 'retail_value',
+            'shrink_retail_est', 'mistracked_retail', 'misfit_sales_amt',
+            'condition', 'description',
             'item_count', 'notes', 'manifest', 'manifest_file', 'manifest_preview',
             'processing_stats',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'total_cost', 'manifest_preview', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id',
+            'total_cost',
+            'shrink_retail_est',
+            'mistracked_retail',
+            'misfit_sales_amt',
+            'manifest_preview',
+            'created_at',
+            'updated_at',
+        ]
 
     manifest_file = S3FileSerializer(source='manifest', read_only=True)
 
@@ -165,7 +183,7 @@ class ItemSerializer(serializers.ModelSerializer):
             'id', 'sku', 'product', 'product_title', 'purchase_order',
             'manifest_row', 'batch_group', 'batch_group_number', 'batch_group_status',
             'processing_tier', 'product_number',
-            'title', 'brand', 'category', 'price', 'cost',
+            'title', 'brand', 'category', 'price', 'retail_value', 'cost',
             'source', 'status', 'condition', 'specifications',
             'location', 'listed_at', 'checked_in_at', 'checked_in_by',
             'sold_at', 'sold_for', 'notes', 'created_at', 'updated_at',
@@ -173,6 +191,7 @@ class ItemSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id',
             'sku',
+            'cost',
             'listed_at',
             'checked_in_at',
             'checked_in_by',

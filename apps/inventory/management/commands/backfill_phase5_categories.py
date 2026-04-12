@@ -29,6 +29,12 @@ from django.utils import timezone
 
 from apps.buying.models import PricingRule
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES, MIXED_LOTS_UNCATEGORIZED
+from apps.inventory.management.command_db import (
+    add_database_argument,
+    add_no_input_argument,
+    confirm_production_write,
+    resolve_database_alias,
+)
 from apps.inventory.management.commands.backfill_phase1_vendors_pos import (
     parse_description_metadata,
 )
@@ -305,6 +311,8 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser) -> None:
+        add_database_argument(parser)
+        add_no_input_argument(parser)
         parser.add_argument(
             "--dry-run",
             action="store_true",
@@ -337,7 +345,15 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        db = resolve_database_alias(options["database"])
         dry_run: bool = options["dry_run"]
+        confirm_production_write(
+            stdout=self.stdout,
+            stderr=self.stderr,
+            db_alias=db,
+            no_input=options["no_input"],
+            dry_run=dry_run,
+        )
         steps = [
             options["map_v1"],
             options["export_v2"],
@@ -352,23 +368,24 @@ class Command(BaseCommand):
             )
 
         if options["map_v1"]:
-            self._step_map_v1(dry_run)
+            self._step_map_v1(dry_run, db)
         if options["export_v2"]:
-            self._step_export_v2(dry_run)
+            self._step_export_v2(dry_run, db)
         if options["import_v2"]:
-            self._step_import_v2(dry_run)
+            self._step_import_v2(dry_run, db)
         if options["recompute_pricing"]:
-            self._step_recompute_pricing(dry_run)
+            self._step_recompute_pricing(dry_run, db)
         if options["preclassify_v2"]:
             self._step_preclassify_v2(dry_run)
 
-    def _step_map_v1(self, dry_run: bool) -> None:
+    def _step_map_v1(self, dry_run: bool, db: str) -> None:
         self.stdout.write(self.style.NOTICE("=== Step 1: --map-v1 (V1 -> taxonomy_v1) ==="))
         unmapped: set[str] = set()
 
         # Distinct labels → taxonomy
         raw_labels = (
-            Item.objects.filter(notes__startswith="BACKFILL:v1:")
+            Item.objects.using(db)
+            .filter(notes__startswith="BACKFILL:v1:")
             .exclude(category="")
             .exclude(category__isnull=True)
             .values_list("category", flat=True)
@@ -396,7 +413,8 @@ class Command(BaseCommand):
 
         batch: list[Item] = []
         qs1 = (
-            Item.objects.filter(notes__startswith="BACKFILL:v1:")
+            Item.objects.using(db)
+            .filter(notes__startswith="BACKFILL:v1:")
             .exclude(category="")
             .exclude(category__isnull=True)
         )
@@ -408,14 +426,14 @@ class Command(BaseCommand):
             batch.append(row)
             if len(batch) >= BATCH_SIZE:
                 if not dry_run:
-                    Item.objects.bulk_update(batch, ["category"])
+                    Item.objects.using(db).bulk_update(batch, ["category"])
                     updated_items += len(batch)
                 else:
                     updated_items += len(batch)
                 batch = []
         if batch:
             if not dry_run:
-                Item.objects.bulk_update(batch, ["category"])
+                Item.objects.using(db).bulk_update(batch, ["category"])
                 updated_items += len(batch)
             else:
                 updated_items += len(batch)
@@ -423,7 +441,8 @@ class Command(BaseCommand):
         # Per-product taxonomy counts from non-empty V1 items (after pass1 semantics)
         product_tax: defaultdict[int, Counter[str]] = defaultdict(Counter)
         for row in (
-            Item.objects.filter(notes__startswith="BACKFILL:v1:")
+            Item.objects.using(db)
+            .filter(notes__startswith="BACKFILL:v1:")
             .exclude(category="")
             .exclude(category__isnull=True)
             .values("product_id", "category")
@@ -437,7 +456,7 @@ class Command(BaseCommand):
             product_tax[pid][tx] += 1
 
         fix_batch: list[Item] = []
-        qs2 = Item.objects.filter(notes__startswith="BACKFILL:v1:").filter(
+        qs2 = Item.objects.using(db).filter(notes__startswith="BACKFILL:v1:").filter(
             Q(category="") | Q(category__isnull=True)
         )
         for row in qs2.iterator(chunk_size=BATCH_SIZE):
@@ -450,14 +469,14 @@ class Command(BaseCommand):
             fix_batch.append(row)
             if len(fix_batch) >= BATCH_SIZE:
                 if not dry_run:
-                    Item.objects.bulk_update(fix_batch, ["category"])
+                    Item.objects.using(db).bulk_update(fix_batch, ["category"])
                     updated_items += len(fix_batch)
                 else:
                     updated_items += len(fix_batch)
                 fix_batch = []
         if fix_batch:
             if not dry_run:
-                Item.objects.bulk_update(fix_batch, ["category"])
+                Item.objects.using(db).bulk_update(fix_batch, ["category"])
                 updated_items += len(fix_batch)
             else:
                 updated_items += len(fix_batch)
@@ -465,7 +484,8 @@ class Command(BaseCommand):
         # Final item category per product (for Product.category mode) — one scan
         product_item_cats: defaultdict[int, Counter[str]] = defaultdict(Counter)
         for row in (
-            Item.objects.filter(notes__startswith="BACKFILL:v1:")
+            Item.objects.using(db)
+            .filter(notes__startswith="BACKFILL:v1:")
             .values("product_id", "category")
             .iterator(chunk_size=BATCH_SIZE)
         ):
@@ -482,14 +502,14 @@ class Command(BaseCommand):
                     tx = product_tax[pid].most_common(1)[0][0]
             product_item_cats[pid][tx] += 1
 
-        prod_qs = Product.objects.filter(description__startswith="BACKFILL:v1:")
+        prod_qs = Product.objects.using(db).filter(description__startswith="BACKFILL:v1:")
         prod_updated = 0
         for p in prod_qs.iterator(chunk_size=500):
             mode = _mode_from_counter(product_item_cats.get(p.pk, Counter())) or MIXED_LOTS_UNCATEGORIZED
             if dry_run:
                 prod_updated += 1
             else:
-                Product.objects.filter(pk=p.pk).update(category=mode)
+                Product.objects.using(db).filter(pk=p.pk).update(category=mode)
                 prod_updated += 1
 
         self.stdout.write("\nV1 items per taxonomy_v1:")
@@ -497,7 +517,7 @@ class Command(BaseCommand):
             if dry_run:
                 n = sim_counts.get(name, 0)
             else:
-                n = Item.objects.filter(notes__startswith="BACKFILL:v1:", category=name).count()
+                n = Item.objects.using(db).filter(notes__startswith="BACKFILL:v1:", category=name).count()
             self.stdout.write(f"  {n:>8}  {name}")
         self.stdout.write(
             self.style.SUCCESS(
@@ -505,12 +525,13 @@ class Command(BaseCommand):
             )
         )
 
-    def _step_export_v2(self, dry_run: bool) -> None:
+    def _step_export_v2(self, dry_run: bool, db: str) -> None:
         self.stdout.write(self.style.NOTICE("=== Step 2: --export-v2 ==="))
         base = Path(settings.BASE_DIR) / "workspace" / "data" / "v2_classify"
 
         prod_qs = (
-            Product.objects.filter(description__startswith="BACKFILL:v2:")
+            Product.objects.using(db)
+            .filter(description__startswith="BACKFILL:v2:")
             .exclude(category__in=TAXONOMY_LIST)
             .annotate(ic=Count("items"))
         )
@@ -523,7 +544,8 @@ class Command(BaseCommand):
         # Vendor mode per product
         mode_vendor: dict[int, str] = {}
         agg = (
-            Item.objects.filter(product_id__in=product_ids, purchase_order__isnull=False)
+            Item.objects.using(db)
+            .filter(product_id__in=product_ids, purchase_order__isnull=False)
             .values("product_id", "purchase_order__vendor__code")
             .annotate(c=Count("id"))
         )
@@ -540,7 +562,8 @@ class Command(BaseCommand):
         # Sample PO per product (min item id with PO)
         sample_po: dict[int, tuple[Any, str, str]] = {}
         items_with_po = (
-            Item.objects.filter(product_id__in=product_ids, purchase_order__isnull=False)
+            Item.objects.using(db)
+            .filter(product_id__in=product_ids, purchase_order__isnull=False)
             .values("id", "product_id", "purchase_order_id")
             .order_by("id")
         )
@@ -551,7 +574,7 @@ class Command(BaseCommand):
             if pid in seen_p:
                 continue
             seen_p.add(pid)
-            po = PurchaseOrder.objects.filter(pk=row["purchase_order_id"]).first()
+            po = PurchaseOrder.objects.using(db).filter(pk=row["purchase_order_id"]).first()
             if not po:
                 continue
             j = _po_notes_last_json(po.notes or "")
@@ -632,7 +655,7 @@ class Command(BaseCommand):
             )
         )
 
-    def _step_import_v2(self, dry_run: bool) -> None:
+    def _step_import_v2(self, dry_run: bool, db: str) -> None:
         self.stdout.write(self.style.NOTICE("=== Step 3: --import-v2 ==="))
         base = Path(settings.BASE_DIR) / "workspace" / "data" / "v2_classify"
         if not base.is_dir():
@@ -680,12 +703,12 @@ class Command(BaseCommand):
         pu = 0
         if not dry_run:
             for pid, cat in product_updates.items():
-                Product.objects.filter(pk=pid).update(category=cat)
+                Product.objects.using(db).filter(pk=pid).update(category=cat)
                 pu += 1
         else:
             pu = len(product_updates)
 
-        v2_need_prop = Item.objects.filter(
+        v2_need_prop = Item.objects.using(db).filter(
             notes__startswith="BACKFILL:v2:",
             product__isnull=False,
             product__category__in=TAXONOMY_LIST,
@@ -699,16 +722,19 @@ class Command(BaseCommand):
                 item.category = item.product.category
                 chunk.append(item)
                 if len(chunk) >= 2000:
-                    Item.objects.bulk_update(chunk, ["category"])
+                    Item.objects.using(db).bulk_update(chunk, ["category"])
                     iu += len(chunk)
                     chunk = []
             if chunk:
-                Item.objects.bulk_update(chunk, ["category"])
+                Item.objects.using(db).bulk_update(chunk, ["category"])
                 iu += len(chunk)
 
-        still_bad = Item.objects.filter(notes__startswith="BACKFILL:v2:").filter(
-            Q(category="") | ~Q(category__in=TAXONOMY_LIST)
-        ).count()
+        still_bad = (
+            Item.objects.using(db)
+            .filter(notes__startswith="BACKFILL:v2:")
+            .filter(Q(category="") | ~Q(category__in=TAXONOMY_LIST))
+            .count()
+        )
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -717,11 +743,11 @@ class Command(BaseCommand):
             )
         )
 
-    def _step_recompute_pricing(self, dry_run: bool) -> None:
+    def _step_recompute_pricing(self, dry_run: bool, db: str) -> None:
         self.stdout.write(self.style.NOTICE("=== Step 4: --recompute-pricing ==="))
         version_date = timezone.now().date()
         for category_name in TAXONOMY_V1_CATEGORY_NAMES:
-            sold_items = Item.objects.filter(
+            sold_items = Item.objects.using(db).filter(
                 notes__startswith="BACKFILL:",
                 category=category_name,
                 status="sold",
@@ -762,7 +788,7 @@ class Command(BaseCommand):
 
             if dry_run:
                 continue
-            PricingRule.objects.update_or_create(
+            PricingRule.objects.using(db).update_or_create(
                 category=category_name,
                 defaults={
                     "sell_through_rate": rate,

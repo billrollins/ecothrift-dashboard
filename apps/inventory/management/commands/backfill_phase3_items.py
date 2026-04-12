@@ -23,6 +23,12 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from psycopg2.extras import RealDictCursor
 
+from apps.inventory.management.command_db import (
+    add_database_argument,
+    add_no_input_argument,
+    confirm_production_write,
+    resolve_database_alias,
+)
 from apps.inventory.models import Item, Product, PurchaseOrder
 
 V1_PRODUCT_TAG = re.compile(r"^BACKFILL:v1:(.+)$")
@@ -179,6 +185,8 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
+        add_database_argument(parser)
+        add_no_input_argument(parser)
         parser.add_argument(
             "--dry-run",
             action="store_true",
@@ -202,7 +210,15 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        db = resolve_database_alias(options["database"])
         dry_run = options["dry_run"]
+        confirm_production_write(
+            stdout=self.stdout,
+            stderr=self.stderr,
+            db_alias=db,
+            no_input=options["no_input"],
+            dry_run=dry_run,
+        )
         skip_v1 = options["skip_v1"]
         skip_v2 = options["skip_v2"]
         limit = options["limit"]
@@ -223,15 +239,15 @@ class Command(BaseCommand):
         }
 
         existing_v1_notes = set(
-            Item.objects.filter(notes__startswith="BACKFILL:v1:").values_list("notes", flat=True)
+            Item.objects.using(db).filter(notes__startswith="BACKFILL:v1:").values_list("notes", flat=True)
         )
         existing_v2_notes = set(
-            Item.objects.filter(notes__startswith="BACKFILL:v2:").values_list("notes", flat=True)
+            Item.objects.using(db).filter(notes__startswith="BACKFILL:v2:").values_list("notes", flat=True)
         )
 
         po_by_order: dict[str, PurchaseOrder] = {
             p.order_number: p
-            for p in PurchaseOrder.objects.all().only(
+            for p in PurchaseOrder.objects.using(db).all().only(
                 "id",
                 "order_number",
                 "purchase_cost",
@@ -249,7 +265,7 @@ class Command(BaseCommand):
             return
 
         v2_po_by_legacy_id: dict[int, PurchaseOrder] = {}
-        for po in PurchaseOrder.objects.filter(notes__startswith="BACKFILL:v2:").iterator(
+        for po in PurchaseOrder.objects.using(db).filter(notes__startswith="BACKFILL:v2:").iterator(
             chunk_size=2000
         ):
             first = (po.notes or "").split("\n")[0].strip()
@@ -259,7 +275,7 @@ class Command(BaseCommand):
 
         v1_code_to_product_id: dict[str, int] = {}
         v2_id_to_product_id: dict[int, int] = {}
-        for p in Product.objects.filter(description__startswith="BACKFILL:").iterator(chunk_size=2000):
+        for p in Product.objects.using(db).filter(description__startswith="BACKFILL:").iterator(chunk_size=2000):
             desc = (p.description or "").strip()
             m1 = V1_PRODUCT_TAG.match(desc)
             if m1:
@@ -270,7 +286,7 @@ class Command(BaseCommand):
 
         product_ids: set[int] = set(v1_code_to_product_id.values()) | set(v2_id_to_product_id.values())
         product_cache: dict[int, dict[str, str]] = {}
-        for p in Product.objects.filter(pk__in=product_ids).only(
+        for p in Product.objects.using(db).filter(pk__in=product_ids).only(
             "id", "title", "product_number", "model", "upc", "brand"
         ).iterator(chunk_size=2000):
             product_cache[p.pk] = {
@@ -281,7 +297,7 @@ class Command(BaseCommand):
                 "brand": p.brand or "",
             }
 
-        used_skus: set[str] = set(Item.objects.values_list("sku", flat=True))
+        used_skus: set[str] = set(Item.objects.using(db).values_list("sku", flat=True))
         # dry_run: single copy so V1 + V2 dry-run SKU allocation matches a real combined run
         sku_pool: set[str] = set(used_skus) if dry_run else used_skus
 
@@ -296,6 +312,7 @@ class Command(BaseCommand):
                 stats,
                 dry_run,
                 limit,
+                db,
             )
 
         if not skip_v2:
@@ -309,6 +326,7 @@ class Command(BaseCommand):
                 stats,
                 dry_run,
                 limit,
+                db,
             )
 
         if dry_run:
@@ -367,6 +385,7 @@ class Command(BaseCommand):
         dry_run: bool,
         stats: dict,
         source: str,
+        db: str,
     ) -> None:
         """Persist batch or count dry-run; never increment *_created when dry_run."""
         if not batch:
@@ -376,7 +395,7 @@ class Command(BaseCommand):
             stats[f"{source}_would_create"] += n
             return
         try:
-            Item.objects.bulk_create(batch, batch_size=batch_size)
+            Item.objects.bulk_create(batch, batch_size=batch_size, using=db)
         except Exception as exc:
             self.stderr.write(
                 self.style.ERROR(f"Item bulk_create failed ({n} rows, source={source}): {exc}")
@@ -395,6 +414,7 @@ class Command(BaseCommand):
         stats: dict,
         dry_run: bool,
         limit: int | None,
+        db: str,
     ) -> None:
         sql = """
             SELECT
@@ -539,13 +559,13 @@ class Command(BaseCommand):
                         existing_notes.add(tag)
                         n += 1
                         if len(batch) >= batch_size:
-                            self._flush_item_batch(batch, batch_size, dry_run, stats, "v1")
+                            self._flush_item_batch(batch, batch_size, dry_run, stats, "v1", db)
                             batch = []
                             self.stdout.write(f"  V1 items... {n} staged")
                     if stop:
                         break
                 if batch:
-                    self._flush_item_batch(batch, batch_size, dry_run, stats, "v1")
+                    self._flush_item_batch(batch, batch_size, dry_run, stats, "v1", db)
 
     def _load_v2(
         self,
@@ -558,6 +578,7 @@ class Command(BaseCommand):
         stats: dict,
         dry_run: bool,
         limit: int | None,
+        db: str,
     ) -> None:
         sql = """
             SELECT
@@ -694,10 +715,10 @@ class Command(BaseCommand):
                         existing_notes.add(tag)
                         n += 1
                         if len(batch) >= batch_size:
-                            self._flush_item_batch(batch, batch_size, dry_run, stats, "v2")
+                            self._flush_item_batch(batch, batch_size, dry_run, stats, "v2", db)
                             batch = []
                             self.stdout.write(f"  V2 items... {n} staged")
                     if stop:
                         break
                 if batch:
-                    self._flush_item_batch(batch, batch_size, dry_run, stats, "v2")
+                    self._flush_item_batch(batch, batch_size, dry_run, stats, "v2", db)

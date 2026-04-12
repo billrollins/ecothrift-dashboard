@@ -53,6 +53,9 @@ class _Agg:
     retail_lines: int = 0
     sum_cost: Decimal = field(default_factory=lambda: Decimal('0'))
     cost_lines: int = 0
+    paired_sale: Decimal = field(default_factory=lambda: Decimal('0'))
+    paired_cost: Decimal = field(default_factory=lambda: Decimal('0'))
+    paired_count: int = 0
 
 
 def _sale_amount(item: Item) -> Decimal | None:
@@ -106,6 +109,10 @@ def build_category_need_rows() -> list[dict[str, Any]]:
         if item.cost is not None:
             a.sum_cost += item.cost
             a.cost_lines += 1
+            if sale is not None:
+                a.paired_sale += sale
+                a.paired_cost += item.cost
+                a.paired_count += 1
 
     total_shelf = sum(p.shelf_count for p in per.values())
     total_sold = sum(p.sold_count for p in per.values())
@@ -134,16 +141,18 @@ def build_category_need_rows() -> list[dict[str, Any]]:
         avg_sale = (a.sum_sale / a.sale_lines) if a.sale_lines else None
         avg_retail = (a.sum_retail / a.retail_lines) if a.retail_lines else None
         avg_cost = (a.sum_cost / a.cost_lines) if a.cost_lines else None
-
-        profit_per_item = None
-        profit_sales = None
-        roc = None
-        if avg_sale is not None and avg_cost is not None:
-            profit_per_item = avg_sale - avg_cost
-        if avg_sale is not None and avg_sale > 0 and avg_cost is not None:
-            profit_sales = (avg_sale - avg_cost) / avg_sale
-        if avg_cost is not None and avg_cost > 0 and avg_sale is not None:
-            roc = (avg_sale - avg_cost) / avg_cost
+        if a.paired_count:
+            profit_per_item = (a.paired_sale - a.paired_cost) / Decimal(a.paired_count)
+        else:
+            profit_per_item = None
+        if a.paired_sale > 0:
+            profit_sales = (a.paired_sale - a.paired_cost) / a.paired_sale
+        else:
+            profit_sales = None
+        if a.paired_cost > 0:
+            roc = (a.paired_sale - a.paired_cost) / a.paired_cost
+        else:
+            roc = None
 
         rows.append(
             {

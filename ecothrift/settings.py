@@ -96,6 +96,24 @@ DATABASES = {
     }
 }
 
+# Optional second DB for management commands run locally against production (set PROD_DATABASE_*).
+_prod_name = config('PROD_DATABASE_NAME', default='')
+if _prod_name:
+    DATABASES['production'] = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': _prod_name,
+        'USER': config('PROD_DATABASE_USER', default=config('DATABASE_USER', default='postgres')),
+        'PASSWORD': config(
+            'PROD_DATABASE_PASSWORD',
+            default=config('DATABASE_PASSWORD', default='password'),
+        ),
+        'HOST': config('PROD_DATABASE_HOST', default=config('DATABASE_HOST', default='localhost')),
+        'PORT': config('PROD_DATABASE_PORT', default=config('DATABASE_PORT', default='5432')),
+        'OPTIONS': {
+            'options': '-c search_path=ecothrift',
+        },
+    }
+
 # ── Auth ──────────────────────────────────────────────────────────────────────
 AUTH_USER_MODEL = 'accounts.User'
 

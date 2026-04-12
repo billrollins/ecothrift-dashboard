@@ -19,6 +19,12 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from psycopg2.extras import RealDictCursor
 
+from apps.inventory.management.command_db import (
+    add_database_argument,
+    add_no_input_argument,
+    confirm_production_write,
+    resolve_database_alias,
+)
 from apps.inventory.models import ManifestRow, Product, PurchaseOrder
 
 
@@ -81,6 +87,8 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
+        add_database_argument(parser)
+        add_no_input_argument(parser)
         parser.add_argument(
             "--skip-products",
             action="store_true",
@@ -93,6 +101,14 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        db = resolve_database_alias(options["database"])
+        confirm_production_write(
+            stdout=self.stdout,
+            stderr=self.stderr,
+            db_alias=db,
+            no_input=options["no_input"],
+            dry_run=False,
+        )
         skip_products = options["skip_products"]
         skip_manifests = options["skip_manifests"]
 
@@ -107,23 +123,23 @@ class Command(BaseCommand):
         }
 
         existing_products = set(
-            Product.objects.filter(description__startswith="BACKFILL:").values_list(
+            Product.objects.using(db).filter(description__startswith="BACKFILL:").values_list(
                 "description", flat=True
             )
         )
         existing_manifest_notes = set(
-            ManifestRow.objects.filter(notes__startswith="BACKFILL:").values_list(
+            ManifestRow.objects.using(db).filter(notes__startswith="BACKFILL:").values_list(
                 "notes", flat=True
             )
         )
 
         po_by_order_number = {
             p.order_number: p
-            for p in PurchaseOrder.objects.all().only("id", "order_number")
+            for p in PurchaseOrder.objects.using(db).all().only("id", "order_number")
         }
 
         v2_po_by_legacy_id: dict[int, PurchaseOrder] = {}
-        for po in PurchaseOrder.objects.filter(notes__startswith="BACKFILL:v2:").iterator(
+        for po in PurchaseOrder.objects.using(db).filter(notes__startswith="BACKFILL:v2:").iterator(
             chunk_size=2000
         ):
             first = (po.notes or "").split("\n")[0].strip()
@@ -132,19 +148,21 @@ class Command(BaseCommand):
                 v2_po_by_legacy_id[int(m.group(1))] = po
 
         if not skip_products:
-            self._load_v1_products(existing_products, stats)
-            self._load_v2_products(existing_products, stats)
+            self._load_v1_products(existing_products, stats, db)
+            self._load_v2_products(existing_products, stats, db)
 
         if not skip_manifests:
             self._load_v1_manifests(
                 po_by_order_number,
                 existing_manifest_notes,
                 stats,
+                db,
             )
             self._load_v2_manifests(
                 v2_po_by_legacy_id,
                 existing_manifest_notes,
                 stats,
+                db,
             )
 
         self.stdout.write(
@@ -157,7 +175,7 @@ class Command(BaseCommand):
             )
         )
 
-    def _load_v1_products(self, existing: set, stats: dict) -> None:
+    def _load_v1_products(self, existing: set, stats: dict, db: str) -> None:
         sql = """
             SELECT
                 p.id,
@@ -209,14 +227,14 @@ class Command(BaseCommand):
                             description=tag,
                             specifications=specs,
                         )
-                        p.save()
+                        p.save(using=db)
                         existing.add(tag)
                         stats["v1_products_created"] += 1
                         n += 1
                         if n % 5000 == 0:
                             self.stdout.write(f"  V1 products... {n} saved")
 
-    def _load_v2_products(self, existing: set, stats: dict) -> None:
+    def _load_v2_products(self, existing: set, stats: dict, db: str) -> None:
         sql = """
             SELECT id, title, brand, model
             FROM inventory_product
@@ -246,7 +264,7 @@ class Command(BaseCommand):
                             description=tag,
                             specifications={},
                         )
-                        p.save()
+                        p.save(using=db)
                         existing.add(tag)
                         stats["v2_products_created"] += 1
                         n += 1
@@ -258,6 +276,7 @@ class Command(BaseCommand):
         po_by_order_number: dict[str, PurchaseOrder],
         existing_notes: set,
         stats: dict,
+        db: str,
     ) -> None:
         sql = """
             SELECT
@@ -330,12 +349,12 @@ class Command(BaseCommand):
                         existing_notes.add(tag)
                         n += 1
                         if len(batch) >= batch_size:
-                            ManifestRow.objects.bulk_create(batch, batch_size=batch_size)
+                            ManifestRow.objects.bulk_create(batch, batch_size=batch_size, using=db)
                             stats["manifests_created"] += len(batch)
                             batch = []
                             self.stdout.write(f"  V1 manifests... {n} staged")
                 if batch:
-                    ManifestRow.objects.bulk_create(batch, batch_size=batch_size)
+                    ManifestRow.objects.bulk_create(batch, batch_size=batch_size, using=db)
                     stats["manifests_created"] += len(batch)
 
     def _load_v2_manifests(
@@ -343,6 +362,7 @@ class Command(BaseCommand):
         v2_po_by_legacy_id: dict[int, PurchaseOrder],
         existing_notes: set,
         stats: dict,
+        db: str,
     ) -> None:
         sql = """
             SELECT
@@ -408,10 +428,10 @@ class Command(BaseCommand):
                         existing_notes.add(tag)
                         n += 1
                         if len(batch) >= batch_size:
-                            ManifestRow.objects.bulk_create(batch, batch_size=batch_size)
+                            ManifestRow.objects.bulk_create(batch, batch_size=batch_size, using=db)
                             stats["manifests_created"] += len(batch)
                             batch = []
                             self.stdout.write(f"  V2 manifests... {n} staged")
                 if batch:
-                    ManifestRow.objects.bulk_create(batch, batch_size=batch_size)
+                    ManifestRow.objects.bulk_create(batch, batch_size=batch_size, using=db)
                     stats["manifests_created"] += len(batch)

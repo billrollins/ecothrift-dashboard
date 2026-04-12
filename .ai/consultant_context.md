@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-11T23:15:00-05:00 -->
+<!-- Last updated: 2026-04-11T19:30:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
@@ -37,6 +37,8 @@
 **Still deferred:** Portable CSV **export** + **`import_backfill`** into production (documented in initiative) — code path not the same as “local backfill complete.”
 
 **Relationship to sell-through initiative:** Backfill Phases 3–5 supersede much of the pending `historical_sell_through_analysis` work for data-backed **`PricingRule`** rates from real sold **`Item`** rows.
+
+**Retag v2 scaffolding** (DB2→DB3 cutover) was **removed** from the codebase after March 2026; **[`retag-operations.md`](extended/retag-operations.md)** is historical reference only. Legacy Target duplicate vendor **TGT** was merged into **TRGET** (v2.11.0 data migration); **`workspace/notes/vendor_prefix_investigation.md`** remains as historical context.
 
 ---
 

@@ -222,7 +222,7 @@ export interface CheckInItemPayload {
   condition?: string;
   location?: string;
   price?: number | string;
-  cost?: number | string;
+  retail_value?: number | string;
   notes?: string;
   specifications?: Record<string, unknown>;
 }
@@ -450,6 +450,8 @@ export interface AICleanupRowsResponse {
   has_more: boolean;
   timing?: AICleanupTiming;
   stop_reason?: string;
+  /** True when cancel ran during the API call; this batch was not saved. */
+  cancelled?: boolean;
 }
 
 export interface AICleanupStatusResponse {
@@ -880,187 +882,4 @@ export function getStoreReport(params?: { stale_days?: number; location?: string
   price_histogram: Array<{ range: string; count: number }>;
 } }> {
   return api.get('/inventory/store-report/', { params });
-}
-
-// ── Retag ─────────────────────────────────────────────────────────────────────
-
-export interface RetagLookupResponse {
-  found: boolean;
-  already_retagged: boolean;
-  legacy_item?: {
-    sku: string; title: string; brand: string; category: string;
-    condition: string; source: string; price: string; cost: string | null;
-    location: string; notes: string; status: string;
-  };
-  existing_item?: { sku: string; title: string; price: string; status: string };
-  suggested?: {
-    category_id: number | null; category_name: string; category_confidence: number;
-    estimated_price: string; price_low: string; price_high: string;
-    price_confidence: number; price_method: string;
-    comparables: Array<{ sku: string; title: string; sold_for: string; sold_at: string }>;
-  };
-}
-
-export function retagLookup(oldSku: string): Promise<{ data: RetagLookupResponse }> {
-  return api.post<RetagLookupResponse>('/inventory/retag/lookup/', { old_sku: oldSku });
-}
-
-export interface RetagCreateRequest {
-  old_sku: string;
-  title: string;
-  brand?: string;
-  category?: string;
-  category_id?: number;
-  condition: string;
-  source: string;
-  price: number | string;
-  cost?: number | string;
-  location?: string;
-  notes?: string;
-}
-
-export interface RetagCreateResponse {
-  new_sku: string;
-  title: string;
-  price: string;
-  category: string;
-  old_sku: string;
-  print_payload: {
-    qr_data: string;
-    text: string;
-    product_title: string;
-    include_text: boolean;
-    product_brand?: string | null;
-    product_model?: string | null;
-  };
-}
-
-export function retagCreate(data: RetagCreateRequest): Promise<{ data: RetagCreateResponse }> {
-  return api.post<RetagCreateResponse>('/inventory/retag/create/', data);
-}
-
-// ── Retag v2 (DB2 → DB3) ──────────────────────────────────────────────────────
-
-export interface RetagV2LookupResponse {
-  found: boolean;
-  already_retagged: boolean;
-  legacy_item?: {
-    sku: string;
-    title: string;
-    brand: string;
-    model: string;
-    condition: string;
-    legacy_status: string;
-    price: string;
-    retail_amt: string | null;
-  };
-  existing_item?: {
-    sku: string;
-    retagged_at: string | null;
-  };
-  suggested?: {
-    estimated_price: string;
-    price_low: string;
-    price_high: string;
-    price_confidence: number;
-    price_method: string;
-    comparables: Array<{ sku: string; title: string; sold_for: string; sold_at: string }>;
-  };
-}
-
-export interface RetagV2CreateRequest {
-  old_sku: string;
-  title: string;
-  brand?: string;
-  condition: string;
-  source: string;
-  price: number | string;
-  cost?: number | string;
-  location?: string;
-  notes?: string;
-  /** 1–50; default 1 */
-  quantity?: number;
-}
-
-export interface RetagV2CreateRow {
-  new_sku: string;
-  title: string;
-  price: string;
-  print_payload: {
-    qr_data: string;
-    text: string;
-    product_title: string;
-    include_text: boolean;
-    product_brand?: string | null;
-    product_model?: string | null;
-  };
-}
-
-export interface RetagV2CreateResponse {
-  quantity: number;
-  created: RetagV2CreateRow[];
-  new_sku: string;
-  title: string;
-  price: string;
-  category: string;
-  old_sku: string;
-  already_retagged?: boolean;
-  print_payload: {
-    qr_data: string;
-    text: string;
-    product_title: string;
-    include_text: boolean;
-    product_brand?: string | null;
-    product_model?: string | null;
-  };
-}
-
-export function retagV2Lookup(oldSku: string): Promise<{ data: RetagV2LookupResponse }> {
-  return api.post<RetagV2LookupResponse>('/inventory/retag/v2/lookup/', { old_sku: oldSku });
-}
-
-export function retagV2Create(data: RetagV2CreateRequest): Promise<{ data: RetagV2CreateResponse }> {
-  return api.post<RetagV2CreateResponse>('/inventory/retag/v2/create/', data);
-}
-
-export interface RetagV2StatsResponse {
-  source_db: string;
-  total_staged: number;
-  total_retagged: number;
-  remaining: number;
-  pct_complete: number;
-}
-
-export function retagV2Stats(): Promise<{ data: RetagV2StatsResponse }> {
-  return api.get<RetagV2StatsResponse>('/inventory/retag/v2/stats/');
-}
-
-export interface RetagHistoryRow {
-  id: number;
-  legacy_sku: string;
-  new_item_sku: string;
-  title: string;
-  price: string;
-  retail_amt: string | null;
-  retagged_at: string;
-  retagged_by: string | null;
-}
-
-export interface RetagHistoryResponse {
-  total_retagged: number;
-  sum_price: string;
-  sum_retail: string;
-  count: number;
-  page: number;
-  num_pages: number;
-  results: RetagHistoryRow[];
-}
-
-export function retagV2History(params: {
-  search?: string;
-  since?: string;
-  page?: number;
-  page_size?: number;
-}): Promise<{ data: RetagHistoryResponse }> {
-  return api.get<RetagHistoryResponse>('/inventory/retag/v2/history/', { params });
 }

@@ -7,8 +7,6 @@ from .views import (
     classify_item_view, store_report_view,
     verify_present_view, quick_reprice_view, duplicate_item_for_resale_view,
     mark_sold_item_on_shelf_view, estimate_price_view,
-    retag_lookup_view, retag_create_view,
-    retag_v2_lookup_view, retag_v2_create_view, retag_v2_stats_view, retag_v2_history_view,
 )
 
 router = DefaultRouter()
@@ -32,10 +30,4 @@ urlpatterns = [
     path('items/<int:pk>/duplicate-for-resale/', duplicate_item_for_resale_view, name='item-duplicate-for-resale'),
     path('items/<int:pk>/mark-on-shelf/', mark_sold_item_on_shelf_view, name='item-mark-on-shelf'),
     path('estimate-price/', estimate_price_view, name='estimate-price'),
-    path('retag/lookup/', retag_lookup_view, name='retag-lookup'),
-    path('retag/create/', retag_create_view, name='retag-create'),
-    path('retag/v2/lookup/', retag_v2_lookup_view, name='retag-v2-lookup'),
-    path('retag/v2/create/', retag_v2_create_view, name='retag-v2-create'),
-    path('retag/v2/stats/', retag_v2_stats_view, name='retag-v2-stats'),
-    path('retag/v2/history/', retag_v2_history_view, name='retag-v2-history'),
 ]
