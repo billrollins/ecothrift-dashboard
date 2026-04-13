@@ -27,7 +27,7 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { useVendors, usePurchaseOrders, useCreatePurchaseOrder } from '../../hooks/useInventory';
 import { formatCurrencyWhole, formatNumber } from '../../utils/format';
-import type { PurchaseOrder, PurchaseOrderStatus } from '../../types/inventory.types';
+import type { PurchaseOrderListRow, PurchaseOrderStatus } from '../../types/inventory.types';
 
 const ORDER_STATUSES: PurchaseOrderStatus[] = [
   'ordered',
@@ -107,8 +107,8 @@ export default function OrderListPage() {
       filterable: false,
       disableColumnMenu: true,
       renderCell: (params: GridRenderCellParams) => {
-        const row = params.row as PurchaseOrder;
-        const canPreprocess = Boolean(row.manifest_file);
+        const row = params.row as PurchaseOrderListRow;
+        const canPreprocess = row.has_manifest;
         const canProcess = ['delivered', 'processing', 'complete'].includes(row.status);
         return (
           <Box sx={{ display: 'flex', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
@@ -305,7 +305,7 @@ export default function OrderListPage() {
           onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[25, 50, 100]}
           onRowClick={(params) => navigate(`/inventory/orders/${params.id}`)}
-          getRowId={(row: PurchaseOrder) => row.id}
+          getRowId={(row: PurchaseOrderListRow) => row.id}
           density="compact"
           sx={{
             height: '100%',

@@ -1,5 +1,5 @@
 /**
- * Canonical category order matches apps/buying/taxonomy_v1.py TAXONOMY_V1_CATEGORY_NAMES.
+ * Canonical category order matches `apps/buying/taxonomy_v1.py` `TAXONOMY_V1_CATEGORY_NAMES`.
  * Colors: hand-picked distinct palette for charts/legends (Phase 4.1A).
  */
 export const TAXONOMY_V1_CATEGORY_NAMES: readonly string[] = [
@@ -24,7 +24,7 @@ export const TAXONOMY_V1_CATEGORY_NAMES: readonly string[] = [
   'Mixed lots & uncategorized',
 ];
 
-/** Same order as TAXONOMY_V1_CATEGORY_NAMES */
+/** Same order as `TAXONOMY_V1_CATEGORY_NAMES`. */
 export const TAXONOMY_V1_CATEGORY_COLORS: readonly string[] = [
   '#E53935',
   '#8E24AA',
@@ -57,3 +57,11 @@ export function colorForTaxonomyCategory(canonicalCategory: string): string {
 export const NOT_YET_CATEGORIZED_BAR_BG = '#E0E0E0';
 export const NOT_YET_CATEGORIZED_HATCH =
   'repeating-linear-gradient(-45deg, #E0E0E0, #E0E0E0 5px, #eceff1 5px, #eceff1 10px)';
+
+export const MIXED_LOTS_UNCATEGORIZED = 'Mixed lots & uncategorized';
+
+const _taxonomyNameSet = new Set<string>(TAXONOMY_V1_CATEGORY_NAMES);
+
+export function isTaxonomyV1CategoryName(name: string): boolean {
+  return _taxonomyNameSet.has(name);
+}

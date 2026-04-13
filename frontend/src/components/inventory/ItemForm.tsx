@@ -47,8 +47,19 @@ import {
   ITEM_CONDITIONS,
   ITEM_SOURCES,
 } from '../../constants/inventory.constants';
+import {
+  isTaxonomyV1CategoryName,
+  MIXED_LOTS_UNCATEGORIZED,
+  TAXONOMY_V1_CATEGORY_NAMES,
+} from '../../constants/taxonomyV1';
 import { localPrintService } from '../../services/localPrintService';
-import type { Item, ItemCondition, ItemSource, PurchaseOrder } from '../../types/inventory.types';
+import type {
+  Item,
+  ItemCondition,
+  ItemSource,
+  PurchaseOrder,
+  PurchaseOrderListRow,
+} from '../../types/inventory.types';
 import type { ConsignmentAgreement } from '../../types/consignment.types';
 
 const LS_PRINT_ON_SAVE = 'addItem.printOnSave';
@@ -182,6 +193,9 @@ function aiReducer(state: Record<AIFieldName, FieldAI>, action: AIAction): Recor
         } else {
           s = String(sug[k] ?? '');
         }
+        if (k === 'category' && !isTaxonomyV1CategoryName(s)) {
+          s = MIXED_LOTS_UNCATEGORIZED;
+        }
         next[k] = {
           ...next[k],
           suggestion: s,
@@ -309,10 +323,11 @@ export default function ItemForm({
 
   const [draft, setDraft] = useState({
     title: '',
-    brand: '',
+    brand: 'Generic',
     category: '',
     condition: 'unknown' as ItemCondition,
     price: '',
+    retail_value: '',
     source: 'purchased' as ItemSource,
     specifications: '',
     notes: '',
@@ -335,6 +350,7 @@ export default function ItemForm({
       category: item.category,
       condition: item.condition,
       price: item.price,
+      retail_value: item.retail_value ?? '',
       source: item.source,
       specifications:
         item.specifications && Object.keys(item.specifications).length > 0
@@ -354,6 +370,8 @@ export default function ItemForm({
   const [agreementSearchInput, setAgreementSearchInput] = useState('');
   const debouncedPoSearch = useDebouncedValue(poSearchInput, 300);
   const debouncedAgreementSearch = useDebouncedValue(agreementSearchInput, 300);
+
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     try {
@@ -391,7 +409,7 @@ export default function ItemForm({
   );
   const { data: selectedPoDetail } = usePurchaseOrder(draft.purchaseOrderId);
 
-  const purchaseOrders: PurchaseOrder[] = useMemo(() => {
+  const purchaseOrders: (PurchaseOrderListRow | PurchaseOrder)[] = useMemo(() => {
     const list = ordersData?.results ?? [];
     const id = draft.purchaseOrderId;
     if (!id || !selectedPoDetail) return list;
@@ -424,10 +442,11 @@ export default function ItemForm({
   const resetForm = useCallback(() => {
     setDraft({
       title: '',
-      brand: '',
+      brand: 'Generic',
       category: '',
       condition: 'unknown',
       price: '',
+      retail_value: '',
       source: 'purchased',
       specifications: '',
       notes: '',
@@ -437,6 +456,7 @@ export default function ItemForm({
     });
     setPoSearchInput('');
     setAgreementSearchInput('');
+    setFieldErrors({});
     dispatchAi({ type: 'reset' });
   }, []);
 
@@ -544,10 +564,6 @@ export default function ItemForm({
       notes: draft.notes,
     };
     const titleForSubmit = displayForField('title', ds, ai).trim();
-    if (!titleForSubmit) {
-      enqueueSnackbar('Title is required', { variant: 'warning' });
-      return;
-    }
 
     logAddItemForm(`create item submit; source=${draft.source} sku_pending=true`);
 
@@ -585,13 +601,36 @@ export default function ItemForm({
         ? ai.price.suggestion
         : draft.price;
 
+    const brandFinal = resolvedBrand.trim() || 'Generic';
+    const catTrim = resolvedCategory.trim();
+    const retailTrim = draft.retail_value.trim();
+
+    const moneyOk = (s: string) => {
+      if (!s.trim()) return false;
+      const n = Number(s);
+      return Number.isFinite(n) && n >= 0;
+    };
+
+    const errs: Record<string, string> = {};
+    if (!titleForSubmit) errs.title = 'Title is required';
+    if (!catTrim || !isTaxonomyV1CategoryName(catTrim)) errs.category = 'Choose a category';
+    if (!moneyOk(retailTrim)) errs.retail_value = 'Enter a valid retail / MSRP';
+    if (!moneyOk(resolvedPrice)) errs.price = 'Enter a valid price';
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      enqueueSnackbar('Fix the highlighted fields to continue.', { variant: 'warning' });
+      return;
+    }
+    setFieldErrors({});
+
     const resolvedSpecsObj = parseSpecificationsInput(resolvedSpecsStr);
 
     const payload: Record<string, unknown> = {
       title: resolvedTitle,
-      brand: resolvedBrand,
-      category: resolvedCategory,
+      brand: brandFinal,
+      category: catTrim,
       price: resolvedPrice || '0',
+      retail_value: retailTrim,
       source: draft.source,
       condition: resolvedCondition,
       specifications: resolvedSpecsObj,
@@ -719,10 +758,11 @@ export default function ItemForm({
         id: item.id,
         data: {
           title: resolvedTitle,
-          brand: resolvedBrand,
+          brand: resolvedBrand.trim() || 'Generic',
           category: resolvedCategory,
           condition: resolvedCondition,
           price: resolvedPrice || '0',
+          retail_value: draft.retail_value.trim() || undefined,
           source: draft.source,
           specifications,
           notes: resolvedNotes,
@@ -793,6 +833,12 @@ export default function ItemForm({
   const categoryVal = displayForField('category', dForDisplay, ai);
   const condVal = displayForField('condition', dForDisplay, ai);
   const priceVal = displayForField('price', dForDisplay, ai);
+
+  const categoryOptions = useMemo(() => {
+    const v = categoryVal.trim();
+    if (v && !isTaxonomyV1CategoryName(v)) return [...TAXONOMY_V1_CATEGORY_NAMES, v];
+    return [...TAXONOMY_V1_CATEGORY_NAMES];
+  }, [categoryVal]);
   const specVal = displayForField('specifications', dForDisplay, ai);
   const notesVal = displayForField('notes', dForDisplay, ai);
 
@@ -953,7 +999,16 @@ export default function ItemForm({
               label="Title"
               required
               value={titleVal}
-              onChange={(e) => onFieldChange('title', e.target.value)}
+              onChange={(e) => {
+                setFieldErrors((p) => {
+                  const n = { ...p };
+                  delete n.title;
+                  return n;
+                });
+                onFieldChange('title', e.target.value);
+              }}
+              error={Boolean(fieldErrors.title)}
+              helperText={fieldErrors.title}
               sx={{
                 mt: 0.5,
                 ...(suggestionActive('title') ? { '& .MuiOutlinedInput-root': { bgcolor: 'action.hover' } } : {}),
@@ -966,6 +1021,7 @@ export default function ItemForm({
               fullWidth
               size="small"
               label="Brand"
+              required={mode === 'create'}
               value={brandVal}
               onChange={(e) => onFieldChange('brand', e.target.value)}
               sx={suggestionActive('brand') ? { '& .MuiOutlinedInput-root': { bgcolor: 'action.hover' } } : {}}
@@ -973,14 +1029,45 @@ export default function ItemForm({
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Category"
-              value={categoryVal}
-              onChange={(e) => onFieldChange('category', e.target.value)}
-              sx={suggestionActive('category') ? { '& .MuiOutlinedInput-root': { bgcolor: 'action.hover' } } : {}}
-              slotProps={{ input: { endAdornment: renderAiAdornment('category') } }}
+            <Autocomplete
+              options={categoryOptions}
+              value={categoryVal ? categoryVal : null}
+              onChange={(_, v) => {
+                setFieldErrors((p) => {
+                  const n = { ...p };
+                  delete n.category;
+                  return n;
+                });
+                onFieldChange('category', v ?? '');
+              }}
+              getOptionLabel={(o) => o}
+              isOptionEqualToValue={(a, b) => a === b}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  size="small"
+                  label="Category"
+                  required={mode === 'create'}
+                  error={Boolean(fieldErrors.category)}
+                  helperText={fieldErrors.category}
+                  sx={
+                    suggestionActive('category')
+                      ? { '& .MuiOutlinedInput-root': { bgcolor: 'action.hover' } }
+                      : {}
+                  }
+                  slotProps={{
+                    input: {
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {renderAiAdornment('category')}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    },
+                  }}
+                />
+              )}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
@@ -1007,13 +1094,48 @@ export default function ItemForm({
               size="small"
               label="Price"
               type="number"
+              required={mode === 'create'}
               value={priceVal}
-              onChange={(e) => onFieldChange('price', e.target.value)}
+              onChange={(e) => {
+                setFieldErrors((p) => {
+                  const n = { ...p };
+                  delete n.price;
+                  return n;
+                });
+                onFieldChange('price', e.target.value);
+              }}
+              error={Boolean(fieldErrors.price)}
+              helperText={fieldErrors.price}
               sx={suggestionActive('price') ? { '& .MuiOutlinedInput-root': { bgcolor: 'action.hover' } } : {}}
               slotProps={{
                 input: {
                   startAdornment: <InputAdornment position="start">$</InputAdornment>,
                   endAdornment: renderAiAdornment('price'),
+                },
+              }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Retail (MSRP)"
+              type="number"
+              required={mode === 'create'}
+              value={draft.retail_value}
+              onChange={(e) => {
+                setFieldErrors((p) => {
+                  const n = { ...p };
+                  delete n.retail_value;
+                  return n;
+                });
+                setDraftField('retail_value', e.target.value);
+              }}
+              error={Boolean(fieldErrors.retail_value)}
+              helperText={fieldErrors.retail_value}
+              slotProps={{
+                input: {
+                  startAdornment: <InputAdornment position="start">$</InputAdornment>,
                 },
               }}
             />

@@ -130,6 +130,43 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         }
 
 
+class PurchaseOrderListSerializer(serializers.ModelSerializer):
+    """Lean rows for GET /inventory/orders/ (list only). No manifest payload or processing_stats."""
+
+    vendor_name = serializers.CharField(source='vendor.name', read_only=True)
+    has_manifest = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PurchaseOrder
+        fields = [
+            'id',
+            'vendor',
+            'vendor_name',
+            'order_number',
+            'status',
+            'ordered_date',
+            'expected_delivery',
+            'delivered_date',
+            'condition',
+            'description',
+            'item_count',
+            'total_cost',
+            'retail_value',
+            'has_manifest',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'total_cost',
+            'created_at',
+            'updated_at',
+        ]
+
+    def get_has_manifest(self, obj):
+        return bool(getattr(obj, 'manifest_id', None))
+
+
 class PurchaseOrderDetailSerializer(PurchaseOrderSerializer):
     manifest_rows = ManifestRowSerializer(many=True, read_only=True)
 

@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import io
+import json
 import re
 from decimal import Decimal, InvalidOperation
 
@@ -19,8 +20,10 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
+from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
 
 DEFAULT_AI_MODEL = getattr(settings, 'AI_MODEL', 'claude-sonnet-4-6')
+DEFAULT_AI_FAST_MODEL = getattr(settings, 'AI_MODEL_FAST', DEFAULT_AI_MODEL)
 from apps.core.logging import get_logger
 from apps.core.models import S3File
 from apps.core.services.ai_usage_log import log_ai_usage, log_ai_usage_from_response
@@ -37,7 +40,10 @@ from .models import (
     ItemHistory, ItemScanHistory,
 )
 from .serializers import (
-    VendorSerializer, PurchaseOrderSerializer, PurchaseOrderDetailSerializer,
+    VendorSerializer,
+    PurchaseOrderSerializer,
+    PurchaseOrderListSerializer,
+    PurchaseOrderDetailSerializer,
     CategorySerializer, CSVTemplateSerializer, ManifestRowSerializer,
     VendorProductRefSerializer, BatchGroupSerializer,
     ProductSerializer, ItemSerializer, ItemPublicSerializer,
@@ -429,6 +435,68 @@ def parse_decimal(value):
         return None
 
 
+def _suggest_item_parse_suggestions_from_text(
+    content_text: str,
+    fields: list,
+    allowed: set,
+) -> tuple[dict | None, dict | None]:
+    """Parse Add Item AI JSON; returns (suggestions_dict, full_parsed_dict) or (None, None)."""
+    if not (content_text or '').strip():
+        return None, None
+    stripped = content_text.strip()
+    if stripped.startswith('```'):
+        stripped = re.sub(r'^```(?:json)?\s*', '', stripped, count=1, flags=re.IGNORECASE)
+        stripped = re.sub(r'\s*```\s*$', '', stripped, count=1)
+
+    parsed = None
+    start = stripped.find('{')
+    if start >= 0:
+        try:
+            decoder = json.JSONDecoder()
+            parsed, _end = decoder.raw_decode(stripped, start)
+        except json.JSONDecodeError:
+            return None, None
+    if not isinstance(parsed, dict):
+        return None, None
+
+    raw_suggestions = parsed.get('suggestions') if isinstance(parsed, dict) else None
+    if not isinstance(raw_suggestions, dict):
+        loose = {k: parsed[k] for k in allowed if k in parsed}
+        if loose:
+            raw_suggestions = loose
+    if not isinstance(raw_suggestions, dict):
+        return None, None
+
+    out: dict = {}
+    for key in fields:
+        if key not in raw_suggestions:
+            continue
+        val = raw_suggestions[key]
+        if key == 'condition':
+            cv = str(val).strip() if val is not None else ''
+            if cv in CONDITION_VALUES:
+                out[key] = cv
+            continue
+        if key == 'specifications':
+            if isinstance(val, dict):
+                clean = {str(k): str(v) for k, v in val.items() if k is not None}
+                out[key] = clean
+            continue
+        if key == 'price':
+            pd = parse_decimal(val)
+            if pd is not None and pd >= 0 and pd <= Decimal('999999.99'):
+                q = pd.quantize(Decimal('0.01'))
+                fs = format(q, 'f')
+                if '.' in fs:
+                    fs = fs.rstrip('0').rstrip('.')
+                out[key] = fs or '0'
+            continue
+        if key in ('title', 'brand', 'category', 'notes'):
+            out[key] = str(val) if val is not None else ''
+
+    return out, parsed
+
+
 def normalize_row(raw, row_number, column_mappings):
     mapped = {}
     mappings_by_target = {
@@ -734,15 +802,16 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     ordering = ['-ordered_date']
 
     def get_queryset(self):
-        qs = _annotate_purchase_order_stats(
-            PurchaseOrder.objects.select_related('vendor', 'created_by').all(),
-        )
-        # List: no manifest prefetch (large JSON). Detail/actions: prefetch manifest rows for detail serializer.
+        base = PurchaseOrder.objects.select_related('vendor', 'created_by').all()
+        # List: no stats annotations (not used by PurchaseOrderListSerializer) or manifest prefetch.
         if self.action == 'list':
-            return qs
+            return base
+        qs = _annotate_purchase_order_stats(base)
         return qs.prefetch_related('manifest_rows')
 
     def get_serializer_class(self):
+        if self.action == 'list':
+            return PurchaseOrderListSerializer
         if self.action == 'retrieve':
             return PurchaseOrderDetailSerializer
         return PurchaseOrderSerializer
@@ -1242,7 +1311,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
             order = self.get_object()
             generation_at_start = order.ai_cleanup_generation
-            model_id = request.data.get('model', '') or DEFAULT_AI_MODEL
+            model_id = request.data.get('model', '') or DEFAULT_AI_FAST_MODEL
             batch_size = int(request.data.get('batch_size', 25))
             offset = int(request.data.get('offset', 0))
             api_key = getattr(django_settings, 'ANTHROPIC_API_KEY', '')
@@ -1427,7 +1496,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         except anthropic_lib.APIError as e:
             timing['total_ms'] = round((_time.perf_counter() - t_total_start) * 1000, 1)
             cleanup_logger.error('AI cleanup API error: %s', e)
-            _mid = (request.data.get('model', '') or DEFAULT_AI_MODEL)
+            _mid = (request.data.get('model', '') or DEFAULT_AI_FAST_MODEL)
             log_ai_usage(
                 'ai_cleanup_rows',
                 _mid,
@@ -3040,8 +3109,7 @@ class ItemViewSet(viewsets.ModelViewSet):
 
             fields = request.data.get('fields') or []
             context = request.data.get('context') or {}
-            # Default to Sonnet — same proven id as manifest AI cleanup; Haiku id varies by account/GA date.
-            model_id = (request.data.get('model') or '').strip() or DEFAULT_AI_MODEL
+            model_id = (request.data.get('model') or '').strip() or DEFAULT_AI_FAST_MODEL
 
             if not isinstance(fields, list) or not fields:
                 return Response(
@@ -3076,10 +3144,14 @@ class ItemViewSet(viewsets.ModelViewSet):
                 'store_examples': store_examples,
             }
 
+            taxonomy_lines = '\n'.join(f'- {name}' for name in TAXONOMY_V1_CATEGORY_NAMES)
             system_prompt = (
                 LISTING_STANDARDS
                 + '\nAllowed condition values (exactly one if returning condition): '
                 + ', '.join(CONDITION_VALUES)
+                + '\n\n'
+                + 'If you return a suggestion for "category", it MUST be exactly one of these strings:\n'
+                + taxonomy_lines
                 + '\n\n'
                 + FEW_SHOT_ADD_ITEM
                 + '\n'
@@ -3139,25 +3211,8 @@ class ItemViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_502_BAD_GATEWAY,
                 )
 
-            # Strip common markdown fences so the first `{` is the JSON object.
-            stripped = content_text.strip()
-            if stripped.startswith('```'):
-                stripped = re.sub(r'^```(?:json)?\s*', '', stripped, count=1, flags=re.IGNORECASE)
-                stripped = re.sub(r'\s*```\s*$', '', stripped, count=1)
-
-            parsed = None
-            start = stripped.find('{')
-            if start >= 0:
-                try:
-                    decoder = json_lib.JSONDecoder()
-                    parsed, _end = decoder.raw_decode(stripped, start)
-                except json_lib.JSONDecodeError as parse_err:
-                    suggest_logger.warning(
-                        'suggest_item JSON raw_decode failed: %s; snippet=%s',
-                        parse_err,
-                        stripped[:500],
-                    )
-            if not isinstance(parsed, dict):
+            out, parsed = _suggest_item_parse_suggestions_from_text(content_text, fields, allowed)
+            if not isinstance(parsed, dict) or out is None:
                 suggest_logger.warning(
                     'suggest_item could not parse suggestions JSON; model=%s content_len=%s preview=%s',
                     model_id,
@@ -3172,48 +3227,51 @@ class ItemViewSet(viewsets.ModelViewSet):
                     },
                     status=status.HTTP_502_BAD_GATEWAY,
                 )
-            raw_suggestions = parsed.get('suggestions') if isinstance(parsed, dict) else None
-            if not isinstance(raw_suggestions, dict):
-                # Some models return field keys at the top level without a "suggestions" wrapper.
-                loose = {k: parsed[k] for k in allowed if k in parsed}
-                if loose:
-                    raw_suggestions = loose
-            if not isinstance(raw_suggestions, dict):
-                return Response(
-                    {
-                        'error': 'AI response missing suggestions object (expected {"suggestions": {...}}).',
-                        'examples_used': examples_used,
-                        'timing': timing,
-                    },
-                    status=status.HTTP_502_BAD_GATEWAY,
-                )
 
-            out: dict = {}
-            for key in fields:
-                if key not in raw_suggestions:
-                    continue
-                val = raw_suggestions[key]
-                if key == 'condition':
-                    cv = str(val).strip() if val is not None else ''
-                    if cv in CONDITION_VALUES:
-                        out[key] = cv
-                    continue
-                if key == 'specifications':
-                    if isinstance(val, dict):
-                        clean = {str(k): str(v) for k, v in val.items() if k is not None}
-                        out[key] = clean
-                    continue
-                if key == 'price':
-                    pd = parse_decimal(val)
-                    if pd is not None and pd >= 0 and pd <= Decimal('999999.99'):
-                        q = pd.quantize(Decimal('0.01'))
-                        fs = format(q, 'f')
-                        if '.' in fs:
-                            fs = fs.rstrip('0').rstrip('.')
-                        out[key] = fs or '0'
-                    continue
-                if key in ('title', 'brand', 'category', 'notes'):
-                    out[key] = str(val) if val is not None else ''
+            taxonomy_set = set(TAXONOMY_V1_CATEGORY_NAMES)
+            if 'category' in fields and 'category' in out:
+                cv_bad = str(out['category']).strip()
+                if cv_bad and cv_bad not in taxonomy_set:
+                    retry_user = json.dumps({
+                        'instruction': (
+                            'Your previous answer used category %r which is not allowed. '
+                            'Return ONLY a JSON object with the same structure as required before, '
+                            'but category must be exactly one of the strings in allowed_categories.'
+                        ) % (cv_bad,),
+                        'allowed_categories': list(TAXONOMY_V1_CATEGORY_NAMES),
+                    })
+                    t_retry = _time.perf_counter()
+                    response_retry = client.messages.create(
+                        model=model_id,
+                        max_tokens=1024,
+                        system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
+                        messages=[
+                            {'role': 'user', 'content': user_message_json},
+                            {'role': 'assistant', 'content': content_text},
+                            {'role': 'user', 'content': retry_user},
+                        ],
+                        timeout=60.0,
+                    )
+                    timing['api_retry_ms'] = round((_time.perf_counter() - t_retry) * 1000, 1)
+                    log_ai_usage_from_response(
+                        'suggest_item',
+                        response_retry,
+                        model=model_id,
+                        detail='POST suggest_item category retry',
+                    )
+                    content_retry = ''
+                    for block in response_retry.content:
+                        if block.type == 'text':
+                            content_retry += block.text
+                    out_retry, parsed_retry = _suggest_item_parse_suggestions_from_text(
+                        content_retry, fields, allowed,
+                    )
+                    if out_retry is not None and isinstance(parsed_retry, dict):
+                        out = out_retry
+                        parsed = parsed_retry
+                    cv_after = str(out.get('category', '')).strip()
+                    if cv_after and cv_after not in taxonomy_set:
+                        out['category'] = MIXED_LOTS_UNCATEGORIZED
 
             low_confidence = parsed.get('low_confidence', False) is True
             low_confidence_reason = ''

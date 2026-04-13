@@ -2,6 +2,7 @@ import type { PaginatedResponse } from '../types/index';
 import type {
   Vendor,
   PurchaseOrder,
+  PurchaseOrderListRow,
   Product,
   Item,
   ItemStatsResponse,
@@ -16,6 +17,7 @@ import api, { apiPublic } from './client';
 export type {
   Vendor,
   PurchaseOrder,
+  PurchaseOrderListRow,
   Product,
   Item,
   CSVTemplate,
@@ -26,6 +28,7 @@ export type {
 };
 
 type Order = PurchaseOrder;
+type OrderListRow = PurchaseOrderListRow;
 type Template = CSVTemplate;
 type Batch = BatchGroup;
 
@@ -297,8 +300,8 @@ export function deleteVendor(id: number): Promise<{ data: void }> {
 }
 
 // Orders CRUD
-export function getOrders(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Order> }> {
-  return api.get<PaginatedResponse<Order>>('/inventory/orders/', { params });
+export function getOrders(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<OrderListRow> }> {
+  return api.get<PaginatedResponse<OrderListRow>>('/inventory/orders/', { params });
 }
 
 export function getOrder(id: number): Promise<{ data: Order }> {

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-13 (checkpoint) -->
+<!-- Last updated: 2026-04-13 (checkpoint — Phase 2 pulse) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -13,6 +13,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Inventory / POS — Phase 2 polish** ([`.ai/initiatives/ui_ux_polish.md`](.ai/initiatives/ui_ux_polish.md)) — Item list (`ItemListPanel`) and POS **transactions** receipt search commit on **Enter** / **Search** (draft text does not refetch lists). **Orders list API** — `PurchaseOrderListSerializer` with **`has_manifest`**; list queryset skips heavy PO stats annotations; no `processing_stats` or nested `manifest_file` on list. **Add Item** — category **taxonomy `Autocomplete`**, **retail (MSRP)** + validation, brand default **Generic**; **`PurchaseOrderListRow`** type for list responses. **AI** — `suggest_item` and `ai_cleanup_rows` default **`AI_MODEL_FAST`**; suggest-item includes canonical category list, **one retry** if category invalid, fallback to **Mixed lots & uncategorized**.
 - **Heroku memory ops** — [`docs/operations/heroku-memory.md`](docs/operations/heroku-memory.md): `log-runtime-metrics`, tail web dyno, rollback note (pairs Procfile/Gunicorn + cache deploy).
 - **Consignment agreements** — `SearchFilter` on list API so Add Item agreement autocomplete can search by number / consignee fields.
 
@@ -23,7 +24,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Purchase orders (list)** — Annotated item/batch counts for `processing_stats`; **list** no longer prefetches all `manifest_rows` / `batch_groups` (detail still prefetches manifest rows).
 - **Item stats API** — `_item_stats_payload` uses a **single aggregate** query where applicable.
 - **Buying / category need** — Metric windowing: all-time financials and `sell_through_pct` denominator; 90-day **`sold_count`** / **`sold_pct`** unchanged semantically; [`CategoryNeedBars`](frontend/src/components/buying/CategoryNeedBars.tsx) layered bars (see [`.ai/initiatives/ui_ux_polish.md`](.ai/initiatives/ui_ux_polish.md)).
-- **Frontend lists** — **Server-side** DataGrid pagination for orders, items (`ItemListPanel`), POS transactions; **`useItemsAllPages`** for Processing page when a PO has many items; **debounced `q`** still drives item search from `ItemListPanel`.
+- **Frontend lists** — **Server-side** DataGrid pagination for orders, items (`ItemListPanel`), POS transactions; **`useItemsAllPages`** for Processing page when a PO has many items; item list **`q`** and POS receipt filter use **committed** search (Enter/Search/Clear), not live-typing refetch.
 - **Add Item form** — Purchase order and agreement pickers: **async** search (small page size) instead of loading hundreds of rows.
 
 ---

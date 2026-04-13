@@ -69,7 +69,13 @@ import { useGridColumnState } from '../../hooks/useGridColumnState';
 import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
 import { localPrintService } from '../../services/localPrintService';
 import { formatCurrency } from '../../utils/format';
-import type { BatchGroup, Item, PurchaseOrder, PurchaseOrderStatus } from '../../types/inventory.types';
+import type {
+  BatchGroup,
+  Item,
+  PurchaseOrder,
+  PurchaseOrderListRow,
+  PurchaseOrderStatus,
+} from '../../types/inventory.types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -982,8 +988,8 @@ export default function ProcessingPage() {
               closeDrawer();
               setSelectedItemIds([]);
             }}
-            getOptionLabel={(o: PurchaseOrder) => `${o.order_number} — ${o.vendor_name}`}
-            renderOption={(props, o: PurchaseOrder) => (
+            getOptionLabel={(o: PurchaseOrderListRow) => `${o.order_number} — ${o.vendor_name}`}
+            renderOption={(props, o: PurchaseOrderListRow) => (
               <li {...props} key={o.id}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                   <Typography variant="body2" fontWeight={600}>{o.order_number}</Typography>

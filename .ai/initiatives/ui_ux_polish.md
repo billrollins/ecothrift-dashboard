@@ -1,5 +1,5 @@
-<!-- initiative: slug=ui-ux-polish status=active updated=2026-04-12 -->
-<!-- Last updated: 2026-04-13T12:00:00-05:00 -->
+<!-- initiative: slug=ui-ux-polish status=active updated=2026-04-13 -->
+<!-- Last updated: 2026-04-13T12:45:00-05:00 -->
 # Initiative: UI/UX polish and metric corrections
 
 **Status:** Active
@@ -118,6 +118,14 @@ Roughly **25** UI/UX items Bill has identified — **to be listed** in this file
 #### Session updates
 
 - `2026-04-13T12:00:00-05:00` **Checkpoint** — Phase 1 **implemented** (not just planned): `category_need.py` all-time vs 90-day windowing per initiative table; `CategoryNeedBars.tsx` layered blue/red bars; `test_valuation.py` `CategoryNeedWindowingTests`. **Memory/performance overhaul** (same deployment train): `max_page_size` 200; Gunicorn `--workers 2` + worker recycle; Django **database cache** + TTL on `item_stats` global block and `category_need` panel; PO list queryset annotations + list no longer prefetches manifest/batch rows; `PurchaseOrderSerializer.get_processing_stats` uses annotations when present; `_item_stats_payload` single aggregate; ProcessingPage **`useItemsAllPages`** + item filter param **`q`**; server-side pagination + `keepPreviousData` / 5m `staleTime` on orders, items, carts; ItemForm PO/agreement **async** search (`page_size` 20) + `useAgreement` / `usePurchaseOrder` for selected row; consignment agreements **`SearchFilter`**; `docs/operations/heroku-memory.md`. **Revised scope:** Session 1 “no code until Build” was superseded by Agent implementation pass. **Parking (session_close):** semver / dated `CHANGELOG` section, `.version`, `commit_message.txt` lines 2+, full pre-commit matrix.
+
+### Session 2 — 2026-04-13 (Phase 2 polish)
+
+- **Ship:** Enter-to-commit search on **ItemListPanel** and **TransactionListPage** (draft vs committed `q` / `receipt_number`, Search + Clear, helper copy). **`PurchaseOrderListSerializer`** + **`has_manifest`**; list queryset skips PO stats annotations; frontend **`PurchaseOrderListRow`**. **ItemForm** Add Item: taxonomy **`Autocomplete`**, **`retail_value`**, validation, brand default **Generic**; AI **`suggest_item`** / **`ai_cleanup_rows`** default **`AI_MODEL_FAST`**; taxonomy prompt + one category retry + fallback **`Mixed lots & uncategorized`**.
+
+#### Session updates
+
+- `2026-04-13T12:45:00-05:00` **Checkpoint** — Phase 2 implementation **landed in working tree** (not yet committed): `ItemListPanel` / `TransactionListPage` commit-on-enter search; `PurchaseOrderListSerializer` + `has_manifest`, lighter PO list queryset; `PurchaseOrderListRow` + call sites; `ItemForm` taxonomy `Autocomplete`, `retail_value`, create validation, brand default **Generic**; `taxonomyV1` helpers (`MIXED_LOTS_UNCATEGORIZED`, `isTaxonomyV1CategoryName`); `suggest_item` / `ai_cleanup_rows` → `DEFAULT_AI_FAST_MODEL`, taxonomy prompt + category retry + fallback; `_suggest_item_parse_suggestions_from_text` + test in `test_category_taxonomy.py`. **`CHANGELOG`** `[Unreleased]` updated this pulse. **Parking (session_close):** semver / dated section, `.version`, `commit_message.txt` lines 2+, full pre-commit matrix when cutting release.
 
 ---
 

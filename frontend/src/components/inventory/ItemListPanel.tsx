@@ -1,20 +1,22 @@
-import { forwardRef, useEffect, useMemo, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import {
   Autocomplete,
   Box,
   Chip,
+  IconButton,
   InputAdornment,
   MenuItem,
   Stack,
   TextField,
+  Typography,
 } from '@mui/material';
+import Clear from '@mui/icons-material/Clear';
 import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { StatusBadge } from '../common/StatusBadge';
 import { LoadingScreen } from '../feedback/LoadingScreen';
 import { useItems } from '../../hooks/useInventory';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import type { Item, ItemCondition, ItemSource, ItemStatus } from '../../types/inventory.types';
 import {
   formatConditionLabel,
@@ -68,8 +70,20 @@ const ItemListPanel = forwardRef<HTMLInputElement, ItemListPanelProps>(function 
   },
   ref,
 ) {
-  const [searchInput, setSearchInput] = useState('');
-  const debouncedSearch = useDebouncedValue(searchInput, 300);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [committedSearch, setCommittedSearch] = useState('');
+
+  const commitSearch = useCallback(() => {
+    const t = searchDraft.trim();
+    setCommittedSearch(t);
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
+  }, [searchDraft]);
+
+  const clearSearch = useCallback(() => {
+    setSearchDraft('');
+    setCommittedSearch('');
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
+  }, []);
 
   const [statusFilter, setStatusFilter] = useState<ItemStatus[]>([]);
   const [conditionFilter, setConditionFilter] = useState<ItemCondition[]>([]);
@@ -82,7 +96,7 @@ const ItemListPanel = forwardRef<HTMLInputElement, ItemListPanelProps>(function 
       page: paginationModel.page + 1,
       page_size: paginationModel.pageSize,
     };
-    if (debouncedSearch.trim()) p.q = debouncedSearch.trim();
+    if (committedSearch) p.q = committedSearch;
     if (statusFilter.length) p.status = statusFilter.join(',');
     if (conditionFilter.length) p.condition = conditionFilter.join(',');
     if (sourceFilter.length) p.source = sourceFilter.join(',');
@@ -97,7 +111,7 @@ const ItemListPanel = forwardRef<HTMLInputElement, ItemListPanelProps>(function 
     }
     return p;
   }, [
-    debouncedSearch,
+    committedSearch,
     statusFilter,
     conditionFilter,
     sourceFilter,
@@ -108,7 +122,7 @@ const ItemListPanel = forwardRef<HTMLInputElement, ItemListPanelProps>(function 
 
   useEffect(() => {
     setPaginationModel((pm) => ({ ...pm, page: 0 }));
-  }, [debouncedSearch, statusFilter, conditionFilter, sourceFilter, lastDays]);
+  }, [committedSearch, statusFilter, conditionFilter, sourceFilter, lastDays]);
 
   const { data, isLoading } = useItems(params, {
     placeholderData: keepPreviousData,
@@ -186,24 +200,46 @@ const ItemListPanel = forwardRef<HTMLInputElement, ItemListPanelProps>(function 
         height: '100%',
       }}
     >
-      <TextField
-        inputRef={ref}
-        fullWidth
-        size="small"
-        placeholder="Search items (SKU, title, brand, notes…)"
-        value={searchInput}
-        onChange={(e) => setSearchInput(e.target.value)}
-        sx={{ mb: 1.5 }}
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search fontSize="small" color="action" />
-              </InputAdornment>
-            ),
-          },
-        }}
-      />
+      <Box sx={{ mb: 1.5 }}>
+        <TextField
+          inputRef={ref}
+          fullWidth
+          size="small"
+          placeholder="Search items… (press Enter or Search)"
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitSearch();
+            }
+          }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search fontSize="small" color="action" />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  {searchDraft ? (
+                    <IconButton size="small" aria-label="Clear search" onClick={clearSearch} edge="end">
+                      <Clear fontSize="small" />
+                    </IconButton>
+                  ) : null}
+                  <IconButton size="small" aria-label="Run search" onClick={commitSearch} edge="end">
+                    <Search fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+          Type your terms, then press Enter or click Search. Results update only after you search.
+        </Typography>
+      </Box>
 
       <Stack
         direction={{ xs: 'column', sm: 'row' }}

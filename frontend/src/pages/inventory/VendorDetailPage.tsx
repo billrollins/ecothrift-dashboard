@@ -20,7 +20,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { useVendor, useUpdateVendor, usePurchaseOrders } from '../../hooks/useInventory';
-import type { VendorType, PurchaseOrder } from '../../types/inventory.types';
+import type { VendorType, PurchaseOrderListRow } from '../../types/inventory.types';
 
 const VENDOR_TYPES: VendorType[] = ['liquidation', 'retail', 'direct', 'other'];
 
@@ -232,7 +232,7 @@ export default function VendorDetailPage() {
             rows={orders}
             columns={orderColumns}
             loading={ordersLoading}
-            getRowId={(row: PurchaseOrder) => row.id}
+            getRowId={(row: PurchaseOrderListRow) => row.id}
             onRowClick={(params) => navigate(`/inventory/orders/${params.id}`)}
             sx={{
               border: 'none',

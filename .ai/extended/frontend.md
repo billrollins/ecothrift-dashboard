@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11T19:00:00-05:00 -->
+<!-- Last updated: 2026-04-13T12:45:00-05:00 -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -40,6 +40,7 @@
 - `PreprocessingPage` (`/inventory/preprocessing/:id`) is a standalone 3-step wizard: Standardize Manifest → Row-Level Processing → Pricing & Finalize. Has own sidebar nav entry "Preprocessing". localStorage persists last order ID. Legacy route `/inventory/orders/:id/preprocess` redirects.
 - **Row-Level Processing** (Step 2) uses `RowProcessingPanel` with: AI cleanup controls (model selector, batch size 5/10/25/50, concurrency default **1**, optional 4/8/16 — multi-thread mode is best-effort), expandable rows table showing original data vs AI suggestions, product matching section, and review decisions section.
 - `ProcessingPage` is a unified processing workspace for set fields, check-in, and label printing (batch + individual flows)
+- **`ItemListPanel`** / **POS `TransactionListPage`**: inventory item search param **`q`** and receipt **`receipt_number`** filter apply only after **Enter** or **Search** (draft typing does not refetch); orders **DataGrid** uses lean list rows with **`has_manifest`** for preprocess affordance
 - **Quick reprice (v2.2.3+):** `QuickRepricePage` at `/inventory/quick-reprice` — exact SKU filter, default **10%** discount, **This Session** (label unchanged) list **persisted per browser · local calendar day** (`localStorage`, new list after local midnight), expandable with links to item detail, optional **`?sku=`** prefill. `ItemDetailPage` at `/inventory/items/:id` — **Print tag** (local print server), **Reprice** → quick-reprice with `?sku=`, **label reprint** banner after save when price/title/brand change.
 
 **Consignee routes** (ConsigneeLayout): `/consignee`, `/consignee/items`, `/consignee/payouts`

@@ -84,10 +84,10 @@ import type {
   SuggestItemRequest,
 } from '../api/inventory.api';
 import type { PaginatedResponse } from '../types/common.types';
-import type { Item, PurchaseOrder } from '../types/inventory.types';
+import type { Item, PurchaseOrder, PurchaseOrderListRow } from '../types/inventory.types';
 
 type PurchaseOrdersQueryOptions = Pick<
-  UseQueryOptions<PaginatedResponse<PurchaseOrder>>,
+  UseQueryOptions<PaginatedResponse<PurchaseOrderListRow>>,
   'enabled' | 'placeholderData' | 'staleTime'
 >;
 
@@ -159,7 +159,7 @@ export function usePurchaseOrders(
 ) {
   const { enabled, placeholderData, staleTime } =
     typeof options === 'boolean' ? { enabled: options } : { enabled: true, ...options };
-  return useQuery<PaginatedResponse<PurchaseOrder>>({
+  return useQuery<PaginatedResponse<PurchaseOrderListRow>>({
     queryKey: ['purchaseOrders', params],
     queryFn: async () => {
       const { data } = await getOrders(params);

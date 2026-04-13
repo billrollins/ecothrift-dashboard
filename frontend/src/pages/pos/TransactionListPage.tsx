@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import {
   Accordion,
@@ -13,6 +13,8 @@ import {
   Divider,
   FormControl,
   Grid,
+  IconButton,
+  InputAdornment,
   InputLabel,
   MenuItem,
   Paper,
@@ -26,8 +28,10 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import Clear from '@mui/icons-material/Clear';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import HistoryIcon from '@mui/icons-material/History';
+import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef, type GridRowsProp } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -249,7 +253,19 @@ export default function TransactionListPage() {
   const { hasRole } = useAuth();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [receiptSearch, setReceiptSearch] = useState('');
+  const [receiptDraft, setReceiptDraft] = useState('');
+  const [committedReceipt, setCommittedReceipt] = useState('');
+
+  const commitReceiptSearch = useCallback(() => {
+    setCommittedReceipt(receiptDraft.trim());
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
+  }, [receiptDraft]);
+
+  const clearReceiptSearch = useCallback(() => {
+    setReceiptDraft('');
+    setCommittedReceipt('');
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
+  }, []);
   const [cashierFilter, setCashierFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState('');
@@ -268,14 +284,14 @@ export default function TransactionListPage() {
     if (statusFilter && statusFilter !== 'all') p.status = statusFilter;
     if (dateFrom) p.date_from = dateFrom;
     if (dateTo) p.date_to = dateTo;
-    if (receiptSearch.trim()) p.receipt_number = receiptSearch.trim();
+    if (committedReceipt) p.receipt_number = committedReceipt;
     if (cashierFilter) p.cashier = cashierFilter;
     if (paymentFilter) p.payment_method = paymentFilter;
     return p;
   }, [
     dateFrom,
     dateTo,
-    receiptSearch,
+    committedReceipt,
     cashierFilter,
     statusFilter,
     paymentFilter,
@@ -285,7 +301,7 @@ export default function TransactionListPage() {
 
   useEffect(() => {
     setPaginationModel((pm) => ({ ...pm, page: 0 }));
-  }, [dateFrom, dateTo, receiptSearch, cashierFilter, statusFilter, paymentFilter]);
+  }, [dateFrom, dateTo, committedReceipt, cashierFilter, statusFilter, paymentFilter]);
 
   const { data, isLoading } = useCarts(params, {
     placeholderData: keepPreviousData,
@@ -372,10 +388,35 @@ export default function TransactionListPage() {
             fullWidth
             size="small"
             label="Receipt #"
-            placeholder="Search by receipt #"
-            value={receiptSearch}
-            onChange={(e) => setReceiptSearch(e.target.value)}
+            placeholder="Receipt # (Enter or Search)"
+            value={receiptDraft}
+            onChange={(e) => setReceiptDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitReceiptSearch();
+              }
+            }}
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    {receiptDraft ? (
+                      <IconButton size="small" aria-label="Clear receipt search" onClick={clearReceiptSearch} edge="end">
+                        <Clear fontSize="small" />
+                      </IconButton>
+                    ) : null}
+                    <IconButton size="small" aria-label="Search by receipt" onClick={commitReceiptSearch} edge="end">
+                      <Search fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
           />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+            Press Enter or Search to filter. Typing alone does not reload.
+          </Typography>
         </Grid>
         <Grid size={{ xs: 12, md: 2 }}>
           <TextField

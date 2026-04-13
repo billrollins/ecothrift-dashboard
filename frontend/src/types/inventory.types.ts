@@ -138,6 +138,26 @@ export interface ManifestRow {
   notes: string;
 }
 
+/** GET /api/inventory/orders/ list rows (`PurchaseOrderListSerializer`). */
+export interface PurchaseOrderListRow {
+  id: number;
+  vendor: number;
+  vendor_name: string;
+  order_number: string;
+  status: PurchaseOrderStatus;
+  ordered_date: string;
+  expected_delivery: string | null;
+  delivered_date: string | null;
+  condition: PurchaseOrderCondition;
+  description: string;
+  item_count: number;
+  total_cost: string | null;
+  retail_value: string | null;
+  has_manifest: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PurchaseOrder {
   id: number;
   vendor: number;
