@@ -56,7 +56,7 @@ import {
   useCheckInOrderItems,
   useCreateItems,
   useDetachBatchItem,
-  useItems,
+  useItemsAllPages,
   useMarkItemBroken,
   useMarkOrderComplete,
   usePurchaseOrder,
@@ -207,12 +207,13 @@ export default function ProcessingPage() {
     },
     selectedOrderId != null,
   );
-  const { data: itemsData, isLoading: itemsLoading } = useItems(
-    {
-      purchase_order: selectedOrderId,
-      page_size: 1000,
-      ...(search ? { search } : {}),
-    },
+  const { data: itemsData, isLoading: itemsLoading } = useItemsAllPages(
+    selectedOrderId == null
+      ? undefined
+      : {
+          purchase_order: selectedOrderId,
+          ...(search ? { q: search } : {}),
+        },
     selectedOrderId != null,
   );
 

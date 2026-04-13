@@ -94,6 +94,14 @@ DATABASES = {
             'options': '-c search_path=ecothrift',
         },
     }
+    }
+
+# ── Cache (database backend; release runs createcachetable) ─────────────────────
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'django_cache_table',
+    }
 }
 
 # Optional second DB for management commands run locally against production (set PROD_DATABASE_*).

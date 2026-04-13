@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import {
   getConsigneeAccounts,
   getConsigneeAccount,
@@ -6,6 +6,7 @@ import {
   updateConsigneeAccount,
   deleteConsigneeAccount,
   getAgreements,
+  getAgreement,
   createAgreement,
   updateAgreement,
   deleteAgreement,
@@ -17,6 +18,13 @@ import {
   getMyPayouts,
   getMySummary,
 } from '../api/consignment.api';
+import type { PaginatedResponse } from '../types/common.types';
+import type { ConsignmentAgreement } from '../types/consignment.types';
+
+type AgreementsQueryOptions = Pick<
+  UseQueryOptions<PaginatedResponse<ConsignmentAgreement>>,
+  'enabled' | 'placeholderData' | 'staleTime'
+>;
 
 // ── Consignee Account hooks ──────────────────────────────────────────────────
 
@@ -82,13 +90,31 @@ export function useDeleteConsigneeAccount() {
 
 // ── Agreement hooks ──────────────────────────────────────────────────────────
 
-export function useAgreements(params?: Record<string, unknown>) {
-  return useQuery({
+export function useAgreements(
+  params?: Record<string, unknown>,
+  options?: AgreementsQueryOptions,
+) {
+  return useQuery<PaginatedResponse<ConsignmentAgreement>>({
     queryKey: ['consignment', 'agreements', params],
     queryFn: async () => {
       const { data } = await getAgreements(params);
       return data;
     },
+    enabled: options?.enabled !== false,
+    placeholderData: options?.placeholderData,
+    staleTime: options?.staleTime,
+  });
+}
+
+export function useAgreement(id: number | null) {
+  return useQuery({
+    queryKey: ['consignment', 'agreements', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data } = await getAgreement(id);
+      return data;
+    },
+    enabled: id != null,
   });
 }
 

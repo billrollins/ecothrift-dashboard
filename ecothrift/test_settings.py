@@ -11,3 +11,11 @@ DATABASES = {
         'NAME': ':memory:',
     },
 }
+
+# In-memory cache for tests (no django_cache_table migration in SQLite test DB).
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'ecothrift-test-cache',
+    }
+}

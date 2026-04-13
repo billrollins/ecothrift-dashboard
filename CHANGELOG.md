@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-12 (v2.11.1) -->
+<!-- Last updated: 2026-04-13 (checkpoint) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,6 +10,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+### Added
+
+- **Heroku memory ops** — [`docs/operations/heroku-memory.md`](docs/operations/heroku-memory.md): `log-runtime-metrics`, tail web dyno, rollback note (pairs Procfile/Gunicorn + cache deploy).
+- **Consignment agreements** — `SearchFilter` on list API so Add Item agreement autocomplete can search by number / consignee fields.
+
+### Changed
+
+- **Pagination** — DRF `max_page_size` **200** (was 1000); **Gunicorn** explicit `--workers 2`, `--max-requests` + jitter (Procfile).
+- **Cache** — Django **database** cache backend (`django_cache_table`; tests use LocMem); **TTL-only** cache for item **global** stats block and **category-need** API response (no signal invalidation).
+- **Purchase orders (list)** — Annotated item/batch counts for `processing_stats`; **list** no longer prefetches all `manifest_rows` / `batch_groups` (detail still prefetches manifest rows).
+- **Item stats API** — `_item_stats_payload` uses a **single aggregate** query where applicable.
+- **Buying / category need** — Metric windowing: all-time financials and `sell_through_pct` denominator; 90-day **`sold_count`** / **`sold_pct`** unchanged semantically; [`CategoryNeedBars`](frontend/src/components/buying/CategoryNeedBars.tsx) layered bars (see [`.ai/initiatives/ui_ux_polish.md`](.ai/initiatives/ui_ux_polish.md)).
+- **Frontend lists** — **Server-side** DataGrid pagination for orders, items (`ItemListPanel`), POS transactions; **`useItemsAllPages`** for Processing page when a PO has many items; **debounced `q`** still drives item search from `ItemListPanel`.
+- **Add Item form** — Purchase order and agreement pickers: **async** search (small page size) instead of loading hundreds of rows.
 
 ---
 

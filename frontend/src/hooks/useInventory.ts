@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryOptions,
+} from '@tanstack/react-query';
 import {
   getVendors,
   getVendor,
@@ -77,6 +83,18 @@ import type {
   FinalizeRowsPayload,
   SuggestItemRequest,
 } from '../api/inventory.api';
+import type { PaginatedResponse } from '../types/common.types';
+import type { Item, PurchaseOrder } from '../types/inventory.types';
+
+type PurchaseOrdersQueryOptions = Pick<
+  UseQueryOptions<PaginatedResponse<PurchaseOrder>>,
+  'enabled' | 'placeholderData' | 'staleTime'
+>;
+
+type ItemsQueryOptions = Pick<
+  UseQueryOptions<PaginatedResponse<Item>>,
+  'enabled' | 'placeholderData' | 'staleTime'
+>;
 
 export function useVendors(params?: Record<string, unknown>) {
   return useQuery({
@@ -135,13 +153,21 @@ export function useUpdateVendor() {
   });
 }
 
-export function usePurchaseOrders(params?: Record<string, unknown>) {
-  return useQuery({
+export function usePurchaseOrders(
+  params?: Record<string, unknown>,
+  options: boolean | PurchaseOrdersQueryOptions = true,
+) {
+  const { enabled, placeholderData, staleTime } =
+    typeof options === 'boolean' ? { enabled: options } : { enabled: true, ...options };
+  return useQuery<PaginatedResponse<PurchaseOrder>>({
     queryKey: ['purchaseOrders', params],
     queryFn: async () => {
       const { data } = await getOrders(params);
       return data;
     },
+    enabled: enabled !== false,
+    placeholderData,
+    staleTime,
   });
 }
 
@@ -652,14 +678,47 @@ export function useCheckInOrderItems() {
   });
 }
 
-export function useItems(params?: Record<string, unknown>, enabled = true) {
-  return useQuery({
+export function useItems(
+  params?: Record<string, unknown>,
+  options: boolean | ItemsQueryOptions = true,
+) {
+  const { enabled, placeholderData, staleTime } =
+    typeof options === 'boolean' ? { enabled: options } : { enabled: true, ...options };
+  return useQuery<PaginatedResponse<Item>>({
     queryKey: ['items', params],
     queryFn: async () => {
       const { data } = await getItems(params);
       return data;
     },
-    enabled,
+    enabled: enabled !== false,
+    placeholderData,
+    staleTime,
+  });
+}
+
+/** Fetch all item pages (page_size 200) for a PO or filter — used where the UI needs the full in-memory queue. */
+export function useItemsAllPages(
+  params: Record<string, unknown> | undefined,
+  enabled = true,
+) {
+  return useQuery<{ results: Item[]; count: number }>({
+    queryKey: ['items', 'all-pages', params],
+    queryFn: async () => {
+      const pageSize = 200;
+      let page = 1;
+      const all: Item[] = [];
+      let total = 0;
+      for (;;) {
+        const { data } = await getItems({ ...params, page, page_size: pageSize });
+        const batch = data.results ?? [];
+        all.push(...batch);
+        total = data.count ?? all.length;
+        if (all.length >= total || batch.length === 0) break;
+        page += 1;
+      }
+      return { results: all, count: total };
+    },
+    enabled: Boolean(enabled && params),
   });
 }
 

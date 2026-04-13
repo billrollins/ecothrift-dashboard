@@ -139,8 +139,9 @@ class ConsigneeAccountViewSet(viewsets.ModelViewSet):
 class ConsignmentAgreementViewSet(viewsets.ModelViewSet):
     serializer_class = ConsignmentAgreementSerializer
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
-    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['consignee', 'status']
+    search_fields = ['agreement_number', 'consignee__first_name', 'consignee__last_name', 'consignee__email']
     ordering = ['-created_at']
 
     def get_queryset(self):

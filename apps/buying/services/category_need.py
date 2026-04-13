@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import timedelta
 from decimal import Decimal
@@ -47,6 +46,7 @@ def taxonomy_bucket_for_item(item: Item) -> str:
 class _Agg:
     shelf_count: int = 0
     sold_count: int = 0
+    all_time_sold_count: int = 0
     sum_sale: Decimal = field(default_factory=lambda: Decimal('0'))
     sale_lines: int = 0
     sum_retail: Decimal = field(default_factory=lambda: Decimal('0'))
@@ -74,11 +74,39 @@ def _retail_amount(item: Item) -> Decimal | None:
     return None
 
 
+def _accumulate_all_time_sold_for_item(per: dict[str, _Agg], item: Item) -> None:
+    """Update aggregates for one sold item (all-time financials and all_time_sold_count)."""
+    b = taxonomy_bucket_for_item(item)
+    a = per[b]
+    a.all_time_sold_count += 1
+    sale = _sale_amount(item)
+    if sale is not None:
+        a.sum_sale += sale
+        a.sale_lines += 1
+    retail = _retail_amount(item)
+    if retail is not None:
+        a.sum_retail += retail
+        a.retail_lines += 1
+    if item.cost is not None:
+        a.sum_cost += item.cost
+        a.cost_lines += 1
+        if sale is not None:
+            a.paired_sale += sale
+            a.paired_cost += item.cost
+            a.paired_count += 1
+
+
 def build_category_need_rows() -> list[dict[str, Any]]:
     """
     Return one row per taxonomy_v1 category (19), sorted by need_gap descending.
 
-    Shelf % / sold % are shares of store-wide on-shelf and sold-in-window totals.
+    Shelf_pct and sold_pct: shelf is current on-shelf share; sold_pct is share of
+    store-wide sold-in-window units (pricing window from get_pricing_need_window_days).
+
+    need_gap is sold_pct minus shelf_pct (recent selling mix vs current shelf mix).
+
+    Financial columns (avg_sale, avg_retail, avg_cost, profit_*, return_on_cost) and
+    sell_through_pct (Thru) use all-time sold items only, not the window filter.
     """
     window_days = get_pricing_need_window_days()
     since = timezone.now() - timedelta(days=window_days)
@@ -89,30 +117,21 @@ def build_category_need_rows() -> list[dict[str, Any]]:
     for item in shelf_qs.iterator(chunk_size=2000):
         per[taxonomy_bucket_for_item(item)].shelf_count += 1
 
+    all_time_sold_qs = (
+        Item.objects.filter(status='sold')
+        .filter(Q(sold_for__isnull=False) | Q(price__isnull=False))
+        .select_related('product')
+    )
+    for item in all_time_sold_qs.iterator(chunk_size=2000):
+        _accumulate_all_time_sold_for_item(per, item)
+
     sold_qs = (
         Item.objects.filter(status='sold', sold_at__gte=since)
         .filter(Q(sold_for__isnull=False) | Q(price__isnull=False))
         .select_related('product')
     )
     for item in sold_qs.iterator(chunk_size=2000):
-        b = taxonomy_bucket_for_item(item)
-        a = per[b]
-        a.sold_count += 1
-        sale = _sale_amount(item)
-        if sale is not None:
-            a.sum_sale += sale
-            a.sale_lines += 1
-        retail = _retail_amount(item)
-        if retail is not None:
-            a.sum_retail += retail
-            a.retail_lines += 1
-        if item.cost is not None:
-            a.sum_cost += item.cost
-            a.cost_lines += 1
-            if sale is not None:
-                a.paired_sale += sale
-                a.paired_cost += item.cost
-                a.paired_count += 1
+        per[taxonomy_bucket_for_item(item)].sold_count += 1
 
     total_shelf = sum(p.shelf_count for p in per.values())
     total_sold = sum(p.sold_count for p in per.values())
@@ -132,9 +151,9 @@ def build_category_need_rows() -> list[dict[str, Any]]:
         )
         bar_max = max(bar_max, shelf_pct, sold_pct)
         need_gap = sold_pct - shelf_pct
-        denom_movement = a.sold_count + a.shelf_count
+        denom_movement = a.all_time_sold_count + a.shelf_count
         sell_through_pct = (
-            (Decimal(a.sold_count) / Decimal(denom_movement) * Decimal('100'))
+            (Decimal(a.all_time_sold_count) / Decimal(denom_movement) * Decimal('100'))
             if denom_movement
             else Decimal('0')
         )

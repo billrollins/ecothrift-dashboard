@@ -1,9 +1,1 @@
-chore(release): v2.11.1 — production backfill, cost pipeline, DB-aware IDs
-
-- Optional DATABASES['production'] via PROD_DATABASE_*; inventory commands --database / --no-input
-- Product.generate_product_number / Item.generate_sku respect using= for remote backfill
-- backfill_phase2_products_manifests: IntegrityError handling, bulk_create with ignore_conflicts, .using(db)
-- backfill_phase5_categories: production batch sizing, progress logging; classify_v2_* --database
-- Data migrations: PO retail/cost corrections; retag category inheritance for RETAGGED_FROM_DB2 notes
-- Pink-tag loads: compute_item_cost alternate allocation when PO fulfillment rate below 0.15
-- Production hygiene: HISTORICAL cleanup; populate Item.retail_value; cost pipeline on production
+---

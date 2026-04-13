@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { keepPreviousData } from '@tanstack/react-query';
 import {
   Accordion,
   AccordionDetails,
@@ -254,12 +255,16 @@ export default function TransactionListPage() {
   const [paymentFilter, setPaymentFilter] = useState('');
   const [selectedCart, setSelectedCart] = useState<Cart | null>(null);
   const [voidDialog, setVoidDialog] = useState<Cart | null>(null);
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
 
   const { data: usersData } = useUsers({ page_size: 200 });
   const users = usersData?.results ?? [];
 
   const params = useMemo(() => {
-    const p: Record<string, string> = {};
+    const p: Record<string, string | number> = {
+      page: paginationModel.page + 1,
+      page_size: paginationModel.pageSize,
+    };
     if (statusFilter && statusFilter !== 'all') p.status = statusFilter;
     if (dateFrom) p.date_from = dateFrom;
     if (dateTo) p.date_to = dateTo;
@@ -267,9 +272,25 @@ export default function TransactionListPage() {
     if (cashierFilter) p.cashier = cashierFilter;
     if (paymentFilter) p.payment_method = paymentFilter;
     return p;
+  }, [
+    dateFrom,
+    dateTo,
+    receiptSearch,
+    cashierFilter,
+    statusFilter,
+    paymentFilter,
+    paginationModel.page,
+    paginationModel.pageSize,
+  ]);
+
+  useEffect(() => {
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
   }, [dateFrom, dateTo, receiptSearch, cashierFilter, statusFilter, paymentFilter]);
 
-  const { data, isLoading } = useCarts(params);
+  const { data, isLoading } = useCarts(params, {
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
+  });
   const voidCartMutation = useVoidCart();
   const canVoid = hasRole('Manager') || hasRole('Admin');
 
@@ -432,8 +453,11 @@ export default function TransactionListPage() {
           columns={columns}
           loading={isLoading}
           getRowId={(row) => row.id}
+          paginationMode="server"
+          rowCount={data?.count ?? 0}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[10, 25, 50, 100]}
-          initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
           onRowClick={({ row }) => setSelectedCart(row as Cart)}
           sx={{
             border: 'none',

@@ -96,6 +96,23 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
     manifest_file = S3FileSerializer(source='manifest', read_only=True)
 
     def get_processing_stats(self, obj):
+        # List/detail querysets annotate these to avoid N+1 queries (see PurchaseOrderViewSet).
+        if hasattr(obj, '_items_intake'):
+            status_counts = {
+                'intake': obj._items_intake,
+                'processing': obj._items_processing,
+                'on_shelf': obj._items_on_shelf,
+                'sold': obj._items_sold,
+                'returned': obj._items_returned,
+                'scrapped': obj._items_scrapped,
+                'lost': obj._items_lost,
+            }
+            return {
+                'item_status_counts': status_counts,
+                'pending_items': status_counts['intake'] + status_counts['processing'],
+                'batch_groups_pending': obj._batch_groups_pending,
+                'batch_groups_total': obj._batch_groups_total,
+            }
         status_counts = {
             'intake': obj.items.filter(status='intake').count(),
             'processing': obj.items.filter(status='processing').count(),

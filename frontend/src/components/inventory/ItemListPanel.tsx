@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useMemo, useState } from 'react';
+import { keepPreviousData } from '@tanstack/react-query';
 import {
   Autocomplete,
   Box,
@@ -74,9 +75,13 @@ const ItemListPanel = forwardRef<HTMLInputElement, ItemListPanelProps>(function 
   const [conditionFilter, setConditionFilter] = useState<ItemCondition[]>([]);
   const [sourceFilter, setSourceFilter] = useState<ItemSource[]>([]);
   const [lastDays, setLastDays] = useState<string>('');
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
 
   const params = useMemo(() => {
-    const p: Record<string, unknown> = {};
+    const p: Record<string, unknown> = {
+      page: paginationModel.page + 1,
+      page_size: paginationModel.pageSize,
+    };
     if (debouncedSearch.trim()) p.q = debouncedSearch.trim();
     if (statusFilter.length) p.status = statusFilter.join(',');
     if (conditionFilter.length) p.condition = conditionFilter.join(',');
@@ -91,9 +96,24 @@ const ItemListPanel = forwardRef<HTMLInputElement, ItemListPanelProps>(function 
       }
     }
     return p;
+  }, [
+    debouncedSearch,
+    statusFilter,
+    conditionFilter,
+    sourceFilter,
+    lastDays,
+    paginationModel.page,
+    paginationModel.pageSize,
+  ]);
+
+  useEffect(() => {
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
   }, [debouncedSearch, statusFilter, conditionFilter, sourceFilter, lastDays]);
 
-  const { data, isLoading } = useItems(params);
+  const { data, isLoading } = useItems(params, {
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
+  });
   const items = data?.results ?? [];
   const total = data?.count ?? items.length;
 
@@ -241,8 +261,11 @@ const ItemListPanel = forwardRef<HTMLInputElement, ItemListPanelProps>(function 
           rows={items}
           columns={columns}
           loading={isLoading}
+          paginationMode="server"
+          rowCount={data?.count ?? 0}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[10, 25, 50, 100]}
-          initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
           onRowClick={(params) => onRowClick(params.row as Item)}
           getRowId={(row: Item) => row.id}
           getRowClassName={(params) => {

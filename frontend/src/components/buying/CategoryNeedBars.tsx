@@ -84,27 +84,29 @@ export default function CategoryNeedBars({ rows, selectedCategory, onSelect }: P
                 {row.category}
               </Typography>
               <Box sx={{ minWidth: 0 }}>
-                <Box sx={{ position: 'relative', height: 28, width: '100%' }}>
+                <Box sx={{ position: 'relative', height: 20, width: '100%' }}>
                   <Box
                     sx={{
                       position: 'absolute',
                       top: 2,
                       left: 0,
-                      height: 10,
+                      height: 12,
                       width: `${shelfW}%`,
                       bgcolor: '#90caf9',
                       borderRadius: 0.25,
+                      zIndex: 1,
                     }}
                   />
                   <Box
                     sx={{
                       position: 'absolute',
-                      top: 14,
+                      top: 2,
                       left: 0,
-                      height: 10,
+                      height: 12,
                       width: `${soldW}%`,
                       bgcolor: 'rgba(239,154,154,0.7)',
                       borderRadius: 0.25,
+                      zIndex: 2,
                     }}
                   />
                   <Box

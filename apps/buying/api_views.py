@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
+from django.core.cache import cache
 from django.db.models import (
     Case,
     Count,
@@ -458,12 +459,15 @@ class CategoryNeedView(APIView):
     permission_classes = [IsAuthenticated, IsStaff]
 
     def get(self, request):
-        return Response(
-            {
+        def _build():
+            return {
                 'need_window_days': get_pricing_need_window_days(),
                 'categories': build_category_need_rows(),
             }
-        )
+
+        # TTL-only cache (10 min); no signal invalidation.
+        payload = cache.get_or_set('category_need_panel', _build, 600)
+        return Response(payload)
 
 
 class CategoryWantView(APIView):

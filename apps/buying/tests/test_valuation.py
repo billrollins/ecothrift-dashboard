@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -11,6 +12,7 @@ from django.utils import timezone
 from apps.buying.filters import AuctionFilter
 from apps.buying.models import Auction, Marketplace, PricingRule
 from apps.buying.services.category_need import build_category_need_rows
+from apps.inventory.models import Item
 from apps.buying.services.valuation import (
     compute_and_save_manifest_distribution,
     get_valuation_source,
@@ -154,3 +156,116 @@ class CategoryNeedSellThroughRateTests(TestCase):
         rows = build_category_need_rows()
         row = next(r for r in rows if r["category"] == cat)
         self.assertEqual(row["sell_through_rate"], Decimal("0.1234"))
+
+
+class CategoryNeedWindowingTests(TestCase):
+    """Regression: sold_count is windowed; financials and Thru numerator use all-time sold."""
+
+    def test_windowed_sold_count_vs_all_time_financials(self):
+        frozen_now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=dt_timezone.utc)
+        cat = TAXONOMY_V1_CATEGORY_NAMES[0]
+        costs = [
+            Decimal("10"),
+            Decimal("20"),
+            Decimal("30"),
+            Decimal("100"),
+            Decimal("200"),
+        ]
+        expected_avg_cost = sum(costs, Decimal("0")) / Decimal("5")
+
+        with (
+            patch(
+                "apps.buying.services.category_need.get_pricing_need_window_days",
+                return_value=90,
+            ),
+            patch("apps.buying.services.category_need.timezone.now", return_value=frozen_now),
+        ):
+            for i in range(3):
+                Item.objects.create(
+                    sku=f"CN-WIN-{i}",
+                    title="w",
+                    category=cat,
+                    status="sold",
+                    sold_at=frozen_now - timedelta(days=30),
+                    sold_for=Decimal("10"),
+                    price=Decimal("10"),
+                    cost=costs[i],
+                )
+            for i in range(2):
+                Item.objects.create(
+                    sku=f"CN-OLD-{i}",
+                    title="o",
+                    category=cat,
+                    status="sold",
+                    sold_at=frozen_now - timedelta(days=180),
+                    sold_for=Decimal("10"),
+                    price=Decimal("10"),
+                    cost=costs[3 + i],
+                )
+
+            rows = build_category_need_rows()
+        row = next(r for r in rows if r["category"] == cat)
+        self.assertEqual(row["sold_count"], 3)
+        self.assertEqual(row["sell_through_pct"], Decimal("100"))
+        self.assertEqual(row["avg_cost"], expected_avg_cost)
+
+    def test_windowing_with_shelf_in_sell_through_denominator(self):
+        """Thru = all_time_sold / (all_time_sold + shelf); shelf items in fixture."""
+        frozen_now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=dt_timezone.utc)
+        cat = TAXONOMY_V1_CATEGORY_NAMES[1]
+        costs = [
+            Decimal("10"),
+            Decimal("20"),
+            Decimal("30"),
+            Decimal("100"),
+            Decimal("200"),
+        ]
+        expected_avg_cost = sum(costs, Decimal("0")) / Decimal("5")
+        all_time_sold = 5
+        shelf_n = 2
+        expected_thru = (Decimal(all_time_sold) / Decimal(all_time_sold + shelf_n)) * Decimal("100")
+
+        with (
+            patch(
+                "apps.buying.services.category_need.get_pricing_need_window_days",
+                return_value=90,
+            ),
+            patch("apps.buying.services.category_need.timezone.now", return_value=frozen_now),
+        ):
+            for i in range(shelf_n):
+                Item.objects.create(
+                    sku=f"CN-SHF-{i}",
+                    title="s",
+                    category=cat,
+                    status="on_shelf",
+                    price=Decimal("5"),
+                )
+            for i in range(3):
+                Item.objects.create(
+                    sku=f"CN-WIN2-{i}",
+                    title="w",
+                    category=cat,
+                    status="sold",
+                    sold_at=frozen_now - timedelta(days=30),
+                    sold_for=Decimal("10"),
+                    price=Decimal("10"),
+                    cost=costs[i],
+                )
+            for i in range(2):
+                Item.objects.create(
+                    sku=f"CN-OLD2-{i}",
+                    title="o",
+                    category=cat,
+                    status="sold",
+                    sold_at=frozen_now - timedelta(days=180),
+                    sold_for=Decimal("10"),
+                    price=Decimal("10"),
+                    cost=costs[3 + i],
+                )
+
+            rows = build_category_need_rows()
+        row = next(r for r in rows if r["category"] == cat)
+        self.assertEqual(row["sold_count"], 3)
+        self.assertEqual(row["shelf_count"], shelf_n)
+        self.assertEqual(row["sell_through_pct"], expected_thru)
+        self.assertEqual(row["avg_cost"], expected_avg_cost)

@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { keepPreviousData } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -61,17 +62,29 @@ export default function OrderListPage() {
     notes: '',
   });
 
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
+
   const params = useMemo(() => {
-    const p: Record<string, string | number> = {};
+    const p: Record<string, string | number> = {
+      page: paginationModel.page + 1,
+      page_size: paginationModel.pageSize,
+    };
     if (statusFilter) p.status = statusFilter;
     if (vendorFilter) p.vendor = vendorFilter;
     if (dateFrom) p.ordered_date_after = format(dateFrom, 'yyyy-MM-dd');
     if (dateTo) p.ordered_date_before = format(dateTo, 'yyyy-MM-dd');
     return p;
+  }, [statusFilter, vendorFilter, dateFrom, dateTo, paginationModel.page, paginationModel.pageSize]);
+
+  useEffect(() => {
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
   }, [statusFilter, vendorFilter, dateFrom, dateTo]);
 
   const { data: vendorsData } = useVendors();
-  const { data: ordersData, isLoading } = usePurchaseOrders(params);
+  const { data: ordersData, isLoading } = usePurchaseOrders(params, {
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
+  });
   const createOrder = useCreatePurchaseOrder();
 
   const vendors = vendorsData?.results ?? [];
@@ -286,8 +299,11 @@ export default function OrderListPage() {
           rows={orders}
           columns={columns}
           loading={isLoading}
+          paginationMode="server"
+          rowCount={ordersData?.count ?? 0}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[25, 50, 100]}
-          initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
           onRowClick={(params) => navigate(`/inventory/orders/${params.id}`)}
           getRowId={(row: PurchaseOrder) => row.id}
           density="compact"

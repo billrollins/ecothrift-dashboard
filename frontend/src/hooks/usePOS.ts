@@ -1,5 +1,5 @@
 import { isAxiosError } from 'axios';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import {
   getRegisters,
   getDrawers,
@@ -22,7 +22,14 @@ import {
   deleteRegister,
   getSupplemental,
   bootstrapSupplemental,
+  type Cart,
 } from '../api/pos.api';
+import type { PaginatedResponse } from '../types/common.types';
+
+type CartsQueryOptions = Pick<
+  UseQueryOptions<PaginatedResponse<Cart>>,
+  'enabled' | 'placeholderData' | 'staleTime'
+>;
 
 export function useRegisters(params?: Record<string, unknown>) {
   return useQuery({
@@ -50,15 +57,17 @@ export function useDrawers(
 
 export function useCarts(
   params?: Record<string, unknown>,
-  options?: { enabled?: boolean },
+  options?: CartsQueryOptions,
 ) {
-  return useQuery({
+  return useQuery<PaginatedResponse<Cart>>({
     queryKey: ['carts', params],
     queryFn: async () => {
       const { data } = await getCarts(params);
       return data;
     },
     enabled: options?.enabled !== false,
+    placeholderData: options?.placeholderData,
+    staleTime: options?.staleTime,
   });
 }
 

@@ -4,6 +4,7 @@ import io
 import re
 from decimal import Decimal, InvalidOperation
 
+from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import Avg, Count, F, Q, Sum
@@ -700,6 +701,26 @@ class CategoryViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
 
+def _annotate_purchase_order_stats(qs):
+    """Annotate PO querysets so list/detail avoid N+1 on processing_stats and skip heavy prefetches."""
+    return qs.annotate(
+        _items_intake=Count('items', filter=Q(items__status='intake'), distinct=True),
+        _items_processing=Count('items', filter=Q(items__status='processing'), distinct=True),
+        _items_on_shelf=Count('items', filter=Q(items__status='on_shelf'), distinct=True),
+        _items_sold=Count('items', filter=Q(items__status='sold'), distinct=True),
+        _items_returned=Count('items', filter=Q(items__status='returned'), distinct=True),
+        _items_scrapped=Count('items', filter=Q(items__status='scrapped'), distinct=True),
+        _items_lost=Count('items', filter=Q(items__status='lost'), distinct=True),
+        _manifest_row_count=Count('manifest_rows', distinct=True),
+        _batch_groups_total=Count('batch_groups', distinct=True),
+        _batch_groups_pending=Count(
+            'batch_groups',
+            filter=~Q(batch_groups__status='complete'),
+            distinct=True,
+        ),
+    )
+
+
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseOrderSerializer
     permission_classes = [IsAuthenticated, IsStaff]
@@ -713,12 +734,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     ordering = ['-ordered_date']
 
     def get_queryset(self):
-        return PurchaseOrder.objects.select_related(
-            'vendor', 'created_by',
-        ).prefetch_related(
-            'manifest_rows',
-            'batch_groups',
-        ).all()
+        qs = _annotate_purchase_order_stats(
+            PurchaseOrder.objects.select_related('vendor', 'created_by').all(),
+        )
+        # List: no manifest prefetch (large JSON). Detail/actions: prefetch manifest rows for detail serializer.
+        if self.action == 'list':
+            return qs
+        return qs.prefetch_related('manifest_rows')
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -2853,25 +2875,29 @@ class VendorProductRefViewSet(viewsets.ModelViewSet):
 
 
 def _item_stats_payload(qs, label: str):
-    """Aggregate counts and averages for a filtered Item queryset."""
-    status_rows = qs.values('status').annotate(c=Count('id'))
-    sc = {row['status']: row['c'] for row in status_rows}
-    on_shelf = sc.get('on_shelf', 0)
-    sold = sc.get('sold', 0)
-    lost = sc.get('lost', 0)
-    scrapped = sc.get('scrapped', 0)
-    total = qs.count()
-    avg_retail = qs.aggregate(a=Avg('price'))['a']
-    avg_sold = qs.filter(sold_for__isnull=False).aggregate(a=Avg('sold_for'))['a']
+    """Aggregate counts and averages for a filtered Item queryset (single aggregate query)."""
+    agg = qs.aggregate(
+        total=Count('id'),
+        on_shelf=Count('id', filter=Q(status='on_shelf')),
+        sold=Count('id', filter=Q(status='sold')),
+        lost=Count('id', filter=Q(status='lost')),
+        scrapped=Count('id', filter=Q(status='scrapped')),
+        avg_retail=Avg('price'),
+        avg_sold=Avg('sold_for', filter=Q(sold_for__isnull=False)),
+    )
+    total = agg['total'] or 0
+    lost = agg['lost'] or 0
+    avg_retail = agg['avg_retail']
+    avg_sold = agg['avg_sold']
     loss_rate = Decimal('0')
     if total > 0:
         loss_rate = (Decimal(lost) / Decimal(total)).quantize(Decimal('0.0001'))
     return {
         'label': label,
-        'on_shelf': on_shelf,
-        'sold': sold,
+        'on_shelf': agg['on_shelf'] or 0,
+        'sold': agg['sold'] or 0,
         'lost': lost,
-        'scrapped': scrapped,
+        'scrapped': agg['scrapped'] or 0,
         'total': total,
         'avg_retail': str(round(avg_retail, 2)) if avg_retail is not None else '0.00',
         'avg_sold': str(round(avg_sold, 2)) if avg_sold is not None else '0.00',
@@ -2972,7 +2998,12 @@ class ItemViewSet(viewsets.ModelViewSet):
                 category_raw,
             )
 
-        global_block = _item_stats_payload(Item.objects.all(), 'All Items')
+        # TTL-only cache; no signal invalidation (batch processing would thrash the cache).
+        global_block = cache.get_or_set(
+            'item_stats_global',
+            lambda: _item_stats_payload(Item.objects.all(), 'All Items'),
+            300,
+        )
 
         return Response({
             'product': product_block,

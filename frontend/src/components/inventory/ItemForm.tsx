@@ -31,12 +31,14 @@ import { useDevLogConfig } from '../../hooks/useDevLog';
 import {
   useAISuggestItem,
   useCreateItem,
+  usePurchaseOrder,
   usePurchaseOrders,
   useUpdateItem,
 } from '../../hooks/useInventory';
 import { devLog } from '../../utils/logger';
 import { postDevLogLine } from '../../api/core.api';
-import { useAgreements } from '../../hooks/useConsignment';
+import { useAgreement, useAgreements } from '../../hooks/useConsignment';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import ItemHeroStats from './ItemHeroStats';
 import {
@@ -348,6 +350,10 @@ export default function ItemForm({
 
   const [printOnSave, setPrintOnSave] = useState(() => readBoolLS(LS_PRINT_ON_SAVE, false));
   const [keepOpen, setKeepOpen] = useState(() => readBoolLS(LS_KEEP_OPEN, false));
+  const [poSearchInput, setPoSearchInput] = useState('');
+  const [agreementSearchInput, setAgreementSearchInput] = useState('');
+  const debouncedPoSearch = useDebouncedValue(poSearchInput, 300);
+  const debouncedAgreementSearch = useDebouncedValue(agreementSearchInput, 300);
 
   useEffect(() => {
     try {
@@ -376,11 +382,44 @@ export default function ItemForm({
     });
   }, [mode, item?.id, item?.product, draft.category, onStatsContext]);
 
-  const { data: ordersData } = usePurchaseOrders({ page_size: 500 });
-  const purchaseOrders: PurchaseOrder[] = ordersData?.results ?? [];
+  const { data: ordersData } = usePurchaseOrders(
+    {
+      page_size: 20,
+      ...(debouncedPoSearch.trim() ? { search: debouncedPoSearch.trim() } : {}),
+    },
+    { enabled: mode === 'create' && draft.source === 'purchased' },
+  );
+  const { data: selectedPoDetail } = usePurchaseOrder(draft.purchaseOrderId);
 
-  const { data: agreementsData } = useAgreements({ page_size: 500 });
-  const agreements: ConsignmentAgreement[] = agreementsData?.results ?? [];
+  const purchaseOrders: PurchaseOrder[] = useMemo(() => {
+    const list = ordersData?.results ?? [];
+    const id = draft.purchaseOrderId;
+    if (!id || !selectedPoDetail) return list;
+    if (list.some((o) => o.id === id)) return list;
+    return [selectedPoDetail, ...list];
+  }, [ordersData?.results, draft.purchaseOrderId, selectedPoDetail]);
+
+  const { data: agreementsData } = useAgreements(
+    {
+      page_size: 20,
+      ...(debouncedAgreementSearch.trim() ? { search: debouncedAgreementSearch.trim() } : {}),
+    },
+    { enabled: mode === 'create' && draft.source === 'consignment' },
+  );
+  const { data: selectedAgreementDetail } = useAgreement(draft.agreementId);
+
+  const agreements: ConsignmentAgreement[] = useMemo(() => {
+    const list = agreementsData?.results ?? [];
+    const id = draft.agreementId;
+    if (!id || !selectedAgreementDetail) return list;
+    if (list.some((a) => a.id === id)) return list;
+    return [selectedAgreementDetail, ...list];
+  }, [agreementsData?.results, draft.agreementId, selectedAgreementDetail]);
+
+  useEffect(() => {
+    setPoSearchInput('');
+    setAgreementSearchInput('');
+  }, [draft.source]);
 
   const resetForm = useCallback(() => {
     setDraft({
@@ -396,6 +435,8 @@ export default function ItemForm({
       agreementId: null,
       location: '',
     });
+    setPoSearchInput('');
+    setAgreementSearchInput('');
     dispatchAi({ type: 'reset' });
   }, []);
 
@@ -1003,6 +1044,10 @@ export default function ItemForm({
               <Autocomplete
                 size="small"
                 options={purchaseOrders}
+                filterOptions={(x) => x}
+                inputValue={poSearchInput}
+                onInputChange={(_, v) => setPoSearchInput(v)}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
                 getOptionLabel={(o) => `${o.order_number} — ${o.vendor_name}`}
                 value={purchaseOrders.find((o) => o.id === draft.purchaseOrderId) ?? null}
                 onChange={(_, v) => setDraftField('purchaseOrderId', v?.id ?? null)}
@@ -1015,6 +1060,10 @@ export default function ItemForm({
               <Autocomplete
                 size="small"
                 options={agreements}
+                filterOptions={(x) => x}
+                inputValue={agreementSearchInput}
+                onInputChange={(_, v) => setAgreementSearchInput(v)}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
                 getOptionLabel={(o) => `${o.agreement_number} — ${o.consignee_name}`}
                 value={agreements.find((o) => o.id === draft.agreementId) ?? null}
                 onChange={(_, v) => setDraftField('agreementId', v?.id ?? null)}
