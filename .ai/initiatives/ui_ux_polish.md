@@ -126,6 +126,11 @@ Roughly **25** UI/UX items Bill has identified — **to be listed** in this file
 #### Session updates
 
 - `2026-04-13T12:45:00-05:00` **Checkpoint** — Phase 2 implementation **landed in working tree** (not yet committed): `ItemListPanel` / `TransactionListPage` commit-on-enter search; `PurchaseOrderListSerializer` + `has_manifest`, lighter PO list queryset; `PurchaseOrderListRow` + call sites; `ItemForm` taxonomy `Autocomplete`, `retail_value`, create validation, brand default **Generic**; `taxonomyV1` helpers (`MIXED_LOTS_UNCATEGORIZED`, `isTaxonomyV1CategoryName`); `suggest_item` / `ai_cleanup_rows` → `DEFAULT_AI_FAST_MODEL`, taxonomy prompt + category retry + fallback; `_suggest_item_parse_suggestions_from_text` + test in `test_category_taxonomy.py`. **`CHANGELOG`** `[Unreleased]` updated this pulse. **Parking (session_close):** semver / dated section, `.version`, `commit_message.txt` lines 2+, full pre-commit matrix when cutting release.
+- `2026-04-13T13:30:00-05:00` **Session close** — **`v2.11.2`** dated `CHANGELOG` section; `.version` + root `package.json` bumped; `commit_message.txt` set for this release.
+
+#### Result
+
+committed as **v2.11.2** (release includes `CHANGELOG` **2.11.2**, `.version`, root `package.json`; initiative + `_index` session-close lines).
 
 ---
 

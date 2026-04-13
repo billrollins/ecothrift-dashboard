@@ -14,7 +14,7 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 | Initiative | Phase | Notes |
 |------------|-------|-------|
 | [bstock_auction_intelligence.md](./bstock_auction_intelligence.md) | Phase 6 next | Phase 5 complete on production (backfill, retail_value, categories, cost pipeline); outcome tracking next. |
-| [ui_ux_polish.md](./ui_ux_polish.md) | Phase 2 implemented (unreleased) | Phase 1 category need + bars; Phase 2 polish (search commit, lean PO list, Add Item taxonomy/retail, AI fast defaults) in working tree — see initiative Session 2 + `CHANGELOG` `[Unreleased]`. |
+| [ui_ux_polish.md](./ui_ux_polish.md) | Phase 2 released **v2.11.2** | Phase 1 category need + bars; Phase 2 polish (search commit, lean PO list, Add Item taxonomy/retail, AI fast defaults). |
 | Groq / alternative AI cost optimization (parked) | Parked | See **Parking lot** in [bstock_auction_intelligence.md](./bstock_auction_intelligence.md). |
 
 **Current session details** (goal, finish line, updates) live **only** in each initiative file under **`## Sessions`** — not duplicated here.

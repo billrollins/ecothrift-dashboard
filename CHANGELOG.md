@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-13 (checkpoint — Phase 2 pulse) -->
+<!-- Last updated: 2026-04-13 -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,6 +10,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+---
+
+## [2.11.2] — 2026-04-13
+
+User-facing theme: **Inventory and POS UX**, **buying category need**, and **ops hardening** — Phase 2 polish (search-on-commit, lean PO list, Add Item taxonomy/retail, AI defaults), plus pagination, cache, Gunicorn, and Heroku memory guidance.
 
 ### Added
 
