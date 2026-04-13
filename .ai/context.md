@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-04-12 (v2.11.1) -->
+<!-- Last updated: 2026-04-13 (v2.12.0 session close) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** See repo root `.version` (e.g. **`v2.11.1`**). **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; **Heroku production** has V1/V2→V3 data, **`Item.retail_value`**, categories, and **cost pipeline** deployed (see **CHANGELOG [2.11.1]**). **Active initiative:** **B-Stock Phase 6** — **[`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md)** (outcome tracking); see also **`.ai/extended/backend.md`**, **`.ai/extended/frontend.md`**.
+**Current version:** See repo root `.version` (e.g. **`v2.12.0`**). **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; **Heroku production** has V1/V2→V3 data, **`Item.retail_value`**, categories, and **cost pipeline** deployed (see **CHANGELOG [2.12.0]** and prior). **Active initiative:** **B-Stock Phase 6** — **[`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md)** (outcome tracking); see also **`.ai/extended/backend.md`**, **`.ai/extended/frontend.md`**.
 
 ---
 
@@ -87,11 +87,11 @@ Capability summary — detail lives in the extended docs above and initiative fi
 
 - **Accounts / auth:** JWT, roles, password flows
 - **HR:** Time clock, sick leave, departments, time-entry requests
-- **Inventory:** POs, M3 processing, preprocessing (standard manifest, AI cleanup, matching, pricing)
+- **Inventory:** POs, M3 processing, preprocessing (standard manifest, AI cleanup, matching, pricing); **v2.12.0** — unfiltered item list **pagination `count`** TTL-cached (`item_list_total_count`, 300s) to reduce large-table `COUNT(*)` on `/api/inventory/items/`
 - **POS:** Terminal, drawers, carts, transactions, cash management
 - **Consignment:** Agreements, items, payouts, portal
 - **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped (see `.version`); **Phase 6** (outcome tracking) next — see [bstock initiative](initiatives/bstock_auction_intelligence.md)
-- **Data backfill (V1/V2 → V3):** Complete (v2.10.0); initiative **[archived](initiatives/_archived/_completed/data_backfill_initiative.md)** — loaders `backfill_phase1_*` … `backfill_phase5_categories` + `classify_v2_iterate`; **production DB** populated (v2.11.1); optional **`--database production`** on inventory pipeline commands. Portable CSV **`import_backfill`** to other hosts remains a separate path if ever needed.
+- **Data backfill (V1/V2 → V3):** Complete (v2.10.0); initiative **[archived](initiatives/_archived/_completed/data_backfill_initiative.md)** — loaders `backfill_phase1_*` … `backfill_phase5_categories` + `classify_v2_iterate`; **production DB** populated (through **v2.12.0** train); optional **`--database production`** on inventory pipeline commands. Portable CSV **`import_backfill`** to other hosts remains a separate path if ever needed.
 - **Print server:** Local FastAPI labels/receipts/drawer
 - **AI:** Claude proxy (`apps/ai/`), inventory/buying AI
 - **Core / ops:** Locations, settings, S3, dev logging

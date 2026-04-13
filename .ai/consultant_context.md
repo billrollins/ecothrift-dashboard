@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-12T18:30:00-05:00 -->
+<!-- Last updated: 2026-04-13T15:30:00-05:00 -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
@@ -261,9 +261,9 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 - **Tests:** **`apps/buying/tests/test_valuation.py`**, **`apps/buying/tests/test_phase5_category_need.py`**.
 - **React (v2.9.0):** **`/buying/auctions`** — valuation columns, filter chips + marketplace multi-select, category-need panel (desktop), watchlist row tint, stable pagination (**`keepPreviousData`**). **`/buying/auctions/:id`** — valuation card, overrides, AI vs manifest strip. **`GET /api/buying/watchlist/`** list filters extended (**`profitable`**, **`needed`**, **`thumbs_up`**) to match main list. **Token-backed** B-Stock calls from the **REST API** are **disabled** (`501` / `token_backed_bstock_disabled`) — **CSV upload** + soft-touch sweep; see **`apps/buying/api_views.py`**.
 
-**Production inventory alignment:** Heroku **V3** now holds backfilled **Item** / **PricingRule** / cost data (see **CHANGELOG [2.11.1]**), so **category-need** and valuation inputs reflect live historical data where applicable. **B-Stock Phase 6** (outcome tracking) is next.
+**Production inventory alignment:** Heroku **V3** holds backfilled **Item** / **PricingRule** / cost data (see **CHANGELOG** through **[2.12.0]**), so **category-need** and valuation inputs reflect live historical data where applicable. **B-Stock Phase 6** (outcome tracking) is next.
 
-**UI/UX polish (parallel initiative):** [`.ai/initiatives/ui_ux_polish.md`](initiatives/ui_ux_polish.md) is **active**. **Phase 1** corrects **category-need** metric windowing in **`apps/buying/services/category_need.py`** (all-time vs 90-day, per the initiative). **Phase 2+** will list additional UI/UX items.
+**UI/UX polish:** [`.ai/initiatives/ui_ux_polish.md`](initiatives/ui_ux_polish.md) — **Phase 1** (category-need windowing, **`CategoryNeedBars`**) and **Phase 2** (inventory/POS UX, lean PO list, Add Item taxonomy, AI fast defaults) shipped **v2.12.0**; **unfiltered** item list pagination **`count`** uses a **TTL cache** (`item_list_total_count`, 300s) to reduce large-table **`COUNT(*)`**.
 
 ---
 

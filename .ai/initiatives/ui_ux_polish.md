@@ -140,10 +140,12 @@ committed as **v2.11.2** (release includes `CHANGELOG` **2.11.2**, `.version`, r
 #### Session updates
 
 - `2026-04-13T14:00:00-05:00` **Session close** — **`v2.12.0`** shipped in one commit with cached item list total count.
+- `2026-04-13T15:30:00-05:00` **`session_close.md`** — Finalized `#### Result` with short hash; `manage.py check`, `tsc --noEmit`, `compileall` on `apps/`; `.ai/context.md` version pointer; **push** to `origin/main` still pending locally.
+- `2026-04-13T15:35:00-05:00` **Docs commit** — `.ai/context.md`, `.ai/consultant_context.md` aligned to **v2.12.0** (session_close Part 2).
 
 #### Result
 
-committed as **v2.12.0** (see `CHANGELOG` **2.12.0**; `ecothrift.pagination.ItemListPagination`).
+committed as **v2.12.0** at `eb98f6c` (see `CHANGELOG` **2.12.0**; `ecothrift.pagination.ItemListPagination`).
 
 ---
 
