@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-13 -->
+<!-- Last updated: 2026-04-13 (v2.12.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -13,13 +13,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [2.11.2] — 2026-04-13
+## [2.12.0] — 2026-04-13
 
-User-facing theme: **Inventory and POS UX**, **buying category need**, and **ops hardening** — Phase 2 polish (search-on-commit, lean PO list, Add Item taxonomy/retail, AI defaults), plus pagination, cache, Gunicorn, and Heroku memory guidance.
+User-facing theme: **Memory/performance**, **buying category need**, **inventory & POS UX** (Phase 1–2), and **faster item list** — ops tuning, caches, lean APIs, enter-to-commit search, Add Item taxonomy, AI fast defaults, plus **cached total count** for unfiltered item lists.
 
 ### Added
 
 - **Inventory / POS — Phase 2 polish** ([`.ai/initiatives/ui_ux_polish.md`](.ai/initiatives/ui_ux_polish.md)) — Item list (`ItemListPanel`) and POS **transactions** receipt search commit on **Enter** / **Search** (draft text does not refetch lists). **Orders list API** — `PurchaseOrderListSerializer` with **`has_manifest`**; list queryset skips heavy PO stats annotations; no `processing_stats` or nested `manifest_file` on list. **Add Item** — category **taxonomy `Autocomplete`**, **retail (MSRP)** + validation, brand default **Generic**; **`PurchaseOrderListRow`** type for list responses. **AI** — `suggest_item` and `ai_cleanup_rows` default **`AI_MODEL_FAST`**; suggest-item includes canonical category list, **one retry** if category invalid, fallback to **Mixed lots & uncategorized**.
+- **Item list API — cached total count** — For **unfiltered** list requests (no `q`, `search`, status/condition/source, filterset fields, or `updated_after`), DRF pagination **`count`** uses **`cache.get_or_set('item_list_total_count', …, 300)`** so large-table **`COUNT(*)`** is not repeated every request (`ItemListPagination` + `CachedTotalCountPaginator`). Filtered lists still run a normal count.
 - **Heroku memory ops** — [`docs/operations/heroku-memory.md`](docs/operations/heroku-memory.md): `log-runtime-metrics`, tail web dyno, rollback note (pairs Procfile/Gunicorn + cache deploy).
 - **Consignment agreements** — `SearchFilter` on list API so Add Item agreement autocomplete can search by number / consignee fields.
 

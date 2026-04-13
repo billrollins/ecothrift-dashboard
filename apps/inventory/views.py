@@ -19,6 +19,8 @@ from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
+from ecothrift.pagination import ItemListPagination
+
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
 
@@ -2988,6 +2990,7 @@ def _csv_query_values(request, key: str) -> list[str]:
 class ItemViewSet(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
     permission_classes = [IsAuthenticated, IsStaff]
+    pagination_class = ItemListPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = [
         'sku', 'title', 'brand', 'category', 'notes', 'location',

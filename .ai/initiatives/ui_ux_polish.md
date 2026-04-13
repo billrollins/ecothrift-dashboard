@@ -1,5 +1,5 @@
 <!-- initiative: slug=ui-ux-polish status=active updated=2026-04-13 -->
-<!-- Last updated: 2026-04-13T12:45:00-05:00 -->
+<!-- Last updated: 2026-04-13T14:00:00-05:00 -->
 # Initiative: UI/UX polish and metric corrections
 
 **Status:** Active
@@ -131,6 +131,19 @@ Roughly **25** UI/UX items Bill has identified — **to be listed** in this file
 #### Result
 
 committed as **v2.11.2** (release includes `CHANGELOG` **2.11.2**, `.version`, root `package.json`; initiative + `_index` session-close lines).
+
+### Session 3 — 2026-04-13 (v2.12.0 release + item list count cache)
+
+- **Goal:** Session close at **v2.12.0** (minor) consolidating memory/perf, Phase 1–2 UX, and **quick win**: cache **`COUNT(*)`** for unfiltered **`GET /api/inventory/items/`** pagination (`item_list_total_count`, 300s TTL).
+- **Ship:** `.version` / `package.json` **2.12.0**; `CHANGELOG` **2.12.0** (merged prior **2.11.2** notes + cache bullet); `ItemListPagination` in `ecothrift/pagination.py`; `ItemViewSet.pagination_class`.
+
+#### Session updates
+
+- `2026-04-13T14:00:00-05:00` **Session close** — **`v2.12.0`** shipped in one commit with cached item list total count.
+
+#### Result
+
+committed as **v2.12.0** (see `CHANGELOG` **2.12.0**; `ecothrift.pagination.ItemListPagination`).
 
 ---
 

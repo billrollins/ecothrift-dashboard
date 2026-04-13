@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-13T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-13T14:00:00-05:00 -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -14,7 +14,7 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 | Initiative | Phase | Notes |
 |------------|-------|-------|
 | [bstock_auction_intelligence.md](./bstock_auction_intelligence.md) | Phase 6 next | Phase 5 complete on production (backfill, retail_value, categories, cost pipeline); outcome tracking next. |
-| [ui_ux_polish.md](./ui_ux_polish.md) | Phase 2 released **v2.11.2** | Phase 1 category need + bars; Phase 2 polish (search commit, lean PO list, Add Item taxonomy/retail, AI fast defaults). |
+| [ui_ux_polish.md](./ui_ux_polish.md) | Phase 2 released **v2.12.0** | Phase 1 category need + bars; Phase 2 polish; item list total-count cache (unfiltered) in **v2.12.0**. |
 | Groq / alternative AI cost optimization (parked) | Parked | See **Parking lot** in [bstock_auction_intelligence.md](./bstock_auction_intelligence.md). |
 
 **Current session details** (goal, finish line, updates) live **only** in each initiative file under **`## Sessions`** — not duplicated here.
