@@ -129,8 +129,15 @@ def _time_pressure(auction: Auction) -> Decimal:
     return Decimal(str(round(tp, 6)))
 
 
-def recompute_auction_valuation(auction: Auction) -> None:
-    """Recompute stored valuation fields for one auction (DB write)."""
+def recompute_auction_valuation(
+    auction: Auction,
+    need_rows: list[dict[str, Any]] | None = None,
+) -> None:
+    """Recompute stored valuation fields for one auction (DB write).
+
+    Pass ``need_rows`` from ``build_category_need_rows()`` when recomputing many
+    auctions in one batch to avoid repeating the same expensive query.
+    """
     rules = _load_sell_through_rates()
     if not rules:
         logger.warning("recompute_auction_valuation: no PricingRule rows; valuation may be zero.")
@@ -179,8 +186,8 @@ def recompute_auction_valuation(auction: Auction) -> None:
     else:
         profitability_ratio = None
 
-    need_rows = build_category_need_rows()
-    need_by_cat = {r["category"]: float(r["need_gap"]) for r in need_rows}
+    rows_for_need = need_rows if need_rows is not None else build_category_need_rows()
+    need_by_cat = {r["category"]: float(r["need_gap"]) for r in rows_for_need}
 
     want_sums: dict[str, list[float]] = {c: [] for c in TAXONOMY_V1_CATEGORY_NAMES}
     for v in CategoryWantVote.objects.all().only("category", "value", "voted_at"):
@@ -232,12 +239,13 @@ def recompute_auction_valuation(auction: Auction) -> None:
 
 def recompute_all_open_auctions() -> int:
     """Recompute valuations for auctions in open or closing status. Returns count."""
+    cached_need_rows = build_category_need_rows()
     qs = Auction.objects.filter(
         status__in=[Auction.STATUS_OPEN, Auction.STATUS_CLOSING]
     ).select_related("marketplace")
     n = 0
     for a in qs.iterator(chunk_size=200):
-        recompute_auction_valuation(a)
+        recompute_auction_valuation(a, cached_need_rows)
         n += 1
     return n
 

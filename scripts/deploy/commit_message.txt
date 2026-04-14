@@ -1,8 +1,1 @@
-feat: fast parallel auction sweep and optional SOCKS5 (v2.13.0)
-
-Session 23 (bstock_auction_intelligence) — sweep behavior, API, UI, proxy prep:
-- Parallel POST search per marketplace (limit 200), raw SQL upsert, listing_mapping
-- POST /api/buying/sweep/ extended JSON (total_seconds, by_marketplace, inserted/updated)
-- Frontend: single Refresh POST for all active marketplaces
-- BUYING_SOCKS5_* + urllib.parse.quote for credentials; PySocks
-See CHANGELOG [2.13.0], .ai/initiatives/bstock_auction_intelligence.md Session 23.
+fix: compute category need rows once per recompute batch (v2.13.1)
