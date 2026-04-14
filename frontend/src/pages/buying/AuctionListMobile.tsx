@@ -8,6 +8,7 @@ import {
   Card,
   CardActionArea,
   CardContent,
+  Chip,
   CircularProgress,
   FormControl,
   IconButton,
@@ -51,6 +52,8 @@ export type AuctionListMobileProps = {
   watchlistIds?: Set<number>;
   isAdmin?: boolean;
   onThumbsToggle?: (id: number, next: boolean) => void;
+  /** When set, star toggles watchlist (POST/DELETE watch API). */
+  onWatchToggle?: (id: number, add: boolean) => void;
 };
 
 export default function AuctionListMobile({
@@ -66,6 +69,7 @@ export default function AuctionListMobile({
   watchlistIds,
   isAdmin = false,
   onThumbsToggle,
+  onWatchToggle,
 }: AuctionListMobileProps) {
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -126,7 +130,24 @@ export default function AuctionListMobile({
                             {row.marketplace?.name ?? '—'}
                           </Typography>
                           <ManifestListCell hasManifest={row.has_manifest} />
-                          {watchUnknown ? (
+                          {onWatchToggle && !watchUnknown ? (
+                            <Tooltip title={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
+                              <IconButton
+                                size="small"
+                                aria-label={watched ? 'Remove from watchlist' : 'Add to watchlist'}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onWatchToggle(row.id, !watched);
+                                }}
+                              >
+                                {watched ? (
+                                  <StarIcon fontSize="small" color="warning" />
+                                ) : (
+                                  <StarBorderIcon fontSize="small" sx={{ color: 'action.disabled' }} />
+                                )}
+                              </IconButton>
+                            </Tooltip>
+                          ) : watchUnknown ? (
                             <Tooltip title="Watchlist status may be incomplete when watchlist is large">
                               <StarBorderIcon fontSize="small" sx={{ color: 'action.disabled' }} />
                             </Tooltip>
@@ -137,24 +158,59 @@ export default function AuctionListMobile({
                           )}
                         </Stack>
                         {isAdmin && onThumbsToggle ? (
-                          <IconButton
-                            size="small"
-                            aria-label="Thumbs up"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onThumbsToggle(row.id, !row.thumbs_up);
-                            }}
-                          >
+                          <Stack direction="row" alignItems="center" spacing={0.25}>
+                            <IconButton
+                              size="small"
+                              aria-label="Thumbs up"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onThumbsToggle(row.id, !row.thumbs_up);
+                              }}
+                            >
+                              {row.thumbs_up ? (
+                                <ThumbUpIcon fontSize="small" color="primary" />
+                              ) : (
+                                <ThumbUpOutlinedIcon fontSize="small" color="disabled" />
+                              )}
+                            </IconButton>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ fontVariantNumeric: 'tabular-nums', fontSize: '0.7rem' }}
+                            >
+                              {row.thumbs_up_count ?? 0}
+                            </Typography>
+                          </Stack>
+                        ) : (
+                          <Stack direction="row" alignItems="center" spacing={0.35}>
                             {row.thumbs_up ? (
                               <ThumbUpIcon fontSize="small" color="primary" />
                             ) : (
                               <ThumbUpOutlinedIcon fontSize="small" color="disabled" />
                             )}
-                          </IconButton>
-                        ) : row.thumbs_up ? (
-                          <ThumbUpIcon fontSize="small" color="primary" />
-                        ) : null}
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ fontVariantNumeric: 'tabular-nums', fontSize: '0.7rem' }}
+                            >
+                              {row.thumbs_up_count ?? 0}
+                            </Typography>
+                          </Stack>
+                        )}
                       </Stack>
+                      {(row.top_categories ?? []).length > 0 ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.35, mb: 0.5, mt: -0.25 }}>
+                          {(row.top_categories ?? []).map((c) => (
+                            <Chip
+                              key={c.name}
+                              size="small"
+                              variant="outlined"
+                              label={`${c.name.length > 14 ? `${c.name.slice(0, 13)}…` : c.name} ${c.pct.toFixed(0)}%`}
+                              sx={{ height: 22, '& .MuiChip-label': { px: 0.5, fontSize: '0.65rem' } }}
+                            />
+                          ))}
+                        </Box>
+                      ) : null}
                       <Typography
                         variant="body2"
                         sx={{

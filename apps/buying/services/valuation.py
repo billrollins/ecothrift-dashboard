@@ -1,4 +1,8 @@
-"""Auction valuation recompute (Phase 5): mix, revenue, costs, need, priority."""
+"""Auction valuation recompute (Phase 5): mix, revenue, costs, need, priority.
+
+Phase 3B (D+L): changes to need_score / priority blending and spread tuning wait for Bill approval
+after `audit_auction_need_priority` numbers — see initiative ui_ux_polish Session 5.
+"""
 
 from __future__ import annotations
 

@@ -86,7 +86,13 @@ const ORDERING_FIELDS = [
   'need_score',
 ] as const;
 
-const DEFAULT_LIST_ORDERING = '-priority,end_time';
+/** Default API `ordering` when the user has not chosen a column sort this session. */
+export const DEFAULT_BUYING_LIST_ORDERING = '-priority,end_time';
+const DEFAULT_LIST_ORDERING = DEFAULT_BUYING_LIST_ORDERING;
+
+/** Session-sticky sort persistence (Phase 3B G). */
+export const BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY = 'ecothrift.buying.auctionList.ordering';
+export const BUYING_WATCHLIST_ORDERING_STORAGE_KEY = 'ecothrift.buying.watchlist.ordering';
 
 export function orderingFromSortModel(model: GridSortModel): string {
   if (!model.length) return DEFAULT_LIST_ORDERING;

@@ -19,6 +19,8 @@ import base64
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -26,7 +28,7 @@ from typing import Any
 import requests
 from django.apps import apps as django_apps
 from django.conf import settings
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 logger = logging.getLogger(__name__)
 # Dedicated logger for one-line outbound request audit (console + logs/bstock_api.log via settings).
@@ -219,6 +221,7 @@ def _request_json(
     json_body: dict[str, Any] | None = None,
     auth: bool = False,
     timeout: int = 30,
+    proxies: dict[str, str] | None = None,
 ) -> Any | None:
     """
     Perform one HTTP request and return parsed JSON.
@@ -243,14 +246,15 @@ def _request_json(
     for attempt in range(max_retries + 1):
         start = time.perf_counter()
         try:
-            resp = requests.request(
-                method.upper(),
-                url,
-                params=params,
-                json=json_body,
-                headers=headers,
-                timeout=timeout,
-            )
+            req_kw: dict[str, Any] = {
+                'params': params,
+                'json': json_body,
+                'headers': headers,
+                'timeout': timeout,
+            }
+            if proxies:
+                req_kw['proxies'] = proxies
+            resp = requests.request(method.upper(), url, **req_kw)
         except requests.exceptions.RequestException as e:
             elapsed_ms = (time.perf_counter() - start) * 1000.0
             _log_bstock_request(
@@ -362,10 +366,136 @@ def extract_listings_from_search_response(data: Any) -> list[dict[str, Any]]:
     return []
 
 
+def total_from_search_response(data: Any) -> int | None:
+    """Best-effort total count from search API JSON (used to stop pagination early)."""
+    if not isinstance(data, dict):
+        return None
+    for key in ('total', 'totalCount', 'total_count', 'count'):
+        v = data.get(key)
+        if isinstance(v, int):
+            return v
+        if isinstance(v, float) and v == int(v):
+            return int(v)
+        if isinstance(v, str) and v.isdigit():
+            return int(v)
+    return None
+
+
+def _socks_proxies_for_search() -> dict[str, str] | None:
+    """SOCKS5 proxy dict for search POST only; None when disabled or incomplete config."""
+    if not getattr(settings, 'BUYING_SOCKS5_PROXY_ENABLED', False):
+        return None
+    host = (getattr(settings, 'BUYING_SOCKS5_PROXY_HOST', '') or '').strip()
+    port = getattr(settings, 'BUYING_SOCKS5_PROXY_PORT', '') or ''
+    if not host or not str(port).strip():
+        return None
+    user = (getattr(settings, 'BUYING_SOCKS5_PROXY_USER', '') or '').strip()
+    pw = (getattr(settings, 'BUYING_SOCKS5_PROXY_PASSWORD', '') or '').strip()
+    if user or pw:
+        uq = quote(user, safe='')
+        pq = quote(pw, safe='')
+        auth = f'{uq}:{pq}@'
+    else:
+        auth = ''
+    # socks5h = proxy resolves DNS (matches typical PIA client usage)
+    url = f'socks5h://{auth}{host}:{port}'
+    return {'http': url, 'https': url}
+
+
+def _search_post_paginate(
+    storefront: str,
+    *,
+    page_limit: int,
+    max_pages: int | None,
+    log_full_first_response: bool,
+    slug_for_log: str = '',
+) -> tuple[list[dict[str, Any]], str | None, float]:
+    """
+    POST all pages for one storeFrontId. Returns (rows, error_or_none, total_elapsed_ms).
+
+    Runs in the calling thread (sequential caller or one ThreadPoolExecutor worker).
+    """
+    all_rows: list[dict[str, Any]] = []
+    offset = 0
+    page_num = 0
+    safety = int(getattr(settings, 'BSTOCK_SEARCH_MAX_PAGES', 5000))
+    http_ms_total = 0.0
+    total_available: int | None = None
+    proxies = _socks_proxies_for_search()
+
+    while True:
+        page_num += 1
+        if max_pages is not None and page_num > max_pages:
+            break
+        if page_num > safety:
+            logger.warning('BSTOCK_SEARCH_MAX_PAGES safety cap (%s) reached.', safety)
+            break
+
+        body = {
+            'limit': page_limit,
+            'offset': offset,
+            'sortBy': 'recommended',
+            'sortOrder': 'asc',
+            'storeFrontId': [storefront],
+        }
+
+        t0 = time.perf_counter()
+        data = _request_json(
+            'POST',
+            SEARCH_LISTINGS_URL,
+            json_body=body,
+            auth=False,
+            timeout=120,
+            proxies=proxies,
+        )
+        http_ms_total += (time.perf_counter() - t0) * 1000.0
+
+        if data is None:
+            logger.error(
+                'Search listings failed slug=%s offset=%s', slug_for_log, offset
+            )
+            return all_rows, 'Search listings request failed', http_ms_total
+
+        if page_num == 1:
+            total_available = total_from_search_response(data)
+
+        if log_full_first_response and offset == 0:
+            try:
+                logger.info(
+                    'B-Stock search first page raw JSON (for schema discovery):\n%s',
+                    json.dumps(data, indent=2, default=str)[:50000],
+                )
+            except (TypeError, ValueError):
+                logger.info(
+                    'B-Stock search first page keys: %s',
+                    list(data.keys()) if isinstance(data, dict) else type(data),
+                )
+
+        rows = extract_listings_from_search_response(data)
+        if not rows:
+            logger.info('Search returned no listing rows at offset=%s (done).', offset)
+            break
+
+        all_rows.extend(rows)
+        if len(rows) < page_limit:
+            break
+
+        if (
+            total_available is not None
+            and offset + len(rows) >= total_available
+        ):
+            break
+
+        offset += page_limit
+        _delay_between_requests()
+
+    return all_rows, None, http_ms_total
+
+
 def discover_auctions(
     marketplace_slug: str,
     *,
-    page_limit: int = 20,
+    page_limit: int = 200,
     max_pages: int | None = None,
     log_full_first_response: bool = False,
 ) -> list[dict[str, Any]]:
@@ -388,59 +518,100 @@ def discover_auctions(
             'Set it in Django admin.'
         )
 
-    all_rows: list[dict[str, Any]] = []
-    offset = 0
-    page_num = 0
-    safety = int(getattr(settings, 'BSTOCK_SEARCH_MAX_PAGES', 5000))
+    rows, _err, _ms = _search_post_paginate(
+        storefront,
+        page_limit=page_limit,
+        max_pages=max_pages,
+        log_full_first_response=log_full_first_response,
+        slug_for_log=marketplace_slug,
+    )
+    return rows
 
-    while True:
-        page_num += 1
-        if max_pages is not None and page_num > max_pages:
-            break
-        if page_num > safety:
-            logger.warning('BSTOCK_SEARCH_MAX_PAGES safety cap (%s) reached.', safety)
-            break
 
-        body = {
-            'limit': page_limit,
-            'offset': offset,
-            'sortBy': 'recommended',
-            'sortOrder': 'asc',
-            'storeFrontId': [storefront],
-        }
+@dataclass
+class MarketplaceSearchBatch:
+    """One marketplace result from parallel search (HTTP only; no DB)."""
 
-        data = _request_json(
-            'POST',
-            SEARCH_LISTINGS_URL,
-            json_body=body,
-            auth=False,
+    slug: str
+    name: str
+    store_front_id: str
+    rows: list[dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
+    http_ms: float = 0.0
+
+
+def discover_auctions_parallel(
+    *,
+    page_limit: int = 200,
+    max_pages: int | None = None,
+    log_full_first_response: bool = False,
+    marketplace_slug: str | None = None,
+) -> list[MarketplaceSearchBatch]:
+    """
+    POST search for one or all active marketplaces in parallel (ThreadPoolExecutor).
+
+    Each task paginates one storefront. No Django ORM inside worker threads beyond
+    the initial queryset read on the main thread.
+    """
+    Marketplace = django_apps.get_model('buying', 'Marketplace')
+    qs = Marketplace.objects.filter(is_active=True).order_by('slug')
+    if marketplace_slug:
+        qs = qs.filter(slug=marketplace_slug)
+    mps: list[Any] = list(qs)
+    if not mps:
+        return []
+
+    tasks: list[tuple[str, str, str]] = []
+    results_by_slug: dict[str, MarketplaceSearchBatch] = {}
+    slug_order: list[str] = []
+
+    for mp in mps:
+        slug_order.append(mp.slug)
+        sid = (mp.external_id or '').strip()
+        if not sid:
+            results_by_slug[mp.slug] = MarketplaceSearchBatch(
+                slug=mp.slug,
+                name=mp.name,
+                store_front_id='',
+                rows=[],
+                error='No external_id (storeFrontId) in Django admin',
+                http_ms=0.0,
+            )
+            continue
+        tasks.append((mp.slug, mp.name, sid))
+
+    max_workers = int(getattr(settings, 'BUYING_SWEEP_MAX_WORKERS', 8))
+    max_workers = max(1, min(max_workers, len(tasks) or 1))
+
+    def _work(item: tuple[str, str, str]) -> MarketplaceSearchBatch:
+        slug, name, storefront = item
+        rows, err, ms = _search_post_paginate(
+            storefront,
+            page_limit=page_limit,
+            max_pages=max_pages,
+            log_full_first_response=log_full_first_response,
+            slug_for_log=slug,
         )
-        if data is None:
-            logger.error('Search listings failed at offset=%s', offset)
-            break
+        return MarketplaceSearchBatch(
+            slug=slug,
+            name=name,
+            store_front_id=storefront,
+            rows=rows,
+            error=err,
+            http_ms=ms,
+        )
 
-        if log_full_first_response and offset == 0:
-            try:
-                logger.info(
-                    'B-Stock search first page raw JSON (for schema discovery):\n%s',
-                    json.dumps(data, indent=2, default=str)[:50000],
-                )
-            except (TypeError, ValueError):
-                logger.info('B-Stock search first page keys: %s', list(data.keys()) if isinstance(data, dict) else type(data))
+    if len(tasks) == 1:
+        b = _work(tasks[0])
+        results_by_slug[b.slug] = b
+    elif tasks:
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futs = {ex.submit(_work, t): t[0] for t in tasks}
+            for fut in as_completed(futs):
+                b = fut.result()
+                results_by_slug[b.slug] = b
 
-        rows = extract_listings_from_search_response(data)
-        if not rows:
-            logger.info('Search returned no listing rows at offset=%s (done).', offset)
-            break
-
-        all_rows.extend(rows)
-        if len(rows) < page_limit:
-            break
-
-        offset += page_limit
-        _delay_between_requests()
-
-    return all_rows
+    return [results_by_slug[s] for s in slug_order if s in results_by_slug]
 
 
 def _extract_auction_objects(data: Any) -> list[dict[str, Any]]:

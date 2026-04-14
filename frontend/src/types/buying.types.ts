@@ -53,6 +53,10 @@ export interface BuyingAuctionListItem {
   priority?: number | null;
   priority_override?: boolean;
   thumbs_up?: boolean;
+  /** Aggregate staff thumbs-up votes (Phase 3B). */
+  thumbs_up_count?: number;
+  /** Top 3 category mix for list (manifest preferred, else AI). */
+  top_categories?: { name: string; pct: number }[];
   valuation_source?: BuyingValuationSource;
   has_revenue_override?: boolean;
   effective_revenue_after_shrink?: string | null;
@@ -314,6 +318,19 @@ export interface BuyingPollResponse {
   refreshed_at?: string;
 }
 
+/** One marketplace row in POST /api/buying/sweep/ when `by_marketplace` is present. */
+export interface BuyingSweepMarketplaceRow {
+  slug: string;
+  name: string;
+  listings_found: number;
+  http_ms?: number;
+  http_error?: string | null;
+  inserted?: number;
+  updated?: number;
+  skipped?: number;
+  db_errors?: number;
+}
+
 /** Response from POST /api/buying/sweep/ (pipeline.run_discovery summary). */
 export interface BuyingSweepResponse {
   marketplaces: number;
@@ -324,4 +341,13 @@ export interface BuyingSweepResponse {
   max_pages: number | null;
   /** ISO timestamp when the sweep finished (pipeline clock). */
   refreshed_at?: string;
+  /** Wall-clock seconds for HTTP + DB (parallel sweep path). */
+  total_seconds?: number;
+  total_listings?: number;
+  inserted?: number;
+  updated?: number;
+  by_marketplace?: BuyingSweepMarketplaceRow[];
+  ai_estimate?: { considered?: number; estimated?: number };
+  recomputed_open_auctions?: number;
+  valuation_error?: string;
 }

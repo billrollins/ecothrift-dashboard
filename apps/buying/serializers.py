@@ -36,6 +36,9 @@ class AuctionListSerializer(serializers.ModelSerializer):
     effective_revenue_after_shrink = serializers.SerializerMethodField()
     # Overrides model field: CSV uploaded into app (ManifestRow), not B-Stock `has_manifest` flag.
     has_manifest = serializers.SerializerMethodField()
+    thumbs_up = serializers.SerializerMethodField()
+    thumbs_up_count = serializers.SerializerMethodField()
+    top_categories = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -69,6 +72,8 @@ class AuctionListSerializer(serializers.ModelSerializer):
             'priority',
             'priority_override',
             'thumbs_up',
+            'thumbs_up_count',
+            'top_categories',
             'valuation_source',
             'has_revenue_override',
             'effective_revenue_after_shrink',
@@ -87,6 +92,35 @@ class AuctionListSerializer(serializers.ModelSerializer):
         if n is not None:
             return n > 0
         return ManifestRow.objects.filter(auction_id=obj.pk).exists()
+
+    def get_thumbs_up(self, obj: Auction) -> bool:
+        v = getattr(obj, '_user_thumbs_up', None)
+        if v is not None:
+            return bool(v)
+        return bool(obj.thumbs_up)
+
+    def get_thumbs_up_count(self, obj: Auction) -> int:
+        n = getattr(obj, '_thumbs_up_count', None)
+        if n is not None:
+            return int(n)
+        return 0
+
+    def get_top_categories(self, obj: Auction) -> list[dict[str, float | str]]:
+        """Top 3 categories by % — prefer manifest distribution, else AI estimates."""
+        raw = obj.manifest_category_distribution
+        if not raw:
+            raw = obj.ai_category_estimates
+        if not raw or not isinstance(raw, dict):
+            return []
+        try:
+            pairs = sorted(
+                ((str(k), float(v)) for k, v in raw.items()),
+                key=lambda kv: kv[1],
+                reverse=True,
+            )[:3]
+        except (TypeError, ValueError):
+            return []
+        return [{'name': name, 'pct': round(pct, 2)} for name, pct in pairs]
 
     def get_total_retail_display(self, obj: Auction) -> str | None:
         if getattr(obj, '_manifest_row_count', 0) > 0:
@@ -216,6 +250,8 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     valuation_source = serializers.SerializerMethodField()
     has_revenue_override = serializers.SerializerMethodField()
     effective_revenue_after_shrink = serializers.SerializerMethodField()
+    thumbs_up = serializers.SerializerMethodField()
+    thumbs_up_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -263,10 +299,23 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'priority',
             'priority_override',
             'thumbs_up',
+            'thumbs_up_count',
             'valuation_source',
             'has_revenue_override',
             'effective_revenue_after_shrink',
         ]
+
+    def get_thumbs_up(self, obj: Auction) -> bool:
+        v = getattr(obj, '_user_thumbs_up', None)
+        if v is not None:
+            return bool(v)
+        return bool(obj.thumbs_up)
+
+    def get_thumbs_up_count(self, obj: Auction) -> int:
+        n = getattr(obj, '_thumbs_up_count', None)
+        if n is not None:
+            return int(n)
+        return 0
 
     def get_valuation_source(self, obj: Auction) -> str:
         return get_valuation_source(obj)

@@ -158,6 +158,6 @@ Append a **timestamped line** to the active session’s **`#### Session updates`
 | `session_checkpoint.md` | Several times per session | Session updates + `[Unreleased]` + light docs |
 | **`get_bearing.md`** (this) | Mid-session when **stuck** / drifting | Check heading vs written goal |
 | `session_close.md` | Before commit / release | Record result, docs, version bump, commit message |
-| `collect_for_consultant.md` | Consultant handoff | Spot-check + copy files |
+| `collect_for_consultant.md` | Consultant handoff | Spot-check + **flat** bundle (`consult_retire_scout.md`) |
 
 A bearing check often means it is time for **`session_checkpoint.md`** or **`session_close.md`** when you are ready to sync or commit.

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-14 (v2.12.1 session close) -->
+<!-- Last updated: 2026-04-15 (v2.13.0 session close) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,7 +9,38 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.13.0] — 2026-04-15
+
+User-facing theme: **Fast auction sweep** + **optional SOCKS5 for search** ([`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md)) — parallel B-Stock search, raw SQL upsert, richer sweep API, single-request Refresh UX.
+
+### Added
+
+- **Buying / sweep** — Parallel **POST** `search.bstock.com` pagination per marketplace (`ThreadPoolExecutor`), default **`limit=200`**, configurable **`BUYING_REQUEST_DELAY_SECONDS`** (default **0**). Raw PostgreSQL **`INSERT … ON CONFLICT`** upsert ([`sweep_upsert`](apps/buying/services/sweep_upsert.py)) preserving **`first_seen_at`** and staff fields; shared **[`listing_mapping`](apps/buying/services/listing_mapping.py)** for listing JSON → auction fields.
+- **API** — `POST /api/buying/sweep/` response extensions: **`total_seconds`**, **`total_listings`**, **`by_marketplace`** (per-MP HTTP timing, insert/update/skip/db error counts), **`inserted`**, **`updated`** (alongside **`upserted`**).
+- **Frontend** — **Refresh auctions**: one **`POST`** for all active marketplaces (no per-MP loop); loading copy **“Sweeping all marketplaces…”**; [`BuyingSweepResponse`](frontend/src/types/buying.types.ts) types extended.
+- **Ops / proxy** — Optional **SOCKS5** for search only (`socks5h`), env **`BUYING_SOCKS5_*`**, **`PySocks`**; URL-encoded credentials in **[`scraper._socks_proxies_for_search`](apps/buying/services/scraper.py)**. **[`workspace/sweep_fast.py`](workspace/sweep_fast.py)** documented as ops-only fallback (no Django).
+
+### Changed
+
+- **`sweep_auctions`** default **`--page-limit`** **200** (was 20).
+- **`.env.example`** — buying delay, sweep workers, SOCKS placeholders (Bill: copy to local **`.env`** as needed; not committed).
+
+---
+
 ## [Unreleased]
+
+### Added
+
+- **Workspace (consultant):** B-Stock API research — [`workspace/notes/from_consultant/bstock_api_research.md`](workspace/notes/from_consultant/bstock_api_research.md) and probe script [`workspace/test_bstock_endpoints.py`](workspace/test_bstock_endpoints.py) (anonymous + optional JWT; samples under `workspace/data/bstock_api_samples/`).
+- **Workspace:** [`workspace/sweep_fast.py`](workspace/sweep_fast.py) — standalone sweep (parallel GET search, `psycopg2` upsert, `workspace/logs/`).
+- **Steering:** [`.ai/protocols/collect_for_consultant.md`](.ai/protocols/collect_for_consultant.md); [`workspace/notes/from_consultant/handoff_prompt.md`](workspace/notes/from_consultant/handoff_prompt.md); [`workspace/notes/from_consultant/status_board.md`](workspace/notes/from_consultant/status_board.md) (consultant status board template).
+
+### Documentation
+
+- **Consultant handoff bundle** — **`workspace/notes/to_consultant/files-update/`** is **flat** (no subfolders). Canonical procedure: **`.ai/protocols/consult_retire_scout.md`**; Charlie: **`.ai/protocols/consult_retire_charlie.md`**.
+- **`.ai/consultant_context.md`**, **`.ai/extended/bstock.md`:** B-Stock search **GET or POST**, **max `limit` 200**; auction/manifest anonymous behavior cross-linked to **`bstock_api_research.md`**; **`_apply_auction_list_visibility`** (live default; **Completed** = last 24h ended).
+- **`.ai/extended/backend.md`:** Django DB cache TTLs (**`item_stats_global`**, **`category_need_panel`**, **`item_list_total_count`**); **`suggest_item`** / **`ai_cleanup_rows`** → **`AI_MODEL_FAST`**; category retry + fallback.
+- **`.ai/personas/Scout.md`**, **`.ai/personas/Christina.md`:** **Ask / Plan / Agent** rules; **present_files** for consultant `.md` prompts and `.txt` command scripts.
 
 ---
 

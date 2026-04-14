@@ -1,5 +1,5 @@
-<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-11 -->
-<!-- Last updated: 2026-04-12T12:00:00-05:00 -->
+<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-15 -->
+<!-- Last updated: 2026-04-15T12:00:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -284,10 +284,29 @@ Completed — docs and handoff bundle only (not committed). No version bump. Com
 
 - 2026-04-12T12:00:00-05:00 Session started — archive consultant/SQL/diagnostic artifacts; version + CHANGELOG + context.
 - 2026-04-12T12:00:00-05:00 **Production (prior sessions):** V1/V2→V3 backfill **phases 1–5** deployed; **`Item.retail_value`** populated; **cost pipeline** (**`compute_vendor_metrics`**, **`compute_po_cost_analysis`**, **`compute_item_cost`**, pink-tag fulfillment below 0.15 allocation) run; **vendor merge** (TGT→TRGET), **PO data corrections** (WAL/TGT/WFR/CST/AMZ cases), **retag category inheritance** migration; **DB-aware** **`generate_product_number`** / **`generate_sku`** for **`--database production`**; **phase 2** collision handling; **phase 5** remote batch sizing; **`classify_v2_*`** **`--database` / `--no-input`**; **HISTORICAL** legacy rows cleaned; **`recompute_cost_pipeline`** on production.
+- 2026-04-15T12:00:00-05:00 **Checkpoint (research):** `workspace/test_bstock_endpoints.py` + `workspace/notes/from_consultant/bstock_api_research.md` + JSON samples under `workspace/data/bstock_api_samples/` — endpoint catalog, search **max limit 200**, anonymous vs JWT behaviors; **CHANGELOG** `[Unreleased]` bullet; no app code changes.
+- 2026-04-14T22:00:00-05:00 **Checkpoint (consultant handoff prep):** **`consultant_context`** + **`bstock.md`** — search **GET/POST**, **`limit` 200**, auction/manifest anonymous probes; **`collect_for_consultant.md`** + **flat** bundle per **`consult_retire_scout.md`**; **`handoff_prompt.md`** / **`status_board.md`**; **`backend.md`** — cache TTLs, **`AI_MODEL_FAST`** defaults, **`suggest_item`** retry; personas **Ask/Plan/Agent** + **present_files** conventions; **`workspace/sweep_fast.py`** noted for ops.
 
 #### Result
 
 still open — v2.11.1 docs/version prepared; commit pending Bill
+
+---
+
+### Session 23 — fast sweep + SOCKS proxy prep (v2.13.0) — est 4h — started 2026-04-15T12:00:00-05:00
+
+**Goal:** Parallel **POST** search sweep (default `limit=200`, delay 0), raw SQL upsert with **`first_seen_at` / staff-field** preservation, **`listing_mapping`** module; **`POST /api/buying/sweep/`** richer JSON; single-request **Refresh** on auction list; optional **SOCKS5** for search (`BUYING_SOCKS5_*`, `PySocks`, URL-encoded credentials); ops **`workspace/sweep_fast.py`** documented (no Django).
+
+**Finish line:** **v2.13.0** semver + **CHANGELOG** + steering touchpoints; Bill commits when ready.
+
+#### Session updates
+
+- 2026-04-15T12:00:00-05:00 **Implemented** — `scraper.discover_auctions_parallel`, `_search_post_paginate`, `sweep_upsert`, `pipeline.run_discovery` branching (`enrich_detail` → ORM path); `SweepView` returns extended summary; `AuctionListPage` one `postBuyingSweep(null)`; `.env.example` SOCKS keys; `fast_sweep_verify.md` verification note for consultant bundle.
+- 2026-04-15 **Session close** — bump `.version` / root `package.json`, **CHANGELOG [2.13.0]**; **`.ai/context.md`**, **`bstock.md`**, **`consultant_context.md`** Refresh/sweep lines; **`_index.md`** note; this **`Result`**.
+
+#### Result
+
+Prepared for release as **v2.13.0** (semver + changelog + docs); **commit/push at Bill’s discretion** (see `scripts/deploy/commit_message.txt`).
 
 ---
 

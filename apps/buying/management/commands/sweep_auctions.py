@@ -39,8 +39,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--page-limit',
             type=int,
-            default=20,
-            help='Page size for search pagination (default 20).',
+            default=200,
+            help='Page size for search pagination (default 200).',
         )
         parser.add_argument(
             '--max-pages',
@@ -53,7 +53,7 @@ class Command(BaseCommand):
         slug = options.get('marketplace')
         dry = bool(options.get('dry_run'))
         enrich = bool(options.get('enrich_detail'))
-        page_limit = int(options.get('page_limit') or 20)
+        page_limit = int(options.get('page_limit') or 200)
         max_pages = options.get('max_pages')
 
         try:

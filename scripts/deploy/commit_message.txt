@@ -1,8 +1,8 @@
-feat: auction list & detail Phase 3A polish (v2.12.1)
+feat: fast parallel auction sweep and optional SOCKS5 (v2.13.0)
 
-Session 4 (ui_ux_polish) — Phase 3A shipped:
-- Auction list: column reorder, read-only priority, ManifestRow-based has_manifest,
-  commit-on-enter search, Completed chip, live-auction default view
-- Auction detail: manifest grid (Ext Retail, % of Manifest), action row under title,
-  recompute_valuation endpoint
-See CHANGELOG [2.12.1], .ai/initiatives/ui_ux_polish.md Session 4.
+Session 23 (bstock_auction_intelligence) — sweep behavior, API, UI, proxy prep:
+- Parallel POST search per marketplace (limit 200), raw SQL upsert, listing_mapping
+- POST /api/buying/sweep/ extended JSON (total_seconds, by_marketplace, inserted/updated)
+- Frontend: single Refresh POST for all active marketplaces
+- BUYING_SOCKS5_* + urllib.parse.quote for credentials; PySocks
+See CHANGELOG [2.13.0], .ai/initiatives/bstock_auction_intelligence.md Session 23.

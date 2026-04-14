@@ -1,5 +1,5 @@
 <!-- initiative: slug=ui-ux-polish status=active updated=2026-04-14 -->
-<!-- Last updated: 2026-04-14T18:30:00-05:00 -->
+<!-- Last updated: 2026-04-15 (Session 5 Phase 3B) -->
 # Initiative: UI/UX polish and metric corrections
 
 **Status:** Active
@@ -213,10 +213,32 @@ Reorder desktop (and align mobile card order where practical) to:
 - `2026-04-14T16:45:00-05:00` **Checkpoint** — **Phase 3A review (Bill)**: list — narrow **Watch** / **Thumbs** icon headers; **read-only priority** (steppers removed); **manifest** column plain Yes/No; **Clear** styled like marketplace **All**; **default list** hides ended auctions (active/open by default). Detail — manifest grid columns **# → … → SKU** with **Ext Retail** and **% of Manifest**; **Update** button calls **`recompute_valuation`** (no token). Aggregate **thumbs-up count** deferred (**Phase 3B**) until list serializer exposes it (`thumbs_up` is per-user boolean). Verified `npx tsc --noEmit`, `python manage.py check`.
 - `2026-04-14T18:00:00-05:00` **Checkpoint** — **Final 3A review round**: (1) **`has_manifest`** serializer → `get_has_manifest` checks `ManifestRow` count, not B-Stock flag; (2) **`_apply_auction_list_visibility`** — default = live (open/closing, `end_time` in future); `completed=1` = ended last 24h; **Completed** chip added to `BuyingFilterChips` + wired into list/watchlist params; (3) manifest detail **Category** column narrowed (fixed width, ellipsis chip); (4) detail action row: **Watch star → Update → B-Stock** in compact `Stack` under title. `tsc --noEmit` + `manage.py check` pass.
 - `2026-04-14T18:30:00-05:00` **Session close** — **v2.12.1**; Phase 3A complete (review items + final round). `npx tsc --noEmit`, `python manage.py check`.
+- `2026-04-14T22:00:00-05:00` **Checkpoint** — **`consult_retire_scout`**: `consultant_context` / personas / **flat** bundle (`workspace/notes/to_consultant/files-update/`) + **`consultant_instructions.txt`**; no code change for this initiative.
 
 #### Result
 
 committed as **v2.12.1** (see root `CHANGELOG.md` section **[2.12.1]**).
+
+### Session 5 — 2026-04-15T10:00:00-05:00 (Phase 3B — auction list advanced)
+
+- **Goal:** Implement deferred **Phase 3B** items **C, D, G, J, L** from Session 4: interactive watch + thumbs aggregate on the list, revised need/priority math (D+L), default/sticky composite sort (G), top categories column (J). **Exclude E** (scheduled no-token refresh — parked for ops / B-Stock Phase 6). **D+L process:** measure current distributions first (`audit_auction_need_priority`), propose a **specific** formula with numbers, get **Bill approval**, then implement Step 3 in code — no guessing math before approval.
+- **Finish line:** List API exposes **thumbs-up count** (per-staff votes) + **`top_categories`**; **watch** toggles from grid; **D+L Step 3** implemented only after written formula approval; **default ordering** session-sticky; **Top categories** column between Vendor and Title. **D+L Step 1–2:** audit output recorded; formula proposal approved or explicitly deferred.
+- **Scope:** `apps/buying/` (valuation when approved, serializers, `AuctionThumbsVote`), auction list UI. Out of scope: **E**, token-backed B-Stock.
+- **Est:** 3–4h (multi-session if split).
+- **Ship:** Accumulate; version bump at session close.
+
+#### Phase 3B implementation plan (repository)
+
+Execution detail and item breakdown live in the Cursor plan **Session 5 Phase 3B** (audit → approve → implement D+L; C / J / G ordering). Do not invent `valuation.py` changes before Bill signs off on the formula from audit numbers.
+
+#### Session updates
+
+- `2026-04-15` **Build start** — Session 5 opened; Phase 3B implementation per plan (audit command, C, J, G; D+L Step 3 gated on approval).
+- `2026-04-15` **Checkpoint** — **C:** `AuctionThumbsVote` + list/retrieve annotations, thumbs API returns `thumbs_up_count`, filters use vote Exists; **watch** toggle on desktop/mobile (`useBuyingWatchlistToggleMutation`). **J:** `top_categories` SerializerMethodField + column (Vendor | Top categories | Title). **G:** session-sticky `ordering` via `ecothrift.buying.auctionList.ordering` / `ecothrift.buying.watchlist.ordering`, default `-priority,end_time`. **D+L Step 1:** `audit_auction_need_priority` management command. **D+L Step 3:** not implemented — awaiting written formula approval after audit. **Verify:** `npx tsc --noEmit`, `python manage.py check` OK; local `manage.py test apps.buying` blocked by Postgres test DB state.
+
+#### Result
+
+- Phase 3B **C / G / J** + **D+L audit (Step 1)** shipped in repo; **D+L valuation changes (Steps 2–3)** remain blocked until Bill approves a formula tied to audit output. **E** unchanged (out of scope). Version bump deferred.
 
 ---
 

@@ -4,127 +4,26 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.db import transaction
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
 
 from apps.buying.models import Auction, AuctionSnapshot, ManifestRow, Marketplace, WatchlistEntry
 from apps.buying.services import normalize, scraper
+from apps.buying.services import sweep_upsert
+from apps.buying.services.listing_mapping import (
+    _first,
+    _normalize_status,
+    _parse_end_time,
+    _price_to_dollars,
+    _to_int,
+    map_listing_raw_to_auction_fields,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _first(raw: dict[str, Any], *keys: str) -> Any:
-    for k in keys:
-        if k in raw and raw[k] is not None and raw[k] != '':
-            return raw[k]
-    return None
-
-
-def _to_decimal(v: Any) -> Decimal | None:
-    if v is None or v == '':
-        return None
-    try:
-        return Decimal(str(v).replace(',', '').strip())
-    except (InvalidOperation, ValueError, TypeError):
-        return None
-
-
-def _to_int(v: Any) -> int | None:
-    if v is None or v == '':
-        return None
-    try:
-        return int(v)
-    except (TypeError, ValueError):
-        try:
-            return int(float(str(v)))
-        except (TypeError, ValueError):
-            return None
-
-
-def _retail_value_from_listing(raw: dict[str, Any]) -> Decimal | None:
-    """
-    Extended retail from search listing (e.g. retailPrice). Values are dollars (float),
-    not cent-scaled — do not use _price_to_dollars (large integers would be misread).
-    """
-    v = _first(
-        raw,
-        'retailPrice',
-        'totalRetailValue',
-        'extendedRetail',
-        'totalRetail',
-    )
-    if v is None:
-        return None
-    d = _to_decimal(v)
-    if d is None:
-        return None
-    return d.quantize(Decimal('0.01'))
-
-
-def _price_to_dollars(val: Any) -> Decimal | None:
-    """
-    Map B-Stock money fields to dollar Decimal for Auction model.
-
-    Search and auction APIs mix floats (dollars), integers (often whole dollars), and
-    large integers (cents). Values >= 10_000 as integers are treated as cents.
-    """
-    if val is None or val == '':
-        return None
-    d = _to_decimal(val)
-    if d is None:
-        return None
-    if isinstance(val, int) and abs(val) >= 10_000:
-        return (d / Decimal('100')).quantize(Decimal('0.01'))
-    return d.quantize(Decimal('0.01'))
-
-
-def _parse_end_time(raw: dict[str, Any]) -> datetime | None:
-    for key in (
-        'endTime',
-        'auctionEndTime',
-        'initialEndTime',
-        'actualEndTime',
-        'endsAt',
-        'end_time',
-        'closeTime',
-        'closingTime',
-    ):
-        v = raw.get(key)
-        if v is None:
-            continue
-        if isinstance(v, (int, float)):
-            try:
-                ts = float(v)
-                if ts > 1e12:
-                    ts = ts / 1000.0
-                return datetime.fromtimestamp(ts, tz=timezone.utc)
-            except (OverflowError, OSError, ValueError):
-                continue
-        if isinstance(v, str):
-            dt = parse_datetime(v)
-            if dt:
-                if timezone.is_naive(dt):
-                    dt = timezone.make_aware(dt, timezone.get_current_timezone())
-                return dt
-    return None
-
-
-def _normalize_status(raw_val: Any) -> str:
-    s = (str(raw_val or '')).strip().lower()
-    if s in ('open', 'active', 'live'):
-        return Auction.STATUS_OPEN
-    if s in ('closing', 'ending', 'ending_soon'):
-        return Auction.STATUS_CLOSING
-    if s in ('closed', 'ended', 'complete', 'completed'):
-        return Auction.STATUS_CLOSED
-    if s in ('cancelled', 'canceled'):
-        return Auction.STATUS_CANCELLED
-    return Auction.STATUS_OPEN
 
 
 def merge_auction_state_into_fields(
@@ -201,155 +100,23 @@ def apply_closed_inference(fields: dict[str, Any], now: datetime) -> None:
         fields['status'] = Auction.STATUS_CLOSED
 
 
-def _extract_group_id_from_listing(raw: dict[str, Any]) -> str | None:
-    """groupId for order-process manifests may be top-level or nested under group."""
-    g = _first(raw, 'groupId', 'group_id', 'groupID')
-    if g is not None:
-        s = str(g).strip()[:64]
-        return s or None
-    grp = raw.get('group')
-    if isinstance(grp, dict):
-        inner = _first(grp, 'id', '_id', 'groupId', 'group_id')
-        if inner is not None:
-            s = str(inner).strip()[:64]
-            return s or None
-    lgrp = raw.get('lotGroup')
-    if isinstance(lgrp, dict):
-        inner = _first(lgrp, 'id', '_id', 'groupId')
-        if inner is not None:
-            s = str(inner).strip()[:64]
-            return s or None
-    return None
-
-
-def map_listing_raw_to_auction_fields(
-    raw: dict[str, Any],
-    *,
-    storefront_id: str | None = None,
-) -> dict[str, Any]:
-    """
-    Map one search listings API row to Auction model field names.
-
-    Search response: listingId, lotId, groupId (or nested group.id), storeFrontId.
-    See scraper.discover_auctions log_full_first_response for live schema.
-    """
-    listing_id = _first(raw, 'listingId', 'listing_id', 'id')
-    external_id = str(listing_id).strip() if listing_id is not None else ''
-
-    lot_raw = _first(raw, 'lotId', 'lot_id', 'lotID')
-    lot_id_val = str(lot_raw).strip()[:64] if lot_raw is not None else ''
-
-    group_id_val = _extract_group_id_from_listing(raw)
-
-    seller = _first(raw, 'storeFrontId', 'storefrontId', 'sellerId') or storefront_id
-    seller_val = str(seller).strip()[:64] if seller else ''
-
-    auction_ext = _first(raw, 'auctionId', 'auction_id')
-    auction_ext_val = (
-        str(auction_ext).strip()[:64] if auction_ext is not None else ''
-    )
-
-    title = str(_first(raw, 'title', 'name', 'listingTitle') or '')[:500]
-    description = str(_first(raw, 'description', 'longDescription', 'summary') or '')
-    url = str(_first(raw, 'url', 'linkUrl', 'listingUrl', 'auctionUrl', 'href') or '').strip()
-    if not url and external_id:
-        url = f'https://bstock.com/buy/listings/details/{external_id}'
-    url = url[:1000]
-    cats = raw.get('categories')
-    if isinstance(cats, list) and cats:
-        category = ', '.join(str(x) for x in cats)[:300]
-    else:
-        category = str(
-            _first(raw, 'category', 'categoryName', 'productCategory') or ''
-        )[:300]
-    condition_summary = str(
-        _first(raw, 'condition', 'conditionSummary', 'conditionName') or ''
-    )[:500]
-
-    lot_size = _to_int(_first(raw, 'lotSize', 'itemCount', 'quantity', 'units'))
-
-    lt_raw = _first(raw, 'listingType', 'listing_type')
-    listing_type = str(lt_raw).strip()[:32] if lt_raw is not None else ''
-
-    total_retail_value = _retail_value_from_listing(raw)
-
-    current_price = _price_to_dollars(
-        _first(
-            raw,
-            'winningBidAmount',
-            'currentPrice',
-            'currentBid',
-            'price',
-            'highBid',
-            'leadingBid',
-        )
-    )
-    starting_price = _price_to_dollars(
-        _first(raw, 'startingPrice', 'startPrice', 'openingBid', 'minBid')
-    )
-    buy_now_price = _price_to_dollars(
-        _first(raw, 'buyNowPrice', 'buyItNow', 'binPrice', 'buyNowAmount')
-    )
-
-    bid_count = _to_int(_first(raw, 'bidCount', 'bids', 'numberOfBids'))
-
-    time_remaining_seconds = _to_int(
-        _first(raw, 'timeRemainingSeconds', 'secondsRemaining', 'timeLeftSeconds')
-    )
-
-    end_time = _parse_end_time(raw)
-
-    status = _normalize_status(_first(raw, 'status', 'auctionStatus', 'state'))
-
-    hm = _first(raw, 'hasManifest', 'manifestAvailable', 'has_manifest')
-    if hm is True:
-        has_manifest = True
-    elif hm is False:
-        has_manifest = False
-    else:
-        has_manifest = bool(
-            _first(raw, 'manifestUrl', 'manifest_url')
-        ) or bool((lot_id_val or '').strip())
-
-    return {
-        'external_id': external_id,
-        'lot_id': lot_id_val or None,
-        'group_id': group_id_val,
-        'auction_ext_id': auction_ext_val or None,
-        'seller_id': seller_val or None,
-        'title': title,
-        'description': description,
-        'url': url,
-        'category': category,
-        'condition_summary': condition_summary,
-        'lot_size': lot_size,
-        'listing_type': listing_type,
-        'total_retail_value': total_retail_value,
-        'current_price': current_price,
-        'starting_price': starting_price,
-        'buy_now_price': buy_now_price,
-        'bid_count': bid_count,
-        'time_remaining_seconds': time_remaining_seconds,
-        'end_time': end_time,
-        'status': status,
-        'has_manifest': has_manifest,
-    }
-
-
 def run_discovery(
     marketplace_slug: str | None = None,
     *,
     dry_run: bool = False,
     enrich_detail: bool = False,
-    page_limit: int = 20,
+    page_limit: int = 200,
     max_pages: int | None = None,
 ) -> dict[str, Any]:
     """
     Discover listings for one marketplace (or all active if slug is None), upsert Auction rows.
 
-    ``enrich_detail`` calls ``scraper.get_auction_detail`` (auction service) and merges state.
-    Requires ``BSTOCK_AUTH_TOKEN`` in ``.env`` when enrich_detail is True.
+    Parallel POST search + raw SQL upsert when ``enrich_detail`` is False (normal sweep).
+
+    ``enrich_detail`` uses sequential search + ORM get_or_create and calls
+    ``scraper.get_auction_detail`` per listing. Requires JWT for those calls.
     """
+    t0 = time.perf_counter()
     qs = Marketplace.objects.filter(is_active=True)
     if marketplace_slug:
         qs = qs.filter(slug=marketplace_slug)
@@ -361,45 +128,57 @@ def run_discovery(
             'rows': 0,
             'upserted': 0,
             'upserted_auction_ids': [],
+            'dry_run': dry_run,
+            'page_limit': page_limit,
+            'max_pages': max_pages,
             'refreshed_at': timezone.now().isoformat(),
+            'total_seconds': round(time.perf_counter() - t0, 3),
+            'total_listings': 0,
+            'by_marketplace': [],
+            'inserted': 0,
+            'updated': 0,
         }
 
-    total_raw = 0
-    upserted = 0
-    upserted_auction_ids: list[int] = []
     now = timezone.now()
+    mp_by_slug = {m.slug: m for m in marketplaces}
 
-    for mp in marketplaces:
-        storefront = (mp.external_id or '').strip()
-        rows = scraper.discover_auctions(
-            mp.slug,
-            page_limit=page_limit,
-            max_pages=max_pages,
-            log_full_first_response=dry_run,
-        )
-        total_raw += len(rows)
-        if dry_run:
-            logger.info(
-                '[dry-run] marketplace=%s rows=%s (not saving)',
+    if enrich_detail:
+        total_raw = 0
+        upserted = 0
+        upserted_auction_ids: list[int] = []
+
+        for mp in marketplaces:
+            storefront = (mp.external_id or '').strip()
+            rows = scraper.discover_auctions(
                 mp.slug,
-                len(rows),
+                page_limit=page_limit,
+                max_pages=max_pages,
+                log_full_first_response=dry_run,
             )
-            continue
-
-        with transaction.atomic():
-            for raw in rows:
-                if not isinstance(raw, dict):
-                    continue
-                fields = map_listing_raw_to_auction_fields(
-                    raw,
-                    storefront_id=storefront or None,
+            total_raw += len(rows)
+            if dry_run:
+                logger.info(
+                    '[dry-run] marketplace=%s rows=%s (not saving)',
+                    mp.slug,
+                    len(rows),
                 )
-                ext = fields.get('external_id') or ''
-                if not ext:
-                    logger.warning('Skipping row without listing id: %s', list(raw.keys())[:20])
-                    continue
+                continue
 
-                if enrich_detail:
+            with transaction.atomic():
+                for raw in rows:
+                    if not isinstance(raw, dict):
+                        continue
+                    fields = map_listing_raw_to_auction_fields(
+                        raw,
+                        storefront_id=storefront or None,
+                    )
+                    ext = fields.get('external_id') or ''
+                    if not ext:
+                        logger.warning(
+                            'Skipping row without listing id: %s', list(raw.keys())[:20]
+                        )
+                        continue
+
                     try:
                         state = scraper.get_auction_detail(ext)
                     except scraper.BStockAuthError:
@@ -407,74 +186,172 @@ def run_discovery(
                     if isinstance(state, dict) and state:
                         merge_auction_state_into_fields(fields, state)
 
-                auction, created = Auction.objects.get_or_create(
-                    marketplace=mp,
-                    external_id=ext,
-                    defaults={
-                        'lot_id': fields.get('lot_id'),
-                        'group_id': fields.get('group_id'),
-                        'auction_ext_id': fields.get('auction_ext_id'),
-                        'seller_id': fields.get('seller_id'),
-                        'title': fields['title'],
-                        'description': fields['description'],
-                        'url': fields['url'],
-                        'category': fields['category'],
-                        'condition_summary': fields['condition_summary'],
-                        'lot_size': fields['lot_size'],
-                        'listing_type': fields.get('listing_type') or '',
-                        'total_retail_value': fields.get('total_retail_value'),
-                        'current_price': fields['current_price'],
-                        'starting_price': fields['starting_price'],
-                        'buy_now_price': fields['buy_now_price'],
-                        'bid_count': fields['bid_count'],
-                        'time_remaining_seconds': fields['time_remaining_seconds'],
-                        'end_time': fields['end_time'],
-                        'status': fields['status'],
-                        'has_manifest': fields['has_manifest'],
-                        'first_seen_at': now,
-                        'last_updated_at': now,
-                    },
-                )
-                if not created:
-                    for name in (
-                        'lot_id',
-                        'group_id',
-                        'auction_ext_id',
-                        'seller_id',
-                        'title',
-                        'description',
-                        'url',
-                        'category',
-                        'condition_summary',
-                        'lot_size',
-                        'listing_type',
-                        'total_retail_value',
-                        'current_price',
-                        'starting_price',
-                        'buy_now_price',
-                        'bid_count',
-                        'time_remaining_seconds',
-                        'end_time',
-                        'status',
-                        'has_manifest',
-                    ):
-                        setattr(auction, name, fields[name])
-                    if auction.first_seen_at is None:
-                        auction.first_seen_at = now
-                    auction.last_updated_at = now
-                    auction.save()
-                upserted += 1
-                upserted_auction_ids.append(auction.pk)
+                    auction, created = Auction.objects.get_or_create(
+                        marketplace=mp,
+                        external_id=ext,
+                        defaults={
+                            'lot_id': fields.get('lot_id'),
+                            'group_id': fields.get('group_id'),
+                            'auction_ext_id': fields.get('auction_ext_id'),
+                            'seller_id': fields.get('seller_id'),
+                            'title': fields['title'],
+                            'description': fields['description'],
+                            'url': fields['url'],
+                            'category': fields['category'],
+                            'condition_summary': fields['condition_summary'],
+                            'lot_size': fields['lot_size'],
+                            'listing_type': fields.get('listing_type') or '',
+                            'total_retail_value': fields.get('total_retail_value'),
+                            'current_price': fields['current_price'],
+                            'starting_price': fields['starting_price'],
+                            'buy_now_price': fields['buy_now_price'],
+                            'bid_count': fields['bid_count'],
+                            'time_remaining_seconds': fields['time_remaining_seconds'],
+                            'end_time': fields['end_time'],
+                            'status': fields['status'],
+                            'has_manifest': fields['has_manifest'],
+                            'first_seen_at': now,
+                            'last_updated_at': now,
+                        },
+                    )
+                    if not created:
+                        for name in (
+                            'lot_id',
+                            'group_id',
+                            'auction_ext_id',
+                            'seller_id',
+                            'title',
+                            'description',
+                            'url',
+                            'category',
+                            'condition_summary',
+                            'lot_size',
+                            'listing_type',
+                            'total_retail_value',
+                            'current_price',
+                            'starting_price',
+                            'buy_now_price',
+                            'bid_count',
+                            'time_remaining_seconds',
+                            'end_time',
+                            'status',
+                            'has_manifest',
+                        ):
+                            setattr(auction, name, fields[name])
+                        if auction.first_seen_at is None:
+                            auction.first_seen_at = now
+                        auction.last_updated_at = now
+                        auction.save()
+                    upserted += 1
+                    upserted_auction_ids.append(auction.pk)
+
+        elapsed = time.perf_counter() - t0
+        return {
+            'marketplaces': len(marketplaces),
+            'rows': total_raw,
+            'upserted': upserted,
+            'upserted_auction_ids': upserted_auction_ids,
+            'dry_run': dry_run,
+            'page_limit': page_limit,
+            'max_pages': max_pages,
+            'refreshed_at': timezone.now().isoformat(),
+            'total_seconds': round(elapsed, 3),
+            'total_listings': total_raw,
+            'by_marketplace': [],
+            'inserted': upserted,
+            'updated': 0,
+        }
+
+    batches_http = scraper.discover_auctions_parallel(
+        page_limit=page_limit,
+        max_pages=max_pages,
+        log_full_first_response=dry_run,
+        marketplace_slug=marketplace_slug,
+    )
+    total_raw = sum(len(b.rows) for b in batches_http)
+    by_marketplace_out: list[dict[str, Any]] = []
+
+    if dry_run:
+        for b in batches_http:
+            by_marketplace_out.append(
+                {
+                    'slug': b.slug,
+                    'name': b.name,
+                    'listings_found': len(b.rows),
+                    'http_ms': round(b.http_ms, 1),
+                    'http_error': b.error,
+                    'inserted': 0,
+                    'updated': 0,
+                    'skipped': 0,
+                    'db_errors': 0,
+                }
+            )
+        elapsed = time.perf_counter() - t0
+        return {
+            'marketplaces': len(marketplaces),
+            'rows': total_raw,
+            'upserted': 0,
+            'upserted_auction_ids': [],
+            'dry_run': dry_run,
+            'page_limit': page_limit,
+            'max_pages': max_pages,
+            'refreshed_at': timezone.now().isoformat(),
+            'total_seconds': round(elapsed, 3),
+            'total_listings': total_raw,
+            'by_marketplace': by_marketplace_out,
+            'inserted': 0,
+            'updated': 0,
+        }
+
+    sweep_batches: list[tuple[Any, str, str, list[dict[str, Any]]]] = []
+    for b in batches_http:
+        mp = mp_by_slug.get(b.slug)
+        if not mp:
+            continue
+        st = (mp.external_id or '').strip()
+        if not st:
+            continue
+        sweep_batches.append((mp, st, b.slug, b.rows))
+
+    with transaction.atomic():
+        sweep_result = sweep_upsert.run_sweep_upsert_for_batches(sweep_batches, now)
+
+    sweep_rows = {r['slug']: r for r in sweep_result['by_marketplace']}
+    for b in batches_http:
+        sr = sweep_rows.get(b.slug, {})
+        by_marketplace_out.append(
+            {
+                'slug': b.slug,
+                'name': b.name,
+                'listings_found': len(b.rows),
+                'http_ms': round(b.http_ms, 1),
+                'http_error': b.error,
+                'inserted': int(sr.get('inserted', 0)),
+                'updated': int(sr.get('updated', 0)),
+                'skipped': int(sr.get('skipped', 0)),
+                'db_errors': int(sr.get('db_errors', 0)),
+            }
+        )
+
+    elapsed = time.perf_counter() - t0
+    inserted = int(sweep_result['inserted'])
+    updated = int(sweep_result['updated'])
+    upserted_n = inserted + updated
 
     return {
         'marketplaces': len(marketplaces),
         'rows': total_raw,
-        'upserted': upserted,
-        'upserted_auction_ids': upserted_auction_ids,
+        'upserted': upserted_n,
+        'upserted_auction_ids': sweep_result['auction_ids'],
         'dry_run': dry_run,
         'page_limit': page_limit,
         'max_pages': max_pages,
         'refreshed_at': timezone.now().isoformat(),
+        'total_seconds': round(elapsed, 3),
+        'total_listings': total_raw,
+        'by_marketplace': by_marketplace_out,
+        'inserted': inserted,
+        'updated': updated,
     }
 
 

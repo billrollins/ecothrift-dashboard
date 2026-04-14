@@ -34,6 +34,8 @@ export type AuctionListDesktopProps = {
   onRowNavigate: (id: number) => void;
   isAdmin?: boolean;
   onThumbsToggle?: (id: number, next: boolean) => void;
+  /** When set, star toggles watchlist (POST/DELETE watch API). */
+  onWatchToggle?: (id: number, add: boolean) => void;
   /** Yellow tint for watchlist membership on main list */
   watchlistIds?: Set<number>;
 };
@@ -48,6 +50,7 @@ function formatNeedScoreRaw(score: string | null | undefined): string {
 function buildColumns(
   isAdmin: boolean,
   onThumbsToggle: AuctionListDesktopProps['onThumbsToggle'],
+  onWatchToggle: AuctionListDesktopProps['onWatchToggle'],
   watchlistIds: AuctionListDesktopProps['watchlistIds']
 ): GridColDef<BuyingAuctionListItem>[] {
   return [
@@ -72,17 +75,36 @@ function buildColumns(
           );
         }
         const watched = watchlistIds.has(row.id);
-        return watched ? (
+        const icon = watched ? (
           <StarIcon fontSize="small" color="warning" />
         ) : (
           <StarBorderIcon fontSize="small" sx={{ color: 'action.disabled' }} />
         );
+        if (onWatchToggle) {
+          return (
+            <Box component="span" onClick={(e) => e.stopPropagation()}>
+              <Tooltip title={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
+                <IconButton
+                  size="small"
+                  aria-label={watched ? 'Remove from watchlist' : 'Add to watchlist'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onWatchToggle(row.id, !watched);
+                  }}
+                >
+                  {icon}
+                </IconButton>
+              </Tooltip>
+            </Box>
+          );
+        }
+        return icon;
       },
     },
     {
       field: 'thumbs_up',
       headerName: '',
-      width: 76,
+      width: 92,
       sortable: false,
       align: 'center',
       renderHeader: () => (
@@ -93,13 +115,18 @@ function buildColumns(
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
         const row = params.row;
         const active = Boolean(row.thumbs_up);
+        const count = row.thumbs_up_count ?? 0;
         const canToggle = isAdmin && onThumbsToggle;
         const icon = active ? (
           <ThumbUpIcon fontSize="small" color="primary" />
         ) : (
           <ThumbUpOutlinedIcon fontSize="small" color="disabled" />
         );
-        /* thumbs_up on model is boolean per current user; aggregate count is Phase 3B when API adds it. */
+        const tally = (
+          <Typography variant="caption" color="text.secondary" sx={{ minWidth: 14, fontVariantNumeric: 'tabular-nums' }}>
+            {count}
+          </Typography>
+        );
         if (!canToggle) {
           return (
             <Box
@@ -107,6 +134,7 @@ function buildColumns(
               sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, width: '100%' }}
             >
               {icon}
+              {tally}
             </Box>
           );
         }
@@ -117,7 +145,7 @@ function buildColumns(
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 0.5,
+              gap: 0.25,
               width: '100%',
             }}
             onClick={(e) => e.stopPropagation()}
@@ -132,6 +160,7 @@ function buildColumns(
             >
               {icon}
             </IconButton>
+            {tally}
           </Box>
         );
       },
@@ -179,6 +208,41 @@ function buildColumns(
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => (
         <Chip size="small" label={params.row.marketplace?.name ?? '—'} color="primary" variant="outlined" />
       ),
+    },
+    {
+      field: 'top_categories',
+      headerName: 'Top categories',
+      flex: 0.65,
+      minWidth: 128,
+      maxWidth: 220,
+      sortable: false,
+      valueGetter: (_v, row) =>
+        (row.top_categories ?? [])
+          .map((c) => c.name)
+          .join(', '),
+      renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
+        const top = params.row.top_categories ?? [];
+        if (top.length === 0) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              —
+            </Typography>
+          );
+        }
+        return (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.35, py: 0.25 }}>
+            {top.map((c) => (
+              <Chip
+                key={c.name}
+                size="small"
+                variant="outlined"
+                label={`${c.name.length > 14 ? `${c.name.slice(0, 13)}…` : c.name} ${c.pct.toFixed(0)}%`}
+                sx={{ maxWidth: '100%', height: 22, '& .MuiChip-label': { px: 0.5, fontSize: '0.65rem' } }}
+              />
+            ))}
+          </Box>
+        );
+      },
     },
     {
       field: 'manifest_badge',
@@ -277,12 +341,13 @@ export default function AuctionListDesktop({
   onRowNavigate,
   isAdmin = false,
   onThumbsToggle,
+  onWatchToggle,
   watchlistIds,
 }: AuctionListDesktopProps) {
   const sortModel: GridSortModel = useMemo(() => sortModelFromOrdering(ordering), [ordering]);
   const columns = useMemo(
-    () => buildColumns(isAdmin, onThumbsToggle, watchlistIds),
-    [isAdmin, onThumbsToggle, watchlistIds]
+    () => buildColumns(isAdmin, onThumbsToggle, onWatchToggle, watchlistIds),
+    [isAdmin, onThumbsToggle, onWatchToggle, watchlistIds]
   );
 
   const handleSortModelChange = useCallback(

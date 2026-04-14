@@ -252,10 +252,19 @@ AI_PRICING = {
 # ── Buying / B-Stock (search POST is unauthenticated; other calls need JWT) ─
 BSTOCK_AUTH_TOKEN = config('BSTOCK_AUTH_TOKEN', default='')
 BUYING_REQUEST_DELAY_SECONDS = config(
-    'BUYING_REQUEST_DELAY_SECONDS', default=2.0, cast=float
+    'BUYING_REQUEST_DELAY_SECONDS', default=0.0, cast=float
 )
 BSTOCK_MAX_RETRIES = config('BSTOCK_MAX_RETRIES', default=3, cast=int)
 BSTOCK_SEARCH_MAX_PAGES = config('BSTOCK_SEARCH_MAX_PAGES', default=5000, cast=int)
+BUYING_SWEEP_MAX_WORKERS = config('BUYING_SWEEP_MAX_WORKERS', default=8, cast=int)
+# SOCKS5 for B-Stock search POST only (optional; requires PySocks). See .env.example.
+BUYING_SOCKS5_PROXY_ENABLED = config(
+    'BUYING_SOCKS5_PROXY_ENABLED', default=False, cast=bool
+)
+BUYING_SOCKS5_PROXY_HOST = config('BUYING_SOCKS5_PROXY_HOST', default='')
+BUYING_SOCKS5_PROXY_PORT = config('BUYING_SOCKS5_PROXY_PORT', default='')
+BUYING_SOCKS5_PROXY_USER = config('BUYING_SOCKS5_PROXY_USER', default='')
+BUYING_SOCKS5_PROXY_PASSWORD = config('BUYING_SOCKS5_PROXY_PASSWORD', default='')
 
 # B-Stock outbound HTTP audit log (apps.buying.services.scraper → logger buying.scraper)
 _LOGS_DIR = BASE_DIR / 'logs'

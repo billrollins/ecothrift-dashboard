@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-04-14 (v2.12.1 session close) -->
+<!-- Last updated: 2026-04-15T12:00:00-05:00 -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** See repo root `.version` (e.g. **`v2.12.1`**). **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; **Heroku production** has V1/V2→V3 data, **`Item.retail_value`**, categories, and **cost pipeline** deployed (see **CHANGELOG [2.12.0]** and prior). **Buying UI:** Phase 3A auction list/detail polish shipped in **v2.12.1** — [`.ai/initiatives/ui_ux_polish.md`](initiatives/ui_ux_polish.md). **Active initiative:** **B-Stock Phase 6** — **[`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md)** (outcome tracking); see also **`.ai/extended/backend.md`**, **`.ai/extended/frontend.md`**.
+**Current version:** See repo root `.version` (e.g. **`v2.13.0`**). **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; **Heroku production** has V1/V2→V3 data, **`Item.retail_value`**, categories, and **cost pipeline** deployed (see **CHANGELOG [2.12.0]** and prior). **Buying UI:** Phase 3A auction list/detail polish shipped in **v2.12.1** — [`.ai/initiatives/ui_ux_polish.md`](initiatives/ui_ux_polish.md); **v2.13.0** — fast parallel sweep + optional SOCKS5 — [`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md). **Active initiative:** **B-Stock Phase 6** — same file (outcome tracking); see also **`.ai/extended/backend.md`**, **`.ai/extended/bstock.md`**, **`.ai/extended/frontend.md`**.
 
 ---
 
@@ -39,7 +39,7 @@ ecothrift-dashboard/
 ├── .ai/                    AI steering: context, protocols, initiatives, extended, reference, prototype
 │   ├── context.md          Primary agent context (read at session start)
 │   ├── consultant_context.md  Single-file, dense handoff for external consultants (not a substitute for modular docs for coders)
-│   ├── protocols/          startup.md, session_checkpoint.md, get_bearing.md, session_close.md, collect_for_consultant.md (initiative lifecycle stubs → initiatives/_archived/_protocols/)
+│   ├── protocols/          startup.md, session_checkpoint.md, get_bearing.md, session_close.md, collect_for_consultant.md, consult_retire_scout.md, consult_retire_charlie.md
 │   ├── initiatives/        _index.md (active); _archived/ARCHIVE.md + buckets + _protocols/ (lifecycle how-tos)
 │   ├── extended/           Deep-dive domain docs (load on demand — keeps agent context small)
 │   ├── reference/          Third-party / external context (optional)
@@ -64,7 +64,7 @@ Domain deep-dives loaded **on demand** (do not read all at session start). Each 
 |------|--------|-------------|
 | [`auth-and-roles.md`](extended/auth-and-roles.md) | Auth | JWT flow (httpOnly refresh + in-memory access), roles, permissions, password flows |
 | [`backend.md`](extended/backend.md) | Backend | Django apps, models, serializers, API patterns, HR, AI proxy, management commands |
-| [`bstock.md`](extended/bstock.md) | Buying | B-Stock API surface, scraper endpoints, auth requirements, service map |
+| [`bstock.md`](extended/bstock.md) | Buying | B-Stock API surface, scraper (parallel sweep, optional SOCKS5), auth; full catalog in **`workspace/notes/from_consultant/bstock_api_research.md`** |
 | [`cash-management.md`](extended/cash-management.md) | POS | Cash drops, pickups, drawer reconciliation, safe counts |
 | [`consignment.md`](extended/consignment.md) | Consignment | Agreements, consignment items, payouts, consignee portal |
 | [`databases.md`](extended/databases.md) | Data | Three-generation DB overview (V1/V2/V3), connection patterns, `.env` keys |
@@ -90,7 +90,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 - **Inventory:** POs, M3 processing, preprocessing (standard manifest, AI cleanup, matching, pricing); **v2.12.0** — unfiltered item list **pagination `count`** TTL-cached (`item_list_total_count`, 300s) to reduce large-table `COUNT(*)` on `/api/inventory/items/`
 - **POS:** Terminal, drawers, carts, transactions, cash management
 - **Consignment:** Agreements, items, payouts, portal
-- **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped; **v2.12.1** — Phase 3A auction list/detail polish ([ui_ux_polish](initiatives/ui_ux_polish.md)); **Phase 6** (outcome tracking) next — see [bstock initiative](initiatives/bstock_auction_intelligence.md)
+- **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped; **v2.12.1** — Phase 3A auction list/detail polish ([ui_ux_polish](initiatives/ui_ux_polish.md)); **v2.13.0** — parallel POST sweep, raw SQL upsert, single-request Refresh, optional SOCKS5 for search ([bstock initiative](initiatives/bstock_auction_intelligence.md)); **Phase 6** (outcome tracking) next
 - **Data backfill (V1/V2 → V3):** Complete (v2.10.0); initiative **[archived](initiatives/_archived/_completed/data_backfill_initiative.md)** — loaders `backfill_phase1_*` … `backfill_phase5_categories` + `classify_v2_iterate`; **production DB** populated (through **v2.12.0** train); optional **`--database production`** on inventory pipeline commands. Portable CSV **`import_backfill`** to other hosts remains a separate path if ever needed.
 - **Print server:** Local FastAPI labels/receipts/drawer
 - **AI:** Claude proxy (`apps/ai/`), inventory/buying AI
@@ -138,7 +138,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 4. **Do NOT amend commits** unless the conditions in the system prompt are met.
 5. **Use timestamps** (ISO 8601, America/Chicago timezone) on all documentation updates.
 6. **Load `.ai/extended/<domain>.md` only when the task touches that domain** — use the **Extended docs TOC** above to pick the right file. Do not read all extended files at once. **`.ai/initiatives/`** and **`.ai/extended/`** are **modular** on purpose so coding sessions do not load irrelevant context. **External consultants** needing one **full** narrative should use **`.ai/consultant_context.md`** (dense, all-in-one) rather than reading every extended file.
-7. **Follow protocols** in `.ai/protocols/` (`startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `collect_for_consultant.md`). **Cadence:** **`session_checkpoint`** several times per session; **`session_close`** at the end / before commit. **Initiative lifecycle** (`activate_initiative`, `move_initiative_to_*`) — [`.ai/initiatives/_archived/_protocols/README.md`](initiatives/_archived/_protocols/README.md). **Initiatives** live in `.ai/initiatives/` (`_index.md` for active; `_archived/ARCHIVE.md` for the archive catalog).
+7. **Follow protocols** in `.ai/protocols/` (`startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `collect_for_consultant.md`, `consult_retire_scout.md` / `consult_retire_charlie.md` when rotating consultants). **Cadence:** **`session_checkpoint`** several times per session; **`session_close`** at the end / before commit. **Initiative lifecycle** (`activate_initiative`, `move_initiative_to_*`) — [`.ai/initiatives/_archived/_protocols/README.md`](initiatives/_archived/_protocols/README.md). **Initiatives** live in `.ai/initiatives/` (`_index.md` for active; `_archived/ARCHIVE.md` for the archive catalog).
 8. **Initiatives vs releases** — Tie substantial work and **version bumps** to **named initiatives** when possible; **patch/minor/major** still follows product semver (see `_index.md`). If initiative scope is **ambiguous**, ask the user or add an initiative — do not guess.
 9. **Initiative archiving** — Do **not** move an initiative to `.ai/initiatives/_archived/` unless the **user explicitly** approves or instructs. **Ask** before archiving.
 10. **Verify before changing** — read files before editing, check lints after editing.
@@ -180,7 +180,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 | Initiatives (active) | `.ai/initiatives/_index.md` |
 | Archived initiatives | `.ai/initiatives/_archived/ARCHIVE.md` |
 | Consultant handoff | `.ai/consultant_context.md` |
-| Protocols | `.ai/protocols/` — `startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `collect_for_consultant.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
+| Protocols | `.ai/protocols/` — `startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `collect_for_consultant.md`, `consult_retire_scout.md`, `consult_retire_charlie.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
 | Dev scripts | `scripts/dev/` |
 | Scratch / notebooks | `workspace/` (mostly gitignored) |
 | E2E test templates | `workspace/testing/` |

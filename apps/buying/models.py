@@ -386,6 +386,36 @@ class Auction(models.Model):
         return f'{self.external_id}: {self.title[:60]}' if self.title else self.external_id
 
 
+class AuctionThumbsVote(models.Model):
+    """Staff thumbs-up per auction (Phase 3B aggregate count replaces single `Auction.thumbs_up` flag)."""
+
+    auction = models.ForeignKey(
+        Auction,
+        on_delete=models.CASCADE,
+        related_name='staff_thumbs_votes',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='auction_thumbs_votes',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['auction', 'user'],
+                name='buying_auction_thumbs_vote_auction_user_uniq',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['auction']),
+        ]
+
+    def __str__(self) -> str:
+        return f'auction {self.auction_id} user {self.user_id}'
+
+
 class AuctionSnapshot(models.Model):
     """Time-series sample for a watched auction (Phase 2 uses this heavily)."""
 

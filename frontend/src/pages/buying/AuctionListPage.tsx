@@ -28,6 +28,7 @@ import { useBuyingAuctionsInfinite } from '../../hooks/useBuyingAuctionsInfinite
 import { useBuyingAuctionSummary } from '../../hooks/useBuyingAuctionSummary';
 import { useBuyingMarketplaces } from '../../hooks/useBuyingMarketplaces';
 import { useBuyingThumbsUpMutation } from '../../hooks/useBuyingThumbsUpMutation';
+import { useBuyingWatchlistToggleMutation } from '../../hooks/useBuyingWatchlistToggleMutation';
 import { useBuyingWatchlist } from '../../hooks/useBuyingWatchlist';
 import { useBuyingWatchlistInfinite } from '../../hooks/useBuyingWatchlistInfinite';
 import type {
@@ -38,6 +39,11 @@ import type {
 import AuctionListDesktop from './AuctionListDesktop';
 import AuctionListMobile from './AuctionListMobile';
 import AuctionMarketplaceChips from './AuctionMarketplaceChips';
+import {
+  BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY,
+  BUYING_WATCHLIST_ORDERING_STORAGE_KEY,
+  DEFAULT_BUYING_LIST_ORDERING,
+} from '../../utils/buyingAuctionList';
 
 /** Stable reference for useBuyingAuctionSummary — inline `{}` is a new object every render and churns the query key. */
 const BUYING_SUMMARY_PARAMS_EMPTY: BuyingAuctionSummaryParams = {};
@@ -51,7 +57,7 @@ export default function AuctionListPage() {
   const { hasRole } = useAuth();
   const isAdmin = hasRole('Admin');
 
-  const [ordering, setOrdering] = useState('-priority,end_time');
+  const [ordering, setOrdering] = useState(DEFAULT_BUYING_LIST_ORDERING);
   const [filterChips, setFilterChips] = useState<Set<AuctionFilterChipId>>(() => new Set());
 
   /** null = marketplaces not loaded yet; then all slugs active. */
@@ -114,6 +120,16 @@ export default function AuctionListPage() {
   );
 
   const isWatched = filterChips.has('watched');
+
+  useEffect(() => {
+    try {
+      const k = isWatched ? BUYING_WATCHLIST_ORDERING_STORAGE_KEY : BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY;
+      const v = localStorage.getItem(k);
+      setOrdering(v ?? DEFAULT_BUYING_LIST_ORDERING);
+    } catch {
+      setOrdering(DEFAULT_BUYING_LIST_ORDERING);
+    }
+  }, [isWatched]);
 
   const listParams = useMemo((): BuyingAuctionListParams => {
     const p: BuyingAuctionListParams = {
@@ -209,6 +225,18 @@ export default function AuctionListPage() {
   }, [tintPage]);
 
   const thumbsMutation = useBuyingThumbsUpMutation();
+  const watchMutation = useBuyingWatchlistToggleMutation();
+
+  const handleWatchToggle = useCallback(
+    async (auctionId: number, add: boolean) => {
+      try {
+        await watchMutation.mutateAsync({ auctionId, add });
+      } catch {
+        enqueueSnackbar('Could not update watchlist.', { variant: 'error' });
+      }
+    },
+    [watchMutation, enqueueSnackbar]
+  );
 
   const handleThumbsToggle = useCallback(
     async (id: number, next: boolean) => {
@@ -222,11 +250,7 @@ export default function AuctionListPage() {
   );
 
   const [isSweeping, setIsSweeping] = useState(false);
-  const [sweepProgress, setSweepProgress] = useState<{
-    current: number;
-    total: number;
-    name: string;
-  } | null>(null);
+  const [sweepProgress, setSweepProgress] = useState<string | null>(null);
 
   /** Set after a successful sweep (last response `refreshed_at`); falls back to global summary. */
   const [lastSweepRefreshedAt, setLastSweepRefreshedAt] = useState<string | null>(null);
@@ -291,13 +315,22 @@ export default function AuctionListPage() {
     setPaginationModel((pm) => ({ ...pm, page: 0 }));
   }, [marketplaces]);
 
-  const handleOrderingChange = useCallback((next: string) => {
-    setOrdering((prev) => {
-      if (prev === next) return prev;
-      setPaginationModel((pm) => ({ ...pm, page: 0 }));
-      return next;
-    });
-  }, []);
+  const handleOrderingChange = useCallback(
+    (next: string) => {
+      setOrdering((prev) => {
+        if (prev === next) return prev;
+        setPaginationModel((pm) => ({ ...pm, page: 0 }));
+        return next;
+      });
+      try {
+        const k = isWatched ? BUYING_WATCHLIST_ORDERING_STORAGE_KEY : BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY;
+        localStorage.setItem(k, next);
+      } catch {
+        /* ignore */
+      }
+    },
+    [isWatched]
+  );
 
   const handleFilterChipToggle = useCallback((id: AuctionFilterChipId, event: MouseEvent) => {
     const ctrl = event.ctrlKey || event.metaKey;
@@ -349,47 +382,23 @@ export default function AuctionListPage() {
       return;
     }
     setIsSweeping(true);
-    setSweepProgress(null);
-    let totalUpserted = 0;
-    let lastRefreshed: string | undefined;
-    const failures: string[] = [];
-    let okCount = 0;
+    setSweepProgress('Sweeping all marketplaces…');
     try {
-      for (let i = 0; i < mps.length; i++) {
-        setSweepProgress({ current: i + 1, total: mps.length, name: mps[i].name });
-        try {
-          const res = await postBuyingSweep(mps[i].slug);
-          totalUpserted += res.upserted;
-          if (res.refreshed_at) lastRefreshed = res.refreshed_at;
-          okCount += 1;
-        } catch (err: unknown) {
-          failures.push(mps[i].name);
-          let detail = 'Request failed';
-          if (isAxiosError(err)) {
-            const d = err.response?.data as { detail?: string } | undefined;
-            if (d?.detail) detail = d.detail;
-            else if (err.message) detail = err.message;
-          } else if (err instanceof Error) detail = err.message;
-          console.warn(`[buying sweep] marketplace ${mps[i].slug} failed:`, detail);
-        }
-      }
-      if (okCount > 0) {
-        if (lastRefreshed) setLastSweepRefreshedAt(lastRefreshed);
-        await queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
-        await queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
-      }
-      const failedSuffix =
-        failures.length > 0 ? ` (${failures.join(', ')} failed)` : '';
-      if (okCount === 0 && failures.length > 0) {
-        enqueueSnackbar(`Sweep failed for all marketplaces: ${failures.join(', ')}.`, {
-          variant: 'error',
-        });
-      } else if (okCount > 0) {
-        enqueueSnackbar(
-          `Sweep complete: ${totalUpserted} auctions updated across ${okCount} marketplace${okCount === 1 ? '' : 's'}${failedSuffix}.`,
-          { variant: failures.length ? 'warning' : 'success' },
-        );
-      }
+      const res = await postBuyingSweep(null);
+      if (res.refreshed_at) setLastSweepRefreshedAt(res.refreshed_at);
+      await queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
+      await queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
+      const secs =
+        res.total_seconds != null ? ` in ${res.total_seconds}s` : '';
+      const mpErrs =
+        res.by_marketplace?.filter((r) => r.http_error || (r.db_errors ?? 0) > 0) ?? [];
+      const warnSuffix = mpErrs.length
+        ? ` (${mpErrs.map((r) => r.name).join(', ')}: partial errors — see network response)`
+        : '';
+      enqueueSnackbar(
+        `Sweep complete: ${res.upserted} row(s) upserted, ${res.rows} listing(s) fetched${secs}.${warnSuffix}`,
+        { variant: mpErrs.length ? 'warning' : 'success' },
+      );
     } catch (err: unknown) {
       let msg = 'Sweep failed.';
       if (isAxiosError(err)) {
@@ -445,7 +454,7 @@ export default function AuctionListPage() {
             </Typography>
             {sweepProgress ? (
               <Typography variant="caption" color="text.secondary">
-                Sweeping {sweepProgress.current}/{sweepProgress.total}: {sweepProgress.name}…
+                {sweepProgress}
               </Typography>
             ) : null}
             <Button
@@ -551,6 +560,7 @@ export default function AuctionListPage() {
           onRowNavigate={(id) => navigate(`/buying/auctions/${id}`)}
           isAdmin={isAdmin}
           onThumbsToggle={isAdmin ? handleThumbsToggle : undefined}
+          onWatchToggle={handleWatchToggle}
           watchlistIds={watchlistIdsForTint}
         />
       ) : (
@@ -567,6 +577,7 @@ export default function AuctionListPage() {
           watchlistIds={watchlistIdsForTint}
           isAdmin={isAdmin}
           onThumbsToggle={isAdmin ? handleThumbsToggle : undefined}
+          onWatchToggle={handleWatchToggle}
         />
       )}
     </Box>

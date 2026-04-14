@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-10T19:00:00-05:00 -->
+<!-- Last updated: 2026-04-14T23:55:00-05:00 -->
 # Protocol: Session Startup
 
 How to begin a new AI session on this project.
@@ -81,10 +81,12 @@ How to begin a new AI session on this project.
 | **`session_checkpoint.md`** | **Several times** per session | Session updates + **`[Unreleased]`** + light docs |
 | `get_bearing.md` | Mid-session when stuck / drifting | Compare progress to written session goal |
 | `session_close.md` | **End** of session / before commit | Record **`Result`**, docs, version bump, commit message |
-| `collect_for_consultant.md` | Consultant handoff | Spot-check docs + copy handoff bundle |
+| `collect_for_consultant.md` | Mid-session consultant bundle | Spot-check docs + **flat** copy to `files-update/` |
+| `consult_retire_scout.md` | Consultant **replacement** (Scout) | Full doc sync + **flat** bundle for new consultant |
+| `consult_retire_charlie.md` | Outgoing consultant (Charlie) | Handoff prompt file + instructions for Scout |
 
 ---
 
 ## Next protocols
 
-During work: **`.ai/protocols/session_checkpoint.md`**. When stuck: **`get_bearing.md`**. When finishing: **`session_close.md`**.
+During work: **`.ai/protocols/session_checkpoint.md`**. When stuck: **`get_bearing.md`**. When finishing: **`session_close.md`**. Consultant rotation: **`consult_retire_scout.md`** (Scout) / **`consult_retire_charlie.md`** (Charlie); mid-session bundle: **`collect_for_consultant.md`**.

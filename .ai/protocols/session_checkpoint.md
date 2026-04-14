@@ -82,7 +82,7 @@ If something belongs in **`session_close`** (full **`Result`**, **version bump**
 | **`session_checkpoint.md`** (this) | **Several times** per session | Session updates + **`[Unreleased]`** + light docs |
 | **`get_bearing.md`** | Mid-session when **stuck** / drifting | Compass vs written goal; git truth; bearing card |
 | **`session_close.md`** | **End** of session / before commit | **`Result`**, semver gate, full doc scope, `commit_message.txt`, pre-commit |
-| **`collect_for_consultant.md`** | Consultant handoff | Bundle + spot-check |
+| **`collect_for_consultant.md`** | Consultant handoff | Spot-check + **flat** bundle (`consult_retire_scout.md` for full list) |
 
 **Typical flow:** **`startup`** → (work) → **`checkpoint`** → (work) → **`checkpoint`** → … → **`get_bearing`** (if needed) → **`session_close`** when done.
 

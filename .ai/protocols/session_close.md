@@ -95,7 +95,7 @@ Types: `feat`, `fix`, `refactor`, `docs`, `style`, `chore`.
 | `session_checkpoint.md` | Several times per session | Session updates + **`[Unreleased]`** + light docs |
 | `get_bearing.md` | Mid-session when stuck | Compare progress to **written** session goal |
 | **`session_close.md`** (this) | **End** of session / before commit | **`Result`**, scoped docs, version bump, commit message |
-| `collect_for_consultant.md` | After build phase / handoff | Spot-check + copy files for consultant |
+| `collect_for_consultant.md` | After build phase / handoff | Spot-check + **flat** copy for consultant (`consult_retire_scout.md`) |
 
 ---
 

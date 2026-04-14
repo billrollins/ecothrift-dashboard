@@ -305,13 +305,21 @@ export async function postBuyingCategoryWant(body: {
   return data;
 }
 
-export async function postBuyingThumbsUp(auctionId: number): Promise<{ thumbs_up: boolean }> {
-  const { data } = await api.post<{ thumbs_up: boolean }>(`/buying/auctions/${auctionId}/thumbs-up/`);
+export async function postBuyingThumbsUp(
+  auctionId: number
+): Promise<{ thumbs_up: boolean; thumbs_up_count: number }> {
+  const { data } = await api.post<{ thumbs_up: boolean; thumbs_up_count: number }>(
+    `/buying/auctions/${auctionId}/thumbs-up/`
+  );
   return data;
 }
 
-export async function deleteBuyingThumbsUp(auctionId: number): Promise<{ thumbs_up: boolean }> {
-  const { data } = await api.delete<{ thumbs_up: boolean }>(`/buying/auctions/${auctionId}/thumbs-up/`);
+export async function deleteBuyingThumbsUp(
+  auctionId: number
+): Promise<{ thumbs_up: boolean; thumbs_up_count: number }> {
+  const { data } = await api.delete<{ thumbs_up: boolean; thumbs_up_count: number }>(
+    `/buying/auctions/${auctionId}/thumbs-up/`
+  );
   return data;
 }
 

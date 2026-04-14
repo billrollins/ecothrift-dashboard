@@ -7,7 +7,7 @@ from decimal import Decimal
 import django_filters
 from django.db.models import Exists, OuterRef, Q
 
-from apps.buying.models import Auction, ManifestRow
+from apps.buying.models import Auction, AuctionThumbsVote, ManifestRow
 
 
 def filter_auction_text_search(queryset, value):
@@ -37,7 +37,7 @@ class WatchlistAuctionFilter(django_filters.FilterSet):
     watchlist_status = django_filters.CharFilter(field_name='watchlist_entry__status')
     status = django_filters.CharFilter(field_name='status')
     has_manifest = django_filters.CharFilter(method='filter_watchlist_has_manifest')
-    thumbs_up = django_filters.BooleanFilter(field_name='thumbs_up')
+    thumbs_up = django_filters.BooleanFilter(method='filter_thumbs_up_for_user')
     profitable = django_filters.BooleanFilter(method='filter_profitable')
     needed = django_filters.BooleanFilter(method='filter_needed')
     q = django_filters.CharFilter(method='filter_q')
@@ -93,6 +93,19 @@ class WatchlistAuctionFilter(django_filters.FilterSet):
     def filter_q(self, queryset, name, value):
         return filter_auction_text_search(queryset, value)
 
+    def filter_thumbs_up_for_user(self, queryset, name, value):
+        """True: current user has a thumbs vote; False: excluded."""
+        if value is None:
+            return queryset
+        req = getattr(self, 'request', None)
+        user = getattr(req, 'user', None) if req else None
+        if not user or not user.is_authenticated:
+            return queryset
+        mine = Exists(AuctionThumbsVote.objects.filter(auction_id=OuterRef('pk'), user_id=user.id))
+        if value is True:
+            return queryset.filter(mine)
+        return queryset.exclude(mine)
+
 
 class AuctionFilter(django_filters.FilterSet):
     """Query params: marketplace, status, has_manifest, thumbs_up, profitable, needed, q."""
@@ -101,7 +114,7 @@ class AuctionFilter(django_filters.FilterSet):
     status = django_filters.CharFilter(field_name='status')
     # Explicit parsing — BooleanFilter can miss some query-string serializations from clients.
     has_manifest = django_filters.CharFilter(method='filter_has_manifest')
-    thumbs_up = django_filters.BooleanFilter(field_name='thumbs_up')
+    thumbs_up = django_filters.BooleanFilter(method='filter_thumbs_up_for_user')
     profitable = django_filters.BooleanFilter(method='filter_profitable')
     needed = django_filters.BooleanFilter(method='filter_needed')
     q = django_filters.CharFilter(method='filter_q')
@@ -146,6 +159,19 @@ class AuctionFilter(django_filters.FilterSet):
                 return queryset
             return queryset.filter(marketplace__slug__in=slugs)
         return queryset.filter(marketplace__slug__iexact=raw)
+
+    def filter_thumbs_up_for_user(self, queryset, name, value):
+        """True: current user has a thumbs vote; False: excluded."""
+        if value is None:
+            return queryset
+        req = getattr(self, 'request', None)
+        user = getattr(req, 'user', None) if req else None
+        if not user or not user.is_authenticated:
+            return queryset
+        mine = Exists(AuctionThumbsVote.objects.filter(auction_id=OuterRef('pk'), user_id=user.id))
+        if value is True:
+            return queryset.filter(mine)
+        return queryset.exclude(mine)
 
     def filter_q(self, queryset, name, value):
         return filter_auction_text_search(queryset, value)

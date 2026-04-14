@@ -13,8 +13,10 @@ from django.db.models import (
     Case,
     Count,
     DecimalField,
+    Exists,
     F,
     Max,
+    OuterRef,
     Q,
     Sum,
     Value,
@@ -35,6 +37,7 @@ from apps.buying.filters import AuctionFilter, WatchlistAuctionFilter
 from apps.buying.models import (
     Auction,
     AuctionSnapshot,
+    AuctionThumbsVote,
     CategoryMapping,
     CategoryWantVote,
     ManifestRow,
@@ -68,9 +71,9 @@ from apps.buying.services.valuation import (
 logger = logging.getLogger(__name__)
 
 
-def annotate_auction_list_extras(qs):
-    """Manifest row count, retail sum, and hybrid retail_sort for list ordering."""
-    return qs.annotate(
+def annotate_auction_list_extras(qs, user=None):
+    """Manifest row count, retail sum, hybrid retail_sort, thumbs counts (Phase 3B)."""
+    qs = qs.annotate(
         _manifest_row_count=Count('manifest_rows', distinct=True),
         _manifest_retail_sum=Sum('manifest_rows__retail_value'),
     ).annotate(
@@ -83,6 +86,14 @@ def annotate_auction_list_extras(qs):
             output_field=DecimalField(max_digits=14, decimal_places=2),
         ),
     )
+    qs = qs.annotate(_thumbs_up_count=Count('staff_thumbs_votes', distinct=True))
+    if user is not None and getattr(user, 'is_authenticated', False):
+        qs = qs.annotate(
+            _user_thumbs_up=Exists(
+                AuctionThumbsVote.objects.filter(auction_id=OuterRef('pk'), user_id=user.id)
+            ),
+        )
+    return qs
 
 # Token-backed B-Stock HTTP from the API is disabled; use CSV upload. Management commands may still be run manually.
 _TOKEN_BACKED_BSTOCK_DISABLED = (
@@ -157,7 +168,8 @@ class WatchlistAuctionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             Auction.objects.filter(watchlist_entry__isnull=False)
             .exclude(listing_type__iexact=Auction.LISTING_TYPE_CONTRACT)
             .select_related('marketplace', 'watchlist_entry')
-            .annotate(added_at=F('watchlist_entry__added_at'))
+            .annotate(added_at=F('watchlist_entry__added_at')),
+            self.request.user,
         )
 
     def filter_queryset(self, queryset):
@@ -213,9 +225,17 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action in ('list', 'summary'):
             qs = qs.exclude(listing_type__iexact=Auction.LISTING_TYPE_CONTRACT)
         if self.action == 'list':
-            qs = annotate_auction_list_extras(qs)
+            qs = annotate_auction_list_extras(qs, self.request.user)
         if self.action == 'retrieve':
             qs = qs.annotate(manifest_rows_count=Count('manifest_rows', distinct=True))
+            qs = qs.annotate(_thumbs_up_count=Count('staff_thumbs_votes', distinct=True))
+            u = self.request.user
+            if getattr(u, 'is_authenticated', False):
+                qs = qs.annotate(
+                    _user_thumbs_up=Exists(
+                        AuctionThumbsVote.objects.filter(auction_id=OuterRef('pk'), user_id=u.id)
+                    ),
+                )
             qs = qs.select_related('watchlist_entry')
         elif self.action in (
             'manifest_rows',
@@ -404,9 +424,18 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
     )
     def thumbs_up(self, request, pk=None):
         auction = self.get_object()
-        auction.thumbs_up = request.method == 'POST'
-        auction.save(update_fields=['thumbs_up'])
-        return Response({'thumbs_up': auction.thumbs_up}, status=status.HTTP_200_OK)
+        if request.method == 'POST':
+            AuctionThumbsVote.objects.get_or_create(auction=auction, user=request.user)
+            voted = True
+        else:
+            AuctionThumbsVote.objects.filter(auction=auction, user=request.user).delete()
+            voted = False
+        n = AuctionThumbsVote.objects.filter(auction=auction).count()
+        legacy = n > 0
+        if auction.thumbs_up != legacy:
+            auction.thumbs_up = legacy
+            auction.save(update_fields=['thumbs_up'])
+        return Response({'thumbs_up': voted, 'thumbs_up_count': n}, status=status.HTTP_200_OK)
 
     @action(
         detail=True,
