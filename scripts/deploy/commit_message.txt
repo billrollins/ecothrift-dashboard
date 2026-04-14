@@ -1,1 +1,8 @@
----
+feat: auction list & detail Phase 3A polish (v2.12.1)
+
+Session 4 (ui_ux_polish) — Phase 3A shipped:
+- Auction list: column reorder, read-only priority, ManifestRow-based has_manifest,
+  commit-on-enter search, Completed chip, live-auction default view
+- Auction detail: manifest grid (Ext Retail, % of Manifest), action row under title,
+  recompute_valuation endpoint
+See CHANGELOG [2.12.1], .ai/initiatives/ui_ux_polish.md Session 4.

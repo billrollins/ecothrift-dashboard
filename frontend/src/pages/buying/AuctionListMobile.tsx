@@ -1,5 +1,7 @@
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import {
   Box,
   Button,
@@ -18,15 +20,22 @@ import {
 } from '@mui/material';
 import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
 import {
+  formatAuctionCostToRetailPct,
   formatTimeRemainingShort,
   MOBILE_SORT_OPTIONS,
   timeRemainingSx,
 } from '../../utils/buyingAuctionList';
 import type { BuyingAuctionListItem } from '../../types/buying.types';
-import NeedPill from '../../components/buying/NeedPill';
-import ProfitabilityPill from '../../components/buying/ProfitabilityPill';
+import ManifestListCell from '../../components/buying/ManifestListCell';
 
 const MOBILE_PRESET_VALUES = new Set<string>(MOBILE_SORT_OPTIONS.map((o) => o.value));
+
+function formatNeedScoreRaw(score: string | null | undefined): string {
+  if (score == null || score === '') return '—';
+  const n = Number.parseFloat(String(score));
+  if (Number.isNaN(n)) return String(score);
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
 
 export type AuctionListMobileProps = {
   ordering: string;
@@ -88,6 +97,8 @@ export default function AuctionListMobile({
           <Stack spacing={0.5}>
             {rows.map((row) => {
               const watched = watchlistIds?.has(row.id);
+              const watchUnknown = watchlistIds === undefined;
+              const costPct = formatAuctionCostToRetailPct(row);
               return (
                 <Card
                   key={row.id}
@@ -105,15 +116,26 @@ export default function AuctionListMobile({
                         '&:last-child': { pb: 0.75 },
                       }}
                     >
-                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                        <Typography
-                          variant="caption"
-                          color="primary"
-                          display="block"
-                          sx={{ fontWeight: 600, mb: 0.25, lineHeight: 1.2 }}
-                        >
-                          {row.marketplace?.name ?? '—'}
-                        </Typography>
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={0.5}>
+                        <Stack direction="row" alignItems="center" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography
+                            variant="caption"
+                            color="primary"
+                            sx={{ fontWeight: 600, lineHeight: 1.2 }}
+                          >
+                            {row.marketplace?.name ?? '—'}
+                          </Typography>
+                          <ManifestListCell hasManifest={row.has_manifest} />
+                          {watchUnknown ? (
+                            <Tooltip title="Watchlist status may be incomplete when watchlist is large">
+                              <StarBorderIcon fontSize="small" sx={{ color: 'action.disabled' }} />
+                            </Tooltip>
+                          ) : watched ? (
+                            <StarIcon fontSize="small" color="warning" />
+                          ) : (
+                            <StarBorderIcon fontSize="small" sx={{ color: 'action.disabled' }} />
+                          )}
+                        </Stack>
                         {isAdmin && onThumbsToggle ? (
                           <IconButton
                             size="small"
@@ -148,10 +170,11 @@ export default function AuctionListMobile({
                         {row.title}
                       </Typography>
                       <Stack direction="row" spacing={0.75} sx={{ mb: 0.5 }} flexWrap="wrap" useFlexGap>
-                        <ProfitabilityPill ratio={row.profitability_ratio} />
-                        <NeedPill score={row.need_score} />
                         <Typography variant="caption" color="text.secondary">
                           P{row.priority ?? '—'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                          Need {formatNeedScoreRaw(row.need_score)}
                         </Typography>
                       </Stack>
                       <Stack
@@ -176,8 +199,8 @@ export default function AuctionListMobile({
                           </Typography>
                         </Tooltip>
                       </Stack>
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
-                        Est. revenue {formatCurrencyWhole(row.estimated_revenue)}
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25, fontVariantNumeric: 'tabular-nums' }}>
+                        Cost / retail % {costPct}
                       </Typography>
                       <Stack
                         direction="row"

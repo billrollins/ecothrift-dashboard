@@ -1,5 +1,5 @@
-<!-- initiative: slug=ui-ux-polish status=active updated=2026-04-13 -->
-<!-- Last updated: 2026-04-13T14:00:00-05:00 -->
+<!-- initiative: slug=ui-ux-polish status=active updated=2026-04-14 -->
+<!-- Last updated: 2026-04-14T18:30:00-05:00 -->
 # Initiative: UI/UX polish and metric corrections
 
 **Status:** Active
@@ -146,6 +146,77 @@ committed as **v2.11.2** (release includes `CHANGELOG` **2.11.2**, `.version`, r
 #### Result
 
 committed as **v2.12.0** at `eb98f6c` (see `CHANGELOG` **2.12.0**; `ecothrift.pagination.ItemListPagination`).
+
+### Session 4 — 2026-04-14T10:00:00-05:00 (Phase 3A — auction list polish)
+
+- **Goal:** Ship **Phase 3A** of the auction list UX work: demote profitability on the list, show raw need, manifest gold badge, search (commit-on-enter), misc-row Clear, and **reordered columns** — without backend priority/thumbs redesign, top-categories column, or default-sort/filter changes.
+- **Finish line:** Auction list loads with the **new column order** (3A table below); **`estimated_revenue`** and **`profitability_ratio`** removed from the list (remain on detail); **`need_score`** shown as a **raw number** (no `NeedPill`); **gold chip** when `has_manifest`; **search** works (commit-on-enter; backend `q` / `search` as needed); **Clear** at the start of the misc filter row resets those filters.
+- **Scope:** `AuctionListPage`, `AuctionListDesktop`, `AuctionListMobile`, list-related buying components; buying auction list API filter/search only as required for **H**; no change to valuation math or Heroku jobs in 3A.
+- **Est:** 2–3h
+- **Ship:** Accumulate; version bump at session close.
+
+#### Scope items (Phase 3A)
+
+**A. Demote profitability**
+- Remove **`estimated_revenue`** and **`profitability_ratio`** from the auction **list** table.
+- Keep est. revenue and profitability on the **auction detail** page (unchanged visibility there unless a tiny layout tweak is needed).
+
+**B. Raw need score**
+- Replace **`NeedPill`** with the **numeric `need_score`** (no High/Some/Low badge).
+
+**F. Manifest gold badge**
+- When **`has_manifest`** is true, show a **gold** chip/badge (“final form” / manifest present). Subtle or empty when false.
+
+**H. Search**
+- **Commit-on-enter** (and Search button if present), same pattern as Item list / POS.
+- Backend: add or extend list **`q`** / **`search`** so terms split on spaces and match with **`ILIKE '%term%'`** AND logic across **`title`** and **vendor/marketplace** (minimum).
+
+**I. Clear (misc filters)**
+- **Clear** at the **start** of the second filter row (mirrors marketplace **All**).
+- Resets misc chips: has manifest, profitable, needed, thumbs up, watched, etc. (whatever `BuyingFilterChips` controls today).
+
+**K. Column order (3A)**
+
+Reorder desktop (and align mobile card order where practical) to:
+
+| # | Field | Phase 3A notes |
+|---|-------|----------------|
+| 1 | Watch | See **Watch / thumbs (3A vs 3B)** below |
+| 2 | Thumbs up | See **Watch / thumbs (3A vs 3B)** below |
+| 3 | Priority | Existing numeric / steppers as today |
+| 4 | Need | Raw `need_score` (item **B**) |
+| 5 | Vendor | Marketplace chip |
+| 6 | Title | *(no “Top categories” column in 3A — **Phase 3B**)* |
+| 7 | Price | Current price |
+| 8 | Retail | Tooltip manifest vs listing as today |
+| 9 | Total cost / retail % | Cost as % of retail |
+| 10 | Time left | Unchanged behavior |
+
+**Watch / thumbs (3A vs 3B):** Columns **1** and **2** stay in this order for **3A**, but **full interactivity** (watch from list, thumbs-up **count** on row) is **Phase 3B**. In **3A**, use whatever the API already exposes: e.g. **read-only** watched tint / star state if derivable from existing list+watchlist fetch, **existing** thumbs toggle if it already works in-grid, or **placeholder** empty/read-only cells if promoting watch from detail-only would require **new API** work. Do **not** block 3A on new endpoints.
+
+**Full target order (including deferred column):** When **Phase 3B** ships item **J**, insert **Top categories** between **Vendor** and **Title** (between current #5 and #6 above).
+
+#### Phase 3B (deferred — out of Session 4 scope)
+
+| Ref | Topic | Notes |
+|-----|--------|--------|
+| **C** | Watch + thumbs on list | Promote watch toggle; thumbs-up **count**; sort/priority tie-ins — interactive list actions |
+| **D** | Staff thumbs in need/priority | Backend; design with **L** |
+| **E** | Scheduled updates (no token) | Recompute / refresh jobs — may land under **B-Stock Phase 6** or a separate ops initiative |
+| **G** | Default sort + completed filter | Session-sticky sort, hide completed by default, `end_time >= yesterday` when showing ended |
+| **J** | Top categories column | Serializer / annotation for top 3 cats + % |
+| **L** | Need distribution tuning | Backend spread of `need_score`; pairs with **D** |
+
+#### Session updates
+
+- `2026-04-14T12:00:00-05:00` **Checkpoint** — Session 4 **narrowed to Phase 3A** (scope A, B, F, H, I, K); deferred C, D, E, G, J, L documented as **Phase 3B**; finish line, est **2–3h**, Watch/Thumbs 3A placeholder note; **`CHANGELOG`** `[Unreleased]` steering bullet; **`_index.md`** phase note for `ui_ux_polish`.
+- `2026-04-14T16:45:00-05:00` **Checkpoint** — **Phase 3A review (Bill)**: list — narrow **Watch** / **Thumbs** icon headers; **read-only priority** (steppers removed); **manifest** column plain Yes/No; **Clear** styled like marketplace **All**; **default list** hides ended auctions (active/open by default). Detail — manifest grid columns **# → … → SKU** with **Ext Retail** and **% of Manifest**; **Update** button calls **`recompute_valuation`** (no token). Aggregate **thumbs-up count** deferred (**Phase 3B**) until list serializer exposes it (`thumbs_up` is per-user boolean). Verified `npx tsc --noEmit`, `python manage.py check`.
+- `2026-04-14T18:00:00-05:00` **Checkpoint** — **Final 3A review round**: (1) **`has_manifest`** serializer → `get_has_manifest` checks `ManifestRow` count, not B-Stock flag; (2) **`_apply_auction_list_visibility`** — default = live (open/closing, `end_time` in future); `completed=1` = ended last 24h; **Completed** chip added to `BuyingFilterChips` + wired into list/watchlist params; (3) manifest detail **Category** column narrowed (fixed width, ellipsis chip); (4) detail action row: **Watch star → Update → B-Stock** in compact `Stack` under title. `tsc --noEmit` + `manage.py check` pass.
+- `2026-04-14T18:30:00-05:00` **Session close** — **v2.12.1**; Phase 3A complete (review items + final round). `npx tsc --noEmit`, `python manage.py check`.
+
+#### Result
+
+committed as **v2.12.1** (see root `CHANGELOG.md` section **[2.12.1]**).
 
 ---
 

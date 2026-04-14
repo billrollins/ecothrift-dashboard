@@ -1,9 +1,19 @@
-<!-- Last updated: 2026-04-11T18:30:00-05:00 -->
+<!-- Last updated: 2026-04-14T12:00:00-05:00 -->
 # Protocol: Session checkpoint (pulse during work)
 
 Run **several times per session** (for example every **1–2 hours**, after a mergeable chunk of work, or when the user says **“checkpoint”**). This keeps **session updates**, **`CHANGELOG` `[Unreleased]`**, and **light doc sync** current **while** you work.
 
 **This is not `session_close.md`.** Checkpoints **do not** finalize **`#### Result`**, **do not** run the full pre-commit checklist, and **do not** bump **`.version`** / add a **dated `CHANGELOG` section** unless the user **explicitly** asks for a release mid-session (rare). **Versioned releases** stay with **`session_close.md`**.
+
+### Changelog and `.version` — checkpoint vs session close
+
+| Artifact | **Checkpoint** (this protocol) | **`session_close.md`** |
+|----------|----------------------------------|-------------------------|
+| **`CHANGELOG.md`** | Add or tighten bullets under **`## [Unreleased]`** for anything user-visible or API-relevant from this pulse. | Add a **new dated version section**; **move** (or copy) the right bullets from **`[Unreleased]`** into it; keep **`[Unreleased]`** honest for what is not yet released. |
+| **`.version`** | **Do not** bump. | Bump **`vMAJOR.MINOR.PATCH`** when shipping (see **`session_close.md`** Part 2 version gate). |
+| **`package.json`** `"version"` | **Do not** bump. | Bump to match **`.version`** (numeric semver, no `v`). |
+
+**Rule of thumb:** Every shipping session should end with **`session_close.md`** so **semver** and the **dated `CHANGELOG` section** stay in sync with **`[Unreleased]`** work. Checkpoints **feed** that close: if **`[Unreleased]`** is empty or stale at close, the version bump has nothing to document — avoid that by updating **`[Unreleased]`** at each checkpoint.
 
 **This is not `get_bearing.md`.** Checkpoints are **forward motion** (what changed, what to log). **Bearing** is **orientation** when stuck, drifting, or before a big decision — see **`.ai/protocols/get_bearing.md`**.
 
@@ -35,11 +45,11 @@ Run **several times per session** (for example every **1–2 hours**, after a me
    `2026-04-10T14:20:00-05:00 Checkpoint — <what landed: files, behavior, decisions>.`
 3. If the **real work** no longer matches **Goal / Finish line / Scope**, either **edit the session block** (explicit decision) or add an update line noting the **revised** aim — do not let the written session go stale.
 
-### 2. Changelog (`[Unreleased]` only)
+### 2. Changelog (`[Unreleased]` at checkpoint; dated section at close)
 
 1. Re-read **`git diff`** / **`git status`** for this pulse.
-2. For **user-visible** or **API-relevant** changes, add or tighten **bullets under `## [Unreleased]`** in root **`CHANGELOG.md`** — same style as **`session_close.md`** Part 2 (short bullets, initiative link where applicable).
-3. **Do not** add a **new dated version section**, bump **`.version`**, or bump **`package.json`** here unless the user **explicitly** asked to cut a release **now** (then treat the rest like **`session_close.md`** Part 2 version gate).
+2. For **user-visible** or **API-relevant** changes, add or tighten **bullets under `## [Unreleased]`** in root **`CHANGELOG.md`** — same style as **`session_close.md`** Part 2 (short bullets, initiative link where applicable). Steering-only doc edits may use a **Documentation / steering** subheading under **`[Unreleased]`** when useful.
+3. **Do not** add a **new dated version section**, bump **`.version`**, or bump **`package.json`** here unless the user **explicitly** asked to cut a release **now** (then treat the rest like **`session_close.md`** Part 2 version gate). Otherwise, the **version bump** and **new `CHANGELOG` dated section** happen only in **`session_close.md`** when the user finishes the session or asks to release.
 
 ### 3. Scoped docs (only what this pulse touched)
 
@@ -52,7 +62,7 @@ Run **several times per session** (for example every **1–2 hours**, after a me
 
 ### 4. Parking lot
 
-If something belongs in **`session_close`** (full **`Result`**, semver, `commit_message.txt` lines 2+, tests), **note it in the session update line** so the end-of-session pass is faster.
+If something belongs in **`session_close`** (full **`Result`**, **version bump**, **dated `CHANGELOG` section**, `commit_message.txt` lines 2+, tests), **note it in the session update line** so the end-of-session pass is faster.
 
 ---
 
@@ -80,4 +90,4 @@ If something belongs in **`session_close`** (full **`Result`**, semver, `commit_
 
 ## Next
 
-Continue work, or run **`.ai/protocols/get_bearing.md`** if direction is unclear, or **`.ai/protocols/session_close.md`** when finishing.
+Continue work, or run **`.ai/protocols/get_bearing.md`** if direction is unclear, or **`.ai/protocols/session_close.md`** when finishing — that pass is where **`.version`**, **`package.json`**, and the **dated `CHANGELOG`** section are applied for a release.

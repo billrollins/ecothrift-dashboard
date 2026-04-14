@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -6,6 +6,8 @@ import {
   CircularProgress,
   Link,
   Stack,
+  TextField,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
@@ -26,7 +28,6 @@ import { useBuyingAuctionsInfinite } from '../../hooks/useBuyingAuctionsInfinite
 import { useBuyingAuctionSummary } from '../../hooks/useBuyingAuctionSummary';
 import { useBuyingMarketplaces } from '../../hooks/useBuyingMarketplaces';
 import { useBuyingThumbsUpMutation } from '../../hooks/useBuyingThumbsUpMutation';
-import { useBuyingValuationInputsMutation } from '../../hooks/useBuyingValuationInputsMutation';
 import { useBuyingWatchlist } from '../../hooks/useBuyingWatchlist';
 import { useBuyingWatchlistInfinite } from '../../hooks/useBuyingWatchlistInfinite';
 import type {
@@ -60,6 +61,10 @@ export default function AuctionListPage() {
     page: 0,
     pageSize: 50,
   });
+
+  /** Draft vs committed — backend `q` only sends committed (Enter / Search). */
+  const [searchDraft, setSearchDraft] = useState('');
+  const [searchCommitted, setSearchCommitted] = useState('');
 
   const [relativeTick, setRelativeTick] = useState(0);
   useEffect(() => {
@@ -101,9 +106,11 @@ export default function AuctionListPage() {
     return undefined;
   }, [filterChips]);
 
+  const committedSearchTrimmed = searchCommitted.trim();
+
   const filtersActive = useMemo(
-    () => filterChips.size > 0 || Boolean(marketplaceParam),
-    [filterChips, marketplaceParam]
+    () => filterChips.size > 0 || Boolean(marketplaceParam) || Boolean(committedSearchTrimmed),
+    [filterChips, marketplaceParam, committedSearchTrimmed]
   );
 
   const isWatched = filterChips.has('watched');
@@ -119,6 +126,8 @@ export default function AuctionListPage() {
     if (filterChips.has('profitable')) p.profitable = true;
     if (filterChips.has('needed')) p.needed = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;
+    if (committedSearchTrimmed) p.q = committedSearchTrimmed;
+    if (filterChips.has('completed')) p.completed = true;
     return p;
   }, [
     paginationModel.page,
@@ -127,6 +136,7 @@ export default function AuctionListPage() {
     marketplaceParam,
     hasManifestFilter,
     filterChips,
+    committedSearchTrimmed,
   ]);
 
   const auctionListBase = useMemo((): Omit<BuyingAuctionListParams, 'page' | 'page_size'> => {
@@ -136,8 +146,10 @@ export default function AuctionListPage() {
     if (filterChips.has('profitable')) p.profitable = true;
     if (filterChips.has('needed')) p.needed = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;
+    if (committedSearchTrimmed) p.q = committedSearchTrimmed;
+    if (filterChips.has('completed')) p.completed = true;
     return p;
-  }, [ordering, marketplaceParam, hasManifestFilter, filterChips]);
+  }, [ordering, marketplaceParam, hasManifestFilter, filterChips, committedSearchTrimmed]);
 
   const watchlistListBase = useMemo((): Omit<BuyingWatchlistParams, 'page' | 'page_size'> => {
     const p: Omit<BuyingWatchlistParams, 'page' | 'page_size'> = { ordering };
@@ -146,8 +158,10 @@ export default function AuctionListPage() {
     if (filterChips.has('profitable')) p.profitable = true;
     if (filterChips.has('needed')) p.needed = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;
+    if (committedSearchTrimmed) p.q = committedSearchTrimmed;
+    if (filterChips.has('completed')) p.completed = true;
     return p;
-  }, [ordering, marketplaceParam, hasManifestFilter, filterChips]);
+  }, [ordering, marketplaceParam, hasManifestFilter, filterChips, committedSearchTrimmed]);
 
   const watchlistParams = useMemo(
     (): BuyingWatchlistParams => ({
@@ -183,10 +197,6 @@ export default function AuctionListPage() {
   const rowCount = isWatched ? (watchlistData?.count ?? 0) : (auctionData?.count ?? 0);
   const listLoading = isWatched ? watchlistLoading : auctionLoading;
 
-  /** Keep latest rows for priority steppers without putting `rows` in useCallback deps — that changes every page fetch and rebuilds DataGrid columns, which resets MUI controlled pagination. */
-  const rowsRef = useRef(rows);
-  rowsRef.current = rows;
-
   const { data: tintPage } = useQuery({
     queryKey: ['buying', 'watchlist', 'tint-ids'] as const,
     queryFn: () => fetchBuyingWatchlist({ page: 1, page_size: 100 }),
@@ -199,7 +209,6 @@ export default function AuctionListPage() {
   }, [tintPage]);
 
   const thumbsMutation = useBuyingThumbsUpMutation();
-  const valuationMutation = useBuyingValuationInputsMutation();
 
   const handleThumbsToggle = useCallback(
     async (id: number, next: boolean) => {
@@ -210,20 +219,6 @@ export default function AuctionListPage() {
       }
     },
     [thumbsMutation, enqueueSnackbar]
-  );
-
-  const handlePriorityDelta = useCallback(
-    async (id: number, delta: -1 | 1) => {
-      const row = rowsRef.current.find((r) => r.id === id);
-      if (!row || typeof row.priority !== 'number') return;
-      const next = Math.min(99, Math.max(1, row.priority + delta));
-      try {
-        await valuationMutation.mutateAsync({ auctionId: id, body: { priority: next } });
-      } catch {
-        enqueueSnackbar('Could not update priority.', { variant: 'error' });
-      }
-    },
-    [valuationMutation, enqueueSnackbar]
   );
 
   const [isSweeping, setIsSweeping] = useState(false);
@@ -329,11 +324,23 @@ export default function AuctionListPage() {
 
   const handleClearAllFilters = useCallback(() => {
     setFilterChips(new Set());
+    setSearchDraft('');
+    setSearchCommitted('');
     if (marketplaces?.length) {
       setActiveSlugs(new Set(marketplaces.map((m) => m.slug)));
     }
     setPaginationModel((pm) => ({ ...pm, page: 0 }));
   }, [marketplaces]);
+
+  const handleClearMiscFilters = useCallback(() => {
+    setFilterChips(new Set());
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
+  }, []);
+
+  const commitSearch = useCallback(() => {
+    setSearchCommitted(searchDraft.trim());
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
+  }, [searchDraft]);
 
   const handleRefresh = async () => {
     const mps = [...(marketplaces ?? [])].sort((a, b) => a.name.localeCompare(b.name));
@@ -462,6 +469,33 @@ export default function AuctionListPage() {
       {isMdUp ? <CategoryNeedPanel /> : null}
 
       <Box sx={{ mb: 2, flexShrink: 0 }}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1}
+          alignItems={{ sm: 'flex-start' }}
+          sx={{ mb: 1.5, width: '100%' }}
+        >
+          <TextField
+            size="small"
+            label="Search auctions"
+            placeholder="Title or vendor…"
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitSearch();
+              }
+            }}
+            sx={{ flex: 1, minWidth: { xs: '100%', sm: 240 } }}
+          />
+          <Button variant="outlined" size="medium" onClick={commitSearch} sx={{ mt: { xs: 0, sm: 0.5 } }}>
+            Search
+          </Button>
+        </Stack>
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+          Press Enter or Search. Multiple words must all match (title or vendor each).
+        </Typography>
         <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap spacing={0} sx={{ gap: 1.5, mb: 1 }}>
           <Typography variant="subtitle2" fontWeight={600} color="text.primary">
             Filters
@@ -489,7 +523,19 @@ export default function AuctionListPage() {
               onResetAll={handleResetMarketplaces}
             />
           ) : null}
-          <BuyingFilterChips active={filterChips} onToggle={handleFilterChipToggle} />
+          <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap spacing={0} sx={{ gap: 0.75 }}>
+            <Tooltip title="Clear Profitable / Needed / Thumbs / Watched / Has manifest / Completed (keeps marketplace + search)" enterDelay={400} placement="top">
+              <Button
+                variant="text"
+                size="small"
+                onClick={handleClearMiscFilters}
+                sx={{ minWidth: 0, px: 0.75, height: 26, fontSize: '0.75rem' }}
+              >
+                Clear
+              </Button>
+            </Tooltip>
+            <BuyingFilterChips active={filterChips} onToggle={handleFilterChipToggle} />
+          </Stack>
         </Stack>
       </Box>
 
@@ -505,7 +551,6 @@ export default function AuctionListPage() {
           onRowNavigate={(id) => navigate(`/buying/auctions/${id}`)}
           isAdmin={isAdmin}
           onThumbsToggle={isAdmin ? handleThumbsToggle : undefined}
-          onPriorityDelta={isAdmin ? handlePriorityDelta : undefined}
           watchlistIds={watchlistIdsForTint}
         />
       ) : (

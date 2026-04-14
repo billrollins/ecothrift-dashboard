@@ -34,6 +34,8 @@ class AuctionListSerializer(serializers.ModelSerializer):
     valuation_source = serializers.SerializerMethodField()
     has_revenue_override = serializers.SerializerMethodField()
     effective_revenue_after_shrink = serializers.SerializerMethodField()
+    # Overrides model field: CSV uploaded into app (ManifestRow), not B-Stock `has_manifest` flag.
+    has_manifest = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -79,6 +81,12 @@ class AuctionListSerializer(serializers.ModelSerializer):
     def get_manifest_row_count(self, obj: Auction) -> int | None:
         v = getattr(obj, '_manifest_row_count', None)
         return v
+
+    def get_has_manifest(self, obj: Auction) -> bool:
+        n = getattr(obj, '_manifest_row_count', None)
+        if n is not None:
+            return n > 0
+        return ManifestRow.objects.filter(auction_id=obj.pk).exists()
 
     def get_total_retail_display(self, obj: Auction) -> str | None:
         if getattr(obj, '_manifest_row_count', 0) > 0:
@@ -204,6 +212,7 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     watchlist_entry = WatchlistEntrySerializer(read_only=True, allow_null=True)
     category_distribution = serializers.SerializerMethodField()
     manifest_template_name = serializers.SerializerMethodField()
+    manifest_extended_retail_total = serializers.SerializerMethodField()
     valuation_source = serializers.SerializerMethodField()
     has_revenue_override = serializers.SerializerMethodField()
     effective_revenue_after_shrink = serializers.SerializerMethodField()
@@ -233,6 +242,7 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'has_manifest',
             'manifest_row_count',
             'manifest_template_name',
+            'manifest_extended_retail_total',
             'category_distribution',
             'watchlist_entry',
             'last_updated_at',
@@ -282,6 +292,17 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
         if r and r.manifest_template_id:
             return r.manifest_template.display_name
         return None
+
+    def get_manifest_extended_retail_total(self, obj: Auction) -> str | None:
+        """Sum of Coalesce(qty,1) * Coalesce(retail_value,0) over manifest rows (detail manifest grid %)."""
+        if not obj.manifest_rows.exists():
+            return None
+        total = Decimal('0')
+        for qty, rv in obj.manifest_rows.values_list('quantity', 'retail_value'):
+            q = int(qty) if qty is not None and qty > 0 else 1
+            r = rv if rv is not None else Decimal('0')
+            total += Decimal(q) * r
+        return format(total.quantize(Decimal('0.01')), 'f')
 
     def get_category_distribution(self, obj: Auction) -> dict:
         """All categories by row % (canonical_category or fast_cat_value); not-yet mapped bucket."""

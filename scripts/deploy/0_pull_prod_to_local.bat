@@ -1,15 +1,15 @@
 @echo off
 setlocal enabledelayedexpansion
 echo ========================================
-echo   ECOTHRIFT - PULL PRODUCTION DB TO LOCAL
-echo   Full dump - restores ALL schemas into ecothrift_v3
+echo   ECOTHRIFT - PULL PRODUCTION ecothrift SCHEMA ONLY
+echo   Does NOT touch local public, darkhorse, heroku_ext, etc.
 echo ========================================
 echo.
-echo   Django (.env DATABASE_*): same DB — ORM uses schema ecothrift (search_path).
-echo   Legacy / V2 data lives in schema public (same database^) — used for category
-echo   extracts (Bins 1-2^), not for Django models.
+echo   Django ORM uses schema ecothrift (search_path).
+echo   Use this when other local apps share ecothrift_v3 and you only need
+echo   Django data from production - not a full DB mirror.
 echo.
-echo This will OVERWRITE local schemas: public, darkhorse, ecothrift
+echo This will OVERWRITE local schema: ecothrift only
 echo Local database: ecothrift_v3 (localhost)
 echo   Ensure root .env DATABASE_NAME=ecothrift_v3 and host/port/user match below.
 echo.
@@ -44,13 +44,13 @@ echo        Got DATABASE_URL (hidden for security)
 echo.
 
 :: -------------------------------------------------------
-:: Step 2: Dump full production database
+:: Step 2: Dump production ecothrift schema only
 :: -------------------------------------------------------
-echo [Step 2] Dumping full production database...
-set "DUMP_FILE=%~dp0temp_prod_full_backup.dump"
+echo [Step 2] Dumping production schema ecothrift...
+set "DUMP_FILE=%~dp0temp_prod_ecothrift_backup.dump"
 
 set "TEMP_DUMP=%~dp0temp_dump.bat"
-echo @pg_dump --no-owner --no-acl -F c -f "%DUMP_FILE%" "!PROD_DB_URL!"> "!TEMP_DUMP!"
+echo @pg_dump --no-owner --no-acl -F c --schema=ecothrift -f "%DUMP_FILE%" "!PROD_DB_URL!"> "!TEMP_DUMP!"
 call "!TEMP_DUMP!"
 set "DUMP_RC=!errorlevel!"
 del "!TEMP_DUMP!" 2>nul
@@ -60,25 +60,21 @@ if !DUMP_RC! neq 0 (
     pause
     exit /b 1
 )
-echo        Production dump saved to: %DUMP_FILE%
+echo        Production ecothrift dump saved to: %DUMP_FILE%
 echo.
 
 :: -------------------------------------------------------
-:: Step 3: Confirm before dropping local schemas
+:: Step 3: Confirm before dropping local ecothrift only
 :: -------------------------------------------------------
 echo ----------------------------------------
-echo   WARNING: This will drop ALL data in these
-echo   local schemas and replace with production:
+echo   WARNING: This will drop ALL data in local schema
+echo   ecothrift and replace it with production ecothrift.
 echo.
-echo     - public
-echo     - darkhorse
-echo     - ecothrift
-echo     - heroku_ext (Heroku extensions schema — must drop or pg_restore fails^)
-echo.
+echo   Local schemas NOT modified: public, darkhorse, heroku_ext, ...
 echo   Local DB: ecothrift_v3 (localhost)
 echo ----------------------------------------
 echo.
-set /p "CONFIRM=Type YES to confirm local database reset: "
+set /p "CONFIRM=Type YES to confirm: "
 if /I not "!CONFIRM!"=="YES" (
     echo Aborted by user.
     del "%DUMP_FILE%" 2>nul
@@ -88,17 +84,10 @@ if /I not "!CONFIRM!"=="YES" (
 echo.
 
 :: -------------------------------------------------------
-:: Step 4: Drop local schemas (order: app schemas first, then public)
+:: Step 4: Drop local ecothrift schema only
 :: -------------------------------------------------------
-echo [Step 4] Dropping local schemas...
+echo [Step 4] Dropping local schema ecothrift...
 set PGPASSWORD=password
-psql -h localhost -p 5432 -U postgres -d ecothrift_v3 -c "DROP SCHEMA IF EXISTS darkhorse CASCADE;"
-if !errorlevel! neq 0 (
-    echo ERROR: Failed to drop local darkhorse schema.
-    del "%DUMP_FILE%" 2>nul
-    pause
-    exit /b 1
-)
 psql -h localhost -p 5432 -U postgres -d ecothrift_v3 -c "DROP SCHEMA IF EXISTS ecothrift CASCADE;"
 if !errorlevel! neq 0 (
     echo ERROR: Failed to drop local ecothrift schema.
@@ -106,40 +95,13 @@ if !errorlevel! neq 0 (
     pause
     exit /b 1
 )
-psql -h localhost -p 5432 -U postgres -d ecothrift_v3 -c "DROP SCHEMA IF EXISTS public CASCADE;"
-if !errorlevel! neq 0 (
-    echo ERROR: Failed to drop local public schema.
-    del "%DUMP_FILE%" 2>nul
-    pause
-    exit /b 1
-)
-psql -h localhost -p 5432 -U postgres -d ecothrift_v3 -c "DROP SCHEMA IF EXISTS heroku_ext CASCADE;"
-if !errorlevel! neq 0 (
-    echo ERROR: Failed to drop local heroku_ext schema.
-    del "%DUMP_FILE%" 2>nul
-    pause
-    exit /b 1
-)
-echo        Local schemas dropped.
-echo.
-:: After CASCADE, the database may have NO public schema. pg_restore can replay
-:: constraints before CREATE SCHEMA public in the archive, causing hundreds of
-:: "schema public does not exist" errors. Recreate empty public before restore.
-echo [Step 4b] Recreating empty schema public (required for clean pg_restore^)...
-psql -h localhost -p 5432 -U postgres -d ecothrift_v3 -c "CREATE SCHEMA IF NOT EXISTS public; GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO PUBLIC;"
-if !errorlevel! neq 0 (
-    echo ERROR: Failed to recreate public schema.
-    del "%DUMP_FILE%" 2>nul
-    pause
-    exit /b 1
-)
-echo        Schema public ready.
+echo        Local schema ecothrift dropped.
 echo.
 
 :: -------------------------------------------------------
-:: Step 5: Restore production dump to local
+:: Step 5: Restore production ecothrift dump to local
 :: -------------------------------------------------------
-echo [Step 5] Restoring production dump to local dev...
+echo [Step 5] Restoring ecothrift dump to local dev...
 set PGPASSWORD=password
 pg_restore --no-owner --no-acl -h localhost -p 5432 -U postgres -d ecothrift_v3 "%DUMP_FILE%"
 set "RESTORE_RC=!errorlevel!"
@@ -169,9 +131,10 @@ python manage.py check
 echo.
 
 echo ========================================
-echo   PULL COMPLETE
+echo   PULL COMPLETE (ecothrift schema only)
 echo ========================================
 echo.
-echo   Local ecothrift_v3 now reflects production (all schemas^).
+echo   Local ecothrift_v3: schema ecothrift updated from production.
+echo   Other schemas on this database were left unchanged.
 echo.
 pause

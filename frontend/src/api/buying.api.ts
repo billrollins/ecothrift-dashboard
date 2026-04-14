@@ -53,6 +53,8 @@ export function buyingAuctionListQueryKey(params: BuyingAuctionListParams) {
     params.thumbs_up === true ? '1' : '',
     params.profitable === true ? '1' : '',
     params.needed === true ? '1' : '',
+    params.q?.trim() ?? '',
+    params.completed === true ? '1' : '',
   ] as const;
 }
 
@@ -71,6 +73,8 @@ export function buyingWatchlistQueryKey(params: BuyingWatchlistParams) {
     params.thumbs_up === true ? '1' : '',
     params.profitable === true ? '1' : '',
     params.needed === true ? '1' : '',
+    params.q?.trim() ?? '',
+    params.completed === true ? '1' : '',
   ] as const;
 }
 
@@ -89,6 +93,9 @@ function buildAuctionParams(params: BuyingAuctionListParams): Record<string, str
   if (params.thumbs_up === true) q.thumbs_up = true;
   if (params.profitable === true) q.profitable = true;
   if (params.needed === true) q.needed = true;
+  const qq = params.q?.trim();
+  if (qq) q.q = qq;
+  if (params.completed === true) q.completed = true;
   return q;
 }
 
@@ -101,6 +108,7 @@ function buildSummaryParams(params: BuyingAuctionSummaryParams): Record<string, 
   } else if (params.has_manifest === false) {
     q.has_manifest = 'false';
   }
+  if (params.completed === true) q.completed = true;
   return q;
 }
 
@@ -121,6 +129,9 @@ function buildWatchlistParams(params: BuyingWatchlistParams): Record<string, str
   if (params.thumbs_up === true) q.thumbs_up = true;
   if (params.profitable === true) q.profitable = true;
   if (params.needed === true) q.needed = true;
+  const wq = params.q?.trim();
+  if (wq) q.q = wq;
+  if (params.completed === true) q.completed = true;
   return q;
 }
 
@@ -153,6 +164,17 @@ export async function fetchBuyingAuctionSummary(
 
 export async function fetchBuyingAuction(id: number): Promise<BuyingAuctionDetail> {
   const { data } = await api.get<BuyingAuctionDetail>(`/buying/auctions/${id}/`);
+  return data;
+}
+
+/** Local recompute only (no B-Stock JWT); refreshes valuation fields on the auction. */
+export async function postBuyingAuctionRecomputeValuation(
+  auctionId: number
+): Promise<BuyingAuctionDetail> {
+  const { data } = await api.post<BuyingAuctionDetail>(
+    `/buying/auctions/${auctionId}/recompute_valuation/`,
+    {}
+  );
   return data;
 }
 

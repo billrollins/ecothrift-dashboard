@@ -145,6 +145,61 @@ class AuctionFilterProfitableNeededTests(TestCase):
         self.assertEqual(list(f.qs), [hi])
 
 
+class AuctionFilterQTests(TestCase):
+    """Text search: q splits on spaces; AND across terms; title OR marketplace name per term."""
+
+    def setUp(self):
+        self.mp_a = Marketplace.objects.create(name="AlphaMart", slug="alpha-mart")
+        self.mp_b = Marketplace.objects.create(name="Beta Wholesale", slug="beta-wh")
+
+    def test_q_matches_title_single_term(self):
+        match = Auction.objects.create(
+            marketplace=self.mp_a,
+            external_id="q-t1",
+            title="Blue widget pallet",
+        )
+        Auction.objects.create(
+            marketplace=self.mp_a,
+            external_id="q-t2",
+            title="Red shoes only",
+        )
+        f = AuctionFilter(data={"q": "widget"}, queryset=Auction.objects.all())
+        self.assertEqual(list(f.qs), [match])
+
+    def test_q_matches_marketplace_name(self):
+        match = Auction.objects.create(
+            marketplace=self.mp_b,
+            external_id="q-mp",
+            title="Untitled lot",
+        )
+        Auction.objects.create(
+            marketplace=self.mp_a,
+            external_id="q-mp2",
+            title="Other",
+        )
+        f = AuctionFilter(data={"q": "Beta"}, queryset=Auction.objects.all())
+        self.assertEqual(list(f.qs), [match])
+
+    def test_q_multiple_terms_and_logic(self):
+        ok = Auction.objects.create(
+            marketplace=self.mp_a,
+            external_id="q-and-ok",
+            title="Summer pallet sale",
+        )
+        Auction.objects.create(
+            marketplace=self.mp_a,
+            external_id="q-and-miss",
+            title="Winter sale only",
+        )
+        f = AuctionFilter(data={"q": "summer pallet"}, queryset=Auction.objects.all())
+        self.assertEqual(list(f.qs), [ok])
+
+    def test_q_empty_returns_all(self):
+        Auction.objects.create(marketplace=self.mp_a, external_id="q-e1", title="A")
+        f = AuctionFilter(data={"q": "   "}, queryset=Auction.objects.all())
+        self.assertEqual(f.qs.count(), Auction.objects.count())
+
+
 class CategoryNeedSellThroughRateTests(TestCase):
     def test_sell_through_rate_from_pricing_rule(self):
         cat = TAXONOMY_V1_CATEGORY_NAMES[0]

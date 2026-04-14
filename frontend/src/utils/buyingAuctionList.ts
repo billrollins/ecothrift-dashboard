@@ -1,4 +1,5 @@
 import type { GridSortModel } from '@mui/x-data-grid';
+import type { BuyingAuctionListItem } from '../types/buying.types';
 
 export function msUntilEnd(endTime: string | null): number | null {
   if (!endTime) return null;
@@ -82,8 +83,6 @@ const ORDERING_FIELDS = [
   'has_manifest',
   'lot_size',
   'priority',
-  'estimated_revenue',
-  'profitability_ratio',
   'need_score',
 ] as const;
 
@@ -119,8 +118,20 @@ export const MOBILE_SORT_OPTIONS = [
   { value: 'current_price', label: 'Price: low to high' },
   { value: '-current_price', label: 'Price: high to low' },
   { value: '-total_retail_value', label: 'Total retail (high to low)' },
-  { value: '-estimated_revenue', label: 'Est. revenue (high to low)' },
-  { value: '-profitability_ratio', label: 'Profitability (high to low)' },
   { value: '-need_score', label: 'Need score (high to low)' },
   { value: '-last_updated_at', label: 'Recently updated' },
 ] as const;
+
+function parseMoneyString(v: string | null | undefined): number | null {
+  if (v == null || v === '') return null;
+  const n = Number.parseFloat(String(v));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Cost ÷ listing `total_retail_value` × 100; listing retail only (not manifest sum). */
+export function formatAuctionCostToRetailPct(row: BuyingAuctionListItem): string {
+  const retail = parseMoneyString(row.total_retail_value);
+  const cost = parseMoneyString(row.estimated_total_cost);
+  if (retail == null || retail <= 0 || cost == null) return '—';
+  return `${((cost / retail) * 100).toFixed(1)}%`;
+}

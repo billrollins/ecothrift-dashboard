@@ -1,9 +1,9 @@
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import { useCallback, useMemo } from 'react';
-import { Box, Chip, IconButton, Tooltip } from '@mui/material';
+import { Box, Chip, IconButton, Tooltip, Typography } from '@mui/material';
 import {
   DataGrid,
   type GridColDef,
@@ -14,14 +14,14 @@ import {
 } from '@mui/x-data-grid';
 import { formatCurrencyWhole } from '../../utils/format';
 import {
+  formatAuctionCostToRetailPct,
   formatTimeRemaining,
   orderingFromSortModel,
   sortModelFromOrdering,
   timeRemainingSx,
 } from '../../utils/buyingAuctionList';
 import type { BuyingAuctionListItem } from '../../types/buying.types';
-import NeedPill from '../../components/buying/NeedPill';
-import ProfitabilityPill from '../../components/buying/ProfitabilityPill';
+import ManifestListCell from '../../components/buying/ManifestListCell';
 
 export type AuctionListDesktopProps = {
   rows: BuyingAuctionListItem[];
@@ -34,23 +34,62 @@ export type AuctionListDesktopProps = {
   onRowNavigate: (id: number) => void;
   isAdmin?: boolean;
   onThumbsToggle?: (id: number, next: boolean) => void;
-  onPriorityDelta?: (id: number, delta: -1 | 1) => void;
   /** Yellow tint for watchlist membership on main list */
   watchlistIds?: Set<number>;
 };
 
+function formatNeedScoreRaw(score: string | null | undefined): string {
+  if (score == null || score === '') return '—';
+  const n = Number.parseFloat(String(score));
+  if (Number.isNaN(n)) return String(score);
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
 function buildColumns(
   isAdmin: boolean,
   onThumbsToggle: AuctionListDesktopProps['onThumbsToggle'],
-  onPriorityDelta: AuctionListDesktopProps['onPriorityDelta']
+  watchlistIds: AuctionListDesktopProps['watchlistIds']
 ): GridColDef<BuyingAuctionListItem>[] {
   return [
     {
-      field: 'thumbs_up',
+      field: 'watchlist_hint',
       headerName: '',
-      width: 44,
+      width: 40,
       sortable: false,
       align: 'center',
+      renderHeader: () => (
+        <Tooltip title="On watchlist">
+          <StarIcon fontSize="small" sx={{ color: 'action.active' }} />
+        </Tooltip>
+      ),
+      renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
+        const row = params.row;
+        if (watchlistIds === undefined) {
+          return (
+            <Tooltip title="Watchlist status may be incomplete when watchlist is large">
+              <StarBorderIcon fontSize="small" sx={{ color: 'action.disabled' }} />
+            </Tooltip>
+          );
+        }
+        const watched = watchlistIds.has(row.id);
+        return watched ? (
+          <StarIcon fontSize="small" color="warning" />
+        ) : (
+          <StarBorderIcon fontSize="small" sx={{ color: 'action.disabled' }} />
+        );
+      },
+    },
+    {
+      field: 'thumbs_up',
+      headerName: '',
+      width: 76,
+      sortable: false,
+      align: 'center',
+      renderHeader: () => (
+        <Tooltip title="Thumbs up (your vote)">
+          <ThumbUpIcon fontSize="small" sx={{ color: 'action.active' }} />
+        </Tooltip>
+      ),
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
         const row = params.row;
         const active = Boolean(row.thumbs_up);
@@ -60,26 +99,76 @@ function buildColumns(
         ) : (
           <ThumbUpOutlinedIcon fontSize="small" color="disabled" />
         );
+        /* thumbs_up on model is boolean per current user; aggregate count is Phase 3B when API adds it. */
         if (!canToggle) {
           return (
-            <Box component="span" sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+            <Box
+              component="span"
+              sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, width: '100%' }}
+            >
               {icon}
             </Box>
           );
         }
         return (
-          <IconButton
-            size="small"
-            aria-label={active ? 'Remove thumbs up' : 'Thumbs up'}
-            onClick={(e) => {
-              e.stopPropagation();
-              onThumbsToggle(row.id, !active);
+          <Box
+            component="span"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0.5,
+              width: '100%',
             }}
+            onClick={(e) => e.stopPropagation()}
           >
-            {icon}
-          </IconButton>
+            <IconButton
+              size="small"
+              aria-label={active ? 'Remove thumbs up' : 'Thumbs up'}
+              onClick={(e) => {
+                e.stopPropagation();
+                onThumbsToggle(row.id, !active);
+              }}
+            >
+              {icon}
+            </IconButton>
+          </Box>
         );
       },
+    },
+    {
+      field: 'priority',
+      headerName: 'Priority',
+      width: 72,
+      type: 'number',
+      sortable: true,
+      renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
+        const row = params.row;
+        const p = row.priority ?? '—';
+        return (
+          <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            {p}
+          </Typography>
+        );
+      },
+    },
+    {
+      field: 'need_score',
+      headerName: 'Need',
+      width: 88,
+      type: 'number',
+      sortable: true,
+      valueGetter: (_v, row) => {
+        const s = row.need_score;
+        if (s == null || s === '') return null;
+        const n = Number.parseFloat(String(s));
+        return Number.isNaN(n) ? null : n;
+      },
+      renderCell: (params) => (
+        <Typography variant="body2" component="span" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+          {formatNeedScoreRaw(params.row.need_score)}
+        </Typography>
+      ),
     },
     {
       field: 'marketplace__name',
@@ -90,6 +179,14 @@ function buildColumns(
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => (
         <Chip size="small" label={params.row.marketplace?.name ?? '—'} color="primary" variant="outlined" />
       ),
+    },
+    {
+      field: 'manifest_badge',
+      headerName: 'Mfst',
+      width: 52,
+      sortable: false,
+      align: 'center',
+      renderCell: (params) => <ManifestListCell hasManifest={params.row.has_manifest} />,
     },
     {
       field: 'title',
@@ -134,90 +231,24 @@ function buildColumns(
       },
     },
     {
-      field: 'estimated_revenue',
-      headerName: 'Est. revenue',
+      field: 'cost_retail_pct',
+      headerName: 'Cost / retail %',
       width: 108,
-      type: 'number',
-      sortable: true,
-      valueGetter: (_v, row) => {
-        const s = row.estimated_revenue;
-        if (s == null || s === '') return null;
-        const n = Number.parseFloat(String(s));
-        return Number.isNaN(n) ? null : n;
-      },
-      valueFormatter: (v) => formatCurrencyWhole(v as string | null),
-    },
-    {
-      field: 'profitability_ratio',
-      headerName: 'Profitability',
-      width: 130,
-      type: 'number',
-      sortable: true,
-      valueGetter: (_v, row) => {
-        const s = row.profitability_ratio;
-        if (s == null || s === '') return null;
-        const n = Number.parseFloat(String(s));
-        return Number.isNaN(n) ? null : n;
-      },
-      renderCell: (params) => <ProfitabilityPill ratio={params.row.profitability_ratio} />,
-    },
-    {
-      field: 'need_score',
-      headerName: 'Need',
-      width: 88,
-      type: 'number',
-      sortable: true,
-      valueGetter: (_v, row) => {
-        const s = row.need_score;
-        if (s == null || s === '') return null;
-        const n = Number.parseFloat(String(s));
-        return Number.isNaN(n) ? null : n;
-      },
-      renderCell: (params) => <NeedPill score={params.row.need_score} />,
-    },
-    {
-      field: 'priority',
-      headerName: 'Priority',
-      width: 108,
-      type: 'number',
-      sortable: true,
+      sortable: false,
+      align: 'right',
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
         const row = params.row;
-        const p = row.priority ?? '—';
-        const canStep = isAdmin && onPriorityDelta && typeof row.priority === 'number';
+        const pct = formatAuctionCostToRetailPct(row);
+        const tip =
+          pct === '—'
+            ? 'Cost or listing retail missing'
+            : `estimated_total_cost ÷ total_retail_value (listing). Cost: ${formatCurrencyWhole(row.estimated_total_cost)} · Retail (listing): ${formatCurrencyWhole(row.total_retail_value)}`;
         return (
-          <Box
-            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, width: '100%' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {canStep ? (
-              <>
-                <IconButton
-                  size="small"
-                  aria-label="Decrease priority"
-                  disabled={row.priority! <= 1}
-                  onClick={() => onPriorityDelta(row.id, -1)}
-                >
-                  <KeyboardArrowDownIcon fontSize="small" />
-                </IconButton>
-                <Box component="span" sx={{ fontWeight: 700, minWidth: 24, textAlign: 'center' }}>
-                  {p}
-                </Box>
-                <IconButton
-                  size="small"
-                  aria-label="Increase priority"
-                  disabled={row.priority! >= 99}
-                  onClick={() => onPriorityDelta(row.id, 1)}
-                >
-                  <KeyboardArrowUpIcon fontSize="small" />
-                </IconButton>
-              </>
-            ) : (
-              <Box component="span" sx={{ fontWeight: 700 }}>
-                {p}
-              </Box>
-            )}
-          </Box>
+          <Tooltip title={tip}>
+            <Typography variant="body2" component="span" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+              {pct}
+            </Typography>
+          </Tooltip>
         );
       },
     },
@@ -246,14 +277,12 @@ export default function AuctionListDesktop({
   onRowNavigate,
   isAdmin = false,
   onThumbsToggle,
-  onPriorityDelta,
   watchlistIds,
 }: AuctionListDesktopProps) {
-  // New array refs every render make DataGrid think columns/sort changed and reset controlled pagination.
   const sortModel: GridSortModel = useMemo(() => sortModelFromOrdering(ordering), [ordering]);
   const columns = useMemo(
-    () => buildColumns(isAdmin, onThumbsToggle, onPriorityDelta),
-    [isAdmin, onThumbsToggle, onPriorityDelta]
+    () => buildColumns(isAdmin, onThumbsToggle, watchlistIds),
+    [isAdmin, onThumbsToggle, watchlistIds]
   );
 
   const handleSortModelChange = useCallback(

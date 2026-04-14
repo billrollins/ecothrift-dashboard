@@ -46,6 +46,7 @@ import {
 import {
   deleteBuyingManifest,
   deleteBuyingWatchlist,
+  postBuyingAuctionRecomputeValuation,
   postBuyingMapFastCatBatch,
   postBuyingUploadManifest,
   postBuyingWatchlist,
@@ -82,79 +83,112 @@ function categoryConfidenceChipProps(conf: string | null | undefined): {
   return { color: 'default', variant: 'outlined' };
 }
 
-const manifestColumns: GridColDef<BuyingManifestRow>[] = [
-  { field: 'row_number', headerName: '#', width: 70, type: 'number' },
-  { field: 'title', headerName: 'Title', flex: 1, minWidth: 160 },
-  { field: 'brand', headerName: 'Brand', width: 120 },
-  {
-    field: 'fast_cat_key',
-    headerName: 'Fast key',
-    width: 130,
-    sortable: false,
-    renderCell: (params) => {
-      const k = params.row.fast_cat_key;
-      if (!k) {
+function manifestExtRetail(row: BuyingManifestRow): number {
+  const q = row.quantity != null && row.quantity > 0 ? row.quantity : 1;
+  const r = parseFloat(String(row.retail_value ?? '0'));
+  if (!Number.isFinite(r)) return 0;
+  return q * r;
+}
+
+function buildManifestColumns(manifestExtendedTotal: string | null | undefined): GridColDef<BuyingManifestRow>[] {
+  const denom = (() => {
+    const t = manifestExtendedTotal?.trim();
+    if (!t) return 0;
+    const n = parseFloat(t);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  })();
+
+  return [
+    { field: 'row_number', headerName: '#', width: 64, type: 'number' },
+    {
+      field: 'canonical_category',
+      headerName: 'Category',
+      width: 112,
+      minWidth: 96,
+      maxWidth: 140,
+      sortable: false,
+      renderCell: (params) => {
+        const row = params.row;
+        const label = row.canonical_category ?? row.fast_cat_value;
+        if (!label) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              —
+            </Typography>
+          );
+        }
+        const chip = categoryConfidenceChipProps(row.category_confidence);
         return (
-          <Typography variant="body2" color="text.secondary">
-            —
+          <Chip
+            size="small"
+            label={label}
+            color={chip.color}
+            variant={chip.variant}
+            sx={{
+              maxWidth: '100%',
+              height: 24,
+              '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis', px: 0.75 },
+            }}
+          />
+        );
+      },
+    },
+    { field: 'brand', headerName: 'Brand', width: 100, minWidth: 88, maxWidth: 120 },
+    { field: 'title', headerName: 'Title', flex: 1, minWidth: 200 },
+    {
+      field: 'quantity',
+      headerName: 'Qty',
+      width: 72,
+      type: 'number',
+      valueFormatter: (v) => formatNumber(v as number | null),
+    },
+    {
+      field: 'retail_value',
+      headerName: 'Retail',
+      width: 100,
+      type: 'number',
+      valueFormatter: (v) => formatCurrency(v as string | null),
+    },
+    {
+      field: 'ext_retail',
+      headerName: 'Ext Retail',
+      width: 110,
+      sortable: false,
+      align: 'right',
+      renderCell: (params) => (
+        <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+          {formatCurrency(manifestExtRetail(params.row).toFixed(2))}
+        </Typography>
+      ),
+    },
+    {
+      field: 'pct_manifest',
+      headerName: '% of Manifest',
+      width: 118,
+      sortable: false,
+      align: 'right',
+      renderCell: (params) => {
+        const ext = manifestExtRetail(params.row);
+        if (denom <= 0) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              —
+            </Typography>
+          );
+        }
+        const pct = (ext / denom) * 100;
+        return (
+          <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            {pct.toFixed(1)}%
           </Typography>
         );
-      }
-      const short = k.length > 36 ? `${k.slice(0, 36)}…` : k;
-      return (
-        <Tooltip title={k}>
-          <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: 12 }}>
-            {short}
-          </Typography>
-        </Tooltip>
-      );
+      },
     },
-  },
-  {
-    field: 'canonical_category',
-    headerName: 'Category',
-    flex: 0.9,
-    minWidth: 150,
-    sortable: false,
-    renderCell: (params) => {
-      const row = params.row;
-      const label = row.canonical_category ?? row.fast_cat_value;
-      if (!label) {
-        return (
-          <Typography variant="body2" color="text.secondary">
-            —
-          </Typography>
-        );
-      }
-      const chip = categoryConfidenceChipProps(row.category_confidence);
-      return (
-        <Chip
-          size="small"
-          label={label}
-          color={chip.color}
-          variant={chip.variant}
-        />
-      );
-    },
-  },
-  {
-    field: 'quantity',
-    headerName: 'Qty',
-    width: 80,
-    type: 'number',
-    valueFormatter: (v) => formatNumber(v as number | null),
-  },
-  {
-    field: 'retail_value',
-    headerName: 'Retail',
-    width: 110,
-    type: 'number',
-    valueFormatter: (v) => formatCurrency(v as string | null),
-  },
-  { field: 'condition', headerName: 'Condition', width: 110 },
-  { field: 'upc', headerName: 'UPC', width: 120 },
-  { field: 'sku', headerName: 'SKU', width: 120 },
-];
+    { field: 'condition', headerName: 'Condition', width: 96, minWidth: 80, maxWidth: 112 },
+    { field: 'upc', headerName: 'UPC', width: 88, minWidth: 72, maxWidth: 104 },
+    { field: 'sku', headerName: 'SKU', width: 96, minWidth: 80, maxWidth: 112 },
+  ];
+}
 
 function formatEndTime(iso: string | null): string {
   if (!iso) return '—';
@@ -212,6 +246,22 @@ export default function AuctionDetailPage() {
 
   const { data: detail, isLoading: detailLoading, isError: detailError } =
     useBuyingAuctionDetail(auctionId);
+
+  const manifestCols = useMemo(
+    () => buildManifestColumns(detail?.manifest_extended_retail_total),
+    [detail?.manifest_extended_retail_total]
+  );
+
+  const recomputeMutation = useMutation({
+    mutationFn: () => postBuyingAuctionRecomputeValuation(auctionId!),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['buying', 'auctions', 'detail', auctionId], data);
+      enqueueSnackbar('Auction updated (local recompute).', { variant: 'success' });
+    },
+    onError: () => {
+      enqueueSnackbar('Could not update auction.', { variant: 'error' });
+    },
+  });
 
   const snapshotsQuery = useBuyingAuctionSnapshots(auctionId);
   const chartAsTable = useMediaQuery(theme.breakpoints.down('sm'));
@@ -571,43 +621,16 @@ export default function AuctionDetailPage() {
         Auctions
       </Button>
 
-      <Box
-        sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 2,
-          mb: 2.5,
-        }}
+      <Typography
+        variant="h4"
+        component="h1"
+        fontWeight={600}
+        sx={{ lineHeight: 1.25, wordBreak: 'break-word', mb: 0.75 }}
       >
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25, minWidth: 0, flex: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flexWrap: 'wrap' }}>
-            <Typography
-              variant="h4"
-              component="h1"
-              fontWeight={600}
-              sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}
-            >
-              {detail.title}
-            </Typography>
-            {detail.url ? (
-              <Tooltip title="View on B-Stock">
-                <IconButton
-                  component="a"
-                  href={detail.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  size="small"
-                  aria-label="View on B-Stock"
-                  sx={{ color: 'text.secondary', flexShrink: 0 }}
-                >
-                  <OpenInNewIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            ) : null}
-          </Box>
-        </Box>
+        {detail.title}
+      </Typography>
+
+      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 2.5 }}>
         <Tooltip title={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
           <span>
             <IconButton
@@ -615,20 +638,49 @@ export default function AuctionDetailPage() {
               color={watched ? 'warning' : 'default'}
               disabled={watchlistBusy}
               onClick={onToggleWatchlist}
-              size="large"
-              sx={{ flexShrink: 0 }}
+              size="small"
             >
               {watchlistBusy ? (
-                <CircularProgress size={24} />
+                <CircularProgress size={20} />
               ) : watched ? (
-                <StarIcon />
+                <StarIcon fontSize="small" />
               ) : (
-                <StarBorderIcon />
+                <StarBorderIcon fontSize="small" />
               )}
             </IconButton>
           </span>
         </Tooltip>
-      </Box>
+
+        <Tooltip title="Recompute priority, need, and valuation from current data (no B-Stock token)">
+          <span>
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={recomputeMutation.isPending || !auctionId}
+              onClick={() => auctionId && recomputeMutation.mutate()}
+              sx={{ textTransform: 'none', minWidth: 0, px: 1.25, py: 0.25 }}
+            >
+              {recomputeMutation.isPending ? <CircularProgress size={16} color="inherit" /> : 'Update'}
+            </Button>
+          </span>
+        </Tooltip>
+
+        {detail.url ? (
+          <Tooltip title="View on B-Stock">
+            <IconButton
+              component="a"
+              href={detail.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              size="small"
+              aria-label="View on B-Stock"
+              sx={{ color: 'text.secondary' }}
+            >
+              <OpenInNewIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        ) : null}
+      </Stack>
 
       <input
         ref={manifestFileInputRef}
@@ -1014,7 +1066,7 @@ export default function AuctionDetailPage() {
         <Box sx={{ flex: 1, minHeight: 400 }}>
           <DataGrid
             rows={manifestPage.data?.results ?? []}
-            columns={manifestColumns}
+            columns={manifestCols}
             rowCount={manifestPage.data?.count ?? 0}
             loading={manifestPage.isLoading || manifestPage.isFetching}
             pageSizeOptions={[MANIFEST_PAGE_SIZE]}

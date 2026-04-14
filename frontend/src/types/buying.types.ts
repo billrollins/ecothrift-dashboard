@@ -92,6 +92,10 @@ export interface BuyingWatchlistParams {
   profitable?: boolean;
   /** Server: need_score > 0 */
   needed?: boolean;
+  /** Title / marketplace name search (split on spaces, AND). */
+  q?: string;
+  /** Recently ended auctions (last 24h); omit for live-only (default). */
+  completed?: boolean;
 }
 
 /** Canonical category mix for manifest rows (auction detail). */
@@ -123,6 +127,8 @@ export interface BuyingAuctionDetail extends BuyingAuctionListItem {
   starting_price: string | null;
   buy_now_price: string | null;
   manifest_row_count: number;
+  /** Sum of Coalesce(qty,1)×retail_value over manifest rows (for list % column). */
+  manifest_extended_retail_total?: string | null;
   /** Display name of manifest template used for current rows (from first row), if any. */
   manifest_template_name?: string | null;
   /** Aggregated manifest canonical categories (top 5, Other, not yet categorized). */
@@ -218,6 +224,10 @@ export interface BuyingAuctionListParams {
   profitable?: boolean;
   /** Server: need_score > 0 */
   needed?: boolean;
+  /** Title / marketplace name search (split on spaces, AND). */
+  q?: string;
+  /** Recently ended auctions (last 24h); omit for live-only (default). */
+  completed?: boolean;
 }
 
 /** GET /api/buying/category-need/ */
@@ -268,6 +278,8 @@ export interface BuyingAuctionSummaryParams {
   marketplace?: string;
   status?: string;
   has_manifest?: boolean;
+  /** Recently ended auctions (last 24h); omit for live-only (default). */
+  completed?: boolean;
 }
 
 export interface BuyingAuctionSummaryMarketplaceRow {

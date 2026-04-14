@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-13 (v2.12.0) -->
+<!-- Last updated: 2026-04-14 (v2.12.1 session close) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,6 +10,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+---
+
+## [2.12.1] — 2026-04-14
+
+User-facing theme: **Auction list & detail polish** (Phase 3A, [`.ai/initiatives/ui_ux_polish.md`](.ai/initiatives/ui_ux_polish.md)) — staff buying UI and buying API filters for active-auctions workflow, manifest truth from uploads, and detail recompute without B-Stock tokens.
+
+### Changed
+
+- **Auction list** — Column reorder (Watch, Thumbs, read-only Priority, raw Need, Vendor, Title, Price, Retail, Cost/retail %, time left); **`estimated_revenue`** / **`profitability_ratio`** removed from list; **manifest** Yes/No from **`ManifestRow`** (uploaded CSV), not B-Stock flag; **`q`** search (AND across title + marketplace); **Completed** chip + **`completed`** param (last-24h ended vs live default). **`_apply_auction_list_visibility`** for live vs completed.
+- **Auction detail** — Manifest grid columns (**Ext Retail**, **% of Manifest**); action row under title (Watch → Update → B-Stock); **`POST …/recompute_valuation/`** for local recompute.
 
 ---
 

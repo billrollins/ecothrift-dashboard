@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from decimal import Decimal
+
+from django.utils import timezone
 
 from django.core.cache import cache
 from django.db.models import (
@@ -87,6 +90,36 @@ _TOKEN_BACKED_BSTOCK_DISABLED = (
 )
 
 
+def _apply_auction_list_visibility(request, queryset):
+    """
+    Default: **live** auctions only — ``open`` / ``closing`` with ``end_time`` in the future.
+
+    ``completed=1``: **recently ended** only — ``closed`` / ``cancelled`` with ``end_time``
+    in the last 24 hours (no ancient completed auctions).
+
+    Skip when ``status`` is set (caller controls filtering). Legacy ``include_ended`` maps
+    to completed mode.
+    """
+    if request.query_params.get('status'):
+        return queryset
+    completed = str(request.query_params.get('completed', '')).lower() in ('1', 'true', 'yes')
+    legacy = str(request.query_params.get('include_ended', '')).lower() in ('1', 'true', 'yes')
+    if legacy:
+        completed = True
+    now = timezone.now()
+    if completed:
+        since = now - timedelta(hours=24)
+        return queryset.filter(
+            status__in=[Auction.STATUS_CLOSED, Auction.STATUS_CANCELLED],
+            end_time__gte=since,
+            end_time__lte=now,
+        )
+    return queryset.filter(
+        status__in=[Auction.STATUS_OPEN, Auction.STATUS_CLOSING],
+        end_time__gte=now,
+    )
+
+
 class WatchlistAuctionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """
     GET /api/buying/watchlist/ — auctions the staff user is watching (WatchlistEntry).
@@ -126,6 +159,10 @@ class WatchlistAuctionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             .select_related('marketplace', 'watchlist_entry')
             .annotate(added_at=F('watchlist_entry__added_at'))
         )
+
+    def filter_queryset(self, queryset):
+        qs = super().filter_queryset(queryset)
+        return _apply_auction_list_visibility(self.request, qs)
 
 
 class MarketplaceViewSet(viewsets.ReadOnlyModelViewSet):
@@ -197,6 +234,12 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action == 'retrieve':
             return AuctionDetailSerializer
         return AuctionListSerializer
+
+    def filter_queryset(self, queryset):
+        qs = super().filter_queryset(queryset)
+        if self.action not in ('list', 'summary'):
+            return qs
+        return _apply_auction_list_visibility(self.request, qs)
 
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):
@@ -406,6 +449,25 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         auction.save()
         auction.refresh_from_db()
         recompute_auction_valuation(auction)
+        serializer = AuctionDetailSerializer(auction, context={'request': request})
+        return Response(serializer.data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='recompute_valuation',
+        permission_classes=[IsAuthenticated, IsStaff],
+    )
+    def recompute_valuation(self, request, pk=None):
+        """
+        Recompute priority, need, and valuation from current local data (no B-Stock JWT).
+
+        For a future \"full refresh\", also call sweep/enrich against B-Stock where token-backed
+        routes are re-enabled — not done here.
+        """
+        auction = self.get_object()
+        recompute_auction_valuation(auction)
+        auction.refresh_from_db()
         serializer = AuctionDetailSerializer(auction, context={'request': request})
         return Response(serializer.data)
 

@@ -3,7 +3,7 @@ import { useMemo, type MouseEvent } from 'react';
 import { multiSelectChipTooltip } from '../../utils/multiSelectChipTooltip';
 
 /** Row-3 filter chips (no “All”; empty selection = no filter). */
-export type AuctionFilterChipId = 'profitable' | 'needed' | 'thumbs' | 'watched' | 'manifest';
+export type AuctionFilterChipId = 'profitable' | 'needed' | 'thumbs' | 'watched' | 'manifest' | 'completed';
 
 const CHIPS: { id: AuctionFilterChipId; label: string }[] = [
   { id: 'profitable', label: 'Profitable' },
@@ -11,6 +11,7 @@ const CHIPS: { id: AuctionFilterChipId; label: string }[] = [
   { id: 'thumbs', label: 'Thumbs up' },
   { id: 'watched', label: 'Watched' },
   { id: 'manifest', label: 'Has manifest' },
+  { id: 'completed', label: 'Completed' },
 ];
 
 type Props = {
