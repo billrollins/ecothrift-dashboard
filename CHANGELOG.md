@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16 (v2.15.4 — AI steering + repo hygiene) -->
+<!-- Last updated: 2026-04-17 (Unreleased — PO retail data-quality ops note) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,57 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+### Documentation
+
+- **Inventory / `PurchaseOrder.retail_value`** — Some backfills store listing total incorrectly (e.g. **~100×** low vs **`notes`** JSON **`ext_retail`**). **`compute_item_cost`** divides by **`PO.retail_value × (1 − est_shrink)`**; a bad listing total inflates **`Item.cost`** and distorts **`CategoryStats`** good-data **`recovery_cost_amount`**, **`avg_cost`**, **`profit_margin`**, and panel **`n`** until corrected. Compare **`ecothrift.inventory_purchaseorder.retail_value`** to **`(regexp_replace(notes, '^[^{]*', ''))::jsonb ->> 'ext_retail'`** when **`notes`** contains **`BACKFILL:`** + JSON; fix **`retail_value`**, then **`python manage.py recompute_all_item_costs`** (optional **`--database production`**) and **`python manage.py compute_daily_category_stats`**.
+
+---
+
+## [2.17.0] — 2026-04-16
+
+User-facing theme: **Good-data cohort for recovery and profitability** — **`CategoryStats.recovery_rate`** and dollar amounts now require **sold** rows where **`sold_for`**, **`retail_value`**, and **`cost`** are each between **0.01 and 9999** (all-time). **`avg_sold_price`** / **`avg_retail`** / **`avg_cost`** are means over that same cohort; **`recovery_cost_amount`** and **`good_data_sample_size`** are stored. Category-need API renames **`profit_per_item`** → **`avg_profit`**, **`profit_sales_ratio`** → **`profit_margin`** (dollar-weighted); drops **`return_on_cost`**. Auction list **category need** table: **Avg $** column → **Margin** (%); detail card adds a **Profitability** section (avg retail / sale / profit, recovery, margin, **n**).
+
+### Changed
+
+- **Buying / `CategoryStats`** — Migration **`0019_categorystats_good_data_cohort`**: **`recovery_cost_amount`**, **`good_data_sample_size`**; **`recovery_rate`** / **`avg_*`** help_text. SQL **`_profitability_aggregates()`** replaces **`_recovery_dollars`** + windowed **`_want_avg_rows`**.
+- **Buying / category-need** — [`category_need.py`](apps/buying/services/category_need.py): payload fields above.
+- **Frontend** — [`buying.types.ts`](frontend/src/types/buying.types.ts), [`CategoryNeedBars.tsx`](frontend/src/components/buying/CategoryNeedBars.tsx), [`CategoryNeedDetail.tsx`](frontend/src/components/buying/CategoryNeedDetail.tsx).
+
+### Documentation
+
+- **`.ai/`** — context, consultant, **`extended/backend.md`**, **`extended/frontend.md`** — good-data cohort and UI column list.
+
+### Operations (post-deploy — production)
+
+- After **`migrate`**, run **`python manage.py compute_daily_category_stats`** (or wait for the daily scheduler) so **`CategoryStats`** and **`category_need_panel`** cache reflect the stricter cohort before staff rely on recovery/margin. **`estimated_revenue`** may shift vs **v2.16.0** for categories where many sold rows lack cost in range.
+- Still run once after deploy when shipping **v2.16.0+** cost work: **`python manage.py recompute_all_item_costs`** — see **[2.16.0]** Operations.
+
+---
+
+## [2.16.0] — 2026-04-16
+
+User-facing theme: **Recovery rate replaces sell-through on CategoryStats** — daily SQL now stores **`recovery_rate`** = `SUM(sold_for) / SUM(retail_value)` (all-time qualifying sold rows per taxonomy bucket) and dollar numerators; auction **`estimated_revenue`** uses this ratio in the mix × retail formula. Category need API and UI rename **Thru** → **Recovery**; valuation mix table color bands adjusted for typical thrift recovery (green ≥35%, amber ≥20%).
+
+### Changed
+
+- **Buying / `CategoryStats`** — Migrations **`0017_categorystats_recovery_rename`**, **`0018_alter_categorystats_recovery_rate`**: `sell_through_rate` → **`recovery_rate`**, `sell_through_numerator` / `sell_through_denominator` → **`recovery_sold_amount`** / **`recovery_retail_amount`**. Legacy **`PricingRule.sell_through_rate`** unchanged (CSV seed only).
+- **Buying / SQL** — [`category_stats_sql`](apps/buying/services/category_stats_sql.py): `_recovery_dollars()` replaces unit shelf/sold ratio.
+- **Buying / valuation** — [`valuation.py`](apps/buying/services/valuation.py): `_recovery_rate_for_category`.
+- **Buying / category-need API** — [`category_need.py`](apps/buying/services/category_need.py): `recovery_pct`, `recovery_rate` in row payload.
+- **Frontend** — [`buying.types.ts`](frontend/src/types/buying.types.ts), [`CategoryNeedBars.tsx`](frontend/src/components/buying/CategoryNeedBars.tsx), [`CategoryNeedDetail.tsx`](frontend/src/components/buying/CategoryNeedDetail.tsx), [`AuctionValuationCard.tsx`](frontend/src/components/buying/AuctionValuationCard.tsx).
+
+### Documentation
+
+- **`.ai/extended/backend.md`**, **`.ai/extended/ux-spec.md`**, **`.ai/context.md`**, **`.ai/consultant_context.md`**, **`.ai/extended/frontend.md`**, **workspace** `buying-auctions-list-ux/CONTEXT.md` — recovery semantics and UI labels; root **`package.json`** `"version"` aligned with **`.version`** (review_bump).
+
+### Operations (post-deploy — production)
+
+- After **`migrate`** on Heroku (or any host), run **once**: `python manage.py recompute_all_item_costs` — backfills **`Item.cost`** from **`PurchaseOrder.compute_item_cost`** (listing retail × shrink × `total_cost` allocation) for every PO that has items. Idempotent if data already matches; use whenever deploy ships or data fixes require cost realignment. See **`apps/inventory/management/commands/recompute_all_item_costs.py`**.
 
 ---
 

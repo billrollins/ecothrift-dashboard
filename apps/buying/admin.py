@@ -20,12 +20,13 @@ class CategoryStatsAdmin(admin.ModelAdmin):
     list_display = (
         'category',
         'need_score_1to99',
-        'sell_through_rate',
+        'recovery_rate',
         'have_units',
         'want_units',
         'avg_sold_price',
         'avg_retail',
         'avg_cost',
+        'good_data_sample_size',
         'need_retail',
         'computed_at',
     )

@@ -43,7 +43,7 @@ class ValuationBenchmarkTests(TestCase):
     def setUpTestData(cls):
         cls._timings.clear()
         for name in TAXONOMY_V1_CATEGORY_NAMES:
-            CategoryStats.objects.filter(category=name).update(sell_through_rate=Decimal('0.1000'))
+            CategoryStats.objects.filter(category=name).update(recovery_rate=Decimal('0.1000'))
 
         AppSetting.objects.update_or_create(
             key="pricing_shrinkage_factor",
@@ -164,23 +164,26 @@ class ValuationBenchmarkTests(TestCase):
         self._timings["recompute_all_open_count"] = float(n)
         _print(f"recompute_all_open_auctions n={n}: {self._timings['recompute_all_open_auctions']:.4f}s")
 
-    def test_bench_sql_sell_through_aggregate(self):
+    def test_bench_sql_recovery_aggregate(self):
         tbl = Item._meta.db_table
         t0 = time.perf_counter()
         with connection.cursor() as cursor:
             cursor.execute(
                 f"""
                 SELECT category,
-                       SUM(sold_for) / NULLIF(SUM(price), 0)
+                       SUM(sold_for) / NULLIF(SUM(retail_value), 0)
                 FROM {tbl}
                 WHERE status = %s
+                  AND sold_for BETWEEN 0.01 AND 9999
+                  AND retail_value BETWEEN 0.01 AND 9999
+                  AND cost BETWEEN 0.01 AND 9999
                 GROUP BY category
                 """,
                 ["sold"],
             )
             list(cursor.fetchall())
-        self._timings["sql_sold_ratio_by_category"] = time.perf_counter() - t0
-        _print(f"SQL sold SUM ratio by category: {self._timings['sql_sold_ratio_by_category']:.4f}s")
+        self._timings["sql_recovery_ratio_by_category"] = time.perf_counter() - t0
+        _print(f"SQL recovery SUM ratio by category: {self._timings['sql_recovery_ratio_by_category']:.4f}s")
 
     def test_bench_sql_shelf_aggregate(self):
         tbl = Item._meta.db_table

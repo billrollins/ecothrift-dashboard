@@ -27,6 +27,8 @@ type Props = {
   needScoreRawGlobalMin: string | null | undefined;
   needScoreRawGlobalMax: string | null | undefined;
   needWindowDays: number | null | undefined;
+  /** When true, omit fixed width / bordered card chrome (e.g. inside a drawer). */
+  embeddedInDrawer?: boolean;
 };
 
 function Tile({
@@ -73,6 +75,120 @@ function Tile({
   );
 }
 
+const MONO_FF =
+  '"JetBrains Mono", "Fira Code", "SFMono-Regular", Menlo, Consolas, monospace';
+
+type Variable = {
+  name: string;
+  value: string;
+  note?: string;
+};
+
+function ExplainerBlock({
+  title,
+  value,
+  vars,
+  formula,
+  substitution,
+  result,
+}: {
+  title: string;
+  value: string;
+  vars: Variable[];
+  formula: string;
+  substitution: string;
+  result: string;
+}) {
+  const nameCol = Math.max(...vars.map((v) => v.name.length));
+  const valCol = Math.max(...vars.map((v) => v.value.length));
+  return (
+    <Box>
+      <Stack direction="row" alignItems="baseline" spacing={0.75} sx={{ mb: 0.4 }}>
+        <Typography
+          variant="body2"
+          fontWeight={700}
+          sx={{ color: 'text.primary', lineHeight: 1.2 }}
+        >
+          {title}
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{ color: 'text.secondary', fontFamily: MONO_FF, lineHeight: 1.2 }}
+        >
+          =
+        </Typography>
+        <Typography
+          variant="body2"
+          fontWeight={700}
+          sx={{
+            color: 'primary.main',
+            fontFamily: MONO_FF,
+            lineHeight: 1.2,
+          }}
+        >
+          {value}
+        </Typography>
+      </Stack>
+      <Box
+        sx={{
+          fontFamily: MONO_FF,
+          fontSize: '0.72rem',
+          lineHeight: 1.55,
+          color: 'text.primary',
+          bgcolor: 'background.paper',
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: 0.75,
+          px: 0.75,
+          py: 0.5,
+        }}
+      >
+        {vars.map((v) => (
+          <Box
+            key={v.name}
+            sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1, rowGap: 0 }}
+          >
+            <Box component="span" sx={{ color: 'primary.main', fontWeight: 600, whiteSpace: 'pre' }}>
+              {v.name.padEnd(nameCol)}
+            </Box>
+            <Box component="span" sx={{ color: 'text.secondary' }}>
+              =
+            </Box>
+            <Box component="span" sx={{ fontWeight: 600, whiteSpace: 'pre' }}>
+              {v.value.padStart(valCol)}
+            </Box>
+            {v.note ? (
+              <Box component="span" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                — {v.note}
+              </Box>
+            ) : null}
+          </Box>
+        ))}
+        <Box
+          sx={{
+            mt: 0.5,
+            pt: 0.5,
+            borderTop: '1px dashed',
+            borderColor: 'divider',
+            display: 'flex',
+            flexWrap: 'wrap',
+            columnGap: 0.75,
+          }}
+        >
+          <Box component="span" sx={{ color: 'text.secondary' }}>[</Box>
+          <Box component="span">{formula}</Box>
+          <Box component="span" sx={{ color: 'text.secondary' }}>]  =  [</Box>
+          <Box component="span">{substitution}</Box>
+          <Box component="span" sx={{ color: 'text.secondary' }}>]  =</Box>
+          <Box component="span" sx={{ color: 'primary.main', fontWeight: 700 }}>
+            {result}
+          </Box>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
 function soldWindowSinceLabel(days: number | null | undefined): string {
   if (days == null || !Number.isFinite(days) || days < 1) return '—';
   const d = new Date();
@@ -89,14 +205,16 @@ export default function CategoryNeedDetail({
   needScoreRawGlobalMin,
   needScoreRawGlobalMax,
   needWindowDays,
+  embeddedInDrawer = false,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
 
   if (!row) {
+    if (embeddedInDrawer) return null;
     return (
       <Box
         sx={{
-          width: 320,
+          width: 440,
           flexShrink: 0,
           display: 'flex',
           alignItems: 'center',
@@ -128,10 +246,15 @@ export default function CategoryNeedDetail({
     needScoreRawGlobalMax != null &&
     needScoreRawGlobalMin === needScoreRawGlobalMax;
 
-  return (
-    <Box
-      sx={{
-        width: 320,
+  const outerSx = embeddedInDrawer
+    ? {
+        width: '100%',
+        flexShrink: 0,
+        p: 0,
+        bgcolor: 'transparent',
+      }
+    : {
+        width: 440,
         flexShrink: 0,
         position: 'sticky',
         top: 16,
@@ -141,16 +264,20 @@ export default function CategoryNeedDetail({
         borderRadius: 1,
         p: 1.5,
         bgcolor: 'background.paper',
-      }}
-    >
-      <Typography
-        variant="subtitle2"
-        fontWeight={700}
-        color="text.secondary"
-        sx={{ mb: 0.5, lineHeight: 1.2, letterSpacing: 0.3, textTransform: 'uppercase', fontSize: '0.7rem' }}
-      >
-        {row.category}
-      </Typography>
+      };
+
+  return (
+    <Box sx={outerSx}>
+      {embeddedInDrawer ? null : (
+        <Typography
+          variant="subtitle2"
+          fontWeight={700}
+          color="text.secondary"
+          sx={{ mb: 0.5, lineHeight: 1.2, letterSpacing: 0.3, textTransform: 'uppercase', fontSize: '0.7rem' }}
+        >
+          {row.category}
+        </Typography>
+      )}
 
       <Stack direction="row" alignItems="baseline" spacing={1} sx={{ mb: 0.25 }}>
         <Typography variant="h3" fontWeight={800} color="primary.main" sx={{ lineHeight: 1 }}>
@@ -200,23 +327,68 @@ export default function CategoryNeedDetail({
             borderColor: 'divider',
           }}
         >
-          <Stack spacing={0.6}>
-            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-              <strong>Unit leg: {unitLeg}</strong> — shelf has {row.shelf_count} units, sold{' '}
-              {row.sold_count} in {windowDays ?? '—'} days.
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-              <strong>Retail leg: {retailLeg}</strong> — shelf holds{' '}
-              {formatCurrency(row.have_retail)}, sold {formatCurrency(row.want_retail)} in{' '}
-              {windowDays ?? '—'} days.
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-              <strong>Combined: {combinedRaw}</strong> (average of both legs).
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-              Ranked against today&apos;s range across all categories ({rawMin} to {rawMax}) →{' '}
-              <strong>{row.need_score_1to99} / 99</strong>.
-            </Typography>
+          <Stack spacing={1.25}>
+            <ExplainerBlock
+              title="Unit leg"
+              value={unitLeg}
+              vars={[
+                {
+                  name: 'shelf_units',
+                  value: row.shelf_count.toLocaleString(),
+                  note: 'items on shelf',
+                },
+                {
+                  name: 'sold_units',
+                  value: row.sold_count.toLocaleString(),
+                  note: `sold in past ${windowDays ?? '—'} days`,
+                },
+              ]}
+              formula="sold_units / shelf_units"
+              substitution={`${row.sold_count.toLocaleString()} / ${row.shelf_count.toLocaleString()}`}
+              result={unitLeg}
+            />
+            <ExplainerBlock
+              title="Retail leg"
+              value={retailLeg}
+              vars={[
+                {
+                  name: 'shelf_retail',
+                  value: formatCurrency(row.have_retail),
+                  note: 'retail value on shelf',
+                },
+                {
+                  name: 'sold_retail',
+                  value: formatCurrency(row.want_retail),
+                  note: `sold in past ${windowDays ?? '—'} days`,
+                },
+              ]}
+              formula="sold_retail / shelf_retail"
+              substitution={`${formatCurrency(row.want_retail)} / ${formatCurrency(row.have_retail)}`}
+              result={retailLeg}
+            />
+            <ExplainerBlock
+              title="Combined"
+              value={combinedRaw}
+              vars={[
+                { name: 'unit_leg', value: unitLeg },
+                { name: 'retail_leg', value: retailLeg },
+              ]}
+              formula="(unit_leg + retail_leg) / 2"
+              substitution={`(${unitLeg} + ${retailLeg}) / 2`}
+              result={combinedRaw}
+            />
+            <ExplainerBlock
+              title="Need score"
+              value={`${row.need_score_1to99} / 99`}
+              vars={[
+                { name: 'combined', value: combinedRaw, note: 'this category' },
+                { name: 'min_raw', value: rawMin, note: 'lowest across categories' },
+                { name: 'max_raw', value: rawMax, note: 'highest across categories' },
+              ]}
+              formula="(combined − min_raw) / (max_raw − min_raw) × 99"
+              substitution={`(${combinedRaw} − ${rawMin}) / (${rawMax} − ${rawMin}) × 99`}
+              result={`${row.need_score_1to99}`}
+            />
             {equalBounds ? (
               <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
                 All categories currently tie on the combined score, so every category maps to{' '}
@@ -256,17 +428,57 @@ export default function CategoryNeedDetail({
         variant="caption"
         fontWeight={700}
         color="text.secondary"
+        sx={{ display: 'block', mb: 0.25, letterSpacing: 0.3 }}
+      >
+        Profitability
+      </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+        Good data: all-time sold rows with sale, retail, and cost each $0.01–$9,999 (row count is the
+        n column in the table)
+      </Typography>
+      <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 0.75 }}>
+        <Tile label="Avg retail" primary={formatCurrency(row.avg_retail)} />
+        <Tile label="Avg sale" primary={formatCurrency(row.avg_sale)} />
+        <Tile
+          label="Recovery rate"
+          primary={`${num(row.recovery_pct)?.toFixed(1) ?? '—'}%`}
+        />
+      </Stack>
+      <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.25 }}>
+        <Tile label="Avg cost" primary={formatCurrency(row.avg_cost)} />
+        <Tile label="Avg profit" primary={formatCurrency(row.avg_profit)} />
+        <Tile
+          label="Profit margin"
+          primary={
+            (() => {
+              const m = num(row.profit_margin);
+              return m == null ? '—' : `${(m * 100).toFixed(1)}%`;
+            })()
+          }
+        />
+      </Stack>
+
+      <Divider sx={{ mb: 1 }} />
+
+      <Typography
+        variant="caption"
+        fontWeight={700}
+        color="text.secondary"
         sx={{ display: 'block', mb: 0.5, letterSpacing: 0.3 }}
       >
         Flow
       </Typography>
       <Stack direction="row" flexWrap="wrap" gap={0.75}>
         <Tile
-          label="Sell-through"
-          primary={`${num(row.sell_through_pct)?.toFixed(1) ?? '—'}%`}
+          label="Distribution on shelf"
+          primary={`${num(row.shelf_pct)?.toFixed(1) ?? '—'}%`}
         />
         <Tile
-          label="Need gap"
+          label="Distribution of sold"
+          primary={`${num(row.sold_pct)?.toFixed(1) ?? '—'}%`}
+        />
+        <Tile
+          label="Gap"
           primary={
             <Box
               component="span"

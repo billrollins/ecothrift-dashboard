@@ -133,12 +133,12 @@ def _manifest_retail_sum(auction: Auction) -> Decimal:
     return s if s is not None else Decimal('0')
 
 
-def _sell_through_rate_for_category(stats: dict[str, CategoryStats], cat: str) -> Decimal:
+def _recovery_rate_for_category(stats: dict[str, CategoryStats], cat: str) -> Decimal:
     row = stats.get(cat)
     if row is not None:
-        return row.sell_through_rate
+        return row.recovery_rate
     m = stats.get(MIXED_LOTS_UNCATEGORIZED)
-    return m.sell_through_rate if m else Decimal('0')
+    return m.recovery_rate if m else Decimal('0')
 
 
 def _need_score_1to99_for_category(stats: dict[str, CategoryStats], cat: str) -> int:
@@ -211,7 +211,7 @@ def recompute_auction_full(
     *,
     stats: dict[str, CategoryStats] | None = None,
 ) -> None:
-    """Full recompute: revenue from mix × CategoryStats sell-through; need_score = auction need 1–99."""
+    """Full recompute: revenue from mix × CategoryStats recovery_rate; need_score = auction need 1–99."""
     if stats is None:
         stats = load_category_stats_dict()
     if not stats:
@@ -233,7 +233,7 @@ def recompute_auction_full(
     est_rev = Decimal('0')
     if retail_base > 0 and weights:
         for cat, w in weights.items():
-            rate = _sell_through_rate_for_category(stats, cat)
+            rate = _recovery_rate_for_category(stats, cat)
             est_rev += retail_base * w * rate
     est_rev = est_rev.quantize(Decimal('0.01'))
 

@@ -105,10 +105,13 @@ class CategoryStats(models.Model):
     """Daily SQL aggregates per taxonomy_v1 category (single source for valuation need/rates)."""
 
     category = models.CharField(max_length=200, unique=True, db_index=True)
-    sell_through_rate = models.DecimalField(
+    recovery_rate = models.DecimalField(
         max_digits=8,
         decimal_places=6,
-        help_text='0–1; 0 when denominator is zero.',
+        help_text=(
+            '0–1; SUM(sold_for)/SUM(retail_value) for all-time sold rows where sold_for, '
+            'retail_value, and cost are each between 0.01 and 9999; 0 when denominator is zero.'
+        ),
     )
     have_retail = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     have_units = models.PositiveIntegerField(default=0)
@@ -117,28 +120,45 @@ class CategoryStats(models.Model):
     need_retail = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     need_units = models.IntegerField(default=0)
     computed_at = models.DateTimeField(auto_now=True)
-    sell_through_numerator = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
-    sell_through_denominator = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    recovery_sold_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    recovery_retail_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    recovery_cost_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='SUM(cost) for qualifying sold rows (same cohort as recovery_rate).',
+    )
+    good_data_sample_size = models.PositiveIntegerField(
+        default=0,
+        help_text='Count of sold rows in the good-data cohort (sale, retail, cost each 0.01–9999).',
+    )
     avg_sold_price = models.DecimalField(
         max_digits=14,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text='Mean COALESCE(sold_for, price) for sold items in the need window.',
+        help_text=(
+            'Mean sold_for per qualifying sold row (sale + retail + cost each in [0.01, 9999], all-time).'
+        ),
     )
     avg_retail = models.DecimalField(
         max_digits=14,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text='Mean retail line (retail_value/price) for sold items in the need window.',
+        help_text=(
+            'Mean retail_value per qualifying sold row (sale + retail + cost each in [0.01, 9999], all-time).'
+        ),
     )
     avg_cost = models.DecimalField(
         max_digits=14,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text='Mean allocated cost for sold items in the need window (NULL if no costs).',
+        help_text=(
+            'Mean cost per qualifying sold row (sale + retail + cost each in [0.01, 9999], all-time).'
+        ),
     )
     need_score_1to99 = models.PositiveSmallIntegerField(
         default=50,

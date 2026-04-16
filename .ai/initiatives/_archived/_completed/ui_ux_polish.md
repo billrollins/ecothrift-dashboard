@@ -1,5 +1,8 @@
 <!-- initiative: slug=ui-ux-polish status=active updated=2026-04-15 -->
 <!-- Last updated: 2026-04-16T14:35:00-05:00 (Session 7 — v2.15.0–v2.15.3 release train) -->
+
+> **Superseded:** Thru column replaced by Recovery (recovery_rate refactor, v2.16.0). See CHANGELOG.
+
 # Initiative: UI/UX polish and metric corrections
 
 **Status:** Active

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T14:45:00-05:00 -->
+<!-- Last updated: 2026-04-16 (v2.17.0 category need Margin + Profitability) -->
 # UI/UX Design Specification
 
 ## Document Purpose
@@ -58,9 +58,9 @@ Title + filter chips, then DataGrid (desktop) or card list (mobile). Filters use
 
 | Purpose | MUI token | Hex (light theme) | Usage |
 |---------|-----------|-------------------|-------|
-| Positive / safe | `success.main` | `#2E7D32` | High sell-through, strong margin, target zone, profit positive, high need score (>=60) |
-| Caution / moderate | `warning.main` | `#ED6C02` | Mid sell-through (50-75%), moderate margin, time running low (<4h), need 30-59 |
-| Danger / risk | `error.main` | `#D32F2F` | Low sell-through (<50%), thin/negative margin, near breakeven, time critical (<1h), loss |
+| Positive / safe | `success.main` | `#2E7D32` | High category recovery, strong margin, target zone, profit positive, high need score (>=60) |
+| Caution / moderate | `warning.main` | `#ED6C02` | Mid recovery (see threshold table), moderate margin, time running low (<4h), need 30-59 |
+| Danger / risk | `error.main` | `#D32F2F` | Low recovery, thin/negative margin, near breakeven, time critical (<1h), loss |
 | Default metric | `#9A8866` | (warm ochre) | System-calculated values in editable fields (not overridden) |
 | Overridden value | `text.primary` | (standard dark) | User-set override values; `fontWeight: 600`, left accent border `primary.main` |
 | Neutral / static | `text.secondary` | (gray) | Labels, captions, secondary text, empty state dashes |
@@ -91,13 +91,13 @@ Title + filter chips, then DataGrid (desktop) or card list (mobile). Filters use
 | 30 – 59 | `warning.main` |
 | < 30 | `text.secondary` |
 
-**Sell-through rate:**
+**Recovery rate** (category mix table; `SUM(sold_for)/SUM(retail_value)`, typical thrift ~0.20–0.45):
 
 | Range | Color |
 |-------|-------|
-| >= 75% | `success.main` |
-| 50% – 74% | `warning.main` |
-| < 50% | `error.main` |
+| >= 35% | `success.main` |
+| 20% – 34% | `warning.main` |
+| < 20% | `error.main` |
 
 **Margin / price ratio (current / breakeven):**
 
@@ -249,7 +249,7 @@ Grid: `{ xs: '1fr 1fr', sm: 'auto 1fr 1fr auto' }`. Background tints by urgency 
 Horizontal `Box` with left color border (4px, green/amber/red based on overall signal). Contains:
 
 - **Margin text**: "Current price is X% of breakeven" (body2, fontWeight 600)
-- **Risk chips**: Low sell-through categories, low inventory demand (warning), no competition + wide margin (success)
+- **Risk chips**: Low recovery categories, low inventory demand (warning), no competition + wide margin (success)
 
 Auto-hides (returns null) when there's insufficient data to compute anything.
 
@@ -291,7 +291,11 @@ Fixed-layout `Table` with sticky header, scroll body (`maxHeight: 280px`), pinne
 
 Color-coded columns:
 - **Need metric**: by need score thresholds
-- **Sell-through**: by sell-through rate thresholds (green >= 75%, amber 50-75%, red < 50%, fontWeight 600)
+- **Recovery**: by recovery rate thresholds (green >= 35%, amber 20–34%, red < 20%, fontWeight 600)
+
+### Category need table (`CategoryNeedBars`, auction list panel)
+
+Dense grid: **Category**, **Distribution** (shelf vs window-sold share), **Shelf**, **Sold**, **n** (good-data cohort count), **Margin**, **Recovery**, **Need** (1–99). Detail card (**`CategoryNeedDetail`**) — **Profitability**: row 1 avg retail / avg sale / recovery rate; row 2 avg cost / avg profit / profit margin. **Flow**: shelf distribution %, sold distribution %, gap.
 
 ### Auction Details (`AuctionDetailsInfoCard`)
 
@@ -343,7 +347,7 @@ Static reference card. Notable patterns:
 | Multi-tick gauge | **Shipped** | In `ValuationMaxBidCard`, `AuctionValuationCard.tsx` |
 | Costs input/output split | **Shipped** | In `ValuationCostsCard`, `AuctionValuationCard.tsx` |
 | Condition chips | **Shipped** | `AuctionDetailsInfoCard.tsx` |
-| Sell-through color | **Shipped** | In `ValuationCategoryTableCard`, `AuctionValuationCard.tsx` |
+| Recovery color | **Shipped** | In `ValuationCategoryTableCard`, `AuctionValuationCard.tsx` |
 | Avg retail/item | **Shipped** | `AuctionDetailsInfoCard.tsx` |
 | Compact manifest | **Shipped** | `AuctionDetailPage.tsx` |
 | Bid action bar | **Not applicable** | Bidding happens on bstock.com, not in-app |
@@ -359,7 +363,7 @@ When building a new page or component:
 
 1. **Identify the core question** the page answers.
 2. **Order content by decision flow** (urgency → assessment → analysis → action), not by data category.
-3. **Use the color system** from the threshold tables above. Copy the helper function patterns (`needScoreColor`, `conditionChipColor`, sell-through cell styling).
+3. **Use the color system** from the threshold tables above. Copy the helper function patterns (`needScoreColor`, `conditionChipColor`, recovery cell styling).
 4. **Use the typography hierarchy** — `BuyingDetailSectionTitle` for card headers, `body2` with `tabular-nums` for values, `caption` at `0.65rem` for micro-labels.
 5. **Card style** — `Card variant="outlined"`, `p: 1.25`, CSS Grid for multi-card layouts.
 6. **Editable fields** — follow the `ValuationInlineField` pattern (ochre defaults, pencil icon, inline edit with save/cancel).

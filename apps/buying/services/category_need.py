@@ -28,20 +28,21 @@ def taxonomy_bucket_for_item(item) -> str:
     return MIXED_LOTS_UNCATEGORIZED
 
 
-def _profit_from_avgs(
-    avg_sale: Decimal | None, avg_cost: Decimal | None
-) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
-    """Derive profit / item, profit/sales, and return-on-cost from window averages."""
-    if avg_sale is None or avg_cost is None:
-        return None, None, None
-    pip = (avg_sale - avg_cost).quantize(Decimal('0.01'))
-    psr: Decimal | None = None
-    roc: Decimal | None = None
-    if avg_sale > 0:
-        psr = (pip / avg_sale).quantize(Decimal('0.0001'))
-    if avg_cost > 0:
-        roc = (pip / avg_cost).quantize(Decimal('0.0001'))
-    return pip, psr, roc
+def _profit_from_sums(
+    sold_sum: Decimal | None,
+    cost_sum: Decimal | None,
+    sample_size: int,
+) -> tuple[Decimal | None, Decimal | None]:
+    """
+    avg_profit = (sum_sold - sum_cost) / n; profit_margin = (sum_sold - sum_cost) / sum_sold.
+    """
+    if sample_size <= 0 or sold_sum is None or cost_sum is None:
+        return None, None
+    if sold_sum <= 0:
+        return None, None
+    avg_profit = ((sold_sum - cost_sum) / Decimal(sample_size)).quantize(Decimal('0.01'))
+    profit_margin = ((sold_sum - cost_sum) / sold_sum).quantize(Decimal('0.0001'))
+    return avg_profit, profit_margin
 
 
 def build_category_need_rows() -> list[dict[str, Any]]:
@@ -49,8 +50,9 @@ def build_category_need_rows() -> list[dict[str, Any]]:
     Return one row per taxonomy_v1 category (19), sorted by need_gap descending.
 
     Backed by ``CategoryStats`` (populated by ``compute_daily_category_stats``).
-    Shelf/sold percentages are unit shares; Thru uses ``sell_through_rate`` from SQL.
-    Sale/retail/cost averages come from ``CategoryStats`` (90-day sold cohort SQL).
+    Shelf/sold percentages are unit shares; recovery is ``SUM(sold_for)/SUM(retail_value)``
+    per bucket from SQL (all-time qualifying sold rows).
+    Sale/retail/cost averages and profitability come from ``CategoryStats`` (good-data sold cohort SQL).
 
     Raw need-score legs (``need_raw_*``) mirror ``category_stats_sql``:
     ``_unit_raw_leg(want_units, have_units)``, ``_retail_raw_leg(want_retail, have_retail)``,
@@ -68,7 +70,7 @@ def build_category_need_rows() -> list[dict[str, Any]]:
         if c is None:
             c = CategoryStats(
                 category=name,
-                sell_through_rate=Decimal('0'),
+                recovery_rate=Decimal('0'),
                 have_retail=Decimal('0'),
                 have_units=0,
                 want_retail=Decimal('0'),
@@ -85,13 +87,16 @@ def build_category_need_rows() -> list[dict[str, Any]]:
         )
         bar_max = max(bar_max, shelf_pct, sold_pct)
         need_gap = sold_pct - shelf_pct
-        st_rate = c.sell_through_rate or Decimal('0')
-        sell_through_pct = (st_rate * Decimal('100')).quantize(Decimal('0.01'))
+        rec_rate = c.recovery_rate or Decimal('0')
+        recovery_pct = (rec_rate * Decimal('100')).quantize(Decimal('0.01'))
 
         avg_sale = c.avg_sold_price
         avg_retail = c.avg_retail
         avg_cost = c.avg_cost
-        pip, psr, roc = _profit_from_avgs(avg_sale, avg_cost)
+        sold_amt = c.recovery_sold_amount
+        cost_amt = c.recovery_cost_amount
+        n_good = int(getattr(c, 'good_data_sample_size', 0) or 0)
+        avg_profit, profit_margin = _profit_from_sums(sold_amt, cost_amt, n_good)
 
         need_1_99 = int(getattr(c, 'need_score_1to99', 50))
 
@@ -117,12 +122,12 @@ def build_category_need_rows() -> list[dict[str, Any]]:
                 'avg_sale': avg_sale,
                 'avg_retail': avg_retail,
                 'avg_cost': avg_cost,
-                'profit_per_item': pip,
-                'profit_sales_ratio': psr,
-                'return_on_cost': roc,
-                'sell_through_pct': sell_through_pct,
+                'avg_profit': avg_profit,
+                'profit_margin': profit_margin,
+                'good_data_sample_size': n_good,
+                'recovery_pct': recovery_pct,
                 'need_gap': need_gap,
-                'sell_through_rate': st_rate,
+                'recovery_rate': rec_rate,
                 'need_score_1to99': need_1_99,
             }
         )

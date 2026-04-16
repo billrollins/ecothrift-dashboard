@@ -495,7 +495,7 @@ Test worksheet for Bill:
 1. Open `http://localhost:5173/buying/auctions` - Category need panel should show non-zero shelf/sold counts and percentages across multiple categories.
 2. Check any auction detail page - Valuation card should show estimated revenue based on real sell-through rates.
 3. Open Django admin (`/db-admin/`) - `inventory.PurchaseOrder` should show 313+ POs. `inventory.Item` should show 184K+ items. `pos.Cart` should show 69K+ carts.
-4. API check: `curl http://localhost:8000/api/buying/category-need/` - Should return 19 categories with non-zero `shelf_count`, `sold_count`, `sell_through_pct`.
+4. API check: `curl http://localhost:8000/api/buying/category-need/` - Should return 19 categories with non-zero `shelf_count`, `sold_count`, `recovery_pct` (post–v2.16.0).
 
 **Step 3: Integrity checks.**
 ```

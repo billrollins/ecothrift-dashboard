@@ -218,10 +218,10 @@ function ValuationInlineField({
 function useValuationBreakdownRows(detail: BuyingAuctionDetail) {
   const { data: needData } = useBuyingCategoryNeed();
 
-  const sellRateByCat = useMemo(() => {
+  const recoveryRateByCat = useMemo(() => {
     const m = new Map<string, number>();
     needData?.categories.forEach((c) => {
-      const r = parseDec(c.sell_through_rate);
+      const r = parseDec(c.recovery_rate);
       if (r != null) m.set(c.category, r);
     });
     return m;
@@ -257,7 +257,7 @@ function useValuationBreakdownRows(detail: BuyingAuctionDetail) {
     return parsed.map(({ category, n }) => {
       const fraction = n / total;
       const pctDisplay = fraction * 100;
-      const rate = sellRateByCat.get(category) ?? 0;
+      const rate = recoveryRateByCat.get(category) ?? 0;
       const attributed = retailBase * fraction;
       const estRev = attributed * rate;
       const needMetric = needScoreByCat.get(category);
@@ -271,7 +271,7 @@ function useValuationBreakdownRows(detail: BuyingAuctionDetail) {
         needMetric: needMetric != null && Number.isFinite(needMetric) ? needMetric : null,
       };
     });
-  }, [mix, retailBase, sellRateByCat, needScoreByCat]);
+  }, [mix, retailBase, recoveryRateByCat, needScoreByCat]);
 
   const tableTotals = useMemo(() => {
     if (breakdownRows.length === 0) return null;
@@ -746,7 +746,7 @@ export function ValuationCategoryTableCard({ detail }: TableProps) {
               <TableCell align="right">Need metric</TableCell>
               <TableCell align="right">% retail</TableCell>
               <TableCell align="right">Retail $</TableCell>
-              <TableCell align="right">Sell-through</TableCell>
+              <TableCell align="right">Recovery</TableCell>
               <TableCell align="right">Est. revenue</TableCell>
             </TableRow>
           </TableHead>
@@ -777,9 +777,9 @@ export function ValuationCategoryTableCard({ detail }: TableProps) {
                     align="right"
                     sx={{
                       color:
-                        r.rate >= 0.75
+                        r.rate >= 0.35
                           ? 'success.main'
-                          : r.rate >= 0.5
+                          : r.rate >= 0.2
                             ? 'warning.main'
                             : 'error.main',
                       fontWeight: 600,

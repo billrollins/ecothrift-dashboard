@@ -5,6 +5,7 @@ import {
   Button,
   CircularProgress,
   Link,
+  Paper,
   Stack,
   TextField,
   Tooltip,
@@ -647,12 +648,12 @@ export default function AuctionListPage() {
 
       {isMdUp ? <CategoryNeedPanel /> : null}
 
-      <Box sx={{ mb: 2, flexShrink: 0 }}>
+      <Paper variant="outlined" sx={{ mb: 1.25, p: 1.5, flexShrink: 0 }}>
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           spacing={1}
           alignItems={{ sm: 'flex-start' }}
-          sx={{ mb: 1.5, width: '100%' }}
+          sx={{ mb: 1.25, width: '100%' }}
         >
           <TextField
             size="small"
@@ -672,10 +673,10 @@ export default function AuctionListPage() {
             Search
           </Button>
         </Stack>
-        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
           Press Enter or Search. Multiple words must all match (title or vendor each).
         </Typography>
-        <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap spacing={0} sx={{ gap: 1.5, mb: 1 }}>
+        <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap spacing={0} sx={{ gap: 1.5, mb: 0.75 }}>
           <Typography variant="subtitle2" fontWeight={600} color="text.primary">
             Filters
           </Typography>
@@ -728,7 +729,7 @@ export default function AuctionListPage() {
             />
           </Stack>
         </Stack>
-      </Box>
+      </Paper>
 
       {isMdUp ? (
         <AuctionListDesktop

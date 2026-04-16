@@ -1,49 +1,63 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, CircularProgress, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import {
+  Box,
+  CircularProgress,
+  IconButton,
+  Paper,
+  Stack,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import InfoOutlined from '@mui/icons-material/InfoOutlined';
+import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUp from '@mui/icons-material/KeyboardArrowUp';
 import { useBuyingCategoryNeed } from '../../hooks/useBuyingCategoryNeed';
 import type { BuyingCategoryNeedRow } from '../../types/buying.types';
 import CategoryNeedBars from './CategoryNeedBars';
 import CategoryNeedDetail from './CategoryNeedDetail';
 
 const STORAGE_KEY = 'buying.categoryNeedPanelSize';
-type PanelSize = 'min' | 'window' | 'full';
+type PanelSize = 'min' | 'window';
 
 function loadSize(): PanelSize {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v === 'min' || v === 'window' || v === 'full') return v;
+    if (v === 'min') return 'min';
   } catch {
     /* ignore */
   }
   return 'window';
 }
 
-const toggleSx = {
-  '& .MuiToggleButtonGroup-grouped': {
-    border: 'none',
-    mx: 0,
-    '&:not(:first-of-type)': { borderRadius: 1 },
-    '&:first-of-type': { borderRadius: 1 },
-  },
-  '& .MuiToggleButton-root': {
-    fontSize: '0.6875rem',
-    py: 0.25,
-    px: 1,
-    minHeight: 22,
-    lineHeight: 1.2,
-    textTransform: 'none',
-    bgcolor: 'grey.200',
-    color: 'text.secondary',
-    border: 'none',
-    '&.Mui-selected': {
-      bgcolor: 'grey.400',
-      color: 'text.primary',
-    },
-    '&:hover': {
-      bgcolor: 'grey.300',
-    },
-  },
-} as const;
+function LegendTooltipContent() {
+  return (
+    <Stack spacing={0.75} sx={{ py: 0.5, maxWidth: 280 }}>
+      <Typography variant="caption" fontWeight={600}>
+        Bar chart legend
+      </Typography>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Box sx={{ width: 12, height: 12, bgcolor: '#90caf9', borderRadius: 0.25 }} />
+        <Typography variant="caption">Shelf % (width vs scale)</Typography>
+      </Stack>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Box sx={{ width: 12, height: 12, bgcolor: 'rgba(239,154,154,0.7)', borderRadius: 0.25 }} />
+        <Typography variant="caption">Sold % (width vs scale)</Typography>
+      </Stack>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Box
+          sx={{
+            width: 24,
+            height: 4,
+            background: (t) =>
+              `linear-gradient(90deg, ${t.palette.error.main}, ${t.palette.success.main})`,
+            borderRadius: 0.25,
+          }}
+        />
+        <Typography variant="caption">Profit / sales (gradient line)</Typography>
+      </Stack>
+    </Stack>
+  );
+}
 
 export default function CategoryNeedPanel() {
   const [size, setSize] = useState<PanelSize>(loadSize);
@@ -61,56 +75,92 @@ export default function CategoryNeedPanel() {
 
   const rows = data?.categories ?? [];
 
-  const selectedRow: BuyingCategoryNeedRow | null = useMemo(() => {
-    if (!selectedCategory) return null;
-    return rows.find((r) => r.category === selectedCategory) ?? null;
+  useEffect(() => {
+    if (rows.length === 0) return;
+    if (!selectedCategory || !rows.some((r) => r.category === selectedCategory)) {
+      setSelectedCategory(rows[0].category);
+    }
   }, [rows, selectedCategory]);
 
-  const maxHeight =
-    size === 'min' ? 0 : size === 'window' ? 320 : undefined;
-  const overflow = size === 'full' ? 'visible' : 'auto';
+  const selectedRow: BuyingCategoryNeedRow | null = useMemo(() => {
+    if (rows.length === 0) return null;
+    if (selectedCategory) {
+      const match = rows.find((r) => r.category === selectedCategory);
+      if (match) return match;
+    }
+    return rows[0];
+  }, [rows, selectedCategory]);
+
+  const windowDays = data?.need_window_days;
+  const metaParts: string[] = [];
+  if (windowDays != null && Number.isFinite(windowDays)) {
+    metaParts.push(`${windowDays}-day window`);
+  }
+  metaParts.push(`${rows.length} categories`);
+
+  const isOpen = size === 'window';
+  const toggleOpen = () => setSize(isOpen ? 'min' : 'window');
 
   return (
-    <Box sx={{ mb: 2, flexShrink: 0 }}>
-      <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
-        Inventory need ({data?.need_window_days ?? '—'} day window)
-      </Typography>
-      <ToggleButtonGroup
-        size="small"
-        exclusive
-        value={size}
-        onChange={(_, v: PanelSize | null) => {
-          if (v != null) setSize(v);
-        }}
-        sx={{ ...toggleSx, mb: 1, alignSelf: 'flex-start' }}
-      >
-        <ToggleButton value="min">Min</ToggleButton>
-        <ToggleButton value="window">Window</ToggleButton>
-        <ToggleButton value="full">Full</ToggleButton>
-      </ToggleButtonGroup>
-
-      {size === 'min' ? (
-        <Box
-          sx={{
-            width: '100%',
-            borderBottom: '1px solid',
-            borderColor: 'grey.300',
-            my: 1,
-          }}
-        />
-      ) : null}
-
-      <Box
+    <Paper variant="outlined" sx={{ mb: 1.25, flexShrink: 0, overflow: 'hidden' }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={1}
         sx={{
-          maxHeight,
-          overflow: size === 'min' ? 'hidden' : overflow,
-          transition: 'max-height 0.25s ease',
-          border: size === 'min' ? 'none' : '1px solid',
+          px: 1.25,
+          py: 0.5,
+          minHeight: 36,
+          borderBottom: isOpen ? 1 : 'none',
           borderColor: 'divider',
-          borderRadius: 1,
+          flexWrap: 'wrap',
+          rowGap: 0.5,
+          cursor: 'pointer',
         }}
+        onClick={toggleOpen}
       >
-        {size === 'min' ? null : isLoading ? (
+        <Typography variant="subtitle2" fontWeight={700}>
+          Inventory need
+        </Typography>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ fontVariantNumeric: 'tabular-nums' }}
+        >
+          {metaParts.map((p, i) => (
+            <Box component="span" key={p}>
+              {i > 0 ? ' · ' : null}
+              {p}
+            </Box>
+          ))}
+        </Typography>
+        <Box sx={{ flex: 1, minWidth: 8 }} />
+        <Tooltip title={<LegendTooltipContent />} enterTouchDelay={0} placement="bottom-start">
+          <IconButton
+            size="small"
+            aria-label="Bar chart legend"
+            sx={{ p: 0.25 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <InfoOutlined fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <IconButton
+          size="small"
+          aria-label={isOpen ? 'Collapse inventory need panel' : 'Expand inventory need panel'}
+          title={isOpen ? 'Collapse' : 'Expand'}
+          sx={{ p: 0.25 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleOpen();
+          }}
+        >
+          {isOpen ? <KeyboardArrowUp fontSize="small" /> : <KeyboardArrowDown fontSize="small" />}
+        </IconButton>
+      </Stack>
+
+      {isOpen ? (
+        isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress size={32} />
           </Box>
@@ -120,32 +170,30 @@ export default function CategoryNeedPanel() {
           </Typography>
         ) : (
           <Stack
-            direction={{ xs: 'column', md: 'row' }}
+            direction="row"
             spacing={1.5}
-            sx={{ p: 1, alignItems: 'flex-start' }}
+            sx={{ p: 1, alignItems: 'stretch' }}
           >
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Stack direction="row" spacing={1} sx={{ mb: 0.75, alignItems: 'center' }}>
-                <Box sx={{ width: 12, height: 12, bgcolor: '#90caf9', borderRadius: 0.25 }} />
-                <Typography variant="caption">Shelf %</Typography>
-                <Box sx={{ width: 12, height: 12, bgcolor: 'rgba(239,154,154,0.7)', borderRadius: 0.25 }} />
-                <Typography variant="caption">Sold %</Typography>
-                <Box
-                  sx={{
-                    width: 12,
-                    height: 4,
-                    background: (t) =>
-                      `linear-gradient(90deg, ${t.palette.error.main}, ${t.palette.success.main})`,
-                    borderRadius: 0.25,
-                  }}
+            <Box
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                position: 'relative',
+              }}
+            >
+              <Box
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  overflow: 'auto',
+                }}
+              >
+                <CategoryNeedBars
+                  rows={rows}
+                  selectedCategory={selectedCategory}
+                  onSelect={setSelectedCategory}
                 />
-                <Typography variant="caption">Profit / sales</Typography>
-              </Stack>
-              <CategoryNeedBars
-                rows={rows}
-                selectedCategory={selectedCategory}
-                onSelect={setSelectedCategory}
-              />
+              </Box>
             </Box>
             <CategoryNeedDetail
               row={selectedRow}
@@ -154,8 +202,8 @@ export default function CategoryNeedPanel() {
               needWindowDays={data?.need_window_days}
             />
           </Stack>
-        )}
-      </Box>
-    </Box>
+        )
+      ) : null}
+    </Paper>
   );
 }

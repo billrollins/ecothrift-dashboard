@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T22:45:00-05:00 (review_bump table + commit_message) -->
+<!-- Last updated: 2026-04-16T23:30:00-05:00 (efforts/ handoff step 1b) -->
 # Protocol: Session Startup
 
 How to begin a new AI session on this project.
@@ -20,6 +20,9 @@ How to begin a new AI session on this project.
 
 1. **Read the primary context file.**
    - Read `.ai/context.md` in full. This gives you the project summary, file map, current state, guidelines, and doc maintenance rules.
+
+1b. **Active effort handoff (optional).**
+   - If the user is continuing a **named effort** with a handoff file, read **`efforts/<effort-slug>/CONTEXT.md`** after step 1. Example: **`efforts/buying-auctions-list-ux/CONTEXT.md`** — Buying auctions list / Inventory Need UI (routes, components, layout gotchas). See **`efforts/README.md`** for the index. Skip this when the task is unrelated.
 
 2. **Check the current version.**
    - Read repo root `.version` (single line, e.g. `v2.1.0`).

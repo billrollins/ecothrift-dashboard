@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T22:45:00-05:00 (Part 5 — commit_message.txt + 2_push_github.bat) -->
+<!-- Last updated: 2026-04-17 (run: Unreleased PO retail ops + effort CONTEXT sync) -->
 # Protocol: Review & Bump (docs audit → `.version` → `CHANGELOG`)
 
 **Scope:** Docs-audit + semver bump + `CHANGELOG` update. This is a **slice** of `session_close.md` — use when the user wants those without a full session close. **Optional:** align **`scripts/deploy/commit_message.txt`** with an upcoming push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**).

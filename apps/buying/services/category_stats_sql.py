@@ -64,71 +64,48 @@ def _want_rows(since: datetime) -> list[tuple[str, int, Decimal]]:
     return out
 
 
-def _want_avg_rows(
-    since: datetime,
-) -> list[tuple[str, Decimal | None, Decimal | None, Decimal | None]]:
-    """Per bucket: AVG sale, AVG retail line, AVG cost — same cohort as ``_want_rows``."""
+def _profitability_aggregates() -> list[tuple[str, Decimal, Decimal, Decimal, int]]:
+    """
+    Per bucket: SUM(sold_for), SUM(retail_value), SUM(cost), COUNT(*) for all-time sold rows.
+
+    Qualifying sold: status sold; sold_for, retail_value, and cost each between 0.01 and 9999.
+    Recovery rate in Python: sum_sold / sum_retail. Averages: sum / count.
+    """
     case = _case()
     sql = f"""
         SELECT b.bucket,
-               AVG(b.sale_amt)::numeric,
-               AVG(b.retail_line)::numeric,
-               AVG(b.cost_line)::numeric
+               COALESCE(SUM(b.sold_amt), 0)::numeric,
+               COALESCE(SUM(b.retail_amt), 0)::numeric,
+               COALESCE(SUM(b.cost_amt), 0)::numeric,
+               COUNT(*)::int
         FROM (
             SELECT
                 ({case}) AS bucket,
-                COALESCE(i.sold_for, i.price)::numeric AS sale_amt,
-                COALESCE(i.retail_value, i.price, 0)::numeric AS retail_line,
-                i.cost AS cost_line
+                i.sold_for::numeric AS sold_amt,
+                i.retail_value::numeric AS retail_amt,
+                i.cost::numeric AS cost_amt
             FROM inventory_item i
             LEFT JOIN inventory_product p ON i.product_id = p.id
             WHERE i.status = 'sold'
-              AND i.sold_at >= %s
-              AND COALESCE(i.sold_for, i.price) >= 0.01
+              AND i.sold_for BETWEEN 0.01 AND 9999
+              AND i.retail_value BETWEEN 0.01 AND 9999
+              AND i.cost BETWEEN 0.01 AND 9999
         ) b
         GROUP BY b.bucket
     """
-    q = Decimal('0.01')
-    out: list[tuple[str, Decimal | None, Decimal | None, Decimal | None]] = []
+    out: list[tuple[str, Decimal, Decimal, Decimal, int]] = []
     with connection.cursor() as cursor:
-        cursor.execute(sql, [since])
-        for bucket, avg_sale, avg_ret, avg_co in cursor.fetchall():
+        cursor.execute(sql)
+        for bucket, sold_sum, retail_sum, cost_sum, n in cursor.fetchall():
             out.append(
                 (
                     bucket,
-                    Decimal(str(avg_sale)).quantize(q) if avg_sale is not None else None,
-                    Decimal(str(avg_ret)).quantize(q) if avg_ret is not None else None,
-                    Decimal(str(avg_co)).quantize(q) if avg_co is not None else None,
+                    Decimal(str(sold_sum or 0)),
+                    Decimal(str(retail_sum or 0)),
+                    Decimal(str(cost_sum or 0)),
+                    int(n or 0),
                 )
             )
-    return out
-
-
-def _sell_through_counts() -> list[tuple[str, int, int]]:
-    """
-    Per bucket: (qualifying_sold_count, on_shelf_count).
-    Qualifying sold: sold + sale amount + retail filters (Bill).
-    """
-    case = _case()
-    sql = f"""
-        SELECT bucket, COALESCE(SUM(sold_c), 0)::int, COALESCE(SUM(shelf_c), 0)::int
-        FROM (
-            SELECT ({case}) AS bucket,
-                   CASE WHEN i.status = 'sold'
-                        AND COALESCE(i.sold_for, i.price) >= 0.01
-                        AND COALESCE(i.retail_value, i.price) >= 0.50
-                   THEN 1 ELSE 0 END AS sold_c,
-                   CASE WHEN i.status = 'on_shelf' THEN 1 ELSE 0 END AS shelf_c
-            FROM inventory_item i
-            LEFT JOIN inventory_product p ON i.product_id = p.id
-        ) t
-        GROUP BY bucket
-    """
-    out: list[tuple[str, int, int]] = []
-    with connection.cursor() as cursor:
-        cursor.execute(sql)
-        for bucket, sold_c, shelf_c in cursor.fetchall():
-            out.append((bucket, int(sold_c or 0), int(shelf_c or 0)))
     return out
 
 
@@ -168,37 +145,34 @@ def compute_category_stats_payloads(*, since: datetime) -> dict[str, dict[str, A
         if bucket in want_map:
             want_map[bucket] = (u, r)
 
-    avg_map: dict[str, tuple[Decimal | None, Decimal | None, Decimal | None]] = {
-        name: (None, None, None) for name in TAXONOMY_V1_CATEGORY_NAMES
-    }
-    for bucket, a_sale, a_ret, a_cost in _want_avg_rows(since):
-        if bucket in avg_map:
-            avg_map[bucket] = (a_sale, a_ret, a_cost)
-
-    rate_map: dict[str, dict[str, Any]] = {}
-    for bucket, sold_c, shelf_c in _sell_through_counts():
+    profit_map: dict[str, dict[str, Any]] = {}
+    q = Decimal('0.01')
+    for bucket, sold_d, retail_d, cost_d, n in _profitability_aggregates():
         if bucket not in TAXONOMY_V1_CATEGORY_NAMES:
             continue
-        denom = sold_c + shelf_c
-        num = Decimal(sold_c)
-        den = Decimal(denom)
-        rate = (num / den) if den > 0 else Decimal('0')
-        rate_map[bucket] = {
-            'rate': rate,
-            'numerator': num.quantize(Decimal('0.01')),
-            'denominator': den.quantize(Decimal('0.01')) if den > 0 else None,
+        rate = (sold_d / retail_d) if retail_d > 0 else Decimal('0')
+        profit_map[bucket] = {
+            'rate': rate.quantize(Decimal('0.000001')),
+            'sold_amount': sold_d.quantize(q),
+            'retail_amount': retail_d.quantize(q) if retail_d > 0 else None,
+            'cost_amount': cost_d.quantize(q),
+            'sample_size': n,
+            'avg_sold_price': (sold_d / Decimal(n)).quantize(q) if n else None,
+            'avg_retail': (retail_d / Decimal(n)).quantize(q) if n else None,
+            'avg_cost': (cost_d / Decimal(n)).quantize(q) if n else None,
         }
 
     out: dict[str, dict[str, Any]] = {}
     for name in TAXONOMY_V1_CATEGORY_NAMES:
         hu, hr = have_map[name]
         wu, wr = want_map[name]
-        st = rate_map.get(name)
+        st = profit_map.get(name)
         rate = st['rate'] if st else Decimal('0')
         need_r = (wr - hr).quantize(Decimal('0.01'))
         need_u = wu - hu
-        a_sale, a_ret, a_cost = avg_map[name]
-        if wu == 0:
+        if st:
+            a_sale, a_ret, a_cost = st['avg_sold_price'], st['avg_retail'], st['avg_cost']
+        else:
             a_sale, a_ret, a_cost = None, None, None
         out[name] = {
             'have_units': hu,
@@ -207,9 +181,11 @@ def compute_category_stats_payloads(*, since: datetime) -> dict[str, dict[str, A
             'want_retail': wr.quantize(Decimal('0.01')),
             'need_retail': need_r,
             'need_units': need_u,
-            'sell_through_rate': rate.quantize(Decimal('0.000001')),
-            'sell_through_numerator': st['numerator'] if st else None,
-            'sell_through_denominator': st['denominator'] if st else None,
+            'recovery_rate': rate,
+            'recovery_sold_amount': st['sold_amount'] if st else None,
+            'recovery_retail_amount': st['retail_amount'] if st else None,
+            'recovery_cost_amount': st['cost_amount'] if st else None,
+            'good_data_sample_size': st['sample_size'] if st else 0,
             'avg_sold_price': a_sale,
             'avg_retail': a_ret,
             'avg_cost': a_cost,
@@ -244,15 +220,17 @@ def upsert_category_stats_from_sql(*, since: datetime) -> None:
     payloads = compute_category_stats_payloads(since=since)
     for name, d in payloads.items():
         CategoryStats.objects.filter(category=name).update(
-            sell_through_rate=d['sell_through_rate'],
+            recovery_rate=d['recovery_rate'],
             have_retail=d['have_retail'],
             have_units=d['have_units'],
             want_retail=d['want_retail'],
             want_units=d['want_units'],
             need_retail=d['need_retail'],
             need_units=d['need_units'],
-            sell_through_numerator=d['sell_through_numerator'],
-            sell_through_denominator=d['sell_through_denominator'],
+            recovery_sold_amount=d['recovery_sold_amount'],
+            recovery_retail_amount=d['recovery_retail_amount'],
+            recovery_cost_amount=d['recovery_cost_amount'],
+            good_data_sample_size=d['good_data_sample_size'],
             avg_sold_price=d['avg_sold_price'],
             avg_retail=d['avg_retail'],
             avg_cost=d['avg_cost'],

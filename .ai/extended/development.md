@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T20:30:00-05:00 (AI usage summarize scripts removed) -->
+<!-- Last updated: 2026-04-17T00:00:00-05:00 (post-deploy recompute_all_item_costs) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -183,3 +183,5 @@ Defined in `.env` (gitignored):
 ```
 
 Set `DJANGO_SETTINGS_MODULE=ecothrift.settings_production` on Heroku.
+
+**Post-release one-shot (when CHANGELOG calls for it, e.g. v2.16.0):** after deploy + migrate, run **`python manage.py recompute_all_item_costs`** in a one-off Heroku shell or release task if you need every **`Item.cost`** refreshed from the PO shrink formula (`PurchaseOrder.compute_item_cost`). Not in **`release:`** in Procfile by default — run manually. See **`CHANGELOG`** **[2.16.0]** Operations.

@@ -293,17 +293,23 @@ export interface BuyingCategoryNeedRow {
   need_raw_combined: string;
   shelf_pct: string;
   sold_pct: string;
+  /** Mean sold_for per good-data sold row (all-time; sale/retail/cost each 0.01–9999). */
   avg_sale: string | null;
+  /** Mean retail_value per good-data sold row. */
   avg_retail: string | null;
+  /** Mean cost per good-data sold row. */
   avg_cost: string | null;
-  profit_per_item: string | null;
-  profit_sales_ratio: string | null;
-  return_on_cost: string | null;
-  sell_through_pct: string;
+  /** Mean (sale − cost) per good-data sold row. */
+  avg_profit: string | null;
+  /** Dollar-weighted (sum sale − sum cost) / sum sale on good-data cohort. */
+  profit_margin: string | null;
+  /** Count of inventory rows in the good-data cohort. */
+  good_data_sample_size: number;
+  recovery_pct: string;
   need_gap: string;
   bar_scale_max: string;
-  /** From CategoryStats — ratio 0–1 */
-  sell_through_rate: string;
+  /** From CategoryStats — SUM(sold_for)/SUM(retail_value), 0–1 */
+  recovery_rate: string;
   /** Min–max scaled vs other categories (1–99), daily SQL. */
   need_score_1to99: number;
 }

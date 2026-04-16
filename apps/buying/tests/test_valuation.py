@@ -57,7 +57,7 @@ class RecomputeAuctionValuationTests(TestCase):
     def test_recompute_sets_estimated_revenue(self):
         for name in TAXONOMY_V1_CATEGORY_NAMES:
             CategoryStats.objects.filter(category=name).update(
-                sell_through_rate=(Decimal("0.5") if name == "Electronics" else Decimal("0"))
+                recovery_rate=(Decimal("0.5") if name == "Electronics" else Decimal("0"))
             )
 
         mp = Marketplace.objects.create(
@@ -358,17 +358,47 @@ class AuctionFilterQTests(TestCase):
         self.assertEqual(f.qs.count(), Auction.objects.count())
 
 
-class CategoryNeedSellThroughRateTests(TestCase):
-    def test_sell_through_rate_from_pricing_rule(self):
+class CategoryNeedRecoveryRateTests(TestCase):
+    def test_recovery_rate_from_category_stats(self):
         cat = TAXONOMY_V1_CATEGORY_NAMES[0]
-        CategoryStats.objects.filter(category=cat).update(sell_through_rate=Decimal("0.1234"))
+        CategoryStats.objects.filter(category=cat).update(recovery_rate=Decimal("0.1234"))
         rows = build_category_need_rows()
         row = next(r for r in rows if r["category"] == cat)
-        self.assertEqual(row["sell_through_rate"], Decimal("0.1234"))
+        self.assertEqual(row["recovery_rate"], Decimal("0.1234"))
+
+
+class CategoryNeedProfitabilityTests(TestCase):
+    """Good-data cohort: sale, retail, cost each in [0.01, 9999]."""
+
+    def test_profit_margin_and_avg_profit_from_sums(self):
+        frozen_now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=dt_timezone.utc)
+        cat = TAXONOMY_V1_CATEGORY_NAMES[2]
+        for i in range(2):
+            Item.objects.create(
+                sku=f"CN-PR-{i}",
+                title="p",
+                category=cat,
+                status="sold",
+                sold_at=frozen_now - timedelta(days=10),
+                sold_for=Decimal("20"),
+                price=Decimal("20"),
+                retail_value=Decimal("40"),
+                cost=Decimal("10"),
+            )
+        upsert_category_stats_from_sql(since=frozen_now - timedelta(days=90))
+        rows = build_category_need_rows()
+        row = next(r for r in rows if r["category"] == cat)
+        self.assertEqual(row["recovery_rate"], Decimal("0.500000"))
+        self.assertEqual(row["avg_sale"], Decimal("20.00"))
+        self.assertEqual(row["avg_retail"], Decimal("40.00"))
+        self.assertEqual(row["avg_cost"], Decimal("10.00"))
+        self.assertEqual(row["avg_profit"], Decimal("10.00"))
+        self.assertEqual(row["profit_margin"], Decimal("0.5000"))
+        self.assertEqual(row["good_data_sample_size"], 2)
 
 
 class CategoryNeedWindowingTests(TestCase):
-    """sold_count and window averages use the pricing window; sell-through uses all-time sold + shelf."""
+    """sold_count uses the pricing window; recovery and profitability use all-time good-data cohort."""
 
     def test_windowed_sold_count_vs_window_avgs(self):
         frozen_now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=dt_timezone.utc)
@@ -389,6 +419,7 @@ class CategoryNeedWindowingTests(TestCase):
                 sold_at=frozen_now - timedelta(days=30),
                 sold_for=Decimal("10"),
                 price=Decimal("10"),
+                retail_value=Decimal("10"),
                 cost=costs[i],
             )
         for i in range(2):
@@ -400,6 +431,7 @@ class CategoryNeedWindowingTests(TestCase):
                 sold_at=frozen_now - timedelta(days=180),
                 sold_for=Decimal("10"),
                 price=Decimal("10"),
+                retail_value=Decimal("10"),
                 cost=costs[3 + i],
             )
 
@@ -407,14 +439,17 @@ class CategoryNeedWindowingTests(TestCase):
         rows = build_category_need_rows()
         row = next(r for r in rows if r["category"] == cat)
         self.assertEqual(row["sold_count"], 3)
-        self.assertEqual(row["sell_through_pct"], Decimal("100.00"))
+        self.assertEqual(row["recovery_pct"], Decimal("100.00"))
         self.assertEqual(row["avg_sale"], Decimal("10.00"))
         self.assertEqual(row["avg_retail"], Decimal("10.00"))
-        self.assertEqual(row["avg_cost"], Decimal("20.00"))
-        self.assertEqual(row["profit_per_item"], Decimal("-10.00"))
+        # All 5 sold rows qualify for good-data cohort; mean cost (10+20+30+100+200)/5 = 72
+        self.assertEqual(row["avg_cost"], Decimal("72.00"))
+        self.assertEqual(row["avg_profit"], Decimal("-62.00"))
+        self.assertEqual(row["profit_margin"], Decimal("-6.2000"))
+        self.assertEqual(row["good_data_sample_size"], 5)
 
-    def test_windowing_with_shelf_in_sell_through_denominator(self):
-        """Thru = all_time_sold / (all_time_sold + shelf); shelf items in fixture."""
+    def test_recovery_all_time_dollar_ratio_ignores_shelf(self):
+        """Recovery = SUM(sold_for)/SUM(retail_value) on qualifying sold rows; shelf does not affect it."""
         frozen_now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=dt_timezone.utc)
         cat = TAXONOMY_V1_CATEGORY_NAMES[1]
         costs = [
@@ -424,11 +459,7 @@ class CategoryNeedWindowingTests(TestCase):
             Decimal("100"),
             Decimal("200"),
         ]
-        all_time_sold = 5
         shelf_n = 2
-        expected_thru = (
-            (Decimal(all_time_sold) / Decimal(all_time_sold + shelf_n)) * Decimal("100")
-        ).quantize(Decimal("0.01"))
 
         for i in range(shelf_n):
             Item.objects.create(
@@ -447,6 +478,7 @@ class CategoryNeedWindowingTests(TestCase):
                 sold_at=frozen_now - timedelta(days=30),
                 sold_for=Decimal("10"),
                 price=Decimal("10"),
+                retail_value=Decimal("10"),
                 cost=costs[i],
             )
         for i in range(2):
@@ -458,6 +490,7 @@ class CategoryNeedWindowingTests(TestCase):
                 sold_at=frozen_now - timedelta(days=180),
                 sold_for=Decimal("10"),
                 price=Decimal("10"),
+                retail_value=Decimal("10"),
                 cost=costs[3 + i],
             )
 
@@ -466,7 +499,10 @@ class CategoryNeedWindowingTests(TestCase):
         row = next(r for r in rows if r["category"] == cat)
         self.assertEqual(row["sold_count"], 3)
         self.assertEqual(row["shelf_count"], shelf_n)
-        self.assertEqual(row["sell_through_pct"], expected_thru)
+        self.assertEqual(row["recovery_pct"], Decimal("100.00"))
         self.assertEqual(row["avg_sale"], Decimal("10.00"))
         self.assertEqual(row["avg_retail"], Decimal("10.00"))
-        self.assertEqual(row["avg_cost"], Decimal("20.00"))
+        self.assertEqual(row["avg_cost"], Decimal("72.00"))
+        self.assertEqual(row["avg_profit"], Decimal("-62.00"))
+        self.assertEqual(row["profit_margin"], Decimal("-6.2000"))
+        self.assertEqual(row["good_data_sample_size"], 5)
