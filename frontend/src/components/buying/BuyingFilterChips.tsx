@@ -3,7 +3,14 @@ import { useMemo, type MouseEvent } from 'react';
 import { multiSelectChipTooltip } from '../../utils/multiSelectChipTooltip';
 
 /** Row-3 filter chips (no “All”; empty selection = no filter). */
-export type AuctionFilterChipId = 'profitable' | 'needed' | 'thumbs' | 'watched' | 'manifest' | 'completed';
+export type AuctionFilterChipId =
+  | 'profitable'
+  | 'needed'
+  | 'thumbs'
+  | 'watched'
+  | 'manifest'
+  | 'completed'
+  | 'archived';
 
 const CHIPS: { id: AuctionFilterChipId; label: string }[] = [
   { id: 'profitable', label: 'Profitable' },
@@ -12,14 +19,24 @@ const CHIPS: { id: AuctionFilterChipId; label: string }[] = [
   { id: 'watched', label: 'Watched' },
   { id: 'manifest', label: 'Has manifest' },
   { id: 'completed', label: 'Completed' },
+  { id: 'archived', label: 'Archived' },
 ];
 
 type Props = {
   active: Set<AuctionFilterChipId>;
   onToggle: (id: AuctionFilterChipId, event: MouseEvent) => void;
+  /** Total archived auctions (shown on Archived chip label). */
+  archivedCount?: number;
 };
 
-export default function BuyingFilterChips({ active, onToggle }: Props) {
+function chipLabel(id: AuctionFilterChipId, base: string, archivedCount?: number): string {
+  if (id === 'archived' && archivedCount != null && archivedCount >= 0) {
+    return `Archived (${archivedCount})`;
+  }
+  return base;
+}
+
+export default function BuyingFilterChips({ active, onToggle, archivedCount }: Props) {
   const tooltipTitle = useMemo(() => multiSelectChipTooltip(), []);
   return (
     <Box
@@ -36,7 +53,7 @@ export default function BuyingFilterChips({ active, onToggle }: Props) {
         <Tooltip key={id} title={tooltipTitle} enterDelay={400} placement="top">
           <Chip
             size="small"
-            label={label}
+            label={chipLabel(id, label, archivedCount)}
             color={active.has(id) ? 'primary' : 'default'}
             variant={active.has(id) ? 'filled' : 'outlined'}
             onClick={(e) => onToggle(id, e)}

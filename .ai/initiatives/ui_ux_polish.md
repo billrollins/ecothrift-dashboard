@@ -1,5 +1,5 @@
-<!-- initiative: slug=ui-ux-polish status=active updated=2026-04-14 -->
-<!-- Last updated: 2026-04-15 (Session 5 Phase 3B) -->
+<!-- initiative: slug=ui-ux-polish status=active updated=2026-04-15 -->
+<!-- Last updated: 2026-04-16T14:35:00-05:00 (Session 7 — v2.15.0–v2.15.3 release train) -->
 # Initiative: UI/UX polish and metric corrections
 
 **Status:** Active
@@ -235,10 +235,67 @@ Execution detail and item breakdown live in the Cursor plan **Session 5 Phase 3B
 
 - `2026-04-15` **Build start** — Session 5 opened; Phase 3B implementation per plan (audit command, C, J, G; D+L Step 3 gated on approval).
 - `2026-04-15` **Checkpoint** — **C:** `AuctionThumbsVote` + list/retrieve annotations, thumbs API returns `thumbs_up_count`, filters use vote Exists; **watch** toggle on desktop/mobile (`useBuyingWatchlistToggleMutation`). **J:** `top_categories` SerializerMethodField + column (Vendor | Top categories | Title). **G:** session-sticky `ordering` via `ecothrift.buying.auctionList.ordering` / `ecothrift.buying.watchlist.ordering`, default `-priority,end_time`. **D+L Step 1:** `audit_auction_need_priority` management command. **D+L Step 3:** not implemented — awaiting written formula approval after audit. **Verify:** `npx tsc --noEmit`, `python manage.py check` OK; local `manage.py test apps.buying` blocked by Postgres test DB state.
+- `2026-04-15T18:30:00-05:00` **Follow-up (v2.13.1)** — Desktop auction list **UX/performance** pass: **`AuctionListDesktop`** — stable **`columns`** via **`GridCellState`** ref; **`TimeRemainingCell`** self-tick; expand column **last**; inline row detail strip; theme **`MuiIconButton`** / **`MuiCheckbox`** snappiness; watch mutation optimistic **`watchlist_sort`** row patch; **`void cancelQueries`**. Root **`.version` / `package.json` / `CHANGELOG` [2.13.1]**; see **`.ai/extended/frontend.md`** “Buying — desktop auction list”.
 
 #### Result
 
-- Phase 3B **C / G / J** + **D+L audit (Step 1)** shipped in repo; **D+L valuation changes (Steps 2–3)** remain blocked until Bill approves a formula tied to audit output. **E** unchanged (out of scope). Version bump deferred.
+- Phase 3B **C / G / J** + **D+L audit (Step 1)** shipped in repo; **D+L valuation changes (Steps 2–3)** remain blocked until Bill approves a formula tied to audit output. **E** unchanged (out of scope). **v2.13.1** patches **desktop list grid** responsiveness and detail UX (separate from Phase 3B backend scope) — **CHANGELOG [2.13.1]**.
+
+### Session 6 — 2026-04-15T21:00:00-05:00 (Auction detail UX v3)
+
+- **Goal:** Comprehensive restructure of `AuctionDetailPage` around the user's decision process, driven by external UX consultant critique (scored 49/100). Restructure from data-category layout to decision-flow layout.
+- **Finish line:** Urgency strip + decision summary above grid; bid reference card replacing auction end card; multi-tick gauge; costs input/output split; sell-through color coding; condition chips; avg retail/item; compact manifest when loaded; old AuctionEndDetailsCard deleted. Design spec captured in `.ai/extended/ux-spec.md`.
+- **Scope:** `frontend/src/pages/buying/AuctionDetailPage.tsx`, `frontend/src/components/buying/` (new: `AuctionUrgencyStrip.tsx`, `AuctionDecisionSummary.tsx`, `AuctionBiddingCard.tsx`; modified: `AuctionValuationCard.tsx`, `AuctionDetailsInfoCard.tsx`; deleted: `AuctionEndDetailsCard.tsx`).
+- **Ship:** **v2.15.0**
+
+#### What was built (v2.15.0)
+
+| Component | File | What it does |
+|-----------|------|--------------|
+| **AuctionUrgencyStrip** | `AuctionUrgencyStrip.tsx` | Full-width banner: hero countdown (h4, pulse <1h), current price, bid count ("No competition" signal), status chip. Ambient urgency bg tint. |
+| **AuctionDecisionSummary** | `AuctionDecisionSummary.tsx` | Synthesized deal assessment: margin ratio text, risk flag chips (low sell-through, low demand), opportunity signals (no competition + wide margin). Auto-hides when no data. |
+| **AuctionBiddingCard** | `AuctionBiddingCard.tsx` | Grid cell 1,2: priority (admin editable), need score (color-coded), buy now, starting price (moved from details), est. profit (green/red), profitability ratio (threshold-colored). |
+| **ValuationMaxBidCard** | `AuctionValuationCard.tsx` | Multi-tick gauge (10px track, breakeven/moderate/target ticks, current price dot); color-differentiated tile left borders (error/warning/success); "Current margin: X.Xx breakeven" text. |
+| **ValuationCostsCard** | `AuctionValuationCard.tsx` | Inputs section (tinted bg): price, fees, shipping, shrinkage, profit goal, revenue. Calculated section: total cost, expected revenue, est. profit (new), margin % (new). |
+| **AuctionDetailsInfoCard** | `AuctionDetailsInfoCard.tsx` | Condition as color-coded Chip; "~$XXX/item" avg retail per item; starting price removed. |
+| **ValuationCategoryTableCard** | `AuctionValuationCard.tsx` | Sell-through column color-coded: >=75% green, 50-75% amber, <50% red. |
+| **Manifest card** | `AuctionDetailPage.tsx` | Loaded: compact metadata box + single-line replace/remove. Empty: full drop zone. |
+
+#### Design spec
+
+Full design system captured in **`.ai/extended/ux-spec.md`** — color system, typography hierarchy, spacing rules, interaction patterns (inline editing, empty states, button hierarchy, chips, tooltips), threshold tables, anti-patterns. Intended as the authoritative design reference for the entire application going forward.
+
+#### Session updates
+
+- `2026-04-15T21:00:00-05:00` **Build start** — Session 6 opened; implementing Auction detail UX v3 plan.
+- `2026-04-15T23:45:00-05:00` **Session close** — All 9 plan todos complete. `npx tsc --noEmit` passes (zero errors). No linter errors. Version bumped to **v2.15.0**. CHANGELOG entry added. `.ai/extended/ux-spec.md` written. Context files, consultant context, frontend.md, initiative updated.
+
+#### Result
+
+Shipped as **v2.15.0** (see root `CHANGELOG.md` section **[2.15.0]**).
+
+---
+
+### Session 7 — 2026-04-16T09:00:00-05:00 (v2.15.0 detail polish follow-ups + manifest/sweep UX)
+
+- **Goal:** Polish follow-ups to the v2.15.0 detail restructure — extract the details card into decomposed components, add live countdown hook, add manifest pull queue + sweep progress dialogs, redesign the category-need detail card around 1–99 raw inputs, and stand up a staff Assumptions admin stub.
+- **Finish line:** New components wired into `AuctionDetailPage`; manifest queue + sweep progress dialogs usable from the list; `CategoryNeedDetail` shows raw need-score inputs with "sold-items window since" date; v2.15.1 / v2.15.2 / v2.15.3 backend work (manifest pipeline optimizations, retail-weighted mix, AI title yield) releases-ready in the same push.
+- **Scope (new frontend files):** `frontend/src/components/buying/AuctionDetailsInfoCard.tsx`, `AuctionPrimaryCard.tsx`, `AuctionSecondaryCard.tsx`, `BuyingDetailSectionTitle.tsx`, `BuyingSweepProgressDialog.tsx`, `ManifestQueueDialog.tsx`, `ManifestPullProgressPanel.tsx`; `frontend/src/hooks/useLiveBuyingCountdown.ts`, `useBuyingManifestPullProgress.ts`; `frontend/src/utils/buyingOptimisticCache.ts`, `valuationParse.ts`; `frontend/src/pages/admin/AssumptionsPage.tsx` (stub).
+- **Scope (modified):** `AuctionDetailPage.tsx`, `AuctionListDesktop.tsx`, `AuctionListMobile.tsx`, `AuctionListPage.tsx`, `WatchlistPage.tsx`, `AuctionValuationCard.tsx`, `BuyingFilterChips.tsx`, `CategoryNeedBars.tsx`, `CategoryNeedDetail.tsx`, `CategoryNeedPanel.tsx`, `NeedPill.tsx`, `Sidebar.tsx`, `api/buying.api.ts`, `hooks/useBuyingThumbsUpMutation.ts`, `hooks/useBuyingWatchlistToggleMutation.ts`, `theme/index.ts`, `types/{buying,inventory}.types.ts`, `utils/{auctionMaxBid,buyingAuctionList}.ts`.
+- **Ship:** **v2.15.3** (release train — carries v2.14.0 → v2.15.3 backend/frontend work).
+
+#### Session updates
+
+- `2026-04-16T09:30:00-05:00` Detail page decomposition — `AuctionDetailsInfoCard` + primary/secondary split; `BuyingDetailSectionTitle` for consistent heading spacing.
+- `2026-04-16T10:15:00-05:00` `useLiveBuyingCountdown` hook — per-row 1 s interval only under threshold (avoids parent re-renders); reused on desktop list + detail.
+- `2026-04-16T11:00:00-05:00` `ManifestQueueDialog` (Next up + Pull log) + `ManifestPullProgressPanel` + `useBuyingManifestPullProgress` wire into anonymous manifest pull queue; `BuyingSweepProgressDialog` replaces inline sweep status.
+- `2026-04-16T12:00:00-05:00` `CategoryNeedDetail` redesigned around raw 1–99 inputs + "sold-items window since"; `CategoryNeedBars` / `NeedPill` aligned to same thresholds.
+- `2026-04-16T13:00:00-05:00` `AssumptionsPage` stub (admin) — placeholder for staff-editable universal defaults (B6 captured in `workspace/4-16-26 Collection/todo.md`); implementation deferred.
+- `2026-04-16T14:35:00-05:00` Session close — docs + changelog + version sync for v2.15.3 release train; all open initiative Sessions closed.
+
+#### Result
+
+Prepared for release as part of the **v2.15.3** release train (see root `CHANGELOG.md` [2.15.0]–[2.15.3] and `scripts/deploy/commit_message.txt`).
 
 ---
 

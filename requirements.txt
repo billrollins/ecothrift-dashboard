@@ -18,3 +18,5 @@ reportlab==4.2.5
 anthropic>=0.42.0
 requests>=2.31.0
 PySocks>=1.7.1
+pytest>=9.0
+pytest-django>=4.11

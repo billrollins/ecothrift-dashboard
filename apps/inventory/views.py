@@ -298,6 +298,7 @@ def _build_check_in_queue_from_manifest(order, user):
             item_price = row_price if row_price is not None else (
                 product.default_price if product.default_price is not None else Decimal('0.00')
             )
+            item_cost = order.compute_item_cost(row_cost)
             item = Item.objects.create(
                 sku=Item.generate_sku(),
                 product=product,
@@ -310,7 +311,7 @@ def _build_check_in_queue_from_manifest(order, user):
                 category=row.category or product.category or '',
                 price=item_price,
                 retail_value=row_cost,
-                cost=None,
+                cost=item_cost,
                 source='purchased',
                 status='intake',
                 condition=row.condition or 'unknown',
@@ -819,7 +820,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         return PurchaseOrderSerializer
 
     def perform_create(self, serializer):
-        extra = {'created_by': self.request.user}
+        from apps.inventory.services.po_defaults import get_default_po_est_shrink
+
+        extra = {
+            'created_by': self.request.user,
+            'est_shrink': get_default_po_est_shrink(),
+        }
         if not serializer.validated_data.get('order_number'):
             extra['order_number'] = PurchaseOrder.generate_order_number()
         if 'ordered_date' not in serializer.validated_data:

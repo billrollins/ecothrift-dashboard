@@ -8,6 +8,9 @@ export function msUntilEnd(endTime: string | null): number | null {
   return t - Date.now();
 }
 
+/** Show seconds in countdown when under this threshold (desktop + detail). */
+export const MS_TIME_REMAINING_WITH_SECONDS = 5 * 60 * 1000;
+
 export function formatTimeRemaining(endTime: string | null): string {
   const ms = msUntilEnd(endTime);
   if (ms == null) return 'N/A';
@@ -16,15 +19,17 @@ export function formatTimeRemaining(endTime: string | null): string {
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
   if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
+  if (ms < MS_TIME_REMAINING_WITH_SECONDS) return `${m}m ${s}s`;
   return `${m}m`;
 }
 
 const MS_6H = 6 * 60 * 60 * 1000;
 const SEC_10M = 10 * 60;
 
-/** Mobile list: tiered — >6h hours only; <6h but ≥10m hours+minutes; <10m minutes+seconds. */
+/** Mobile list: tiered — >6h hours only; <6h but ≥10m hours+minutes; <5m minutes+seconds (aligned with desktop). */
 export function formatTimeRemainingShort(endTime: string | null): string {
   const ms = msUntilEnd(endTime);
   if (ms == null) return 'N/A';
@@ -43,7 +48,8 @@ export function formatTimeRemainingShort(endTime: string | null): string {
   }
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
-  return `${m}m ${s}s`;
+  if (ms < MS_TIME_REMAINING_WITH_SECONDS) return `${m}m ${s}s`;
+  return `${m}m`;
 }
 
 const MS_1H = 60 * 60 * 1000;
@@ -56,6 +62,21 @@ export function timeRemainingSx(endTime: string | null): Record<string, unknown>
   if (ms <= MS_1H) return { color: 'error.main', fontWeight: 600 };
   if (ms <= MS_4H) return { color: 'warning.main', fontWeight: 600 };
   return {};
+}
+
+const MS_24H = 24 * MS_1H;
+
+/**
+ * Auction **detail** card: stronger hierarchy than list cells — within 24h gets
+ * emphasis; <4h warning; <1h critical (aligns with list but adds a 24h tier).
+ */
+export function timeRemainingDetailSx(endTime: string | null): Record<string, unknown> {
+  const ms = msUntilEnd(endTime);
+  if (ms == null || ms <= 0) return { color: 'text.secondary' };
+  if (ms <= MS_1H) return { color: 'error.main', fontWeight: 700 };
+  if (ms <= MS_4H) return { color: 'warning.main', fontWeight: 700 };
+  if (ms <= MS_24H) return { color: 'warning.dark', fontWeight: 600 };
+  return { color: 'text.primary', fontWeight: 600 };
 }
 
 /** Mobile card accent: left border + tint for urgent time remaining. */
@@ -84,6 +105,10 @@ const ORDERING_FIELDS = [
   'lot_size',
   'priority',
   'need_score',
+  'est_profit',
+  'thumbs_up',
+  'archived_at',
+  'watchlist_sort',
 ] as const;
 
 /** Default API `ordering` when the user has not chosen a column sort this session. */

@@ -178,6 +178,22 @@ class Command(BaseCommand):
         self.stdout.write(self.style.MIGRATE_HEADING('Creating app settings...'))
         settings_data = [
             ('tax_rate', 0.07, 'Sales tax rate (7.0% for Omaha, NE)'),
+            (
+                'po_default_est_shrink',
+                0.15,
+                'Default PurchaseOrder.est_shrink for new POs (0–1). Does not change existing POs.',
+            ),
+            (
+                'pricing_shrinkage_factor',
+                0.15,
+                'Buying auction valuation: shrink applied to estimated revenue before profit (0–1). '
+                'See Admin → Assumptions; also `.ai/extended/backend.md` (Item acquisition vs buying valuation).',
+            ),
+            (
+                'pricing_need_window_days',
+                90,
+                'Sold-items lookback (days) for category need SQL and related buying aggregates.',
+            ),
             ('store_name', 'Eco-Thrift', 'Business name'),
             ('store_address', '8425 West Center Road, Omaha NE 68124', 'Store address'),
             ('store_phone', '(402) 881-9861', 'Store phone'),

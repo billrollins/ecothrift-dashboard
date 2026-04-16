@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-15 (v2.13.0 session close) -->
+<!-- Last updated: 2026-04-16 (v2.15.3 release train — Unreleased folded into [2.13.0]) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,119 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.15.3] — 2026-04-16
+
+User-facing theme: **AI title category estimate yield and sweep ergonomics** — restored high save rate from **`estimate_batch`** by removing the redundant **`title_echo`** check (rows already match via **`auction_id`**); padded the cached system block past the Haiku **2048**-token minimum so repeated batches can use **`cache_read`** pricing; **`estimate_auction_categories --missing-both`** for robust backfills.
+
+### Changed
+
+- **Buying / AI title category estimate** — **`ai_title_category_estimate.estimate_batch`**: no **`title_echo`** field or verification; system prompt adds edge-case and worked-example sections. **`python manage.py estimate_auction_categories`**: **`--missing-both`** (open/closing, no AI mix and no manifest mix), default **500** cap when used (**`--limit`** overrides).
+
+---
+
+## [2.15.2] — 2026-04-16
+
+User-facing theme: **Retail-weighted category mix and need score** — manifest **`manifest_category_distribution`** is built from **retail value** share per **`fast_cat_value`** (fallback to row counts when all retail is null/zero). While fast-cat mapping is partial, the **Mixed lots & uncategorized** bucket is **redistributed** using existing **`ai_category_estimates`** (same weights used for **`need_score`** SUMPRODUCT). Discovery sweep **no longer caps** AI title estimates at 25 auctions per run; auctions that **already have** **`ai_category_estimates`** are skipped to avoid repeat API calls.
+
+### Changed
+
+- **Buying / valuation** — **`compute_and_save_manifest_distribution`**: retail-weighted percentages; count-weight fallback; **`_mix_for_auction`**: blend Mixed lots with AI when both exist; **`run_ai_estimate_for_swept_auctions`**: no per-sweep cap; skip when AI estimates already present. **`recompute_auction_full`**: when **`has_manifest`**, refreshes manifest distribution from **`ManifestRow`** before recomputing revenue and **`need_score`** (so **`python manage.py recompute_buying_valuations`** backfills retail-weighted mixes for open/closing auctions).
+- **Buying / AI title category estimate** — **`ai_title_category_estimate.estimate_batch`**: taxonomy + rules + JSON schema moved into the **cached system block** (Haiku `cache_control=ephemeral`); per-vendor **`_few_shot_block`** now drops rows where **`Mixed lots & uncategorized` ≥ 80%** (treated as incomplete **`fast_cat`** mapping, not a real distribution) and returns an empty block (no literal "no examples" string) when the vendor has none so the user message stays lean.
+
+---
+
+## [2.15.1] — 2026-04-16
+
+User-facing theme: **Manifest pipeline optimizations** — 7 targeted changes to the B-Stock manifest download and post-processing path. Dev timing infrastructure (`manifest_dev_timelog`) for benchmarking pull speed. Benchmark baseline: **~38 s / 1010 rows / ~26 rows/s** via SOCKS5. B-Stock page-size hard cap confirmed at **10 items/page** (ignores `limit` above 10).
+
+### Changed
+
+- **Buying / scraper** — `_fetch_manifest_paginated` now uses a **lazy singleton `requests.Session`** (`_manifest_http_session()`) for TLS connection reuse across paginated manifest GETs (Opt 1). Each page no longer creates a fresh TCP+TLS handshake to `order-process.bstock.com`.
+- **Buying / pipeline** — **`CategoryStats`** preloaded **once** before the auction loop in `run_manifest_pull` and passed via `stats=` to `recompute_auction_valuation`, eliminating repeated full-table loads (Opt 2). **`_has_manifest_rows`** `Exists` annotation added to `manifest_pull_queue_queryset` — per-auction `.exists()` DB call removed (Opt 3). **`bulk_create(batch_size=500)`** on `ManifestRow` inserts (Opt 6). **1-deep `ThreadPoolExecutor` prefetch** — fetches next auction's manifest (HTTP) while processing current auction's DB writes; controlled by `MANIFEST_PULL_PREFETCH` setting and `--no-prefetch` flag (Opt 5).
+- **Buying / commands** — `pull_manifests_budget` and `pull_manifests_nightly` default `--delay` lowered from **3.0 s** to **1.0 s** (Opt 4).
+
+### Added
+
+- **Dev timing** — `apps/buying/services/manifest_dev_timelog.py`: writes per-pull JSONL to `workspace/…/B-Manifest API/.timelogs/` and appends to `time_summary.md` when `ENVIRONMENT=development`. Version string `MANIFEST_API_PULL_VERSION` bumped per code change.
+- **Benchmark command** — `python manage.py benchmark_manifest_pull`: warm-up + AI mapping, N baseline runs, per-auction timing against the dev timelog. Flags `--auction-id`, `--baseline-runs`, `--skip-warmup`.
+- **Probe script** — `workspace/…/B-Manifest API/probe_manifest_speed.py`: standalone HTTP timing comparison (shared session vs bare requests) for page-size ceiling validation. **Use with caution** — default args make ~600 API calls; always pass `--limits <single_value>`.
+
+### Removed
+
+- **Buying — staff category-want vote:** **`CategoryWantVote`** model and **`GET`/`POST` `/api/buying/category-want/`**; frontend **`useBuyingCategoryWant`** hook and API helpers; **`apps/buying/services/want_vote.py`** and **`get_want_vote_decay_per_day()`**; **`seed_pricing_rules`** no longer seeds **`buying_want_vote_decay_per_day`**. **Category need** detail card redesigned (raw need-score inputs, **sold-items window since** date). Migration **`0016_remove_categorywantvote`**.
+
+---
+
+## [2.15.0] — 2026-04-15
+
+User-facing theme: **Auction detail UX v3** — restructure the page around the user's decision process instead of data categories. Urgency strip, decision summary, bid reference card, multi-tick gauge, costs input/output split, sell-through color coding, condition chips, compact manifest view. Driven by external UX consultant critique (49/100 → comprehensive overhaul). See **`.ai/extended/ux-spec.md`** for the design spec.
+
+### Added
+
+- **AuctionUrgencyStrip** — full-width `Paper` banner above the analysis grid: hero countdown (h4, pulsing animation under 1h), current price (h5), bid count with "No competition" signal, status chip. Background tints by urgency tier. Replaces the time/price/bids/status section of the old `AuctionEndDetailsCard`.
+- **AuctionDecisionSummary** — synthesized deal-assessment banner with left color border (green/amber/red). Margin ratio text ("Current price is X% of breakeven"), inline chips for risk flags (low sell-through categories, low inventory demand) and opportunity signals (no competition + wide margin). Auto-hides when insufficient data.
+- **AuctionBiddingCard** — new grid cell (1,2) for static bid-reference data: priority (editable), need score (color-coded), buy now, starting price (moved from AuctionDetailsInfoCard), est. profit (green/red), profitability ratio (green/amber/red thresholds).
+- **UX design spec** — `.ai/extended/ux-spec.md`: full specification capturing design philosophy, component specs, color system, typography rules, interaction patterns, and implementation status. Applies project-wide.
+
+### Changed
+
+- **ValuationMaxBidCard** — replaced thin progress bar with a **multi-tick gauge** (10px track, tick marks at breakeven/moderate/target, current price dot marker, labeled positions). Tile boxes now have **color-differentiated left borders** (error.light / warning.light / success.light). Margin text shows computed ratio instead of "Strong margin" chip.
+- **ValuationCostsCard** — restructured into **Inputs** (tinted `action.hover` background) and **Calculated** (default background) sections with a `Divider`. Inputs section groups: current price, fees, shipping, shrinkage, profit goal, revenue pre-shrink. Calculated section shows: total cost, expected revenue, **est. profit** (new, color-coded), **margin %** (new, derived).
+- **AuctionDetailsInfoCard** — **condition** renders as a color-coded `Chip` (New/Like New → success, Used Good → primary, Used Fair → warning, Salvage → error). **Avg retail per item** shown next to lot size. **Starting price** removed (moved to AuctionBiddingCard).
+- **ValuationCategoryTableCard** — **sell-through column** color-coded: >= 75% green, 50-75% amber, < 50% red.
+- **AuctionDetailPage** — manifest card: when manifest loaded, shows **compact metadata** (row count, categorized, template, manifest retail) + single-line "Replace manifest" / "Remove" zone instead of a large drag area. Urgency strip + decision summary inserted above the 6-cell grid. Cell 1,2 swapped to `AuctionBiddingCard`.
+
+### Removed
+
+- **AuctionEndDetailsCard** — replaced by `AuctionUrgencyStrip` (real-time data) + `AuctionBiddingCard` (static reference).
+
+---
+
+## [2.14.1] — 2026-04-15
+
+User-facing theme: **SOCKS5 proxy hardened for all B-Stock HTTP** — PIA `socks5://` (local DNS) as default; optional resolved-IP override; step-based diagnostic script; dev audit logging.
+
+### Changed
+
+- **Buying / scraper** — **All** `*.bstock.com` requests (not just search) route through SOCKS5 when `BUYING_SOCKS5_PROXY_ENABLED=True` via `_request_json`. New `BUYING_SOCKS5_PROXY_IP` (optional resolved IP override) and `BUYING_SOCKS5_LOCAL_DNS` (default recommendation **`True`** for PIA — `socks5://` local DNS; `socks5h://` remote DNS fails with PIA 0x04). `BUYING_SOCKS5_DEV_AUDIT` logs redacted proxy URLs and periodic egress IP probes to `logs/bstock_api.log`.
+- **`.env.example`** — `BUYING_SOCKS5_LOCAL_DNS` documented with `True` as recommended default for PIA; `BUYING_SOCKS5_PROXY_IP` added.
+- **`ecothrift/settings.py`** — reads `BUYING_SOCKS5_PROXY_IP` (optional).
+
+### Added
+
+- **Diagnostic** — `workspace/tests/socks5_egress_probe.py` rewritten as 6-step Grok-informed diagnostic: resolve proxy hostname, direct egress, `socks5://` + hostname, `socks5://` + IP, `socks5h://` + hostname, optional B-Stock search (`--bstock`). Clear PASS/FAIL per step; scraper-config verdict at bottom.
+- **Extended docs** — `.ai/extended/vpn-socks5.md`: full reference for PIA SOCKS5 setup, `.env` keys, `socks5://` vs `socks5h://`, known PIA behavior, diagnostic usage, IP rotation.
+
+---
+
+## [2.14.0] — 2026-04-15
+
+User-facing theme: **Simpler buying NEED scores + inventory item cost** — ratio-based **1–99** category need (daily SQL), auction **`need_score`** / auto **`priority`** as weighted mix of those scores; **PO `est_shrink`** drives **`Item.cost`** from listing retail and total cost (no legacy nightly vendor→PO→sold-only pipeline).
+
+### Added
+
+- **Buying / category need** — `CategoryStats.need_score_1to99` (1–99, min–max across taxonomy buckets from sold vs shelf ratios); auction `need_score` / auto `priority` are the manifest/AI **SUMPRODUCT** of those scores (no profit/time blend). **`compute_daily_category_stats`** drives SQL + open-auction full recompute.
+- **Inventory / item cost** — `PurchaseOrder.est_shrink` (default **0.15**); `item_cost = (item.retail / (PO.retail × (1 − est_shrink))) × PO.total_cost` on intake and when `est_shrink` / PO cost / listing retail change. Management command **`recompute_all_item_costs`** for one-shot backfill.
+- **Documentation** — **`.ai/context.md`**, **`.ai/consultant_context.md`**, **`.ai/extended/backend.md`**, **`.ai/extended/development.md`**, **`.ai/extended/bstock.md`** updated for the new behavior; deploy scripts use **`recompute_all_item_costs`** instead of **`recompute_cost_pipeline`**.
+
+### Removed
+
+- **Inventory — legacy cost pipeline** — `compute_vendor_metrics`, `compute_po_cost_analysis`, **`compute_item_cost`** (management command), **`recompute_cost_pipeline`**, and related `Vendor` / `PurchaseOrder` analytics fields (`shrinkage_rate`, `misfit_rate`, `avg_sell_through`, `avg_fulfillment`, `shrink_retail_est`, `mistracked_retail`, `misfit_sales_amt`). Nightly scheduler must **not** run the deleted wrapper; use **`recompute_all_item_costs`** only when backfilling costs after deploy.
+
+---
+
+## [2.13.1] — 2026-04-15
+
+User-facing theme: **Buying desktop auction list — snappy interactions + inline row detail** ([`.ai/initiatives/ui_ux_polish.md`](.ai/initiatives/ui_ux_polish.md), Session 5 follow-up) — stable DataGrid columns, optimistic watch row patch, microtask-friendly query cancel.
+
+### Changed
+
+- **Frontend / buying — desktop list** — `AuctionListDesktop` (**`/buying/auctions`**, `md+`): expand/collapse **chevron** column moved to the **last** column (right of **Time left**); **inline detail** strip under the expanded row via DataGrid **`slots.row`** + **`getRowHeight`** (compact pipe-separated metrics; **Shift+click** row still toggles); theme trims perceived lag — **`MuiIconButton`** / **`MuiCheckbox`**: `disableRipple` + **`transition: none`**; bulk column sort affordance without opacity **transition**; header **`Tooltip`** **`enterDelay={200}`**.
+- **Frontend / buying — performance** — Column definitions are **referentially stable**: frequently changing state (**`watchlistIds`**, **`rows`**, selection, sort model, expand id) held in a **`MutableRefObject`** read inside **`renderCell` / `renderHeader`** so optimistic toggles **do not** rebuild all **`GridColDef`** closures and **do not** force a full-grid re-render; **`TimeRemainingCell`** runs its own 1 s interval when under the live countdown threshold (parent **`countdownTick`** no longer invalidates columns every second); custom **row** slot reads expand state from the same ref (stable **`slots.row`**).
+- **Frontend / mutations** — **`useBuyingWatchlistToggleMutation`**: optimistic **`patchAllBuyingAuctionLists`** sets **`watchlist_sort`** on the toggled auction so the grid row reference updates with star state; **`void queryClient.cancelQueries`** (non-blocking) instead of **`await`** — same for **`useBuyingThumbsUpMutation`** and **`archiveMutation`** in **`AuctionListPage`**.
 
 ---
 
@@ -25,12 +138,9 @@ User-facing theme: **Fast auction sweep** + **optional SOCKS5 for search** ([`.a
 - **`sweep_auctions`** default **`--page-limit`** **200** (was 20).
 - **`.env.example`** — buying delay, sweep workers, SOCKS placeholders (Bill: copy to local **`.env`** as needed; not committed).
 
----
+### Added (dev tooling / workspace — folded in with v2.13.0 release)
 
-## [Unreleased]
-
-### Added
-
+- **Dev tooling** — **`scripts/dev/daily_scheduled_tasks.bat`** runs **`compute_daily_category_stats`**, **`scheduled_sweep`**, and **`watch_auctions`** for local parity with Heroku scheduled buying work; optional **`SKIP_BSTOCK=1`** for offline stats-only. Documented in **`.ai/extended/development.md`** and **`.ai/context.md`**.
 - **Workspace (consultant):** B-Stock API research — [`workspace/notes/from_consultant/bstock_api_research.md`](workspace/notes/from_consultant/bstock_api_research.md) and probe script [`workspace/test_bstock_endpoints.py`](workspace/test_bstock_endpoints.py) (anonymous + optional JWT; samples under `workspace/data/bstock_api_samples/`).
 - **Workspace:** [`workspace/sweep_fast.py`](workspace/sweep_fast.py) — standalone sweep (parallel GET search, `psycopg2` upsert, `workspace/logs/`).
 - **Steering:** [`.ai/protocols/collect_for_consultant.md`](.ai/protocols/collect_for_consultant.md); [`workspace/notes/from_consultant/handoff_prompt.md`](workspace/notes/from_consultant/handoff_prompt.md); [`workspace/notes/from_consultant/status_board.md`](workspace/notes/from_consultant/status_board.md) (consultant status board template).
@@ -184,7 +294,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 - **Buying — Phase 5 (auction valuation):** **`PricingRule`** (flat **`sell_through_rate`** per taxonomy_v1 category — **19** categories; **no** vendor × category matrix; model shape unchanged) and **`CategoryWantVote`** (staff **`value`** 1–10 per category, **`voted_at`**). **`Auction`** valuation fields: **`ai_category_estimates`**, **`manifest_category_distribution`**, **`estimated_revenue`**, **`revenue_override`**, **`fees_override`**, **`shipping_override`**, **`estimated_fees`**, **`estimated_shipping`**, **`estimated_total_cost`**, **`profitability_ratio`**, **`need_score`**, **`shrinkage_override`**, **`profit_target_override`**, **`priority`**, **`priority_override`**, **`thumbs_up`**. **`Marketplace`** defaults: **`default_fee_rate`**, **`default_shipping_rate`**. Migrations **`0009_phase5_auction_valuation`**, **`0010_auction_fee_shipping_overrides`**.
 - **Valuation engine:** **`apps/buying/services/valuation.py`** — **`recompute_auction_valuation`**, **`recompute_all_open_auctions`**, **`compute_and_save_manifest_distribution`**, **`get_valuation_source`**, **`run_ai_estimate_for_swept_auctions`**; retail base from manifest sum or **`total_retail_value`**; **`estimated_revenue`** stored **pre-shrinkage**; **`profitability_ratio`** uses **effective revenue after shrinkage** vs **`estimated_total_cost`**; **`revenue_override`** / **`fees_override`** / **`shipping_override`** semantics per initiative (**`coalesce`** for revenue; fee/shipping overrides **USD** only when set).
-- **AI title category estimation:** **`apps/buying/services/ai_title_category_estimate.py`** — **`estimate_batch`** with **`AI_MODEL_FAST`**, few-shot from marketplace, **title_echo** verification.
+- **AI title category estimation:** **`apps/buying/services/ai_title_category_estimate.py`** — **`estimate_batch`** with **`AI_MODEL_FAST`**, few-shot from marketplace, batch rows keyed by **`auction_id`** (historical **`title_echo`** check removed in v2.15.3).
 - **Category need / want:** **`GET /api/buying/category-need/`**; **`GET`/`POST /api/buying/category-want/`** with **`effective_value`** (step decay toward **5** per **`buying_want_vote_decay_per_day`**). **`apps/buying/services/category_need.py`**, **`want_vote.py`**, **`buying_settings.py`**.
 - **Staff controls & serializers:** **`POST`/`DELETE /api/buying/auctions/{id}/thumbs-up/`** (Admin); **`PATCH /api/buying/auctions/{id}/valuation-inputs/`** (Admin) — **recompute** on change. **`AuctionFilter`** **`thumbs_up`**; list **`ordering`** includes **`priority`**, **`estimated_revenue`**, **`profitability_ratio`**, **`need_score`**; list/detail serializers expose **`valuation_source`**, **`has_revenue_override`**, **`effective_revenue_after_shrink`**, etc.
 - **Seeds & management commands:** **`python manage.py seed_pricing_rules`** (CSV + **`AppSetting`** keys); **`python manage.py seed_marketplace_pricing_defaults`**; **`python manage.py estimate_auction_categories`**; **`python manage.py recompute_buying_valuations`**.

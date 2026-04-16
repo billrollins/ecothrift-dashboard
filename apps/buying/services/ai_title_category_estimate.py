@@ -5,20 +5,20 @@ from __future__ import annotations
 import json
 import logging
 import re
-from decimal import Decimal
 from typing import Any
 
 from django.conf import settings
 
 from apps.buying.models import Auction
 from apps.buying.services.valuation import recompute_auction_valuation
-from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
+from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
 from apps.core.services.ai_usage_log import estimate_cost_usd, log_ai_usage, log_ai_usage_from_response
 
 logger = logging.getLogger(__name__)
 
 FEW_SHOT_LIMIT = 5
 BATCH_SIZE = 25
+JUNK_MIXED_THRESHOLD = 80.0
 
 
 def _import_anthropic():
@@ -76,27 +76,38 @@ def _usage_dict(usage: Any) -> dict[str, int]:
 
 
 def _few_shot_block(marketplace_id: int) -> str:
+    """Up to FEW_SHOT_LIMIT most-recently-updated manifest-backed distributions for this marketplace.
+
+    Drops rows where the 'Mixed lots & uncategorized' share is >= JUNK_MIXED_THRESHOLD
+    (those represent incomplete fast_cat mapping, not a true distribution).
+    Returns '' when the vendor has no clean examples -- caller should omit the few-shot section.
+    """
     qs = (
         Auction.objects.filter(marketplace_id=marketplace_id)
         .exclude(manifest_category_distribution__isnull=True)
+        .order_by("-last_updated_at")
     )
     lines: list[str] = []
     n = 0
-    for a in qs.order_by("-last_updated_at"):
+    for a in qs:
         if n >= FEW_SHOT_LIMIT:
             break
         dist = a.manifest_category_distribution
         if not isinstance(dist, dict) or not dist:
             continue
+        try:
+            mixed = float(dist.get(MIXED_LOTS_UNCATEGORIZED, 0) or 0)
+        except (TypeError, ValueError):
+            mixed = 0.0
+        if mixed >= JUNK_MIXED_THRESHOLD:
+            continue
         title = (a.title or "").strip()
         if not title:
             continue
-        lines.append(f"Example title: {title[:500]!r}")
-        lines.append(f"Example distribution JSON: {json.dumps(dist, ensure_ascii=False)}")
+        lines.append(f"Title: {title[:500]!r}")
+        lines.append(f"Distribution: {json.dumps(dist, ensure_ascii=False)}")
         lines.append("")
         n += 1
-    if not lines:
-        lines.append("(No manifest examples for this marketplace yet; use general liquidation knowledge.)")
     return "\n".join(lines)
 
 
@@ -129,7 +140,7 @@ def estimate_batch(auction_ids: list[int]) -> dict[str, Any]:
     """
     Few-shot Claude (AI_MODEL_FAST) batch: title -> ai_category_estimates (percent by taxonomy key).
 
-    Verifies title_echo matches first 30 chars of title; normalizes percentages to sum 100.
+    Rows are matched by auction_id to the batch; normalizes percentages to sum 100.
     """
     client = get_anthropic_client()
     if client is None:
@@ -153,36 +164,58 @@ def estimate_batch(auction_ids: list[int]) -> dict[str, Any]:
     total_usage = _usage_dict(None)
     total_cost = 0.0
 
+    cat_lines = "\n".join(f"- {n}" for n in TAXONOMY_V1_CATEGORY_NAMES)
+    system_text = (
+        "You estimate retail category mix for liquidation auction lots from titles alone.\n\n"
+        "Canonical taxonomy (use these exact names):\n"
+        f"{cat_lines}\n\n"
+        "Rules:\n"
+        "- Return all 19 canonical categories; values are numbers 0-100; they must sum to 100.\n"
+        "- When a title names a single category (e.g. 'Apparel & Accessories', 'Toys/Games', "
+        "'Kitchen & Bath'), concentrate 70-90% there and give small shares (1-10%) to plausible "
+        "companion categories; reserve 5-15% for 'Mixed lots & uncategorized' only when the title "
+        "clearly signals a mixed lot.\n"
+        "- When a title names 2-3 categories, weight them roughly in the order mentioned.\n"
+        "- For generic titles ('Pallet Space', 'Truckload of Assorted', 'Mixed'), lean heavily "
+        "on 'Mixed lots & uncategorized' (50-80%).\n"
+        "- Use taxonomy-to-vendor hints from the few-shot examples when provided.\n\n"
+        "Edge cases:\n"
+        "- Words like 'liquidation', 'truckload', 'LTL', 'assorted', 'customer returns' without a "
+        "clear product family: put most weight on Mixed lots & uncategorized (50-80%) with small "
+        "shares to plausible departments.\n"
+        "- Titles naming two families (e.g. bedding and pet supplies): split roughly 40-60% across "
+        "both, with minor companion shares.\n"
+        "- Hyphens, slashes, and ampersands in titles map to the closest canonical category names.\n\n"
+        "Worked example (pattern only; your output must still include all 19 category keys):\n"
+        "Title: '8 Pallets of Hair Care, Makeup, and Personal Care — 2,400 Units'\n"
+        "→ Concentrate 80-90% in Health, beauty & personal care; reserve the remainder for Mixed "
+        "lots & uncategorized and tiny companion categories.\n\n"
+        "Output JSON array only (no prose, no markdown). One object per listing, in order, with "
+        "exactly these keys:\n"
+        "  auction_id (number), distribution (object mapping each canonical category name to a number).\n"
+        "Do not include title_echo or any keys other than auction_id and distribution."
+    )
+
     for mp_id, group in by_mp.items():
         for i in range(0, len(group), BATCH_SIZE):
             chunk = group[i : i + BATCH_SIZE]
             few = _few_shot_block(mp_id)
-            cat_lines = "\n".join(f"- {n}" for n in TAXONOMY_V1_CATEGORY_NAMES)
             listings = []
             for a in chunk:
                 listings.append({"auction_id": a.pk, "title": (a.title or "")[:500]})
-            user = (
-                "Canonical taxonomy category names (exact spelling):\n"
-                f"{cat_lines}\n\n"
-                "Few-shot examples from this marketplace (manifest-backed distributions):\n"
-                f"{few}\n"
-                "For each listing below, estimate the retail category mix (percent, 0-100 per category, "
-                "all 19 keys present; values can be 0). Percentages must sum to 100.\n"
-                f"Listings JSON: {json.dumps(listings, ensure_ascii=False)}\n\n"
-                "Return JSON array only. One object per listing, in order, with keys:\n"
-                'auction_id (number), title_echo (first 30 chars of title exactly), '
-                'distribution (object mapping each canonical category name to a number).\n'
-                "No markdown fences."
-            )
-            system = (
-                "You estimate liquidation lot category mixes from auction titles. "
-                "Respond with JSON array only."
-            )
+            user_parts: list[str] = []
+            if few:
+                user_parts.append(
+                    "Few-shot examples from this marketplace (manifest-backed real distributions):"
+                )
+                user_parts.append(few)
+            user_parts.append(f"Listings JSON: {json.dumps(listings, ensure_ascii=False)}")
+            user = "\n\n".join(user_parts)
             try:
                 response = client.messages.create(
                     model=model,
                     max_tokens=8192,
-                    system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+                    system=[{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}],
                     messages=[{"role": "user", "content": user}],
                 )
             except anthropic.APIError as e:  # type: ignore[attr-defined]
@@ -242,16 +275,6 @@ def estimate_batch(auction_ids: list[int]) -> dict[str, Any]:
                     continue
                 auc = by_id.get(aid_i)
                 if auc is None:
-                    continue
-                title = auc.title or ""
-                echo = (row.get("title_echo") or "")[:30]
-                if echo != title[:30]:
-                    logger.info(
-                        "Skipping auction %s: title_echo mismatch (model=%r title=%r)",
-                        aid_i,
-                        echo,
-                        title[:30],
-                    )
                     continue
                 dist_raw = row.get("distribution")
                 if not isinstance(dist_raw, dict):

@@ -2,6 +2,7 @@
 Django settings for ecothrift project — development.
 """
 import os
+import sys
 from decimal import Decimal
 from pathlib import Path
 from datetime import timedelta
@@ -20,6 +21,8 @@ else:
 # ── Security ──────────────────────────────────────────────────────────────────
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
+# development = manifest API dev timelogs under workspace/4-16-26 Collection/B-Manifest API/
+ENVIRONMENT = config('ENVIRONMENT', default='production')
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
 # ── Application definition ────────────────────────────────────────────────────
@@ -96,6 +99,17 @@ DATABASES = {
     }
     }
 
+# Test DB is created empty; force search_path=public (always present) so django_migrations
+# can be created. Covers both ``manage.py test`` and ``pytest`` entry points.
+# Dev/prod keep search_path=ecothrift on default above.
+_RUNNING_TESTS = (
+    (len(sys.argv) >= 2 and sys.argv[1] == 'test')
+    or bool(os.environ.get('PYTEST_CURRENT_TEST'))
+    or any('pytest' in (arg or '').lower() for arg in sys.argv[:1])
+)
+if _RUNNING_TESTS:
+    DATABASES['default']['OPTIONS'] = {'options': '-c search_path=public'}
+
 # ── Cache (database backend; release runs createcachetable) ─────────────────────
 CACHES = {
     'default': {
@@ -121,6 +135,8 @@ if _prod_name:
             'options': '-c search_path=ecothrift',
         },
     }
+    if _RUNNING_TESTS:
+        DATABASES['production']['OPTIONS'] = {'options': '-c search_path=public'}
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 AUTH_USER_MODEL = 'accounts.User'
@@ -219,11 +235,19 @@ else:
     MEDIA_ROOT = BASE_DIR / 'media'
 
 # ── AI / Anthropic ───────────────────────────────────────────────────────────
+def _normalize_anthropic_model_id(model_id: str) -> str:
+    """Map invalid ids (e.g. claude-haiku-4-6 does not exist; Haiku 4.x is claude-haiku-4-5)."""
+    mid = (model_id or '').strip()
+    if mid == 'claude-haiku-4-6':
+        return 'claude-haiku-4-5'
+    return mid
+
+
 ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
 # Default model for most AI calls (buying, chat proxy, inventory cleanup, etc.).
-AI_MODEL = config('AI_MODEL', default='claude-sonnet-4-6')
+AI_MODEL = _normalize_anthropic_model_id(config('AI_MODEL', default='claude-sonnet-4-6'))
 # Reserved for cheaper high-volume paths (optional; not required for all features).
-AI_MODEL_FAST = config('AI_MODEL_FAST', default='claude-haiku-4-5')
+AI_MODEL_FAST = _normalize_anthropic_model_id(config('AI_MODEL_FAST', default='claude-haiku-4-5'))
 # Backward compatibility: single knob — same as AI_MODEL.
 BUYING_CATEGORY_AI_MODEL = AI_MODEL
 
@@ -254,10 +278,12 @@ BSTOCK_AUTH_TOKEN = config('BSTOCK_AUTH_TOKEN', default='')
 BUYING_REQUEST_DELAY_SECONDS = config(
     'BUYING_REQUEST_DELAY_SECONDS', default=0.0, cast=float
 )
+# When True, start fetching the next auction's manifest while post-processing the current one.
+MANIFEST_PULL_PREFETCH = config('MANIFEST_PULL_PREFETCH', default=True, cast=bool)
 BSTOCK_MAX_RETRIES = config('BSTOCK_MAX_RETRIES', default=3, cast=int)
 BSTOCK_SEARCH_MAX_PAGES = config('BSTOCK_SEARCH_MAX_PAGES', default=5000, cast=int)
 BUYING_SWEEP_MAX_WORKERS = config('BUYING_SWEEP_MAX_WORKERS', default=8, cast=int)
-# SOCKS5 for B-Stock search POST only (optional; requires PySocks). See .env.example.
+# SOCKS5 for all outbound B-Stock HTTP in apps.buying.services.scraper (optional; requires PySocks).
 BUYING_SOCKS5_PROXY_ENABLED = config(
     'BUYING_SOCKS5_PROXY_ENABLED', default=False, cast=bool
 )
@@ -265,6 +291,15 @@ BUYING_SOCKS5_PROXY_HOST = config('BUYING_SOCKS5_PROXY_HOST', default='')
 BUYING_SOCKS5_PROXY_PORT = config('BUYING_SOCKS5_PROXY_PORT', default='')
 BUYING_SOCKS5_PROXY_USER = config('BUYING_SOCKS5_PROXY_USER', default='')
 BUYING_SOCKS5_PROXY_PASSWORD = config('BUYING_SOCKS5_PROXY_PASSWORD', default='')
+# Optional: resolved IP of the proxy host (nslookup proxy-nl.privateinternetaccess.com). Overrides hostname in proxy URL.
+BUYING_SOCKS5_PROXY_IP = config('BUYING_SOCKS5_PROXY_IP', default='')
+# True = socks5:// (local DNS). False = socks5h:// (remote DNS at proxy). PIA needs True (socks5h → 0x04).
+BUYING_SOCKS5_LOCAL_DNS = config('BUYING_SOCKS5_LOCAL_DNS', default=True, cast=bool)
+# Dev: log each B-Stock request SOCKS endpoint (redacted) + periodic egress IP via same proxy
+BUYING_SOCKS5_DEV_AUDIT = config('BUYING_SOCKS5_DEV_AUDIT', default=False, cast=bool)
+BUYING_SOCKS5_EGRESS_PROBE_SECONDS = config(
+    'BUYING_SOCKS5_EGRESS_PROBE_SECONDS', default=45.0, cast=float
+)
 
 # B-Stock outbound HTTP audit log (apps.buying.services.scraper → logger buying.scraper)
 _LOGS_DIR = BASE_DIR / 'logs'

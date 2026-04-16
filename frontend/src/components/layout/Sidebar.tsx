@@ -22,6 +22,7 @@ import Settings from '@mui/icons-material/Settings';
 import ShoppingCart from '@mui/icons-material/ShoppingCart';
 import Store from '@mui/icons-material/Store';
 import Tune from '@mui/icons-material/Tune';
+import FactCheck from '@mui/icons-material/FactCheck';
 import SupervisorAccount from '@mui/icons-material/SupervisorAccount';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
@@ -107,6 +108,12 @@ const navSections: NavSection[] = [
     roles: ['Manager', 'Admin'],
     collapsible: true,
     items: [
+      {
+        path: '/admin/assumptions',
+        label: 'Assumptions',
+        icon: <FactCheck />,
+        roles: ['Manager', 'Admin'],
+      },
       {
         path: '/admin/pos-setup',
         label: 'POS setup',

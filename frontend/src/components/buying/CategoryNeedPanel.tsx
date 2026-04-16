@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, CircularProgress, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useBuyingCategoryNeed } from '../../hooks/useBuyingCategoryNeed';
-import { useBuyingCategoryWant, useBuyingCategoryWantMutation } from '../../hooks/useBuyingCategoryWant';
-import type { BuyingCategoryNeedRow, BuyingCategoryWantRow } from '../../types/buying.types';
+import type { BuyingCategoryNeedRow } from '../../types/buying.types';
 import CategoryNeedBars from './CategoryNeedBars';
 import CategoryNeedDetail from './CategoryNeedDetail';
 
@@ -59,24 +58,13 @@ export default function CategoryNeedPanel() {
   }, [size]);
 
   const { data, isLoading, isError } = useBuyingCategoryNeed();
-  const { data: wantRows } = useBuyingCategoryWant();
-  const wantMutation = useBuyingCategoryWantMutation();
 
   const rows = data?.categories ?? [];
-  const wantByCategory = useMemo(() => {
-    const m = new Map<string, BuyingCategoryWantRow>();
-    (wantRows ?? []).forEach((w) => m.set(w.category, w));
-    return m;
-  }, [wantRows]);
 
   const selectedRow: BuyingCategoryNeedRow | null = useMemo(() => {
     if (!selectedCategory) return null;
     return rows.find((r) => r.category === selectedCategory) ?? null;
   }, [rows, selectedCategory]);
-
-  const handleWant = (category: string, value: number) => {
-    wantMutation.mutate({ category, value });
-  };
 
   const maxHeight =
     size === 'min' ? 0 : size === 'window' ? 320 : undefined;
@@ -161,9 +149,9 @@ export default function CategoryNeedPanel() {
             </Box>
             <CategoryNeedDetail
               row={selectedRow}
-              wantRow={selectedCategory ? wantByCategory.get(selectedCategory) : undefined}
-              onWantChange={handleWant}
-              wantBusy={wantMutation.isPending}
+              needScoreRawGlobalMin={data?.need_score_raw_global_min}
+              needScoreRawGlobalMax={data?.need_score_raw_global_max}
+              needWindowDays={data?.need_window_days}
             />
           </Stack>
         )}

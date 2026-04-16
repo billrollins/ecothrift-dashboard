@@ -2,27 +2,29 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
-
+from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
 from apps.buying.filters import AuctionFilter
-from apps.buying.models import Auction, Marketplace, PricingRule
+from apps.buying.models import Auction, CategoryStats, Marketplace
 from apps.buying.services.category_need import build_category_need_rows
+from apps.buying.services.category_stats_sql import upsert_category_stats_from_sql
 from apps.inventory.models import Item
+from unittest.mock import patch
+
+from apps.buying.services.ai_title_category_estimate import estimate_batch
 from apps.buying.services.valuation import (
+    _mix_for_auction,
     compute_and_save_manifest_distribution,
     get_valuation_source,
     recompute_auction_valuation,
+    run_ai_estimate_for_swept_auctions,
 )
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
-
-
-def _need_rows_zero():
-    return [{"category": n, "need_gap": Decimal("0")} for n in TAXONOMY_V1_CATEGORY_NAMES]
 
 
 class GetValuationSourceTests(TestCase):
@@ -52,15 +54,11 @@ class GetValuationSourceTests(TestCase):
 
 
 class RecomputeAuctionValuationTests(TestCase):
-    @patch("apps.buying.services.valuation.build_category_need_rows", return_value=_need_rows_zero())
-    @patch("apps.buying.services.valuation.PricingRule.objects")
-    def test_recompute_sets_estimated_revenue(self, mock_pr_mgr, _mock_need):
-        rule = MagicMock()
-        rule.category = "Electronics"
-        rule.sell_through_rate = Decimal("0.5")
-        qs = MagicMock()
-        mock_pr_mgr.all.return_value = qs
-        qs.only.return_value = [rule]
+    def test_recompute_sets_estimated_revenue(self):
+        for name in TAXONOMY_V1_CATEGORY_NAMES:
+            CategoryStats.objects.filter(category=name).update(
+                sell_through_rate=(Decimal("0.5") if name == "Electronics" else Decimal("0"))
+            )
 
         mp = Marketplace.objects.create(
             name="M",
@@ -107,6 +105,166 @@ class ManifestDistributionTests(TestCase):
         self.assertAlmostEqual(sum(out.values()), 100.0, places=1)
         self.assertEqual(get_valuation_source(a), "manifest")
 
+    def test_manifest_distribution_is_retail_weighted(self):
+        mp = Marketplace.objects.create(name="M", slug="m-retail-w")
+        a = Auction.objects.create(marketplace=mp, external_id="e-retail-w", has_manifest=True)
+        from apps.buying.models import ManifestRow
+
+        app = "Apparel & accessories"
+        ManifestRow.objects.create(
+            auction=a, row_number=1, fast_cat_value=app, retail_value=Decimal("10")
+        )
+        ManifestRow.objects.create(
+            auction=a, row_number=2, fast_cat_value=app, retail_value=Decimal("10")
+        )
+        ManifestRow.objects.create(
+            auction=a,
+            row_number=3,
+            fast_cat_value="Electronics",
+            retail_value=Decimal("100"),
+        )
+        out = compute_and_save_manifest_distribution(a)
+        # Row-count would be 2/3 vs 1/3; retail is 20/120 vs 100/120
+        self.assertAlmostEqual(out["Electronics"], 100.0 * 100 / 120, delta=0.05)
+        self.assertAlmostEqual(out[app], 100.0 * 20 / 120, delta=0.05)
+
+    def test_manifest_distribution_falls_back_to_count_when_all_retail_null(self):
+        mp = Marketplace.objects.create(name="M", slug="m-null-r")
+        a = Auction.objects.create(marketplace=mp, external_id="e-null-r", has_manifest=True)
+        from apps.buying.models import ManifestRow
+
+        ManifestRow.objects.create(
+            auction=a, row_number=1, fast_cat_value="Electronics", retail_value=None
+        )
+        ManifestRow.objects.create(
+            auction=a, row_number=2, fast_cat_value="Electronics", retail_value=None
+        )
+        ManifestRow.objects.create(
+            auction=a,
+            row_number=3,
+            fast_cat_value="Toys & games",
+            retail_value=Decimal("0"),
+        )
+        out = compute_and_save_manifest_distribution(a)
+        self.assertAlmostEqual(out["Electronics"], 100.0 * 2 / 3, delta=0.05)
+        self.assertAlmostEqual(out["Toys & games"], 100.0 * 1 / 3, delta=0.05)
+
+
+class MixForAuctionBlendTests(TestCase):
+    def test_mix_blend_mixed_lots_with_ai(self):
+        mp = Marketplace.objects.create(name="M", slug="m-blend")
+        a = Auction.objects.create(
+            marketplace=mp,
+            external_id="e-blend",
+            manifest_category_distribution={
+                "Apparel & accessories": 60.0,
+                MIXED_LOTS_UNCATEGORIZED: 40.0,
+            },
+            ai_category_estimates={
+                "Electronics": 50.0,
+                "Kitchen & dining": 50.0,
+            },
+        )
+        mix = _mix_for_auction(a)
+        self.assertAlmostEqual(float(mix["Apparel & accessories"]), 0.6, places=4)
+        self.assertAlmostEqual(float(mix["Electronics"]), 0.2, places=4)
+        self.assertAlmostEqual(float(mix["Kitchen & dining"]), 0.2, places=4)
+        self.assertNotIn(MIXED_LOTS_UNCATEGORIZED, mix)
+
+
+class EstimateBatchNoTitleEchoTests(TestCase):
+    """estimate_batch accepts model output keyed only by auction_id (no title_echo)."""
+
+    def test_saves_distribution_without_title_echo(self):
+        mp = Marketplace.objects.create(name="M", slug="m-est-no-echo")
+        a = Auction.objects.create(
+            marketplace=mp,
+            external_id="e-no-echo",
+            title="Truckload of Assorted Goods for Testing Purposes Here",
+        )
+        dist = {n: 0.0 for n in TAXONOMY_V1_CATEGORY_NAMES}
+        dist["Health, beauty & personal care"] = 100.0
+        payload = [{"auction_id": a.pk, "distribution": dist}]
+
+        class FakeTextBlock:
+            type = "text"
+
+            def __init__(self, text: str):
+                self.text = text
+
+        class FakeResponse:
+            def __init__(self):
+                self.content = [FakeTextBlock(json.dumps(payload))]
+                self.usage = None
+                self.model = "claude-haiku-4-5-20251001"
+
+        class FakeMessages:
+            def create(self, **kwargs):
+                return FakeResponse()
+
+        class FakeClient:
+            messages = FakeMessages()
+
+        with patch(
+            "apps.buying.services.ai_title_category_estimate.get_anthropic_client",
+            return_value=FakeClient(),
+        ):
+            with patch(
+                "apps.buying.services.ai_title_category_estimate.recompute_auction_valuation"
+            ) as mock_recompute:
+                out = estimate_batch([a.pk])
+        self.assertEqual(out["estimated"], 1)
+        mock_recompute.assert_called_once()
+        a.refresh_from_db()
+        self.assertIsNotNone(a.ai_category_estimates)
+        self.assertGreater(
+            a.ai_category_estimates.get("Health, beauty & personal care", 0),
+            90.0,
+        )
+
+
+class EstimateAuctionCategoriesCommandTests(TestCase):
+    def test_missing_both_calls_estimate_batch_with_filtered_ids(self):
+        mp = Marketplace.objects.create(name="CmdMp", slug="cmd-mp-est")
+        a1 = Auction.objects.create(
+            marketplace=mp,
+            external_id="cmd-e1",
+            status=Auction.STATUS_OPEN,
+            ai_category_estimates=None,
+            manifest_category_distribution=None,
+        )
+        a2 = Auction.objects.create(
+            marketplace=mp,
+            external_id="cmd-e2",
+            status=Auction.STATUS_OPEN,
+        )
+        with patch(
+            "apps.buying.management.commands.estimate_auction_categories.estimate_batch"
+        ) as mock_est:
+            call_command("estimate_auction_categories", "--missing-both", "--limit", 10)
+            mock_est.assert_called_once()
+            passed = mock_est.call_args[0][0]
+        self.assertIn(a1.pk, passed)
+        self.assertIn(a2.pk, passed)
+
+
+class RunAiEstimateSweepTests(TestCase):
+    def test_run_ai_estimate_skips_auctions_with_ai_estimates(self):
+        mp = Marketplace.objects.create(name="M", slug="m-ai-skip")
+        a = Auction.objects.create(
+            marketplace=mp,
+            external_id="e-ai-skip",
+            status=Auction.STATUS_OPEN,
+            ai_category_estimates={"Electronics": 100.0},
+        )
+        with patch(
+            "apps.buying.services.ai_title_category_estimate.estimate_batch"
+        ) as mock_est:
+            mock_est.return_value = {"estimated": 99, "items": []}
+            out = run_ai_estimate_for_swept_auctions([a.pk])
+            mock_est.assert_not_called()
+        self.assertEqual(out.get("estimated"), 0)
+
 
 class AuctionFilterProfitableNeededTests(TestCase):
     def setUp(self):
@@ -117,13 +275,13 @@ class AuctionFilterProfitableNeededTests(TestCase):
             marketplace=self.mp,
             external_id="pf-hi",
             profitability_ratio=Decimal("2.0"),
-            need_score=Decimal("0"),
+            need_score=0,
         )
         Auction.objects.create(
             marketplace=self.mp,
             external_id="pf-lo",
             profitability_ratio=Decimal("1.0"),
-            need_score=Decimal("0"),
+            need_score=0,
         )
         f = AuctionFilter(data={"profitable": True}, queryset=Auction.objects.all())
         self.assertEqual(list(f.qs), [hi])
@@ -133,13 +291,13 @@ class AuctionFilterProfitableNeededTests(TestCase):
             marketplace=self.mp,
             external_id="nd-hi",
             profitability_ratio=None,
-            need_score=Decimal("2"),
+            need_score=2,
         )
         Auction.objects.create(
             marketplace=self.mp,
             external_id="nd-lo",
             profitability_ratio=None,
-            need_score=Decimal("0"),
+            need_score=0,
         )
         f = AuctionFilter(data={"needed": True}, queryset=Auction.objects.all())
         self.assertEqual(list(f.qs), [hi])
@@ -203,20 +361,16 @@ class AuctionFilterQTests(TestCase):
 class CategoryNeedSellThroughRateTests(TestCase):
     def test_sell_through_rate_from_pricing_rule(self):
         cat = TAXONOMY_V1_CATEGORY_NAMES[0]
-        PricingRule.objects.create(
-            category=cat,
-            sell_through_rate=Decimal("0.1234"),
-            version_date=timezone.now().date(),
-        )
+        CategoryStats.objects.filter(category=cat).update(sell_through_rate=Decimal("0.1234"))
         rows = build_category_need_rows()
         row = next(r for r in rows if r["category"] == cat)
         self.assertEqual(row["sell_through_rate"], Decimal("0.1234"))
 
 
 class CategoryNeedWindowingTests(TestCase):
-    """Regression: sold_count is windowed; financials and Thru numerator use all-time sold."""
+    """sold_count and window averages use the pricing window; sell-through uses all-time sold + shelf."""
 
-    def test_windowed_sold_count_vs_all_time_financials(self):
+    def test_windowed_sold_count_vs_window_avgs(self):
         frozen_now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=dt_timezone.utc)
         cat = TAXONOMY_V1_CATEGORY_NAMES[0]
         costs = [
@@ -226,43 +380,38 @@ class CategoryNeedWindowingTests(TestCase):
             Decimal("100"),
             Decimal("200"),
         ]
-        expected_avg_cost = sum(costs, Decimal("0")) / Decimal("5")
+        for i in range(3):
+            Item.objects.create(
+                sku=f"CN-WIN-{i}",
+                title="w",
+                category=cat,
+                status="sold",
+                sold_at=frozen_now - timedelta(days=30),
+                sold_for=Decimal("10"),
+                price=Decimal("10"),
+                cost=costs[i],
+            )
+        for i in range(2):
+            Item.objects.create(
+                sku=f"CN-OLD-{i}",
+                title="o",
+                category=cat,
+                status="sold",
+                sold_at=frozen_now - timedelta(days=180),
+                sold_for=Decimal("10"),
+                price=Decimal("10"),
+                cost=costs[3 + i],
+            )
 
-        with (
-            patch(
-                "apps.buying.services.category_need.get_pricing_need_window_days",
-                return_value=90,
-            ),
-            patch("apps.buying.services.category_need.timezone.now", return_value=frozen_now),
-        ):
-            for i in range(3):
-                Item.objects.create(
-                    sku=f"CN-WIN-{i}",
-                    title="w",
-                    category=cat,
-                    status="sold",
-                    sold_at=frozen_now - timedelta(days=30),
-                    sold_for=Decimal("10"),
-                    price=Decimal("10"),
-                    cost=costs[i],
-                )
-            for i in range(2):
-                Item.objects.create(
-                    sku=f"CN-OLD-{i}",
-                    title="o",
-                    category=cat,
-                    status="sold",
-                    sold_at=frozen_now - timedelta(days=180),
-                    sold_for=Decimal("10"),
-                    price=Decimal("10"),
-                    cost=costs[3 + i],
-                )
-
-            rows = build_category_need_rows()
+        upsert_category_stats_from_sql(since=frozen_now - timedelta(days=90))
+        rows = build_category_need_rows()
         row = next(r for r in rows if r["category"] == cat)
         self.assertEqual(row["sold_count"], 3)
-        self.assertEqual(row["sell_through_pct"], Decimal("100"))
-        self.assertEqual(row["avg_cost"], expected_avg_cost)
+        self.assertEqual(row["sell_through_pct"], Decimal("100.00"))
+        self.assertEqual(row["avg_sale"], Decimal("10.00"))
+        self.assertEqual(row["avg_retail"], Decimal("10.00"))
+        self.assertEqual(row["avg_cost"], Decimal("20.00"))
+        self.assertEqual(row["profit_per_item"], Decimal("-10.00"))
 
     def test_windowing_with_shelf_in_sell_through_denominator(self):
         """Thru = all_time_sold / (all_time_sold + shelf); shelf items in fixture."""
@@ -275,52 +424,49 @@ class CategoryNeedWindowingTests(TestCase):
             Decimal("100"),
             Decimal("200"),
         ]
-        expected_avg_cost = sum(costs, Decimal("0")) / Decimal("5")
         all_time_sold = 5
         shelf_n = 2
-        expected_thru = (Decimal(all_time_sold) / Decimal(all_time_sold + shelf_n)) * Decimal("100")
+        expected_thru = (
+            (Decimal(all_time_sold) / Decimal(all_time_sold + shelf_n)) * Decimal("100")
+        ).quantize(Decimal("0.01"))
 
-        with (
-            patch(
-                "apps.buying.services.category_need.get_pricing_need_window_days",
-                return_value=90,
-            ),
-            patch("apps.buying.services.category_need.timezone.now", return_value=frozen_now),
-        ):
-            for i in range(shelf_n):
-                Item.objects.create(
-                    sku=f"CN-SHF-{i}",
-                    title="s",
-                    category=cat,
-                    status="on_shelf",
-                    price=Decimal("5"),
-                )
-            for i in range(3):
-                Item.objects.create(
-                    sku=f"CN-WIN2-{i}",
-                    title="w",
-                    category=cat,
-                    status="sold",
-                    sold_at=frozen_now - timedelta(days=30),
-                    sold_for=Decimal("10"),
-                    price=Decimal("10"),
-                    cost=costs[i],
-                )
-            for i in range(2):
-                Item.objects.create(
-                    sku=f"CN-OLD2-{i}",
-                    title="o",
-                    category=cat,
-                    status="sold",
-                    sold_at=frozen_now - timedelta(days=180),
-                    sold_for=Decimal("10"),
-                    price=Decimal("10"),
-                    cost=costs[3 + i],
-                )
+        for i in range(shelf_n):
+            Item.objects.create(
+                sku=f"CN-SHF-{i}",
+                title="s",
+                category=cat,
+                status="on_shelf",
+                price=Decimal("5"),
+            )
+        for i in range(3):
+            Item.objects.create(
+                sku=f"CN-WIN2-{i}",
+                title="w",
+                category=cat,
+                status="sold",
+                sold_at=frozen_now - timedelta(days=30),
+                sold_for=Decimal("10"),
+                price=Decimal("10"),
+                cost=costs[i],
+            )
+        for i in range(2):
+            Item.objects.create(
+                sku=f"CN-OLD2-{i}",
+                title="o",
+                category=cat,
+                status="sold",
+                sold_at=frozen_now - timedelta(days=180),
+                sold_for=Decimal("10"),
+                price=Decimal("10"),
+                cost=costs[3 + i],
+            )
 
-            rows = build_category_need_rows()
+        upsert_category_stats_from_sql(since=frozen_now - timedelta(days=90))
+        rows = build_category_need_rows()
         row = next(r for r in rows if r["category"] == cat)
         self.assertEqual(row["sold_count"], 3)
         self.assertEqual(row["shelf_count"], shelf_n)
         self.assertEqual(row["sell_through_pct"], expected_thru)
-        self.assertEqual(row["avg_cost"], expected_avg_cost)
+        self.assertEqual(row["avg_sale"], Decimal("10.00"))
+        self.assertEqual(row["avg_retail"], Decimal("10.00"))
+        self.assertEqual(row["avg_cost"], Decimal("20.00"))

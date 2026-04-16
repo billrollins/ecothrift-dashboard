@@ -16,10 +16,21 @@ import Refresh from '@mui/icons-material/Refresh';
 import type { GridPaginationModel } from '@mui/x-data-grid';
 import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { fetchBuyingWatchlist, postBuyingSweep } from '../../api/buying.api';
+import {
+  deleteBuyingAuctionArchive,
+  deleteBuyingThumbsUp,
+  deleteBuyingWatchlist,
+  fetchBuyingWatchlist,
+  postBuyingAuctionArchive,
+  postBuyingSweep,
+  postBuyingThumbsUp,
+  postBuyingWatchlist,
+} from '../../api/buying.api';
 import BuyingFilterChips, { type AuctionFilterChipId } from '../../components/buying/BuyingFilterChips';
+import ManifestQueueDialog from '../../components/buying/ManifestQueueDialog';
+import BuyingSweepProgressDialog from '../../components/buying/BuyingSweepProgressDialog';
 import CategoryNeedPanel from '../../components/buying/CategoryNeedPanel';
 import { PageHeader } from '../../components/common/PageHeader';
 import { useAuth } from '../../contexts/AuthContext';
@@ -31,9 +42,12 @@ import { useBuyingThumbsUpMutation } from '../../hooks/useBuyingThumbsUpMutation
 import { useBuyingWatchlistToggleMutation } from '../../hooks/useBuyingWatchlistToggleMutation';
 import { useBuyingWatchlist } from '../../hooks/useBuyingWatchlist';
 import { useBuyingWatchlistInfinite } from '../../hooks/useBuyingWatchlistInfinite';
+import { useLiveBuyingCountdownTick } from '../../hooks/useLiveBuyingCountdown';
 import type {
+  BuyingAuctionListItem,
   BuyingAuctionListParams,
   BuyingAuctionSummaryParams,
+  BuyingSweepResponse,
   BuyingWatchlistParams,
 } from '../../types/buying.types';
 import AuctionListDesktop from './AuctionListDesktop';
@@ -44,9 +58,18 @@ import {
   BUYING_WATCHLIST_ORDERING_STORAGE_KEY,
   DEFAULT_BUYING_LIST_ORDERING,
 } from '../../utils/buyingAuctionList';
+import {
+  patchAllBuyingAuctionLists,
+  patchAllBuyingWatchlistLists,
+  patchArchiveBulk,
+  patchThumbsBulk,
+  patchWatchBulk,
+  optimisticArchiveRow,
+} from '../../utils/buyingOptimisticCache';
 
 /** Stable reference for useBuyingAuctionSummary — inline `{}` is a new object every render and churns the query key. */
 const BUYING_SUMMARY_PARAMS_EMPTY: BuyingAuctionSummaryParams = {};
+const BUYING_SUMMARY_ARCHIVED: BuyingAuctionSummaryParams = { archived: true };
 
 export default function AuctionListPage() {
   const theme = useTheme();
@@ -98,6 +121,12 @@ export default function AuctionListPage() {
   }, [marketplaces, activeSlugs]);
 
   const { data: globalSummary } = useBuyingAuctionSummary(BUYING_SUMMARY_PARAMS_EMPTY);
+  const { data: archivedSummary } = useBuyingAuctionSummary(BUYING_SUMMARY_ARCHIVED);
+
+  const archivedCount = useMemo(
+    () => archivedSummary?.by_marketplace.reduce((a, m) => a + m.count, 0) ?? 0,
+    [archivedSummary]
+  );
 
   const countBySlugMerged = useMemo(() => {
     const map: Record<string, number> = {};
@@ -144,6 +173,7 @@ export default function AuctionListPage() {
     if (filterChips.has('thumbs')) p.thumbs_up = true;
     if (committedSearchTrimmed) p.q = committedSearchTrimmed;
     if (filterChips.has('completed')) p.completed = true;
+    if (filterChips.has('archived')) p.archived = true;
     return p;
   }, [
     paginationModel.page,
@@ -164,6 +194,7 @@ export default function AuctionListPage() {
     if (filterChips.has('thumbs')) p.thumbs_up = true;
     if (committedSearchTrimmed) p.q = committedSearchTrimmed;
     if (filterChips.has('completed')) p.completed = true;
+    if (filterChips.has('archived')) p.archived = true;
     return p;
   }, [ordering, marketplaceParam, hasManifestFilter, filterChips, committedSearchTrimmed]);
 
@@ -176,6 +207,7 @@ export default function AuctionListPage() {
     if (filterChips.has('thumbs')) p.thumbs_up = true;
     if (committedSearchTrimmed) p.q = committedSearchTrimmed;
     if (filterChips.has('completed')) p.completed = true;
+    if (filterChips.has('archived')) p.archived = true;
     return p;
   }, [ordering, marketplaceParam, hasManifestFilter, filterChips, committedSearchTrimmed]);
 
@@ -213,6 +245,59 @@ export default function AuctionListPage() {
   const rowCount = isWatched ? (watchlistData?.count ?? 0) : (auctionData?.count ?? 0);
   const listLoading = isWatched ? watchlistLoading : auctionLoading;
 
+  const filtersSummaryLabel = useMemo(() => {
+    const showingCount = isMdUp ? rows.length : mobileRows.length;
+    const showing = showingCount.toLocaleString();
+    if (filtersActive) {
+      const filteredRemainder = Math.max(0, rowCount - showingCount);
+      return `(${showing} showing | ${filteredRemainder.toLocaleString()} filtered)`;
+    }
+    return `(${showing} showing | no filters)`;
+  }, [isMdUp, rows.length, mobileRows.length, rowCount, filtersActive]);
+
+  const endTimesForCountdown = useMemo(() => {
+    const source = isMdUp ? rows : mobileRows;
+    return source.map((r) => r.end_time);
+  }, [isMdUp, rows, mobileRows]);
+  const countdownTick = useLiveBuyingCountdownTick(endTimesForCountdown);
+
+  const archiveMutation = useMutation({
+    mutationFn: async ({ id, unarchive }: { id: number; unarchive: boolean }) => {
+      if (unarchive) return deleteBuyingAuctionArchive(id);
+      return postBuyingAuctionArchive(id);
+    },
+    onMutate: async ({ id, unarchive }) => {
+      void queryClient.cancelQueries({ queryKey: ['buying'] });
+      const previousAuctions = queryClient.getQueriesData({ queryKey: ['buying', 'auctions'] });
+      const previousWatchlist = queryClient.getQueriesData({
+        predicate: (q) => q.queryKey[0] === 'buying' && q.queryKey[1] === 'watchlist',
+      });
+      const archive = !unarchive;
+      patchAllBuyingAuctionLists(queryClient, id, (r) => optimisticArchiveRow(r, archive));
+      patchAllBuyingWatchlistLists(queryClient, id, (r) => ({
+        ...r,
+        ...optimisticArchiveRow(r, archive),
+      }));
+      return { previousAuctions, previousWatchlist };
+    },
+    onError: (_err, _vars, context) => {
+      context?.previousAuctions?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      context?.previousWatchlist?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
+    },
+  });
+
+  const handleArchiveToggle = useCallback(
+    (row: BuyingAuctionListItem) => {
+      archiveMutation.mutate({ id: row.id, unarchive: Boolean(row.archived_at) });
+    },
+    [archiveMutation]
+  );
+
   const { data: tintPage } = useQuery({
     queryKey: ['buying', 'watchlist', 'tint-ids'] as const,
     queryFn: () => fetchBuyingWatchlist({ page: 1, page_size: 100 }),
@@ -228,32 +313,112 @@ export default function AuctionListPage() {
   const watchMutation = useBuyingWatchlistToggleMutation();
 
   const handleWatchToggle = useCallback(
-    async (auctionId: number, add: boolean) => {
-      try {
-        await watchMutation.mutateAsync({ auctionId, add });
-      } catch {
-        enqueueSnackbar('Could not update watchlist.', { variant: 'error' });
-      }
+    (auctionId: number, add: boolean) => {
+      watchMutation.mutate(
+        { auctionId, add },
+        {
+          onError: () => enqueueSnackbar('Could not update watchlist.', { variant: 'error' }),
+        }
+      );
     },
     [watchMutation, enqueueSnackbar]
   );
 
   const handleThumbsToggle = useCallback(
-    async (id: number, next: boolean) => {
-      try {
-        await thumbsMutation.mutateAsync({ auctionId: id, active: next });
-      } catch {
-        enqueueSnackbar('Could not update thumbs up.', { variant: 'error' });
-      }
+    (id: number, next: boolean) => {
+      thumbsMutation.mutate(
+        { auctionId: id, active: next },
+        {
+          onError: () => enqueueSnackbar('Could not update thumbs up.', { variant: 'error' }),
+        }
+      );
     },
     [thumbsMutation, enqueueSnackbar]
   );
 
-  const [isSweeping, setIsSweeping] = useState(false);
-  const [sweepProgress, setSweepProgress] = useState<string | null>(null);
+  const handleBulkWatch = useCallback(
+    async (ids: number[], add: boolean) => {
+      if (ids.length === 0) return;
+      const previousWatchRelated = queryClient.getQueriesData({
+        predicate: (q) => {
+          const k = q.queryKey;
+          return Array.isArray(k) && k[0] === 'buying' && k[1] === 'watchlist';
+        },
+      });
+      patchWatchBulk(queryClient, ids, add);
+      try {
+        await Promise.all(ids.map((id) => (add ? postBuyingWatchlist(id) : deleteBuyingWatchlist(id))));
+      } catch {
+        previousWatchRelated.forEach(([key, data]) => queryClient.setQueryData(key, data));
+        enqueueSnackbar('Could not update watchlist.', { variant: 'error' });
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'detail'] });
+    },
+    [queryClient, enqueueSnackbar]
+  );
+
+  const handleBulkThumbs = useCallback(
+    async (ids: number[], active: boolean) => {
+      if (ids.length === 0) return;
+      const previousAuctions = queryClient.getQueriesData({ queryKey: ['buying', 'auctions'] });
+      const previousWatchlist = queryClient.getQueriesData({
+        predicate: (q) => q.queryKey[0] === 'buying' && q.queryKey[1] === 'watchlist',
+      });
+      patchThumbsBulk(queryClient, ids, active);
+      try {
+        await Promise.all(ids.map((id) => (active ? postBuyingThumbsUp(id) : deleteBuyingThumbsUp(id))));
+      } catch {
+        previousAuctions.forEach(([key, data]) => queryClient.setQueryData(key, data));
+        previousWatchlist.forEach(([key, data]) => queryClient.setQueryData(key, data));
+        enqueueSnackbar('Could not update thumbs up.', { variant: 'error' });
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
+    },
+    [queryClient, enqueueSnackbar]
+  );
+
+  const handleBulkArchive = useCallback(
+    async (ids: number[], archive: boolean) => {
+      if (ids.length === 0) return;
+      const previousAuctions = queryClient.getQueriesData({ queryKey: ['buying', 'auctions'] });
+      const previousWatchlist = queryClient.getQueriesData({
+        predicate: (q) => q.queryKey[0] === 'buying' && q.queryKey[1] === 'watchlist',
+      });
+      patchArchiveBulk(queryClient, ids, archive);
+      try {
+        await Promise.all(
+          ids.map((id) => (archive ? postBuyingAuctionArchive(id) : deleteBuyingAuctionArchive(id)))
+        );
+      } catch {
+        previousAuctions.forEach(([key, data]) => queryClient.setQueryData(key, data));
+        previousWatchlist.forEach(([key, data]) => queryClient.setQueryData(key, data));
+        enqueueSnackbar('Could not update archive state.', { variant: 'error' });
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
+    },
+    [queryClient, enqueueSnackbar]
+  );
+
+  const [manifestQueueOpen, setManifestQueueOpen] = useState(false);
+  const [sweepDialogOpen, setSweepDialogOpen] = useState(false);
+  const [sweepDialogLoading, setSweepDialogLoading] = useState(false);
+  const [sweepDialogResponse, setSweepDialogResponse] = useState<BuyingSweepResponse | null>(null);
+  const [sweepDialogError, setSweepDialogError] = useState<string | null>(null);
 
   /** Set after a successful sweep (last response `refreshed_at`); falls back to global summary. */
   const [lastSweepRefreshedAt, setLastSweepRefreshedAt] = useState<string | null>(null);
+
+  const sortedMarketplacesForSweep = useMemo(() => {
+    return [...(marketplaces ?? [])].sort((a, b) => a.name.localeCompare(b.name));
+  }, [marketplaces]);
 
   const lastRefreshedAt = lastSweepRefreshedAt ?? globalSummary?.last_refreshed_at ?? null;
 
@@ -375,30 +540,25 @@ export default function AuctionListPage() {
     setPaginationModel((pm) => ({ ...pm, page: 0 }));
   }, [searchDraft]);
 
+  const handleSweepDialogClose = useCallback(() => {
+    setSweepDialogOpen(false);
+  }, []);
+
   const handleRefresh = async () => {
-    const mps = [...(marketplaces ?? [])].sort((a, b) => a.name.localeCompare(b.name));
-    if (mps.length === 0) {
+    if (sortedMarketplacesForSweep.length === 0) {
       enqueueSnackbar('No marketplaces configured.', { variant: 'warning' });
       return;
     }
-    setIsSweeping(true);
-    setSweepProgress('Sweeping all marketplaces…');
+    setSweepDialogOpen(true);
+    setSweepDialogLoading(true);
+    setSweepDialogResponse(null);
+    setSweepDialogError(null);
     try {
       const res = await postBuyingSweep(null);
+      setSweepDialogResponse(res);
       if (res.refreshed_at) setLastSweepRefreshedAt(res.refreshed_at);
       await queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
       await queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
-      const secs =
-        res.total_seconds != null ? ` in ${res.total_seconds}s` : '';
-      const mpErrs =
-        res.by_marketplace?.filter((r) => r.http_error || (r.db_errors ?? 0) > 0) ?? [];
-      const warnSuffix = mpErrs.length
-        ? ` (${mpErrs.map((r) => r.name).join(', ')}: partial errors — see network response)`
-        : '';
-      enqueueSnackbar(
-        `Sweep complete: ${res.upserted} row(s) upserted, ${res.rows} listing(s) fetched${secs}.${warnSuffix}`,
-        { variant: mpErrs.length ? 'warning' : 'success' },
-      );
     } catch (err: unknown) {
       let msg = 'Sweep failed.';
       if (isAxiosError(err)) {
@@ -406,10 +566,9 @@ export default function AuctionListPage() {
         if (d?.detail) msg = d.detail;
         else if (err.message) msg = err.message;
       }
-      enqueueSnackbar(msg, { variant: 'error' });
+      setSweepDialogError(msg);
     } finally {
-      setIsSweeping(false);
-      setSweepProgress(null);
+      setSweepDialogLoading(false);
     }
   };
 
@@ -432,7 +591,7 @@ export default function AuctionListPage() {
     );
   }
 
-  const sweepBusy = isSweeping;
+  const sweepBusy = sweepDialogLoading;
 
   return (
     <Box
@@ -452,10 +611,10 @@ export default function AuctionListPage() {
             <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
               Last refreshed: {lastRefreshedLabel}
             </Typography>
-            {sweepProgress ? (
-              <Typography variant="caption" color="text.secondary">
-                {sweepProgress}
-              </Typography>
+            {isAdmin ? (
+              <Button variant="outlined" size="small" onClick={() => setManifestQueueOpen(true)}>
+                Manifest queue
+              </Button>
             ) : null}
             <Button
               variant="contained"
@@ -473,6 +632,17 @@ export default function AuctionListPage() {
             </Button>
           </Stack>
         }
+      />
+
+      <ManifestQueueDialog open={manifestQueueOpen} onClose={() => setManifestQueueOpen(false)} />
+
+      <BuyingSweepProgressDialog
+        open={sweepDialogOpen}
+        loading={sweepDialogLoading}
+        marketplacesPending={sortedMarketplacesForSweep.map((m) => ({ slug: m.slug, name: m.name }))}
+        response={sweepDialogResponse}
+        errorMessage={sweepDialogError}
+        onClose={handleSweepDialogClose}
       />
 
       {isMdUp ? <CategoryNeedPanel /> : null}
@@ -509,6 +679,14 @@ export default function AuctionListPage() {
           <Typography variant="subtitle2" fontWeight={600} color="text.primary">
             Filters
           </Typography>
+          <Typography
+            component="span"
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
+          >
+            {filtersSummaryLabel}
+          </Typography>
           {filtersActive ? (
             <Link
               component="button"
@@ -543,7 +721,11 @@ export default function AuctionListPage() {
                 Clear
               </Button>
             </Tooltip>
-            <BuyingFilterChips active={filterChips} onToggle={handleFilterChipToggle} />
+            <BuyingFilterChips
+              active={filterChips}
+              onToggle={handleFilterChipToggle}
+              archivedCount={archivedCount}
+            />
           </Stack>
         </Stack>
       </Box>
@@ -562,6 +744,11 @@ export default function AuctionListPage() {
           onThumbsToggle={isAdmin ? handleThumbsToggle : undefined}
           onWatchToggle={handleWatchToggle}
           watchlistIds={watchlistIdsForTint}
+          countdownTick={countdownTick}
+          onArchiveToggle={handleArchiveToggle}
+          onBulkWatch={handleBulkWatch}
+          onBulkThumbs={handleBulkThumbs}
+          onBulkArchive={handleBulkArchive}
         />
       ) : (
         <AuctionListMobile
@@ -578,6 +765,7 @@ export default function AuctionListPage() {
           isAdmin={isAdmin}
           onThumbsToggle={isAdmin ? handleThumbsToggle : undefined}
           onWatchToggle={handleWatchToggle}
+          countdownTick={countdownTick}
         />
       )}
     </Box>

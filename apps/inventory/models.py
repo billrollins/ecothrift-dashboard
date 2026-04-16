@@ -1,6 +1,8 @@
 import re
+from decimal import Decimal
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import IntegerField, Max
 from django.db.models.functions import Cast, Substr
@@ -25,40 +27,6 @@ class Vendor(models.Model):
     notes = models.TextField(blank=True, default='')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    shrinkage_rate = models.DecimalField(
-        max_digits=5,
-        decimal_places=4,
-        null=True,
-        blank=True,
-        help_text=(
-            'Estimated true shrinkage rate after removing misfit/untracked share of missing retail. '
-            'Computed by recompute_cost_pipeline.'
-        ),
-    )
-    misfit_rate = models.DecimalField(
-        max_digits=5,
-        decimal_places=4,
-        null=True,
-        blank=True,
-        help_text=(
-            'Estimated fraction of PO retail gap attributable to untracked/misfit sales. '
-            'Computed by recompute_cost_pipeline.'
-        ),
-    )
-    avg_sell_through = models.DecimalField(
-        max_digits=5,
-        decimal_places=4,
-        null=True,
-        blank=True,
-        help_text='Retail value of sold items divided by retail value of all items on costed POs.',
-    )
-    avg_fulfillment = models.DecimalField(
-        max_digits=5,
-        decimal_places=4,
-        null=True,
-        blank=True,
-        help_text='Sum of item retail on costed POs divided by sum of PO retail_value on those POs.',
-    )
 
     class Meta:
         ordering = ['name']
@@ -148,26 +116,19 @@ class PurchaseOrder(models.Model):
         related_name='purchase_orders',
     )
     manifest_preview = models.JSONField(null=True, blank=True)
-    shrink_retail_est = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text='Estimated retail still lost to shrinkage after sold retail, from vendor shrinkage rate.',
-    )
-    mistracked_retail = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text='PO retail_value minus sold retail and shrink estimate (non-negative).',
-    )
-    misfit_sales_amt = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text='Share of misfit (no line item) sales attributed to this PO by mistracked retail.',
+    est_shrink = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=Decimal('0.1500'),
+        validators=[
+            MinValueValidator(Decimal('0')),
+            MaxValueValidator(Decimal('0.9999')),
+        ],
+        help_text=(
+            'Estimated shrinkage fraction (0–1). Item cost allocates total_cost over expected '
+            'recoverable retail: PO.retail_value × (1 - est_shrink). Changing this recomputes '
+            'item costs for this PO.'
+        ),
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -186,13 +147,65 @@ class PurchaseOrder(models.Model):
 
     def save(self, *args, **kwargs):
         """Auto-compute total_cost from component fields when any are set."""
+        prior = None
+        if self.pk:
+            prior = (
+                type(self)
+                .objects.filter(pk=self.pk)
+                .values('est_shrink', 'retail_value', 'total_cost')
+                .first()
+            )
         components = [self.purchase_cost, self.shipping_cost, self.fees]
         if any(c is not None for c in components):
-            from decimal import Decimal
             self.total_cost = sum(
                 (c for c in components if c is not None), Decimal('0.00')
             )
         super().save(*args, **kwargs)
+        if prior is not None and (
+            prior['est_shrink'] != self.est_shrink
+            or prior['retail_value'] != self.retail_value
+            or prior['total_cost'] != self.total_cost
+        ):
+            self.recompute_item_costs()
+
+    def compute_item_cost(self, item_retail_value):
+        """Acquisition cost allocated from PO total using listing retail and est_shrink.
+
+        item_cost = (item.retail / (PO.retail_value * (1 - est_shrink))) * PO.total_cost
+        PO.retail_value must remain the B-Stock listing total, not a sum of line retails.
+        """
+        from decimal import ROUND_HALF_UP
+
+        if item_retail_value is None:
+            return None
+        if self.retail_value is None or self.retail_value <= 0:
+            return None
+        if self.total_cost is None or self.total_cost <= 0:
+            return None
+        es = self.est_shrink if self.est_shrink is not None else Decimal('0.15')
+        if es < 0 or es >= Decimal('1'):
+            return None
+        denom = self.retail_value * (Decimal('1') - es)
+        if denom <= 0:
+            return None
+        rv = item_retail_value if isinstance(item_retail_value, Decimal) else Decimal(str(item_retail_value))
+        out = (rv / denom) * self.total_cost
+        return out.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    def recompute_item_costs(self, using=None):
+        """Rewrite Item.cost for all rows on this PO using :meth:`compute_item_cost`."""
+        from django.utils import timezone
+
+        alias = using or getattr(self._state, 'db', None) or 'default'
+        items = list(Item.objects.using(alias).filter(purchase_order_id=self.pk))
+        if not items:
+            return 0
+        now = timezone.now()
+        for item in items:
+            item.cost = self.compute_item_cost(item.retail_value)
+            item.updated_at = now
+        Item.objects.using(alias).bulk_update(items, ['cost', 'updated_at'])
+        return len(items)
 
     @staticmethod
     def generate_order_number():
@@ -605,6 +618,10 @@ class Item(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'sold_at']),
+            models.Index(fields=['status', 'category']),
+        ]
 
     def __str__(self):
         return f'{self.sku} - {self.title}'
@@ -640,10 +657,41 @@ class Item(models.Model):
 
     def save(self, *args, **kwargs):
         using = kwargs.get('using')
+        prior = None
+        if self.pk:
+            prior = (
+                type(self)
+                .objects.filter(pk=self.pk)
+                .values('retail_value', 'purchase_order_id')
+                .first()
+            )
         if not self.sku:
             self.sku = Item.generate_sku(using=using)
         self.search_text = self.rebuild_search_text()
         super().save(*args, **kwargs)
+        self._recompute_po_item_costs_after_save(prior, using)
+
+    def _recompute_po_item_costs_after_save(self, prior, using) -> None:
+        """When line retail or PO assignment changes, reallocate Item.cost on affected PO(s)."""
+        alias = using or getattr(self._state, 'db', None) or 'default'
+        po_ids: set[int] = set()
+        if prior is None:
+            if self.purchase_order_id:
+                po_ids.add(self.purchase_order_id)
+        else:
+            old_r = prior['retail_value']
+            old_po = prior['purchase_order_id']
+            new_r = self.retail_value
+            new_po = self.purchase_order_id
+            if old_r != new_r or old_po != new_po:
+                if old_po:
+                    po_ids.add(old_po)
+                if new_po:
+                    po_ids.add(new_po)
+        for po_id in po_ids:
+            po = PurchaseOrder.objects.using(alias).filter(pk=po_id).first()
+            if po:
+                po.recompute_item_costs(using=alias)
 
     @staticmethod
     def generate_sku(using=None):

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from django.conf import settings
-from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CHOICES
@@ -45,34 +44,6 @@ class Marketplace(models.Model):
 
     def __str__(self) -> str:
         return self.name
-
-
-class CategoryWantVote(models.Model):
-    """Staff 1–10 want score per taxonomy category (Phase 5 category need panel)."""
-
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='category_want_votes',
-    )
-    category = models.CharField(max_length=64, choices=TAXONOMY_V1_CHOICES, db_index=True)
-    value = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(10)],
-        help_text='1 = skip, 10 = want; neutral target is 5.',
-    )
-    voted_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=['user', 'category'],
-                name='buying_categorywantvote_user_category_uniq',
-            ),
-        ]
-        ordering = ['category', 'user_id']
-
-    def __str__(self) -> str:
-        return f'{self.user_id} {self.category}: {self.value}'
 
 
 class CategoryMapping(models.Model):
@@ -128,6 +99,57 @@ class PricingRule(models.Model):
 
     def __str__(self) -> str:
         return f'{self.category} ({self.sell_through_rate:.2%})'
+
+
+class CategoryStats(models.Model):
+    """Daily SQL aggregates per taxonomy_v1 category (single source for valuation need/rates)."""
+
+    category = models.CharField(max_length=200, unique=True, db_index=True)
+    sell_through_rate = models.DecimalField(
+        max_digits=8,
+        decimal_places=6,
+        help_text='0–1; 0 when denominator is zero.',
+    )
+    have_retail = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    have_units = models.PositiveIntegerField(default=0)
+    want_retail = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    want_units = models.PositiveIntegerField(default=0)
+    need_retail = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    need_units = models.IntegerField(default=0)
+    computed_at = models.DateTimeField(auto_now=True)
+    sell_through_numerator = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    sell_through_denominator = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    avg_sold_price = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Mean COALESCE(sold_for, price) for sold items in the need window.',
+    )
+    avg_retail = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Mean retail line (retail_value/price) for sold items in the need window.',
+    )
+    avg_cost = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Mean allocated cost for sold items in the need window (NULL if no costs).',
+    )
+    need_score_1to99 = models.PositiveSmallIntegerField(
+        default=50,
+        help_text='Min–max scaled need vs other taxonomy buckets (1–99); recomputed daily.',
+    )
+
+    class Meta:
+        ordering = ['category']
+
+    def __str__(self) -> str:
+        return self.category
 
 
 class ManifestTemplate(models.Model):
@@ -340,11 +362,10 @@ class Auction(models.Model):
         null=True,
         blank=True,
     )
-    need_score = models.DecimalField(
-        max_digits=10,
-        decimal_places=4,
+    need_score = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
+        help_text='1–99 weighted mix of CategoryStats.need_score_1to99 for this auction.',
     )
     shrinkage_override = models.DecimalField(
         max_digits=5,
@@ -368,7 +389,26 @@ class Auction(models.Model):
         default=False,
         help_text='True when priority was set manually and should not be overwritten by auto recompute.',
     )
+    est_profit = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Expected profit after shrink vs total cost (lightweight/full recompute).',
+    )
+    archived_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='When set, auction is archived (hidden from default lists and sweeps).',
+    )
     thumbs_up = models.BooleanField(default=False)
+    manifest_pulled_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='When manifest rows were last fetched via API pull or CSV upload (nightly queue skips if set).',
+    )
 
     class Meta:
         ordering = ['-last_updated_at', '-created_at']
@@ -511,6 +551,30 @@ class ManifestRow(models.Model):
 
     def __str__(self) -> str:
         return f'{self.auction_id} row {self.row_number}'
+
+
+class ManifestPullLog(models.Model):
+    """Audit log for anonymous manifest API pulls (nightly queue + admin UI)."""
+
+    auction = models.ForeignKey(
+        Auction,
+        on_delete=models.CASCADE,
+        related_name='manifest_pull_logs',
+    )
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    rows_downloaded = models.PositiveIntegerField(default=0)
+    api_calls = models.PositiveIntegerField(default=0)
+    duration_seconds = models.FloatField(default=0)
+    used_socks5 = models.BooleanField(default=False)
+    success = models.BooleanField(default=True)
+    error_message = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-completed_at']
+
+    def __str__(self) -> str:
+        return f'auction {self.auction_id} @ {self.completed_at}'
 
 
 class WatchlistEntry(models.Model):

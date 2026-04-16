@@ -39,6 +39,7 @@ import UserListPage from './pages/admin/UserListPage';
 import CustomerListPage from './pages/admin/CustomerListPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
+import AssumptionsPage from './pages/admin/AssumptionsPage';
 import PublicItemLookupPage from './pages/PublicItemLookupPage';
 import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
@@ -164,6 +165,14 @@ export default function App() {
         <Route
           path="/admin/settings"
           element={<AdminRoute><SettingsPage /></AdminRoute>}
+        />
+        <Route
+          path="/admin/assumptions"
+          element={
+            <ManagerRoute>
+              <AssumptionsPage />
+            </ManagerRoute>
+          }
         />
       </Route>
 

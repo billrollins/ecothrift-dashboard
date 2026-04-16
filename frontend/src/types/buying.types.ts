@@ -47,11 +47,18 @@ export interface BuyingAuctionListItem {
   estimated_shipping?: string | null;
   estimated_total_cost?: string | null;
   profitability_ratio?: string | null;
-  need_score?: string | null;
+  /** Expected profit after shrink minus total cost (Phase 5+). */
+  est_profit?: string | null;
+  /** 1–99 taxonomy need mix; absent when not computed. */
+  need_score?: number | null;
   shrinkage_override?: string | null;
   profit_target_override?: string | null;
   priority?: number | null;
   priority_override?: boolean;
+  /** When set, auction is archived (hidden from default lists). */
+  archived_at?: string | null;
+  /** Annotated for ordering when API supports it; UI may derive from watchlist tint. */
+  watchlist_sort?: boolean;
   thumbs_up?: boolean;
   /** Aggregate staff thumbs-up votes (Phase 3B). */
   thumbs_up_count?: number;
@@ -98,8 +105,9 @@ export interface BuyingWatchlistParams {
   needed?: boolean;
   /** Title / marketplace name search (split on spaces, AND). */
   q?: string;
-  /** Recently ended auctions (last 24h); omit for live-only (default). */
+  /** Recently ended auctions (last 7 days); omit for live-only (default). */
   completed?: boolean;
+  archived?: boolean;
 }
 
 /** Canonical category mix for manifest rows (auction detail). */
@@ -205,11 +213,44 @@ export interface BuyingMapFastCatBatchResponse {
   estimated_cost_usd?: number;
 }
 
-/** POST /api/buying/auctions/:id/pull_manifest/ */
+/** POST /api/buying/auctions/:id/pull_manifest/ (Admin; anonymous B-Stock manifest API) */
 export interface BuyingPullManifestResponse {
   auctions_processed: number;
   manifest_rows_saved: number;
-  logged_first_manifest_schema: boolean;
+  manifest_api_version: string;
+  rows_saved?: number;
+  rows_with_fast_cat?: number;
+  template_source?: 'existing' | 'ai_created' | 'stub' | 'not_reviewed';
+  template_display_name?: string;
+  manifest_template_id?: number;
+  header_signature?: string;
+  ai_mappings_created?: number;
+  ai_batches_run?: number;
+  ai_error?: 'ai_not_configured' | string | null;
+  unmapped_key_count?: number;
+  total_batches?: number;
+  api_calls?: number;
+  duration_seconds?: number;
+  batches_processed?: number;
+  used_socks5?: boolean;
+  stopped_early_time_cutoff?: boolean;
+  warnings?: string[];
+}
+
+export interface BuyingBudgetPullManifestResponse {
+  iterations: number;
+  auctions_processed: number;
+  manifest_rows_saved: number;
+  stopped_early_time_cutoff: boolean;
+  cutoff: string;
+  manifest_api_version: string;
+}
+
+export interface BuyingBudgetPullManifestBody {
+  seconds: number;
+  batch_size?: number;
+  delay?: number;
+  force?: boolean;
 }
 
 export interface BuyingWatchlistPostBody {
@@ -230,8 +271,9 @@ export interface BuyingAuctionListParams {
   needed?: boolean;
   /** Title / marketplace name search (split on spaces, AND). */
   q?: string;
-  /** Recently ended auctions (last 24h); omit for live-only (default). */
+  /** Recently ended auctions (last 7 days); omit for live-only (default). */
   completed?: boolean;
+  archived?: boolean;
 }
 
 /** GET /api/buying/category-need/ */
@@ -239,6 +281,16 @@ export interface BuyingCategoryNeedRow {
   category: string;
   shelf_count: number;
   sold_count: number;
+  /** Shelf retail $ (on_shelf), same cohort as SQL `have_retail`. */
+  have_retail: string;
+  /** Sold retail $ in need window, same cohort as SQL `want_retail`. */
+  want_retail: string;
+  /** Raw unit leg for need score: `unit_raw_leg(want_units, have_units)` — see `category_stats_sql`. */
+  need_raw_unit_leg: string;
+  /** Raw retail leg: `retail_raw_leg(want_retail, have_retail)`. */
+  need_raw_retail_leg: string;
+  /** Average of the two legs before min–max scale to 1–99. */
+  need_raw_combined: string;
   shelf_pct: string;
   sold_pct: string;
   avg_sale: string | null;
@@ -250,21 +302,19 @@ export interface BuyingCategoryNeedRow {
   sell_through_pct: string;
   need_gap: string;
   bar_scale_max: string;
-  /** From PricingRule — ratio 0–1 */
+  /** From CategoryStats — ratio 0–1 */
   sell_through_rate: string;
+  /** Min–max scaled vs other categories (1–99), daily SQL. */
+  need_score_1to99: number;
 }
 
 export interface BuyingCategoryNeedResponse {
   need_window_days: number;
+  /** Min of `need_raw_combined` across taxonomy rows (same day’s daily SQL). */
+  need_score_raw_global_min: string | null;
+  /** Max of `need_raw_combined` across taxonomy rows. */
+  need_score_raw_global_max: string | null;
   categories: BuyingCategoryNeedRow[];
-}
-
-/** GET/POST /api/buying/category-want/ */
-export interface BuyingCategoryWantRow {
-  category: string;
-  value: number | null;
-  voted_at: string | null;
-  effective_value: number;
 }
 
 /** PATCH /api/buying/auctions/:id/valuation-inputs/ */
@@ -282,8 +332,9 @@ export interface BuyingAuctionSummaryParams {
   marketplace?: string;
   status?: string;
   has_manifest?: boolean;
-  /** Recently ended auctions (last 24h); omit for live-only (default). */
+  /** Recently ended auctions (last 7 days); omit for live-only (default). */
   completed?: boolean;
+  archived?: boolean;
 }
 
 export interface BuyingAuctionSummaryMarketplaceRow {
@@ -348,6 +399,59 @@ export interface BuyingSweepResponse {
   updated?: number;
   by_marketplace?: BuyingSweepMarketplaceRow[];
   ai_estimate?: { considered?: number; estimated?: number };
-  recomputed_open_auctions?: number;
+  /** Count of auctions updated via lightweight recompute after sweep. */
+  lightweight_recomputed?: number;
   valuation_error?: string;
+  /** True when `defer_valuation=1` skipped post-discovery work (lightweight + AI). */
+  valuation_deferred?: boolean;
+  /** Present when server included timing breakdown (ms). */
+  sweep_timing_ms?: Record<string, number>;
+  /** Whether `run_ai=1` was honored for this request. */
+  run_ai?: boolean;
+}
+
+/** GET /api/buying/bstock_token_status/ */
+export interface BuyingBstockTokenStatus {
+  bstock_token_available: boolean;
+}
+
+/** GET /api/buying/auctions/manifest_queue/ (Admin) */
+export interface BuyingManifestQueueParams {
+  page?: number;
+  page_size?: number;
+}
+
+export interface BuyingManifestQueueItem {
+  id: number;
+  title: string;
+  lot_id: string | null;
+  marketplace: BuyingMarketplace;
+  watched: boolean;
+  watchlist_priority: string | null;
+  /** Staff thumbs-up vote count (Phase 3B). */
+  thumbs_up_count: number;
+  auction_priority: number;
+  url: string;
+}
+
+/** GET /api/buying/auctions/manifest_pull_log/ (Admin) */
+export interface BuyingManifestPullLogParams {
+  page?: number;
+  page_size?: number;
+}
+
+export interface BuyingManifestPullLogEntry {
+  id: number;
+  auction_id: number;
+  auction_title: string;
+  auction_url: string;
+  marketplace: BuyingMarketplace;
+  started_at: string;
+  completed_at: string;
+  rows_downloaded: number;
+  api_calls: number;
+  duration_seconds: number;
+  used_socks5: boolean;
+  success: boolean;
+  error_message: string;
 }

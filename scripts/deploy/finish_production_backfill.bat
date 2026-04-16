@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 echo ========================================
 echo   ECOTHRIFT - FINISH PRODUCTION BACKFILL
-echo   Remaining: Phase 5, populate retail, cost pipeline
+echo   Remaining: Phase 5, populate retail, item cost backfill
 echo ========================================
 echo.
 
@@ -28,10 +28,10 @@ if %errorlevel% neq 0 (
 echo [Populate] DONE
 echo.
 
-echo [Cost] Recompute cost pipeline...
-python manage.py recompute_cost_pipeline --database production --no-input
+echo [Cost] Recompute item costs (est_shrink formula)...
+python manage.py recompute_all_item_costs --database production
 if %errorlevel% neq 0 (
-    echo ERROR: recompute_cost_pipeline failed. Check output above.
+    echo ERROR: recompute_all_item_costs failed. Check output above.
     pause
     exit /b 1
 )

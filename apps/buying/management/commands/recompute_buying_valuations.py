@@ -10,6 +10,8 @@ from apps.buying.services.valuation import recompute_all_open_auctions
 class Command(BaseCommand):
     help = (
         "Recompute stored valuation fields for all open/closing auctions. "
+        "For auctions with a manifest, refreshes manifest_category_distribution from ManifestRow "
+        "(retail-weighted mix) before need_score and revenue. "
         "Run after seed_pricing_rules or when PricingRule / inventory need data changes. "
         "(seed_pricing_rules does not auto-recompute; use this command or rely on manifest/AI hooks.)"
     )

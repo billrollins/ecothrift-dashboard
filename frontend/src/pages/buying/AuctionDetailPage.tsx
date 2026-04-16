@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+} from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -17,7 +25,6 @@ import {
   DialogTitle,
   Divider,
   FormControl,
-  Grid,
   IconButton,
   InputLabel,
   MenuItem,
@@ -36,29 +43,43 @@ import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import AiManifestComparisonStrip from '../../components/buying/AiManifestComparisonStrip';
-import AuctionValuationCard from '../../components/buying/AuctionValuationCard';
+import AuctionDetailsInfoCard from '../../components/buying/AuctionDetailsInfoCard';
+import AuctionPrimaryCard from '../../components/buying/AuctionPrimaryCard';
+import AuctionSecondaryCard from '../../components/buying/AuctionSecondaryCard';
+import { ValuationCategoryTableCard, ValuationCostsCard } from '../../components/buying/AuctionValuationCard';
+import BuyingDetailSectionTitle from '../../components/buying/BuyingDetailSectionTitle';
 import CategoryDistributionBar from '../../components/buying/CategoryDistributionBar';
 import { useAuth } from '../../contexts/AuthContext';
+import { ManifestPullProgressPanel } from '../../components/buying/ManifestPullProgressPanel';
 import {
   ManifestUploadProgress,
   type ManifestMappingPhase,
 } from '../../components/buying/ManifestUploadProgress';
 import {
+  deleteBuyingAuctionArchive,
   deleteBuyingManifest,
   deleteBuyingWatchlist,
-  postBuyingAuctionRecomputeValuation,
+  postBuyingAuctionArchive,
+  postBuyingAuctionRefreshFromBstock,
   postBuyingMapFastCatBatch,
+  postBuyingPullManifest,
   postBuyingUploadManifest,
   postBuyingWatchlist,
 } from '../../api/buying.api';
 import { useBuyingAuctionDetail } from '../../hooks/useBuyingAuctionDetail';
+import { useBuyingManifestPullProgress } from '../../hooks/useBuyingManifestPullProgress';
+import { useLiveBuyingCountdownTick } from '../../hooks/useLiveBuyingCountdown';
 import { useBuyingAuctionSnapshots } from '../../hooks/useBuyingAuctionSnapshots';
 import {
   useBuyingManifestRowsInfinite,
   useBuyingManifestRowsPage,
 } from '../../hooks/useBuyingManifestRows';
-import type { BuyingManifestRow, BuyingUploadManifestResponse } from '../../types/buying.types';
-import { formatCurrency, formatCurrencyWhole, formatNumber } from '../../utils/format';
+import type {
+  BuyingAuctionDetail,
+  BuyingManifestRow,
+  BuyingUploadManifestResponse,
+} from '../../types/buying.types';
+import { formatCurrency, formatNumber } from '../../utils/format';
 import {
   CartesianGrid,
   Legend,
@@ -69,8 +90,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { formatTimeRemaining, timeRemainingSx } from '../../utils/buyingAuctionList';
-
 const MANIFEST_PAGE_SIZE = 50;
 
 function categoryConfidenceChipProps(conf: string | null | undefined): {
@@ -190,15 +209,6 @@ function buildManifestColumns(manifestExtendedTotal: string | null | undefined):
   ];
 }
 
-function formatEndTime(iso: string | null): string {
-  if (!iso) return '—';
-  try {
-    return format(parseISO(iso), 'MMM d, yyyy h:mm a');
-  } catch {
-    return iso;
-  }
-}
-
 function dragHasFiles(e: DragEvent): boolean {
   const types = e.dataTransfer?.types;
   if (!types) return false;
@@ -223,6 +233,7 @@ export default function AuctionDetailPage() {
     page: 0,
     pageSize: MANIFEST_PAGE_SIZE,
   });
+
   const [manifestSearch, setManifestSearch] = useState('');
   const [debouncedManifestSearch, setDebouncedManifestSearch] = useState('');
   const [manifestCategoryFilter, setManifestCategoryFilter] = useState('');
@@ -247,19 +258,38 @@ export default function AuctionDetailPage() {
   const { data: detail, isLoading: detailLoading, isError: detailError } =
     useBuyingAuctionDetail(auctionId);
 
+  const countdownTick = useLiveBuyingCountdownTick([detail?.end_time]);
+
   const manifestCols = useMemo(
     () => buildManifestColumns(detail?.manifest_extended_retail_total),
     [detail?.manifest_extended_retail_total]
   );
 
-  const recomputeMutation = useMutation({
-    mutationFn: () => postBuyingAuctionRecomputeValuation(auctionId!),
+  const refreshBstockMutation = useMutation({
+    mutationFn: () => postBuyingAuctionRefreshFromBstock(auctionId!),
     onSuccess: (data) => {
       queryClient.setQueryData(['buying', 'auctions', 'detail', auctionId], data);
-      enqueueSnackbar('Auction updated (local recompute).', { variant: 'success' });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
+      enqueueSnackbar('Refreshed from B-Stock.', { variant: 'success' });
     },
     onError: () => {
-      enqueueSnackbar('Could not update auction.', { variant: 'error' });
+      enqueueSnackbar('Could not refresh from B-Stock.', { variant: 'error' });
+    },
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: async (unarchive: boolean) => {
+      if (!auctionId) throw new Error('missing auction');
+      return unarchive ? deleteBuyingAuctionArchive(auctionId) : postBuyingAuctionArchive(auctionId);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['buying', 'auctions', 'detail', auctionId], data);
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
+      enqueueSnackbar(data.archived_at ? 'Archived.' : 'Unarchived.', { variant: 'success' });
+    },
+    onError: () => {
+      enqueueSnackbar('Could not update archive.', { variant: 'error' });
     },
   });
 
@@ -326,6 +356,17 @@ export default function AuctionDetailPage() {
   const [mappingLatest, setMappingLatest] = useState<string | null>(null);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
 
+  // Timestamp (ms) when the API-pull mutation kicked off, or null when idle.
+  // Used to compute a live elapsed-seconds counter independent of React Query
+  // cache state so the user sees the clock move even during quiet periods.
+  const [apiPullStartedAt, setApiPullStartedAt] = useState<number | null>(null);
+  const [apiPullElapsedMs, setApiPullElapsedMs] = useState(0);
+  /** Distinguish CSV upload vs API pull so the API progress panel does not duplicate CSV mapping UI. */
+  const [manifestSource, setManifestSource] = useState<'none' | 'upload' | 'api_pull'>(
+    'none'
+  );
+  const [mappingFollowUpAt, setMappingFollowUpAt] = useState<number | null>(null);
+
   useEffect(() => {
     setMappingPhase('idle');
     setStep1Info(null);
@@ -334,6 +375,8 @@ export default function AuctionDetailPage() {
     setMappingTotalCost(0);
     setMappingLatest(null);
     cancelMappingRef.current = false;
+    setManifestSource('none');
+    setMappingFollowUpAt(null);
   }, [auctionId]);
 
   const runMappingWorkers = useCallback(async () => {
@@ -355,6 +398,8 @@ export default function AuctionDetailPage() {
         if (res.error === 'ai_not_configured') {
           aiUnavailableRef.current = true;
           setMappingPhase('ai_unavailable');
+          setManifestSource('none');
+          setMappingFollowUpAt(null);
           break;
         }
         if (!res.has_more) break;
@@ -369,11 +414,15 @@ export default function AuctionDetailPage() {
     if (aiUnavailableRef.current) return;
     if (cancelMappingRef.current) {
       setMappingPhase('cancelled');
+      setManifestSource('none');
+      setMappingFollowUpAt(null);
     } else {
       setMappingPhase('complete');
       window.setTimeout(() => {
         setMappingPhase('idle');
         setStep1Info(null);
+        setManifestSource('none');
+        setMappingFollowUpAt(null);
       }, 5000);
     }
   }, [auctionId, queryClient, scheduleDebouncedManifestInvalidate]);
@@ -381,6 +430,102 @@ export default function AuctionDetailPage() {
   const onCancelMapping = () => {
     cancelMappingRef.current = true;
   };
+
+  const pullManifestMutation = useMutation({
+    mutationFn: () => {
+      if (auctionId == null) {
+        return Promise.reject(new Error('Invalid auction'));
+      }
+      return postBuyingPullManifest(auctionId);
+    },
+    onMutate: () => {
+      setApiPullStartedAt(Date.now());
+      setApiPullElapsedMs(0);
+    },
+    onSettled: () => {
+      setApiPullStartedAt(null);
+    },
+    onSuccess: async (data) => {
+      if (auctionId == null) return;
+      invalidateAuctionAndManifest();
+      await queryClient.refetchQueries({
+        queryKey: ['buying', 'auctions', 'detail', auctionId],
+      });
+      await queryClient.refetchQueries({
+        queryKey: ['buying', 'auctions', auctionId, 'manifest_rows'],
+      });
+      const savedRows = data.rows_saved ?? data.manifest_rows_saved ?? 0;
+      const withFc = data.rows_with_fast_cat ?? 0;
+      const tplSource = data.template_source ?? 'existing';
+      const apiCalls = data.api_calls;
+      const durSec = data.duration_seconds;
+      const timingSuffix =
+        apiCalls != null && durSec != null
+          ? ` · ${apiCalls} API calls in ${Number(durSec).toFixed(1)}s`
+          : '';
+      enqueueSnackbar(
+        `Manifest via API: ${savedRows} rows, ${withFc} with fast category (template: ${tplSource})${timingSuffix}.`,
+        { variant: 'success' }
+      );
+      // Server already loops AI mapping; fall back to client worker loop if any keys remain
+      // (e.g. AI cap hit or ai_not_configured so user can retry after setting the env var).
+      if ((data.unmapped_key_count ?? 0) > 0) {
+        setManifestSource('api_pull');
+        setMappingFollowUpAt(Date.now());
+        setStep1Info({
+          rows_saved: data.rows_saved ?? savedRows,
+          rows_with_fast_cat: withFc,
+          template_source: tplSource === 'ai_created' ? 'ai_created' : 'existing',
+          ai_mappings_created: data.ai_mappings_created ?? 0,
+          unmapped_key_count: data.unmapped_key_count ?? 0,
+          total_batches: data.total_batches ?? 0,
+          manifest_template_id: data.manifest_template_id ?? 0,
+          template_display_name: data.template_display_name ?? '',
+          header_signature: data.header_signature ?? '',
+          warnings: data.warnings ?? [],
+        });
+        setUnmappedKeyCountStart(data.unmapped_key_count ?? 0);
+        setMappingKeysRemaining(data.unmapped_key_count ?? 0);
+        setMappingTotalCost(0);
+        setMappingLatest(null);
+        setMappingPhase('mapping');
+        void runMappingWorkers();
+      } else {
+        setManifestSource('none');
+        setMappingFollowUpAt(null);
+      }
+    },
+    onError: (err: unknown) => {
+      const msg = isAxiosError(err)
+        ? (typeof err.response?.data?.detail === 'string'
+            ? err.response.data.detail
+            : 'Could not pull manifest via API.')
+        : 'Could not pull manifest via API.';
+      enqueueSnackbar(msg, { variant: 'error' });
+    },
+  });
+
+  const isApiPulling = pullManifestMutation.isPending;
+
+  const pullProgressQuery = useBuyingManifestPullProgress(auctionId, isApiPulling);
+  const pullProgress = pullProgressQuery.data;
+
+  // Drive the elapsed-seconds ticker while the pull is active. A 500ms tick
+  // keeps the counter feeling "live" without burning React renders; the
+  // effect is cheap since the deps are just the pull-start timestamp.
+  useEffect(() => {
+    if (apiPullStartedAt == null) return;
+    const id = window.setInterval(() => {
+      setApiPullElapsedMs(Date.now() - apiPullStartedAt);
+    }, 500);
+    setApiPullElapsedMs(Date.now() - apiPullStartedAt);
+    return () => window.clearInterval(id);
+  }, [apiPullStartedAt]);
+
+  const showApiPullProgressPanel =
+    isApiPulling || (manifestSource === 'api_pull' && mappingPhase === 'mapping');
+  const manifestFollowUpActive =
+    manifestSource === 'api_pull' && mappingPhase === 'mapping' && !isApiPulling;
 
   const removeManifestMutation = useMutation({
     mutationFn: () => deleteBuyingManifest(auctionId!),
@@ -434,6 +579,7 @@ export default function AuctionDetailPage() {
   const uploadMutation = useMutation({
     mutationFn: (file: File) => postBuyingUploadManifest(auctionId!, file),
     onSuccess: async (data) => {
+      setManifestSource('upload');
       setStep1Info(data);
       if (data.unmapped_key_count > 0) {
         setUnmappedKeyCountStart(data.unmapped_key_count);
@@ -458,6 +604,7 @@ export default function AuctionDetailPage() {
         window.setTimeout(() => {
           setMappingPhase('idle');
           setStep1Info(null);
+          setManifestSource('none');
         }, 4000);
       }
     },
@@ -610,6 +757,8 @@ export default function AuctionDetailPage() {
     if (f && auctionId) uploadMutation.mutate(f);
   };
 
+  void countdownTick;
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Button
@@ -621,14 +770,58 @@ export default function AuctionDetailPage() {
         Auctions
       </Button>
 
-      <Typography
-        variant="h4"
-        component="h1"
-        fontWeight={600}
-        sx={{ lineHeight: 1.25, wordBreak: 'break-word', mb: 0.75 }}
-      >
-        {detail.title}
-      </Typography>
+      <Box sx={{ mb: 0.75 }}>
+        {detail.marketplace?.name ? (
+          <Typography
+            variant="overline"
+            sx={{
+              display: 'block',
+              fontWeight: 800,
+              letterSpacing: 0.14,
+              color: 'primary.main',
+              mb: 0.5,
+              lineHeight: 1.2,
+            }}
+          >
+            {detail.marketplace.name}
+          </Typography>
+        ) : null}
+        <Typography
+          variant="h4"
+          component="h1"
+          fontWeight={600}
+          sx={{ lineHeight: 1.25, wordBreak: 'break-word', m: 0 }}
+        >
+          {detail.url ? (
+            <Box
+              component="a"
+              href={detail.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Open on B-Stock: ${detail.title}`}
+              sx={{
+                display: 'inline',
+                color: 'inherit',
+                textDecoration: 'none',
+                '&:hover': { color: 'primary.main' },
+              }}
+            >
+              {detail.title}
+              <OpenInNewIcon
+                sx={{
+                  fontSize: '0.85em',
+                  ml: 0.5,
+                  verticalAlign: '0.05em',
+                  display: 'inline-block',
+                }}
+                aria-hidden
+              />
+            </Box>
+          ) : (
+            detail.title
+          )}
+        </Typography>
+      </Box>
 
       <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 2.5 }}>
         <Tooltip title={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
@@ -651,35 +844,51 @@ export default function AuctionDetailPage() {
           </span>
         </Tooltip>
 
-        <Tooltip title="Recompute priority, need, and valuation from current data (no B-Stock token)">
+        <Tooltip title="Pull latest price, bids, and timing from B-Stock (public auction state API)">
           <span>
             <Button
-              variant="outlined"
+              variant="contained"
+              color="primary"
               size="small"
-              disabled={recomputeMutation.isPending || !auctionId}
-              onClick={() => auctionId && recomputeMutation.mutate()}
+              disabled={!auctionId || refreshBstockMutation.isPending}
+              onClick={() => auctionId && refreshBstockMutation.mutate()}
               sx={{ textTransform: 'none', minWidth: 0, px: 1.25, py: 0.25 }}
             >
-              {recomputeMutation.isPending ? <CircularProgress size={16} color="inherit" /> : 'Update'}
+              {refreshBstockMutation.isPending ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                'Refresh'
+              )}
             </Button>
           </span>
         </Tooltip>
 
-        {detail.url ? (
-          <Tooltip title="View on B-Stock">
-            <IconButton
-              component="a"
-              href={detail.url}
-              target="_blank"
-              rel="noopener noreferrer"
+        <Tooltip
+          title={
+            detail.archived_at
+              ? 'Unarchive — show in default auction lists again'
+              : 'Archive — hide from default lists (still in Archived filter)'
+          }
+        >
+          <span>
+            <Button
+              variant="text"
+              color="error"
               size="small"
-              aria-label="View on B-Stock"
-              sx={{ color: 'text.secondary' }}
+              disabled={archiveMutation.isPending}
+              onClick={() => archiveMutation.mutate(Boolean(detail.archived_at))}
+              sx={{ textTransform: 'none', minWidth: 0, px: 1.25, py: 0.25 }}
             >
-              <OpenInNewIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ) : null}
+              {archiveMutation.isPending ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : detail.archived_at ? (
+                'Unarchive'
+              ) : (
+                'Archive'
+              )}
+            </Button>
+          </span>
+        </Tooltip>
       </Stack>
 
       <input
@@ -691,133 +900,37 @@ export default function AuctionDetailPage() {
         onChange={onPickManifestFile}
       />
 
-      <Grid container spacing={1.5} sx={{ mb: 3, alignItems: 'stretch' }}>
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Typography
-            variant="subtitle2"
-            color="text.secondary"
-            sx={{ display: 'block', fontWeight: 700, letterSpacing: 0.04, mb: 0.75, textTransform: 'none' }}
-          >
-            Auction Details
-          </Typography>
-          <Card variant="outlined" sx={{ p: 1.25, flex: 1, minHeight: 0, overflow: 'auto' }}>
-            {detail.marketplace?.name ? (
-              <Box sx={{ mb: 1.25 }}>
-                <Chip size="small" label={detail.marketplace.name} color="primary" variant="outlined" />
-                <Divider sx={{ mt: 1.25 }} />
-              </Box>
-            ) : null}
-            <Typography variant="overline" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, mb: 0.5 }}>
-              Pricing
-            </Typography>
-            <Grid container spacing={0.75} columns={12} sx={{ mb: 1.25 }}>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  Current price
-                </Typography>
-                <Typography variant="body2" fontWeight={600} sx={{ mt: 0.2 }}>
-                  {formatCurrency(detail.current_price)}
-                </Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  Starting price
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatCurrency(detail.starting_price)}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  Buy now price
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatCurrency(detail.buy_now_price)}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  Total retail (listing)
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatCurrencyWhole(detail.total_retail_value)}</Typography>
-              </Grid>
-            </Grid>
-
-            <Typography variant="overline" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, mb: 0.5 }}>
-              Timing
-            </Typography>
-            <Grid container spacing={0.75} columns={12} sx={{ mb: 1.25 }}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  End time
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatEndTime(detail.end_time)}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  Time remaining
-                </Typography>
-                <Typography variant="body2" sx={[{ mt: 0.2 }, timeRemainingSx(detail.end_time)]}>
-                  {formatTimeRemaining(detail.end_time)}
-                </Typography>
-              </Grid>
-            </Grid>
-
-            <Typography variant="overline" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, mb: 0.5 }}>
-              Auction
-            </Typography>
-            <Grid container spacing={0.75} columns={12}>
-              <Grid size={{ xs: 6, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  Status
-                </Typography>
-                <Chip size="small" label={detail.status} sx={{ mt: 0.35 }} variant="outlined" />
-              </Grid>
-              <Grid size={{ xs: 6, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  Condition
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.2 }}>{detail.condition_summary || '—'}</Typography>
-              </Grid>
-              <Grid size={{ xs: 6, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  Bid count
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatNumber(detail.bid_count)}</Typography>
-              </Grid>
-              <Grid size={{ xs: 6, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  Lot size
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.2 }}>{formatNumber(detail.lot_size)}</Typography>
-              </Grid>
-              <Grid size={{ xs: 6, sm: 4 }}>
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                  Listing type
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.2 }}>{detail.listing_type || '—'}</Typography>
-              </Grid>
-            </Grid>
-
-            {detail.description ? (
-              <Box sx={{ mt: 1.25 }}>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Description
-                </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.25 }}>
-                  {detail.description}
-                </Typography>
-              </Box>
-            ) : null}
-          </Card>
-          {detail ? <AiManifestComparisonStrip detail={detail} /> : null}
-          {detail ? <AuctionValuationCard detail={detail} isAdmin={isAdmin} /> : null}
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Typography
-            variant="subtitle2"
-            color="text.secondary"
-            sx={{ display: 'block', fontWeight: 700, letterSpacing: 0.04, mb: 0.75, textTransform: 'none' }}
-          >
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+          gap: 1.5,
+          mb: 3,
+          alignItems: 'stretch',
+        }}
+      >
+        <AuctionPrimaryCard detail={detail} isAdmin={isAdmin} />
+        <AuctionSecondaryCard detail={detail} />
+        <ValuationCostsCard detail={detail} isAdmin={isAdmin} />
+        <AuctionDetailsInfoCard detail={detail} />
+        <ValuationCategoryTableCard detail={detail} />
+        <Card
+          variant="outlined"
+          sx={{
+            p: 1.25,
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            overflow: 'visible',
+          }}
+        >
+          <Box sx={{ flexShrink: 0 }}>
+            <AiManifestComparisonStrip detail={detail} />
+          </Box>
+          <BuyingDetailSectionTitle first sx={{ mt: 1.25 }}>
             Manifest
-          </Typography>
+          </BuyingDetailSectionTitle>
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, gap: 1.5 }}>
             <ManifestUploadProgress
               phase={uploadMutation.isPending ? 'uploading' : mappingPhase}
@@ -830,6 +943,19 @@ export default function AuctionDetailPage() {
               showCancel={mappingPhase === 'mapping'}
               onCancel={onCancelMapping}
             />
+            {showApiPullProgressPanel ? (
+              <ManifestPullProgressPanel
+                live={pullProgress?.live ?? null}
+                rowsDownloaded={pullProgress?.rows_downloaded ?? 0}
+                elapsedMs={apiPullElapsedMs}
+                pullActive={isApiPulling}
+                manifestFollowUpActive={manifestFollowUpActive}
+                mappingFollowUpAt={mappingFollowUpAt}
+                mappingPhase={mappingPhase}
+                mappingKeysRemaining={mappingKeysRemaining}
+                unmappedKeyCountStart={unmappedKeyCountStart}
+              />
+            ) : null}
             {!hasManifestRows ? (
               isMappingBatch ? (
                 <Box sx={{ flex: 1, minHeight: 0 }} />
@@ -886,9 +1012,10 @@ export default function AuctionDetailPage() {
                     <Typography variant="body2" align="center" color="text.secondary">
                       Or click the card to browse, or use Choose file below.
                     </Typography>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+                    <Stack spacing={0.75} alignItems="center">
                       <Button
-                        variant="outlined"
+                        variant="contained"
+                        size="small"
                         component="label"
                         htmlFor="auction-manifest-upload-input"
                         disabled={uploadMutation.isPending}
@@ -896,20 +1023,46 @@ export default function AuctionDetailPage() {
                       >
                         Choose file
                       </Button>
-                      {detail.url ? (
+                      <Typography variant="caption" color="text.secondary">
+                        Download
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center">
                         <Button
-                          variant="text"
-                          color="primary"
-                          component="a"
-                          href={detail.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          startIcon={<OpenInNewIcon fontSize="small" />}
+                          variant="outlined"
+                          size="small"
+                          {...(detail.url
+                            ? {
+                                component: 'a',
+                                href: detail.url,
+                                target: '_blank',
+                                rel: 'noopener noreferrer',
+                              }
+                            : {})}
+                          disabled={!detail.url}
                           onClick={(e) => e.stopPropagation()}
+                          startIcon={detail.url ? <OpenInNewIcon sx={{ fontSize: 16 }} /> : undefined}
+                          sx={{ textTransform: 'none', fontSize: '0.75rem' }}
                         >
-                          Download from B-Stock
+                          Manual
                         </Button>
-                      ) : null}
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          disabled={
+                            !isAdmin ||
+                            !detail.lot_id ||
+                            pullManifestMutation.isPending ||
+                            uploadMutation.isPending
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void pullManifestMutation.mutate();
+                          }}
+                          sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                        >
+                          {pullManifestMutation.isPending ? 'API…' : 'API'}
+                        </Button>
+                      </Stack>
                     </Stack>
                     {uploadMutation.isPending ? (
                       <Stack direction="row" alignItems="center" spacing={1}>
@@ -921,104 +1074,142 @@ export default function AuctionDetailPage() {
                 </Card>
               )
             ) : (
-              <Card
-                variant="outlined"
+              <Box
+                onDragEnter={handleReplaceManifestDragEnter}
+                onDragLeave={handleReplaceManifestDragLeave}
+                onDragOver={handleReplaceManifestDragOver}
+                onDrop={handleReplaceManifestDrop}
                 sx={{
                   flex: 1,
                   minHeight: 0,
-                  overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
+                  gap: 1.25,
+                  cursor: replaceManifestDropOver ? 'copy' : 'default',
+                  borderRadius: 1,
+                  bgcolor: replaceManifestDropOver ? 'action.selected' : 'transparent',
+                  transition: 'background-color 0.15s ease',
+                  position: 'relative',
                 }}
               >
+                {replaceManifestDropOver ? (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      bgcolor: 'primary.main',
+                      opacity: 0.06,
+                      pointerEvents: 'none',
+                      borderRadius: 1,
+                    }}
+                  />
+                ) : null}
+
+                {/* Manifest metadata */}
                 <Box
                   sx={{
                     p: 1.25,
-                    pb: 1,
-                    flexShrink: 0,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    gap: 1,
+                    borderRadius: 1,
+                    bgcolor: 'action.hover',
+                    border: 1,
+                    borderColor: 'divider',
                   }}
                 >
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0, flex: 1, minWidth: 0 }}>
-                    {formatNumber(detail.manifest_row_count ?? 0)} rows · {formatNumber(categorizedRows)} categorized
-                    {detail.manifest_template_name ? ` · ${detail.manifest_template_name}` : ''}
-                  </Typography>
-                  {showRemoveManifest ? (
-                    <Button size="small" variant="text" color="inherit" onClick={() => setRemoveDialogOpen(true)} sx={{ flexShrink: 0 }}>
-                      Remove manifest
-                    </Button>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
+                    <Typography variant="body2" fontWeight={600}>
+                      {formatNumber(detail.manifest_row_count ?? 0)} rows
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {formatNumber(categorizedRows)} categorized
+                    </Typography>
+                  </Stack>
+                  {detail.manifest_template_name ? (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                      Template: {detail.manifest_template_name}
+                    </Typography>
                   ) : null}
+                  {detail.manifest_extended_retail_total != null && (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25, fontVariantNumeric: 'tabular-nums' }}>
+                      Manifest retail: {formatCurrency(detail.manifest_extended_retail_total)}
+                    </Typography>
+                  )}
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mt: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Download:
+                    </Typography>
+                    <Button
+                      variant="text"
+                      size="small"
+                      {...(detail.url
+                        ? {
+                            component: 'a',
+                            href: detail.url,
+                            target: '_blank',
+                            rel: 'noopener noreferrer',
+                          }
+                        : {})}
+                      disabled={!detail.url}
+                      sx={{ textTransform: 'none', fontSize: '0.7rem', minWidth: 0 }}
+                    >
+                      Manual
+                    </Button>
+                    <Button
+                      variant="text"
+                      size="small"
+                      disabled={
+                        !isAdmin ||
+                        !detail.lot_id ||
+                        pullManifestMutation.isPending ||
+                        uploadMutation.isPending
+                      }
+                      onClick={() => void pullManifestMutation.mutate()}
+                      sx={{ textTransform: 'none', fontSize: '0.7rem', minWidth: 0 }}
+                    >
+                      {pullManifestMutation.isPending ? 'API…' : 'API'}
+                    </Button>
+                  </Stack>
                 </Box>
 
+                {/* Compact replace zone */}
                 {!isMappingBatch ? (
-                  <Box
-                    onDragEnter={handleReplaceManifestDragEnter}
-                    onDragLeave={handleReplaceManifestDragLeave}
-                    onDragOver={handleReplaceManifestDragOver}
-                    onDrop={handleReplaceManifestDrop}
-                    onClick={() => !uploadMutation.isPending && manifestFileInputRef.current?.click()}
-                    sx={{
-                      position: 'relative',
-                      mt: 'auto',
-                      minHeight: 120,
-                      flex: '1 1 auto',
-                      borderTop: '2px dashed',
-                      borderTopColor: replaceManifestDropOver ? 'primary.main' : 'divider',
-                      px: 2,
-                      py: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: uploadMutation.isPending ? 'wait' : 'pointer',
-                      bgcolor: replaceManifestDropOver ? 'action.selected' : 'action.hover',
-                      transition: 'background-color 0.15s ease, border-color 0.15s ease',
-                      overflow: 'hidden',
-                    }}
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{ px: 0.5 }}
                   >
-                    {replaceManifestDropOver ? (
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          inset: 0,
-                          bgcolor: 'primary.main',
-                          opacity: 0.1,
-                          pointerEvents: 'none',
-                        }}
-                      />
-                    ) : null}
-                    <Stack alignItems="center" spacing={1} sx={{ position: 'relative', zIndex: 1 }}>
-                      {uploadMutation.isPending ? (
-                        <>
-                          <CircularProgress size={22} />
-                          <Typography variant="body2">Processing manifest…</Typography>
-                        </>
-                      ) : (
-                        <>
-                          <Typography variant="body2" color="text.secondary" align="center" fontWeight={500}>
-                            Replace manifest — drop CSV here or click
-                          </Typography>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            component="label"
-                            htmlFor="auction-manifest-upload-input"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Choose file
-                          </Button>
-                        </>
-                      )}
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Button
+                        variant="text"
+                        size="small"
+                        component="label"
+                        htmlFor="auction-manifest-upload-input"
+                        onClick={(e) => e.stopPropagation()}
+                        disabled={uploadMutation.isPending}
+                        sx={{ textTransform: 'none', fontSize: '0.75rem', minWidth: 0 }}
+                      >
+                        {uploadMutation.isPending ? 'Processing…' : 'Replace manifest'}
+                      </Button>
+                      {uploadMutation.isPending && <CircularProgress size={16} />}
                     </Stack>
-                  </Box>
+                    {showRemoveManifest ? (
+                      <Button
+                        size="small"
+                        variant="text"
+                        color="error"
+                        onClick={() => setRemoveDialogOpen(true)}
+                        sx={{ textTransform: 'none', fontSize: '0.75rem', minWidth: 0, flexShrink: 0 }}
+                      >
+                        Remove
+                      </Button>
+                    ) : null}
+                  </Stack>
                 ) : null}
-              </Card>
+              </Box>
             )}
           </Box>
-        </Grid>
-      </Grid>
+        </Card>
+      </Box>
 
       <Divider sx={{ mb: 2 }} />
 

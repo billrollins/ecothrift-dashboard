@@ -2,11 +2,13 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
+  Button,
   FormControl,
   InputLabel,
   MenuItem,
   Select,
   Stack,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
@@ -15,7 +17,7 @@ import type { GridPaginationModel } from '@mui/x-data-grid';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
-import { deleteBuyingWatchlist } from '../../api/buying.api';
+import { deleteBuyingWatchlist, postBuyingWatchlistUpdateNow } from '../../api/buying.api';
 import { useBuyingWatchlist } from '../../hooks/useBuyingWatchlist';
 import { useBuyingWatchlistInfinite } from '../../hooks/useBuyingWatchlistInfinite';
 import type { BuyingWatchlistParams } from '../../types/buying.types';
@@ -74,6 +76,18 @@ export default function WatchlistPage() {
   const mobileTotalCount = infinite.data?.pages?.[0]?.count ?? 0;
   const mobileRemaining = Math.max(0, mobileTotalCount - mobileRows.length);
 
+  const updateNowMutation = useMutation({
+    mutationFn: postBuyingWatchlistUpdateNow,
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
+      const polled = typeof data.polled === 'number' ? data.polled : 0;
+      enqueueSnackbar(`Watch poll: ${polled} auction(s) updated.`, { variant: 'success' });
+    },
+    onError: () => {
+      enqueueSnackbar('Watch update failed.', { variant: 'error' });
+    },
+  });
+
   const removeMutation = useMutation({
     mutationFn: (auctionId: number) => deleteBuyingWatchlist(auctionId),
     onMutate: (auctionId) => {
@@ -130,6 +144,20 @@ export default function WatchlistPage() {
       <PageHeader
         title="Watchlist"
         subtitle="Auctions you are tracking"
+        action={
+          <Tooltip title="Poll B-Stock for due watchlist auctions (public auction state API)">
+            <span>
+              <Button
+                variant="outlined"
+                size="small"
+                disabled={updateNowMutation.isPending}
+                onClick={() => updateNowMutation.mutate()}
+              >
+                {updateNowMutation.isPending ? 'Updating…' : 'Update now'}
+              </Button>
+            </span>
+          </Tooltip>
+        }
       />
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }} flexWrap="wrap">

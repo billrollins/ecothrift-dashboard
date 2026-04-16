@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-09T18:30:00-05:00 -->
+<!-- Last updated: 2026-04-16T14:45:00-05:00 -->
 
 # Databases — Three Generations
 
@@ -18,6 +18,8 @@ Eco-Thrift uses **multiple PostgreSQL databases** locally: frozen archives for V
 **Local dev after `scripts/deploy/0_pull_prod_to_local.bat`:** The script restores a **full production dump** into **`ecothrift_v3`**, including **`public`** (legacy / V2-era tables), **`ecothrift`** (V3 app), **`darkhorse`**, etc. Django connects with `search_path=ecothrift` — ORM uses **`ecothrift.*`**. Category research SQL reads **`public.*`** and **`ecothrift.*`** explicitly for exports (same database as **`DATABASE_*`**); **`public`** is not the Django default schema.
 
 **Separate frozen DBs:** **`ecothrift_v1`** and **`ecothrift_v2`** are optional local archives for introspection and commands that connect to DB1/DB2 **by name** (e.g. historical imports). They are **not** the Django `default` connection.
+
+**Django test database:** `manage.py test` creates a throwaway DB (e.g. `test_ecothrift_v3`) with no `ecothrift` schema. [`ecothrift/settings.py`](../../ecothrift/settings.py) sets `OPTIONS` to `search_path=public` when `sys.argv[1] == 'test'` so `django_migrations` and app tables can be created in **`public`**. Normal dev/prod `default` still uses `search_path=ecothrift`.
 
 ---
 

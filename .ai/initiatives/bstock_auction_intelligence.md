@@ -1,5 +1,5 @@
-<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-15 -->
-<!-- Last updated: 2026-04-15T12:00:00-05:00 -->
+<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-16 -->
+<!-- Last updated: 2026-04-16T14:30:00-05:00 -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -160,7 +160,7 @@ Every manifest row gets tagged with one of **19 canonical categories** (**taxono
 - **Revenue override:** **`revenue_override`** is a **USD** amount (not a sell-through or rate override). **Effective revenue** for margin math uses **`revenue_override` if set, else `estimated_revenue`** (`coalesce`), then **global shrinkage** applies. **`estimated_revenue`** is always the **pre-shrinkage** rollup from mix × rates × retail base.
 - **Fees / shipping overrides:** **`fees_override`** and **`shipping_override`** are **nullable USD** amounts only (**no** percentage toggle on overrides). When null, **`estimated_fees`** / **`estimated_shipping`** use **`Marketplace`** default **fractions** × **`current_price`**.
 - **Profitability:** **`profitability_ratio`** compares **effective revenue after shrinkage** to **`estimated_total_cost`** (hammer + fees + shipping).
-- **Valuation mix precedence / build order:** **`manifest_category_distribution`** (row counts from **`fast_cat_value`**) is used when present; **`ai_category_estimates`** only when there is no manifest mix. **Implementation order** followed that precedence — manifest distribution plumbing (**`compute_and_save_manifest_distribution`**, upload hooks) before the AI title–category estimate path (**`estimate_batch`** / sweep batch).
+- **Valuation mix precedence / build order:** **`manifest_category_distribution`** (retail share of **`ManifestRow.retail_value`** per **`fast_cat_value`**, row-count fallback when retail is all null/zero) is used when present; **`ai_category_estimates`** only when there is no manifest mix. While fast-cat mapping is incomplete, the **Mixed lots & uncategorized** portion is **redistributed** using the AI title mix so **`need_score`** (SUMPRODUCT) reflects known rows plus AI for the unmapped share. **Implementation order** — manifest distribution plumbing (**`compute_and_save_manifest_distribution`**, upload hooks) before the AI title–category estimate path (**`estimate_batch`** / sweep batch); sweep AI is uncapped and skips auctions that already have AI estimates.
 
 ### Phase 6: Outcome tracking
 
@@ -284,12 +284,14 @@ Completed — docs and handoff bundle only (not committed). No version bump. Com
 
 - 2026-04-12T12:00:00-05:00 Session started — archive consultant/SQL/diagnostic artifacts; version + CHANGELOG + context.
 - 2026-04-12T12:00:00-05:00 **Production (prior sessions):** V1/V2→V3 backfill **phases 1–5** deployed; **`Item.retail_value`** populated; **cost pipeline** (**`compute_vendor_metrics`**, **`compute_po_cost_analysis`**, **`compute_item_cost`**, pink-tag fulfillment below 0.15 allocation) run; **vendor merge** (TGT→TRGET), **PO data corrections** (WAL/TGT/WFR/CST/AMZ cases), **retag category inheritance** migration; **DB-aware** **`generate_product_number`** / **`generate_sku`** for **`--database production`**; **phase 2** collision handling; **phase 5** remote batch sizing; **`classify_v2_*`** **`--database` / `--no-input`**; **HISTORICAL** legacy rows cleaned; **`recompute_cost_pipeline`** on production.
+- 2026-04-15 **v2.14.0 shipped:** Replaced legacy nightly cost pipeline with **`PurchaseOrder.est_shrink`** item cost formula + **`recompute_all_item_costs`** backfill; buying need = **`CategoryStats.need_score_1to99`** + auction **`need_score`**/**`priority`** SUMPRODUCT — see **CHANGELOG [2.14.0]** and **`.ai/context.md`**.
 - 2026-04-15T12:00:00-05:00 **Checkpoint (research):** `workspace/test_bstock_endpoints.py` + `workspace/notes/from_consultant/bstock_api_research.md` + JSON samples under `workspace/data/bstock_api_samples/` — endpoint catalog, search **max limit 200**, anonymous vs JWT behaviors; **CHANGELOG** `[Unreleased]` bullet; no app code changes.
 - 2026-04-14T22:00:00-05:00 **Checkpoint (consultant handoff prep):** **`consultant_context`** + **`bstock.md`** — search **GET/POST**, **`limit` 200**, auction/manifest anonymous probes; **`collect_for_consultant.md`** + **flat** bundle per **`consult_retire_scout.md`**; **`handoff_prompt.md`** / **`status_board.md`**; **`backend.md`** — cache TTLs, **`AI_MODEL_FAST`** defaults, **`suggest_item`** retry; personas **Ask/Plan/Agent** + **present_files** conventions; **`workspace/sweep_fast.py`** noted for ops.
+- 2026-04-16T12:00:00-05:00 **Bearing** — MESSY — ~63 files unstaged (+3825/−2078); 0 staged; uncommitted work spans v2.13–v2.15+ (buying, inventory, migrations, UI); not measurable vs Session 22 finish line (v2.11.1); Session 23+ Session 6 initiative **Results** describe shipped releases but **git** still dirty — next: **`startup.md` steps 8–9** (new session entry for this tree) or **`session_close.md`** to commit/reconcile; see chat bearing card.
 
 #### Result
 
-still open — v2.11.1 docs/version prepared; commit pending Bill
+Superseded by Sessions 24–28 (v2.14.0 → v2.15.3 release train). The v2.11.1 docs/version prep and the intervening v2.13.0 / v2.13.1 / v2.14.0 / v2.14.1 / v2.15.0 / v2.15.1 / v2.15.2 / v2.15.3 work all ship in one combined push — see `CHANGELOG.md` [2.15.3] ↔ [2.14.0] and `scripts/deploy/commit_message.txt`.
 
 ---
 
@@ -307,6 +309,106 @@ still open — v2.11.1 docs/version prepared; commit pending Bill
 #### Result
 
 Prepared for release as **v2.13.0** (semver + changelog + docs); **commit/push at Bill’s discretion** (see `scripts/deploy/commit_message.txt`).
+
+---
+
+### Session 24 — v2.14.0 item cost (est_shrink) + need_score_1to99 — est 3h — started 2026-04-15T14:00:00-05:00
+
+**Goal:** Replace legacy nightly `compute_vendor_metrics` / `compute_po_cost_analysis` / `compute_item_cost` / `recompute_cost_pipeline` with a direct **`PurchaseOrder.est_shrink`** → **`Item.cost`** path; swap buying need from ad-hoc scoring to **`CategoryStats.need_score_1to99`** driving auction **`need_score`** / **`priority`** via SUMPRODUCT.
+
+**Finish line:** v2.14.0 semver + CHANGELOG [2.14.0]; legacy cost-pipeline commands deleted; `recompute_all_item_costs` backfill shipped; `compute_daily_category_stats` refreshes `CategoryStats` + 1–99 + cache invalidation.
+
+**Scope:** `apps/inventory/models.py` (`PurchaseOrder.est_shrink`, `Item.cost` recompute), `apps/inventory/migrations/0023_po_est_shrink_remove_cost_pipeline_fields.py`, `apps/buying/services/category_stats_sql.py`, `apps/buying/services/category_need.py`, `apps/buying/services/valuation.py`, `apps/buying/management/commands/compute_daily_category_stats.py`, `apps/inventory/management/commands/recompute_all_item_costs.py`.
+
+#### Session updates
+
+- 2026-04-15T14:00:00-05:00 Model + migration — `PurchaseOrder.est_shrink` default 0.15; removed shrinkage_rate/misfit_rate/avg_sell_through/avg_fulfillment/shrink_retail_est/mistracked_retail/misfit_sales_amt; `Item.cost` derived from PO retail + est_shrink + listing retail.
+- 2026-04-15T15:30:00-05:00 `category_stats_sql.py` + `need_score_1to99`; `compute_daily_category_stats` wires SQL refresh + open-auction recompute + category-need cache bust.
+- 2026-04-15T16:00:00-05:00 Deleted legacy cost-pipeline commands; `recompute_all_item_costs` backfill; CHANGELOG [2.14.0]; `backend.md` / `bstock.md` / `development.md` updated.
+
+#### Result
+
+Prepared for release as **v2.14.0** — shipped in the combined v2.15.3 push (see `CHANGELOG.md` [2.14.0]).
+
+---
+
+### Session 25 — v2.14.1 SOCKS5 hardening for all B-Stock HTTP — est 2h — started 2026-04-15T17:00:00-05:00
+
+**Goal:** Route **every** `*.bstock.com` request through the SOCKS5 proxy (not just search), expose PIA-friendly knobs (`socks5://` vs `socks5h://`, resolved-IP override, dev audit), and build a six-step egress diagnostic script.
+
+**Finish line:** v2.14.1 semver + CHANGELOG [2.14.1]; `BUYING_SOCKS5_LOCAL_DNS=True` default for PIA; `BUYING_SOCKS5_PROXY_IP` optional override; `workspace/tests/socks5_egress_probe.py` 6-step diagnostic; `.ai/extended/vpn-socks5.md` written.
+
+**Scope:** `apps/buying/services/scraper.py` (`_request_json`), `ecothrift/settings.py`, `.env.example`, `workspace/tests/socks5_egress_probe.py`, `.ai/extended/vpn-socks5.md` (new).
+
+#### Session updates
+
+- 2026-04-15T17:00:00-05:00 Scraper — all `_request_json` paths use SOCKS5 when enabled; PIA `0x04` behavior documented (`socks5://` works, `socks5h://` often fails).
+- 2026-04-15T18:30:00-05:00 `socks5_egress_probe.py` 6-step diagnostic (resolve host → direct → socks5+host → socks5+IP → socks5h+host → optional bstock probe).
+- 2026-04-15T19:00:00-05:00 `.ai/extended/vpn-socks5.md` written; CHANGELOG [2.14.1]; `.env.example` documents new keys.
+
+#### Result
+
+Prepared for release as **v2.14.1** — shipped in the combined v2.15.3 push (see `CHANGELOG.md` [2.14.1]).
+
+---
+
+### Session 26 — v2.15.1 manifest pipeline optimizations + dev timelog/benchmark — est 3h — started 2026-04-16T09:00:00-05:00
+
+**Goal:** Seven targeted optimizations on the B-Stock manifest download + post-processing path; dev timing infrastructure to measure pull speed; confirm B-Stock page-size ceiling.
+
+**Finish line:** v2.15.1 semver + CHANGELOG [2.15.1]; baseline ~38 s / 1010 rows / ~26 rows/s confirmed; 10-items/page hard cap documented; 0 additional B-Stock API calls beyond the three baseline pulls.
+
+**Scope:** `apps/buying/services/scraper.py` (lazy singleton `Session`), `apps/buying/services/pipeline.py` (preloaded `CategoryStats`, `Exists` annotation, prefetch, batch_size), `apps/buying/management/commands/{pull_manifests_budget,pull_manifests_nightly}.py` (delay default 1.0 s), `apps/buying/services/manifest_dev_timelog.py` (new), `apps/buying/management/commands/benchmark_manifest_pull.py` (new), `workspace/4-16-26 Collection/B-Manifest API/` scratch + timelogs.
+
+#### Session updates
+
+- 2026-04-16T09:00:00-05:00 Opts 1–7 applied (session reuse, stats preload, queryset annotation, bulk_create batch_size, prefetch, delay cut, migration indexes).
+- 2026-04-16T10:30:00-05:00 `manifest_dev_timelog.py` writes `.timelogs/*.jsonl` + `time_summary.md` when `ENVIRONMENT=development`; `MANIFEST_API_PULL_VERSION` string.
+- 2026-04-16T11:15:00-05:00 Benchmark — warm-up + 3 baseline runs — avg 38.41 s / 1010 rows / ~26.3 rows/s; probe skipped per B-Stock safety rule.
+
+#### Result
+
+Prepared for release as **v2.15.1** — shipped in the combined v2.15.3 push (see `CHANGELOG.md` [2.15.1]).
+
+---
+
+### Session 27 — v2.15.2 retail-weighted manifest mix + AI Mixed-lot blend — est 2h — started 2026-04-16T12:00:00-05:00
+
+**Goal:** Build `manifest_category_distribution` from **retail share** per `fast_cat_value` (not row counts); blend the **Mixed lots & uncategorized** bucket with AI title estimates when both exist; lift per-sweep AI estimate cap; skip auctions already AI-estimated.
+
+**Finish line:** v2.15.2 semver + CHANGELOG [2.15.2]; `recompute_auction_full` refreshes manifest distribution before revenue / `need_score`; `recompute_buying_valuations` backfills retail-weighted mixes.
+
+**Scope:** `apps/buying/services/valuation.py` (`compute_and_save_manifest_distribution`, `_mix_for_auction`, `run_ai_estimate_for_swept_auctions`, `recompute_auction_full`), `apps/buying/services/ai_title_category_estimate.py` (taxonomy/rules/JSON schema into cached system block; drop ≥80% Mixed vendor examples), `apps/buying/management/commands/recompute_buying_valuations.py`.
+
+#### Session updates
+
+- 2026-04-16T12:00:00-05:00 `compute_and_save_manifest_distribution` retail-weighted with row-count fallback; `_mix_for_auction` blends Mixed lots with AI when both present.
+- 2026-04-16T12:45:00-05:00 Lifted 25-auction sweep cap on AI estimates; skip auctions that already have AI estimates; few-shot vendor examples drop rows where Mixed ≥80%.
+- 2026-04-16T13:15:00-05:00 `recompute_auction_full` refreshes manifest distribution from `ManifestRow` before revenue + `need_score`.
+
+#### Result
+
+Prepared for release as **v2.15.2** — shipped in the combined v2.15.3 push (see `CHANGELOG.md` [2.15.2]).
+
+---
+
+### Session 28 — v2.15.3 AI title estimate yield + sweep ergonomics — est 1h — started 2026-04-16T13:30:00-05:00
+
+**Goal:** Restore high save rate from `estimate_batch` by removing the redundant `title_echo` verification (rows already match via `auction_id`); pad the cached system block past Haiku’s 2048-token minimum so repeated batches benefit from `cache_read` pricing; add `estimate_auction_categories --missing-both` for robust backfills.
+
+**Finish line:** v2.15.3 semver + CHANGELOG [2.15.3]; `estimate_batch` with no `title_echo` field; system prompt padded with edge-case + worked-example sections; `--missing-both` flag on `estimate_auction_categories` with default 500 cap (`--limit` overrides).
+
+**Scope:** `apps/buying/services/ai_title_category_estimate.py`, `apps/buying/management/commands/estimate_auction_categories.py`.
+
+#### Session updates
+
+- 2026-04-16T13:30:00-05:00 Removed `title_echo` from `estimate_batch` — rows identified by `auction_id` only.
+- 2026-04-16T14:00:00-05:00 System prompt padded past 2048 tokens; `cache_control=ephemeral` retained.
+- 2026-04-16T14:20:00-05:00 `--missing-both` flag on `estimate_auction_categories` for open/closing auctions missing both mixes; CHANGELOG [2.15.3].
+
+#### Result
+
+Prepared for release as **v2.15.3** (current `.version`) — shipped in the combined v2.15.3 push (see `CHANGELOG.md` [2.15.3] and `scripts/deploy/commit_message.txt`).
 
 ---
 

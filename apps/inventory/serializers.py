@@ -14,10 +14,6 @@ class VendorSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id',
             'created_at',
-            'shrinkage_rate',
-            'misfit_rate',
-            'avg_sell_through',
-            'avg_fulfillment',
         ]
 
 
@@ -75,8 +71,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'status', 'ordered_date', 'paid_date', 'shipped_date',
             'expected_delivery', 'delivered_date',
             'purchase_cost', 'shipping_cost', 'fees',
-            'total_cost', 'retail_value',
-            'shrink_retail_est', 'mistracked_retail', 'misfit_sales_amt',
+            'total_cost', 'retail_value', 'est_shrink',
             'condition', 'description',
             'item_count', 'notes', 'manifest', 'manifest_file', 'manifest_preview',
             'processing_stats',
@@ -85,9 +80,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id',
             'total_cost',
-            'shrink_retail_est',
-            'mistracked_retail',
-            'misfit_sales_amt',
+            'est_shrink',
             'manifest_preview',
             'created_at',
             'updated_at',

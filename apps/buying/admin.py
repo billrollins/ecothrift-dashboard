@@ -5,13 +5,31 @@ from apps.buying.models import (
     AuctionSnapshot,
     Bid,
     CategoryMapping,
-    CategoryWantVote,
+    CategoryStats,
+    ManifestPullLog,
     ManifestRow,
     ManifestTemplate,
     Marketplace,
     Outcome,
     WatchlistEntry,
 )
+
+
+@admin.register(CategoryStats)
+class CategoryStatsAdmin(admin.ModelAdmin):
+    list_display = (
+        'category',
+        'need_score_1to99',
+        'sell_through_rate',
+        'have_units',
+        'want_units',
+        'avg_sold_price',
+        'avg_retail',
+        'avg_cost',
+        'need_retail',
+        'computed_at',
+    )
+    search_fields = ('category',)
 
 
 @admin.register(CategoryMapping)
@@ -49,13 +67,6 @@ class MarketplaceAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('name', 'slug')
     prepopulated_fields = {'slug': ('name',)}
-
-
-@admin.register(CategoryWantVote)
-class CategoryWantVoteAdmin(admin.ModelAdmin):
-    list_display = ('user', 'category', 'value', 'voted_at')
-    list_filter = ('category',)
-    raw_id_fields = ('user',)
 
 
 @admin.register(Auction)
@@ -103,6 +114,34 @@ class ManifestRowAdmin(admin.ModelAdmin):
     list_filter = ('auction',)
     search_fields = ('title', 'brand', 'sku', 'upc')
     raw_id_fields = ('auction',)
+
+
+@admin.register(ManifestPullLog)
+class ManifestPullLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'auction',
+        'completed_at',
+        'rows_downloaded',
+        'api_calls',
+        'duration_seconds',
+        'used_socks5',
+        'success',
+    )
+    list_filter = ('success', 'used_socks5')
+    raw_id_fields = ('auction',)
+    date_hierarchy = 'completed_at'
+    readonly_fields = (
+        'auction',
+        'started_at',
+        'completed_at',
+        'rows_downloaded',
+        'api_calls',
+        'duration_seconds',
+        'used_socks5',
+        'success',
+        'error_message',
+    )
 
 
 @admin.register(WatchlistEntry)

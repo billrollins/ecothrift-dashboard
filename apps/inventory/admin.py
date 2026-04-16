@@ -15,7 +15,15 @@ class VendorAdmin(admin.ModelAdmin):
 
 @admin.register(PurchaseOrder)
 class PurchaseOrderAdmin(admin.ModelAdmin):
-    list_display = ('order_number', 'vendor', 'status', 'ordered_date', 'paid_date', 'total_cost')
+    list_display = (
+        'order_number',
+        'vendor',
+        'status',
+        'ordered_date',
+        'paid_date',
+        'est_shrink',
+        'total_cost',
+    )
     list_filter = ('status',)
     search_fields = ('order_number',)
 

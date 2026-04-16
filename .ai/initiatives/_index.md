@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-15T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-16T14:40:00-05:00 -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -13,8 +13,8 @@ Initiative files **not** under [`_archived/`](./_archived/ARCHIVE.md) (live at `
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [bstock_auction_intelligence.md](./bstock_auction_intelligence.md) | Phase 6 next | **v2.13.0** — fast parallel sweep + raw SQL upsert + optional SOCKS5 for search; Phase 5 complete on production; outcome tracking next. |
-| [ui_ux_polish.md](./ui_ux_polish.md) | Phase 3A shipped (**v2.12.1**) | Session 4 closed; buying list/detail Phase 3A in **CHANGELOG [2.12.1]**; **Phase 3B** (watch/thumbs, top categories, etc.) next when scheduled. |
+| [bstock_auction_intelligence.md](./bstock_auction_intelligence.md) | Phase 6 next | **v2.15.3** — AI title estimate yield (no `title_echo` verify) + `--missing-both`; **v2.15.2** — retail-weighted manifest mix + AI Mixed-lot blend; **v2.15.1** — manifest pipeline opts (session reuse, stats preload, prefetch, batch_size, lower delay) + dev timelog/benchmark; **v2.14.1** — SOCKS5 hardened for all B-Stock HTTP; **v2.14.0** — **`need_score_1to99`** + auction need/priority mix + PO **`est_shrink`** item cost; outcome tracking (Phase 6) next. |
+| [ui_ux_polish.md](./ui_ux_polish.md) | Phase 3B partial + **v2.15.0** detail UX v3 follow-ups | Session 7 (2026-04-16) — v2.15.0 detail restructure polish + manifest queue / sweep progress dialogs + `CategoryNeedDetail` 1–99 redesign + `AssumptionsPage` admin stub; v2.15.0 auction detail UX v3; Phase 3A **v2.12.1**; Phase 3B C/G/J + D+L audit shipped; v2.13.1 desktop grid; D+L Step 3 still gated on formula approval. |
 | Groq / alternative AI cost optimization (parked) | Parked | See **Parking lot** in [bstock_auction_intelligence.md](./bstock_auction_intelligence.md). |
 
 **Current session details** (goal, finish line, updates) live **only** in each initiative file under **`## Sessions`** — not duplicated here.

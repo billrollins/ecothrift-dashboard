@@ -44,6 +44,22 @@ const theme = createTheme({
     borderRadius: 8,
   },
   components: {
+    MuiIconButton: {
+      defaultProps: { disableRipple: true },
+      styleOverrides: {
+        root: {
+          transition: 'none',
+        },
+      },
+    },
+    MuiCheckbox: {
+      defaultProps: { disableRipple: true },
+      styleOverrides: {
+        root: {
+          transition: 'none',
+        },
+      },
+    },
     MuiButton: {
       styleOverrides: {
         root: {

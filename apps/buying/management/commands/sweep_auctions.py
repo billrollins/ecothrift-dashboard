@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.buying.services import pipeline
 from apps.buying.services import scraper
+from apps.buying.services.valuation import recompute_active_auctions_lightweight
 
 logger = logging.getLogger(__name__)
 
@@ -71,3 +72,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(str(summary)))
         logger.info('sweep_auctions %s', summary)
+
+        if not dry:
+            n = recompute_active_auctions_lightweight()
+            self.stdout.write(self.style.SUCCESS(f'lightweight_recomputed={n}'))

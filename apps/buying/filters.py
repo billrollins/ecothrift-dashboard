@@ -40,6 +40,7 @@ class WatchlistAuctionFilter(django_filters.FilterSet):
     thumbs_up = django_filters.BooleanFilter(method='filter_thumbs_up_for_user')
     profitable = django_filters.BooleanFilter(method='filter_profitable')
     needed = django_filters.BooleanFilter(method='filter_needed')
+    archived = django_filters.CharFilter(method='filter_archived')
     q = django_filters.CharFilter(method='filter_q')
 
     class Meta:
@@ -53,6 +54,7 @@ class WatchlistAuctionFilter(django_filters.FilterSet):
             'thumbs_up',
             'profitable',
             'needed',
+            'archived',
             'q',
         ]
 
@@ -88,7 +90,17 @@ class WatchlistAuctionFilter(django_filters.FilterSet):
     def filter_needed(self, queryset, name, value):
         if value is not True:
             return queryset
-        return queryset.filter(need_score__gt=Decimal('0'))
+        return queryset.filter(need_score__gt=0)
+
+    def filter_archived(self, queryset, name, value):
+        if value is None or value == '':
+            return queryset
+        s = str(value).strip().lower()
+        if s in ('true', '1', 'yes', 'on'):
+            return queryset.filter(archived_at__isnull=False)
+        if s in ('false', '0', 'no', 'off'):
+            return queryset.filter(archived_at__isnull=True)
+        return queryset
 
     def filter_q(self, queryset, name, value):
         return filter_auction_text_search(queryset, value)
@@ -117,11 +129,12 @@ class AuctionFilter(django_filters.FilterSet):
     thumbs_up = django_filters.BooleanFilter(method='filter_thumbs_up_for_user')
     profitable = django_filters.BooleanFilter(method='filter_profitable')
     needed = django_filters.BooleanFilter(method='filter_needed')
+    archived = django_filters.CharFilter(method='filter_archived')
     q = django_filters.CharFilter(method='filter_q')
 
     class Meta:
         model = Auction
-        fields = ['marketplace', 'status', 'has_manifest', 'thumbs_up', 'profitable', 'needed', 'q']
+        fields = ['marketplace', 'status', 'has_manifest', 'thumbs_up', 'profitable', 'needed', 'archived', 'q']
 
     def filter_has_manifest(self, queryset, name, value):
         if value is None or value == '':
@@ -145,7 +158,17 @@ class AuctionFilter(django_filters.FilterSet):
         """When true: need_score strictly above zero."""
         if value is not True:
             return queryset
-        return queryset.filter(need_score__gt=Decimal('0'))
+        return queryset.filter(need_score__gt=0)
+
+    def filter_archived(self, queryset, name, value):
+        if value is None or value == '':
+            return queryset
+        s = str(value).strip().lower()
+        if s in ('true', '1', 'yes', 'on'):
+            return queryset.filter(archived_at__isnull=False)
+        if s in ('false', '0', 'no', 'off'):
+            return queryset.filter(archived_at__isnull=True)
+        return queryset
 
     def filter_marketplace(self, queryset, name, value):
         if not value:

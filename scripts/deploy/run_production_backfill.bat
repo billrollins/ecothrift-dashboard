@@ -3,7 +3,7 @@ echo ========================================
 echo   ECOTHRIFT - PRODUCTION BACKFILL CHAIN
 echo ========================================
 echo.
-echo This runs phases 2-5, populate_item_retail_value, and recompute_cost_pipeline
+echo This runs phases 2-5, populate_item_retail_value, and recompute_all_item_costs
 echo against the PRODUCTION database in sequence.
 echo.
 
@@ -49,10 +49,10 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [Cost] Recompute cost pipeline...
-python manage.py recompute_cost_pipeline --database production --no-input
+echo [Cost] Recompute item costs (est_shrink formula)...
+python manage.py recompute_all_item_costs --database production
 if %errorlevel% neq 0 (
-    echo ERROR: recompute_cost_pipeline failed. Check output above.
+    echo ERROR: recompute_all_item_costs failed. Check output above.
     pause
     exit /b 1
 )

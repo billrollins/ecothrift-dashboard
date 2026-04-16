@@ -7,6 +7,7 @@ from typing import Any
 
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 from apps.buying.models import Auction, CategoryMapping, ManifestRow
 from apps.buying.services.ai_key_mapping import (
     count_distinct_unmapped_keys,
@@ -160,7 +161,8 @@ def process_manifest_upload(
 
         ManifestRow.objects.bulk_create(bulk)
         auction.has_manifest = len(bulk) > 0
-        auction.save(update_fields=['has_manifest'])
+        auction.manifest_pulled_at = timezone.now()
+        auction.save(update_fields=['has_manifest', 'manifest_pulled_at'])
 
     mapping = _load_category_mapping()
     unmapped_key_count = count_distinct_unmapped_keys(auction, mapping)

@@ -28,7 +28,7 @@ export default function CategoryNeedBars({ rows, selectedCategory, onSelect }: P
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(120px,1fr) minmax(160px,2fr) 44px 44px 52px 40px 48px',
+          gridTemplateColumns: 'minmax(120px,1fr) minmax(160px,2fr) 44px 44px 52px 40px 36px',
           gap: 0.5,
           alignItems: 'center',
           px: 0.5,
@@ -37,7 +37,7 @@ export default function CategoryNeedBars({ rows, selectedCategory, onSelect }: P
           borderColor: 'divider',
         }}
       >
-        {['Category', 'Distribution', 'Shelf', 'Sold', 'Avg $', 'Thru', 'Need'].map((h) => (
+        {['Category', 'Distribution', 'Shelf', 'Sold', 'Avg $', 'Thru', 'N'].map((h) => (
           <Typography
             key={h}
             variant="caption"
@@ -60,6 +60,7 @@ export default function CategoryNeedBars({ rows, selectedCategory, onSelect }: P
           `Sold: ${row.sold_count} (${soldPct.toFixed(1)}%)`,
           `Avg sale ${formatCurrency(row.avg_sale)} · retail ${formatCurrency(row.avg_retail)} · cost ${formatCurrency(row.avg_cost)}`,
           `Profit/sales ${ps != null ? `${(ps * 100).toFixed(1)}%` : '—'}`,
+          `Need 1–99 ${row.need_score_1to99}`,
           `Need gap ${num(row.need_gap)?.toFixed(1) ?? '—'}`,
         ].join('\n');
 
@@ -69,7 +70,7 @@ export default function CategoryNeedBars({ rows, selectedCategory, onSelect }: P
               onClick={() => onSelect(row.category)}
               sx={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(120px,1fr) minmax(160px,2fr) 44px 44px 52px 40px 48px',
+                gridTemplateColumns: 'minmax(120px,1fr) minmax(160px,2fr) 44px 44px 52px 40px 36px',
                 gap: 0.5,
                 alignItems: 'center',
                 py: 0.35,
@@ -135,19 +136,8 @@ export default function CategoryNeedBars({ rows, selectedCategory, onSelect }: P
               <Typography variant="caption" textAlign="right">
                 {`${pct(row.sell_through_pct).toFixed(0)}%`}
               </Typography>
-              <Typography
-                variant="caption"
-                textAlign="right"
-                sx={{
-                  color:
-                    num(row.need_gap) != null && num(row.need_gap)! > 0
-                      ? 'success.main'
-                      : num(row.need_gap)! < 0
-                        ? 'error.main'
-                        : 'text.primary',
-                }}
-              >
-                {num(row.need_gap)?.toFixed(1) ?? '—'}
+              <Typography variant="caption" textAlign="right" fontWeight={700}>
+                {row.need_score_1to99}
               </Typography>
             </Box>
           </Tooltip>

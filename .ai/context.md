@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-04-15T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-16T14:45:00-05:00 (v2.15.3 release train session-close) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** See repo root `.version` (e.g. **`v2.13.0`**). **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; **Heroku production** has V1/V2→V3 data, **`Item.retail_value`**, categories, and **cost pipeline** deployed (see **CHANGELOG [2.12.0]** and prior). **Buying UI:** Phase 3A auction list/detail polish shipped in **v2.12.1** — [`.ai/initiatives/ui_ux_polish.md`](initiatives/ui_ux_polish.md); **v2.13.0** — fast parallel sweep + optional SOCKS5 — [`.ai/initiatives/bstock_auction_intelligence.md`](initiatives/bstock_auction_intelligence.md). **Active initiative:** **B-Stock Phase 6** — same file (outcome tracking); see also **`.ai/extended/backend.md`**, **`.ai/extended/bstock.md`**, **`.ai/extended/frontend.md`**.
+**Current version:** See repo root `.version` (e.g. **`v2.15.3`**). **v2.15.3** — **AI title estimate yield + sweep ergonomics**: removed redundant `title_echo` verify (rows match via `auction_id`), padded cached system block past Haiku 2048-token minimum for `cache_read` pricing, `estimate_auction_categories --missing-both` backfill — **CHANGELOG [2.15.3]**. **v2.15.2** — **Retail-weighted manifest mix**: `manifest_category_distribution` built from retail share per `fast_cat_value` (row-count fallback), Mixed lots & uncategorized redistributed via AI mix when both exist, per-sweep AI estimate cap lifted — **CHANGELOG [2.15.2]**. **v2.15.1** — **Manifest pipeline optimizations**: HTTP session reuse, CategoryStats preload, queryset annotation, lower inter-auction delay, 1-deep prefetch, bulk_create batch_size, dev timelog/benchmark tooling — **CHANGELOG [2.15.1]**. **v2.15.0** — **Auction detail UX v3**: page restructured around decision flow (urgency strip, decision summary, bid reference card, multi-tick gauge, costs input/output split, sell-through color coding, condition chips, compact manifest) — **CHANGELOG [2.15.0]**, **`.ai/extended/ux-spec.md`**. **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; **Heroku production** has V1/V2→V3 data and **`Item.retail_value`**. **v2.14.0** replaced the legacy nightly **vendor→PO→item** cost commands with **`PurchaseOrder.est_shrink`** and per-line item cost; buying **need** is **`CategoryStats.need_score_1to99`** + auction **`need_score`/`priority`** mix — **CHANGELOG [2.14.0]**, **`.ai/extended/backend.md`**. **v2.14.1** — SOCKS5 proxy hardened for all B-Stock HTTP — **CHANGELOG [2.14.1]**, **`.ai/extended/vpn-socks5.md`**. **Buying UI:** **v2.12.1** polish — [`.ai/initiatives/ui_ux_polish.md`](initiatives/ui_ux_polish.md); **v2.13.0** sweep; **v2.13.1** desktop grid. **Active initiative:** **B-Stock Phase 6** (outcome tracking); see **`.ai/extended/backend.md`**, **`.ai/extended/bstock.md`**, **`.ai/extended/frontend.md`**.
 
 ---
 
@@ -35,7 +35,7 @@ ecothrift-dashboard/
 │   ├── App.tsx             Router + route guards
 │   └── main.tsx            Entry point + providers
 ├── printserver/            Local print server (FastAPI, Python, Windows installer)
-├── scripts/                Committed dev/deploy automation (see `.ai/extended/development.md`)
+├── scripts/                Committed dev/deploy automation — **`dev/start_servers.bat`**, **`dev/kill_servers.bat`**, **`dev/daily_scheduled_tasks.bat`** (Heroku-parity buying jobs; see `.ai/extended/development.md`)
 ├── .ai/                    AI steering: context, protocols, initiatives, extended, reference, prototype
 │   ├── context.md          Primary agent context (read at session start)
 │   ├── consultant_context.md  Single-file, dense handoff for external consultants (not a substitute for modular docs for coders)
@@ -67,13 +67,15 @@ Domain deep-dives loaded **on demand** (do not read all at session start). Each 
 | [`bstock.md`](extended/bstock.md) | Buying | B-Stock API surface, scraper (parallel sweep, optional SOCKS5), auth; full catalog in **`workspace/notes/from_consultant/bstock_api_research.md`** |
 | [`cash-management.md`](extended/cash-management.md) | POS | Cash drops, pickups, drawer reconciliation, safe counts |
 | [`consignment.md`](extended/consignment.md) | Consignment | Agreements, consignment items, payouts, consignee portal |
-| [`databases.md`](extended/databases.md) | Data | Three-generation DB overview (V1/V2/V3), connection patterns, `.env` keys |
-| [`development.md`](extended/development.md) | Dev ops | Dev setup, scripts, environment, logging, Heroku config |
+| [`databases.md`](extended/databases.md) | Data | Three-generation DB overview (V1/V2/V3), `search_path`, Django test DB uses `public`, `.env` keys |
+| [`development.md`](extended/development.md) | Dev ops | Dev setup, **`scripts/dev/`** (e.g. **`daily_scheduled_tasks.bat`**, `start_servers`, `kill_servers`), environment, logging, Heroku Scheduler |
 | [`frontend.md`](extended/frontend.md) | Frontend | React 18.3 + TS + MUI v7, pages, components, routing, React Query hooks |
 | [`inventory-pipeline.md`](extended/inventory-pipeline.md) | Inventory | PO processing, M3 pipeline, preprocessing, manifest templates, fast-cat |
 | [`pos-system.md`](extended/pos-system.md) | POS | Registers, drawers, carts, transactions, terminal UI, receipt flow |
 | [`print-server.md`](extended/print-server.md) | Print | Local FastAPI print server — labels, receipts, drawer kick, Windows installer |
 | [`retag-operations.md`](extended/retag-operations.md) | Inventory | Retag v2 day-of and post-cutover ops; cleanup instructions for temp models |
+| [`ux-spec.md`](extended/ux-spec.md) | UI/UX | Design philosophy, color system, typography, spacing, interaction patterns, component specs — authoritative reference for all pages |
+| [`vpn-socks5.md`](extended/vpn-socks5.md) | Proxy / VPN | PIA SOCKS5 setup, `.env` keys, `socks5://` vs `socks5h://`, diagnostics, IP rotation, troubleshooting |
 
 **Maintenance rule:** When you **add, rename, or remove** a file in `.ai/extended/`, update this table **and** the matching table in `.ai/consultant_context.md`. See **How to Maintain Project Docs** below.
 
@@ -87,10 +89,10 @@ Capability summary — detail lives in the extended docs above and initiative fi
 
 - **Accounts / auth:** JWT, roles, password flows
 - **HR:** Time clock, sick leave, departments, time-entry requests
-- **Inventory:** POs, M3 processing, preprocessing (standard manifest, AI cleanup, matching, pricing); **v2.12.0** — unfiltered item list **pagination `count`** TTL-cached (`item_list_total_count`, 300s) to reduce large-table `COUNT(*)` on `/api/inventory/items/`
+- **Inventory:** POs, M3 processing, preprocessing (standard manifest, AI cleanup, matching, pricing); **v2.12.0** — item list **pagination `count`** cache (`item_list_total_count`); **v2.14.0** — **`Item.cost`** from **`PurchaseOrder.est_shrink`** + listing retail (intake / PO save); backfill **`recompute_all_item_costs`**; legacy cost-pipeline management commands **removed** (see **[2.14.0]**)
 - **POS:** Terminal, drawers, carts, transactions, cash management
 - **Consignment:** Agreements, items, payouts, portal
-- **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped; **v2.12.1** — Phase 3A auction list/detail polish ([ui_ux_polish](initiatives/ui_ux_polish.md)); **v2.13.0** — parallel POST sweep, raw SQL upsert, single-request Refresh, optional SOCKS5 for search ([bstock initiative](initiatives/bstock_auction_intelligence.md)); **Phase 6** (outcome tracking) next
+- **Buying (B-Stock):** Phases 1–5 + 4.1A/4.1B shipped; staff **category-want** vote API/model/UI **removed** **2026-04** (see **`apps/buying/migrations/0016_remove_categorywantvote.py`**); **v2.15.3** — **AI title estimate yield** (no `title_echo`; padded cached system block) + `estimate_auction_categories --missing-both` — **CHANGELOG [2.15.3]**; **v2.15.2** — **Retail-weighted manifest mix** + Mixed-lot AI blend + uncapped sweep AI — **CHANGELOG [2.15.2]**; **v2.15.1** — **Manifest pipeline optimizations** (session reuse, stats preload, annotation, prefetch, batch_size, lower delay, dev timelog/benchmark) — **CHANGELOG [2.15.1]**; **v2.15.0** — **Auction detail UX v3** (decision-flow layout: urgency strip, decision summary, bid reference card, multi-tick gauge, costs I/O split, sell-through/condition color coding, compact manifest — see **`.ai/extended/ux-spec.md`**); **v2.14.0** — **`CategoryStats.need_score_1to99`**, auction **`need_score`/`priority`** (1–99 mix); **v2.14.1** — SOCKS5 hardened for all B-Stock HTTP — **`.ai/extended/vpn-socks5.md`**; prior UI/sweep releases **v2.12.1** / **v2.13.0** / **v2.13.1** — [CHANGELOG](../CHANGELOG.md); **Phase 6** (outcome tracking) next
 - **Data backfill (V1/V2 → V3):** Complete (v2.10.0); initiative **[archived](initiatives/_archived/_completed/data_backfill_initiative.md)** — loaders `backfill_phase1_*` … `backfill_phase5_categories` + `classify_v2_iterate`; **production DB** populated (through **v2.12.0** train); optional **`--database production`** on inventory pipeline commands. Portable CSV **`import_backfill`** to other hosts remains a separate path if ever needed.
 - **Print server:** Local FastAPI labels/receipts/drawer
 - **AI:** Claude proxy (`apps/ai/`), inventory/buying AI
@@ -98,7 +100,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 - **28+** React pages; TypeScript + Vite production build green; eight Django apps with CRUD where applicable.
 
 ### Known Issues
-- **Inventory — acquisition cost:** `Item.retail_value` holds vendor/manifest retail. **`Item.cost`** is populated by **`recompute_cost_pipeline`** (Heroku Scheduler: nightly on production). **Category need** (`build_category_need_rows`) uses **`avg_cost`**, **profit**, and **ROC** when costs exist; mixed window semantics (shelf all-time vs sold in pricing window) — see **`apps/buying/services/category_need.py`**. For new legacy loads: **`populate_item_retail_value`** then **`recompute_cost_pipeline`**.
+- **Inventory — acquisition cost:** `Item.retail_value` holds vendor/manifest retail. **`Item.cost`** is allocated per PO using **`PurchaseOrder.est_shrink`** and listing **`retail_value`** (see **`apps/inventory/models.py`** / **`.ai/extended/backend.md`**). **Category need** panel uses **`CategoryStats.need_score_1to99`** (1–99, daily SQL) plus **`avg_cost`** / profit / ROC for display; mixed window semantics — see **`apps/buying/services/category_need.py`**. For legacy loads after **`populate_item_retail_value`**, run **`recompute_all_item_costs`** once if costs are missing.
 - **Buying — `DELETE manifest` edge case:** A CSV uploaded against the wrong marketplace can leave **`CategoryMapping`** rows with a misleading prefix after manifest rows are removed; **`DELETE …/manifest/`** TODO in **`api_views.py`** tracks future admin tooling (**not** blocking).
 - **AI manifest cleanup — concurrency > 1:** Default is **1** thread; higher values are experimental (progress, resume, and completion semantics are not fully hardened). Cancel increments a server-side generation so in-flight batches skip writes after **Cancel cleanup**.
 - **`anthropic` package must be installed in venv**: `pip install anthropic` in the venv. The import is lazy (won't crash server if missing) but AI features won't work without it.
@@ -107,6 +109,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 - POS cash completion path should be hardened for malformed numeric payloads (e.g., `change_given` string coercion edge cases)
 
 ### Not Yet Implemented
+- **Buying — auction won → `PurchaseOrder`:** There is **no** database link between **`Auction`** and **`PurchaseOrder`** today. Intended direction: when an auction is **won**, **create a PO** (or equivalent) and **reuse manifest data already stored** in the dashboard — **no** redundant B-Stock manifest download for that flow. Item cost then follows the normal PO / **`Item.cost`** path (**`.ai/extended/backend.md`** — Item acquisition cost). Not implemented.
 - Email notifications (forgot-password tokens are returned in response, not emailed)
 - Broad automated test suite (POS cart totals regression tests exist under `apps/pos/tests/`; most domains still lack coverage)
 - Pricing ML model not yet trained — requires running `import_historical_sold` then `train_price_model` after retag day
@@ -160,6 +163,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 - When you change auth or permissions, update `.ai/extended/auth-and-roles.md`.
 - When you add or rename databases / connection patterns, update `.ai/extended/databases.md` (never put secrets in `.ai/`).
 - **When you add, rename, or remove a file in `.ai/extended/`:** update the **Extended docs TOC** table in **this file** (`context.md`) **and** the matching table in **`.ai/consultant_context.md`**. Both TOCs must list every file in `.ai/extended/`.
+- **Heroku Scheduler / buying background jobs:** When **`compute_daily_category_stats`**, **`scheduled_sweep`**, **`watch_auctions`**, or related commands change on production schedules, update **`scripts/dev/daily_scheduled_tasks.bat`**, **`.ai/extended/development.md`** (Heroku table + **Local parity**), **`consultant_context`** (Heroku line), and **`CHANGELOG` `[Unreleased]`** if user-visible.
 - When releasing a new version, bump repo root `.version`, bump root `package.json` `"version"` to match (numeric semver), and add an entry to repo root `CHANGELOG.md`. Anchor **major/minor/patch** in user-visible/API changes; link shipped work to **initiatives** in `_index.md` where applicable (see `.ai/protocols/session_close.md` Part 2). If the initiative in scope is unclear, resolve that before bumping.
 - When B-Stock / buying advisory material changes in a way that would matter to an external advisor, update **`.ai/consultant_context.md`** in the same pass as the relevant initiative or `apps/buying/` behavior (keep it information-dense; see that file’s maintenance note).
 - Always update the `<!-- Last updated: ... -->` timestamp at the top of any file you modify.
@@ -181,6 +185,6 @@ Capability summary — detail lives in the extended docs above and initiative fi
 | Archived initiatives | `.ai/initiatives/_archived/ARCHIVE.md` |
 | Consultant handoff | `.ai/consultant_context.md` |
 | Protocols | `.ai/protocols/` — `startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `collect_for_consultant.md`, `consult_retire_scout.md`, `consult_retire_charlie.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
-| Dev scripts | `scripts/dev/` |
+| Dev scripts | `scripts/dev/` — **`daily_scheduled_tasks.bat`** (buying jobs), **`start_servers.bat`**, **`kill_servers.bat`** |
 | Scratch / notebooks | `workspace/` (mostly gitignored) |
 | E2E test templates | `workspace/testing/` |

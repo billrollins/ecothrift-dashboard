@@ -1,7 +1,4 @@
-"""Poll B-Stock auction state for watched auctions (requires JWT)."""
-
-# Watch polling is disabled on the REST API (POST …/poll/ returns 501).
-# Run this command manually with a valid JWT when server-side auction state polling is required.
+"""Poll B-Stock auction state for watched auctions (anonymous GET to auction.bstock.com)."""
 
 from __future__ import annotations
 
@@ -12,10 +9,9 @@ from apps.buying.services import pipeline, scraper
 
 class Command(BaseCommand):
     help = (
-        'Poll auction.bstock.com for auctions on the watchlist, write AuctionSnapshot '
-        'rows, and update Auction. Respects WatchlistEntry.poll_interval_seconds unless '
-        '--force. Requires workspace/.bstock_token or BSTOCK_AUTH_TOKEN. '
-        'Currently disabled (JWT calls blocked for ban prevention).'
+        'Poll auction.bstock.com for auctions on the watchlist (public listingId batch GET), '
+        'write AuctionSnapshot rows, and update Auction. Respects WatchlistEntry.poll_interval_seconds '
+        'unless --force. No JWT required for auction state.'
     )
 
     def add_arguments(self, parser):
@@ -48,9 +44,6 @@ class Command(BaseCommand):
                 force=force,
                 dry_run=dry_run,
             )
-        except ValueError as e:
-            self.stderr.write(self.style.ERROR(str(e)))
-            raise SystemExit(1) from e
         except scraper.BStockAuthError:
             self.stderr.write(self.style.ERROR(scraper.AUTH_TOKEN_EXPIRED_MESSAGE))
             raise SystemExit(1)

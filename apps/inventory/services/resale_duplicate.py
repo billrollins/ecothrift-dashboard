@@ -19,6 +19,9 @@ def duplicate_item_for_resale(user, src: Item) -> Item:
     new_source = 'purchased' if src.source == 'consignment' else src.source
     now = timezone.now()
 
+    po = src.purchase_order
+    dup_cost = po.compute_item_cost(src.retail_value) if po else None
+
     with transaction.atomic():
         new_item = Item.objects.create(
             sku=Item.generate_sku(),
@@ -32,7 +35,7 @@ def duplicate_item_for_resale(user, src: Item) -> Item:
             category=src.category,
             price=src.price,
             retail_value=src.retail_value,
-            cost=None,
+            cost=dup_cost,
             source=new_source,
             status='on_shelf',
             condition=src.condition,

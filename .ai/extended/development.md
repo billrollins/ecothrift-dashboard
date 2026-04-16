@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-16T18:00:00-05:00 -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -10,7 +10,7 @@
 | `printserver/` | **Local print server** — FastAPI on `127.0.0.1:8888`; build/installer here. Installed exe lives under `%LOCALAPPDATA%\EcoThrift\PrintServer\` (not source). |
 | `.ai/` | AI steering: `context.md`, `protocols/`, `initiatives/`, **`extended/`** (this file and domain deep-dives). |
 | `workspace/` | Local scratch, notebooks, temp artifacts, side projects — almost entirely gitignored; see `workspace/notebooks/_shared/README.md` for notebook setup. |
-| `scripts/dev/` | Windows helpers to start/stop Django + Vite. |
+| `scripts/dev/` | Windows helpers — start/stop servers, **daily Heroku-parity buying jobs** (see `daily_scheduled_tasks.bat`). |
 | `scripts/deploy/` | Deploy-related helpers (e.g. commit message staging). |
 | `workspace/notebooks/` | Jupyter (shared config in `_shared/`); see `workspace/notebooks/README.md` and `_shared/README.md`. |
 
@@ -55,6 +55,21 @@ cd frontend
 npm run dev
 ```
 
+## Heroku Scheduler (buying)
+
+| Schedule | Command |
+|----------|---------|
+| Daily (e.g. 03:00 UTC) | `python manage.py compute_daily_category_stats` |
+| Hourly | `python manage.py scheduled_sweep` |
+
+`compute_daily_category_stats` refreshes SQL-backed `CategoryStats` (including `need_score_1to99`), invalidates the category-need cache, and (unless `--skip-recompute-open`) runs a full valuation pass for non-archived open/closing auctions with a future `end_time`. `scheduled_sweep` runs discovery then `recompute_active_auctions_lightweight`. **Removed:** the legacy nightly **`recompute_cost_pipeline`** — item costs use **`PurchaseOrder.est_shrink`** and **`recompute_all_item_costs`** for backfills only.
+
+**Also polled in-app (not necessarily the same Heroku clock):** **`watch_auctions`** updates watchlisted auctions via anonymous batch GET (`auction.bstock.com`) when **`WatchlistEntry`** poll intervals allow — run it yourself or wire a scheduler; **`scripts/dev/daily_scheduled_tasks.bat`** includes it after `scheduled_sweep`.
+
+### Local parity: `scripts/dev/daily_scheduled_tasks.bat`
+
+From the repo root (or double-click), runs **`compute_daily_category_stats`** → **`scheduled_sweep`** → **`watch_auctions`** against the **default** database. Uses **`venv`** if present. **`SKIP_BSTOCK=1`** runs only **`compute_daily_category_stats`** (offline / no B-Stock HTTP). **Maintenance:** when production schedules or included commands change, update this `.bat` **and** this **development.md** section and **`.ai/context.md`** (file map). Not included: **`recompute_all_item_costs`** (on-demand backfill after data fixes, not daily).
+
 ## Backend tests
 
 - Run Django tests: `python manage.py test` (uses your configured database; creates a test DB).
@@ -64,12 +79,13 @@ Open `http://localhost:5173`. Login: `bill_rollins@ecothrift.us` / `JAckel13`
 
 ## Quick Scripts
 
-If **POS registers** or **supplemental drawer** rows are missing (e.g. after `reset_business_data`), run `python manage.py setup_initial_data` to recreate defaults idempotently, or open **Admin → POS setup** (`/admin/pos-setup`, Manager/Admin) to create registers, locations, or bootstrap a supplemental drawer. You can also use Django **`/db-admin/`** (`contrib.admin`) for `Register`, `SupplementalDrawer`, and `WorkLocation`. (React app routes stay at **`/admin/*`** — e.g. `/admin/pos-setup`, `/admin/settings` — and must not collide with Django admin.) After register IDs change, re-pick the register in **POS device config** on each terminal (stored in browser localStorage). Committed scripts (drag-and-drop into a terminal or run from Explorer):
+If **POS registers** or **supplemental drawer** rows are missing (e.g. after `reset_business_data`), run `python manage.py setup_initial_data` to recreate defaults idempotently, or open **Admin → POS setup** (`/admin/pos-setup`, Manager/Admin) to create registers, locations, or bootstrap a supplemental drawer. **Inventory assumptions** (e.g. default **`po_default_est_shrink`** for new POs): **Admin → Assumptions** (`/admin/assumptions`, Manager/Admin); keys are **`AppSetting`** rows — see **`.ai/extended/backend.md`** (*Item acquisition cost*). You can also use Django **`/db-admin/`** (`contrib.admin`) for `Register`, `SupplementalDrawer`, and `WorkLocation`. (React app routes stay at **`/admin/*`** — e.g. `/admin/pos-setup`, `/admin/settings`, `/admin/assumptions` — and must not collide with Django admin.) After register IDs change, re-pick the register in **POS device config** on each terminal (stored in browser localStorage). Committed scripts (drag-and-drop into a terminal or run from Explorer):
 
 | Script | What it does |
 |--------|-------------|
 | `scripts/dev/start_servers.bat` | Kills listeners on 8000/5173, starts Django + Vite in new windows (uses `venv` if present) |
 | `scripts/dev/kill_servers.bat` | Stops processes using ports 8000 and 5173 |
+| `scripts/dev/daily_scheduled_tasks.bat` | **Buying —** local batch mirroring scheduled work: `compute_daily_category_stats`, `scheduled_sweep`, `watch_auctions`. Optional **`SKIP_BSTOCK=1`** for stats-only. See **Heroku Scheduler** + **Local parity** above. |
 | `python workspace/notes/to_consultant/extract_po_descriptions.py` | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3** (see script for V3 prerequisites); writes **`workspace/notes/to_consultant/purchase_orders_all_details.csv`** and related outputs (**`CHANGELOG`** **2.7.1**). Requires **`psycopg2`** and root **`.env`** DB vars. |
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |
@@ -78,7 +94,7 @@ If **POS registers** or **supplemental drawer** rows are missing (e.g. after `re
 
 **Jupyter (DB1 / DB2 / DB3):** See `workspace/notebooks/_shared/README.md`. From repo root: `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` (and `jupyter` / `jupyterlab` as needed). Secrets go in gitignored `workspace/notebooks/_shared/config_local.py`.
 
-**B-Stock (production):** **`apps/buying/`** — `python manage.py sweep_auctions`, `pull_manifests`, **`bstock_token`** (writes **`workspace/.bstock_token`**, gitignored; scraper prefers it over **`BSTOCK_AUTH_TOKEN`**). **`BUYING_REQUEST_DELAY_SECONDS`**, **`BSTOCK_MAX_RETRIES`**, **`BSTOCK_SEARCH_MAX_PAGES`** in root `.env`. Search listings POST is unauthenticated. Bookmarklet to copy JWT from the `elt` cookie: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. See **`workspace/notebooks/bstock-intelligence/README.md`** for notebooks. **Legacy** notebook package `workspace/notebooks/bstock-scraper/Scraper/` remains reference-only; see `_shared/README.md`. **AI usage log (all Claude call sites):** append-only **`workspace/logs/ai_usage.jsonl`** (gitignored); summarize with **`python scripts/ai/summarize_ai_usage.py`** or **`scripts/ai/summarize_ai_usage.bat`**.
+**B-Stock (production):** **`apps/buying/`** — `python manage.py sweep_auctions`, `pull_manifests`, `pull_manifests_budget`, `pull_manifests_nightly`, **`benchmark_manifest_pull`** (v2.15.1 — dev timing), **`bstock_token`** (writes **`workspace/.bstock_token`**, gitignored; scraper prefers it over **`BSTOCK_AUTH_TOKEN`**). **`BUYING_REQUEST_DELAY_SECONDS`**, **`BSTOCK_MAX_RETRIES`**, **`BSTOCK_SEARCH_MAX_PAGES`** in root `.env`. **v2.15.1:** manifest pipeline uses `requests.Session` reuse, `CategoryStats` preload, queryset annotation, `bulk_create(batch_size=500)`, 1-deep prefetch (`MANIFEST_PULL_PREFETCH` / `--no-prefetch`), default `--delay` **1.0 s** (was 3.0). Dev timing: `ENVIRONMENT=development` writes per-pull JSONL to `workspace/…/B-Manifest API/.timelogs/` and `time_summary.md` via `manifest_dev_timelog.py`. Search listings POST is unauthenticated. Bookmarklet to copy JWT from the `elt` cookie: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. See **`workspace/notebooks/bstock-intelligence/README.md`** for notebooks. **Legacy** notebook package `workspace/notebooks/bstock-scraper/Scraper/` remains reference-only; see `_shared/README.md`. **AI usage log (all Claude call sites):** append-only **`workspace/logs/ai_usage.jsonl`** (gitignored); summarize with **`python scripts/ai/summarize_ai_usage.py`** or **`scripts/ai/summarize_ai_usage.bat`**.
 
 **Print server (V3):** AI-oriented notes in [`.ai/extended/print-server.md`](print-server.md). The Windows **installer** (`printserver/installer/setup.py`) removes legacy V2 artifacts before installing V3; optional IT batch: `printserver/installer/uninstall_legacy_prior.bat`. **Installer / S3 release version** is `VERSION` in [`printserver/config.py`](../../printserver/config.py) (not the same as repo root `.version`, which tracks the dashboard app). Build + upload: `printserver/distribute.bat`. For fast label/receipt iteration, use `printserver/dev_print_label_test.bat` and `printserver/dev_print_receipt_test.bat` (see table above).
 
@@ -117,6 +133,11 @@ Defined in `.env` (gitignored):
 | `BUYING_REQUEST_DELAY_SECONDS` | Minimum delay between scraper HTTP requests | `2.0` |
 | `BSTOCK_MAX_RETRIES` | Retries after HTTP 429 | `3` |
 | `BSTOCK_SEARCH_MAX_PAGES` | Safety cap on search pagination pages per marketplace | `5000` |
+| `BUYING_SOCKS5_PROXY_ENABLED` | Route all `*.bstock.com` HTTP through SOCKS5 | `False` |
+| `BUYING_SOCKS5_LOCAL_DNS` | `True` = `socks5://` (recommended for PIA); `False` = `socks5h://` | `True` |
+| `BUYING_SOCKS5_DEV_AUDIT` | Log redacted SOCKS URLs + egress IP probes to `logs/bstock_api.log` | `False` |
+
+**Full SOCKS5 setup (all `BUYING_SOCKS5_*` vars):** See **[`.ai/extended/vpn-socks5.md`](vpn-socks5.md)**.
 
 **PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `ecothrift_v3`). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. Use **`scripts/deploy/0_pull_prod_to_local.bat`** to load production (including `public` + `ecothrift`) into that local DB. See root **`.env.example`**. Separate local archives **`ecothrift_v1`** (V1) and **`ecothrift_v2`** (V2 **`public`** only) are optional for historical tooling; see **`.ai/extended/databases.md`**.
 

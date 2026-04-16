@@ -31,10 +31,11 @@ import ManifestListCell from '../../components/buying/ManifestListCell';
 
 const MOBILE_PRESET_VALUES = new Set<string>(MOBILE_SORT_OPTIONS.map((o) => o.value));
 
-function formatNeedScoreRaw(score: string | null | undefined): string {
+function formatNeedScoreRaw(score: string | number | null | undefined): string {
   if (score == null || score === '') return '—';
   const n = Number.parseFloat(String(score));
   if (Number.isNaN(n)) return String(score);
+  if (Number.isInteger(n)) return String(n);
   return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
@@ -54,6 +55,8 @@ export type AuctionListMobileProps = {
   onThumbsToggle?: (id: number, next: boolean) => void;
   /** When set, star toggles watchlist (POST/DELETE watch API). */
   onWatchToggle?: (id: number, add: boolean) => void;
+  /** Forces time display to update every second when any row is under 5 min. */
+  countdownTick: number;
 };
 
 export default function AuctionListMobile({
@@ -70,7 +73,9 @@ export default function AuctionListMobile({
   isAdmin = false,
   onThumbsToggle,
   onWatchToggle,
+  countdownTick,
 }: AuctionListMobileProps) {
+  void countdownTick;
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
       <FormControl fullWidth size="small">

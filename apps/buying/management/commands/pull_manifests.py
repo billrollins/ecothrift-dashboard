@@ -1,7 +1,9 @@
-"""Pull manifest line items from order-process.bstock.com using each Auction.lot_id."""
+"""Pull manifest line items from order-process.bstock.com using each Auction.lot_id.
 
-# Token-backed pulls are disabled on the REST API (POST …/pull_manifest/ returns 501).
-# Run this command manually with a valid JWT when server-side manifest fetch is required.
+Fetches use anonymous GET via ``scraper.get_manifest`` (no JWT). SOCKS5 applies
+when ``BUYING_SOCKS5_PROXY_ENABLED`` is True. REST ``POST …/pull_manifest/`` may
+still return 501; this command is the server-side pull path.
+"""
 
 from __future__ import annotations
 
@@ -17,9 +19,9 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = (
-        'Fetch manifests for auctions with has_manifest=True (or specific IDs). '
-        'Requires JWT (workspace/.bstock_token or BSTOCK_AUTH_TOKEN) and Auction.lot_id. '
-        'Currently disabled (JWT calls blocked for ban prevention). Use manual CSV upload instead.'
+        'Fetch manifests via anonymous order-process API (SOCKS5 if enabled). '
+        'With no auction IDs: uses the nightly queue (watched first, then priority). '
+        'Use --legacy-has-manifest to only process auctions where has_manifest=True.'
     )
 
     def add_arguments(self, parser) -> None:
@@ -36,6 +38,28 @@ class Command(BaseCommand):
             action='store_true',
             help='Re-pull even if ManifestRow rows already exist (replaces rows).',
         )
+        parser.add_argument(
+            '--batch-size',
+            type=int,
+            default=None,
+            help='When pulling the queue (no auction IDs), limit to this many auctions.',
+        )
+        parser.add_argument(
+            '--delay',
+            type=float,
+            default=0.0,
+            help='Seconds to sleep after each auction (default 0).',
+        )
+        parser.add_argument(
+            '--legacy-has-manifest',
+            action='store_true',
+            help='Only consider auctions with has_manifest=True (old behavior).',
+        )
+        parser.add_argument(
+            '--no-prefetch',
+            action='store_true',
+            help='Disable overlapping fetch of the next auction manifest.',
+        )
 
     def handle(self, *args, **options):
         ids = options.get('auction_ids')
@@ -43,9 +67,19 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING('No auction ids; nothing to do.'))
             return
         force = bool(options.get('force'))
+        batch_size = options.get('batch_size')
+        delay = float(options.get('delay') or 0.0)
+        legacy = bool(options.get('legacy_has_manifest'))
 
         try:
-            summary = pipeline.run_manifest_pull(auction_ids=ids, force=force)
+            summary = pipeline.run_manifest_pull(
+                auction_ids=ids,
+                force=force,
+                batch_size=batch_size,
+                inter_auction_delay=delay,
+                use_has_manifest_fallback=legacy and ids is None,
+                prefetch_next=not bool(options.get('no_prefetch')),
+            )
         except scraper.BStockAuthError as e:
             raise CommandError(str(e)) from e
         except ValueError as e:

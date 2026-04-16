@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11T19:00:00-05:00 -->
+<!-- Last updated: 2026-04-16T14:45:00-05:00 -->
 
 # Inventory Pipeline — Extended Context
 
@@ -43,7 +43,7 @@ Vendor → PurchaseOrder → CSV upload (S3) → Standard Manifest mapping (expr
 
 - **Types**: `liquidation`, `retail`, `direct`, `other`
 - **Soft delete**: `perform_destroy` sets `is_active=False` instead of deleting
-- **Fields**: `name`, `code` (unique), `vendor_type`, contact info, `address`, `notes`, `is_active`
+- **Fields**: `name`, `code` (unique), `vendor_type`, contact info, `address`, `notes`, `is_active` (legacy vendor shrinkage analytics fields removed **v2.14.0**)
 - **API**: `/inventory/vendors/` — CRUD, staff-only; filter by `vendor_type`, `is_active`; search by `name`, `code`, `contact_name`
 
 ---
@@ -77,12 +77,15 @@ Vendor → PurchaseOrder → CSV upload (S3) → Standard Manifest mapping (expr
 
 `total_cost` is auto-computed in `save()` from: `purchase_cost + shipping_cost + fees`.
 
+**Item acquisition cost (v2.14.0):** Each **`Item.cost`** is allocated when units are created from a manifest and when **`PurchaseOrder.est_shrink`**, listing **`retail_value`**, or **`total_cost`** change — formula **`(item.retail_value / (PO.retail_value × (1 − est_shrink))) × PO.total_cost`**. **`PO.retail_value`** must stay the **B-Stock listing** total (do not replace with sum of line retails). Default **`est_shrink`** = **0.15**; Django admin can edit **`est_shrink`** per PO. One-shot backfill: **`python manage.py recompute_all_item_costs`**. The legacy nightly commands **`compute_vendor_metrics`**, **`compute_po_cost_analysis`**, **`compute_item_cost`**, **`recompute_cost_pipeline`** were **removed**.
+
 ### Additional Fields
 
 - **`order_number`** — Auto-generated `PO-XXXXX` or user-provided; editable after creation.
 - **`description`** — Title-like summary of the order (e.g. "6 Pallets of Small Appliances, 130 Units...").
 - **`condition`** — Choices: `new`, `like_new`, `good`, `fair`, `salvage`, `mixed`.
-- **`retail_value`** — Estimated retail value (can be blank for unmanifested orders).
+- **`retail_value`** — B-Stock **listing** estimated retail (do not overwrite with sum of line retails; drives **`Item.cost`** denominator with **`est_shrink`**).
+- **`est_shrink`** — Expected shrink fraction (**0–1**, default **0.15**); changing it recomputes **`Item.cost`** for all items on the PO (**v2.14.0**).
 - **`manifest_preview`** — JSONField persisting CSV headers + first 20 rows for display on reload.
 
 ---

@@ -62,6 +62,7 @@ class ManifestUploadProcessTests(TestCase):
         self.assertEqual(row.manifest_template_id, self.template.pk)
         self.assertIsNone(row.canonical_category)
 
+    @override_settings(ANTHROPIC_API_KEY='')
     def test_unknown_header_creates_stub_400(self) -> None:
         csv_text = 'A,B\n1,2\n'
         body, code = process_manifest_upload(self.auction, csv_text.encode('utf-8'), 'x.csv')
