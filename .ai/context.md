@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-04-16T14:45:00-05:00 (v2.15.3 release train session-close) -->
+<!-- Last updated: 2026-04-16T22:00:00-05:00 (review_bump — steering audit) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
 
 Eco-Thrift Dashboard is a full-stack business management application for a thrift store in Omaha, NE. It covers HR (time clock, sick leave), inventory (vendors, purchase orders, item processing), point-of-sale (registers, drawers, carts, receipts), consignment (agreements, payouts), and an admin dashboard. Built with Django 5.2 + DRF on the backend and React 18.3 + TypeScript + MUI v7 on the frontend. PostgreSQL database. Deployed to Heroku.
 
-**Current version:** See repo root `.version` (e.g. **`v2.15.3`**). **v2.15.3** — **AI title estimate yield + sweep ergonomics**: removed redundant `title_echo` verify (rows match via `auction_id`), padded cached system block past Haiku 2048-token minimum for `cache_read` pricing, `estimate_auction_categories --missing-both` backfill — **CHANGELOG [2.15.3]**. **v2.15.2** — **Retail-weighted manifest mix**: `manifest_category_distribution` built from retail share per `fast_cat_value` (row-count fallback), Mixed lots & uncategorized redistributed via AI mix when both exist, per-sweep AI estimate cap lifted — **CHANGELOG [2.15.2]**. **v2.15.1** — **Manifest pipeline optimizations**: HTTP session reuse, CategoryStats preload, queryset annotation, lower inter-auction delay, 1-deep prefetch, bulk_create batch_size, dev timelog/benchmark tooling — **CHANGELOG [2.15.1]**. **v2.15.0** — **Auction detail UX v3**: page restructured around decision flow (urgency strip, decision summary, bid reference card, multi-tick gauge, costs input/output split, sell-through color coding, condition chips, compact manifest) — **CHANGELOG [2.15.0]**, **`.ai/extended/ux-spec.md`**. **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; **Heroku production** has V1/V2→V3 data and **`Item.retail_value`**. **v2.14.0** replaced the legacy nightly **vendor→PO→item** cost commands with **`PurchaseOrder.est_shrink`** and per-line item cost; buying **need** is **`CategoryStats.need_score_1to99`** + auction **`need_score`/`priority`** mix — **CHANGELOG [2.14.0]**, **`.ai/extended/backend.md`**. **v2.14.1** — SOCKS5 proxy hardened for all B-Stock HTTP — **CHANGELOG [2.14.1]**, **`.ai/extended/vpn-socks5.md`**. **Buying UI:** **v2.12.1** polish — [`.ai/initiatives/ui_ux_polish.md`](initiatives/ui_ux_polish.md); **v2.13.0** sweep; **v2.13.1** desktop grid. **Active initiative:** **B-Stock Phase 6** (outcome tracking); see **`.ai/extended/backend.md`**, **`.ai/extended/bstock.md`**, **`.ai/extended/frontend.md`**.
+**Current version:** See repo root `.version` (e.g. **`v2.15.3`**). **v2.15.3** — **AI title estimate yield + sweep ergonomics**: removed redundant `title_echo` verify (rows match via `auction_id`), padded cached system block past Haiku 2048-token minimum for `cache_read` pricing, `estimate_auction_categories --missing-both` backfill — **CHANGELOG [2.15.3]**. **v2.15.2** — **Retail-weighted manifest mix**: `manifest_category_distribution` built from retail share per `fast_cat_value` (row-count fallback), Mixed lots & uncategorized redistributed via AI mix when both exist, per-sweep AI estimate cap lifted — **CHANGELOG [2.15.2]**. **v2.15.1** — **Manifest pipeline optimizations**: HTTP session reuse, CategoryStats preload, queryset annotation, lower inter-auction delay, 1-deep prefetch, bulk_create batch_size, dev timelog/benchmark tooling — **CHANGELOG [2.15.1]**. **v2.15.0** — **Auction detail UX v3**: page restructured around decision flow (urgency strip, decision summary, bid reference card, multi-tick gauge, costs input/output split, sell-through color coding, condition chips, compact manifest) — **CHANGELOG [2.15.0]**, **`.ai/extended/ux-spec.md`**. **Historical data backfill** (Phases 0–6) is **complete** and the initiative is **archived** — **[`.ai/initiatives/_archived/_completed/data_backfill_initiative.md`](initiatives/_archived/_completed/data_backfill_initiative.md)**; **Heroku production** has V1/V2→V3 data and **`Item.retail_value`**. **v2.14.0** replaced the legacy nightly **vendor→PO→item** cost commands with **`PurchaseOrder.est_shrink`** and per-line item cost; buying **need** is **`CategoryStats.need_score_1to99`** + auction **`need_score`/`priority`** mix — **CHANGELOG [2.14.0]**, **`.ai/extended/backend.md`**. **v2.14.1** — SOCKS5 proxy hardened for all B-Stock HTTP — **CHANGELOG [2.14.1]**, **`.ai/extended/vpn-socks5.md`**. **Buying UI:** **v2.12.1** polish — [`.ai/initiatives/ui_ux_polish.md`](initiatives/ui_ux_polish.md); **v2.13.0** sweep; **v2.13.1** desktop grid. **Initiatives:** none listed in [`_index.md`](initiatives/_index.md); buying roadmap and Phase 6 direction in **`.ai/extended/bstock.md`**, **`.ai/initiatives/bstock_auction_intelligence.md`** (session history), **`.ai/extended/backend.md`**, **`.ai/extended/frontend.md`**. **`.ai/personas/`** removed (no role prompt files in-repo).
 
 ---
 
@@ -36,16 +36,15 @@ ecothrift-dashboard/
 │   └── main.tsx            Entry point + providers
 ├── printserver/            Local print server (FastAPI, Python, Windows installer)
 ├── scripts/                Committed dev/deploy automation — **`dev/start_servers.bat`**, **`dev/kill_servers.bat`**, **`dev/daily_scheduled_tasks.bat`** (Heroku-parity buying jobs; see `.ai/extended/development.md`)
-├── .ai/                    AI steering: context, protocols, initiatives, extended, reference, prototype
+├── .ai/                    AI steering: context, protocols, initiatives, extended, debug (sample log config)
 │   ├── context.md          Primary agent context (read at session start)
 │   ├── consultant_context.md  Single-file, dense handoff for external consultants (not a substitute for modular docs for coders)
-│   ├── protocols/          startup.md, session_checkpoint.md, get_bearing.md, session_close.md, collect_for_consultant.md, consult_retire_scout.md, consult_retire_charlie.md
+│   ├── protocols/          startup.md, session_checkpoint.md, get_bearing.md, session_close.md, review_bump.md
 │   ├── initiatives/        _index.md (active); _archived/ARCHIVE.md + buckets + _protocols/ (lifecycle how-tos)
 │   ├── extended/           Deep-dive domain docs (load on demand — keeps agent context small)
-│   ├── reference/          Third-party / external context (optional)
-│   └── prototype/          Design prototypes and archived explorations
-├── workspace/              Temp artifacts, notebooks, side projects (almost all gitignored); **`notes/to_consultant/extract_po_descriptions.py`** whitelisted for historical PO export; **`notes/archived/session_*`** holds session diagnostic bundles when rotated out of the working tree
-│   └── notebooks/_shared/requirements-notebooks.txt  Optional Jupyter/DB + ML deps
+│   └── debug/              Optional hierarchical dev logging config (e.g. `log.config`; log file gitignored)
+├── workspace/              Temp artifacts, notebooks, side projects (almost all gitignored); consultant flat drops under **`to_consultant/files-update/`** (see **`extended/consultant_handoff.md`**); AI usage **`logs/ai_usage.jsonl`**; manifest dev logs under **`b-manifest-api/`**
+│   └── notebooks/_shared/requirements-notebooks.txt  Optional Jupyter/DB + ML deps (see **`extended/development.md`**)
 ├── project design/         Original build specification (historical reference)
 ├── .version                Single-line app semver (vMAJOR.MINOR.PATCH)
 ├── CHANGELOG.md            Version-level changelog (repo root)
@@ -64,9 +63,10 @@ Domain deep-dives loaded **on demand** (do not read all at session start). Each 
 |------|--------|-------------|
 | [`auth-and-roles.md`](extended/auth-and-roles.md) | Auth | JWT flow (httpOnly refresh + in-memory access), roles, permissions, password flows |
 | [`backend.md`](extended/backend.md) | Backend | Django apps, models, serializers, API patterns, HR, AI proxy, management commands |
-| [`bstock.md`](extended/bstock.md) | Buying | B-Stock API surface, scraper (parallel sweep, optional SOCKS5), auth; full catalog in **`workspace/notes/from_consultant/bstock_api_research.md`** |
+| [`bstock.md`](extended/bstock.md) | Buying | B-Stock API surface, scraper (parallel sweep, optional SOCKS5), auth, manifest pagination notes (aligned with `apps/buying/services/scraper.py`) |
 | [`cash-management.md`](extended/cash-management.md) | POS | Cash drops, pickups, drawer reconciliation, safe counts |
 | [`consignment.md`](extended/consignment.md) | Consignment | Agreements, consignment items, payouts, consignee portal |
+| [`consultant_handoff.md`](extended/consultant_handoff.md) | AI / ops | Flat **`workspace/to_consultant/files-update/`** bundle; mid-session advisor snapshot |
 | [`databases.md`](extended/databases.md) | Data | Three-generation DB overview (V1/V2/V3), `search_path`, Django test DB uses `public`, `.env` keys |
 | [`development.md`](extended/development.md) | Dev ops | Dev setup, **`scripts/dev/`** (e.g. **`daily_scheduled_tasks.bat`**, `start_servers`, `kill_servers`), environment, logging, Heroku Scheduler |
 | [`frontend.md`](extended/frontend.md) | Frontend | React 18.3 + TS + MUI v7, pages, components, routing, React Query hooks |
@@ -141,7 +141,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 4. **Do NOT amend commits** unless the conditions in the system prompt are met.
 5. **Use timestamps** (ISO 8601, America/Chicago timezone) on all documentation updates.
 6. **Load `.ai/extended/<domain>.md` only when the task touches that domain** — use the **Extended docs TOC** above to pick the right file. Do not read all extended files at once. **`.ai/initiatives/`** and **`.ai/extended/`** are **modular** on purpose so coding sessions do not load irrelevant context. **External consultants** needing one **full** narrative should use **`.ai/consultant_context.md`** (dense, all-in-one) rather than reading every extended file.
-7. **Follow protocols** in `.ai/protocols/` (`startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `collect_for_consultant.md`, `consult_retire_scout.md` / `consult_retire_charlie.md` when rotating consultants). **Cadence:** **`session_checkpoint`** several times per session; **`session_close`** at the end / before commit. **Initiative lifecycle** (`activate_initiative`, `move_initiative_to_*`) — [`.ai/initiatives/_archived/_protocols/README.md`](initiatives/_archived/_protocols/README.md). **Initiatives** live in `.ai/initiatives/` (`_index.md` for active; `_archived/ARCHIVE.md` for the archive catalog).
+7. **Follow protocols** in `.ai/protocols/` (`startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `review_bump.md` for docs audit + semver + `CHANGELOG` slice). **Consultant flat bundle / rotation:** [`.ai/extended/consultant_handoff.md`](extended/consultant_handoff.md). **Cadence:** **`session_checkpoint`** several times per session; **`session_close`** at the end / before commit. **Initiative lifecycle** (`activate_initiative`, `move_initiative_to_*`) — [`.ai/initiatives/_archived/_protocols/README.md`](initiatives/_archived/_protocols/README.md). **Initiatives** live in `.ai/initiatives/` (`_index.md` for active; `_archived/ARCHIVE.md` for the archive catalog).
 8. **Initiatives vs releases** — Tie substantial work and **version bumps** to **named initiatives** when possible; **patch/minor/major** still follows product semver (see `_index.md`). If initiative scope is **ambiguous**, ask the user or add an initiative — do not guess.
 9. **Initiative archiving** — Do **not** move an initiative to `.ai/initiatives/_archived/` unless the **user explicitly** approves or instructs. **Ask** before archiving.
 10. **Verify before changing** — read files before editing, check lints after editing.
@@ -153,7 +153,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 
 ### Documentation lives here:
 
-- **`.ai/`** — AI-oriented steering: `context.md`, **`consultant_context.md`** (single-file consultant handoff for topics it covers), `protocols/`, `initiatives/`, **`extended/`** (domain deep-dives, `development.md`, database routing, retag ops). No separate `docs/` tree.
+- **`.ai/`** — AI-oriented steering: `context.md`, **`consultant_context.md`** (single-file consultant handoff for topics it covers), `protocols/`, `initiatives/`, **`extended/`** (domain deep-dives, `development.md`, database routing, retag ops), optional **`debug/`** (local log config). No separate `docs/` tree.
 - **`workspace/`** — Local scratch, notebook outputs, optional side-project notes (gitignored except whitelisted notebook paths).
 
 ### Maintenance rules:
@@ -184,7 +184,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 | Initiatives (active) | `.ai/initiatives/_index.md` |
 | Archived initiatives | `.ai/initiatives/_archived/ARCHIVE.md` |
 | Consultant handoff | `.ai/consultant_context.md` |
-| Protocols | `.ai/protocols/` — `startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `collect_for_consultant.md`, `consult_retire_scout.md`, `consult_retire_charlie.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
+| Protocols | `.ai/protocols/` — `startup.md`, `session_checkpoint.md`, `get_bearing.md`, `session_close.md`, `review_bump.md`; consultant handoff — `.ai/extended/consultant_handoff.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
 | Dev scripts | `scripts/dev/` — **`daily_scheduled_tasks.bat`** (buying jobs), **`start_servers.bat`**, **`kill_servers.bat`** |
 | Scratch / notebooks | `workspace/` (mostly gitignored) |
 | E2E test templates | `workspace/testing/` |

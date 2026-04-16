@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-14T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-16T18:15:00-05:00 -->
 # Protocol: Session checkpoint (pulse during work)
 
 Run **several times per session** (for example every **1–2 hours**, after a mergeable chunk of work, or when the user says **“checkpoint”**). This keeps **session updates**, **`CHANGELOG` `[Unreleased]`**, and **light doc sync** current **while** you work.
@@ -81,10 +81,11 @@ If something belongs in **`session_close`** (full **`Result`**, **version bump**
 | **`startup.md`** | Session start | Context load; **session entry** + framing questions |
 | **`session_checkpoint.md`** (this) | **Several times** per session | Session updates + **`[Unreleased]`** + light docs |
 | **`get_bearing.md`** | Mid-session when **stuck** / drifting | Compass vs written goal; git truth; bearing card |
+| **`review_bump.md`** | Isolated docs + semver + `CHANGELOG` | Full audit checklist; no **`Result`** / commit / push |
 | **`session_close.md`** | **End** of session / before commit | **`Result`**, semver gate, full doc scope, `commit_message.txt`, pre-commit |
-| **`collect_for_consultant.md`** | Consultant handoff | Spot-check + **flat** bundle (`consult_retire_scout.md` for full list) |
+| [`extended/consultant_handoff.md`](../extended/consultant_handoff.md) | Consultant handoff | Spot-check + **flat** bundle under **`workspace/to_consultant/files-update/`** |
 
-**Typical flow:** **`startup`** → (work) → **`checkpoint`** → (work) → **`checkpoint`** → … → **`get_bearing`** (if needed) → **`session_close`** when done.
+**Typical flow:** **`startup`** → (work) → **`checkpoint`** → (work) → **`checkpoint`** → … → **`get_bearing`** (if needed) → **`review_bump`** (optional, isolated audit) → **`session_close`** when done.
 
 ---
 

@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-16T14:45:00-05:00 (v2.15.3 release train session-close) -->
+<!-- Last updated: 2026-04-16T22:00:00-05:00 (review_bump — steering audit) -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
@@ -14,19 +14,11 @@
 
 **Heroku (buying):** Daily `compute_daily_category_stats` (refreshes **`CategoryStats`** including **`need_score_1to99`**, then full valuation for open future-ended auctions unless `--skip-recompute-open`); hourly `scheduled_sweep`. **No** nightly inventory **`recompute_cost_pipeline`** (removed **v2.14.0**) — see **`.ai/extended/development.md`**. **Local dev:** **`scripts/dev/daily_scheduled_tasks.bat`** runs the same buying commands (plus **`watch_auctions`**) against the default DB; not automatic with **`runserver`**.
 
-**What runs:** From repo root, `python workspace/notes/to_consultant/extract_po_descriptions.py` (requires **`psycopg2`**, `pip install` as needed; reads root **`.env`** `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_USER`, `DATABASE_PASSWORD`). It opens **three** PostgreSQL databases by name: **`ecothrift_v1`**, **`ecothrift_v2`**, and **`ecothrift_v3`** (V3 only returns PO rows if **`public.inventory_purchaseorder`** exists—otherwise V3 is skipped with a logged message; apply inventory migrations or point at a DB that has Django inventory tables).
+**What ran (v2.7.1):** Ad hoc **`extract_po_descriptions.py`** against local **`ecothrift_v1`** / **`ecothrift_v2`** / **`ecothrift_v3`** (requires **`psycopg2`**, root **`.env`** DB vars). The script is **not** committed today; semantics and outputs are recorded in **`CHANGELOG`** **[2.7.1]** and the pending initiative file.
 
-**Outputs (generated; gitignored except the `.py` script):**
+**Outputs (local `workspace/data/`, gitignored):** `po_descriptions_all.csv`, `po_category_distribution.csv`, `po_category_sell_through.csv`, plus consultant-side CSV/MD if you regenerate a local copy.
 
-| Artifact | Location |
-|----------|----------|
-| Full PO list + parsed description fields | `workspace/notes/to_consultant/purchase_orders_all_details.csv` (consultant copy) |
-| Same rows (data dir) | `workspace/data/po_descriptions_all.csv` |
-| Vendor × cleaned_category counts | `workspace/data/po_category_distribution.csv` |
-| Sell-through join vs `sell_through_by_po.csv` | `workspace/data/po_category_sell_through.csv` |
-| Short markdown report | `workspace/notes/to_consultant/po_description_analysis.md` |
-
-**Semantics:** `sold_line_count` in the sell-through aggregation counts **POs that matched** the sell-through file on `po_number`, not per–cart-line counts (see analysis markdown). **`.gitignore`** whitelists **`extract_po_descriptions.py`** under `workspace/notes/to_consultant/` so the script is versioned; CSV/MD outputs stay local.
+**Semantics:** `sold_line_count` in the sell-through aggregation counts **POs that matched** the sell-through file on `po_number`, not per–cart-line counts.
 
 ---
 
@@ -40,7 +32,7 @@
 
 **Relationship to sell-through initiative:** Backfill Phases 3–5 supersede much of the pending `historical_sell_through_analysis` work for data-backed **`PricingRule`** rates from real sold **`Item`** rows.
 
-**Retag v2 scaffolding** (DB2→DB3 cutover) was **removed** from the codebase after March 2026; **[`retag-operations.md`](extended/retag-operations.md)** is historical reference only. Legacy Target duplicate vendor **TGT** was merged into **TRGET** (v2.11.0 data migration); historical note: **`workspace/notes/archived/session_v2.11.0/vendor_prefix_investigation.md`** (archived session bundle).
+**Retag v2 scaffolding** (DB2→DB3 cutover) was **removed** from the codebase after March 2026; **[`retag-operations.md`](extended/retag-operations.md)** is historical reference only. Legacy Target duplicate vendor **TGT** was merged into **TRGET** (v2.11.0 data migration); details remain in **`CHANGELOG`** **[2.11.0]** / **[2.11.1]** (long-form investigation notes were under **`.ai/reference/`**, since removed from the repo).
 
 ---
 
@@ -80,7 +72,7 @@ The dashboard UI is **React** (TypeScript, MUI, React Query). **Buying** staff r
 
 ## Operational model (B-Stock)
 
-**Soft touch vs invasive:** **Soft touch** (default) means using the **public listings API** (`search.bstock.com` **GET** or **POST** — same payload semantics; the Django scraper uses **POST**) **without a JWT**. It is appropriate for **frequent or scheduled sweeps** and minimizes ban risk. **Invasive** flows use a **Bearer JWT** for **token-backed** endpoints where the app still requires them: **order-process manifests** (management commands / legacy pull), authenticated **listing** calls, etc. Invasive calls should be **rare**, **manually approved**, and tied to **intent to bid** or **must-have enrichment**. *(Research note: **GET** `auction.bstock.com` with `listingId` and **GET** order-process manifests have been observed **anonymous 200** for tested probes; the app still passes JWT where coded — policy may change. See **`workspace/notes/from_consultant/bstock_api_research.md`**.)*
+**Soft touch vs invasive:** **Soft touch** (default) means using the **public listings API** (`search.bstock.com` **GET** or **POST** — same payload semantics; the Django scraper uses **POST**) **without a JWT**. It is appropriate for **frequent or scheduled sweeps** and minimizes ban risk. **Invasive** flows use a **Bearer JWT** for **token-backed** endpoints where the app still requires them: **order-process manifests** (management commands / legacy pull), authenticated **listing** calls, etc. Invasive calls should be **rare**, **manually approved**, and tied to **intent to bid** or **must-have enrichment**. *(Research note: **GET** `auction.bstock.com` with `listingId` and **GET** order-process manifests have been observed **anonymous 200** for tested probes; the app still passes JWT where coded — policy may change. Committed detail: **`.ai/extended/bstock.md`**.)*
 
 **Manual manifest path (production):** **CSV upload** in the React **auction detail** page is **shipped** (**v2.7.0**, Phases 4.1A–4.1B): **`POST /api/buying/auctions/{id}/upload_manifest/`** with `ManifestTemplate` detection; optional **Claude** template completion for unknown headers; Stage **2** **`map_fast_cat_batch`** for unmapped **`fast_cat_key`** values. **Server-side** `pull_manifest` using a stored token remains useful for **local development** but is **not** the default production story, because cloud token automation is awkward and token-heavy calls drove **account blocks** during development.
 
@@ -109,12 +101,12 @@ B-Stock’s buyer experience talks to **multiple microservice hosts**. Public UR
 | Call type | Auth (app / typical) |
 |-----------|-------------------------|
 | **GET** or **POST** `search.bstock.com/v1/all-listings/listings` | **No JWT required** for discovery. **Max `limit` = 200** (API returns **400** if higher). **GET** uses query params (`storeFrontId`, `limit`, `offset`); **POST** uses JSON body with **`storeFrontId`** as an **array** (Django **`discover_auctions`**). Important for unattended scheduled sweeps on Heroku. |
-| **GET** `order-process.bstock.com/v1/manifests/{lotId}` | **JWT** in app code (`get_manifest`). **Anonymous GET** has succeeded for **tested** public lots in **2026-04** probes — do not rely on it for production without verification. Manifest pagination: **`limit`** up to **1000** per request in the manifest API (separate from search’s **200** cap). |
+| **GET** `order-process.bstock.com/v1/manifests/{lotId}` | **JWT** in app code (`get_manifest`). **Anonymous GET** has succeeded for **tested** public lots in **2026-04** probes — do not rely on it for production without verification. Manifest pagination: the API accepts a **`limit`** parameter, but **observed page size is 10 rows per request** regardless — loop with **`offset`** until **`total`** (see **`.ai/extended/bstock.md`**, `scraper.py`). |
 | **GET** `auction.bstock.com/v1/auctions?...` | **JWT** in app code (`get_auction_detail`). **Anonymous GET** with **`listingId`** succeeded in **2026-04** probes; app may still require token. |
 | **GET** `listing.bstock.com/...` | **JWT** for **`get_lot_detail`** in app. |
 | **GET** `shipment.bstock.com/...` | **JWT** where used. |
 
-**Canonical research:** **`workspace/notes/from_consultant/bstock_api_research.md`** (endpoint catalog, limits, probes).
+**Canonical (committed):** **`.ai/extended/bstock.md`** (endpoint map aligned with **`apps/buying/services/scraper.py`**).
 
 ### Search listings (discovery)
 
@@ -135,7 +127,7 @@ The response shape is normalized in code, but listings arrive as rows with field
 
 **Endpoint:** `GET https://order-process.bstock.com/v1/manifests/{lotId}`
 
-The path segment is **`lotId`**, not `listingId` and not `groupId`. Query parameters include **`limit`** (maximum **1000** per request for this API; higher values return a clear error), **`offset`** for paging, plus sort and exclude flags. Large manifests require a **pagination loop**: accumulate `offset` until `total` rows are retrieved or a page returns empty.
+The path segment is **`lotId`**, not `listingId` and not `groupId`. Query parameters include **`limit`**, **`offset`** for paging, plus sort and exclude flags. **Observed behavior:** responses return **10 items per page** regardless of `limit` — paginate with **`offset`** until **`total`** lines are retrieved or a page returns empty (see **`.ai/extended/bstock.md`**).
 
 ### Auction state
 
@@ -158,7 +150,7 @@ The **search** response includes **`listingId`** and **`lotId`**. The **manifest
 
 The **Essendant** marketplace on the old **Magento** stack does **not** use **`search.bstock.com`** for discovery the same way. It is **out of scope** for the current Phase 1 pipeline unless a separate integration is funded.
 
-Full scraper endpoint map with auth requirements and triggers is in **`.ai/extended/bstock.md`**; the **full** probe-backed catalog (GET vs POST, limits, sample responses) is **`workspace/notes/from_consultant/bstock_api_research.md`**. **Standalone sweep (no Django):** **`python workspace/sweep_fast.py`** — parallel GET search, **`psycopg2`** upsert into **`buying_auction`**, log under **`workspace/logs/`** (for ops / Scout; not required reading for business advisory).
+Full scraper endpoint map with auth requirements and triggers is in **`.ai/extended/bstock.md`**. A separate long-form probe catalog lived under **`.ai/reference/`** and is **no longer in the repo**; use **`bstock.md`** + **`scraper.py`** as the source of truth. **Standalone ops scripts** (e.g. parallel search without Django) are **not** committed — use **`python manage.py sweep_auctions`** and staff APIs for supported paths.
 
 ---
 
@@ -224,7 +216,7 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **Data:** Six marketplaces are seeded with the **storeFrontId** values above via migrations. **Bookmarklet** documentation lives at **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**.
 
-**Scale observed in testing:** discovery has run across **six** marketplaces (on the order of **60+** auction rows in a representative sweep); **manifest** pagination was validated on large lots (on the order of **1,000+** lines per auction with **limit 1000** and **offset** paging).
+**Scale observed in testing:** discovery has run across **six** marketplaces (on the order of **60+** auction rows in a representative sweep); **manifest** pagination was validated on large lots (hundreds to **1,000+** lines per auction via **`offset`** paging at **10 rows per page**).
 
 ### Phase 2 — staff React UI and APIs (shipped)
 
@@ -254,7 +246,7 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **Phase 4.1A (v2.6.1; manual E2E validation 2026-04):** **`ManifestTemplate`** (per marketplace **header signature**, **`column_map`**, **`category_fields`**, **`is_reviewed`**); **`POST …/upload_manifest/`** (multipart **`file`**) — **`fast_cat_key`** / **`fast_cat_value`** from **`CategoryMapping`** lookup when keys exist; **`category_confidence`** = **`fast_cat`** when mapped; **does not** run **`categorize_manifest_rows`**. **`seed_manifest_templates`** (four templates: Target 17-col, Walmart 13-col, Amazon 16- and 17-col); **`seed_fast_cat_mappings`** (**343** keys — consultant-reviewed from **three** source manifests). **`create_test_auctions`** for local uploads without API. Auction detail API may expose **`manifest_template_name`**.
 
-**Phase 4.1B (v2.7.0; validated 2026-04):** **Claude** proposes **`column_map`** / **`category_fields`** for unknown headers (**`ai_manifest_template.propose_manifest_template_with_ai`**); template saved **`is_reviewed=True`**. **`POST …/map_fast_cat_batch/`** — up to **10** keys per call (**`ai_key_mapping.map_one_fast_cat_batch`**); new **`CategoryMapping`** with **`rule_origin='ai'`**; **`ManifestRow.fast_cat_value`** filled. Upload response includes **`unmapped_key_count`**, **`total_batches`**. **`DELETE …/manifest/`** removes **`ManifestRow`** only — templates and **`CategoryMapping`** persist; **TODO** on wrong-marketplace stale AI prefixes. **`fast_cat_key`** containing **`__no_key__`** excluded from AI. **Usage:** **`workspace/logs/ai_usage.jsonl`**, **`AI_PRICING`**, **`scripts/ai/summarize_ai_usage.py`**. **UI:** **`ManifestUploadProgress`**, **four** concurrent workers, cancel, remove manifest, debounced invalidation; drop/replace hidden during **MAPPING**. **Gotcha:** Sonnet prompt-cache hits ~**0** on small key batches (under **2048**-token cache minimum).
+**Phase 4.1B (v2.7.0; validated 2026-04):** **Claude** proposes **`column_map`** / **`category_fields`** for unknown headers (**`ai_manifest_template.propose_manifest_template_with_ai`**); template saved **`is_reviewed=True`**. **`POST …/map_fast_cat_batch/`** — up to **10** keys per call (**`ai_key_mapping.map_one_fast_cat_batch`**); new **`CategoryMapping`** with **`rule_origin='ai'`**; **`ManifestRow.fast_cat_value`** filled. Upload response includes **`unmapped_key_count`**, **`total_batches`**. **`DELETE …/manifest/`** removes **`ManifestRow`** only — templates and **`CategoryMapping`** persist; **TODO** on wrong-marketplace stale AI prefixes. **`fast_cat_key`** containing **`__no_key__`** excluded from AI. **Usage:** **`workspace/logs/ai_usage.jsonl`**, **`AI_PRICING`** in **`ecothrift/settings.py`** (inspect JSONL; no summarize script in repo). **UI:** **`ManifestUploadProgress`**, **four** concurrent workers, cancel, remove manifest, debounced invalidation; drop/replace hidden during **MAPPING**. **Gotcha:** Sonnet prompt-cache hits ~**0** on small key batches (under **2048**-token cache minimum).
 
 ### Phase 5 — auction valuation (API **v2.8.0**; React **v2.9.0**)
 
@@ -277,7 +269,7 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 - **AI model default (inventory):** **`suggest_item`** and **`ai_cleanup_rows`** default to **`AI_MODEL_FAST`** (Haiku) — Bill decision, Phase 2 (`apps/inventory/views.py`).
 - **Category retry:** **`suggest_item`** includes the canonical taxonomy list in the prompt; **one retry** if the model returns an invalid category; fallback to **Mixed lots & uncategorized**.
 - **Caches (Django DB):** **`item_stats_global`** 300s (item stats aggregate) — TTL-only; **`item_list_total_count`** 300s (unfiltered item list pagination `count`) — TTL-only; **`category_need_panel`** 600s (`GET /api/buying/category-need/`) — **also explicitly deleted** when **`compute_daily_category_stats`** runs (otherwise TTL). **`suggest_item` / `ai_cleanup_rows`** use **`AI_MODEL_FAST`** per request — not cached in this table. Full metric/job/cache matrix: **`.ai/extended/backend.md`** — *Metrics, scheduled jobs, and caching*.
-- **Consultant status board:** optional **`workspace/notes/from_consultant/status_board.md`** — running board (active work, back burner, priorities) for the top of consultant chats; maintained by the consultant each session (not a protocol file).
+- **Consultant status board:** optional local notes (previously **`status_board.md`** under **`.ai/reference/`**, removed). Maintain a short “what’s active” block in chat or a personal file if useful.
 
 ---
 
@@ -322,7 +314,7 @@ The plan was **reordered** so the **frontend** lands before heavy backend-only i
 
 **Prices:** B-Stock often returns **money as integer cents** in API fields. **Dollar display** requires dividing by **100** where that convention applies. **Manifest line retail** in `normalize.py` uses **`_manifest_retail_to_dollars`** heuristics (explicit decimals vs integer minor units). Always validate against **raw JSON** when adjusting mappings.
 
-**Manifest paging:** **`limit`** is capped at **1000**. Large manifests **must** use **offset** pagination.
+**Manifest paging:** **`limit`** in requests does not increase page size — **10 rows per page** observed; large manifests **must** use **offset** pagination until **`total`**.
 
 **Manifest path id:** Use **`lotId`** in **`order-process`** manifest URLs, not **`listingId`**.
 
@@ -364,9 +356,10 @@ These are the domain deep-dive files that coding agents load on demand. Consulta
 |------|--------|-------------|
 | `auth-and-roles.md` | Auth | JWT flow (httpOnly refresh + in-memory access), roles, permissions, password flows |
 | `backend.md` | Backend | Django apps, models, serializers, API patterns, HR, AI proxy, management commands |
-| `bstock.md` | Buying | B-Stock API surface, scraper (parallel POST sweep, optional SOCKS5), auth; **`bstock_api_research.md`** for full catalog |
+| `bstock.md` | Buying | B-Stock API surface, scraper (parallel POST sweep, optional SOCKS5), auth; endpoint map (no separate **`reference/`** research file in repo) |
 | `cash-management.md` | POS | Cash drops, pickups, drawer reconciliation, safe counts |
 | `consignment.md` | Consignment | Agreements, consignment items, payouts, consignee portal |
+| `consultant_handoff.md` | AI / ops | Flat **`workspace/to_consultant/files-update/`** bundle; advisor drops |
 | `databases.md` | Data | Three-generation DB overview (V1/V2/V3), `search_path`, Django test DB uses `public`, `.env` keys |
 | `development.md` | Dev ops | Dev setup, scripts (`scripts/dev/daily_scheduled_tasks.bat`, `start_servers`, `kill_servers`), environment, logging, Heroku Scheduler vs local parity |
 | `frontend.md` | Frontend | React 18.3 + TS + MUI v7, pages, components, routing, React Query hooks |

@@ -15,7 +15,7 @@ This initiative file was the **full program** — **Phases 0 through 7** (three 
 
 **Phases 0–7 are complete.** Deliverables include unified notebook SQL extracts for three bins (`scripts/sql/unified_bin*_public.sql`), the **19-category** spine ([`taxonomy_v1.example.json`](../../../../workspace/notebooks/category-research/taxonomy_v1.example.json)), rule-based manifest mapping ([`cr/taxonomy_estimate.py`](../../../../workspace/notebooks/category-research/cr/taxonomy_estimate.py)), full-item **AI categorization** via Claude ([`cr/prompts.py`](../../../../workspace/notebooks/category-research/cr/prompts.py), [`cr/categorize.py`](../../../../workspace/notebooks/category-research/cr/categorize.py), [`categorize.ipynb`](../../../../workspace/notebooks/category-research/categorize.ipynb)), and **sell-through** comparison of sold (Bin 2) vs on-shelf (Bin 3) by category.
 
-**Outcome:** The project produced **actionable buying recommendations** (e.g. category-level understock vs overstock, margin and days-to-sell context). Onboarding for the workspace: [`workspace/notebooks/category-research/README.md`](../../../../workspace/notebooks/category-research/README.md).
+**Outcome:** The project produced **actionable buying recommendations** (e.g. category-level understock vs overstock, margin and days-to-sell context). Onboarding: [`.ai/extended/development.md`](../../../extended/development.md) (*Jupyter*) and the **`workspace/notebooks/category-research/`** tree (**`category_research.ipynb`**, **`cr/`**).
 
 | Phase | Completed |
 |-------|-----------|
@@ -50,7 +50,7 @@ This initiative file was the **full program** — **Phases 0 through 7** (three 
 
 **Process logs** — Append-only **`logs/extraction_runs.log`** for exports; optional human notes can live in the same **`logs/`** tree or in this initiative. **SQL staging** (temp tables): document in initiative or a dated file under **`logs/`** when used.
 
-**Notebook project** — [`workspace/notebooks/category-research/README.md`](../../../../workspace/notebooks/category-research/README.md): [`category_research.ipynb`](../../../../workspace/notebooks/category-research/category_research.ipynb) plus [`cr/`](../../../../workspace/notebooks/category-research/cr/) helpers. CLI artifact paths remain in [`apps/inventory/category_research_paths.py`](../../../../apps/inventory/category_research_paths.py).
+**Notebook project** — [`category_research.ipynb`](../../../../workspace/notebooks/category-research/category_research.ipynb) plus [`cr/`](../../../../workspace/notebooks/category-research/cr/) helpers. CLI artifact paths remain in [`apps/inventory/category_research_paths.py`](../../../../apps/inventory/category_research_paths.py).
 
 **Working principles**
 
@@ -100,7 +100,7 @@ This initiative file was the **full program** — **Phases 0 through 7** (three 
 - **Three bins, three jobs** — Do not merge the questions; **`public`** (V2) vs **`ecothrift`** (V3) in the **same** database is intentional.
 - **Retail / estimated retail** — Part of the analytics story; document **missing** retail, do not silently average junk.
 - **SKU as bridge** — Across DBs when both sides exist.
-- **Artifacts** — [`workspace/notebooks/category-research/`](../../../../workspace/notebooks/category-research/) (`exports/`, `logs/`, `categorized_exports/`, `reports/`, etc.; see project README).
+- **Artifacts** — [`workspace/notebooks/category-research/`](../../../../workspace/notebooks/category-research/) (generated `exports/`, `logs/`, etc., are gitignored locally).
 
 ---
 
@@ -112,7 +112,7 @@ Skip ahead only when a phase’s **exit criteria** are met (or explicitly waived
 
 **Purpose:** One definition each for “processed,” “sold,” and “in store”; artifacts don’t sprawl.
 
-**Do:** Resolve or default open decisions; confirm **`workspace/notebooks/category-research/`** has README + `logs/` layout; name who signs off on taxonomy.
+**Do:** Resolve or default open decisions; confirm **`workspace/notebooks/category-research/`** layout for exports/logs; name who signs off on taxonomy.
 
 **Exit criteria:** Project README records three bin definitions and export naming (append **`logs/extraction_runs.log`** on first extract).
 
@@ -238,7 +238,7 @@ Skip ahead only when a phase’s **exit criteria** are met (or explicitly waived
 - **`python manage.py export_category_bins`** — [`apps/inventory/management/commands/export_category_bins.py`](../../../../apps/inventory/management/commands/export_category_bins.py)
 - **`python manage.py categorize_category_bins`** — [`apps/inventory/management/commands/categorize_category_bins.py`](../../../../apps/inventory/management/commands/categorize_category_bins.py)
 - **`python manage.py report_category_bins`** — [`apps/inventory/management/commands/report_category_bins.py`](../../../../apps/inventory/management/commands/report_category_bins.py)
-- **[`workspace/notebooks/category-research/README.md`](../../../../workspace/notebooks/category-research/README.md)** — how to run exports, taxonomy, AI, reports
+- **[`.ai/extended/development.md`](../../../extended/development.md)** — Jupyter / notebook setup; **`workspace/notebooks/category-research/`** — exports, taxonomy, AI, reports
 - **[`apps/inventory/category_research_paths.py`](../../../../apps/inventory/category_research_paths.py)** — canonical paths for CLI outputs
 - **[`apps/inventory/services/category_taxonomy.py`](../../../../apps/inventory/services/category_taxonomy.py)** — taxonomy helpers and validation
 - **[`scripts/sql/`](../../../../scripts/sql/)** — `unified_bin*_public.sql`, `category_research_discovery.sql`, legacy `public_bin*_`, `ecothrift_bin3_*`

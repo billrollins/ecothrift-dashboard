@@ -1,5 +1,5 @@
 <!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-16 -->
-<!-- Last updated: 2026-04-16T14:30:00-05:00 -->
+<!-- Last updated: 2026-04-16T20:30:00-05:00 (paths: notebooks + AI log tooling) -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
 **Status:** Active
@@ -12,7 +12,7 @@
 
 B-Stock auctions are time-sensitive: final price is often decided in the last seconds of an auction. The owner needs to discover and evaluate listings efficiently (AI-assisted triage), watch a narrowed set with fast refresh, and learn over time which vendor, category, and brand patterns correlate with resale value and margin.
 
-**Architecture:** This work is a **new Django app** inside Eco-Thrift Dashboard, not a separate repo. Heroku runs the app 24/7; the owner has one home machine and no always-on local server. **Production behavior** (scraping orchestration, persistence, scheduled jobs) lives in **`apps/buying/`** with data in **Postgres**. **Notebooks** under `workspace/notebooks/bstock-intelligence/` (workbench) connect to the same database and call **`apps/buying/`** services or APIs for exploration and prompt iteration.
+**Architecture:** This work is a **new Django app** inside Eco-Thrift Dashboard, not a separate repo. Heroku runs the app 24/7; the owner has one home machine and no always-on local server. **Production behavior** (scraping orchestration, persistence, scheduled jobs) lives in **`apps/buying/`** with data in **Postgres**. **Notebooks** under **`workspace/notebooks/`** (e.g. **`category-research/`**, **`historical-data/`**, **`bstock-scraper/`**) are an optional local workbench — not required for production.
 
 **Code today:** **`apps/buying/`** replaces the prior `Scraper/` package. Reference the old notebook package only for DevTools and HTTP patterns. Use the **RS256 JWT** from **`__NEXT_DATA__.props.pageProps.accessToken`** (or **`POST /api/buying/token/`** when **`DEBUG`**), not the **JWE** in the **`elt`** cookie. Manifest pull paginates until **`total`** manifest lines are stored.
 
@@ -134,7 +134,7 @@ Every manifest row gets tagged with one of **19 canonical categories** (**taxono
 - **AI key mapping:** Unmapped **`fast_cat_key`** values batched (**10** per **`POST /api/buying/auctions/{id}/map_fast_cat_batch/`**); **`apps/buying/services/ai_key_mapping.py`** (`map_one_fast_cat_batch`); new **`CategoryMapping`** rows with **`rule_origin='ai'`**; **`ManifestRow.fast_cat_value`** updated. **`__no_key__`** sentinels (no category fields) excluded from batches and counts.
 - **Upload split:** Stage **1** — **`POST …/upload_manifest/`** returns **`unmapped_key_count`**, **`total_batches`**. Stage **2** — browser drives concurrent workers calling **`map_fast_cat_batch`** until complete or cancel.
 - **Other API:** **`DELETE /api/buying/auctions/{id}/manifest/`** — deletes **`ManifestRow`** only; templates and **`CategoryMapping`** preserved. TODO on **`DELETE`** for wrong-marketplace stale AI prefixes (admin tooling later).
-- **AI usage logging:** **`workspace/logs/ai_usage.jsonl`**; four token fields + **Decimal** cost from **`AI_PRICING`**; **`scripts/ai/summarize_ai_usage.py`** (+ **`.bat`**).
+- **AI usage logging:** **`workspace/logs/ai_usage.jsonl`**; four token fields + **Decimal** cost from **`AI_PRICING`**; inspect JSONL locally (summarize helper not committed).
 - **Settings:** **`AI_MODEL`**, **`AI_MODEL_FAST`**, **`AI_PRICING`**; **`BUYING_CATEGORY_AI_MODEL`** → **`AI_MODEL`**; **`cache_control`** on system prompts.
 - **Frontend:** **`ManifestUploadProgress`**; **four** workers; progress, est. cost, latest mapping, cancel; debounced query invalidation (~**1** s); remove manifest in card; drop/replace hidden during **MAPPING**; flex column height alignment.
 
@@ -260,11 +260,11 @@ Completed — committed as v2.9.0 at `0620237`.
 
 **Goal:** Archive completed data backfill initiative; refresh consultant file bundle for **Phase 6** (outcome tracking) prep.
 
-**Finish line:** Main `_index.md` lists only **B-Stock** as active; `workspace/notes/to_consultant/files-update/` contains refreshed copies; no semver bump (v2.10.0 already shipped).
+**Finish line:** Main `_index.md` lists only **B-Stock** as active; `workspace/to_consultant/files-update/` contains refreshed copies; no semver bump (v2.10.0 already shipped).
 
 #### Session updates
 
-- 2026-04-11T23:00:00-05:00 `data_backfill_initiative.md` moved to `_archived/_completed/`; `ARCHIVE.md` + `_index.md` + `context.md` + `consultant_context.md` aligned; consultant bundle collected per `collect_for_consultant.md`.
+- 2026-04-11T23:00:00-05:00 `data_backfill_initiative.md` moved to `_archived/_completed/`; `ARCHIVE.md` + `_index.md` + `context.md` + `consultant_context.md` aligned; consultant bundle collected per **`extended/consultant_handoff.md`**.
 
 #### Result
 
@@ -276,7 +276,7 @@ Completed — docs and handoff bundle only (not committed). No version bump. Com
 
 **Goal:** Close the major deployment session: archive workspace diagnostics, bump **v2.11.1**, align steering docs, record production state for buying + inventory.
 
-**Finish line:** `workspace/notes/archived/session_v2.11.0/` holds session artifacts; **CHANGELOG** **[2.11.1]**; `.version` / `package.json`; initiative + consultant context note **Heroku** backfill + cost pipeline live; **Phase 6** clearly next.
+**Finish line:** Vendor-prefix investigation and related notes recorded in **CHANGELOG** **[2.11.0]** / **[2.11.1]** (long-form copies were under **`.ai/reference/`**, since removed); **CHANGELOG** **[2.11.1]**; `.version` / `package.json`; initiative + consultant context note **Heroku** backfill + cost pipeline live; **Phase 6** clearly next.
 
 **Scope:** Docs and `workspace/` archive only — no application code changes in this closeout.
 
@@ -285,8 +285,8 @@ Completed — docs and handoff bundle only (not committed). No version bump. Com
 - 2026-04-12T12:00:00-05:00 Session started — archive consultant/SQL/diagnostic artifacts; version + CHANGELOG + context.
 - 2026-04-12T12:00:00-05:00 **Production (prior sessions):** V1/V2→V3 backfill **phases 1–5** deployed; **`Item.retail_value`** populated; **cost pipeline** (**`compute_vendor_metrics`**, **`compute_po_cost_analysis`**, **`compute_item_cost`**, pink-tag fulfillment below 0.15 allocation) run; **vendor merge** (TGT→TRGET), **PO data corrections** (WAL/TGT/WFR/CST/AMZ cases), **retag category inheritance** migration; **DB-aware** **`generate_product_number`** / **`generate_sku`** for **`--database production`**; **phase 2** collision handling; **phase 5** remote batch sizing; **`classify_v2_*`** **`--database` / `--no-input`**; **HISTORICAL** legacy rows cleaned; **`recompute_cost_pipeline`** on production.
 - 2026-04-15 **v2.14.0 shipped:** Replaced legacy nightly cost pipeline with **`PurchaseOrder.est_shrink`** item cost formula + **`recompute_all_item_costs`** backfill; buying need = **`CategoryStats.need_score_1to99`** + auction **`need_score`**/**`priority`** SUMPRODUCT — see **CHANGELOG [2.14.0]** and **`.ai/context.md`**.
-- 2026-04-15T12:00:00-05:00 **Checkpoint (research):** `workspace/test_bstock_endpoints.py` + `workspace/notes/from_consultant/bstock_api_research.md` + JSON samples under `workspace/data/bstock_api_samples/` — endpoint catalog, search **max limit 200**, anonymous vs JWT behaviors; **CHANGELOG** `[Unreleased]` bullet; no app code changes.
-- 2026-04-14T22:00:00-05:00 **Checkpoint (consultant handoff prep):** **`consultant_context`** + **`bstock.md`** — search **GET/POST**, **`limit` 200**, auction/manifest anonymous probes; **`collect_for_consultant.md`** + **flat** bundle per **`consult_retire_scout.md`**; **`handoff_prompt.md`** / **`status_board.md`**; **`backend.md`** — cache TTLs, **`AI_MODEL_FAST`** defaults, **`suggest_item`** retry; personas **Ask/Plan/Agent** + **present_files** conventions; **`workspace/sweep_fast.py`** noted for ops.
+- 2026-04-15T12:00:00-05:00 **Checkpoint (research):** local probe script + reference research doc + JSON samples under **`workspace/data/`** (not all committed today) — endpoint catalog, search **max limit 200**, anonymous vs JWT behaviors; **CHANGELOG** `[Unreleased]` bullet; no app code changes. *(Reference MD tree later removed; see **`.ai/extended/bstock.md`**.)*
+- 2026-04-14T22:00:00-05:00 **Checkpoint (consultant handoff prep):** **`consultant_context`** + **`bstock.md`** — search **GET/POST**, **`limit` 200**, auction/manifest anonymous probes; **[`extended/consultant_handoff.md`](../extended/consultant_handoff.md)** + **flat** bundle; **`backend.md`** — cache TTLs, **`AI_MODEL_FAST`** defaults, **`suggest_item`** retry. *(Personas / reference prompts / **`sweep_fast.py`** were documented at the time; **`.ai/reference/`** and that script are not in the repo now.)*
 - 2026-04-16T12:00:00-05:00 **Bearing** — MESSY — ~63 files unstaged (+3825/−2078); 0 staged; uncommitted work spans v2.13–v2.15+ (buying, inventory, migrations, UI); not measurable vs Session 22 finish line (v2.11.1); Session 23+ Session 6 initiative **Results** describe shipped releases but **git** still dirty — next: **`startup.md` steps 8–9** (new session entry for this tree) or **`session_close.md`** to commit/reconcile; see chat bearing card.
 
 #### Result
@@ -297,7 +297,7 @@ Superseded by Sessions 24–28 (v2.14.0 → v2.15.3 release train). The v2.11.1 
 
 ### Session 23 — fast sweep + SOCKS proxy prep (v2.13.0) — est 4h — started 2026-04-15T12:00:00-05:00
 
-**Goal:** Parallel **POST** search sweep (default `limit=200`, delay 0), raw SQL upsert with **`first_seen_at` / staff-field** preservation, **`listing_mapping`** module; **`POST /api/buying/sweep/`** richer JSON; single-request **Refresh** on auction list; optional **SOCKS5** for search (`BUYING_SOCKS5_*`, `PySocks`, URL-encoded credentials); ops **`workspace/sweep_fast.py`** documented (no Django).
+**Goal:** Parallel **POST** search sweep (default `limit=200`, delay 0), raw SQL upsert with **`first_seen_at` / staff-field** preservation, **`listing_mapping`** module; **`POST /api/buying/sweep/`** richer JSON; single-request **Refresh** on auction list; optional **SOCKS5** for search (`BUYING_SOCKS5_*`, `PySocks`, URL-encoded credentials). *(Ad hoc parallel sweep script was described in docs at the time; not committed.)*
 
 **Finish line:** **v2.13.0** semver + **CHANGELOG** + steering touchpoints; Bill commits when ready.
 
@@ -358,7 +358,7 @@ Prepared for release as **v2.14.1** — shipped in the combined v2.15.3 push (se
 
 **Finish line:** v2.15.1 semver + CHANGELOG [2.15.1]; baseline ~38 s / 1010 rows / ~26 rows/s confirmed; 10-items/page hard cap documented; 0 additional B-Stock API calls beyond the three baseline pulls.
 
-**Scope:** `apps/buying/services/scraper.py` (lazy singleton `Session`), `apps/buying/services/pipeline.py` (preloaded `CategoryStats`, `Exists` annotation, prefetch, batch_size), `apps/buying/management/commands/{pull_manifests_budget,pull_manifests_nightly}.py` (delay default 1.0 s), `apps/buying/services/manifest_dev_timelog.py` (new), `apps/buying/management/commands/benchmark_manifest_pull.py` (new), `workspace/4-16-26 Collection/B-Manifest API/` scratch + timelogs.
+**Scope:** `apps/buying/services/scraper.py` (lazy singleton `Session`), `apps/buying/services/pipeline.py` (preloaded `CategoryStats`, `Exists` annotation, prefetch, batch_size), `apps/buying/management/commands/{pull_manifests_budget,pull_manifests_nightly}.py` (delay default 1.0 s), `apps/buying/services/manifest_dev_timelog.py` (new), `apps/buying/management/commands/benchmark_manifest_pull.py` (new), `workspace/b-manifest-api/` dev timelogs + benchmark scratch.
 
 #### Session updates
 
@@ -466,7 +466,7 @@ Prepared for release as **v2.15.3** (current `.version`) — shipped in the comb
 - **`apps/buying/`** (Django app; production logic)
 - [`.ai/initiatives/_archived/_pending/bstock_scraper.md`](./_archived/_pending/bstock_scraper.md) (archived API notes)
 - [`workspace/notebooks/bstock-scraper/Scraper/`](../../workspace/notebooks/bstock-scraper/Scraper/) (historical reference for discovery only)
-- [`workspace/notebooks/_shared/README.md`](../../workspace/notebooks/_shared/README.md) (notebook DB access)
+- [`workspace/notebooks/_shared/config.example.py`](../../workspace/notebooks/_shared/config.example.py) (notebook DB access; copy to `config_local.py`)
 - [`.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md`](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (related learning pattern)
 - **Future:** Scoring model initiative (data science project to replace v1 category-margin pricing with a trained model; depends on outcome data from **Phase 6**).
 

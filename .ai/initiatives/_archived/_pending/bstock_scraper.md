@@ -69,5 +69,5 @@ scraper.save_to_disk()              # CSV + JSON under Scraper/output/
 
 ## Related
 
-- [workspace/notebooks/README.md](../../../workspace/notebooks/README.md)
+- [.ai/extended/development.md](../../extended/development.md) (Jupyter / notebook paths)
 - [requirements-notebooks.txt](../../../workspace/notebooks/requirements-notebooks.txt)

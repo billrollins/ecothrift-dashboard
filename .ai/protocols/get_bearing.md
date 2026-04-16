@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-16T21:30:00-05:00 (who can run — no persona files) -->
 # Protocol: Get bearing
 
 A **mid-session** orientation check. Run when you have been heads-down and need an honest picture of where things stand. This is **not** the rolling doc/changelog pulse (that is **`session_checkpoint.md`**). This is **not** the pre-commit gate (that is **`session_close.md`**). This is a **compass** check when something feels off.
@@ -18,7 +18,7 @@ A **mid-session** orientation check. Run when you have been heads-down and need 
 
 ## Who can run it
 
-Bill, Christina, Scout, or any agent. The data-gathering steps are mechanical. The assessment requires honest judgment. Do not soften findings.
+Bill or any agent (or collaborator in the session). The data-gathering steps are mechanical. The assessment requires honest judgment. Do not soften findings.
 
 ## Time budget
 
@@ -158,6 +158,6 @@ Append a **timestamped line** to the active session’s **`#### Session updates`
 | `session_checkpoint.md` | Several times per session | Session updates + `[Unreleased]` + light docs |
 | **`get_bearing.md`** (this) | Mid-session when **stuck** / drifting | Check heading vs written goal |
 | `session_close.md` | Before commit / release | Record result, docs, version bump, commit message |
-| `collect_for_consultant.md` | Consultant handoff | Spot-check + **flat** bundle (`consult_retire_scout.md`) |
+| [`extended/consultant_handoff.md`](../extended/consultant_handoff.md) | Consultant handoff | Spot-check + **flat** bundle — **`workspace/to_consultant/files-update/`** |
 
 A bearing check often means it is time for **`session_checkpoint.md`** or **`session_close.md`** when you are ready to sync or commit.

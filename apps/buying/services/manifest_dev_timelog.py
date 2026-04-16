@@ -16,12 +16,7 @@ MANIFEST_API_PULL_VERSION = '2026-04-16-B2'
 
 
 def _b_manifest_dir() -> Path:
-    return (
-        settings.BASE_DIR
-        / 'workspace'
-        / '4-16-26 Collection'
-        / 'B-Manifest API'
-    )
+    return settings.BASE_DIR / 'workspace' / 'b-manifest-api'
 
 
 def _timelogs_dir() -> Path:

@@ -21,7 +21,7 @@ else:
 # ── Security ──────────────────────────────────────────────────────────────────
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
-# development = manifest API dev timelogs under workspace/4-16-26 Collection/B-Manifest API/
+# development = manifest API dev timelogs under workspace/b-manifest-api/
 ENVIRONMENT = config('ENVIRONMENT', default='production')
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 

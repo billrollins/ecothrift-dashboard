@@ -28,7 +28,7 @@ Steering docs and protocols tracked **what shipped** well but not **what is happ
 
 - No new tooling or scripts — markdown and discipline only.
 - Do not modify `.ai/extended/` content except relocating domain warnings from archived `review_bump`.
-- Do not touch archived initiative files or `.ai/personas/`, `.ai/reference/`, `.ai/debug/`.
+- Do not touch archived initiative files or `.ai/debug/` without cause. **`.ai/personas/`** and **`.ai/reference/`** are no longer in the tree.
 
 ---
 

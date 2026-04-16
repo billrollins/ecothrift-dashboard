@@ -1,6 +1,6 @@
 <!-- Archived 2026-03-28: disposition=pending paused off main index (resume: product/UI wiring for location labels) -->
 <!-- initiative: slug=create-location-label status=pending updated=2026-03-28 -->
-<!-- Last updated: 2026-03-28T22:00:00-05:00 -->
+<!-- Last updated: 2026-04-16T20:30:00-05:00 (reference spec path removed from repo) -->
 # Initiative: Create location label (inventory scan)
 
 **Status:** **Pending** (off main index, 2026-03-28) — exploratory **`workspace/location_labels/`** render + CLI + GDI alignment exist; **dashboard / print-server product integration** and acceptance closure deferred.
@@ -11,11 +11,9 @@
 
 ## Authoritative spec (source of truth)
 
-| Resource | Path |
-|----------|------|
-| **Build specification** | [`workspace/notes/ecothrift_label_spec.txt`](../../../../workspace/notes/ecothrift_label_spec.txt) |
+The layer-by-layer build spec **`ecothrift_label_spec.txt`** lived under **`.ai/reference/`**; that tree was **removed** in a later cleanup. Restore from git history or backups if you resume this initiative; until then, treat **[`.ai/extended/print-server.md`](../../../extended/print-server.md)** and existing **print server** label code as the closest in-repo reference.
 
-The spec defines **3×2 in** thermal labels (216×144 pt), **rounded corners**, a **branded top banner** (“ECOTHRIFT” / “INVENTORY SCAN”), **aisle / shelf / category** presentation, a **location code pill**, a **QR** with a defined payload format, **category icons** (TOYS, CLOTHING, BOOKS, … + DEFAULT), **screen vs thermal** color mapping (greens → black on thermal; decorative texture skippable on thermal), and **sample label data** for QA sheets.
+The spec (when available) defines **3×2 in** thermal labels (216×144 pt), **rounded corners**, a **branded top banner** (“ECOTHRIFT” / “INVENTORY SCAN”), **aisle / shelf / category** presentation, a **location code pill**, a **QR** with a defined payload format, **category icons** (TOYS, CLOTHING, BOOKS, … + DEFAULT), **screen vs thermal** color mapping (greens → black on thermal; decorative texture skippable on thermal), and **sample label data** for QA sheets.
 
 **QR payload format (from spec):**
 
@@ -34,7 +32,7 @@ Example: `ECOTHRIFT:INV|TOY-A3-S3|TOYS|A3|S3`
 
 ## Objectives (acceptance-oriented)
 
-1. **Spec compliance** — Rendered label matches [`ecothrift_label_spec.txt`](../../../../workspace/notes/ecothrift_label_spec.txt): dimensions, banner, columns, QR size/placement, typography roles, pill, category icons, and thermal vs preview behavior notes.
+1. **Spec compliance** — Rendered label matches the recovered **`ecothrift_label_spec.txt`** (see above): dimensions, banner, columns, QR size/placement, typography roles, pill, category icons, and thermal vs preview behavior notes.
 2. **Scannable QR** — Error correction **H**; crisp black modules; quiet zone satisfied via the framed border described in the spec.
 3. **Operational fit** — Staff can print location labels from an agreed trigger (e.g. admin UI, batch export, or print-server endpoint) — **workflow not fixed in this initiative doc.**
 4. **Data wiring** — Location code, category label, aisle, and shelf resolve from the **canonical store/location model** — **exact API/model mapping TBD.**
@@ -56,7 +54,6 @@ Example: `ECOTHRIFT:INV|TOY-A3-S3|TOYS|A3|S3`
 
 ## See also
 
-- [`workspace/notes/ecothrift_label_spec.txt`](../../../../workspace/notes/ecothrift_label_spec.txt) — full layer-by-layer build spec.
 - [`.ai/extended/print-server.md`](../../../extended/print-server.md) — print server architecture and distribution.
 - [`_completed/print_server_label_design.md`](../_completed/print_server_label_design.md) — prior item-label design initiative (reference, not same label).
 

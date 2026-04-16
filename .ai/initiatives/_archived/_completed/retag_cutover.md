@@ -2,7 +2,7 @@
 <!-- Archived from `.ai/plans/retag_cutover.md` — historical cutover checklist; live ops: `.ai/extended/retag-operations.md`. Migrated to `.ai/initiatives/_archived/_completed/` 2026-03-27. -->
 # Plan: Retag + New Dashboard Cutover
 
-End-to-end plan to replace the **old dashboard** (production; documented in `workspace/notes/context-dump/`) with **this repo** (new dashboard), using a **Retag** workflow: scan legacy tag → create new `Item` → print new label compatible with new POS.
+End-to-end plan to replace the **old dashboard** (production; context-dump notes were a **local** snapshot, not tracked here) with **this repo** (new dashboard), using a **Retag** workflow: scan legacy tag → create new `Item` → print new label compatible with new POS.
 
 ---
 
@@ -164,8 +164,8 @@ Work in parallel so “replace old dash” is not only retag:
 
 | Doc | Purpose |
 |-----|---------|
-| `workspace/notes/context-dump/OVERVIEW.md` | Old dashboard entry point |
-| `workspace/notes/context-dump/MODELS-AND-DATABASE.md` | Old app tables / inventory |
+| *(local context-dump)* `OVERVIEW.md` | Old dashboard entry point |
+| *(local context-dump)* `MODELS-AND-DATABASE.md` | Old app tables / inventory |
 | `.ai/extended/retag-operations.md` | Pre– / post–retag pointers |
 | `.ai/extended/inventory-pipeline.md` | Retag v2 technical summary and endpoints |
 

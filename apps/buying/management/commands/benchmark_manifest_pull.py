@@ -17,12 +17,7 @@ from apps.buying.services.ai_key_mapping import map_one_fast_cat_batch
 
 
 def _b_manifest_dir() -> Path:
-    return (
-        Path(settings.BASE_DIR)
-        / 'workspace'
-        / '4-16-26 Collection'
-        / 'B-Manifest API'
-    )
+    return Path(settings.BASE_DIR) / 'workspace' / 'b-manifest-api'
 
 
 def _pick_auction(*, auction_id: int | None, min_rows: int) -> Auction | None:
@@ -57,7 +52,7 @@ class Command(BaseCommand):
     help = (
         'Pick an auction with a large manifest (or --auction-id), run warm-up pull + AI '
         'fast_cat mapping, then N baseline --force pulls; append timings to '
-        'workspace/4-16-26 Collection/B-Manifest API/benchmark_results.md'
+        'workspace/b-manifest-api/benchmark_results.md'
     )
 
     def add_arguments(self, parser) -> None:

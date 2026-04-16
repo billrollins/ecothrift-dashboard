@@ -13,7 +13,7 @@
 
 ## Delivered tooling (partial — toward Phase 3)
 
-- [x] **PO extract (app v2.7.1):** `python workspace/notes/to_consultant/extract_po_descriptions.py` — connects to **`ecothrift_v1`**, **`ecothrift_v2`**, **`ecothrift_v3`** (see script for V3 table guard). Writes **`workspace/notes/to_consultant/purchase_orders_all_details.csv`** (all POs, parsed description fields; consultant path), mirror **`workspace/data/po_descriptions_all.csv`**, **`po_category_distribution.csv`**, **`po_category_sell_through.csv`** (join **`workspace/data/sell_through_by_po.csv`**), **`workspace/notes/to_consultant/po_description_analysis.md`**. Documented in **`CHANGELOG`** **[2.7.1]**, **`.ai/consultant_context.md`**, **`.gitignore`** whitelist for the script path.
+- [x] **PO extract (app v2.7.1):** Ad hoc **`extract_po_descriptions.py`** (historically under **`workspace/notes/to_consultant/`**; optional local copy under **`scripts/data/`**) — connects to **`ecothrift_v1`**, **`ecothrift_v2`**, **`ecothrift_v3`** (see script for V3 table guard). Writes CSV/MD under **`workspace/data/`** (and any consultant-facing copy you add locally). Documented in **`CHANGELOG`** **[2.7.1]** and **`.ai/consultant_context.md`**.
 
 ---
 
@@ -108,7 +108,7 @@ Completed — committed (no bump) at `5923974` (chore: rename local databases to
 
 **Goal:** Stand up `extract_po_descriptions.py` against local `ecothrift_v1` / `ecothrift_v2` with `.env` `DATABASE_*` and write consultant-facing CSV rows.
 
-**Finish line:** Script runs on dev machine; PO-level rows land under `workspace/notes/to_consultant/` with columns aligned to `workspace/data/po_descriptions_all.csv`.
+**Finish line:** Script runs on dev machine; PO-level rows land under **`workspace/data/`** with columns aligned to **`po_descriptions_all.csv`**.
 
 **Scope:** Python script, argparse / connection helpers, error messages when DB unreachable; no dashboard UI.
 
@@ -152,7 +152,7 @@ Completed — committed as v2.7.1 at `28d1352`.
 
 #### Session updates
 
-- 2026-04-09T12:50:00-05:00 Session started — whitelist pattern under `workspace/notes/to_consultant/`.
+- 2026-04-09T12:50:00-05:00 Session started — **`.gitignore`** whitelist for extract script path (since removed; script not committed today).
 - 2026-04-09T13:30:00-05:00 CHANGELOG + consultant blurbs reviewed against script path.
 
 #### Result

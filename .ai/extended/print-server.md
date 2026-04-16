@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-28T23:45:00-05:00 -->
+<!-- Last updated: 2026-04-16T20:35:00-05:00 (V2 reference path removed) -->
 
 # Print Server — Extended Context
 
@@ -73,4 +73,4 @@ Labels (GDI + Pillow), receipts (GDI text), cash drawer (ESC/POS). Built-in UI: 
 
 ## V2 reference snapshot
 
-Historical installer/API: [`.ai/reference/PrintServer (V2)/`](../reference/PrintServer%20(V2)/). Stub checklist: [`LEGACY_UNINSTALL.md`](../reference/PrintServer%20(V2)/LEGACY_UNINSTALL.md) (details live in this file).
+A **`PrintServer (V2)`** folder previously lived under **`.ai/reference/`** (installer notes, **`LEGACY_UNINSTALL.md`**). That tree was **removed** from the repo; use git history if you need the exact text. V3 Windows installer still strips legacy V2 artifacts before install — see **`printserver/installer/`** and comments in **`printserver/installer/setup.py`**.

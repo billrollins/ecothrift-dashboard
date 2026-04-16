@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16 (v2.15.3 release train — Unreleased folded into [2.13.0]) -->
+<!-- Last updated: 2026-04-16 (review_bump — [Unreleased] docs only) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,25 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+### Documentation
+
+- **Workspace** — Cleared **`workspace/data/`** (generated CSV/JSON; **`.gitkeep`** only). Removed notebook **`README.md`** files; Jupyter setup consolidated in **`.ai/extended/development.md`**. Pruned notebook temp artifacts (**`.csv`**, **`.pkl`**, caches, empty **`bstock-intelligence/`**). Dropped **`workspace/testing/`** gitignore exceptions (folder unused). Updated cross-links in **`README`**, **`databases.md`**, initiatives, **`CHANGELOG`** history where cited.
+
+- **AI steering** — Added [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md): docs-audit checklist (steering + extended TOC), semver bump matrix, `CHANGELOG` update rules, drift-check shell snippets; slice of `session_close` (no commit/push). Cross-links from `.ai/context.md`, **`README`** AI steering table, and `startup` / `session_checkpoint` / `session_close` protocol relationship tables.
+- **Consultant handoff** — Removed **`.ai/protocols/consult_retire_charlie.md`** and **`.ai/protocols/consult_retire_scout.md`**. Advisor bundle procedure is only [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md) (**`workspace/to_consultant/files-update/`**).
+- **Personas** — Removed **`.ai/personas/`** (Scout / Christina role prompts). Updated [`.ai/context.md`](.ai/context.md), [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md), and [`.ai/protocols/get_bearing.md`](.ai/protocols/get_bearing.md) so docs do not reference those paths.
+- **Workspace hygiene** — Removed **`workspace/notes/`** ignore whitelist for a non-existent tracked script; **`scripts/data/build_sell_through_rates.py`** reads **`workspace/data/historical_keys_mapped.csv`**. Session drop **`workspace/4-16-26 Collection/`** and temp **`workspace/file_cleanup.md`** deleted from disk when present.
+
+- **Env templates** — Removed **`template.env`** and **`extract-env-vars.bat`** from repo root; use **`.env.example`** as the committed template (copy to **`.env`** locally).
+
+- **Initiatives index** — [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) **Active initiatives** table cleared (no rows); in-repo **`bstock_auction_intelligence.md`**, **`ui_ux_polish.md`**, etc. remain for session history until archived.
+
+- **AI steering (review_bump)** — [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md) pass: verified **`.version`** / **[2.15.3]** alignment, extended TOC parity (**`context.md`** ↔ **`consultant_context.md`**), **`<!-- Last updated -->`** on line 1 of every **`.ai/extended/*.md`** (including **`consultant_handoff.md`**).
 
 ---
 
@@ -141,13 +160,13 @@ User-facing theme: **Fast auction sweep** + **optional SOCKS5 for search** ([`.a
 ### Added (dev tooling / workspace — folded in with v2.13.0 release)
 
 - **Dev tooling** — **`scripts/dev/daily_scheduled_tasks.bat`** runs **`compute_daily_category_stats`**, **`scheduled_sweep`**, and **`watch_auctions`** for local parity with Heroku scheduled buying work; optional **`SKIP_BSTOCK=1`** for offline stats-only. Documented in **`.ai/extended/development.md`** and **`.ai/context.md`**.
-- **Workspace (consultant):** B-Stock API research — [`workspace/notes/from_consultant/bstock_api_research.md`](workspace/notes/from_consultant/bstock_api_research.md) and probe script [`workspace/test_bstock_endpoints.py`](workspace/test_bstock_endpoints.py) (anonymous + optional JWT; samples under `workspace/data/bstock_api_samples/`).
+- **Workspace (consultant):** B-Stock API research — [`.ai/reference/bstock_api_research.md`](.ai/reference/bstock_api_research.md) and probe script [`workspace/test_bstock_endpoints.py`](workspace/test_bstock_endpoints.py) (anonymous + optional JWT; samples under `workspace/data/bstock_api_samples/`).
 - **Workspace:** [`workspace/sweep_fast.py`](workspace/sweep_fast.py) — standalone sweep (parallel GET search, `psycopg2` upsert, `workspace/logs/`).
-- **Steering:** [`.ai/protocols/collect_for_consultant.md`](.ai/protocols/collect_for_consultant.md); [`workspace/notes/from_consultant/handoff_prompt.md`](workspace/notes/from_consultant/handoff_prompt.md); [`workspace/notes/from_consultant/status_board.md`](workspace/notes/from_consultant/status_board.md) (consultant status board template).
+- **Steering:** [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md); [`.ai/reference/handoff_prompt.md`](.ai/reference/handoff_prompt.md); [`.ai/reference/status_board.md`](.ai/reference/status_board.md) (consultant status board template).
 
 ### Documentation
 
-- **Consultant handoff bundle** — **`workspace/notes/to_consultant/files-update/`** is **flat** (no subfolders). Canonical procedure: **`.ai/protocols/consult_retire_scout.md`**; Charlie: **`.ai/protocols/consult_retire_charlie.md`**.
+- **Consultant handoff bundle** — **`workspace/to_consultant/files-update/`** is **flat** (no subfolders). Canonical procedure: [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md).
 - **`.ai/consultant_context.md`**, **`.ai/extended/bstock.md`:** B-Stock search **GET or POST**, **max `limit` 200**; auction/manifest anonymous behavior cross-linked to **`bstock_api_research.md`**; **`_apply_auction_list_visibility`** (live default; **Completed** = last 24h ended).
 - **`.ai/extended/backend.md`:** Django DB cache TTLs (**`item_stats_global`**, **`category_need_panel`**, **`item_list_total_count`**); **`suggest_item`** / **`ai_cleanup_rows`** → **`AI_MODEL_FAST`**; category retry + fallback.
 - **`.ai/personas/Scout.md`**, **`.ai/personas/Christina.md`:** **Ask / Plan / Agent** rules; **present_files** for consultant `.md` prompts and `.txt` command scripts.
@@ -250,7 +269,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 - **POS reporting:** [`historical_revenue`](apps/pos/views.py) excludes carts on register **`BACKFILL`** from db3 aggregates while **`HistoricalTransaction`** rows exist for db1/db2 (avoids double-counting legacy totals vs `import_historical_transactions`). After deleting db1/db2 historical rows or loading only via Phase 4, totals reflect Carts.
 - **Data backfill initiative (Phase 0 close / consultant pass):** Production deployment strategy (export CSVs + `import_backfill`); Phase 1–5 text corrections (inline PO enrichment, verify `PurchaseOrder` mappings before code, product dedup evaluation, backfilled items never `on_shelf`, taxonomy label count unverified). [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md). Added [`workspace/scripts/convert_pickles_to_csv.py`](workspace/scripts/convert_pickles_to_csv.py) — pickle→CSV using `pickle/manifest.json` (run in notebook venv if `read_pickle` fails).
-- **AI steering / protocols:** Replaced **`review_bump.md`** with **`session_close.md`**; rewrote **`startup.md`** (session entry step) and **`get_bearing.md`** (progress vs written session). Generalized **`collect_for_consultant.md`**. [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) uses **Phase** + **Notes** columns; session detail lives in initiative files only. [`.ai/context.md`](.ai/context.md) **Working** section is short capability pointers (detail in **`.ai/extended/`**). Cross-links updated (README, lifecycle protocols, CHANGELOG history where cited). Django admin vs React **`/admin/*`** and retag history serializer guardrails moved to [`.ai/extended/frontend.md`](.ai/extended/frontend.md) and [`.ai/extended/retag-operations.md`](.ai/extended/retag-operations.md).
+- **AI steering / protocols:** Replaced **`review_bump.md`** with **`session_close.md`**; rewrote **`startup.md`** (session entry step) and **`get_bearing.md`** (progress vs written session). Generalized consultant bundle workflow (today: **`extended/consultant_handoff.md`**). [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) uses **Phase** + **Notes** columns; session detail lives in initiative files only. [`.ai/context.md`](.ai/context.md) **Working** section is short capability pointers (detail in **`.ai/extended/`**). Cross-links updated (README, lifecycle protocols, CHANGELOG history where cited). Django admin vs React **`/admin/*`** and retag history serializer guardrails moved to [`.ai/extended/frontend.md`](.ai/extended/frontend.md) and [`.ai/extended/retag-operations.md`](.ai/extended/retag-operations.md).
 - **Initiative archiving:** [docs_restructure](.ai/initiatives/_archived/_completed/docs_restructure.md) archived as **completed**; [historical_sell_through_analysis](.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md) moved to **pending** (initial rates seeded manually v2.8.0; data-backed refinement deferred). Session history seeded in initiative files.
 - **AI steering / protocols (follow-up):** Added [`.ai/protocols/session_checkpoint.md`](.ai/protocols/session_checkpoint.md) for **mid-session** pulses (session updates, **`[Unreleased]`**, light extended-doc sync). **`startup.md`** now includes **framing questions** (success, intent, time, owner, out-of-scope, ship expectation) and points to checkpoints vs **`session_close`**. **`README`**, **`context`**, **`get_bearing`**, **`session_close`** cross-links updated.
 
@@ -300,7 +319,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 - **Seeds & management commands:** **`python manage.py seed_pricing_rules`** (CSV + **`AppSetting`** keys); **`python manage.py seed_marketplace_pricing_defaults`**; **`python manage.py estimate_auction_categories`**; **`python manage.py recompute_buying_valuations`**.
 - **Manifest upload hooks:** **`manifest_upload`** computes **`manifest_category_distribution`** and triggers valuation **recompute** when mapping completes (**`upload_manifest`**, **`map_fast_cat_batch`** when queue clears, **`DELETE …/manifest/`**); **`pipeline`** sweep runs limited AI estimate batch + **`recompute_all_open_auctions`**.
 - **Tests:** **`apps/buying/tests/test_valuation.py`**, **`apps/buying/tests/test_phase5_category_need.py`**.
-- **Documentation & AI steering:** New protocols [`.ai/protocols/get_bearing.md`](.ai/protocols/get_bearing.md), [`.ai/protocols/collect_for_consultant.md`](.ai/protocols/collect_for_consultant.md); personas [`.ai/personas/Scout.md`](.ai/personas/Scout.md), [`.ai/personas/Christina.md`](.ai/personas/Christina.md); updates to **`.ai/context.md`**, **`.ai/extended/backend.md`**, **`.ai/extended/bstock.md`**, **`.ai/extended/frontend.md`**, **`.ai/consultant_context.md`**, **`.ai/initiatives/_index.md`**, **`bstock_auction_intelligence.md`**.
+- **Documentation & AI steering:** New protocol [`.ai/protocols/get_bearing.md`](.ai/protocols/get_bearing.md); consultant bundle procedure now [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md); personas [`.ai/personas/Scout.md`](.ai/personas/Scout.md), [`.ai/personas/Christina.md`](.ai/personas/Christina.md); updates to **`.ai/context.md`**, **`.ai/extended/backend.md`**, **`.ai/extended/bstock.md`**, **`.ai/extended/frontend.md`**, **`.ai/consultant_context.md`**, **`.ai/initiatives/_index.md`**, **`bstock_auction_intelligence.md`**.
 
 ### Initiative
 
@@ -320,7 +339,9 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Initiative
 
-- [`.ai/initiatives/historical_sell_through_analysis.md`](.ai/initiatives/historical_sell_through_analysis.md) — tooling toward Phase **3** (sales join); consultant deliverable path documented.
+- [`.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md`](.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md) — tooling toward Phase **3** (sales join); consultant deliverable path documented.
+
+**Note (2026-04-16):** The **`workspace/notes/to_consultant/`** layout and **`.gitignore`** whitelist in the bullets above matched **v2.7.1** at release; later cleanup moved consultant procedures to **`extended/consultant_handoff.md`** and dropped **`workspace/notes/`** tracking. CSV outputs are **`workspace/data/`**.
 
 ---
 
@@ -423,13 +444,13 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Added
 
-- **Buying / B-Stock (Phase 1 complete):** Django app **`apps/buying/`** with models, services (**`scraper`**, **`pipeline`**, **`normalize`**), management commands **`sweep_auctions`**, **`pull_manifests`**, **`bstock_token`**; **`POST /api/buying/token/`** (DEBUG or localhost) writes **`workspace/.bstock_token`**; rejects JWE cookie tokens (`eyJhbGciOiJSU0EtT0FF`). **`scripts/refresh_bstock.bat`**. Bookmarklet and docs: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. Notebook workbench: **`workspace/notebooks/bstock-intelligence/README.md`**. Initiative: [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
+- **Buying / B-Stock (Phase 1 complete):** Django app **`apps/buying/`** with models, services (**`scraper`**, **`pipeline`**, **`normalize`**), management commands **`sweep_auctions`**, **`pull_manifests`**, **`bstock_token`**; **`POST /api/buying/token/`** (DEBUG or localhost) writes **`workspace/.bstock_token`**; rejects JWE cookie tokens (`eyJhbGciOiJSU0EtT0FF`). **`scripts/refresh_bstock.bat`**. Bookmarklet and docs: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. Notebook workbench: **`.ai/extended/development.md (Jupyter)`**. Initiative: [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
 
 ### Changed
 
 - **Buying / B-Stock scraper:** Microservice URLs (`search.bstock.com`, `auction.bstock.com`, `listing.bstock.com`, `order-process.bstock.com`, `shipment.bstock.com`). Settings: **`BSTOCK_AUTH_TOKEN`**, **`BUYING_REQUEST_DELAY_SECONDS`**, **`BSTOCK_MAX_RETRIES`**, **`BSTOCK_SEARCH_MAX_PAGES`**. **`DEBUG`** CORS adds **`https://bstock.com`** / **`https://www.bstock.com`** for bookmarklet **`fetch`**. **`get_manifest`**: **`limit`** capped at **1000** per request; paginates with **`offset`** until **`total`** rows. Search listing mapping: **`categories`**, **`winningBidAmount`**, **`numberOfBids`**, **`auctionUrl`**, **`has_manifest`** when **`lotId`** is set; **`merge_auction_state_into_fields`** fills **`startPrice`**, **`buyNow.price`**, **`winningBidAmount`**; money helper treats integers **>= 10000** as cents.
 
-- **Docs / env:** **`.env.example`**, **`.ai/extended/backend.md`**, **`.ai/extended/development.md`**, **`.ai/context.md`**, **`README.md`**, **`workspace/notebooks/README.md`**, **`workspace/notebooks/_shared/README.md`**, **`.ai/initiatives/_index.md`** (B-Stock row).
+- **Docs / env:** **`.env.example`**, **`.ai/extended/backend.md`**, **`.ai/extended/development.md`**, **`.ai/context.md`**, **`README.md`**, **`.ai/extended/development.md`** (Jupyter), **`.ai/initiatives/_index.md`** (B-Stock row).
 
 ### Baseline (release verification)
 
@@ -443,7 +464,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Added
 
-- **Buying / B-Stock (Phase 1):** New Django app **`apps/buying/`** for auction intelligence: models `Marketplace`, `Auction`, `AuctionSnapshot`, `ManifestRow`, `WatchlistEntry`, `Bid`, `Outcome`; server-side services **`discover_auctions`**, **`get_auction_detail`**, **`get_manifest`** (manifest URL optional until DevTools capture); **`python manage.py sweep_auctions`** and **`python manage.py pull_manifests`**; Postgres-backed persistence; Django admin registration. Configuration via **`BSTOCK_*`** and **`BUYING_REQUEST_DELAY_SECONDS`** in `.env` (see **`.env.example`**). Explicit **`requests`** dependency in **`requirements.txt`**. Notebook workbench: **`workspace/notebooks/bstock-intelligence/README.md`**. Initiative: [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
+- **Buying / B-Stock (Phase 1):** New Django app **`apps/buying/`** for auction intelligence: models `Marketplace`, `Auction`, `AuctionSnapshot`, `ManifestRow`, `WatchlistEntry`, `Bid`, `Outcome`; server-side services **`discover_auctions`**, **`get_auction_detail`**, **`get_manifest`** (manifest URL optional until DevTools capture); **`python manage.py sweep_auctions`** and **`python manage.py pull_manifests`**; Postgres-backed persistence; Django admin registration. Configuration via **`BSTOCK_*`** and **`BUYING_REQUEST_DELAY_SECONDS`** in `.env` (see **`.env.example`**). Explicit **`requests`** dependency in **`requirements.txt`**. Notebook workbench: **`.ai/extended/development.md (Jupyter)`**. Initiative: [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
 
 ---
 
@@ -560,7 +581,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 - **B-Stock notebook scraper package:** `workspace/notebooks/Scraper/` with `BStockScraper` (`get_auctions`, `update`, `save_to_disk`), HTTP client + config loader, optional Playwright module (`python -m Scraper.browser`), experimental `refresh_token` helper, `examples/bstock_quickstart.ipynb`, CLI `python -m Scraper` when run from `workspace/notebooks`. Secrets in gitignored `Scraper/bstock_config_local.py` (template: `Scraper/config.example.py`).
 
 ### Changed
-- **Notebooks docs:** `workspace/notebooks/README.md` and `docs/development.md` updated for `Scraper/` layout; `.ai/plans/bstock_scraper.md` and plans index refreshed.
+- **Notebooks docs:** `workspace/notebooks/` layout + `docs/development.md` updated for `Scraper/` layout; `.ai/plans/bstock_scraper.md` and plans index refreshed.
 
 ### Removed
 - Flat B-Stock scripts at `workspace/notebooks/` root (`bstock_scraper.py`, `bstock_scraper_browser.py`, `bstock_refresh_token.py`, `bstock_config.example.py`) — replaced by the `Scraper` package.
@@ -574,7 +595,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 - **Preprocessing preview search:** Server-side search over full raw manifest and full standardized output (top-100 preview window per endpoint).
 - **Project / AI layout (BEST-spec alignment):** Repo root `.version` and `CHANGELOG.md`; `.ai/protocols/` (`startup.md`, `session_close.md`, `get_bearing.md`); `.ai/plans/_index.md` and `plans/archive/`; `.ai/reference/`; committed `scripts/dev/` (`start_servers.bat`, `kill_servers.bat`) and `scripts/deploy/commit_message.txt`.
 - **Root spec:** `2.EcoThrift.project_build_spec.md` describing layout, versioning, and protocols.
-- **Multi-DB Jupyter:** Tracked `workspace/notebooks/` (selective gitignore): `README.md`, `config.example.py`, `db_explorer.ipynb` — SQLAlchemy + pandas helpers, pickles dir ignored; optional `requirements-notebooks.txt` (includes former ML deps).
+- **Multi-DB Jupyter:** Tracked `workspace/notebooks/` (selective gitignore): `config.example.py`, `db_explorer.ipynb` — SQLAlchemy + pandas helpers, pickles dir ignored; optional `requirements-notebooks.txt` (includes former ML deps).
 - **`.ai/extended/databases.md`:** DB1 / DB2 / DB3 overview; credentials stay out of repo; points to `docs/Database Audits/`.
 
 ### Changed

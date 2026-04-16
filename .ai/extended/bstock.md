@@ -1,7 +1,7 @@
-<!-- Last updated: 2026-04-16T18:00:00-05:00 -->
+<!-- Last updated: 2026-04-16T20:30:00-05:00 (reference tree removed — opening paragraph) -->
 # B-Stock API and scraper reference
 
-**Full endpoint catalog (methods, limits, auth probes, samples):** [`workspace/notes/from_consultant/bstock_api_research.md`](../../workspace/notes/from_consultant/bstock_api_research.md). This file stays a **scraper-centric** map aligned with `apps/buying/services/scraper.py`.
+**Committed map:** This file is the **scraper-centric** reference aligned with `apps/buying/services/scraper.py`. A longer probe-backed catalog previously lived under **`.ai/reference/`**; that tree is **not** in the repo anymore — treat **`scraper.py`** + this doc as authoritative.
 
 **Valuation (v2.14.0):** Staff auction **`need_score`** and auto **`priority`** are **1–99** integers derived from daily **`CategoryStats.need_score_1to99`** (per taxonomy bucket) × manifest or AI category weights — see **`apps/buying/services/valuation.py`** and **`.ai/extended/backend.md`** (buying / inventory). Not the same as PO-level **`est_shrink`** (inventory item cost).
 
@@ -9,7 +9,7 @@
 
 All B-Stock HTTP calls go through `apps/buying/services/scraper.py`. No calls are triggered automatically by page loads or app startup. Every call requires explicit user action (UI button or management command).
 
-**Search:** The public **`search.bstock.com/v1/all-listings/listings`** endpoint accepts **GET** (query params) **or** **POST** (JSON body). The Django app uses **POST** with **`storeFrontId` as an array**, default **`limit=200`**, parallel **ThreadPoolExecutor** per active marketplace (`discover_auctions_parallel`), optional **`BUYING_REQUEST_DELAY_SECONDS`** (default **0**). Discovery results upsert via raw SQL in **`sweep_upsert`** (preserves **`first_seen_at`** on conflict). **SOCKS5 (v2.14.1):** All `*.bstock.com` requests via `_request_json` route through SOCKS5 when `BUYING_SOCKS5_PROXY_ENABLED=True`. PIA requires `socks5://` (local DNS, `BUYING_SOCKS5_LOCAL_DNS=True`); optional `BUYING_SOCKS5_PROXY_IP` for resolved-IP override. Full setup, troubleshooting, and diagnostic: **[`.ai/extended/vpn-socks5.md`](vpn-socks5.md)**. **Max `limit` = 200** per search request. **Standalone ops sweep (no Django):** `python workspace/sweep_fast.py` — keep mapping aligned with **`listing_mapping.py`**; parallel GET + direct `psycopg2` upsert.
+**Search:** The public **`search.bstock.com/v1/all-listings/listings`** endpoint accepts **GET** (query params) **or** **POST** (JSON body). The Django app uses **POST** with **`storeFrontId` as an array**, default **`limit=200`**, parallel **ThreadPoolExecutor** per active marketplace (`discover_auctions_parallel`), optional **`BUYING_REQUEST_DELAY_SECONDS`** (default **0**). Discovery results upsert via raw SQL in **`sweep_upsert`** (preserves **`first_seen_at`** on conflict). **SOCKS5 (v2.14.1):** All `*.bstock.com` requests via `_request_json` route through SOCKS5 when `BUYING_SOCKS5_PROXY_ENABLED=True`. PIA requires `socks5://` (local DNS, `BUYING_SOCKS5_LOCAL_DNS=True`); optional `BUYING_SOCKS5_PROXY_IP` for resolved-IP override. Full setup, troubleshooting, and diagnostic: **[`.ai/extended/vpn-socks5.md`](vpn-socks5.md)**. **Max `limit` = 200** per search request. **Supported path:** **`python manage.py sweep_auctions`** (and staff **`POST /api/buying/sweep/`**); ad hoc parallel scripts are not committed.
 
 ### Internal Django endpoints (staff REST — not B-Stock hosts)
 

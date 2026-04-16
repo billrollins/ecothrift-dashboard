@@ -1,6 +1,6 @@
 """
 One-shot pipeline: export V1/V2 category combos, compute sell-through by canonical
-category using workspace/notes/to_consultant/historical_keys_mapped.csv.
+category using workspace/data/historical_keys_mapped.csv (local; generate or copy).
 
 No Django. Requires: psycopg2-binary, optional python-dotenv.
 
@@ -38,9 +38,9 @@ if load_dotenv:
     load_dotenv(REPO_ROOT / ".env")
 
 DATA_DIR = REPO_ROOT / "workspace" / "data"
-MAPPING_PATH = REPO_ROOT / "workspace" / "notes" / "to_consultant" / "historical_keys_mapped.csv"
+MAPPING_PATH = REPO_ROOT / "workspace" / "data" / "historical_keys_mapped.csv"
 
-# --- Mirrored from workspace/notes/to_consultant/build_key_mapping.py ---
+# --- Mirrored from legacy build_key_mapping helper (local workspace) ---
 V1_PREFIX_TO_CODE = {
     "TGT": "tgt",
     "AMZ": "amz",

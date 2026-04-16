@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-26 -->
+<!-- Last updated: 2026-04-16 (reference folder note) -->
 # Plan: Print server — label design (V3) — **ARCHIVED**
 
 **Closed 2026-03-26.** Shipped in print server **v1.2.x** (see `printserver/CHANGELOG.md`, `printserver/config.py` `VERSION`).
@@ -10,7 +10,7 @@
 - **Layout:** “Concept C” **side stripe** — column 1 ≈ ⅓ width, top half black **price** (`$` / dollars with thousands / cents), bottom half **QR**; column 2 title + brand + **logo** (uniform contain in band). Presets **3×2** and **1.5×1** at **203 DPI**, same proportions.
 - **Printing:** `printer_manager.send_image` — fit to printable rect, center X, top Y (thermal roll stability).
 - **Code128** removed earlier; **QR + price** only on labels.
-- **Reference:** `.ai/reference/Consult Label/` (`to-be-checked/IMPLEMENTATION_NOTES.md`, sample PNGs).
+- **Reference:** Consultant **Consult Label** notes and sample PNGs lived under **`.ai/reference/`** (removed); **`printserver/services/label_printer.py`** and **`printserver/label_test_data.py`** are the in-repo source of truth.
 - **Samples:** `printserver/label_test_data.py` (e.g. `$1.99`, `$25.00`, `$1,123.75`).
 
 ---

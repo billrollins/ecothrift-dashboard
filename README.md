@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-10T12:00:00-05:00 -->
+<!-- Last updated: 2026-04-16T21:30:00-05:00 (initiatives index may be empty) -->
 ```
                     ╔═══════════════════════════════════════════════════════════╗
                     ║                                                           ║
@@ -87,14 +87,15 @@ Built different. Built fast. Built to last.
 | Doc | Purpose |
 |-----|---------|
 | [`.ai/context.md`](.ai/context.md) | Living **current state** (what works, known gaps). |
-| [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) | **Active** initiatives (bounded work tracked as one `.md` each). |
+| [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) | **Active** initiatives table (may be empty; bounded work tracked as one `.md` each when listed). |
 | [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md) | **Archived** initiatives (completed, backlog, pending, abandoned). Example: [category intelligence](.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md) (Phases 0–7, 2026-04-06). |
 | [`.ai/protocols/startup.md`](.ai/protocols/startup.md) | Session start: load context; **frame** the session (questions); **create session entry** in the initiative file. |
 | [`.ai/protocols/session_checkpoint.md`](.ai/protocols/session_checkpoint.md) | **During** the session (often ~5×): append session updates, keep **`CHANGELOG` `[Unreleased]`** and light docs in sync. |
 | [`.ai/protocols/get_bearing.md`](.ai/protocols/get_bearing.md) | Mid-session when **stuck**: compare progress to the written session goal (compass check). |
+| [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md) | Isolated **docs audit + semver + `CHANGELOG`** slice (no `Result`, no commit/push). |
 | [`.ai/protocols/session_close.md`](.ai/protocols/session_close.md) | **End** of session: **`Result`**, scoped docs, version bump, commit message (includes keeping this README in sync). |
 
-**Notebook research:** [workspace/notebooks/category-research/README.md](workspace/notebooks/category-research/README.md) — category bins, taxonomy, Claude categorization, sell-through analysis. **B-Stock / buying:** [workspace/notebooks/bstock-intelligence/README.md](workspace/notebooks/bstock-intelligence/README.md) (analysis against **`apps/buying/`** data); initiative [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md). **Phases 4.1A–4.1B** (manifest templates, AI template + key mapping, upload progress UI, usage logging) shipped **v2.7.0** — see **`CHANGELOG`** **[2.7.0]**. **Phase 5** (auction valuation engine + category need/want APIs **v2.8.0**; React list/detail/category-need valuation UI **v2.9.0**) — **`CHANGELOG`** **[2.8.0]**, **[2.9.0]**. **Historical sell-through — PO extract** to **`workspace/notes/to_consultant/purchase_orders_all_details.csv`**: **v2.7.1** — **`CHANGELOG`** **[2.7.1]**; initiative [`.ai/initiatives/historical_sell_through_analysis.md`](.ai/initiatives/historical_sell_through_analysis.md); single-file handoff [`.ai/consultant_context.md`](.ai/consultant_context.md).
+**Notebook research:** [`.ai/extended/development.md`](.ai/extended/development.md) (*Jupyter*); category work under **`workspace/notebooks/category-research/`** (**`category_research.ipynb`**, **`categorize.ipynb`**, **`cr/`**). **B-Stock / buying:** initiative [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md); optional **`workspace/notebooks/bstock-scraper/Scraper/`** + **`examples/bstock_quickstart.ipynb`**. **Phases 4.1A–4.1B** (manifest templates, AI template + key mapping, upload progress UI, usage logging) shipped **v2.7.0** — see **`CHANGELOG`** **[2.7.0]**. **Phase 5** (auction valuation engine + category need/want APIs **v2.8.0**; React list/detail/category-need valuation UI **v2.9.0**) — **`CHANGELOG`** **[2.8.0]**, **[2.9.0]**. **Historical sell-through — PO extract** (local CSV under **`workspace/data/`**, **v2.7.1**): **`CHANGELOG`** **[2.7.1]**; archived initiative [`.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md`](.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md); single-file handoff [`.ai/consultant_context.md`](.ai/consultant_context.md).
 
 Detailed setup beyond **Quick Start** lives in [`.ai/extended/development.md`](.ai/extended/development.md).
 
@@ -135,7 +136,7 @@ ecothrift-dashboard/
 ├── .version             App semver (single line)
 ├── CHANGELOG.md         Version history
 ├── package.json         Heroku heroku-postbuild → frontend build only
-└── workspace/           Local scratch; only select files under workspace/notebooks/ (e.g. _shared/, db-explorer/, historical-data/, bstock-scraper/, bstock-intelligence/) may be tracked
+└── workspace/           Local scratch; **`workspace/data/`** holds only **`.gitkeep`** in git; tracked notebooks are **`.ipynb`**, **`.py`**, configs — see **`.ai/extended/development.md`**
 ```
 
 **Print server:** Develop in `printserver/`. The Windows installer deploys under `%LOCALAPPDATA%\EcoThrift\PrintServer\` and, on **Install**, removes legacy V2 print-server folders/Startup hooks before laying down the new exe (see `printserver/installer/setup.py`).

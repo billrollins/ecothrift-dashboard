@@ -1,7 +1,7 @@
-<!-- Last updated: 2026-04-10T19:00:00-05:00 -->
+<!-- Last updated: 2026-04-16T22:45:00-05:00 (commit_message + 2_push_github; review_bump Part 5) -->
 # Protocol: Session close (docs, version, commit)
 
-Run when you are ready to **finish a work session** and optionally **commit / release**. This replaces the old **`review_bump.md`** monolith: it is **one protocol** with three parts — record the session, update docs (scoped), stage the commit.
+Run when you are ready to **finish a work session** and optionally **commit / release**. It is **one protocol** with three parts — record the session, update docs (scoped), stage the commit. For **docs audit + semver + `CHANGELOG`** without a full session close, use **`review_bump.md`** (optional **`commit_message.txt`** notes in Part 5).
 
 **Not a substitute for:** ongoing pulses during work — use **`session_checkpoint.md`** to keep session updates and **`[Unreleased]`** current. Use **`get_bearing.md`** if you are **lost** or need a compass vs the written goal.
 
@@ -57,11 +57,11 @@ Run when you are ready to **finish a work session** and optionally **commit / re
 
 ### `scripts/deploy/commit_message.txt`
 
-**Between commits:** treat the file as **append-only** (multiple sessions may land before one push).
+**Push behavior:** [`2_push_github.bat`](../../scripts/deploy/2_push_github.bat) uses **`git commit -F`** on the **entire** file (subject + body). See **`review_bump.md`** Part 5 for placeholder rules and interaction with deploy scripts.
 
-- **Line 1** is always the **conventional commit subject** (`feat:`, `fix:`, `docs:`, `chore:`, …). Set it on the **first** session after a reset to `---`. **Update** line 1 if the overall scope of the pending commit changes.
-- **Lines 2+** accumulate **session summaries** — each `session_close` appends a short block (session id, initiative, what changed, pointers to `CHANGELOG` / initiative).
-- **Do not** put `---` on line 1 when you intend to commit or push. After a successful push, deploy scripts may reset the file to `---` — that starts the next window.
+- **Line 1** must be the **conventional commit subject** (`feat:`, `fix:`, `docs:`, `chore:`, …). It must **not** be the placeholder `---` (the push script errors if line 1 is `---`).
+- **Lines 2+** are the commit body (blank line after subject, then bullets or session notes). You may **append** across sessions before one push.
+- After a **successful** standalone `2_push_github.bat`, the file is reset to a single line `---`. **Replace the whole file** before the next push — do not leave `---` on line 1 with a draft underneath.
 
 ### Pre-commit checks
 
@@ -94,8 +94,9 @@ Types: `feat`, `fix`, `refactor`, `docs`, `style`, `chore`.
 | `startup.md` | Session start | Load context; **frame session**; **create session entry** |
 | `session_checkpoint.md` | Several times per session | Session updates + **`[Unreleased]`** + light docs |
 | `get_bearing.md` | Mid-session when stuck | Compare progress to **written** session goal |
+| `review_bump.md` | Docs audit + semver + `CHANGELOG` slice | Steering/extended checklist, bump matrix, no commit/push |
 | **`session_close.md`** (this) | **End** of session / before commit | **`Result`**, scoped docs, version bump, commit message |
-| `collect_for_consultant.md` | After build phase / handoff | Spot-check + **flat** copy for consultant (`consult_retire_scout.md`) |
+| [`extended/consultant_handoff.md`](../extended/consultant_handoff.md) | After build phase / handoff | Spot-check + **flat** copy — **`workspace/to_consultant/files-update/`** |
 
 ---
 

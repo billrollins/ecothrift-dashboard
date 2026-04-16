@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-14T23:55:00-05:00 -->
+<!-- Last updated: 2026-04-16T22:45:00-05:00 (review_bump table + commit_message) -->
 # Protocol: Session Startup
 
 How to begin a new AI session on this project.
@@ -80,13 +80,12 @@ How to begin a new AI session on this project.
 | **`startup.md`** (this) | Session start | Load context; **frame session**; **create session entry** |
 | **`session_checkpoint.md`** | **Several times** per session | Session updates + **`[Unreleased]`** + light docs |
 | `get_bearing.md` | Mid-session when stuck / drifting | Compare progress to written session goal |
+| `review_bump.md` | Isolated docs audit + semver + `CHANGELOG` | Checklist + bump matrix; optional **`commit_message.txt`** + **`2_push_github.bat`** (Part 5); no `Result` by itself |
 | `session_close.md` | **End** of session / before commit | Record **`Result`**, docs, version bump, commit message |
-| `collect_for_consultant.md` | Mid-session consultant bundle | Spot-check docs + **flat** copy to `files-update/` |
-| `consult_retire_scout.md` | Consultant **replacement** (Scout) | Full doc sync + **flat** bundle for new consultant |
-| `consult_retire_charlie.md` | Outgoing consultant (Charlie) | Handoff prompt file + instructions for Scout |
+| [`extended/consultant_handoff.md`](../extended/consultant_handoff.md) | Mid-session or rotation | Spot-check docs + **flat** copy to **`workspace/to_consultant/files-update/`** |
 
 ---
 
 ## Next protocols
 
-During work: **`.ai/protocols/session_checkpoint.md`**. When stuck: **`get_bearing.md`**. When finishing: **`session_close.md`**. Consultant rotation: **`consult_retire_scout.md`** (Scout) / **`consult_retire_charlie.md`** (Charlie); mid-session bundle: **`collect_for_consultant.md`**.
+During work: **`.ai/protocols/session_checkpoint.md`**. When stuck: **`get_bearing.md`**. Docs audit + bump slice only: **`review_bump.md`**. When finishing: **`session_close.md`**. Consultant handoff: **[`extended/consultant_handoff.md`](../extended/consultant_handoff.md)**.

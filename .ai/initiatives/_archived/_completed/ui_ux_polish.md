@@ -213,7 +213,7 @@ Reorder desktop (and align mobile card order where practical) to:
 - `2026-04-14T16:45:00-05:00` **Checkpoint** — **Phase 3A review (Bill)**: list — narrow **Watch** / **Thumbs** icon headers; **read-only priority** (steppers removed); **manifest** column plain Yes/No; **Clear** styled like marketplace **All**; **default list** hides ended auctions (active/open by default). Detail — manifest grid columns **# → … → SKU** with **Ext Retail** and **% of Manifest**; **Update** button calls **`recompute_valuation`** (no token). Aggregate **thumbs-up count** deferred (**Phase 3B**) until list serializer exposes it (`thumbs_up` is per-user boolean). Verified `npx tsc --noEmit`, `python manage.py check`.
 - `2026-04-14T18:00:00-05:00` **Checkpoint** — **Final 3A review round**: (1) **`has_manifest`** serializer → `get_has_manifest` checks `ManifestRow` count, not B-Stock flag; (2) **`_apply_auction_list_visibility`** — default = live (open/closing, `end_time` in future); `completed=1` = ended last 24h; **Completed** chip added to `BuyingFilterChips` + wired into list/watchlist params; (3) manifest detail **Category** column narrowed (fixed width, ellipsis chip); (4) detail action row: **Watch star → Update → B-Stock** in compact `Stack` under title. `tsc --noEmit` + `manage.py check` pass.
 - `2026-04-14T18:30:00-05:00` **Session close** — **v2.12.1**; Phase 3A complete (review items + final round). `npx tsc --noEmit`, `python manage.py check`.
-- `2026-04-14T22:00:00-05:00` **Checkpoint** — **`consult_retire_scout`**: `consultant_context` / personas / **flat** bundle (`workspace/notes/to_consultant/files-update/`) + **`consultant_instructions.txt`**; no code change for this initiative.
+- `2026-04-14T22:00:00-05:00` **Checkpoint** — **`consultant_handoff`**: `consultant_context` + **flat** bundle (`workspace/to_consultant/files-update/`) + **`consultant_instructions.txt`**; no code change for this initiative. *(`.ai/personas/` later removed.)*
 
 #### Result
 
@@ -290,7 +290,7 @@ Shipped as **v2.15.0** (see root `CHANGELOG.md` section **[2.15.0]**).
 - `2026-04-16T10:15:00-05:00` `useLiveBuyingCountdown` hook — per-row 1 s interval only under threshold (avoids parent re-renders); reused on desktop list + detail.
 - `2026-04-16T11:00:00-05:00` `ManifestQueueDialog` (Next up + Pull log) + `ManifestPullProgressPanel` + `useBuyingManifestPullProgress` wire into anonymous manifest pull queue; `BuyingSweepProgressDialog` replaces inline sweep status.
 - `2026-04-16T12:00:00-05:00` `CategoryNeedDetail` redesigned around raw 1–99 inputs + "sold-items window since"; `CategoryNeedBars` / `NeedPill` aligned to same thresholds.
-- `2026-04-16T13:00:00-05:00` `AssumptionsPage` stub (admin) — placeholder for staff-editable universal defaults (B6 captured in `workspace/4-16-26 Collection/todo.md`); implementation deferred.
+- `2026-04-16T13:00:00-05:00` `AssumptionsPage` stub (admin) — placeholder for staff-editable universal defaults (B6 captured in `.ai/initiatives/ui_ux_polish.md` (todo B6)); implementation deferred.
 - `2026-04-16T14:35:00-05:00` Session close — docs + changelog + version sync for v2.15.3 release train; all open initiative Sessions closed.
 
 #### Result

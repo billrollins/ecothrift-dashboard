@@ -29,7 +29,7 @@ Bring the repo to a **clean, navigable, contributor-friendly** layout: one obvio
 
 - `README.md` — Project structure updated (`printserver/`, seven apps including `ai`, backend = `manage.py` + `ecothrift/` + `apps/`, print server install path note).
 - `.ai/extended/development.md` — **Repository layout** table (backend vs frontend vs `.ai/` vs `workspace/` vs scripts vs notebooks); root `package.json` explained; print server source vs `%LOCALAPPDATA%`.
-- `workspace/notes/context-dump/OVERVIEW.md` — Print server note aligned with repo-root `printserver/`.
+- Local **context-dump** `OVERVIEW.md` (not in repo) — Print server note aligned with repo-root `printserver/`.
 
 ---
 
@@ -65,7 +65,7 @@ Largest surface areas for future splits (if ever): `inventory`, `pos`. Managemen
 ## Phase 6 — Workspace — **done**
 
 - Removed redundant local dirs: `workspace/scripts`, `workspace/tests`, `workspace/PrintServer` (redundant with repo `printserver/`).
-- `workspace/notebooks/README.md` — `pip install -r workspace/notebooks/requirements-notebooks.txt` from repo root.
+- `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` from repo root (see **`.ai/extended/development.md`**).
 
 ---
 
@@ -90,7 +90,7 @@ Largest surface areas for future splits (if ever): `inventory`, `pos`. Managemen
 ## Backlog (not in scope of this completion)
 
 - Optional physical `backend/` directory — separate high-touch migration (Procfile, paths, imports).
-- Requirements split: main `requirements.txt` vs `workspace/notebooks/requirements-notebooks.txt` — now documented in dev guide + notebooks README.
+- Requirements split: main `requirements.txt` vs `workspace/notebooks/_shared/requirements-notebooks.txt` — documented in **`.ai/extended/development.md`**.
 - Static audit for unused frontend exports.
 
 ---
