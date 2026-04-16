@@ -1,14 +1,1 @@
-feat: v2.17.0 category need good-data cohort; Margin + Profitability UI
-
-- Buying: CategoryStats migrations 0017–0019 (recovery rename, good-data cohort fields);
-  category_stats_sql _profitability_aggregates; category_need avg_profit, profit_margin,
-  good_data_sample_size; valuation/tests/benchmarks aligned
-- Frontend: CategoryNeedBars/Detail/Panel, AuctionListPage, AuctionValuationCard, buying.types;
-  measureTextWidth helper
-- Docs: CHANGELOG [2.17.0] + [Unreleased] PO retail_value vs notes ext_retail runbook;
-  .ai context, consultant, extended/backend; efforts + workspace buying-auctions-list-ux CONTEXT
-- Chore: remove obsolete scripts (summarize_ai_usage, build_sell_through*, daily_scheduled_tasks.bat,
-  pull_manifests_budget.bat) per repo hygiene
-
-.version / package.json: 2.17.0. Post-deploy: migrate; compute_daily_category_stats;
-  recompute_all_item_costs when PO/item cost data fixed.
+---
