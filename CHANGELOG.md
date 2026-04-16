@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16 (review_bump — [Unreleased] docs only) -->
+<!-- Last updated: 2026-04-16 (v2.15.4 — AI steering + repo hygiene) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,22 +9,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.15.4] — 2026-04-16
+
+User-facing theme: **AI steering and repository hygiene** — consolidate `.ai/` docs, archive initiative files, remove obsolete scripts and env-template clutter; fix `2_push_github.bat` so `git commit -F` uses the full `commit_message.txt` and the batch file parses under `cmd.exe`.
 
 ### Documentation
 
 - **Workspace** — Cleared **`workspace/data/`** (generated CSV/JSON; **`.gitkeep`** only). Removed notebook **`README.md`** files; Jupyter setup consolidated in **`.ai/extended/development.md`**. Pruned notebook temp artifacts (**`.csv`**, **`.pkl`**, caches, empty **`bstock-intelligence/`**). Dropped **`workspace/testing/`** gitignore exceptions (folder unused). Updated cross-links in **`README`**, **`databases.md`**, initiatives, **`CHANGELOG`** history where cited.
 
-- **AI steering** — Added [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md): docs-audit checklist (steering + extended TOC), semver bump matrix, `CHANGELOG` update rules, drift-check shell snippets; slice of `session_close` (no commit/push). Cross-links from `.ai/context.md`, **`README`** AI steering table, and `startup` / `session_checkpoint` / `session_close` protocol relationship tables.
+- **AI steering** — Added [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md): docs-audit checklist (steering + extended TOC), semver bump matrix, `CHANGELOG` update rules, drift-check shell snippets; Part 5 documents **`commit_message.txt`** + **`2_push_github.bat`**. Cross-links from `.ai/context.md`, **`README`** AI steering table, and `startup` / `session_checkpoint` / `session_close` protocol relationship tables.
 - **Consultant handoff** — Removed **`.ai/protocols/consult_retire_charlie.md`** and **`.ai/protocols/consult_retire_scout.md`**. Advisor bundle procedure is only [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md) (**`workspace/to_consultant/files-update/`**).
 - **Personas** — Removed **`.ai/personas/`** (Scout / Christina role prompts). Updated [`.ai/context.md`](.ai/context.md), [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md), and [`.ai/protocols/get_bearing.md`](.ai/protocols/get_bearing.md) so docs do not reference those paths.
 - **Workspace hygiene** — Removed **`workspace/notes/`** ignore whitelist for a non-existent tracked script; **`scripts/data/build_sell_through_rates.py`** reads **`workspace/data/historical_keys_mapped.csv`**. Session drop **`workspace/4-16-26 Collection/`** and temp **`workspace/file_cleanup.md`** deleted from disk when present.
 
 - **Env templates** — Removed **`template.env`** and **`extract-env-vars.bat`** from repo root; use **`.env.example`** as the committed template (copy to **`.env`** locally).
 
-- **Initiatives index** — [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) **Active initiatives** table cleared (no rows); in-repo **`bstock_auction_intelligence.md`**, **`ui_ux_polish.md`**, etc. remain for session history until archived.
+- **Initiatives index** — [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) **Active initiatives** table cleared (no rows); initiative markdown may live under **`_archived/_completed/`** (e.g. buying / UI polish) with session history preserved.
 
-- **AI steering (review_bump)** — [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md) pass: verified **`.version`** / **[2.15.3]** alignment, extended TOC parity (**`context.md`** ↔ **`consultant_context.md`**), **`<!-- Last updated -->`** on line 1 of every **`.ai/extended/*.md`** (including **`consultant_handoff.md`**).
+- **AI steering (review_bump)** — Extended TOC parity (**`context.md`** ↔ **`consultant_context.md`**); **`<!-- Last updated -->`** on line 1 of every **`.ai/extended/*.md`** (including **`consultant_handoff.md`**).
+
+### Changed
+
+- **Deploy** — [`scripts/deploy/2_push_github.bat`](scripts/deploy/2_push_github.bat): `git commit -F` on the full [`commit_message.txt`](scripts/deploy/commit_message.txt); validate first line only; reset to `---` on success when not `--called`; avoid `(` in `set /p` prompt and unparenthesized `::` comments that broke **`cmd.exe`**.
 
 ---
 

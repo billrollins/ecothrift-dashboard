@@ -1,49 +1,9 @@
-chore: AI steering cleanup, archive buying/UI initiatives, prune cruft
+chore: release v2.15.4 — AI steering + repository hygiene
 
-Documentation and repo hygiene only — product version stays at v2.15.3
-(CHANGELOG [Unreleased] holds steering notes; no .version bump in this pass).
+Bump .version and root package.json to 2.15.4. CHANGELOG [2.15.4] documents
+.ai/ cleanup (protocols, extended docs, initiatives archive), removed personas
+and consult_retire_*, template.env / extract-env-vars.bat, deploy script
+removals, workspace notebook README stubs, and 2_push_github.bat full-file
+git commit -F + cmd.exe parse fixes.
 
-Summary
--------
-
-* **`.ai/`** — Refresh `context.md`, `consultant_context.md`, and extended
-  domain docs; add `extended/consultant_handoff.md` and
-  `protocols/review_bump.md`; drop `consult_retire_charlie.md` /
-  `consult_retire_scout.md`; remove `personas/`; align protocols
-  (`startup`, `session_checkpoint`, `session_close`, `get_bearing`).
-* **Initiatives** — Move `bstock_auction_intelligence.md` and
-  `ui_ux_polish.md` to `_archived/_completed/`; clear **Active** table in
-  `_index.md`; update `ARCHIVE.md` and cross-links in archived/pending
-  initiatives (create_location_label, handoff paths, etc.).
-* **Repo root** — Delete `template.env`, `extract-env-vars.bat` (use
-  `.env.example` → `.env`).
-* **`scripts/deploy/`** — Remove `sync_env_to_heroku.bat` /
-  `sync_env_to_heroku.py`, `finish_production_backfill.bat`,
-  `run_production_backfill.bat` (obsolete or superseded flows).
-* **Workspace** — Remove empty notebook `README.md` stubs under
-  `workspace/notebooks/`; drop `workspace/data/.gitkeep` from tracking
-  (see staged diff).
-* **`CHANGELOG.md`** — Expand `[Unreleased]` (personas, consultant
-  handoff, env templates, initiatives index, review_bump audit, workspace
-  hygiene).
-* **`README.md`**, **`.env.example`**, **`.gitignore`** — Match current
-  layout and ignore rules.
-
-Code touch (minor)
-------------------
-
-* `apps/buying/management/commands/benchmark_manifest_pull.py`,
-  `apps/buying/services/manifest_dev_timelog.py`
-* `ecothrift/settings.py`
-* `scripts/data/build_sell_through_rates.py`
-
-Pre-commit (before push)
-------------------------
-
-* `python manage.py check`
-* `cd frontend && npx tsc --noEmit`
-
----
-
-Replace this file’s body with `---` after you commit, or edit the next
-message here before staging.
+See CHANGELOG.md [2.15.4] for full bullets.

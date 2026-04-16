@@ -1,7 +1,0 @@
--- Canonical discovery SQL and runner output live under the category-research notebook:
---   workspace/notebooks/category-research/ai_scripts/sql/category_research_discovery.sql
---
--- From repo root:
---   python workspace/notebooks/category-research/ai_scripts/ai_execute_sql.py category_research_discovery.sql category_research_discovery
---
--- CSVs: workspace/notebooks/category-research/ai_scripts/output/category_research_discovery_N.csv

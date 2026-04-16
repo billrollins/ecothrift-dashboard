@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-16T22:00:00-05:00 (review_bump — steering audit) -->
+<!-- Last updated: 2026-04-16T23:00:00-05:00 (v2.15.4) -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
