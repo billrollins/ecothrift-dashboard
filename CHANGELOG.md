@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-17 (Unreleased — PO retail data-quality ops note) -->
+<!-- Last updated: 2026-04-17 (v2.18.0 — buying CSV-only manifests + auction list UX) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,11 +9,64 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.18.0] — 2026-04-17
+
+User-facing theme: **Buying manifests are CSV-only** — anonymous order-process pulls, related REST actions, and server commands are removed. **Auction list** gains **Top category %**, **P/R %**, a richer **category** hover (full retail-weighted mix + source), **expand-all** on the detail column, and **tighter, vertically centered** grid rows.
+
+### Added
+
+- **Buying / auction list (desktop)** — **`Top category %`** (first word of lead category + rounded share), **`P/R %`** (current price ÷ list retail, integer %), **Category** column with hover showing **From Manifest** or **AI Estimate** and the full mix sorted by % desc; **expand** column header expands or collapses **all rows on the page**; cells and headers use compact padding with **vertical centering**.
+- **Buying / auction list (mobile)** — Same category + price/retail line treatment where applicable.
+- **Utilities** — [`frontend/src/utils/buyingCategoryList.ts`](frontend/src/utils/buyingCategoryList.ts), [`AuctionCategoryListBlock`](frontend/src/components/buying/AuctionCategoryListBlock.tsx).
+
+### Fixed
+
+- **Buying / React Query** — After **`DELETE …/manifest/`**, invalidate **`['buying','auctions']`** and **`['buying','auctions','summary']`** so list **`has_manifest`** and counts refresh without a full reload ([`AuctionDetailPage.tsx`](frontend/src/pages/buying/AuctionDetailPage.tsx)).
+
+### Removed
+
+- **Buying / manifests (breaking for automation using these endpoints or commands)** — Staff REST: `pull_manifest`, `manifest_pull_progress`, `manifest_queue`, `pull_manifests_budget`, `manifest_pull_log`. Management commands: `pull_manifests`, `pull_manifests_nightly`, `pull_manifests_budget`, `benchmark_manifest_pull`. Services: `manifest_api_pipeline` and related order-process client code. **Ingestion is CSV upload only** (`POST …/upload_manifest/`, `DELETE …/manifest/`). **Ops:** remove any Heroku Scheduler job that ran `pull_manifests_nightly`.
+
+### Documentation
+
+- **`.ai/extended/`** — `bstock.md`, `backend.md`, `development.md`; bookmarklet no longer references `pull_manifests`.
+
+---
+
+## [2.17.1] — 2026-04-17
+
+User-facing theme: **Manifest retail invariant fixed** — **`ManifestRow.retail_value`** is now **canonically per-unit MSRP** across ingest (CSV upload; `normalize_manifest_row` still normalizes legacy stored API-shaped `raw_data` when present), aggregates (auction list, valuation, manifest mix, detail card), and tests. Extended retail = **`SUM(Coalesce(quantity, 1) × retail_value)`** at query time, never stored. Resolves auctions where multi-qty rows showed inflated **Manifest retail** (e.g. listing **102 units / $7,129** displayed **$15,012**).
+
+### Fixed
+
+- **Buying / aggregates qty-weighted** — [`valuation._manifest_retail_sum`](apps/buying/services/valuation.py), [`valuation.compute_and_save_manifest_distribution`](apps/buying/services/valuation.py), [`api_views.annotate_auction_list_extras`](apps/buying/api_views.py) (`_manifest_retail_sum` annotation), and [`serializers.AuctionDetailSerializer.get_manifest_extended_retail_total`](apps/buying/serializers.py) now use **`SUM(Coalesce(quantity, 1) × retail_value)`**. Auction `estimated_revenue` and the **Manifest retail** detail card field move in lockstep; no model migration.
+- **Buying / CSV ingest** — [`manifest_template.standardize_row`](apps/buying/services/manifest_template.py) divides extended-retail columns by **`quantity`** when only `extended_retail` is mapped, logs a warning if both `retail_value` (unit) and `extended_retail` disagree by **>2%**, and warns when an extended value is stored as-is because qty is missing.
+- **Buying / API ingest** — [`normalize.normalize_manifest_row`](apps/buying/services/normalize.py) keeps `unitRetail` preferred and now divides `extRetail` by `quantity` when only `extRetail` is present.
+- **Buying / category-need** — Distribution bars no longer clip at **20%**. **`bar_scale_max`** is now **`max(max(shelf_pct, sold_pct) across categories, 20%)`** so the tallest bar fills the column while small distributions keep a 20% reference (**`apps/buying/services/category_need.py`**).
+
+### Added
+
+- **`apps/buying/management/commands/diagnose_manifest_retail.py`** — Read-only audit: per-auction `total_units`, `sum_retail`, `sum_ext`, `auction.total_retail_value`, ratio, and a flag (`UNIT_OK` / `EXTENDED_LIKELY` / `AMBIGUOUS` / `NO_LISTING`). Supports `--auction <id>`, `--database`, `--limit`, `--only`.
+- **`apps/buying/management/commands/normalize_stored_manifest_retail.py`** — Per-auction backfill (gated by `--auction`): for rows with `quantity ≥ 2`, divides stored `retail_value` by `quantity`. Default-safe `--dry-run`; runs `recompute_auction_full` after writes (skip with `--skip-recompute`).
+
+### Tests
+
+- [`apps/buying/tests/test_normalize_manifest.py`](apps/buying/tests/test_normalize_manifest.py): API extRetail-only row with `qty=3, ext=$90` → `retail_value = $30`; `unitRetail` preferred over `extRetail` when both present; extRetail-only with no qty stored as-is.
+- [`apps/buying/tests/test_manifest_upload.py`](apps/buying/tests/test_manifest_upload.py) `StandardizeRowRetailValueTests`: same matrix for CSV templates.
+- [`apps/buying/tests/test_valuation.py`](apps/buying/tests/test_valuation.py) `ManifestDistributionTests.test_manifest_distribution_qty_weighted` and `test_manifest_retail_sum_qty_weighted`.
 
 ### Documentation
 
 - **Inventory / `PurchaseOrder.retail_value`** — Some backfills store listing total incorrectly (e.g. **~100×** low vs **`notes`** JSON **`ext_retail`**). **`compute_item_cost`** divides by **`PO.retail_value × (1 − est_shrink)`**; a bad listing total inflates **`Item.cost`** and distorts **`CategoryStats`** good-data **`recovery_cost_amount`**, **`avg_cost`**, **`profit_margin`**, and panel **`n`** until corrected. Compare **`ecothrift.inventory_purchaseorder.retail_value`** to **`(regexp_replace(notes, '^[^{]*', ''))::jsonb ->> 'ext_retail'`** when **`notes`** contains **`BACKFILL:`** + JSON; fix **`retail_value`**, then **`python manage.py recompute_all_item_costs`** (optional **`--database production`**) and **`python manage.py compute_daily_category_stats`**.
+
+### Operations (post-deploy — production)
+
+- `python manage.py migrate` (no model changes; safety check).
+- `python manage.py diagnose_manifest_retail --database production` — review flagged auctions; compare `sum_ext` vs `auction.total_retail_value`.
+- For each affected auction (case by case):
+  - **Re-upload** — CSV via the UI (the new `standardize_row` divides extended by qty), OR
+  - **In-place fix** — `python manage.py normalize_stored_manifest_retail --auction <id> --dry-run` first, then drop `--dry-run`.
+- `python manage.py compute_daily_category_stats --database production` — refresh **`CategoryStats`** + **`category_need_panel`** cache once any backfill completes.
 
 ---
 

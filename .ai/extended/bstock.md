@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T20:30:00-05:00 (reference tree removed — opening paragraph) -->
+<!-- Last updated: 2026-04-17 (manifests: CSV upload only; order-process pull removed) -->
 # B-Stock API and scraper reference
 
 **Committed map:** This file is the **scraper-centric** reference aligned with `apps/buying/services/scraper.py`. A longer probe-backed catalog previously lived under **`.ai/reference/`**; that tree is **not** in the repo anymore — treat **`scraper.py`** + this doc as authoritative.
@@ -21,7 +21,6 @@ Phase **5** adds valuation-related routes on the **same** `/api/buying/` router 
 | get_auction_detail | GET auction.bstock.com/v1/auctions | JWT (`get_auth_headers`) | Probes: anonymous GET with `listingId` may return **200** — see research doc. |
 | get_auction_states_batch | GET auction.bstock.com/v1/auctions | optional (default anonymous) | Batch auction state lookup |
 | get_lot_detail | GET listing.bstock.com/v1/groups | JWT | Lot group data |
-| get_manifest | GET order-process.bstock.com/v1/manifests/{lotId} | Anonymous (no JWT) | **`scraper.get_manifest`** paginates with **`limit`** ≤ **1000**, **`max_rows`** default **10_000**; optional **`auction_id`** (Django PK) resolves **`lot_id`**. **B-Stock hard-caps page size at 10 items** regardless of `limit` param (v2.15.1 finding). **v2.15.1:** uses `_manifest_http_session()` (singleton `requests.Session` for TLS reuse). **Production:** CSV **`POST …/upload_manifest/`** (no live B-Stock). |
 | get_shipping_quotes | GET shipment.bstock.com/v1/quotes | JWT | Shipping estimates |
 | get_unique_bid_counts | GET auction.bstock.com/v1/auctions/bids/unique | JWT | Bid count enrichment |
 
@@ -34,12 +33,12 @@ Safe operations (no ban risk):
 - CSV manifest upload (local file processing, no B-Stock call)
 - **`POST` `/api/buying/sweep/`** from the UI (search discovery only; no JWT) — **Phase 5** may run **Claude** title-category estimates server-side for a limited batch (`ANTHROPIC_API_KEY`), not B-Stock
 - Management commands **`recompute_buying_valuations`**, **`estimate_auction_categories`** (DB + optional Anthropic; no B-Stock)
-- **`pull_manifests`** / **`pull_manifests_budget`** / **`pull_manifests_nightly`** management commands — anonymous **`get_manifest`** (no JWT); **v2.15.1** pipeline optimizations (session reuse, prefetch, batch_size, default delay 1 s). A 1000-row manifest ≈ **101 API calls** (10 items/page hard cap)
+
+**Manifests:** Ingestion is **CSV upload** only (**`POST /api/buying/auctions/{id}/upload_manifest/`**). There is **no** server-side order-process manifest download, staff **pull_manifest** endpoint, or **`pull_manifests*`** management commands (removed **2026-04**).
 
 Token-backed operations (ban risk, use only when needed):
 - sweep_auctions --enrich-detail
 - watch_auctions command
-- Staff **POST** `/api/buying/auctions/{id}/pull_manifest/` is **disabled** (use CSV or **`manage.py pull_manifests`**)
 
 ## Staff React UI (cross-reference)
 

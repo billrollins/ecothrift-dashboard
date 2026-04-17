@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from django.test import TestCase, override_settings
+from decimal import Decimal
+
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from apps.buying.models import Auction, CategoryMapping, ManifestRow, ManifestTemplate, Marketplace
 from apps.buying.services.ai_key_mapping import map_one_fast_cat_batch
-from apps.buying.services.manifest_template import compute_header_signature
+from apps.buying.services.manifest_template import compute_header_signature, standardize_row
 from apps.buying.services.manifest_upload import process_manifest_upload
 
 
@@ -14,6 +16,54 @@ class ManifestTemplateHelpersTests(TestCase):
     def test_compute_header_signature_sorts_and_normalizes(self) -> None:
         sig = compute_header_signature(['Unit Retail', 'brand', 'Qty'])
         self.assertEqual(sig, 'brand,qty,unit-retail')
+
+
+class StandardizeRowRetailValueTests(SimpleTestCase):
+    """`standardize_row` must store retail_value as per-unit MSRP."""
+
+    def _template(self, column_map: dict) -> ManifestTemplate:
+        return ManifestTemplate(
+            marketplace_id=0,
+            header_signature='sig',
+            display_name='t',
+            column_map=column_map,
+            category_fields=[],
+            category_field_transforms={},
+            is_reviewed=True,
+        )
+
+    def test_extended_only_divides_by_quantity(self) -> None:
+        tmpl = self._template({
+            'quantity': ['Qty'],
+            'extended_retail': ['Ext Retail'],
+        })
+        out = standardize_row(tmpl, {'Qty': '3', 'Ext Retail': '90.00'})
+        self.assertEqual(out['quantity'], 3)
+        self.assertEqual(out['retail_value'], Decimal('30.00'))
+
+    def test_unit_retail_preferred_over_extended(self) -> None:
+        tmpl = self._template({
+            'quantity': ['Qty'],
+            'retail_value': ['Unit Retail'],
+            'extended_retail': ['Ext Retail'],
+        })
+        out = standardize_row(tmpl, {'Qty': '3', 'Unit Retail': '25.00', 'Ext Retail': '90.00'})
+        self.assertEqual(out['retail_value'], Decimal('25.00'))
+
+    def test_extended_only_no_qty_stores_as_is(self) -> None:
+        tmpl = self._template({
+            'extended_retail': ['Ext Retail'],
+        })
+        out = standardize_row(tmpl, {'Ext Retail': '50.00'})
+        self.assertEqual(out['retail_value'], Decimal('50.00'))
+
+    def test_unit_retail_only_unchanged(self) -> None:
+        tmpl = self._template({
+            'quantity': ['Qty'],
+            'retail_value': ['Unit Retail'],
+        })
+        out = standardize_row(tmpl, {'Qty': '5', 'Unit Retail': '12.00'})
+        self.assertEqual(out['retail_value'], Decimal('12.00'))
 
 
 class ManifestUploadProcessTests(TestCase):

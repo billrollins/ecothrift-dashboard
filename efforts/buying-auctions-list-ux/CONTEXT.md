@@ -1,7 +1,7 @@
 # Effort: Buying → auctions list UX (Inventory Need)
 
 **Effort folder:** `efforts/buying-auctions-list-ux/` (committed). Optional mirror: **`workspace/buying-auctions-list-ux/CONTEXT.md`**.  
-**Last updated:** 2026-04-17  
+**Last updated:** 2026-04-17 (v2.17.1 — manifest retail per-unit invariant)  
 
 **How to use:** Read **after** `.ai/protocols/startup.md` (and `.ai/context.md`) when this thread is in scope. Supplements modular docs; does not replace initiatives or extended domain files.
 
@@ -40,6 +40,10 @@
 ### Data quality (affects **n**, **Margin**, **Recovery**, Profitability tiles)
 
 **v2.17.0** good-data metrics use sold rows with **sale, retail, cost** each **$0.01–$9,999**. **`Item.cost`** comes from **`PurchaseOrder.compute_item_cost`** (`item.retail / (PO.retail × (1 − shrink)) × total_cost`). If **`PurchaseOrder.retail_value`** is wrong (e.g. some backfills stored listing total **~100×** too low vs **`notes`** JSON **`ext_retail`**), every line cost is inflated and **Margin** / **avg cost** / **n** look wrong. Fix **`PO.retail_value`** to the true listing total, then run **`python manage.py recompute_all_item_costs`** and **`python manage.py compute_daily_category_stats`**. See **CHANGELOG [Unreleased]**, **`.ai/extended/backend.md`** (Item acquisition cost).
+
+### Manifest retail invariant (auction list & detail; **v2.17.1**)
+
+**`ManifestRow.retail_value` is per-unit MSRP.** **Manifest retail** in the auction detail card and the **Manifest retail** sort key on the auction list both compute extended retail at query time as **`SUM(Coalesce(quantity, 1) × retail_value)`** — auction valuation **`estimated_revenue`** uses the same sum (**`apps/buying/services/valuation.py`** `_manifest_retail_sum`, `compute_and_save_manifest_distribution`; **`apps/buying/api_views.py`** annotation; **`apps/buying/serializers.py`** detail). Ingest hardened: **`apps/buying/services/normalize.py`** divides API `extRetail / quantity` when only ext is present; **`apps/buying/services/manifest_template.py`** **`standardize_row`** does the same for CSV `extended_retail` mappings (warns on >2% disagreement). Audit & per-auction backfill via **`python manage.py diagnose_manifest_retail`** and **`python manage.py normalize_stored_manifest_retail --auction <id> --dry-run`**.
 
 ---
 

@@ -42,14 +42,14 @@ Requires **DEBUG=True** (or loopback) and **`https://bstock.com`** in CORS when 
 
 ```bash
 python manage.py sweep_auctions
-python manage.py pull_manifests
+python manage.py watch_auctions
 ```
 
-The scraper reads **`workspace/.bstock_token`** first, then **`BSTOCK_AUTH_TOKEN`** in `.env`.
+The scraper reads **`workspace/.bstock_token`** first, then **`BSTOCK_AUTH_TOKEN`** in `.env`. Manifest data is ingested via **CSV upload** in the staff UI, not via a management command.
 
 ## Token lifetime
 
-Tokens last about **one hour**. On **401** or **400** from order-process after a sweep, refresh: open B-Stock, click the bookmarklet again, then rerun commands.
+Tokens last about **one hour**. On **401** from JWT-backed endpoints (e.g. watchlist poll), refresh: open B-Stock, click the bookmarklet again, then rerun commands.
 
 ## See also
 

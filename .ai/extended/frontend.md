@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16 (v2.17.0 category need Margin + Profitability) -->
+<!-- Last updated: 2026-04-17 (v2.18.0 buying auction list columns + layout) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -86,11 +86,11 @@
 - **Shape**: borderRadius 8
 - **Component overrides**: MuiButton (textTransform none, fontWeight 500), MuiCard (subtle shadow). **Buying grid snappiness (v2.13.1):** **`MuiIconButton`** and **`MuiCheckbox`** — **`defaultProps.disableRipple: true`**, **`styleOverrides.root.transition: 'none'`** — reduces perceived lag on checkbox / star / thumbs / archive interactions in **`AuctionListDesktop`**.
 
-## Buying — desktop auction list (`AuctionListDesktop`, v2.13.1; need column v2.14.0)
+## Buying — desktop auction list (`AuctionListDesktop`, v2.18.0 list columns + layout; v2.13.1 grid perf; need v2.14.0)
 
-Staff **`/buying/auctions`** on **`md+`** uses **MUI X DataGrid** with **checkbox** selection. **Expand/collapse** for the inline detail strip is the **last** column (after **Time left**). Expanded row shows a compact **pipe-separated** metrics strip under the row via **`slots.row`** + **`getRowHeight`** (**`GridRow`** wrapper). **Shift+click** a row toggles expand without navigating.
+Staff **`/buying/auctions`** on **`md+`** uses **MUI X DataGrid** with **checkbox** selection. **v2.18.0:** columns **`Top category %`** (lead category word + share), **`P/R %`**, **Category** hover (full retail-weighted mix + **From Manifest** / **AI Estimate**); **expand** column header **expand all / collapse all** for the page; **compact** cell/header padding and **vertical centering**. **Expand/collapse** per row for the inline detail strip is the **last** column (after **Time left**). Multiple rows may be expanded. Expanded row shows a compact **pipe-separated** metrics strip under the row via **`slots.row`** + **`getRowHeight`** (**`GridRow`** wrapper). **Shift+click** a row toggles expand without navigating.
 
-**Performance:** Column **`GridColDef[]`** is built **once** (stable `useMemo` deps: admin flag + callbacks); frequently changing values (**`watchlistIds`**, **`rows`**, selection, sort model, expanded id) live in a **`useRef`** (`GridCellState`) read inside **`renderCell`** / **`renderHeader`** so optimistic watch/thumbs/archive updates **do not** replace the entire columns array (avoids full-grid re-renders). **`TimeRemainingCell`** subscribes to its own 1 s timer when **`end_time`** is within the live window — parent **`countdownTick`** from **`useLiveBuyingCountdownTick`** is kept for mobile but **void**’d in desktop columns so it does not invalidate column memo every second. **`useBuyingWatchlistToggleMutation`** optimistically sets **`watchlist_sort`** on the auction row via **`patchAllBuyingAuctionLists`** so the star cell’s row data updates. Mutations use **`void queryClient.cancelQueries`** instead of **`await`** before optimistic patches.
+**Performance:** Column **`GridColDef[]`** is built **once** (stable `useMemo` deps: admin flag + callbacks); frequently changing values (**`watchlistIds`**, **`rows`**, selection, sort model, **expanded ids** `Set`) live in a **`useRef`** (`GridCellState`) read inside **`renderCell`** / **`renderHeader`** so optimistic watch/thumbs/archive updates **do not** replace the entire columns array (avoids full-grid re-renders). **`TimeRemainingCell`** subscribes to its own 1 s timer when **`end_time`** is within the live window — parent **`countdownTick`** from **`useLiveBuyingCountdownTick`** is kept for mobile but **void**’d in desktop columns so it does not invalidate column memo every second. **`useBuyingWatchlistToggleMutation`** optimistically sets **`watchlist_sort`** on the auction row via **`patchAllBuyingAuctionLists`** so the star cell’s row data updates. Mutations use **`void queryClient.cancelQueries`** instead of **`await`** before optimistic patches.
 
 ## Vite Config
 

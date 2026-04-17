@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import re
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from apps.buying.models import ManifestTemplate, Marketplace
@@ -14,6 +15,8 @@ from apps.buying.services.normalize import (
     _str_or_empty,
     _to_int,
 )
+
+logger = logging.getLogger(__name__)
 
 # Vendor-prefixed keys (see Phase 4.1A plan). Fallback: first segment of slug.
 FAST_CAT_PREFIX_BY_SLUG: dict[str, str] = {
@@ -222,22 +225,59 @@ def standardize_row(template: ManifestTemplate, raw_row: dict[str, Any]) -> dict
     qty_names = [x for x in qty_spec] if isinstance(qty_spec, list) else []
     quantity = _to_int(_first_non_empty(raw_row, qty_names)) if qty_names else None
 
-    retail_val = None
+    # Invariant: ManifestRow.retail_value is per-unit MSRP. If the template only maps
+    # an "extended_retail" (line total) column, divide by quantity at ingest time so
+    # the stored value is per-unit.
+    unit_retail: Decimal | None = None
     rv_spec = cm.get('retail_value')
     if isinstance(rv_spec, list):
         for col in rv_spec:
             if isinstance(col, str) and col in raw_row:
-                retail_val = _manifest_retail_to_dollars(raw_row.get(col))
-                if retail_val is not None:
+                unit_retail = _manifest_retail_to_dollars(raw_row.get(col))
+                if unit_retail is not None:
                     break
-    if retail_val is None:
-        er_spec = cm.get('extended_retail')
-        if isinstance(er_spec, list):
-            for col in er_spec:
-                if isinstance(col, str) and col in raw_row:
-                    retail_val = _manifest_retail_to_dollars(raw_row.get(col))
-                    if retail_val is not None:
-                        break
+
+    extended_retail: Decimal | None = None
+    er_spec = cm.get('extended_retail')
+    if isinstance(er_spec, list):
+        for col in er_spec:
+            if isinstance(col, str) and col in raw_row:
+                extended_retail = _manifest_retail_to_dollars(raw_row.get(col))
+                if extended_retail is not None:
+                    break
+
+    qty_for_div = quantity if (quantity is not None and quantity > 0) else None
+
+    if unit_retail is not None and extended_retail is not None and qty_for_div:
+        derived = (extended_retail / Decimal(qty_for_div)).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+        if unit_retail > 0 and abs(unit_retail - derived) / unit_retail > Decimal('0.02'):
+            logger.warning(
+                'manifest_template.standardize_row: unit_retail (%s) and extended/qty (%s) '
+                'disagree by >2%%; trusting unit_retail. template_id=%s qty=%s',
+                unit_retail,
+                derived,
+                getattr(template, 'id', None),
+                quantity,
+            )
+        retail_val = unit_retail
+    elif unit_retail is not None:
+        retail_val = unit_retail
+    elif extended_retail is not None and qty_for_div:
+        retail_val = (extended_retail / Decimal(qty_for_div)).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP
+        )
+    elif extended_retail is not None:
+        logger.warning(
+            'manifest_template.standardize_row: extended_retail (%s) present without usable '
+            'quantity; storing as per-unit (likely overstated). template_id=%s',
+            extended_retail,
+            getattr(template, 'id', None),
+        )
+        retail_val = extended_retail
+    else:
+        retail_val = None
 
     condition = pick('condition')[:200]
 

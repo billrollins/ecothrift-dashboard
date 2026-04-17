@@ -6,22 +6,15 @@ import type {
   BuyingAuctionSnapshot,
   BuyingAuctionSummaryParams,
   BuyingAuctionSummaryResponse,
-  BuyingBudgetPullManifestBody,
-  BuyingBudgetPullManifestResponse,
   BuyingCategoryNeedResponse,
   BuyingManifestRow,
   BuyingManifestRowsParams,
   BuyingMapFastCatBatchResponse,
   BuyingMarketplace,
   BuyingPollResponse,
-  BuyingPullManifestResponse,
   BuyingUploadManifestResponse,
   BuyingSweepResponse,
   BuyingBstockTokenStatus,
-  BuyingManifestQueueItem,
-  BuyingManifestQueueParams,
-  BuyingManifestPullLogEntry,
-  BuyingManifestPullLogParams,
   BuyingValuationInputsPatch,
   BuyingWatchlistAuctionItem,
   BuyingWatchlistEntry,
@@ -38,7 +31,6 @@ export type {
   BuyingMapFastCatBatchResponse,
   BuyingMarketplace,
   BuyingPollResponse,
-  BuyingPullManifestResponse,
   BuyingUploadManifestResponse,
   BuyingSweepResponse,
   BuyingWatchlistAuctionItem,
@@ -173,34 +165,6 @@ export async function fetchBuyingAuctionSummary(
   return data;
 }
 
-/** Admin: next auctions in the nightly manifest pull queue. */
-export async function fetchBuyingManifestQueue(
-  params: BuyingManifestQueueParams = {}
-): Promise<PaginatedResponse<BuyingManifestQueueItem>> {
-  const q: Record<string, number> = {};
-  if (params.page != null) q.page = params.page;
-  if (params.page_size != null) q.page_size = params.page_size;
-  const { data } = await api.get<PaginatedResponse<BuyingManifestQueueItem>>(
-    '/buying/auctions/manifest_queue/',
-    { params: q }
-  );
-  return data;
-}
-
-/** Admin: recent manifest API pull audit rows. */
-export async function fetchBuyingManifestPullLog(
-  params: BuyingManifestPullLogParams = {}
-): Promise<PaginatedResponse<BuyingManifestPullLogEntry>> {
-  const q: Record<string, number> = {};
-  if (params.page != null) q.page = params.page;
-  if (params.page_size != null) q.page_size = params.page_size;
-  const { data } = await api.get<PaginatedResponse<BuyingManifestPullLogEntry>>(
-    '/buying/auctions/manifest_pull_log/',
-    { params: q }
-  );
-  return data;
-}
-
 export async function fetchBuyingAuction(id: number): Promise<BuyingAuctionDetail> {
   const { data } = await api.get<BuyingAuctionDetail>(`/buying/auctions/${id}/`);
   return data;
@@ -228,79 +192,6 @@ export async function fetchBuyingManifestRows(
   const { data } = await api.get<PaginatedResponse<BuyingManifestRow>>(
     `/buying/auctions/${auctionId}/manifest_rows/`,
     { params: q }
-  );
-  return data;
-}
-
-export async function postBuyingPullManifest(
-  auctionId: number,
-  options?: { force?: boolean }
-): Promise<BuyingPullManifestResponse> {
-  const { data } = await api.post<BuyingPullManifestResponse>(
-    `/buying/auctions/${auctionId}/pull_manifest/`,
-    { force: options?.force ?? false },
-    // Two-worker pipeline can stream 1000 rows in ~40s; allow generous timeout.
-    { timeout: 20 * 60 * 1000 }
-  );
-  return data;
-}
-
-export interface BuyingManifestPullLogSummary {
-  id: number;
-  started_at: string | null;
-  completed_at: string | null;
-  rows_downloaded: number;
-  api_calls: number;
-  duration_seconds: number;
-  used_socks5: boolean;
-  success: boolean;
-  error_message: string;
-}
-
-/** In-process manifest pull counters (poll while POST pull_manifest is in flight). */
-export interface BuyingManifestPullLive {
-  phase: string | null;
-  started_at: string | null;
-  updated_at: string | null;
-  total_rows_hint: number | null;
-  api_calls: number;
-  rows_fetched: number;
-  rows_saved: number;
-  batches_processed: number;
-  template_source: string | null;
-  ai_batches_run: number;
-  ai_mappings_created: number;
-  keys_remaining: number | null;
-  ai_error: string | null;
-}
-
-export interface BuyingManifestPullProgress {
-  auction_id: number;
-  rows_downloaded: number;
-  /** Populated while a pull runs on this dyno worker; null after completion or on another worker. */
-  live: BuyingManifestPullLive | null;
-  last_pull_log: BuyingManifestPullLogSummary | null;
-}
-
-/** Live row count + most-recent pull-log summary for polling an in-flight API pull. */
-export async function fetchBuyingManifestPullProgress(
-  auctionId: number
-): Promise<BuyingManifestPullProgress> {
-  const { data } = await api.get<BuyingManifestPullProgress>(
-    `/buying/auctions/${auctionId}/manifest_pull_progress/`
-  );
-  return data;
-}
-
-/** Admin: run the nightly manifest queue for N seconds (long HTTP, ties up one Gunicorn worker). */
-export async function postBuyingBudgetManifestPull(
-  body: BuyingBudgetPullManifestBody
-): Promise<BuyingBudgetPullManifestResponse> {
-  const { data } = await api.post<BuyingBudgetPullManifestResponse>(
-    '/buying/auctions/pull_manifests_budget/',
-    body,
-    // Long HTTP — allow seconds+120s headroom.
-    { timeout: Math.max(60, body.seconds) * 1000 + 120 * 1000 }
   );
   return data;
 }

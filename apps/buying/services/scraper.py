@@ -3,9 +3,7 @@ B-Stock microservice HTTP client. Endpoints are fixed infrastructure URLs.
 
 Search listings POST does not require auth. **Auction state** GET
 (``auction.bstock.com/v1/auctions``) works anonymously by default via
-``get_auction_states_batch(auth=False)``. **Manifest** GET
-(``order-process.bstock.com/v1/manifests/{lotId}``) is **anonymous** via
-``get_manifest`` (no JWT). Other listing and shipment calls normally require a
+``get_auction_states_batch(auth=False)``. Other listing and shipment calls normally require a
 JWT; when ``JWT_BSTOCK_CALLS_DISABLED`` is True (ban prevention),
 **authenticated** calls are skipped—see each function's guard.
 
@@ -49,10 +47,6 @@ _SOCKS5_EGRESS_LOCK = threading.Lock()
 _SOCKS5_LAST_EGRESS_MONO = 0.0
 _SOCKS5_LAST_EGRESS_IP: str | None = None
 
-# Reused for manifest pagination (same host, keep-alive / connection pooling).
-_MANIFEST_HTTP_SESSION_LOCK = threading.Lock()
-_MANIFEST_HTTP_SESSION: requests.Session | None = None
-
 # Ban prevention: skip all JWT-backed B-Stock HTTP calls. Public search (`discover_auctions`) is unchanged.
 # Set False to re-enable authenticated endpoints.
 JWT_BSTOCK_CALLS_DISABLED = True
@@ -62,8 +56,6 @@ LISTING_GROUPS_URL = 'https://listing.bstock.com/v1/groups'
 AUCTION_STATE_URL = 'https://auction.bstock.com/v1/auctions'
 AUCTION_UNIQUE_BIDS_URL = 'https://auction.bstock.com/v1/auctions/bids/unique'
 SHIPMENT_QUOTES_URL = 'https://shipment.bstock.com/v1/quotes'
-# Path segment is lotId (search `lotId` / Auction.lot_id). Browsers call GET here.
-ORDER_MANIFEST_BASE = 'https://order-process.bstock.com/v1/manifests'
 
 BASE_HEADERS: dict[str, str] = {
     'Accept': 'application/json',
@@ -191,10 +183,6 @@ def _jwt_exp_summary(headers: dict[str, str]) -> str:
     )
 
 
-def _is_manifest_url(url: str) -> bool:
-    return 'order-process.bstock.com' in url and '/manifests/' in url
-
-
 def _bstock_url_display(full_url: str) -> str:
     """Host + path + query, no scheme (matches ops log line style)."""
     p = urlparse(full_url)
@@ -235,15 +223,6 @@ def _headers_for_request(method: str, auth: bool) -> dict[str, str]:
     if method.upper() == 'GET':
         h = {k: v for k, v in h.items() if k.lower() != 'content-type'}
     return h
-
-
-def _manifest_http_session() -> requests.Session:
-    """Lazy singleton Session for repeated manifest GETs (TLS reuse on same host)."""
-    global _MANIFEST_HTTP_SESSION
-    with _MANIFEST_HTTP_SESSION_LOCK:
-        if _MANIFEST_HTTP_SESSION is None:
-            _MANIFEST_HTTP_SESSION = requests.Session()
-        return _MANIFEST_HTTP_SESSION
 
 
 def _request_json(
@@ -365,13 +344,6 @@ def _request_json(
                 err_url[:400],
                 body_preview,
             )
-            if resp.status_code == 400 and auth and _is_manifest_url(url):
-                logger.warning(
-                    'Manifest 400 with auth: compare logged Accept/Origin/Referer/Authorization '
-                    'to a working browser cURL. If the JWT was near expiry, sweep may have used '
-                    'the last seconds of a valid token before pull_manifests ran; try a fresh '
-                    'token; this service may return 400 instead of 401 for expired/invalid JWT.'
-                )
             return None
 
         if not (resp.content or '').strip():
@@ -893,275 +865,6 @@ def get_lot_detail(lot_id: str) -> dict[str, Any]:
     if isinstance(data, dict):
         return data
     return {'data': data}
-
-
-@dataclass
-class ManifestFetchResult:
-    """Result of anonymous manifest GET pagination (for pull logs / SOCKS5 badge)."""
-
-    rows: list[dict[str, Any]] | None
-    api_calls: int
-    duration_seconds: float
-
-
-def _manifest_items_from_response(data: Any) -> tuple[list[dict[str, Any]], int | None, int]:
-    """
-    Parse one manifest API response page.
-
-    Returns (item dicts, total count if given, number of items on this page).
-    """
-    if data is None:
-        return [], None, 0
-    if isinstance(data, list):
-        rows = [x for x in data if isinstance(x, dict)]
-        return rows, None, len(rows)
-    if not isinstance(data, dict):
-        return [], None, 0
-    total_raw = data.get('total')
-    total: int | None
-    try:
-        total = int(total_raw) if total_raw is not None else None
-    except (TypeError, ValueError):
-        total = None
-    for key in ('items', 'rows', 'manifest', 'lines', 'data', 'results'):
-        v = data.get(key)
-        if isinstance(v, list):
-            out = [x for x in v if isinstance(x, dict)]
-            return out, total, len(out)
-    return [data], total, 1
-
-
-def _resolve_manifest_lot_id(
-    lot_id: str | None,
-    auction_id: int | None,
-) -> str | None:
-    resolved = (lot_id or '').strip()
-    if not resolved and auction_id is not None:
-        from apps.buying.models import Auction
-
-        resolved = (
-            Auction.objects.filter(pk=auction_id).values_list('lot_id', flat=True).first()
-            or ''
-        ).strip()
-        if not resolved:
-            logger.warning(
-                'get_manifest: auction_id=%s has no lot_id; cannot fetch manifest',
-                auction_id,
-            )
-            return None
-    if not resolved:
-        logger.warning('get_manifest: pass lot_id or auction_id with a valid lot_id')
-        return None
-    return resolved
-
-
-def _fetch_manifest_paginated(
-    resolved_lot_id: str,
-    *,
-    page_limit: int,
-    max_rows: int,
-) -> tuple[list[dict[str, Any]] | None, int]:
-    """
-    Returns (rows or None if empty and no partial data, api_calls).
-    Partial accumulated data on first failed request after some rows still returns rows.
-    """
-    pl = max(1, min(int(page_limit), 1000))
-    cap = max(1, int(max_rows))
-
-    url = f'{ORDER_MANIFEST_BASE}/{resolved_lot_id}'
-    accumulated: list[dict[str, Any]] = []
-    offset = 0
-    total: int | None = None
-    max_iterations = cap
-    api_calls = 0
-
-    for round_i in range(max_iterations):
-        params: dict[str, Any] = {
-            'limit': pl,
-            'offset': offset,
-            'sortBy': 'attributes.description',
-            'sortOrder': 'ASC',
-            'exclude': 'metadata',
-        }
-        if offset == 0:
-            try:
-                hdrs = _headers_for_request('GET', False)
-                prep = requests.Request('GET', url, params=params, headers=hdrs).prepare()
-                logger.info(
-                    'B-Stock manifest request (anonymous): method=%s url=%s',
-                    prep.method,
-                    prep.url,
-                )
-            except Exception as e:
-                logger.warning('B-Stock manifest could not log prepared request: %s', e)
-
-        api_calls += 1
-        data = _request_json(
-            'GET',
-            url,
-            params=params,
-            auth=False,
-            session=_manifest_http_session(),
-        )
-        if data is None:
-            return (None if not accumulated else accumulated, api_calls)
-
-        items, page_total, n = _manifest_items_from_response(data)
-        if page_total is not None:
-            total = page_total
-        if round_i == 0 and total is not None:
-            logger.info(
-                'B-Stock manifest pagination: total=%s page_limit=%s (first page items=%s)',
-                total,
-                pl,
-                n,
-            )
-
-        accumulated.extend(items)
-        if len(accumulated) > cap:
-            accumulated = accumulated[:cap]
-            break
-        if not items:
-            break
-        if total is not None and len(accumulated) >= total:
-            break
-        offset += n
-
-    out = accumulated if accumulated else None
-    return (out, api_calls)
-
-
-def get_manifest(
-    lot_id: str | None = None,
-    *,
-    auction_id: int | None = None,
-    page_limit: int = 1000,
-    max_rows: int = 10000,
-) -> list[dict[str, Any]] | None:
-    """
-    GET order-process.bstock.com/v1/manifests/{lotId}?... (anonymous; no JWT).
-
-    SOCKS5: same as other B-Stock traffic — ``_request_json`` applies the proxy
-    for ``*.bstock.com`` when ``BUYING_SOCKS5_PROXY_ENABLED`` is True.
-
-    Provide ``lot_id`` (B-Stock lot id path segment) and/or ``auction_id`` (Django
-    ``Auction`` primary key). Non-empty ``lot_id`` wins over ``auction_id``.
-
-    The API caps ``limit`` at 1000; larger values return 400 — we clamp ``page_limit``
-    to 1..1000. Pagination stops at ``max_rows`` rows (default 10_000) or when the
-    manifest is fully fetched, whichever comes first.
-    """
-    resolved = _resolve_manifest_lot_id(lot_id, auction_id)
-    if not resolved:
-        return None
-    rows, _ = _fetch_manifest_paginated(resolved, page_limit=page_limit, max_rows=max_rows)
-    return rows
-
-
-def get_manifest_with_stats(
-    lot_id: str | None = None,
-    *,
-    auction_id: int | None = None,
-    page_limit: int = 1000,
-    max_rows: int = 10000,
-) -> ManifestFetchResult:
-    """
-    Same as ``get_manifest`` but returns API call count and wall duration for logging.
-    """
-    from django.conf import settings
-
-    t0 = time.perf_counter()
-    resolved = _resolve_manifest_lot_id(lot_id, auction_id)
-    if not resolved:
-        return ManifestFetchResult(
-            rows=None,
-            api_calls=0,
-            duration_seconds=time.perf_counter() - t0,
-        )
-    rows, api_calls = _fetch_manifest_paginated(
-        resolved, page_limit=page_limit, max_rows=max_rows
-    )
-    elapsed = time.perf_counter() - t0
-    return ManifestFetchResult(
-        rows=rows,
-        api_calls=api_calls,
-        duration_seconds=elapsed,
-    )
-
-
-def iter_manifest_pages(
-    lot_id: str | None = None,
-    *,
-    auction_id: int | None = None,
-    page_limit: int = 10,
-    max_rows: int = 10000,
-):
-    """
-    Generator that yields one manifest page (``list[dict]``) per HTTP call.
-
-    Each iteration returns ``(items, api_calls_so_far, total_hint)``; ``total_hint``
-    is the ``total`` field reported by the API when present (else None). Used by the
-    two-worker API manifest pipeline so Worker 2 can start processing the first batch
-    while Worker 1 keeps fetching. Mirrors ``_fetch_manifest_paginated`` pagination /
-    cap semantics; uses the same session-reused HTTP path.
-    """
-    resolved = _resolve_manifest_lot_id(lot_id, auction_id)
-    if not resolved:
-        return
-    pl = max(1, min(int(page_limit), 1000))
-    cap = max(1, int(max_rows))
-
-    url = f'{ORDER_MANIFEST_BASE}/{resolved}'
-    offset = 0
-    total: int | None = None
-    api_calls = 0
-    accumulated_count = 0
-
-    for round_i in range(cap):
-        params: dict[str, Any] = {
-            'limit': pl,
-            'offset': offset,
-            'sortBy': 'attributes.description',
-            'sortOrder': 'ASC',
-            'exclude': 'metadata',
-        }
-        api_calls += 1
-        data = _request_json(
-            'GET',
-            url,
-            params=params,
-            auth=False,
-            session=_manifest_http_session(),
-        )
-        if data is None:
-            return
-
-        items, page_total, n = _manifest_items_from_response(data)
-        if page_total is not None:
-            total = page_total
-        if round_i == 0 and total is not None:
-            logger.info(
-                'B-Stock manifest pagination (iterator): total=%s page_limit=%s (first page items=%s)',
-                total,
-                pl,
-                n,
-            )
-
-        if not items:
-            return
-
-        room = cap - accumulated_count
-        if len(items) > room:
-            items = items[:room]
-
-        accumulated_count += len(items)
-        yield items, api_calls, total
-
-        if accumulated_count >= cap:
-            return
-        if total is not None and accumulated_count >= total:
-            return
-        offset += n
 
 
 def get_shipping_quotes(listing_id: str) -> dict[str, Any] | None:

@@ -7,7 +7,8 @@ from collections import defaultdict
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from django.db.models import Sum
+from django.db.models import F, Sum, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.buying.models import Auction, CategoryStats, ManifestRow
@@ -17,9 +18,9 @@ from apps.core.models import AppSetting
 logger = logging.getLogger(__name__)
 
 
-def get_global_shrinkage() -> Decimal:
+def get_global_shrinkage(using: str = 'default') -> Decimal:
     try:
-        s = AppSetting.objects.get(key='pricing_shrinkage_factor')
+        s = AppSetting.objects.using(using).get(key='pricing_shrinkage_factor')
         return Decimal(str(s.value))
     except AppSetting.DoesNotExist:
         return Decimal('0.15')
@@ -27,8 +28,8 @@ def get_global_shrinkage() -> Decimal:
         return Decimal('0.15')
 
 
-def load_category_stats_dict() -> dict[str, CategoryStats]:
-    return {c.category: c for c in CategoryStats.objects.all()}
+def load_category_stats_dict(using: str = 'default') -> dict[str, CategoryStats]:
+    return {c.category: c for c in CategoryStats.objects.using(using).all()}
 
 
 def normalize_mix_at_write_time(raw: dict[str, Any] | None) -> dict[str, Decimal]:
@@ -84,20 +85,25 @@ def _round_pct_to_100(raw_pct: dict[str, float]) -> dict[str, float]:
 
 
 def compute_and_save_manifest_distribution(auction: Auction) -> dict[str, float]:
-    """Retail share per fast_cat_value (SUM retail_value); null/blank -> Mixed lots. Percentages sum to 100.
+    """Retail share per fast_cat_value, qty-weighted: SUM(qty * retail_value); null/blank -> Mixed lots.
 
-    If total positive retail is zero (all null/zero), falls back to row-count weights.
+    `ManifestRow.retail_value` is canonically per-unit MSRP, so extended retail per row is
+    ``Coalesce(quantity, 1) * retail_value``. Percentages sum to 100. If total positive
+    extended retail is zero (all null/zero), falls back to row-count weights.
     """
     sums: dict[str, Decimal] = defaultdict(lambda: Decimal('0'))
     counts: dict[str, int] = defaultdict(int)
-    for r in ManifestRow.objects.filter(auction=auction).only('fast_cat_value', 'retail_value'):
+    for r in ManifestRow.objects.filter(auction=auction).only(
+        'fast_cat_value', 'retail_value', 'quantity'
+    ):
         cat = (r.fast_cat_value or '').strip()
         if not cat:
             cat = MIXED_LOTS_UNCATEGORIZED
         counts[cat] += 1
         rv = r.retail_value
         if rv is not None and rv > 0:
-            sums[cat] += rv
+            qty = r.quantity if r.quantity and r.quantity > 0 else 1
+            sums[cat] += rv * Decimal(qty)
 
     total_retail = sum(sums.values())
     if total_retail > 0:
@@ -128,7 +134,13 @@ def get_valuation_source(auction: Auction) -> str:
 
 
 def _manifest_retail_sum(auction: Auction) -> Decimal:
-    agg = ManifestRow.objects.filter(auction=auction).aggregate(s=Sum('retail_value'))
+    """Qty-weighted manifest retail (extended): SUM(Coalesce(quantity, 1) * retail_value).
+
+    `ManifestRow.retail_value` is canonically per-unit MSRP.
+    """
+    agg = ManifestRow.objects.filter(auction=auction).aggregate(
+        s=Sum(Coalesce(F('quantity'), Value(1)) * F('retail_value'))
+    )
     s = agg.get('s')
     return s if s is not None else Decimal('0')
 
@@ -212,8 +224,9 @@ def recompute_auction_full(
     stats: dict[str, CategoryStats] | None = None,
 ) -> None:
     """Full recompute: revenue from mix × CategoryStats recovery_rate; need_score = auction need 1–99."""
+    db = getattr(auction._state, 'db', None) or 'default'
     if stats is None:
-        stats = load_category_stats_dict()
+        stats = load_category_stats_dict(using=db)
     if not stats:
         logger.warning('recompute_auction_full: no CategoryStats rows; valuation may be zero.')
 
@@ -239,7 +252,11 @@ def recompute_auction_full(
 
     fees, shipping, total_cost = _fees_shipping_total_cost(auction)
 
-    shrink = auction.shrinkage_override if auction.shrinkage_override is not None else get_global_shrinkage()
+    shrink = (
+        auction.shrinkage_override
+        if auction.shrinkage_override is not None
+        else get_global_shrinkage(using=db)
+    )
     base_rev_for_eff = auction.revenue_override if auction.revenue_override is not None else est_rev
     effective_rev = (base_rev_for_eff * (Decimal('1') - shrink)).quantize(Decimal('0.01'))
 

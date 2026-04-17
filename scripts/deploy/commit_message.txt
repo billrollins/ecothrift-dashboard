@@ -1,1 +1,10 @@
----
+chore(release): v2.18.0 buying CSV-only manifests + auction list UX
+
+- Remove anonymous B-Stock order-process manifest pulls (staff REST actions, pipeline,
+  pull_manifests* / benchmark commands, manifest_api_pipeline). Manifests: CSV upload only.
+- Auction list: Top category %, P/R %, category hover (full mix + From Manifest / AI Estimate),
+  expand-all header, compact vertically centered rows; mobile aligned.
+- Invalidate React Query auction list + summary on manifest DELETE (has_manifest stays correct).
+- Docs: backend, bstock, development, bookmarklet; CHANGELOG Unreleased merged.
+
+Post-deploy: drop Heroku Scheduler job for pull_manifests_nightly if it still exists.

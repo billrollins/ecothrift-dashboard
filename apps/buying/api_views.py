@@ -40,7 +40,6 @@ from apps.buying.models import (
     AuctionSnapshot,
     AuctionThumbsVote,
     CategoryMapping,
-    ManifestPullLog,
     ManifestRow,
     Marketplace,
     WatchlistEntry,
@@ -59,12 +58,8 @@ from apps.buying.serializers import (
     WatchlistEntrySerializer,
     WatchlistEntryWriteSerializer,
 )
-from apps.buying.services import manifest_dev_timelog, pipeline, scraper
+from apps.buying.services import pipeline, scraper
 from apps.buying.services.ai_key_mapping import map_one_fast_cat_batch
-from apps.buying.services.manifest_api_pipeline import (
-    get_progress as get_manifest_pull_progress,
-    run_api_manifest_pull,
-)
 from apps.buying.services.manifest_upload import process_manifest_upload
 from apps.buying.services.valuation import (
     recompute_active_auctions_lightweight,
@@ -79,7 +74,10 @@ def annotate_auction_list_extras(qs, user=None):
     """Manifest row count, retail sum, hybrid retail_sort, thumbs counts (Phase 3B)."""
     qs = qs.annotate(
         _manifest_row_count=Count('manifest_rows', distinct=True),
-        _manifest_retail_sum=Sum('manifest_rows__retail_value'),
+        _manifest_retail_sum=Sum(
+            Coalesce(F('manifest_rows__quantity'), Value(1))
+            * F('manifest_rows__retail_value')
+        ),
     ).annotate(
         retail_sort=Case(
             When(
@@ -265,7 +263,6 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.select_related('watchlist_entry')
         elif self.action in (
             'manifest_rows',
-            'pull_manifest',
             'upload_manifest',
             'map_fast_cat_batch',
             'manifest',
@@ -314,114 +311,6 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
             }
         )
 
-    @action(
-        detail=False,
-        methods=['get'],
-        url_path='manifest_queue',
-        permission_classes=[IsAuthenticated, IsAdmin],
-    )
-    def manifest_queue(self, request):
-        """Admin: next auctions eligible for nightly manifest pull (same ordering as pull_manifests_nightly)."""
-        qs = pipeline.manifest_pull_queue_queryset()
-        paginator = ConfigurablePageSizePagination()
-        page = paginator.paginate_queryset(qs, request, view=self)
-        results = []
-        for a in page:
-            we = getattr(a, 'watchlist_entry', None)
-            thumbs = getattr(a, '_thumbs_count', None)
-            results.append(
-                {
-                    'id': a.id,
-                    'title': a.title,
-                    'lot_id': a.lot_id,
-                    'marketplace': MarketplaceSerializer(a.marketplace).data,
-                    'watched': we is not None,
-                    'watchlist_priority': we.priority if we else None,
-                    'thumbs_up_count': int(thumbs) if thumbs is not None else 0,
-                    'auction_priority': a.priority,
-                    'url': a.url or '',
-                }
-            )
-        return paginator.get_paginated_response(results)
-
-    @action(
-        detail=False,
-        methods=['post'],
-        url_path='pull_manifests_budget',
-        permission_classes=[IsAuthenticated, IsAdmin],
-    )
-    def pull_manifests_budget(self, request):
-        """Admin: run the nightly manifest queue for N seconds (long HTTP, single request).
-
-        Shares a worker with the caller — keep ``seconds`` modest (30-300). Mirrors
-        the ``pull_manifests_budget`` management command so the UI can kick one off
-        without shell access.
-        """
-        body = request.data if isinstance(request.data, dict) else {}
-        try:
-            seconds = float(body.get('seconds', 60))
-        except (TypeError, ValueError):
-            seconds = 60.0
-        if seconds <= 0 or seconds > 900:
-            return Response(
-                {'detail': 'seconds must be in (0, 900].', 'code': 'bad_seconds'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
-            batch_size = int(body.get('batch_size', 50))
-        except (TypeError, ValueError):
-            batch_size = 50
-        try:
-            delay = float(body.get('delay', 1.0))
-        except (TypeError, ValueError):
-            delay = 1.0
-        force = bool(body.get('force', False))
-
-        summary = pipeline.run_budget_manifest_pull(
-            seconds=seconds,
-            batch_size=batch_size,
-            inter_auction_delay=delay,
-            force=force,
-        )
-        summary['manifest_api_version'] = manifest_dev_timelog.MANIFEST_API_PULL_VERSION
-        return Response(summary, status=status.HTTP_200_OK)
-
-    @action(
-        detail=False,
-        methods=['get'],
-        url_path='manifest_pull_log',
-        permission_classes=[IsAuthenticated, IsAdmin],
-    )
-    def manifest_pull_log(self, request):
-        """Admin: recent anonymous manifest API pull attempts (rows, timing, SOCKS5)."""
-        qs = ManifestPullLog.objects.select_related(
-            'auction',
-            'auction__marketplace',
-        ).order_by('-completed_at')
-        paginator = ConfigurablePageSizePagination()
-        page = paginator.paginate_queryset(qs, request, view=self)
-        results = []
-        for log in page:
-            auc = log.auction
-            results.append(
-                {
-                    'id': log.id,
-                    'auction_id': auc.id,
-                    'auction_title': auc.title,
-                    'auction_url': auc.url or '',
-                    'marketplace': MarketplaceSerializer(auc.marketplace).data,
-                    'started_at': log.started_at.isoformat(),
-                    'completed_at': log.completed_at.isoformat(),
-                    'rows_downloaded': log.rows_downloaded,
-                    'api_calls': log.api_calls,
-                    'duration_seconds': log.duration_seconds,
-                    'used_socks5': log.used_socks5,
-                    'success': log.success,
-                    'error_message': log.error_message,
-                }
-            )
-        return paginator.get_paginated_response(results)
-
     @action(detail=True, methods=['get'], url_path='manifest_rows')
     def manifest_rows(self, request, pk=None):
         """Paginated manifest line items for this auction (50 per page, server-side only)."""
@@ -448,108 +337,6 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         page = paginator.paginate_queryset(qs, request, view=self)
         serializer = ManifestRowSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)
-
-    @action(
-        detail=True,
-        methods=['post'],
-        url_path='pull_manifest',
-        permission_classes=[IsAuthenticated, IsAdmin],
-    )
-    def pull_manifest(self, request, pk=None):
-        """
-        Two-worker B-Stock manifest pull (anonymous). Resolves (or AI-creates) a
-        :class:`ManifestTemplate` from the first page's flattened headers, then
-        streams pages of 10 rows — Worker 2 standardizes rows, builds
-        ``fast_cat_key``, and batch-inserts as Worker 1 keeps fetching. After
-        the final row is persisted, the server loops ``map_one_fast_cat_batch``
-        so one click does template + fetch + map + categorize + valuation.
-        """
-        auction = self.get_object()
-        raw = request.data.get('force', False)
-        force = raw in (True, 'true', 'True', '1', 1)
-        if not (auction.lot_id or '').strip():
-            return Response(
-                {
-                    'detail': 'Auction has no lot_id; cannot fetch manifest from B-Stock.',
-                    'code': 'missing_lot_id',
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        body, http_status = run_api_manifest_pull(auction, force=force)
-        if isinstance(body, dict):
-            body.setdefault('manifest_api_version', manifest_dev_timelog.MANIFEST_API_PULL_VERSION)
-            body.setdefault('auctions_processed', 1 if http_status == 200 else 0)
-            body.setdefault('manifest_rows_saved', int(body.get('rows_saved', 0) or 0))
-        return Response(body, status=http_status)
-
-    @action(
-        detail=True,
-        methods=['get'],
-        url_path='manifest_pull_progress',
-        permission_classes=[IsAuthenticated, IsAdmin],
-    )
-    def manifest_pull_progress(self, request, pk=None):
-        """
-        Lightweight progress polling for an in-flight API manifest pull.
-
-        Returns the current persisted row count (grows in batches of 10 while
-        the two-worker pipeline runs) plus a compact summary of the most recent
-        :class:`ManifestPullLog` so the UI can show live download counts,
-        elapsed time, and error state without refetching the full detail.
-        """
-        auction = self.get_object()
-        rows_downloaded = ManifestRow.objects.filter(auction=auction).count()
-        last_log = (
-            ManifestPullLog.objects.filter(auction=auction)
-            .order_by('-completed_at')
-            .first()
-        )
-        log_payload = None
-        if last_log is not None:
-            log_payload = {
-                'id': last_log.id,
-                'started_at': last_log.started_at.isoformat() if last_log.started_at else None,
-                'completed_at': (
-                    last_log.completed_at.isoformat() if last_log.completed_at else None
-                ),
-                'rows_downloaded': int(last_log.rows_downloaded or 0),
-                'api_calls': int(last_log.api_calls or 0),
-                'duration_seconds': float(last_log.duration_seconds or 0),
-                'used_socks5': bool(last_log.used_socks5),
-                'success': bool(last_log.success),
-                'error_message': last_log.error_message or '',
-            }
-
-        # Live per-worker counters populated by run_api_manifest_pull via the
-        # module-level progress cache. ``None`` when no pull is active.
-        live = get_manifest_pull_progress(auction.pk)
-        live_payload = None
-        if isinstance(live, dict):
-            live_payload = {
-                'phase': live.get('phase'),
-                'started_at': live.get('started_at'),
-                'updated_at': live.get('updated_at'),
-                'total_rows_hint': live.get('total_rows_hint'),
-                'api_calls': int(live.get('api_calls') or 0),
-                'rows_fetched': int(live.get('rows_fetched') or 0),
-                'rows_saved': int(live.get('rows_saved') or 0),
-                'batches_processed': int(live.get('batches_processed') or 0),
-                'template_source': live.get('template_source'),
-                'ai_batches_run': int(live.get('ai_batches_run') or 0),
-                'ai_mappings_created': int(live.get('ai_mappings_created') or 0),
-                'keys_remaining': live.get('keys_remaining'),
-                'ai_error': live.get('ai_error'),
-            }
-
-        return Response(
-            {
-                'auction_id': auction.pk,
-                'rows_downloaded': int(rows_downloaded),
-                'live': live_payload,
-                'last_pull_log': log_payload,
-            }
-        )
 
     @action(
         detail=True,

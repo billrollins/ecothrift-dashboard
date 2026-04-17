@@ -50,7 +50,6 @@ import { ValuationCategoryTableCard, ValuationCostsCard } from '../../components
 import BuyingDetailSectionTitle from '../../components/buying/BuyingDetailSectionTitle';
 import CategoryDistributionBar from '../../components/buying/CategoryDistributionBar';
 import { useAuth } from '../../contexts/AuthContext';
-import { ManifestPullProgressPanel } from '../../components/buying/ManifestPullProgressPanel';
 import {
   ManifestUploadProgress,
   type ManifestMappingPhase,
@@ -62,12 +61,10 @@ import {
   postBuyingAuctionArchive,
   postBuyingAuctionRefreshFromBstock,
   postBuyingMapFastCatBatch,
-  postBuyingPullManifest,
   postBuyingUploadManifest,
   postBuyingWatchlist,
 } from '../../api/buying.api';
 import { useBuyingAuctionDetail } from '../../hooks/useBuyingAuctionDetail';
-import { useBuyingManifestPullProgress } from '../../hooks/useBuyingManifestPullProgress';
 import { useLiveBuyingCountdownTick } from '../../hooks/useLiveBuyingCountdown';
 import { useBuyingAuctionSnapshots } from '../../hooks/useBuyingAuctionSnapshots';
 import {
@@ -356,16 +353,7 @@ export default function AuctionDetailPage() {
   const [mappingLatest, setMappingLatest] = useState<string | null>(null);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
 
-  // Timestamp (ms) when the API-pull mutation kicked off, or null when idle.
-  // Used to compute a live elapsed-seconds counter independent of React Query
-  // cache state so the user sees the clock move even during quiet periods.
-  const [apiPullStartedAt, setApiPullStartedAt] = useState<number | null>(null);
-  const [apiPullElapsedMs, setApiPullElapsedMs] = useState(0);
-  /** Distinguish CSV upload vs API pull so the API progress panel does not duplicate CSV mapping UI. */
-  const [manifestSource, setManifestSource] = useState<'none' | 'upload' | 'api_pull'>(
-    'none'
-  );
-  const [mappingFollowUpAt, setMappingFollowUpAt] = useState<number | null>(null);
+  const [manifestSource, setManifestSource] = useState<'none' | 'upload'>('none');
 
   useEffect(() => {
     setMappingPhase('idle');
@@ -376,7 +364,6 @@ export default function AuctionDetailPage() {
     setMappingLatest(null);
     cancelMappingRef.current = false;
     setManifestSource('none');
-    setMappingFollowUpAt(null);
   }, [auctionId]);
 
   const runMappingWorkers = useCallback(async () => {
@@ -399,7 +386,6 @@ export default function AuctionDetailPage() {
           aiUnavailableRef.current = true;
           setMappingPhase('ai_unavailable');
           setManifestSource('none');
-          setMappingFollowUpAt(null);
           break;
         }
         if (!res.has_more) break;
@@ -415,14 +401,12 @@ export default function AuctionDetailPage() {
     if (cancelMappingRef.current) {
       setMappingPhase('cancelled');
       setManifestSource('none');
-      setMappingFollowUpAt(null);
     } else {
       setMappingPhase('complete');
       window.setTimeout(() => {
         setMappingPhase('idle');
         setStep1Info(null);
         setManifestSource('none');
-        setMappingFollowUpAt(null);
       }, 5000);
     }
   }, [auctionId, queryClient, scheduleDebouncedManifestInvalidate]);
@@ -430,102 +414,6 @@ export default function AuctionDetailPage() {
   const onCancelMapping = () => {
     cancelMappingRef.current = true;
   };
-
-  const pullManifestMutation = useMutation({
-    mutationFn: () => {
-      if (auctionId == null) {
-        return Promise.reject(new Error('Invalid auction'));
-      }
-      return postBuyingPullManifest(auctionId);
-    },
-    onMutate: () => {
-      setApiPullStartedAt(Date.now());
-      setApiPullElapsedMs(0);
-    },
-    onSettled: () => {
-      setApiPullStartedAt(null);
-    },
-    onSuccess: async (data) => {
-      if (auctionId == null) return;
-      invalidateAuctionAndManifest();
-      await queryClient.refetchQueries({
-        queryKey: ['buying', 'auctions', 'detail', auctionId],
-      });
-      await queryClient.refetchQueries({
-        queryKey: ['buying', 'auctions', auctionId, 'manifest_rows'],
-      });
-      const savedRows = data.rows_saved ?? data.manifest_rows_saved ?? 0;
-      const withFc = data.rows_with_fast_cat ?? 0;
-      const tplSource = data.template_source ?? 'existing';
-      const apiCalls = data.api_calls;
-      const durSec = data.duration_seconds;
-      const timingSuffix =
-        apiCalls != null && durSec != null
-          ? ` · ${apiCalls} API calls in ${Number(durSec).toFixed(1)}s`
-          : '';
-      enqueueSnackbar(
-        `Manifest via API: ${savedRows} rows, ${withFc} with fast category (template: ${tplSource})${timingSuffix}.`,
-        { variant: 'success' }
-      );
-      // Server already loops AI mapping; fall back to client worker loop if any keys remain
-      // (e.g. AI cap hit or ai_not_configured so user can retry after setting the env var).
-      if ((data.unmapped_key_count ?? 0) > 0) {
-        setManifestSource('api_pull');
-        setMappingFollowUpAt(Date.now());
-        setStep1Info({
-          rows_saved: data.rows_saved ?? savedRows,
-          rows_with_fast_cat: withFc,
-          template_source: tplSource === 'ai_created' ? 'ai_created' : 'existing',
-          ai_mappings_created: data.ai_mappings_created ?? 0,
-          unmapped_key_count: data.unmapped_key_count ?? 0,
-          total_batches: data.total_batches ?? 0,
-          manifest_template_id: data.manifest_template_id ?? 0,
-          template_display_name: data.template_display_name ?? '',
-          header_signature: data.header_signature ?? '',
-          warnings: data.warnings ?? [],
-        });
-        setUnmappedKeyCountStart(data.unmapped_key_count ?? 0);
-        setMappingKeysRemaining(data.unmapped_key_count ?? 0);
-        setMappingTotalCost(0);
-        setMappingLatest(null);
-        setMappingPhase('mapping');
-        void runMappingWorkers();
-      } else {
-        setManifestSource('none');
-        setMappingFollowUpAt(null);
-      }
-    },
-    onError: (err: unknown) => {
-      const msg = isAxiosError(err)
-        ? (typeof err.response?.data?.detail === 'string'
-            ? err.response.data.detail
-            : 'Could not pull manifest via API.')
-        : 'Could not pull manifest via API.';
-      enqueueSnackbar(msg, { variant: 'error' });
-    },
-  });
-
-  const isApiPulling = pullManifestMutation.isPending;
-
-  const pullProgressQuery = useBuyingManifestPullProgress(auctionId, isApiPulling);
-  const pullProgress = pullProgressQuery.data;
-
-  // Drive the elapsed-seconds ticker while the pull is active. A 500ms tick
-  // keeps the counter feeling "live" without burning React renders; the
-  // effect is cheap since the deps are just the pull-start timestamp.
-  useEffect(() => {
-    if (apiPullStartedAt == null) return;
-    const id = window.setInterval(() => {
-      setApiPullElapsedMs(Date.now() - apiPullStartedAt);
-    }, 500);
-    setApiPullElapsedMs(Date.now() - apiPullStartedAt);
-    return () => window.clearInterval(id);
-  }, [apiPullStartedAt]);
-
-  const showApiPullProgressPanel =
-    isApiPulling || (manifestSource === 'api_pull' && mappingPhase === 'mapping');
-  const manifestFollowUpActive =
-    manifestSource === 'api_pull' && mappingPhase === 'mapping' && !isApiPulling;
 
   const removeManifestMutation = useMutation({
     mutationFn: () => deleteBuyingManifest(auctionId!),
@@ -536,6 +424,8 @@ export default function AuctionDetailPage() {
       setRemoveDialogOpen(false);
       await queryClient.refetchQueries({ queryKey: ['buying', 'auctions', 'detail', auctionId] });
       await queryClient.refetchQueries({ queryKey: ['buying', 'auctions', auctionId, 'manifest_rows'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
       enqueueSnackbar('Manifest removed.', { variant: 'success' });
     },
     onError: () => {
@@ -943,19 +833,6 @@ export default function AuctionDetailPage() {
               showCancel={mappingPhase === 'mapping'}
               onCancel={onCancelMapping}
             />
-            {showApiPullProgressPanel ? (
-              <ManifestPullProgressPanel
-                live={pullProgress?.live ?? null}
-                rowsDownloaded={pullProgress?.rows_downloaded ?? 0}
-                elapsedMs={apiPullElapsedMs}
-                pullActive={isApiPulling}
-                manifestFollowUpActive={manifestFollowUpActive}
-                mappingFollowUpAt={mappingFollowUpAt}
-                mappingPhase={mappingPhase}
-                mappingKeysRemaining={mappingKeysRemaining}
-                unmappedKeyCountStart={unmappedKeyCountStart}
-              />
-            ) : null}
             {!hasManifestRows ? (
               isMappingBatch ? (
                 <Box sx={{ flex: 1, minHeight: 0 }} />
@@ -1044,23 +921,6 @@ export default function AuctionDetailPage() {
                           sx={{ textTransform: 'none', fontSize: '0.75rem' }}
                         >
                           Manual
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          disabled={
-                            !isAdmin ||
-                            !detail.lot_id ||
-                            pullManifestMutation.isPending ||
-                            uploadMutation.isPending
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void pullManifestMutation.mutate();
-                          }}
-                          sx={{ textTransform: 'none', fontSize: '0.75rem' }}
-                        >
-                          {pullManifestMutation.isPending ? 'API…' : 'API'}
                         </Button>
                       </Stack>
                     </Stack>
@@ -1152,20 +1012,6 @@ export default function AuctionDetailPage() {
                       sx={{ textTransform: 'none', fontSize: '0.7rem', minWidth: 0 }}
                     >
                       Manual
-                    </Button>
-                    <Button
-                      variant="text"
-                      size="small"
-                      disabled={
-                        !isAdmin ||
-                        !detail.lot_id ||
-                        pullManifestMutation.isPending ||
-                        uploadMutation.isPending
-                      }
-                      onClick={() => void pullManifestMutation.mutate()}
-                      sx={{ textTransform: 'none', fontSize: '0.7rem', minWidth: 0 }}
-                    >
-                      {pullManifestMutation.isPending ? 'API…' : 'API'}
                     </Button>
                   </Stack>
                 </Box>

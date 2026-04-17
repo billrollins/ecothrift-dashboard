@@ -136,3 +136,39 @@ class NormalizeManifestRowTests(SimpleTestCase):
         }
         out = normalize_manifest_row(raw)
         self.assertEqual(out['retail_value'], Decimal('40'))
+
+    def test_ext_retail_only_divides_by_quantity(self) -> None:
+        """API row with only extRetail (no unitRetail) divides by qty -> per-unit MSRP."""
+        raw = {
+            'quantity': 3,
+            'attributes': {
+                'description': 'Multi-pack',
+                'extRetail': '90.00',
+            },
+        }
+        out = normalize_manifest_row(raw)
+        self.assertEqual(out['retail_value'], Decimal('30.00'))
+
+    def test_unit_retail_preferred_over_ext_retail(self) -> None:
+        """When both unitRetail and extRetail are present, unitRetail wins (no division)."""
+        raw = {
+            'quantity': 3,
+            'attributes': {
+                'description': 'Multi-pack',
+                'unitRetail': '25.00',
+                'extRetail': '90.00',
+            },
+        }
+        out = normalize_manifest_row(raw)
+        self.assertEqual(out['retail_value'], Decimal('25.00'))
+
+    def test_ext_retail_only_no_quantity_stores_as_is(self) -> None:
+        """ExtRetail with missing/zero qty stores extended (best effort, qty unknown)."""
+        raw = {
+            'attributes': {
+                'description': 'Item',
+                'extRetail': '50.00',
+            },
+        }
+        out = normalize_manifest_row(raw)
+        self.assertEqual(out['retail_value'], Decimal('50.00'))

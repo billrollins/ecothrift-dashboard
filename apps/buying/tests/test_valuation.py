@@ -128,6 +128,44 @@ class ManifestDistributionTests(TestCase):
         self.assertAlmostEqual(out["Electronics"], 100.0 * 100 / 120, delta=0.05)
         self.assertAlmostEqual(out[app], 100.0 * 20 / 120, delta=0.05)
 
+    def test_manifest_distribution_qty_weighted(self):
+        """SUM(qty * retail_value) per bucket; multi-qty rows get correct weight."""
+        mp = Marketplace.objects.create(name="M", slug="m-qty-w")
+        a = Auction.objects.create(marketplace=mp, external_id="e-qty-w", has_manifest=True)
+        from apps.buying.models import ManifestRow
+
+        app = "Apparel & accessories"
+        ManifestRow.objects.create(
+            auction=a, row_number=1, fast_cat_value=app,
+            quantity=5, retail_value=Decimal("10"),
+        )
+        ManifestRow.objects.create(
+            auction=a, row_number=2, fast_cat_value="Electronics",
+            quantity=1, retail_value=Decimal("100"),
+        )
+        out = compute_and_save_manifest_distribution(a)
+        # qty-weighted: app = 5*10 = 50, Electronics = 1*100 = 100, total=150
+        self.assertAlmostEqual(out[app], 100.0 * 50 / 150, delta=0.05)
+        self.assertAlmostEqual(out["Electronics"], 100.0 * 100 / 150, delta=0.05)
+
+    def test_manifest_retail_sum_qty_weighted(self):
+        """`_manifest_retail_sum` = SUM(Coalesce(qty, 1) * retail_value)."""
+        from apps.buying.models import ManifestRow
+        from apps.buying.services.valuation import _manifest_retail_sum
+
+        mp = Marketplace.objects.create(name="M", slug="m-rsum")
+        a = Auction.objects.create(marketplace=mp, external_id="e-rsum", has_manifest=True)
+        ManifestRow.objects.create(
+            auction=a, row_number=1, fast_cat_value="Electronics",
+            quantity=5, retail_value=Decimal("10"),
+        )
+        ManifestRow.objects.create(
+            auction=a, row_number=2, fast_cat_value="Electronics",
+            quantity=None, retail_value=Decimal("7"),
+        )
+        # 5*10 + 1*7 = 57
+        self.assertEqual(_manifest_retail_sum(a), Decimal("57.00"))
+
     def test_manifest_distribution_falls_back_to_count_when_all_retail_null(self):
         mp = Marketplace.objects.create(name="M", slug="m-null-r")
         a = Auction.objects.create(marketplace=mp, external_id="e-null-r", has_manifest=True)

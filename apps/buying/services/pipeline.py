@@ -1,11 +1,10 @@
-"""Orchestration for discovery and manifest pulls. Callable from commands and notebooks."""
+"""Orchestration for discovery and B-Stock sweep. Callable from commands and notebooks."""
 
 from __future__ import annotations
 
-import json
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from django.conf import settings
@@ -16,13 +15,11 @@ from django.utils import timezone
 from apps.buying.models import (
     Auction,
     AuctionSnapshot,
-    ManifestRow,
     Marketplace,
     WatchlistEntry,
 )
-from apps.buying.services import manifest_dev_timelog, scraper
+from apps.buying.services import scraper
 from apps.buying.services import sweep_upsert
-from apps.buying.services.manifest_api_pipeline import run_api_manifest_pull
 from apps.buying.services.listing_mapping import (
     _first,
     _normalize_status,
@@ -361,217 +358,6 @@ def run_discovery(
         'by_marketplace': by_marketplace_out,
         'inserted': inserted,
         'updated': updated,
-    }
-
-
-def manifest_pull_queue_queryset():
-    """
-    Auctions eligible for anonymous manifest pull: lot_id present, not archived,
-    open/closing, future or unknown end_time, manifest not yet pulled.
-    Order: watchlist, watchlist priority, thumbs-up count, auction priority, oldest first.
-    Skips completed/closed/cancelled and archived (see filters).
-    """
-    now = timezone.now()
-    row_exists = Exists(ManifestRow.objects.filter(auction=OuterRef('pk')))
-    return (
-        Auction.objects.filter(
-            archived_at__isnull=True,
-            status__in=[Auction.STATUS_OPEN, Auction.STATUS_CLOSING],
-            manifest_pulled_at__isnull=True,
-        )
-        .exclude(Q(lot_id__isnull=True) | Q(lot_id=''))
-        .filter(Q(end_time__isnull=True) | Q(end_time__gte=now))
-        .select_related('marketplace', 'watchlist_entry')
-        .annotate(
-            _has_manifest_rows=row_exists,
-            _watch_pri=Case(
-                When(watchlist_entry__isnull=True, then=Value(0)),
-                When(
-                    watchlist_entry__priority=WatchlistEntry.PRIORITY_CRITICAL,
-                    then=Value(4),
-                ),
-                When(
-                    watchlist_entry__priority=WatchlistEntry.PRIORITY_HIGH,
-                    then=Value(3),
-                ),
-                When(
-                    watchlist_entry__priority=WatchlistEntry.PRIORITY_MEDIUM,
-                    then=Value(2),
-                ),
-                When(watchlist_entry__priority=WatchlistEntry.PRIORITY_LOW, then=Value(1)),
-                default=Value(0),
-                output_field=IntegerField(),
-            ),
-            _is_watched=Case(
-                When(watchlist_entry__isnull=False, then=Value(1)),
-                default=Value(0),
-                output_field=IntegerField(),
-            ),
-            _thumbs_count=Count('staff_thumbs_votes', distinct=True),
-        )
-        .exclude(_has_manifest_rows=True)
-        .order_by(
-            '-_is_watched',
-            '-_watch_pri',
-            '-_thumbs_count',
-            '-priority',
-            'created_at',
-        )
-    )
-
-
-def run_manifest_pull(
-    auction_ids: list[int] | None = None,
-    *,
-    force: bool = False,
-    log_first_manifest_schema: bool = True,
-    batch_size: int | None = None,
-    time_cutoff: datetime | None = None,
-    inter_auction_delay: float = 0.0,
-    use_has_manifest_fallback: bool = False,
-    prefetch_next: bool | None = None,
-) -> dict[str, Any]:
-    """
-    Pull manifests for given auction PKs, or the nightly queue (see
-    ``manifest_pull_queue_queryset``), or legacy ``has_manifest=True`` when
-    ``use_has_manifest_fallback`` is True and ``auction_ids`` is None.
-
-    Skips when ``manifest_pulled_at`` is set or manifest rows exist (unless ``force``).
-    """
-    row_exists = Exists(ManifestRow.objects.filter(auction=OuterRef('pk')))
-    if auction_ids is not None:
-        qs = (
-            Auction.objects.filter(id__in=auction_ids)
-            .order_by('id')
-            .annotate(_has_manifest_rows=row_exists)
-        )
-    elif use_has_manifest_fallback:
-        qs = (
-            Auction.objects.filter(has_manifest=True)
-            .annotate(_has_manifest_rows=row_exists)
-            .order_by('id')
-        )
-        if batch_size is not None:
-            qs = qs[: int(batch_size)]
-    else:
-        qs = manifest_pull_queue_queryset()
-        if batch_size is not None:
-            qs = qs[: int(batch_size)]
-
-    _ = prefetch_next  # Retained for backwards-compatible kwarg; two-worker pipeline now overlaps fetch+process per auction.
-
-    auction_list = list(qs)
-
-    processed = 0
-    rows_saved = 0
-    stopped_early = False
-    logged_schema = False
-
-    def _skip_auction(a: Auction) -> bool:
-        if not force and a.manifest_pulled_at is not None:
-            return True
-        if not force and getattr(a, '_has_manifest_rows', False):
-            return True
-        if not (a.lot_id or '').strip():
-            return True
-        return False
-
-    for auction in auction_list:
-        if time_cutoff is not None and timezone.now() >= time_cutoff:
-            stopped_early = True
-            break
-
-        if _skip_auction(auction):
-            if not (auction.lot_id or '').strip():
-                logger.warning(
-                    'Auction listing_id=%s has no lot_id; cannot fetch manifest',
-                    auction.external_id,
-                )
-            continue
-
-        processed += 1
-        t_start = time.perf_counter()
-        body, http_status = run_api_manifest_pull(auction, force=force)
-        duration = time.perf_counter() - t_start
-        saved = int(body.get('rows_saved', 0) or 0) if isinstance(body, dict) else 0
-        ok = http_status == 200 and saved > 0
-        if ok:
-            rows_saved += saved
-
-        if log_first_manifest_schema and not logged_schema and saved > 0:
-            try:
-                first = ManifestRow.objects.filter(auction=auction).order_by('row_number').first()
-                if first is not None and first.raw_data is not None:
-                    logger.info(
-                        'B-Stock manifest first row sample (schema discovery):\n%s',
-                        json.dumps(first.raw_data, indent=2, default=str)[:50000],
-                    )
-                    logged_schema = True
-            except (TypeError, ValueError):
-                logged_schema = True
-
-        manifest_dev_timelog.log_manifest_api_pull(
-            auction_id=auction.pk,
-            rows_saved=saved,
-            duration_seconds=float(duration),
-            success=ok,
-        )
-
-        if inter_auction_delay > 0:
-            time.sleep(inter_auction_delay)
-
-    return {
-        'auctions_processed': processed,
-        'manifest_rows_saved': rows_saved,
-        'logged_first_manifest_schema': logged_schema,
-        'stopped_early_time_cutoff': stopped_early,
-    }
-
-
-def run_budget_manifest_pull(
-    *,
-    seconds: float,
-    batch_size: int = 50,
-    inter_auction_delay: float = 1.0,
-    force: bool = False,
-) -> dict[str, Any]:
-    """Reusable budget pull: loops ``run_manifest_pull`` on the nightly queue until the cutoff."""
-    if seconds <= 0:
-        raise ValueError('seconds must be positive')
-    cutoff = timezone.now() + timedelta(seconds=float(seconds))
-
-    total_processed = 0
-    total_rows = 0
-    iterations = 0
-    stopped_early = False
-
-    while True:
-        if timezone.now() >= cutoff:
-            stopped_early = True
-            break
-        summary = run_manifest_pull(
-            auction_ids=None,
-            force=force,
-            batch_size=batch_size,
-            time_cutoff=cutoff,
-            inter_auction_delay=inter_auction_delay,
-            use_has_manifest_fallback=False,
-        )
-        iterations += 1
-        total_processed += int(summary.get('auctions_processed', 0))
-        total_rows += int(summary.get('manifest_rows_saved', 0))
-        if summary.get('stopped_early_time_cutoff'):
-            stopped_early = True
-            break
-        if summary.get('auctions_processed', 0) == 0:
-            break
-
-    return {
-        'iterations': iterations,
-        'auctions_processed': total_processed,
-        'manifest_rows_saved': total_rows,
-        'stopped_early_time_cutoff': stopped_early,
-        'cutoff': cutoff.isoformat(),
     }
 
 

@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from django.db import connection
+from django.db import connections
 
 from apps.buying.services.taxonomy_bucket_sql import taxonomy_bucket_case_sql
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
@@ -16,7 +16,7 @@ def _case() -> str:
     return taxonomy_bucket_case_sql()
 
 
-def _have_rows() -> list[tuple[str, int, Decimal]]:
+def _have_rows(*, using: str = 'default') -> list[tuple[str, int, Decimal]]:
     """Return (bucket, have_units, have_retail) for on_shelf items."""
     case = _case()
     sql = f"""
@@ -32,14 +32,14 @@ def _have_rows() -> list[tuple[str, int, Decimal]]:
         GROUP BY b.bucket
     """
     out: list[tuple[str, int, Decimal]] = []
-    with connection.cursor() as cursor:
+    with connections[using].cursor() as cursor:
         cursor.execute(sql)
         for bucket, units, retail in cursor.fetchall():
             out.append((bucket, int(units or 0), Decimal(str(retail or 0))))
     return out
 
 
-def _want_rows(since: datetime) -> list[tuple[str, int, Decimal]]:
+def _want_rows(since: datetime, *, using: str = 'default') -> list[tuple[str, int, Decimal]]:
     """Sold in pricing window (want mix): sold_at >= since, with sale + retail filters."""
     case = _case()
     sql = f"""
@@ -57,14 +57,14 @@ def _want_rows(since: datetime) -> list[tuple[str, int, Decimal]]:
         GROUP BY b.bucket
     """
     out: list[tuple[str, int, Decimal]] = []
-    with connection.cursor() as cursor:
+    with connections[using].cursor() as cursor:
         cursor.execute(sql, [since])
         for bucket, units, retail in cursor.fetchall():
             out.append((bucket, int(units or 0), Decimal(str(retail or 0))))
     return out
 
 
-def _profitability_aggregates() -> list[tuple[str, Decimal, Decimal, Decimal, int]]:
+def _profitability_aggregates(*, using: str = 'default') -> list[tuple[str, Decimal, Decimal, Decimal, int]]:
     """
     Per bucket: SUM(sold_for), SUM(retail_value), SUM(cost), COUNT(*) for all-time sold rows.
 
@@ -94,7 +94,7 @@ def _profitability_aggregates() -> list[tuple[str, Decimal, Decimal, Decimal, in
         GROUP BY b.bucket
     """
     out: list[tuple[str, Decimal, Decimal, Decimal, int]] = []
-    with connection.cursor() as cursor:
+    with connections[using].cursor() as cursor:
         cursor.execute(sql)
         for bucket, sold_sum, retail_sum, cost_sum, n in cursor.fetchall():
             out.append(
@@ -129,25 +129,25 @@ def _retail_raw_leg(want_r: Decimal, have_r: Decimal) -> Decimal:
     return (want_r / have_r).quantize(Decimal('0.000001'))
 
 
-def compute_category_stats_payloads(*, since: datetime) -> dict[str, dict[str, Any]]:
+def compute_category_stats_payloads(*, since: datetime, using: str = 'default') -> dict[str, dict[str, Any]]:
     """
     Merge raw aggregates into per-canonical-category dicts ready for CategoryStats upsert.
 
     Keys are exactly ``TAXONOMY_V1_CATEGORY_NAMES``; missing buckets get zeros.
     """
     have_map = {name: (0, Decimal('0')) for name in TAXONOMY_V1_CATEGORY_NAMES}
-    for bucket, u, r in _have_rows():
+    for bucket, u, r in _have_rows(using=using):
         if bucket in have_map:
             have_map[bucket] = (u, r)
 
     want_map = {name: (0, Decimal('0')) for name in TAXONOMY_V1_CATEGORY_NAMES}
-    for bucket, u, r in _want_rows(since):
+    for bucket, u, r in _want_rows(since, using=using):
         if bucket in want_map:
             want_map[bucket] = (u, r)
 
     profit_map: dict[str, dict[str, Any]] = {}
     q = Decimal('0.01')
-    for bucket, sold_d, retail_d, cost_d, n in _profitability_aggregates():
+    for bucket, sold_d, retail_d, cost_d, n in _profitability_aggregates(using=using):
         if bucket not in TAXONOMY_V1_CATEGORY_NAMES:
             continue
         rate = (sold_d / retail_d) if retail_d > 0 else Decimal('0')
@@ -213,13 +213,13 @@ def compute_category_stats_payloads(*, since: datetime) -> dict[str, dict[str, A
     return out
 
 
-def upsert_category_stats_from_sql(*, since: datetime) -> None:
+def upsert_category_stats_from_sql(*, since: datetime, using: str = 'default') -> None:
     """Persist ``compute_category_stats_payloads`` into ``CategoryStats`` rows."""
     from apps.buying.models import CategoryStats
 
-    payloads = compute_category_stats_payloads(since=since)
+    payloads = compute_category_stats_payloads(since=since, using=using)
     for name, d in payloads.items():
-        CategoryStats.objects.filter(category=name).update(
+        CategoryStats.objects.using(using).filter(category=name).update(
             recovery_rate=d['recovery_rate'],
             have_retail=d['have_retail'],
             have_units=d['have_units'],

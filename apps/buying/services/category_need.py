@@ -132,10 +132,8 @@ def build_category_need_rows() -> list[dict[str, Any]]:
             }
         )
 
-    cap = Decimal('20')
-    scale = bar_max if bar_max > 0 else cap
-    if scale > cap:
-        scale = cap
+    floor = Decimal('20')
+    scale = max(bar_max, floor)
     for row in rows:
         row['bar_scale_max'] = scale
 

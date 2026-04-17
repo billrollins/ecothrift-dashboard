@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -405,8 +405,9 @@ def normalize_manifest_row(raw_row: dict[str, Any], row_id: int | None = None) -
         pick('quantity', 'Quantity', 'qty', 'units', 'shipped qty', 'Shipped Qty')
     )
 
-    # Prefer unit (line) retail; fall back to extended.
-    retail_raw = pick(
+    # Prefer unit (line) retail; if only extended retail is available, divide by qty so
+    # the stored value remains per-unit (canonical invariant: retail_value = per-unit MSRP).
+    unit_retail_raw = pick(
         'unitRetail',
         'Unit Retail',
         'retail_value',
@@ -415,9 +416,18 @@ def normalize_manifest_row(raw_row: dict[str, Any], row_id: int | None = None) -
         'msrp',
         'retail_price',
         'estimated_retail',
-        'extRetail',
     )
-    retail_value = _manifest_retail_to_dollars(retail_raw)
+    retail_value = _manifest_retail_to_dollars(unit_retail_raw)
+    if retail_value is None:
+        ext_raw = pick('extRetail', 'Ext Retail', 'extended_retail', 'Extended Retail')
+        ext_val = _manifest_retail_to_dollars(ext_raw)
+        if ext_val is not None:
+            if quantity is not None and quantity > 0:
+                retail_value = (ext_val / Decimal(quantity)).quantize(
+                    Decimal('0.01'), rounding=ROUND_HALF_UP
+                )
+            else:
+                retail_value = ext_val
 
     condition = _str_or_empty(
         pick('condition', 'Condition', 'grade', 'itemCondition', 'otherCategory')

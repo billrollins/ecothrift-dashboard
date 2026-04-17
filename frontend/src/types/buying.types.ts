@@ -213,46 +213,6 @@ export interface BuyingMapFastCatBatchResponse {
   estimated_cost_usd?: number;
 }
 
-/** POST /api/buying/auctions/:id/pull_manifest/ (Admin; anonymous B-Stock manifest API) */
-export interface BuyingPullManifestResponse {
-  auctions_processed: number;
-  manifest_rows_saved: number;
-  manifest_api_version: string;
-  rows_saved?: number;
-  rows_with_fast_cat?: number;
-  template_source?: 'existing' | 'ai_created' | 'stub' | 'not_reviewed';
-  template_display_name?: string;
-  manifest_template_id?: number;
-  header_signature?: string;
-  ai_mappings_created?: number;
-  ai_batches_run?: number;
-  ai_error?: 'ai_not_configured' | string | null;
-  unmapped_key_count?: number;
-  total_batches?: number;
-  api_calls?: number;
-  duration_seconds?: number;
-  batches_processed?: number;
-  used_socks5?: boolean;
-  stopped_early_time_cutoff?: boolean;
-  warnings?: string[];
-}
-
-export interface BuyingBudgetPullManifestResponse {
-  iterations: number;
-  auctions_processed: number;
-  manifest_rows_saved: number;
-  stopped_early_time_cutoff: boolean;
-  cutoff: string;
-  manifest_api_version: string;
-}
-
-export interface BuyingBudgetPullManifestBody {
-  seconds: number;
-  batch_size?: number;
-  delay?: number;
-  force?: boolean;
-}
-
 export interface BuyingWatchlistPostBody {
   priority?: string;
 }
@@ -421,43 +381,3 @@ export interface BuyingBstockTokenStatus {
   bstock_token_available: boolean;
 }
 
-/** GET /api/buying/auctions/manifest_queue/ (Admin) */
-export interface BuyingManifestQueueParams {
-  page?: number;
-  page_size?: number;
-}
-
-export interface BuyingManifestQueueItem {
-  id: number;
-  title: string;
-  lot_id: string | null;
-  marketplace: BuyingMarketplace;
-  watched: boolean;
-  watchlist_priority: string | null;
-  /** Staff thumbs-up vote count (Phase 3B). */
-  thumbs_up_count: number;
-  auction_priority: number;
-  url: string;
-}
-
-/** GET /api/buying/auctions/manifest_pull_log/ (Admin) */
-export interface BuyingManifestPullLogParams {
-  page?: number;
-  page_size?: number;
-}
-
-export interface BuyingManifestPullLogEntry {
-  id: number;
-  auction_id: number;
-  auction_title: string;
-  auction_url: string;
-  marketplace: BuyingMarketplace;
-  started_at: string;
-  completed_at: string;
-  rows_downloaded: number;
-  api_calls: number;
-  duration_seconds: number;
-  used_socks5: boolean;
-  success: boolean;
-  error_message: string;
-}

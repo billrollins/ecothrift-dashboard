@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from django.db.models import CharField, Count
+from django.db.models import CharField, Count, F, Sum, Value
 from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
@@ -347,14 +347,17 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
         return None
 
     def get_manifest_extended_retail_total(self, obj: Auction) -> str | None:
-        """Sum of Coalesce(qty,1) * Coalesce(retail_value,0) over manifest rows (detail manifest grid %)."""
-        if not obj.manifest_rows.exists():
+        """Qty-weighted manifest retail: SUM(Coalesce(quantity, 1) * retail_value).
+
+        ``ManifestRow.retail_value`` is canonically per-unit MSRP, so extended retail
+        is computed at query time. Returns ``None`` when there are no manifest rows.
+        """
+        agg = obj.manifest_rows.aggregate(
+            s=Sum(Coalesce(F('quantity'), Value(1)) * F('retail_value'))
+        )
+        total = agg.get('s')
+        if total is None:
             return None
-        total = Decimal('0')
-        for qty, rv in obj.manifest_rows.values_list('quantity', 'retail_value'):
-            q = int(qty) if qty is not None and qty > 0 else 1
-            r = rv if rv is not None else Decimal('0')
-            total += Decimal(q) * r
         return format(total.quantize(Decimal('0.01')), 'f')
 
     def get_category_distribution(self, obj: Auction) -> dict:

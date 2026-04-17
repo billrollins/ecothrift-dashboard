@@ -8,7 +8,6 @@ import {
   Card,
   CardActionArea,
   CardContent,
-  Chip,
   CircularProgress,
   FormControl,
   IconButton,
@@ -22,11 +21,13 @@ import {
 import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
 import {
   formatAuctionCostToRetailPct,
+  formatPriceToRetailPct,
   formatTimeRemainingShort,
   MOBILE_SORT_OPTIONS,
   timeRemainingSx,
 } from '../../utils/buyingAuctionList';
 import type { BuyingAuctionListItem } from '../../types/buying.types';
+import AuctionCategoryListBlock from '../../components/buying/AuctionCategoryListBlock';
 import ManifestListCell from '../../components/buying/ManifestListCell';
 
 const MOBILE_PRESET_VALUES = new Set<string>(MOBILE_SORT_OPTIONS.map((o) => o.value));
@@ -108,6 +109,7 @@ export default function AuctionListMobile({
               const watched = watchlistIds?.has(row.id);
               const watchUnknown = watchlistIds === undefined;
               const costPct = formatAuctionCostToRetailPct(row);
+              const priceRetailPct = formatPriceToRetailPct(row);
               return (
                 <Card
                   key={row.id}
@@ -203,19 +205,9 @@ export default function AuctionListMobile({
                           </Stack>
                         )}
                       </Stack>
-                      {(row.top_categories ?? []).length > 0 ? (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.35, mb: 0.5, mt: -0.25 }}>
-                          {(row.top_categories ?? []).map((c) => (
-                            <Chip
-                              key={c.name}
-                              size="small"
-                              variant="outlined"
-                              label={`${c.name.length > 14 ? `${c.name.slice(0, 13)}…` : c.name} ${c.pct.toFixed(0)}%`}
-                              sx={{ height: 22, '& .MuiChip-label': { px: 0.5, fontSize: '0.65rem' } }}
-                            />
-                          ))}
-                        </Box>
-                      ) : null}
+                      <Box sx={{ mb: 0.5, mt: -0.25, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                        <AuctionCategoryListBlock row={row} dense />
+                      </Box>
                       <Typography
                         variant="body2"
                         sx={{
@@ -261,7 +253,7 @@ export default function AuctionListMobile({
                         </Tooltip>
                       </Stack>
                       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25, fontVariantNumeric: 'tabular-nums' }}>
-                        Cost / retail % {costPct}
+                        Price / retail {priceRetailPct} · Cost / retail {costPct}
                       </Typography>
                       <Stack
                         direction="row"

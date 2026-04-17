@@ -37,6 +37,7 @@ import {
 import { formatCurrencyWhole } from '../../utils/format';
 import {
   formatAuctionCostToRetailPct,
+  formatPriceToRetailPct,
   formatTimeRemaining,
   msUntilEnd,
   MS_TIME_REMAINING_WITH_SECONDS,
@@ -44,6 +45,7 @@ import {
   sortModelFromOrdering,
   timeRemainingSx,
 } from '../../utils/buyingAuctionList';
+import AuctionCategoryListBlock from '../../components/buying/AuctionCategoryListBlock';
 import type { BuyingAuctionListItem } from '../../types/buying.types';
 
 /** Star / thumbs / archive columns — same width for visual continuity. */
@@ -67,7 +69,7 @@ interface GridCellState {
   rows: BuyingAuctionListItem[];
   selectedIds: number[];
   sortModel: GridSortModel;
-  expandedId: number | null;
+  expandedIds: Set<number>;
 }
 
 function formatNeedScoreRaw(score: string | number | null | undefined): string {
@@ -228,6 +230,7 @@ function buildColumns(
   onBulkArchive: AuctionListDesktopProps['onBulkArchive'],
   onBulkColumnSort: (field: BulkSortableField) => void,
   onExpandToggle: (id: number) => void,
+  onExpandAll: () => void,
   stateRef: MutableRefObject<GridCellState>
 ): GridColDef<BuyingAuctionListItem>[] {
   return [
@@ -547,6 +550,22 @@ function buildColumns(
       ),
     },
     {
+      field: 'category_distribution',
+      headerName: 'Top category %',
+      width: 128,
+      minWidth: 112,
+      sortable: false,
+      hideSortIcons: true,
+      filterable: false,
+      align: 'left',
+      headerAlign: 'left',
+      renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => (
+        <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+          <AuctionCategoryListBlock row={params.row} />
+        </Box>
+      ),
+    },
+    {
       field: 'current_price',
       headerName: 'Price',
       width: 88,
@@ -556,6 +575,29 @@ function buildColumns(
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => (
         <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
           {formatCurrencyWhole(params.row.current_price)}
+        </Typography>
+      ),
+    },
+    {
+      field: 'price_retail_pct',
+      headerName: 'P/R %',
+      width: 64,
+      sortable: false,
+      hideSortIcons: true,
+      align: 'right',
+      headerAlign: 'right',
+      valueGetter: (_v, row) => {
+        const price = row.current_price;
+        const retail = row.total_retail_display ?? row.total_retail_value;
+        if (price == null || price === '' || retail == null || retail === '') return null;
+        const p = Number.parseFloat(String(price));
+        const r = Number.parseFloat(String(retail));
+        if (!Number.isFinite(p) || !Number.isFinite(r) || r <= 0) return null;
+        return Math.round((p / r) * 100);
+      },
+      renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => (
+        <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+          {formatPriceToRetailPct(params.row)}
         </Typography>
       ),
     },
@@ -591,16 +633,39 @@ function buildColumns(
       headerName: '',
       width: EXPAND_COL_WIDTH,
       sortable: false,
+      hideSortIcons: true,
       filterable: false,
       disableColumnMenu: true,
       align: 'center',
       headerAlign: 'center',
       headerClassName: 'buying-col-header-icon',
-      renderHeader: () => null,
+      renderHeader: () => {
+        const { rows, expandedIds } = stateRef.current;
+        const pageIds = rows.map((r) => r.id);
+        const noRows = pageIds.length === 0;
+        const allExpanded = !noRows && pageIds.every((id) => expandedIds.has(id));
+        const label = allExpanded ? 'Collapse all rows on this page' : 'Expand all rows on this page';
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+            <IconButton
+              size="small"
+              aria-label={label}
+              disabled={noRows}
+              onClick={(e) => {
+                e.stopPropagation();
+                onExpandAll();
+              }}
+              sx={{ p: 0.25 }}
+            >
+              {allExpanded ? <KeyboardArrowUpIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
+            </IconButton>
+          </Box>
+        );
+      },
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
-        const { expandedId } = stateRef.current;
+        const { expandedIds } = stateRef.current;
         const row = params.row;
-        const isOpen = expandedId === row.id;
+        const isOpen = expandedIds.has(row.id);
         return (
           <Box component="span" onClick={(e) => e.stopPropagation()} sx={{ display: 'flex', justifyContent: 'center' }}>
             <IconButton
@@ -674,7 +739,7 @@ function createAuctionRowSlot(stateRef: MutableRefObject<GridCellState>) {
     if (!row) {
       return <GridRow {...props} ref={ref} />;
     }
-    const expanded = stateRef.current.expandedId === row.id;
+    const expanded = stateRef.current.expandedIds.has(row.id);
     if (!expanded) {
       return <GridRow {...props} ref={ref} />;
     }
@@ -747,7 +812,7 @@ export default function AuctionListDesktop({
   onBulkArchive,
 }: AuctionListDesktopProps) {
   void countdownTick;
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const sortModel: GridSortModel = useMemo(() => sortModelFromOrdering(ordering), [ordering]);
@@ -757,9 +822,9 @@ export default function AuctionListDesktop({
     rows,
     selectedIds,
     sortModel,
-    expandedId,
+    expandedIds,
   });
-  gridStateRef.current = { watchlistIds, rows, selectedIds, sortModel, expandedId };
+  gridStateRef.current = { watchlistIds, rows, selectedIds, sortModel, expandedIds };
 
   const pageRowIds = useMemo(() => rows.map((r) => r.id), [rows]);
 
@@ -769,11 +834,32 @@ export default function AuctionListDesktop({
 
   useEffect(() => {
     setSelectedIds([]);
+    setExpandedIds(new Set());
   }, [paginationModel.page, paginationModel.pageSize]);
 
   const onExpandToggle = useCallback((id: number) => {
-    setExpandedId((prev) => (prev === id ? null : id));
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
+
+  const onExpandAll = useCallback(() => {
+    setExpandedIds((prev) => {
+      const pageIds = rows.map((r) => r.id);
+      if (pageIds.length === 0) return prev;
+      const allExpanded = pageIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allExpanded) {
+        pageIds.forEach((id) => next.delete(id));
+      } else {
+        pageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }, [rows]);
 
   const handleSortModelChange = useCallback(
     (model: GridSortModel) => {
@@ -810,34 +896,32 @@ export default function AuctionListDesktop({
         onBulkArchive,
         handleBulkColumnSort,
         onExpandToggle,
+        onExpandAll,
         gridStateRef
       ),
-    [isAdmin, onThumbsToggle, onWatchToggle, onArchiveToggle, onBulkWatch, onBulkThumbs, onBulkArchive, handleBulkColumnSort, onExpandToggle]
+    [isAdmin, onThumbsToggle, onWatchToggle, onArchiveToggle, onBulkWatch, onBulkThumbs, onBulkArchive, handleBulkColumnSort, onExpandToggle, onExpandAll]
   );
 
   const auctionRowSlot = useMemo(() => createAuctionRowSlot(gridStateRef), []);
 
   const getRowHeight = useCallback(
     ({ id }: GridRowHeightParams) => {
-      if (expandedId === Number(id)) {
+      if (expandedIds.has(Number(id))) {
         return ESTIMATE_ROW_BASE_PX + DETAIL_STRIP_PX;
       }
       return undefined;
     },
-    [expandedId]
+    [expandedIds]
   );
 
-  const getRowClassName = useCallback(
-    (params: GridRowClassNameParams<BuyingAuctionListItem>) => {
-      const id = Number(params.id);
-      const { watchlistIds: wids, expandedId: eid } = gridStateRef.current;
-      const parts: string[] = [];
-      if (wids?.has(id)) parts.push('buying-auction-row--watched');
-      if (eid === id) parts.push('buying-auction-row--expanded');
-      return parts.join(' ');
-    },
-    []
-  );
+  const getRowClassName = useCallback((params: GridRowClassNameParams<BuyingAuctionListItem>) => {
+    const id = Number(params.id);
+    const { watchlistIds: wids, expandedIds: eids } = gridStateRef.current;
+    const parts: string[] = [];
+    if (wids?.has(id)) parts.push('buying-auction-row--watched');
+    if (eids.has(id)) parts.push('buying-auction-row--expanded');
+    return parts.join(' ');
+  }, []);
 
   const handleRowClick = useCallback(
     (params: GridRowParams<BuyingAuctionListItem>, event: MouseEvent) => {
@@ -885,6 +969,7 @@ export default function AuctionListDesktop({
           checkboxSelectionUnselectRow: 'Deselect row',
         }}
         density="compact"
+        columnHeaderHeight={40}
         getRowClassName={getRowClassName}
         getRowHeight={getRowHeight}
         slots={{ row: auctionRowSlot, baseTooltip: DataGridTooltipPassthrough }}
@@ -896,6 +981,27 @@ export default function AuctionListDesktop({
           minHeight: 360,
           border: 'none',
           '& .MuiDataGrid-row': { cursor: 'pointer' },
+          '& .MuiDataGrid-columnHeader': {
+            display: 'flex',
+            alignItems: 'center',
+            py: 0.25,
+            px: 0.75,
+          },
+          '& .MuiDataGrid-cell': {
+            display: 'flex',
+            alignItems: 'center',
+            py: 0.25,
+            px: 0.75,
+            lineHeight: 1.25,
+          },
+          '& .MuiDataGrid-cellCheckbox': {
+            py: 0,
+            px: 0.5,
+          },
+          '& .MuiDataGrid-footerContainer': {
+            minHeight: 44,
+            py: 0.5,
+          },
           '& .MuiDataGrid-row.buying-auction-row--watched': {
             backgroundColor: '#fffde7',
           },

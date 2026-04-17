@@ -166,3 +166,14 @@ export function formatAuctionCostToRetailPct(row: BuyingAuctionListItem): string
   if (retail == null || retail <= 0 || cost == null) return '—';
   return `${((cost / retail) * 100).toFixed(1)}%`;
 }
+
+/**
+ * Current price ÷ retail (same base as list **Retail** column: manifest sum when present) × 100.
+ * Whole-number percent, no fractional digits.
+ */
+export function formatPriceToRetailPct(row: BuyingAuctionListItem): string {
+  const price = parseMoneyString(row.current_price);
+  const retail = parseMoneyString(row.total_retail_display ?? row.total_retail_value);
+  if (price == null || retail == null || retail <= 0) return '—';
+  return `${Math.round((price / retail) * 100)}%`;
+}

@@ -30,7 +30,6 @@ import {
   postBuyingWatchlist,
 } from '../../api/buying.api';
 import BuyingFilterChips, { type AuctionFilterChipId } from '../../components/buying/BuyingFilterChips';
-import ManifestQueueDialog from '../../components/buying/ManifestQueueDialog';
 import BuyingSweepProgressDialog from '../../components/buying/BuyingSweepProgressDialog';
 import CategoryNeedPanel from '../../components/buying/CategoryNeedPanel';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -408,7 +407,6 @@ export default function AuctionListPage() {
     [queryClient, enqueueSnackbar]
   );
 
-  const [manifestQueueOpen, setManifestQueueOpen] = useState(false);
   const [sweepDialogOpen, setSweepDialogOpen] = useState(false);
   const [sweepDialogLoading, setSweepDialogLoading] = useState(false);
   const [sweepDialogResponse, setSweepDialogResponse] = useState<BuyingSweepResponse | null>(null);
@@ -612,11 +610,6 @@ export default function AuctionListPage() {
             <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
               Last refreshed: {lastRefreshedLabel}
             </Typography>
-            {isAdmin ? (
-              <Button variant="outlined" size="small" onClick={() => setManifestQueueOpen(true)}>
-                Manifest queue
-              </Button>
-            ) : null}
             <Button
               variant="contained"
               disabled={sweepBusy}
@@ -634,8 +627,6 @@ export default function AuctionListPage() {
           </Stack>
         }
       />
-
-      <ManifestQueueDialog open={manifestQueueOpen} onClose={() => setManifestQueueOpen(false)} />
 
       <BuyingSweepProgressDialog
         open={sweepDialogOpen}
