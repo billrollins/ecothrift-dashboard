@@ -53,19 +53,30 @@ class User(AbstractBaseUser, PermissionsMixin):
     def full_name(self):
         return f'{self.first_name} {self.last_name}'
 
+    def _canonical_role_set(self):
+        """Group names mapped to Admin / Manager / Employee / Consignee (case-insensitive, strip whitespace)."""
+        canonical = {'admin': 'Admin', 'manager': 'Manager', 'employee': 'Employee', 'consignee': 'Consignee'}
+        present = set()
+        for raw in self.groups.values_list('name', flat=True):
+            key = (raw or '').strip().lower()
+            if key in canonical:
+                present.add(canonical[key])
+        return present
+
     @property
     def role(self):
-        """Return the user's primary role based on group membership."""
-        groups = self.groups.values_list('name', flat=True)
+        """Return the user's primary role based on group membership (highest privilege first)."""
+        present = self._canonical_role_set()
         for role in ['Admin', 'Manager', 'Employee', 'Consignee']:
-            if role in groups:
+            if role in present:
                 return role
         return None
 
     @property
     def roles(self):
-        """Return all group names as a list."""
-        return list(self.groups.values_list('name', flat=True))
+        """Canonical app roles this user has (subset of Admin, Manager, Employee, Consignee), priority order."""
+        present = self._canonical_role_set()
+        return [r for r in ['Admin', 'Manager', 'Employee', 'Consignee'] if r in present]
 
 
 class EmployeeProfile(models.Model):

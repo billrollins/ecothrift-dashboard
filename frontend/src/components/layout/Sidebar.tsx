@@ -33,6 +33,39 @@ import type { UserRole } from '../../types/accounts.types';
 
 const SIDEBAR_WIDTH = 260;
 
+/** Rank for nav access: Admin 3, Manager 2, Employee 1, Consignee 0. */
+const ROLE_RANK: Record<UserRole, number> = {
+  Admin: 3,
+  Manager: 2,
+  Employee: 1,
+  Consignee: 0,
+};
+
+/** Highest privilege from `user.roles` (API) or `user.role`. */
+function effectiveRoleRank(user: { role: UserRole | null; roles?: UserRole[] } | null): number {
+  if (!user) return -1;
+  if (user.roles?.length) {
+    return Math.max(...user.roles.map((r) => ROLE_RANK[r] ?? -1));
+  }
+  if (user.role) return ROLE_RANK[user.role] ?? -1;
+  return -1;
+}
+
+/**
+ * Item or section lists allowed roles; user passes if their effective rank >= minimum listed.
+ * Example: ['Manager','Admin'] → min rank 2 → Managers and Admins pass.
+ */
+function canAccessNav(
+  user: { role: UserRole | null; roles?: UserRole[] } | null,
+  itemRoles?: UserRole[]
+): boolean {
+  if (!itemRoles || itemRoles.length === 0) return true;
+  const ur = effectiveRoleRank(user);
+  if (ur < 0) return false;
+  const minRequired = Math.min(...itemRoles.map((r) => ROLE_RANK[r]));
+  return ur >= minRequired;
+}
+
 interface NavItem {
   path: string;
   label: string;
@@ -123,16 +156,10 @@ const navSections: NavSection[] = [
       { path: '/admin/users', label: 'Users', icon: <SupervisorAccount />, roles: ['Admin'] },
       { path: '/admin/customers', label: 'Customers', icon: <People />, roles: ['Admin'] },
       { path: '/admin/permissions', label: 'Permissions', icon: <Security />, roles: ['Admin'] },
-      { path: '/admin/settings', label: 'Settings', icon: <Settings />, roles: ['Admin'] },
+      { path: '/admin/settings', label: 'Settings', icon: <Settings />, roles: ['Manager', 'Admin'] },
     ],
   },
 ];
-
-function canAccess(userRole: UserRole | null, sectionRoles?: UserRole[]): boolean {
-  if (!sectionRoles || sectionRoles.length === 0) return true;
-  if (!userRole) return false;
-  return sectionRoles.includes(userRole);
-}
 
 function NavItemButton({
   label,
@@ -180,8 +207,6 @@ export function Sidebar() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const userRole = user?.role ?? null;
-
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     HR: true,
     Inventory: true,
@@ -209,7 +234,7 @@ export function Sidebar() {
       }}
     >
       {navSections.map((section) => {
-        if (!canAccess(userRole, section.roles)) return null;
+        if (!canAccessNav(user, section.roles)) return null;
 
         const isSectionActive = section.items.some(
           (item) => location.pathname === item.path || location.pathname.startsWith(item.path + '/')
@@ -245,7 +270,7 @@ export function Sidebar() {
               <Collapse in={isOpen} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
                   {section.items.map((item) => {
-                    if (!canAccess(userRole, item.roles)) return null;
+                    if (!canAccessNav(user, item.roles)) return null;
                     return (
                     <NavItemButton
                       key={item.path}
@@ -268,7 +293,7 @@ export function Sidebar() {
           return (
           <div key={section.label}>
             {section.items.map((item) => {
-              if (!canAccess(userRole, item.roles)) return null;
+              if (!canAccessNav(user, item.roles)) return null;
               return (
               <NavItemButton
                 key={item.path}

@@ -49,6 +49,10 @@ class UserSerializer(serializers.ModelSerializer):
     consignee = ConsigneeProfileSerializer(read_only=True)
     customer = CustomerProfileSerializer(read_only=True)
     role = serializers.CharField(read_only=True)
+    roles = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+    )
     full_name = serializers.CharField(read_only=True)
 
     class Meta:
@@ -56,7 +60,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'first_name', 'last_name', 'phone',
             'is_active', 'is_staff', 'date_joined', 'updated_at',
-            'role', 'full_name',
+            'role', 'roles', 'full_name',
             'employee', 'consignee', 'customer',
         ]
         read_only_fields = ['id', 'date_joined', 'updated_at']

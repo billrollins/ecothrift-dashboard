@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-17 (v2.18.0 — buying CSV-only manifests + auction list UX) -->
+<!-- Last updated: 2026-04-17 (v2.18.1 — Manager Settings + auth serializer fix) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -6,6 +6,17 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.18.1] — 2026-04-17
+
+User-facing theme: **Managers see Settings** — canonical roles from Django groups (`/api/auth/me/`), rank-based sidebar visibility, **`/admin/settings`** on **`ManagerRoute`**. Fixes login **500** from redundant `source='roles'` on **`UserSerializer`**.
+
+### Fixed
+
+- **Auth / API** — **`UserSerializer.roles`** no longer uses redundant DRF `source` (restores **`POST /api/auth/login/`**).
+- **Staff / Settings** — Managers get **Settings** in the nav and can open the page; **`GET /api/auth/me/`** includes **`roles`** and stable **`role`** when group names differ in casing or whitespace.
 
 ---
 

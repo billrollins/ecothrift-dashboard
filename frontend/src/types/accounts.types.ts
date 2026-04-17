@@ -63,6 +63,8 @@ export interface User {
   date_joined: string;
   updated_at: string;
   role: UserRole | null;
+  /** Canonical Django groups (Admin / Manager / Employee / Consignee), priority order — from `GET /api/auth/me/`. */
+  roles?: UserRole[];
   full_name: string;
   employee?: EmployeeProfile | null;
   consignee?: ConsigneeProfile | null;

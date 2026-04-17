@@ -164,7 +164,11 @@ export default function App() {
         />
         <Route
           path="/admin/settings"
-          element={<AdminRoute><SettingsPage /></AdminRoute>}
+          element={
+            <ManagerRoute>
+              <SettingsPage />
+            </ManagerRoute>
+          }
         />
         <Route
           path="/admin/assumptions"

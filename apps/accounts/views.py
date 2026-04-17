@@ -131,7 +131,12 @@ def logout_view(request):
 @permission_classes([IsAuthenticated])
 def me_view(request):
     """Return current user data with profiles."""
-    serializer = UserSerializer(request.user)
+    user = (
+        User.objects.prefetch_related('groups')
+        .select_related('employee', 'consignee', 'customer')
+        .get(pk=request.user.pk)
+    )
+    serializer = UserSerializer(user)
     return Response(serializer.data)
 
 
