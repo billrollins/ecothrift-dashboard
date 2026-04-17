@@ -21,6 +21,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Box, Chip, IconButton, Typography } from '@mui/material';
+import { keyframes } from '@mui/system';
 import {
   DataGrid,
   GridRow,
@@ -46,18 +47,96 @@ import {
   timeRemainingSx,
 } from '../../utils/buyingAuctionList';
 import AuctionCategoryListBlock from '../../components/buying/AuctionCategoryListBlock';
+import AuctionManifestStateIcon from '../../components/buying/AuctionManifestStateIcon';
+import {
+  BUYING_AUCTION_LIST_HEADER_ICON_PX,
+  BUYING_AUCTION_LIST_ROW_HEIGHT_PX,
+  BUYING_AUCTION_LIST_ROW_ICON_PX,
+} from '../../constants/buyingAuctionListUi';
 import type { BuyingAuctionListItem } from '../../types/buying.types';
 
-/** Star / thumbs / archive columns — same width for visual continuity. */
-const BUYING_ACTION_COL_WIDTH = 76;
+/** Star / archive: icon + sort (tight). */
+const BUYING_COL_STAR_ARCHIVE_WIDTH = 66;
+/** Thumbs: icon + tally + sort. */
+const BUYING_COL_THUMBS_WIDTH = 78;
 /** Expand/collapse chevron column. */
-const EXPAND_COL_WIDTH = 36;
+const EXPAND_COL_WIDTH = 40;
 /** Extra height for inline detail strip under an expanded row (matches getRowHeight). */
 const DETAIL_STRIP_PX = 44;
-/** Default compact row body height when splitting expanded row (must match grid default ~compact). */
-const ESTIMATE_ROW_BASE_PX = 52;
-/** Priority through Vendor — same width for continuity. */
-const BUYING_PRIORITY_BLOCK_COL_WIDTH = 108;
+/** Default row body height (must match DataGrid `rowHeight` and expanded-row split). */
+const ESTIMATE_ROW_BASE_PX = BUYING_AUCTION_LIST_ROW_HEIGHT_PX;
+/** Priority / Need — numeric. */
+const BUYING_COL_PRIORITY_NEED_WIDTH = 72;
+/** Vendor chip. */
+const BUYING_COL_VENDOR_WIDTH = 104;
+
+/** Watch / thumbs / archive / expand: same icon size and tap target; vertically centered in tall rows. */
+const buyingGridIconBtnSx = {
+  p: 0.5,
+  minWidth: 44,
+  minHeight: 44,
+  '& .MuiSvgIcon-root': {
+    fontSize: BUYING_AUCTION_LIST_ROW_ICON_PX,
+  },
+} as const;
+
+const buyingGridIconOnlySx = { fontSize: BUYING_AUCTION_LIST_ROW_ICON_PX } as const;
+
+/** Centered icon cell wrapper (star, expand toggle). */
+const buyingGridIconCellBoxSx = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+} as const;
+
+/** Centered icon cell wrapper (full-width variant, e.g. inert star placeholder). */
+const buyingGridIconCellFullBoxSx = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '100%',
+} as const;
+
+/** Thumbs cell wrapper (icon + tally). */
+const buyingGridThumbsCellBoxSx = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 0.25,
+  width: '100%',
+} as const;
+
+/** Thumbs cell wrapper (toggleable, no gap so IconButton padding supplies spacing). */
+const buyingGridThumbsToggleCellBoxSx = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 0,
+  width: '100%',
+} as const;
+
+/** Thumbs tally typography sx. */
+const buyingGridThumbsTallySx = {
+  fontVariantNumeric: 'tabular-nums',
+  fontSize: '0.7rem',
+} as const;
+
+/** Inert star (no toggle handler) — uses muted color. */
+const buyingGridInertStarSx = {
+  ...buyingGridIconOnlySx,
+  color: 'action.disabled',
+} as const;
+
+/** Header only: same size for bulk action icons, expand-all, and sort up/down (matches text column headers). */
+const buyingGridHeaderIconBtnSx = {
+  p: 0.25,
+  minWidth: 32,
+  minHeight: 32,
+  maxHeight: 32,
+  '& .MuiSvgIcon-root': {
+    fontSize: BUYING_AUCTION_LIST_HEADER_ICON_PX,
+  },
+} as const;
 
 /**
  * Mutable state read by column closures via ref.
@@ -70,7 +149,36 @@ interface GridCellState {
   selectedIds: number[];
   sortModel: GridSortModel;
   expandedIds: Set<number>;
+  /** Rows currently inside the 2s archive/unarchive grace window. */
+  archivePendingIds: Set<number>;
 }
+
+/**
+ * Subtle pulse on the archive icon button while the 2s grace window is open.
+ * Signals "something is happening, click again to cancel" without the visual
+ * weight of a progress ring. Matches the feel of a checkbox state change.
+ */
+const archiveGracePulse = keyframes({
+  '0%, 100%': { backgroundColor: 'rgba(15, 110, 86, 0.10)' },
+  '50%': { backgroundColor: 'rgba(15, 110, 86, 0.26)' },
+});
+
+const buyingGridArchiveIconBtnPendingSx = {
+  p: 0.5,
+  minWidth: 44,
+  minHeight: 44,
+  color: 'primary.main',
+  backgroundColor: 'rgba(15, 110, 86, 0.16)',
+  animation: `${archiveGracePulse} 1.2s ease-in-out infinite`,
+  transition: 'background-color 160ms ease',
+  '&:hover': {
+    backgroundColor: 'rgba(15, 110, 86, 0.28)',
+  },
+  '& .MuiSvgIcon-root': {
+    fontSize: BUYING_AUCTION_LIST_ROW_ICON_PX,
+    color: 'primary.main',
+  },
+} as const;
 
 function formatNeedScoreRaw(score: string | number | null | undefined): string {
   if (score == null || score === '') return '—';
@@ -164,8 +272,8 @@ function BulkColumnSortAffordance({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        minWidth: 28,
-        height: 28,
+        minWidth: 32,
+        height: 32,
         borderRadius: 1,
         '& .MuiSvgIcon-root': {
           opacity: sortDir ? 1 : 0,
@@ -176,19 +284,14 @@ function BulkColumnSortAffordance({
       }}
     >
       <IconButton
-        size="small"
         aria-label={sortTip}
         onClick={(e) => {
           e.stopPropagation();
           onSortClick();
         }}
-        sx={{ p: 0.25 }}
+        sx={buyingGridHeaderIconBtnSx}
       >
-        {sortDir === 'desc' ? (
-          <ArrowDownwardIcon fontSize="small" />
-        ) : (
-          <ArrowUpwardIcon fontSize="small" />
-        )}
+        {sortDir === 'desc' ? <ArrowDownwardIcon /> : <ArrowUpwardIcon />}
       </IconButton>
     </Box>
   );
@@ -203,7 +306,7 @@ export type AuctionListDesktopProps = {
   paginationModel: GridPaginationModel;
   onPaginationModelChange: (model: GridPaginationModel) => void;
   onRowNavigate: (id: number) => void;
-  isAdmin?: boolean;
+  canThumbsToggle?: boolean;
   onThumbsToggle?: (id: number, next: boolean) => void;
   onWatchToggle?: (id: number, add: boolean) => void;
   watchlistIds?: Set<number>;
@@ -213,6 +316,8 @@ export type AuctionListDesktopProps = {
   onBulkWatch: (ids: number[], add: boolean) => void | Promise<void>;
   onBulkThumbs: (ids: number[], active: boolean) => void | Promise<void>;
   onBulkArchive: (ids: number[], archive: boolean) => void | Promise<void>;
+  /** Rows currently in the archive grace window (2s undo). */
+  archivePendingIds: Set<number>;
 };
 
 /**
@@ -221,7 +326,7 @@ export type AuctionListDesktopProps = {
  * so the returned array is referentially stable across data-only changes.
  */
 function buildColumns(
-  isAdmin: boolean,
+  canThumbsToggle: boolean,
   onThumbsToggle: AuctionListDesktopProps['onThumbsToggle'],
   onWatchToggle: AuctionListDesktopProps['onWatchToggle'],
   onArchiveToggle: AuctionListDesktopProps['onArchiveToggle'],
@@ -237,12 +342,13 @@ function buildColumns(
     {
       field: 'watchlist_sort',
       headerName: '',
-      width: BUYING_ACTION_COL_WIDTH,
+      width: BUYING_COL_STAR_ARCHIVE_WIDTH,
       sortable: true,
       hideSortIcons: true,
       align: 'center',
       headerAlign: 'center',
-      headerClassName: 'buying-col-header-icon',
+      headerClassName: 'buying-col-header-icon buying-col-centered-tight',
+      cellClassName: 'buying-col-centered-tight',
       valueGetter: (_v, row) => (stateRef.current.watchlistIds?.has(row.id) ? 1 : 0),
       renderHeader: () => {
         const { rows, selectedIds, watchlistIds, sortModel } = stateRef.current;
@@ -275,15 +381,23 @@ function buildColumns(
         const sortDir = sortEntry?.sort === 'asc' || sortEntry?.sort === 'desc' ? sortEntry.sort : null;
         const sortTip = bulkColumnSortTooltip('watchlist_sort', sortDir);
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.25, width: '100%', px: 0.25 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0.25,
+              width: '100%',
+              px: 0,
+            }}
+          >
             <IconButton
-              size="small"
               aria-label={tooltipTitle}
               disabled={disabled}
               onClick={onClick}
-              sx={{ p: 0.25 }}
+              sx={buyingGridHeaderIconBtnSx}
             >
-              <StarIcon fontSize="small" sx={{ color: disabled ? 'action.disabled' : 'action.active' }} />
+              <StarIcon sx={{ color: disabled ? 'action.disabled' : 'action.active' }} />
             </IconButton>
             <BulkColumnSortAffordance sortDir={sortDir} sortTip={sortTip} onSortClick={() => onBulkColumnSort('watchlist_sort')} />
           </Box>
@@ -294,53 +408,60 @@ function buildColumns(
         const row = params.row;
         if (watchlistIds === undefined) {
           return (
-            <StarBorderIcon fontSize="small" sx={{ color: 'action.disabled' }} aria-hidden />
+            <Box sx={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center' }}>
+              <StarBorderIcon sx={buyingGridInertStarSx} aria-hidden />
+            </Box>
           );
         }
         const watched = watchlistIds.has(row.id);
         const icon = watched ? (
-          <StarIcon fontSize="small" color="warning" />
+          <StarIcon color="warning" />
         ) : (
-          <StarBorderIcon fontSize="small" sx={{ color: 'action.disabled' }} />
+          <StarBorderIcon sx={{ color: 'action.disabled' }} />
         );
         if (onWatchToggle) {
           return (
-            <Box component="span" onClick={(e) => e.stopPropagation()} sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Box
+              component="span"
+              onClick={(e) => e.stopPropagation()}
+              sx={buyingGridIconCellBoxSx}
+            >
               <IconButton
-                size="small"
                 aria-label={watched ? 'Remove from watchlist' : 'Add to watchlist'}
                 onClick={(e) => {
                   e.stopPropagation();
                   onWatchToggle(row.id, !watched);
                 }}
+                sx={buyingGridIconBtnSx}
               >
                 {icon}
               </IconButton>
             </Box>
           );
         }
-        return <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>{icon}</Box>;
+        return <Box sx={buyingGridIconCellFullBoxSx}>{icon}</Box>;
       },
     },
     {
       field: 'thumbs_up',
       headerName: '',
-      width: BUYING_ACTION_COL_WIDTH,
+      width: BUYING_COL_THUMBS_WIDTH,
       sortable: true,
       hideSortIcons: true,
       align: 'center',
       headerAlign: 'center',
-      headerClassName: 'buying-col-header-icon',
+      headerClassName: 'buying-col-header-icon buying-col-centered-tight',
+      cellClassName: 'buying-col-centered-tight',
       valueGetter: (_v, row) => (row.thumbs_up ? 1 : 0),
       renderHeader: () => {
         const { rows, selectedIds, sortModel } = stateRef.current;
         const targetRows = getTargetRowsForBulk(rows, selectedIds);
         const scope = scopePhrase(selectedIds);
         const noRows = targetRows.length === 0;
-        const disabled = !isAdmin || !onThumbsToggle || noRows;
+        const disabled = !canThumbsToggle || !onThumbsToggle || noRows;
         const anyDown = targetRows.some((r) => !r.thumbs_up);
-        const tooltipTitle = !isAdmin
-          ? 'Thumbs up (admins only)'
+        const tooltipTitle = !canThumbsToggle
+          ? 'Thumbs up (staff only)'
           : noRows
             ? 'No rows on this page'
             : anyDown
@@ -348,7 +469,7 @@ function buildColumns(
               : `Remove thumbs up from all ${scope} (${targetRows.length})`;
         const onClick = (e: MouseEvent) => {
           e.stopPropagation();
-          if (!isAdmin || !onThumbsToggle) return;
+          if (!canThumbsToggle || !onThumbsToggle) return;
           const s = stateRef.current;
           const tr = getTargetRowsForBulk(s.rows, s.selectedIds);
           if (tr.length === 0) return;
@@ -359,9 +480,18 @@ function buildColumns(
         const sortDir = sortEntry?.sort === 'asc' || sortEntry?.sort === 'desc' ? sortEntry.sort : null;
         const sortTip = bulkColumnSortTooltip('thumbs_up', sortDir);
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.25, width: '100%', px: 0.25 }}>
-            <IconButton size="small" aria-label={tooltipTitle} disabled={disabled} onClick={onClick} sx={{ p: 0.25 }}>
-              <ThumbUpIcon fontSize="small" sx={{ color: disabled ? 'action.disabled' : 'action.active' }} />
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0.25,
+              width: '100%',
+              px: 0,
+            }}
+          >
+            <IconButton aria-label={tooltipTitle} disabled={disabled} onClick={onClick} sx={buyingGridHeaderIconBtnSx}>
+              <ThumbUpIcon sx={{ color: disabled ? 'action.disabled' : 'action.active' }} />
             </IconButton>
             <BulkColumnSortAffordance
               sortDir={sortDir}
@@ -375,14 +505,14 @@ function buildColumns(
         const row = params.row;
         const active = Boolean(row.thumbs_up);
         const count = row.thumbs_up_count ?? 0;
-        const canToggle = isAdmin && onThumbsToggle;
+        const canToggle = canThumbsToggle && onThumbsToggle;
         const icon = active ? (
-          <ThumbUpIcon fontSize="small" color="primary" />
+          <ThumbUpIcon color="primary" />
         ) : (
-          <ThumbUpOutlinedIcon fontSize="small" color="disabled" />
+          <ThumbUpOutlinedIcon color="disabled" />
         );
         const tally = (
-          <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums', fontSize: '0.7rem' }}>
+          <Typography variant="caption" color="text.secondary" sx={buyingGridThumbsTallySx}>
             {count}
           </Typography>
         );
@@ -390,7 +520,8 @@ function buildColumns(
           return (
             <Box
               component="span"
-              sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.25, width: '100%' }}
+              sx={buyingGridThumbsCellBoxSx}
+              onClick={(e) => e.stopPropagation()}
             >
               {icon}
               {tally}
@@ -400,18 +531,11 @@ function buildColumns(
         return (
           <Box
             component="span"
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 0,
-              width: '100%',
-            }}
+            sx={buyingGridThumbsToggleCellBoxSx}
             onClick={(e) => e.stopPropagation()}
           >
             <IconButton
-              size="small"
-              sx={{ p: 0.25 }}
+              sx={buyingGridIconBtnSx}
               aria-label={active ? 'Remove thumbs up' : 'Thumbs up'}
               onClick={(e) => {
                 e.stopPropagation();
@@ -428,12 +552,13 @@ function buildColumns(
     {
       field: 'archived_at',
       headerName: '',
-      width: BUYING_ACTION_COL_WIDTH,
+      width: BUYING_COL_STAR_ARCHIVE_WIDTH,
       sortable: true,
       hideSortIcons: true,
       align: 'center',
       headerAlign: 'center',
-      headerClassName: 'buying-col-header-icon',
+      headerClassName: 'buying-col-header-icon buying-col-centered-tight',
+      cellClassName: 'buying-col-centered-tight',
       valueGetter: (_v, row) => (row.archived_at ? 1 : 0),
       renderHeader: () => {
         const { rows, selectedIds, sortModel } = stateRef.current;
@@ -459,9 +584,18 @@ function buildColumns(
         const sortDir = sortEntry?.sort === 'asc' || sortEntry?.sort === 'desc' ? sortEntry.sort : null;
         const sortTip = bulkColumnSortTooltip('archived_at', sortDir);
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.25, width: '100%', px: 0.25 }}>
-            <IconButton size="small" aria-label={tooltipTitle} disabled={disabled} onClick={onClick} sx={{ p: 0.25 }}>
-              <ArchiveOutlinedIcon fontSize="small" sx={{ color: disabled ? 'action.disabled' : 'action.active' }} />
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0.25,
+              width: '100%',
+              px: 0,
+            }}
+          >
+            <IconButton aria-label={tooltipTitle} disabled={disabled} onClick={onClick} sx={buyingGridHeaderIconBtnSx}>
+              <ArchiveOutlinedIcon sx={{ color: disabled ? 'action.disabled' : 'action.active' }} />
             </IconButton>
             <BulkColumnSortAffordance
               sortDir={sortDir}
@@ -474,20 +608,25 @@ function buildColumns(
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
         const row = params.row;
         const archived = Boolean(row.archived_at);
+        const pending = stateRef.current.archivePendingIds.has(row.id);
         return (
-          <Box component="span" onClick={(e) => e.stopPropagation()} sx={{ display: 'flex', justifyContent: 'center' }}>
+          <Box
+            component="span"
+            onClick={(e) => e.stopPropagation()}
+            sx={buyingGridIconCellBoxSx}
+          >
             <IconButton
-              size="small"
-              aria-label={archived ? 'Unarchive' : 'Archive'}
+              aria-label={pending ? 'Cancel archive' : archived ? 'Unarchive' : 'Archive'}
               onClick={(e) => {
                 e.stopPropagation();
                 onArchiveToggle(row);
               }}
+              sx={pending ? buyingGridArchiveIconBtnPendingSx : buyingGridIconBtnSx}
             >
               {archived ? (
-                <UndoOutlinedIcon fontSize="small" color="action" />
+                <UndoOutlinedIcon color={pending ? 'primary' : 'action'} />
               ) : (
-                <ArchiveOutlinedIcon fontSize="small" color="action" />
+                <ArchiveOutlinedIcon color={pending ? 'primary' : 'action'} />
               )}
             </IconButton>
           </Box>
@@ -497,24 +636,36 @@ function buildColumns(
     {
       field: 'priority',
       headerName: 'Priority',
-      width: BUYING_PRIORITY_BLOCK_COL_WIDTH,
+      width: BUYING_COL_PRIORITY_NEED_WIDTH,
+      minWidth: 64,
       type: 'number',
       sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      headerClassName: 'buying-col-centered-tight',
+      cellClassName: 'buying-col-centered-tight',
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
         const p = params.row.priority ?? '—';
         return (
-          <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums' }}>
-            {p}
-          </Typography>
+          <Box sx={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center' }}>
+            <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums', textAlign: 'center' }}>
+              {p}
+            </Typography>
+          </Box>
         );
       },
     },
     {
       field: 'need_score',
       headerName: 'Need',
-      width: BUYING_PRIORITY_BLOCK_COL_WIDTH,
+      width: BUYING_COL_PRIORITY_NEED_WIDTH,
+      minWidth: 64,
       type: 'number',
       sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      headerClassName: 'buying-col-centered-tight',
+      cellClassName: 'buying-col-centered-tight',
       valueGetter: (_v, row) => {
         const s = row.need_score;
         if (s == null) return null;
@@ -522,19 +673,57 @@ function buildColumns(
         return Number.isNaN(n) ? null : n;
       },
       renderCell: (params) => (
-        <Typography variant="body2" component="span" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-          {formatNeedScoreRaw(params.row.need_score)}
-        </Typography>
+        <Box sx={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center' }}>
+          <Typography variant="body2" component="span" sx={{ fontVariantNumeric: 'tabular-nums', textAlign: 'center' }}>
+            {formatNeedScoreRaw(params.row.need_score)}
+          </Typography>
+        </Box>
       ),
     },
     {
       field: 'marketplace__name',
       headerName: 'Vendor',
-      width: BUYING_PRIORITY_BLOCK_COL_WIDTH,
+      width: BUYING_COL_VENDOR_WIDTH,
+      minWidth: 88,
       sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      headerClassName: 'buying-col-centered-tight',
+      cellClassName: 'buying-col-centered-tight',
       valueGetter: (_value, row) => row.marketplace?.name ?? '',
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => (
-        <Chip size="small" label={params.row.marketplace?.name ?? '—'} color="primary" variant="outlined" />
+        <Box sx={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center', minWidth: 0 }}>
+          <Chip
+            size="small"
+            label={params.row.marketplace?.name ?? '—'}
+            color="primary"
+            variant="outlined"
+            sx={{ maxWidth: '100%' }}
+          />
+        </Box>
+      ),
+    },
+    {
+      field: 'has_manifest',
+      headerName: 'Manifest',
+      width: 76,
+      minWidth: 68,
+      sortable: true,
+      align: 'center',
+      headerAlign: 'center',
+      valueGetter: (_v, row) => (row.has_manifest ? 1 : 0),
+      renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            minHeight: BUYING_AUCTION_LIST_ROW_ICON_PX,
+          }}
+        >
+          <AuctionManifestStateIcon row={params.row} size={BUYING_AUCTION_LIST_ROW_ICON_PX} />
+        </Box>
       ),
     },
     {
@@ -582,8 +771,7 @@ function buildColumns(
       field: 'price_retail_pct',
       headerName: 'P/R %',
       width: 64,
-      sortable: false,
-      hideSortIcons: true,
+      sortable: true,
       align: 'right',
       headerAlign: 'right',
       valueGetter: (_v, row) => {
@@ -646,18 +834,17 @@ function buildColumns(
         const allExpanded = !noRows && pageIds.every((id) => expandedIds.has(id));
         const label = allExpanded ? 'Collapse all rows on this page' : 'Expand all rows on this page';
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+          <Box sx={buyingGridIconCellFullBoxSx}>
             <IconButton
-              size="small"
               aria-label={label}
               disabled={noRows}
               onClick={(e) => {
                 e.stopPropagation();
                 onExpandAll();
               }}
-              sx={{ p: 0.25 }}
+              sx={buyingGridHeaderIconBtnSx}
             >
-              {allExpanded ? <KeyboardArrowUpIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
+              {allExpanded ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
             </IconButton>
           </Box>
         );
@@ -667,18 +854,21 @@ function buildColumns(
         const row = params.row;
         const isOpen = expandedIds.has(row.id);
         return (
-          <Box component="span" onClick={(e) => e.stopPropagation()} sx={{ display: 'flex', justifyContent: 'center' }}>
+          <Box
+            component="span"
+            onClick={(e) => e.stopPropagation()}
+            sx={buyingGridIconCellBoxSx}
+          >
             <IconButton
-              size="small"
               aria-expanded={isOpen}
               aria-label={isOpen ? 'Collapse row details' : 'Expand row details'}
               onClick={(e) => {
                 e.stopPropagation();
                 onExpandToggle(row.id);
               }}
-              sx={{ p: 0.25 }}
+              sx={buyingGridIconBtnSx}
             >
-              {isOpen ? <KeyboardArrowUpIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
+              {isOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
             </IconButton>
           </Box>
         );
@@ -801,7 +991,7 @@ export default function AuctionListDesktop({
   paginationModel,
   onPaginationModelChange,
   onRowNavigate,
-  isAdmin = false,
+  canThumbsToggle = false,
   onThumbsToggle,
   onWatchToggle,
   watchlistIds,
@@ -810,6 +1000,7 @@ export default function AuctionListDesktop({
   onBulkWatch,
   onBulkThumbs,
   onBulkArchive,
+  archivePendingIds,
 }: AuctionListDesktopProps) {
   void countdownTick;
   const [expandedIds, setExpandedIds] = useState<Set<number>>(() => new Set());
@@ -823,8 +1014,16 @@ export default function AuctionListDesktop({
     selectedIds,
     sortModel,
     expandedIds,
+    archivePendingIds,
   });
-  gridStateRef.current = { watchlistIds, rows, selectedIds, sortModel, expandedIds };
+  gridStateRef.current = {
+    watchlistIds,
+    rows,
+    selectedIds,
+    sortModel,
+    expandedIds,
+    archivePendingIds,
+  };
 
   const pageRowIds = useMemo(() => rows.map((r) => r.id), [rows]);
 
@@ -887,7 +1086,7 @@ export default function AuctionListDesktop({
   const columns = useMemo(
     () =>
       buildColumns(
-        isAdmin,
+        canThumbsToggle,
         onThumbsToggle,
         onWatchToggle,
         onArchiveToggle,
@@ -899,7 +1098,7 @@ export default function AuctionListDesktop({
         onExpandAll,
         gridStateRef
       ),
-    [isAdmin, onThumbsToggle, onWatchToggle, onArchiveToggle, onBulkWatch, onBulkThumbs, onBulkArchive, handleBulkColumnSort, onExpandToggle, onExpandAll]
+    [canThumbsToggle, onThumbsToggle, onWatchToggle, onArchiveToggle, onBulkWatch, onBulkThumbs, onBulkArchive, handleBulkColumnSort, onExpandToggle, onExpandAll]
   );
 
   const auctionRowSlot = useMemo(() => createAuctionRowSlot(gridStateRef), []);
@@ -952,6 +1151,7 @@ export default function AuctionListDesktop({
         sortingMode="server"
         paginationModel={paginationModel}
         onPaginationModelChange={onPaginationModelChange}
+        hideFooterPagination
         sortModel={sortModel}
         onSortModelChange={handleSortModelChange}
         onRowClick={handleRowClick}
@@ -969,6 +1169,7 @@ export default function AuctionListDesktop({
           checkboxSelectionUnselectRow: 'Deselect row',
         }}
         density="compact"
+        rowHeight={BUYING_AUCTION_LIST_ROW_HEIGHT_PX}
         columnHeaderHeight={40}
         getRowClassName={getRowClassName}
         getRowHeight={getRowHeight}
@@ -984,19 +1185,45 @@ export default function AuctionListDesktop({
           '& .MuiDataGrid-columnHeader': {
             display: 'flex',
             alignItems: 'center',
-            py: 0.25,
+            py: 0,
             px: 0.75,
+          },
+          '& .MuiDataGrid-sortIcon': {
+            fontSize: BUYING_AUCTION_LIST_HEADER_ICON_PX,
           },
           '& .MuiDataGrid-cell': {
             display: 'flex',
             alignItems: 'center',
-            py: 0.25,
+            py: 0.5,
             px: 0.75,
             lineHeight: 1.25,
           },
+          '& .MuiDataGrid-columnHeaderCheckbox': {
+            maxWidth: 42,
+            minWidth: 42,
+            width: 42,
+            px: 0,
+            justifyContent: 'center',
+          },
           '& .MuiDataGrid-cellCheckbox': {
+            maxWidth: 42,
+            minWidth: 42,
+            width: 42,
             py: 0,
+            px: 0,
+            justifyContent: 'center',
+          },
+          '& .MuiDataGrid-cell.buying-col-centered-tight': {
+            justifyContent: 'center',
             px: 0.5,
+          },
+          '& .MuiDataGrid-columnHeader.buying-col-centered-tight': {
+            justifyContent: 'center',
+            px: 0.5,
+          },
+          '& .MuiDataGrid-columnHeader.buying-col-centered-tight .MuiDataGrid-columnHeaderTitleContainer': {
+            justifyContent: 'center',
+            width: '100%',
           },
           '& .MuiDataGrid-footerContainer': {
             minHeight: 44,
@@ -1010,7 +1237,7 @@ export default function AuctionListDesktop({
           },
           '& .MuiDataGrid-columnHeader.buying-col-header-icon .MuiDataGrid-columnHeaderTitleContainer': {
             width: '100%',
-            justifyContent: 'flex-start',
+            justifyContent: 'center',
           },
           '& .MuiDataGrid-columnHeader:not(.buying-col-header-icon) .MuiDataGrid-columnHeaderTitleContainer': {
             flexDirection: 'row',
@@ -1028,6 +1255,9 @@ export default function AuctionListDesktop({
           '& .MuiDataGrid-columnHeader:not(.buying-col-header-icon) .MuiDataGrid-iconButtonContainer': {
             marginLeft: 'auto',
             flexShrink: 0,
+          },
+          '& .MuiDataGrid-columnHeader.buying-col-centered-tight .MuiDataGrid-iconButtonContainer': {
+            marginLeft: 0,
           },
         }}
       />

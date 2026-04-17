@@ -52,7 +52,7 @@ export type AuctionListMobileProps = {
   onLoadMore: () => void;
   onRowNavigate: (id: number) => void;
   watchlistIds?: Set<number>;
-  isAdmin?: boolean;
+  canThumbsToggle?: boolean;
   onThumbsToggle?: (id: number, next: boolean) => void;
   /** When set, star toggles watchlist (POST/DELETE watch API). */
   onWatchToggle?: (id: number, add: boolean) => void;
@@ -71,7 +71,7 @@ export default function AuctionListMobile({
   onLoadMore,
   onRowNavigate,
   watchlistIds,
-  isAdmin = false,
+  canThumbsToggle = false,
   onThumbsToggle,
   onWatchToggle,
   countdownTick,
@@ -136,7 +136,7 @@ export default function AuctionListMobile({
                           >
                             {row.marketplace?.name ?? '—'}
                           </Typography>
-                          <ManifestListCell hasManifest={row.has_manifest} />
+                          <ManifestListCell row={row} />
                           {onWatchToggle && !watchUnknown ? (
                             <Tooltip title={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
                               <IconButton
@@ -164,7 +164,7 @@ export default function AuctionListMobile({
                             <StarBorderIcon fontSize="small" sx={{ color: 'action.disabled' }} />
                           )}
                         </Stack>
-                        {isAdmin && onThumbsToggle ? (
+                        {canThumbsToggle && onThumbsToggle ? (
                           <Stack direction="row" alignItems="center" spacing={0.25}>
                             <IconButton
                               size="small"

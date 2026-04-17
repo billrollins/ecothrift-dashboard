@@ -31,8 +31,7 @@ export function useBuyingThumbsUpMutation() {
       context?.previousWatchlist?.forEach(([key, data]) => queryClient.setQueryData(key, data));
     },
     onSettled: (_data, _err, variables) => {
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
       void queryClient.invalidateQueries({
         queryKey: ['buying', 'auctions', 'detail', variables.auctionId],
       });

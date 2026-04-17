@@ -49,11 +49,10 @@ export function buyingAuctionListQueryKey(params: BuyingAuctionListParams) {
     params.status ?? '',
     params.has_manifest === true ? 't' : params.has_manifest === false ? 'f' : '',
     params.thumbs_up === true ? '1' : '',
-    params.profitable === true ? '1' : '',
-    params.needed === true ? '1' : '',
     params.q?.trim() ?? '',
     params.completed === true ? '1' : '',
     params.archived === true ? '1' : '',
+    params.today === true ? '1' : '',
   ] as const;
 }
 
@@ -70,11 +69,10 @@ export function buyingWatchlistQueryKey(params: BuyingWatchlistParams) {
     params.priority ?? '',
     params.watchlist_status ?? '',
     params.thumbs_up === true ? '1' : '',
-    params.profitable === true ? '1' : '',
-    params.needed === true ? '1' : '',
     params.q?.trim() ?? '',
     params.completed === true ? '1' : '',
     params.archived === true ? '1' : '',
+    params.today === true ? '1' : '',
   ] as const;
 }
 
@@ -91,12 +89,11 @@ function buildAuctionParams(params: BuyingAuctionListParams): Record<string, str
     q.has_manifest = 'false';
   }
   if (params.thumbs_up === true) q.thumbs_up = true;
-  if (params.profitable === true) q.profitable = true;
-  if (params.needed === true) q.needed = true;
   const qq = params.q?.trim();
   if (qq) q.q = qq;
   if (params.completed === true) q.completed = true;
   if (params.archived === true) q.archived = true;
+  if (params.today === true) q.today = true;
   return q;
 }
 
@@ -111,6 +108,7 @@ function buildSummaryParams(params: BuyingAuctionSummaryParams): Record<string, 
   }
   if (params.completed === true) q.completed = true;
   if (params.archived === true) q.archived = true;
+  if (params.today === true) q.today = true;
   return q;
 }
 
@@ -129,12 +127,11 @@ function buildWatchlistParams(params: BuyingWatchlistParams): Record<string, str
     q.has_manifest = 'false';
   }
   if (params.thumbs_up === true) q.thumbs_up = true;
-  if (params.profitable === true) q.profitable = true;
-  if (params.needed === true) q.needed = true;
   const wq = params.q?.trim();
   if (wq) q.q = wq;
   if (params.completed === true) q.completed = true;
   if (params.archived === true) q.archived = true;
+  if (params.today === true) q.today = true;
   return q;
 }
 
@@ -189,6 +186,7 @@ export async function fetchBuyingManifestRows(
   if (params.page != null) q.page = params.page;
   if (params.search) q.search = params.search;
   if (params.category) q.category = params.category;
+  if (params.ordering) q.ordering = params.ordering;
   const { data } = await api.get<PaginatedResponse<BuyingManifestRow>>(
     `/buying/auctions/${auctionId}/manifest_rows/`,
     { params: q }

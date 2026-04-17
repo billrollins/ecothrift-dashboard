@@ -13,7 +13,21 @@ export default function AiManifestComparisonStrip({ detail }: Props) {
   if (Object.keys(ai).length === 0 || Object.keys(man).length === 0) return null;
 
   const keys = new Set([...Object.keys(ai), ...Object.keys(man)]);
-  const rows = [...keys].filter((k) => (ai[k] ?? 0) > 0 || (man[k] ?? 0) > 0).slice(0, 8);
+  const pct = (m: Record<string, number>, k: string) => {
+    const v = m[k];
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    const p = Number.parseFloat(String(v ?? ''));
+    return Number.isFinite(p) ? p : 0;
+  };
+  const rows = [...keys]
+    .filter((k) => pct(ai, k) > 0 || pct(man, k) > 0)
+    .sort((a, b) => {
+      const mb = pct(man, b);
+      const ma = pct(man, a);
+      if (mb !== ma) return mb - ma;
+      return pct(ai, b) - pct(ai, a);
+    })
+    .slice(0, 8);
 
   if (rows.length === 0) return null;
 
@@ -24,14 +38,20 @@ export default function AiManifestComparisonStrip({ detail }: Props) {
       </Typography>
       <Stack spacing={0.5}>
         {rows.map((k) => (
-          <Stack key={k} direction="row" justifyContent="space-between" alignItems="baseline" gap={1}>
-            <Typography variant="body2" noWrap sx={{ flex: 1, minWidth: 0 }} title={k}>
+          <Stack
+            key={k}
+            direction="row"
+            alignItems="center"
+            gap={1}
+            sx={{ minHeight: 22, lineHeight: 1.2 }}
+          >
+            <Typography variant="body2" noWrap sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} title={k}>
               {k}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ flexShrink: 0 }}>
               AI {typeof ai[k] === 'number' ? `${Math.round(ai[k])}%` : '—'}
             </Typography>
-            <Typography variant="caption" fontWeight={600}>
+            <Typography variant="caption" fontWeight={600} noWrap sx={{ flexShrink: 0 }}>
               Mf {typeof man[k] === 'number' ? `${Math.round(man[k])}%` : '—'}
             </Typography>
           </Stack>

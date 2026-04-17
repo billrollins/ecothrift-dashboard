@@ -42,10 +42,11 @@ export function useBuyingWatchlistToggleMutation() {
       context?.previousWatchRelated?.forEach(([key, data]) => queryClient.setQueryData(key, data));
       context?.previousAuctions?.forEach(([key, data]) => queryClient.setQueryData(key, data));
     },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'detail'] });
+    onSettled: (_data, _err, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['buying', 'auctions', 'detail', variables.auctionId],
+      });
     },
   });
 }

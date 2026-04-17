@@ -97,6 +97,7 @@ const ORDERING_FIELDS = [
   'last_updated_at',
   'total_retail_value',
   'retail_sort',
+  'price_retail_pct',
   'marketplace__name',
   'title',
   'condition_summary',
@@ -111,13 +112,29 @@ const ORDERING_FIELDS = [
   'watchlist_sort',
 ] as const;
 
-/** Default API `ordering` when the user has not chosen a column sort this session. */
-export const DEFAULT_BUYING_LIST_ORDERING = '-priority,end_time';
+/**
+ * Default API `ordering` when the user has not chosen a column sort this session
+ * (watch first, then thumbs, priority, need — all desc).
+ */
+export const DEFAULT_BUYING_LIST_ORDERING =
+  '-watchlist_sort,-thumbs_up,-priority,-need_score';
 const DEFAULT_LIST_ORDERING = DEFAULT_BUYING_LIST_ORDERING;
 
 /** Session-sticky sort persistence (Phase 3B G). */
 export const BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY = 'ecothrift.buying.auctionList.ordering';
+/** Calendar day in America/Chicago (YYYY-MM-DD) for last saved auction-list ordering — new day resets to default. */
+export const BUYING_AUCTION_LIST_ORDERING_DAY_KEY = 'ecothrift.buying.auctionList.orderingDay';
 export const BUYING_WATCHLIST_ORDERING_STORAGE_KEY = 'ecothrift.buying.watchlist.ordering';
+
+/** Today’s date string in America/Chicago (for daily ordering reset). */
+export function buyingListCdtYmd(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
 
 export function orderingFromSortModel(model: GridSortModel): string {
   if (!model.length) return DEFAULT_LIST_ORDERING;
@@ -129,26 +146,35 @@ export function orderingFromSortModel(model: GridSortModel): string {
   if (field === 'priority') {
     return sort === 'desc' ? '-priority,end_time' : 'priority,end_time';
   }
+  if (field === 'need_score') {
+    return sort === 'desc' ? '-need_score,end_time' : 'need_score,end_time';
+  }
   return base;
 }
 
 export function sortModelFromOrdering(ordering: string): GridSortModel {
-  if (!ordering) return [{ field: 'priority', sort: 'desc' }];
+  if (!ordering) return [{ field: 'watchlist_sort', sort: 'desc' }];
   const first = ordering.split(',')[0].trim();
   const desc = first.startsWith('-');
   const field = (desc ? first.slice(1) : first) as (typeof ORDERING_FIELDS)[number];
   const allowed = ORDERING_FIELDS as unknown as string[];
-  if (!allowed.includes(field)) return [{ field: 'priority', sort: 'desc' }];
+  if (!allowed.includes(field)) return [{ field: 'watchlist_sort', sort: 'desc' }];
   return [{ field, sort: desc ? 'desc' : 'asc' }];
 }
 
 /** Mobile sort dropdown; values are API `ordering` strings. */
 export const MOBILE_SORT_OPTIONS = [
-  { value: '-priority,end_time', label: 'Priority (default)' },
+  {
+    value: DEFAULT_BUYING_LIST_ORDERING,
+    label: 'Watch / thumbs / priority / need (default)',
+  },
+  { value: '-priority,end_time', label: 'Priority, then ending soon' },
   { value: 'end_time', label: 'Ending soonest' },
   { value: 'current_price', label: 'Price: low to high' },
   { value: '-current_price', label: 'Price: high to low' },
   { value: '-total_retail_value', label: 'Total retail (high to low)' },
+  { value: '-price_retail_pct', label: 'P/R % (high to low)' },
+  { value: 'price_retail_pct', label: 'P/R % (low to high)' },
   { value: '-need_score', label: 'Need score (high to low)' },
   { value: '-last_updated_at', label: 'Recently updated' },
 ] as const;

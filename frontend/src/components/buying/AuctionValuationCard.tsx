@@ -32,14 +32,26 @@ const DEFAULT_PROFIT_TARGET_RATIO = 2;
 const DEFAULT_METRIC_COLOR = '#9A8866';
 const TABLE_BODY_MAX_HEIGHT_PX = 280;
 
+/** Single-line rows/headers: ellipsis + fixed layout column weights. */
+const CATEGORY_MIX_COL_SX = {
+  py: 0.5,
+  px: 1,
+  whiteSpace: 'nowrap' as const,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  lineHeight: 1.2,
+  verticalAlign: 'middle' as const,
+};
+
 const CATEGORY_TABLE_COLGROUP = (
   <colgroup>
     <col style={{ width: '22%' }} />
-    <col style={{ width: '11%' }} />
+    <col style={{ width: '8%' }} />
+    <col style={{ width: '10%' }} />
     <col style={{ width: '9%' }} />
-    <col style={{ width: '16%' }} />
-    <col style={{ width: '12%' }} />
-    <col style={{ width: '30%' }} />
+    <col style={{ width: '13%' }} />
+    <col style={{ width: '11%' }} />
+    <col style={{ width: '27%' }} />
   </colgroup>
 );
 
@@ -243,6 +255,16 @@ function useValuationBreakdownRows(detail: BuyingAuctionDetail) {
 
   const retailBase = parseDec(detail.total_retail_value) ?? 0;
 
+  const unitByCategory = useMemo(() => {
+    const m = new Map<string, number>();
+    const top = detail.category_distribution?.top;
+    if (!top?.length) return m;
+    for (const t of top) {
+      m.set(t.canonical_category, t.count);
+    }
+    return m;
+  }, [detail.category_distribution]);
+
   const breakdownRows = useMemo(() => {
     if (!mix || typeof mix !== 'object') return [];
     const entries = Object.entries(mix as Record<string, number>);
@@ -254,13 +276,14 @@ function useValuationBreakdownRows(detail: BuyingAuctionDetail) {
     }
     const total = parsed.reduce((s, x) => s + x.n, 0);
     if (total <= 0) return [];
-    return parsed.map(({ category, n }) => {
+    const rows = parsed.map(({ category, n }) => {
       const fraction = n / total;
       const pctDisplay = fraction * 100;
       const rate = recoveryRateByCat.get(category) ?? 0;
       const attributed = retailBase * fraction;
       const estRev = attributed * rate;
       const needMetric = needScoreByCat.get(category);
+      const units = unitByCategory.get(category);
       return {
         category,
         fraction,
@@ -269,9 +292,12 @@ function useValuationBreakdownRows(detail: BuyingAuctionDetail) {
         rate,
         estRev,
         needMetric: needMetric != null && Number.isFinite(needMetric) ? needMetric : null,
+        units: units != null && Number.isFinite(units) ? units : null,
       };
     });
-  }, [mix, retailBase, recoveryRateByCat, needScoreByCat]);
+    rows.sort((a, b) => b.pctDisplay - a.pctDisplay);
+    return rows;
+  }, [mix, retailBase, recoveryRateByCat, needScoreByCat, unitByCategory]);
 
   const tableTotals = useMemo(() => {
     if (breakdownRows.length === 0) return null;
@@ -281,8 +307,15 @@ function useValuationBreakdownRows(detail: BuyingAuctionDetail) {
       : breakdownRows.reduce((s, r) => s + (r.needMetric as number) * r.fraction, 0);
     const totalRetail = breakdownRows.reduce((s, r) => s + r.attributed, 0);
     const totalEstRev = breakdownRows.reduce((s, r) => s + r.estRev, 0);
-    return { sumProductNeed, totalRetail, totalEstRev };
-  }, [breakdownRows]);
+    const distTotal = detail.category_distribution?.total_rows;
+    const totalUnits =
+      typeof distTotal === 'number' && distTotal > 0
+        ? distTotal
+        : typeof detail.manifest_row_count === 'number' && detail.manifest_row_count > 0
+          ? detail.manifest_row_count
+          : null;
+    return { sumProductNeed, totalRetail, totalEstRev, totalUnits };
+  }, [breakdownRows, detail.category_distribution?.total_rows, detail.manifest_row_count]);
 
   return { breakdownRows, tableTotals };
 }
@@ -706,10 +739,14 @@ export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
   );
 }
 
-type TableProps = { detail: BuyingAuctionDetail };
+type TableProps = {
+  detail: BuyingAuctionDetail;
+  /** Sets manifest "Fast category" filter to this mix row's category (matches API `category` param). */
+  onCategoryRowClick?: (filterValue: string) => void;
+};
 
 /** Cell 3,1 — category mix table (scroll body only). */
-export function ValuationCategoryTableCard({ detail }: TableProps) {
+export function ValuationCategoryTableCard({ detail, onCategoryRowClick }: TableProps) {
   const { breakdownRows, tableTotals } = useValuationBreakdownRows(detail);
 
   if (breakdownRows.length === 0) {
@@ -742,12 +779,25 @@ export function ValuationCategoryTableCard({ detail }: TableProps) {
           {CATEGORY_TABLE_COLGROUP}
           <TableHead>
             <TableRow sx={{ bgcolor: 'action.hover' }}>
-              <TableCell>Category</TableCell>
-              <TableCell align="right">Need metric</TableCell>
-              <TableCell align="right">% retail</TableCell>
-              <TableCell align="right">Retail $</TableCell>
-              <TableCell align="right">Recovery</TableCell>
-              <TableCell align="right">Est. revenue</TableCell>
+              <TableCell sx={CATEGORY_MIX_COL_SX}>Category</TableCell>
+              <TableCell align="right" sx={CATEGORY_MIX_COL_SX}>
+                Units
+              </TableCell>
+              <TableCell align="right" sx={CATEGORY_MIX_COL_SX}>
+                Need metric
+              </TableCell>
+              <TableCell align="right" sx={CATEGORY_MIX_COL_SX}>
+                % retail
+              </TableCell>
+              <TableCell align="right" sx={CATEGORY_MIX_COL_SX}>
+                Retail $
+              </TableCell>
+              <TableCell align="right" sx={CATEGORY_MIX_COL_SX}>
+                Recovery
+              </TableCell>
+              <TableCell align="right" sx={CATEGORY_MIX_COL_SX}>
+                Est. revenue
+              </TableCell>
             </TableRow>
           </TableHead>
         </Table>
@@ -766,16 +816,40 @@ export function ValuationCategoryTableCard({ detail }: TableProps) {
             {CATEGORY_TABLE_COLGROUP}
             <TableBody>
               {breakdownRows.map((r) => (
-                <TableRow key={r.category}>
-                  <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.category}</TableCell>
-                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: needScoreColor(r.needMetric) }}>
-                    {r.needMetric != null ? Math.round(r.needMetric) : '—'}
+                <TableRow
+                  key={r.category}
+                  hover={Boolean(onCategoryRowClick)}
+                  title={onCategoryRowClick ? 'Filter manifest rows by this category' : undefined}
+                  onClick={onCategoryRowClick ? () => onCategoryRowClick(r.category) : undefined}
+                  sx={onCategoryRowClick ? { cursor: 'pointer' } : undefined}
+                >
+                  <TableCell sx={{ ...CATEGORY_MIX_COL_SX, maxWidth: 0 }} title={r.category}>
+                    {r.category}
                   </TableCell>
-                  <TableCell align="right">{r.pctDisplay.toFixed(1)}%</TableCell>
-                  <TableCell align="right">{formatCurrencyWhole(String(r.attributed))}</TableCell>
+                  <TableCell align="right" sx={{ ...CATEGORY_MIX_COL_SX, fontVariantNumeric: 'tabular-nums' }}>
+                    {r.units != null ? r.units.toLocaleString() : '—'}
+                  </TableCell>
                   <TableCell
                     align="right"
                     sx={{
+                      ...CATEGORY_MIX_COL_SX,
+                      fontVariantNumeric: 'tabular-nums',
+                      color: needScoreColor(r.needMetric),
+                    }}
+                  >
+                    {r.needMetric != null ? Math.round(r.needMetric) : '—'}
+                  </TableCell>
+                  <TableCell align="right" sx={{ ...CATEGORY_MIX_COL_SX, fontVariantNumeric: 'tabular-nums' }}>
+                    {r.pctDisplay.toFixed(1)}%
+                  </TableCell>
+                  <TableCell align="right" sx={{ ...CATEGORY_MIX_COL_SX, fontVariantNumeric: 'tabular-nums' }}>
+                    {formatCurrencyWhole(String(r.attributed))}
+                  </TableCell>
+                  <TableCell
+                    align="right"
+                    sx={{
+                      ...CATEGORY_MIX_COL_SX,
+                      fontVariantNumeric: 'tabular-nums',
                       color:
                         r.rate >= 0.35
                           ? 'success.main'
@@ -787,7 +861,9 @@ export function ValuationCategoryTableCard({ detail }: TableProps) {
                   >
                     {(r.rate * 100).toFixed(1)}%
                   </TableCell>
-                  <TableCell align="right">{formatCurrencyWhole(String(r.estRev))}</TableCell>
+                  <TableCell align="right" sx={{ ...CATEGORY_MIX_COL_SX, fontVariantNumeric: 'tabular-nums' }}>
+                    {formatCurrencyWhole(String(r.estRev))}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -798,10 +874,32 @@ export function ValuationCategoryTableCard({ detail }: TableProps) {
             {CATEGORY_TABLE_COLGROUP}
             <TableFooter sx={{ '& td': { borderBottom: 'none' } }}>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700, borderTop: 1, borderColor: 'divider' }}>Total</TableCell>
+                <TableCell
+                  sx={{
+                    ...CATEGORY_MIX_COL_SX,
+                    fontWeight: 700,
+                    borderTop: 1,
+                    borderColor: 'divider',
+                  }}
+                >
+                  Total
+                </TableCell>
                 <TableCell
                   align="right"
                   sx={{
+                    ...CATEGORY_MIX_COL_SX,
+                    fontWeight: 700,
+                    borderTop: 1,
+                    borderColor: 'divider',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {tableTotals.totalUnits != null ? tableTotals.totalUnits.toLocaleString() : '—'}
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{
+                    ...CATEGORY_MIX_COL_SX,
                     fontWeight: 700,
                     borderTop: 1,
                     borderColor: 'divider',
@@ -810,12 +908,16 @@ export function ValuationCategoryTableCard({ detail }: TableProps) {
                 >
                   {tableTotals.sumProductNeed != null ? tableTotals.sumProductNeed.toFixed(1) : '—'}
                 </TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, borderTop: 1, borderColor: 'divider' }}>
+                <TableCell
+                  align="right"
+                  sx={{ ...CATEGORY_MIX_COL_SX, fontWeight: 700, borderTop: 1, borderColor: 'divider' }}
+                >
                   100.0%
                 </TableCell>
                 <TableCell
                   align="right"
                   sx={{
+                    ...CATEGORY_MIX_COL_SX,
                     fontWeight: 700,
                     borderTop: 1,
                     borderColor: 'divider',
@@ -826,13 +928,20 @@ export function ValuationCategoryTableCard({ detail }: TableProps) {
                 </TableCell>
                 <TableCell
                   align="right"
-                  sx={{ fontWeight: 700, borderTop: 1, borderColor: 'divider', color: 'text.disabled' }}
+                  sx={{
+                    ...CATEGORY_MIX_COL_SX,
+                    fontWeight: 700,
+                    borderTop: 1,
+                    borderColor: 'divider',
+                    color: 'text.disabled',
+                  }}
                 >
                   —
                 </TableCell>
                 <TableCell
                   align="right"
                   sx={{
+                    ...CATEGORY_MIX_COL_SX,
                     fontWeight: 700,
                     borderTop: 1,
                     borderColor: 'divider',

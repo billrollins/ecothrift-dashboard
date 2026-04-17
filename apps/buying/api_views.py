@@ -12,10 +12,13 @@ from django.utils import timezone
 from django.core.cache import cache
 from django.db.models import (
     Case,
+    CharField,
     Count,
     DecimalField,
     Exists,
+    ExpressionWrapper,
     F,
+    IntegerField,
     Max,
     OuterRef,
     Q,
@@ -88,6 +91,21 @@ def annotate_auction_list_extras(qs, user=None):
             output_field=DecimalField(max_digits=14, decimal_places=2),
         ),
     )
+    # Price ÷ retail (same denominator as list Retail column / serializer total_retail_display).
+    qs = qs.annotate(
+        price_retail_pct=Case(
+            When(
+                retail_sort__gt=0,
+                current_price__isnull=False,
+                then=ExpressionWrapper(
+                    F('current_price') / F('retail_sort'),
+                    output_field=DecimalField(max_digits=20, decimal_places=10),
+                ),
+            ),
+            default=Value(None),
+            output_field=DecimalField(max_digits=20, decimal_places=10, null=True),
+        ),
+    )
     qs = qs.annotate(_thumbs_up_count=Count('staff_thumbs_votes', distinct=True))
     if user is not None and getattr(user, 'is_authenticated', False):
         qs = qs.annotate(
@@ -101,6 +119,64 @@ def annotate_auction_list_extras(qs, user=None):
             ),
         )
     return qs
+
+
+def _apply_manifest_rows_ordering(qs, ordering_param: str):
+    """
+    Whitelist ordering for GET .../manifest_rows/.
+
+    ``ext_retail`` and ``pct_manifest`` share the same sort key (line extended retail:
+    Coalesce(quantity,1) × Coalesce(retail_value,0)); total manifest is constant per auction
+    so % of manifest is monotonic with extended retail.
+    """
+    raw = (ordering_param or '').strip()
+    if not raw:
+        return qs.order_by('row_number')
+    token = raw.split(',')[0].strip()
+    desc = token.startswith('-')
+    key = token[1:] if desc else token
+    prefix = '-' if desc else ''
+
+    direct = {
+        'row_number',
+        'brand',
+        'title',
+        'quantity',
+        'retail_value',
+        'condition',
+        'upc',
+        'sku',
+    }
+    if key in direct:
+        return qs.order_by(f'{prefix}{key}')
+
+    if key == 'canonical_category':
+        qs = qs.annotate(
+            _manifest_cat_sort=Coalesce(
+                F('canonical_category'),
+                F('fast_cat_value'),
+                output_field=CharField(max_length=64),
+            )
+        )
+        return qs.order_by(f'{prefix}_manifest_cat_sort')
+
+    if key in ('ext_retail', 'pct_manifest'):
+        qty = Coalesce(F('quantity'), Value(1), output_field=IntegerField())
+        rv = Coalesce(
+            F('retail_value'),
+            Value(Decimal('0')),
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        )
+        qs = qs.annotate(
+            _manifest_line_ext=ExpressionWrapper(
+                qty * rv,
+                output_field=DecimalField(max_digits=16, decimal_places=2),
+            )
+        )
+        return qs.order_by(f'{prefix}_manifest_line_ext')
+
+    return qs.order_by('row_number')
+
 
 def _apply_auction_list_visibility(request, queryset):
     """
@@ -156,6 +232,7 @@ class WatchlistAuctionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         'last_updated_at',
         'total_retail_value',
         'retail_sort',
+        'price_retail_pct',
         'marketplace__name',
         'title',
         'condition_summary',
@@ -227,6 +304,7 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         'last_updated_at',
         'total_retail_value',
         'retail_sort',
+        'price_retail_pct',
         'marketplace__name',
         'title',
         'condition_summary',
@@ -315,7 +393,9 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
     def manifest_rows(self, request, pk=None):
         """Paginated manifest line items for this auction (50 per page, server-side only)."""
         auction = self.get_object()
-        qs = ManifestRow.objects.filter(auction=auction).order_by('row_number')
+        qs = ManifestRow.objects.filter(auction=auction)
+        ordering = request.query_params.get('ordering', '').strip()
+        qs = _apply_manifest_rows_ordering(qs, ordering)
         search = request.query_params.get('search', '').strip()
         if search:
             qs = qs.filter(
@@ -454,7 +534,7 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         detail=True,
         methods=['post', 'delete'],
         url_path='thumbs-up',
-        permission_classes=[IsAuthenticated, IsAdmin],
+        permission_classes=[IsAuthenticated, IsStaff],
     )
     def thumbs_up(self, request, pk=None):
         auction = self.get_object()

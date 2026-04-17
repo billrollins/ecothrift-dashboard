@@ -99,15 +99,13 @@ export interface BuyingWatchlistParams {
   status?: string;
   has_manifest?: boolean;
   thumbs_up?: boolean;
-  /** Server: profitability_ratio >= 1.5 */
-  profitable?: boolean;
-  /** Server: need_score > 0 */
-  needed?: boolean;
   /** Title / marketplace name search (split on spaces, AND). */
   q?: string;
   /** Recently ended auctions (last 7 days); omit for live-only (default). */
   completed?: boolean;
   archived?: boolean;
+  /** ``end_time`` on today's calendar date in America/Chicago. */
+  today?: boolean;
 }
 
 /** Canonical category mix for manifest rows (auction detail). */
@@ -177,6 +175,8 @@ export interface BuyingManifestRowsParams {
   search?: string;
   /** Canonical or fast_cat value, or `__uncategorized__`. */
   category?: string;
+  /** Comma-separated whitelist (first wins), e.g. `-retail_value` or `row_number`. */
+  ordering?: string;
 }
 
 /** POST /api/buying/auctions/:id/upload_manifest/ (multipart field `file`) */
@@ -225,15 +225,13 @@ export interface BuyingAuctionListParams {
   status?: string;
   has_manifest?: boolean;
   thumbs_up?: boolean;
-  /** Server: profitability_ratio >= 1.5 */
-  profitable?: boolean;
-  /** Server: need_score > 0 */
-  needed?: boolean;
   /** Title / marketplace name search (split on spaces, AND). */
   q?: string;
   /** Recently ended auctions (last 7 days); omit for live-only (default). */
   completed?: boolean;
   archived?: boolean;
+  /** ``end_time`` on today's calendar date in America/Chicago. */
+  today?: boolean;
 }
 
 /** GET /api/buying/category-need/ */
@@ -301,6 +299,7 @@ export interface BuyingAuctionSummaryParams {
   /** Recently ended auctions (last 7 days); omit for live-only (default). */
   completed?: boolean;
   archived?: boolean;
+  today?: boolean;
 }
 
 export interface BuyingAuctionSummaryMarketplaceRow {

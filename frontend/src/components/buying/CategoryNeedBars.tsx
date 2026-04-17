@@ -355,9 +355,13 @@ export default function CategoryNeedBars({ rows, selectedCategory, onSelect }: P
               py: 0.35,
               px: 0.5,
               cursor: 'pointer',
-              bgcolor: selected ? 'success.light' : 'transparent',
+              borderLeft: '3px solid',
+              borderLeftColor: selected ? '#0F6E56' : 'transparent',
+              bgcolor: selected ? 'rgba(15, 110, 86, 0.04)' : 'transparent',
               borderRadius: 0.5,
-              '&:hover': { bgcolor: selected ? 'success.light' : 'action.hover' },
+              '&:hover': {
+                bgcolor: selected ? 'rgba(15, 110, 86, 0.06)' : 'action.hover',
+              },
             }}
           >
             <Typography variant="body2" noWrap sx={{ minWidth: 0, pr: 0.75 }}>

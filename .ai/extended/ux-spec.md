@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16 (v2.17.0 category need Margin + Profitability) -->
+<!-- Last updated: 2026-04-17 (v2.18.2 — buying list + detail UX) -->
 # UI/UX Design Specification
 
 ## Document Purpose
@@ -48,7 +48,17 @@ Every page exists to support a **user decision or action**. Elements must either
 
 ### List page (auction list, inventory, orders)
 
-Title + filter chips, then DataGrid (desktop) or card list (mobile). Filters use chip toggle pattern. Summary counts above the grid when applicable.
+Title + filter chips, then DataGrid (desktop) or card list (mobile). Filters use chip toggle pattern. Summary counts above the grid when applicable. **Buying active auctions (v2.18.2):** pagination sits **with the results** (header row), not only at the bottom; filters use a **two-column** layout (marketplace + attribute rows with **Clear** / **All** / per-row Clear; category need uses **ABA** rhythm). See **Buying — active auctions list & detail** below.
+
+### Buying — active auctions list & detail (v2.18.2)
+
+**List — snappy interactions:** Watchlist, thumbs, and archive update the **row optimistically** via React Query; the app **does not** invalidate the full auction list query on every toggle, so the grid stays stable without a refetch spinner. List hooks use **`refetchOnMount: false`** and **`staleTime`** so revisiting the page after local actions does not flash a useless refetch. **Single-row archive** uses a **2 second** grace period: the row can leave the list immediately (optimistic removal) and the user can **cancel** from the same archive control; a short progress ring indicates pending POST.
+
+**List — layout & speed:** **Neighbor page prefetch** (next page of results) when the list first loads. Desktop row **render** keeps stable column defs (refs for frequently changing cell state) so star/thumbs/archive updates do not rebuild the whole `GridColDef`.
+
+**Detail — max bid & category mix:** The **max bid at each target** gauge spans **0 → break-even** (full decision range from zero to loss boundary). The **chart** uses compact axis labels **Tgt / Mod / BE**; tiles and tooltips spell out **Target / Moderate / Break-even**. A **single shared dark tooltip** (`slotProps` for chart + tiles) keeps one mental model for “max bid at each target.” **Category mix** adds a **Units** column and a **footer total** aligned to manifest row counts.
+
+**Fixed:** Thumbs-up on non-admin rows **stops propagation** so clicking thumbs does not also trigger row navigation to detail.
 
 ---
 

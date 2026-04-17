@@ -4,6 +4,7 @@ import { fetchBuyingManifestRows } from '../api/buying.api';
 export type ManifestRowsFilterParams = {
   search?: string;
   category?: string;
+  ordering?: string;
 };
 
 export function useBuyingManifestRowsPage(
@@ -12,14 +13,24 @@ export function useBuyingManifestRowsPage(
   filters: ManifestRowsFilterParams,
   enabled: boolean
 ) {
-  const { search, category } = filters;
+  const { search, category, ordering } = filters;
   return useQuery({
-    queryKey: ['buying', 'auctions', auctionId, 'manifest_rows', page, search ?? '', category ?? ''] as const,
+    queryKey: [
+      'buying',
+      'auctions',
+      auctionId,
+      'manifest_rows',
+      page,
+      search ?? '',
+      category ?? '',
+      ordering ?? '',
+    ] as const,
     queryFn: () =>
       fetchBuyingManifestRows(auctionId!, {
         page: page + 1,
         search: search || undefined,
         category: category || undefined,
+        ordering: ordering || undefined,
       }),
     enabled: enabled && auctionId != null,
   });
@@ -30,14 +41,24 @@ export function useBuyingManifestRowsInfinite(
   filters: ManifestRowsFilterParams,
   enabled: boolean
 ) {
-  const { search, category } = filters;
+  const { search, category, ordering } = filters;
   return useInfiniteQuery({
-    queryKey: ['buying', 'auctions', auctionId, 'manifest_rows', 'infinite', search ?? '', category ?? ''] as const,
+    queryKey: [
+      'buying',
+      'auctions',
+      auctionId,
+      'manifest_rows',
+      'infinite',
+      search ?? '',
+      category ?? '',
+      ordering ?? '',
+    ] as const,
     queryFn: ({ pageParam }) =>
       fetchBuyingManifestRows(auctionId!, {
         page: pageParam as number,
         search: search || undefined,
         category: category || undefined,
+        ordering: ordering || undefined,
       }),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {

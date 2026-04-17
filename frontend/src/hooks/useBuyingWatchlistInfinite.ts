@@ -26,5 +26,7 @@ export function useBuyingWatchlistInfinite(
       return allPages.length + 1;
     },
     enabled,
+    refetchOnMount: false,
+    staleTime: 60_000,
   });
 }

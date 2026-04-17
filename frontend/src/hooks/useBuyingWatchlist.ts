@@ -10,6 +10,8 @@ export function useBuyingWatchlist(
     queryKey: buyingWatchlistQueryKey(params),
     queryFn: () => fetchBuyingWatchlist(params),
     enabled: options?.enabled ?? true,
+    refetchOnMount: false,
+    staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
 }

@@ -37,10 +37,22 @@ function buildSegments(dist: BuyingCategoryDistribution): Seg[] {
   return segments;
 }
 
+/** Maps bar segment keys to `category` query values for manifest row filtering. */
+function manifestFilterValueFromDistributionSegmentKey(segmentKey: string): string {
+  if (segmentKey === '__not_yet__') return '__uncategorized__';
+  return segmentKey;
+}
+
+type CategoryDistributionBarProps = {
+  dist: BuyingCategoryDistribution;
+  /** When set, bar segments and legend rows apply this manifest filter (Fast category). */
+  onCategoryClick?: (filterValue: string) => void;
+};
+
 /**
  * Full-width stacked bar: one segment per category (no "Other" rollup).
  */
-export default function CategoryDistributionBar({ dist }: { dist: BuyingCategoryDistribution }) {
+export default function CategoryDistributionBar({ dist, onCategoryClick }: CategoryDistributionBarProps) {
   if (!dist || dist.total_rows === 0) return null;
 
   const segments = buildSegments(dist);
@@ -60,24 +72,45 @@ export default function CategoryDistributionBar({ dist }: { dist: BuyingCategory
           borderColor: 'divider',
         }}
       >
-        {segments.map((s) => (
-          <Tooltip key={s.key} title={`${s.label}: ${s.pct}%`} placement="top">
-            <Box
-              sx={{
-                flexGrow: s.pct,
-                flexShrink: 1,
-                flexBasis: 0,
-                minWidth: s.pct > 0 ? 2 : 0,
-                ...(s.fill === 'hatch'
-                  ? {
-                      backgroundImage: NOT_YET_CATEGORIZED_HATCH,
-                      backgroundColor: NOT_YET_CATEGORIZED_BAR_BG,
-                    }
-                  : { bgcolor: s.color }),
-              }}
-            />
-          </Tooltip>
-        ))}
+        {segments.map((s) => {
+          const interactive = Boolean(onCategoryClick);
+          const filterVal = manifestFilterValueFromDistributionSegmentKey(s.key);
+          const tip = interactive
+            ? `${s.label}: ${s.pct}% — click to filter manifest rows`
+            : `${s.label}: ${s.pct}%`;
+          return (
+            <Tooltip key={s.key} title={tip} placement="top">
+              <Box
+                component={interactive ? 'button' : 'div'}
+                type={interactive ? 'button' : undefined}
+                onClick={interactive ? () => onCategoryClick?.(filterVal) : undefined}
+                sx={{
+                  flexGrow: s.pct,
+                  flexShrink: 1,
+                  flexBasis: 0,
+                  minWidth: s.pct > 0 ? 2 : 0,
+                  alignSelf: 'stretch',
+                  minHeight: 12,
+                  border: 'none',
+                  p: 0,
+                  display: 'block',
+                  ...(interactive
+                    ? {
+                        cursor: 'pointer',
+                        '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1 },
+                      }
+                    : {}),
+                  ...(s.fill === 'hatch'
+                    ? {
+                        backgroundImage: NOT_YET_CATEGORIZED_HATCH,
+                        backgroundColor: NOT_YET_CATEGORIZED_BAR_BG,
+                      }
+                    : { bgcolor: s.color }),
+                }}
+              />
+            </Tooltip>
+          );
+        })}
       </Box>
       <Box
         sx={{
@@ -87,37 +120,58 @@ export default function CategoryDistributionBar({ dist }: { dist: BuyingCategory
           mt: 1,
         }}
       >
-        {segments.map((s) => (
-          <Box
-            key={s.key}
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.5,
-            }}
-          >
+        {segments.map((s) => {
+          const interactive = Boolean(onCategoryClick);
+          const filterVal = manifestFilterValueFromDistributionSegmentKey(s.key);
+          return (
             <Box
+              key={s.key}
+              component={interactive ? 'button' : 'div'}
+              type={interactive ? 'button' : undefined}
+              onClick={interactive ? () => onCategoryClick?.(filterVal) : undefined}
               sx={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                flexShrink: 0,
-                bgcolor: s.fill === 'solid' ? s.color : NOT_YET_CATEGORIZED_BAR_BG,
-                ...(s.fill === 'hatch'
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                border: 'none',
+                p: 0,
+                m: 0,
+                background: 'none',
+                font: 'inherit',
+                textAlign: 'left',
+                ...(interactive
                   ? {
-                      backgroundImage: NOT_YET_CATEGORIZED_HATCH,
-                      backgroundColor: NOT_YET_CATEGORIZED_BAR_BG,
-                      border: '1px solid',
-                      borderColor: 'divider',
+                      cursor: 'pointer',
+                      borderRadius: 0.5,
+                      '&:hover': { bgcolor: 'action.hover' },
+                      '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1 },
                     }
                   : {}),
               }}
-            />
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-              {s.label}: {s.pct}%
-            </Typography>
-          </Box>
-        ))}
+            >
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                  bgcolor: s.fill === 'solid' ? s.color : NOT_YET_CATEGORIZED_BAR_BG,
+                  ...(s.fill === 'hatch'
+                    ? {
+                        backgroundImage: NOT_YET_CATEGORIZED_HATCH,
+                        backgroundColor: NOT_YET_CATEGORIZED_BAR_BG,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                      }
+                    : {}),
+                }}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                {s.label}: {s.pct}%
+              </Typography>
+            </Box>
+          );
+        })}
       </Box>
     </Box>
   );

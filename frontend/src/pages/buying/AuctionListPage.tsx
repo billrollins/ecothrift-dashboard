@@ -7,6 +7,7 @@ import {
   Link,
   Paper,
   Stack,
+  TablePagination,
   TextField,
   Tooltip,
   Typography,
@@ -17,12 +18,15 @@ import Refresh from '@mui/icons-material/Refresh';
 import type { GridPaginationModel } from '@mui/x-data-grid';
 import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import {
+  buyingAuctionListQueryKey,
+  buyingWatchlistQueryKey,
   deleteBuyingAuctionArchive,
   deleteBuyingThumbsUp,
   deleteBuyingWatchlist,
+  fetchBuyingAuctions,
   fetchBuyingWatchlist,
   postBuyingAuctionArchive,
   postBuyingSweep,
@@ -50,26 +54,42 @@ import type {
   BuyingSweepResponse,
   BuyingWatchlistParams,
 } from '../../types/buying.types';
+import { BUYING_SECTION_EYEBROW_SX } from '../../constants/buyingAuctionListUi';
 import AuctionListDesktop from './AuctionListDesktop';
 import AuctionListMobile from './AuctionListMobile';
 import AuctionMarketplaceChips from './AuctionMarketplaceChips';
 import {
+  BUYING_AUCTION_LIST_ORDERING_DAY_KEY,
   BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY,
   BUYING_WATCHLIST_ORDERING_STORAGE_KEY,
   DEFAULT_BUYING_LIST_ORDERING,
+  buyingListCdtYmd,
 } from '../../utils/buyingAuctionList';
 import {
-  patchAllBuyingAuctionLists,
-  patchAllBuyingWatchlistLists,
   patchArchiveBulk,
   patchThumbsBulk,
   patchWatchBulk,
-  optimisticArchiveRow,
 } from '../../utils/buyingOptimisticCache';
+import { useBuyingArchiveGrace } from '../../utils/buyingArchiveGrace';
 
 /** Stable reference for useBuyingAuctionSummary — inline `{}` is a new object every render and churns the query key. */
 const BUYING_SUMMARY_PARAMS_EMPTY: BuyingAuctionSummaryParams = {};
 const BUYING_SUMMARY_ARCHIVED: BuyingAuctionSummaryParams = { archived: true };
+const BUYING_SUMMARY_COMPLETED: BuyingAuctionSummaryParams = { completed: true };
+
+/** Default chip set: Today (CDT) on; all other row filters off. */
+const DEFAULT_AUCTION_FILTER_CHIPS = new Set<AuctionFilterChipId>(['today']);
+
+function filtersDifferFromAuctionDefault(chips: Set<AuctionFilterChipId>): boolean {
+  if (chips.size !== DEFAULT_AUCTION_FILTER_CHIPS.size) return true;
+  for (const id of chips) {
+    if (!DEFAULT_AUCTION_FILTER_CHIPS.has(id)) return true;
+  }
+  for (const id of DEFAULT_AUCTION_FILTER_CHIPS) {
+    if (!chips.has(id)) return true;
+  }
+  return false;
+}
 
 export default function AuctionListPage() {
   const theme = useTheme();
@@ -78,10 +98,13 @@ export default function AuctionListPage() {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const { hasRole } = useAuth();
-  const isAdmin = hasRole('Admin');
+  /** Admin, Manager, or Employee — used for thumbs-up (matches backend IsStaff). */
+  const isStaff = hasRole('Employee');
 
   const [ordering, setOrdering] = useState(DEFAULT_BUYING_LIST_ORDERING);
-  const [filterChips, setFilterChips] = useState<Set<AuctionFilterChipId>>(() => new Set());
+  const [filterChips, setFilterChips] = useState<Set<AuctionFilterChipId>>(
+    () => new Set(DEFAULT_AUCTION_FILTER_CHIPS)
+  );
 
   /** null = marketplaces not loaded yet; then all slugs active. */
   const [activeSlugs, setActiveSlugs] = useState<Set<string> | null>(null);
@@ -122,10 +145,16 @@ export default function AuctionListPage() {
 
   const { data: globalSummary } = useBuyingAuctionSummary(BUYING_SUMMARY_PARAMS_EMPTY);
   const { data: archivedSummary } = useBuyingAuctionSummary(BUYING_SUMMARY_ARCHIVED);
+  const { data: completedSummary } = useBuyingAuctionSummary(BUYING_SUMMARY_COMPLETED);
 
   const archivedCount = useMemo(
     () => archivedSummary?.by_marketplace.reduce((a, m) => a + m.count, 0) ?? 0,
     [archivedSummary]
+  );
+
+  const completedCount = useMemo(
+    () => completedSummary?.by_marketplace.reduce((a, m) => a + m.count, 0) ?? 0,
+    [completedSummary]
   );
 
   const countBySlugMerged = useMemo(() => {
@@ -144,16 +173,35 @@ export default function AuctionListPage() {
   const committedSearchTrimmed = searchCommitted.trim();
 
   const filtersActive = useMemo(
-    () => filterChips.size > 0 || Boolean(marketplaceParam) || Boolean(committedSearchTrimmed),
+    () =>
+      filtersDifferFromAuctionDefault(filterChips) ||
+      Boolean(marketplaceParam) ||
+      Boolean(committedSearchTrimmed),
     [filterChips, marketplaceParam, committedSearchTrimmed]
   );
 
   const isWatched = filterChips.has('watched');
 
   useEffect(() => {
+    if (isWatched) {
+      try {
+        const v = localStorage.getItem(BUYING_WATCHLIST_ORDERING_STORAGE_KEY);
+        setOrdering(v ?? 'end_time');
+      } catch {
+        setOrdering('end_time');
+      }
+      return;
+    }
     try {
-      const k = isWatched ? BUYING_WATCHLIST_ORDERING_STORAGE_KEY : BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY;
-      const v = localStorage.getItem(k);
+      const todayCdt = buyingListCdtYmd();
+      const dayKey = localStorage.getItem(BUYING_AUCTION_LIST_ORDERING_DAY_KEY);
+      const v = localStorage.getItem(BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY);
+      if (dayKey !== todayCdt) {
+        setOrdering(DEFAULT_BUYING_LIST_ORDERING);
+        localStorage.setItem(BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY, DEFAULT_BUYING_LIST_ORDERING);
+        localStorage.setItem(BUYING_AUCTION_LIST_ORDERING_DAY_KEY, todayCdt);
+        return;
+      }
       setOrdering(v ?? DEFAULT_BUYING_LIST_ORDERING);
     } catch {
       setOrdering(DEFAULT_BUYING_LIST_ORDERING);
@@ -168,9 +216,8 @@ export default function AuctionListPage() {
     };
     if (marketplaceParam) p.marketplace = marketplaceParam;
     if (hasManifestFilter === true) p.has_manifest = true;
-    if (filterChips.has('profitable')) p.profitable = true;
-    if (filterChips.has('needed')) p.needed = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;
+    if (filterChips.has('today')) p.today = true;
     if (committedSearchTrimmed) p.q = committedSearchTrimmed;
     if (filterChips.has('completed')) p.completed = true;
     if (filterChips.has('archived')) p.archived = true;
@@ -189,9 +236,8 @@ export default function AuctionListPage() {
     const p: Omit<BuyingAuctionListParams, 'page' | 'page_size'> = { ordering };
     if (marketplaceParam) p.marketplace = marketplaceParam;
     if (hasManifestFilter === true) p.has_manifest = true;
-    if (filterChips.has('profitable')) p.profitable = true;
-    if (filterChips.has('needed')) p.needed = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;
+    if (filterChips.has('today')) p.today = true;
     if (committedSearchTrimmed) p.q = committedSearchTrimmed;
     if (filterChips.has('completed')) p.completed = true;
     if (filterChips.has('archived')) p.archived = true;
@@ -202,9 +248,8 @@ export default function AuctionListPage() {
     const p: Omit<BuyingWatchlistParams, 'page' | 'page_size'> = { ordering };
     if (marketplaceParam) p.marketplace = marketplaceParam;
     if (hasManifestFilter === true) p.has_manifest = true;
-    if (filterChips.has('profitable')) p.profitable = true;
-    if (filterChips.has('needed')) p.needed = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;
+    if (filterChips.has('today')) p.today = true;
     if (committedSearchTrimmed) p.q = committedSearchTrimmed;
     if (filterChips.has('completed')) p.completed = true;
     if (filterChips.has('archived')) p.archived = true;
@@ -245,6 +290,56 @@ export default function AuctionListPage() {
   const rowCount = isWatched ? (watchlistData?.count ?? 0) : (auctionData?.count ?? 0);
   const listLoading = isWatched ? watchlistLoading : auctionLoading;
 
+  // Desktop pagination pre-fetch: warm the next page so arrow buttons swap instantly.
+  useEffect(() => {
+    if (!isMdUp) return;
+    const totalPages = Math.max(1, Math.ceil(rowCount / paginationModel.pageSize));
+    const nextPageIndex = paginationModel.page + 1;
+    if (nextPageIndex >= totalPages) return;
+    if (isWatched) {
+      const nextParams: BuyingWatchlistParams = {
+        ...watchlistListBase,
+        page: nextPageIndex + 1,
+        page_size: paginationModel.pageSize,
+      };
+      void queryClient.prefetchQuery({
+        queryKey: buyingWatchlistQueryKey(nextParams),
+        queryFn: () => fetchBuyingWatchlist(nextParams),
+        staleTime: 60_000,
+      });
+    } else {
+      const nextParams: BuyingAuctionListParams = {
+        ...auctionListBase,
+        page: nextPageIndex + 1,
+        page_size: paginationModel.pageSize,
+      };
+      void queryClient.prefetchQuery({
+        queryKey: buyingAuctionListQueryKey(nextParams),
+        queryFn: () => fetchBuyingAuctions(nextParams),
+        staleTime: 60_000,
+      });
+    }
+  }, [
+    isMdUp,
+    isWatched,
+    rowCount,
+    paginationModel.page,
+    paginationModel.pageSize,
+    auctionListBase,
+    watchlistListBase,
+    queryClient,
+  ]);
+
+  // Mobile infinite scroll: warm one extra page once the first page is in.
+  useEffect(() => {
+    if (isMdUp) return;
+    if (mobileRows.length === 0) return;
+    if (!mobileInfinite.hasNextPage || mobileInfinite.isFetchingNextPage) return;
+    // Only warm if we are at exactly one loaded page (pre-scroll).
+    if ((mobileInfinite.data?.pages?.length ?? 0) !== 1) return;
+    void mobileInfinite.fetchNextPage();
+  }, [isMdUp, mobileRows.length, mobileInfinite]);
+
   const filtersSummaryLabel = useMemo(() => {
     const showingCount = isMdUp ? rows.length : mobileRows.length;
     const showing = showingCount.toLocaleString();
@@ -252,7 +347,7 @@ export default function AuctionListPage() {
       const filteredRemainder = Math.max(0, rowCount - showingCount);
       return `(${showing} showing | ${filteredRemainder.toLocaleString()} filtered)`;
     }
-    return `(${showing} showing | no filters)`;
+    return `(${showing} showing | default: today CDT)`;
   }, [isMdUp, rows.length, mobileRows.length, rowCount, filtersActive]);
 
   const endTimesForCountdown = useMemo(() => {
@@ -261,41 +356,13 @@ export default function AuctionListPage() {
   }, [isMdUp, rows, mobileRows]);
   const countdownTick = useLiveBuyingCountdownTick(endTimesForCountdown);
 
-  const archiveMutation = useMutation({
-    mutationFn: async ({ id, unarchive }: { id: number; unarchive: boolean }) => {
-      if (unarchive) return deleteBuyingAuctionArchive(id);
-      return postBuyingAuctionArchive(id);
-    },
-    onMutate: async ({ id, unarchive }) => {
-      void queryClient.cancelQueries({ queryKey: ['buying'] });
-      const previousAuctions = queryClient.getQueriesData({ queryKey: ['buying', 'auctions'] });
-      const previousWatchlist = queryClient.getQueriesData({
-        predicate: (q) => q.queryKey[0] === 'buying' && q.queryKey[1] === 'watchlist',
-      });
-      const archive = !unarchive;
-      patchAllBuyingAuctionLists(queryClient, id, (r) => optimisticArchiveRow(r, archive));
-      patchAllBuyingWatchlistLists(queryClient, id, (r) => ({
-        ...r,
-        ...optimisticArchiveRow(r, archive),
-      }));
-      return { previousAuctions, previousWatchlist };
-    },
-    onError: (_err, _vars, context) => {
-      context?.previousAuctions?.forEach(([key, data]) => queryClient.setQueryData(key, data));
-      context?.previousWatchlist?.forEach(([key, data]) => queryClient.setQueryData(key, data));
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
-    },
-  });
+  const archiveGrace = useBuyingArchiveGrace();
 
   const handleArchiveToggle = useCallback(
     (row: BuyingAuctionListItem) => {
-      archiveMutation.mutate({ id: row.id, unarchive: Boolean(row.archived_at) });
+      archiveGrace.schedule(row);
     },
-    [archiveMutation]
+    [archiveGrace]
   );
 
   const { data: tintPage } = useQuery({
@@ -353,9 +420,7 @@ export default function AuctionListPage() {
         enqueueSnackbar('Could not update watchlist.', { variant: 'error' });
         return;
       }
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'detail'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
     },
     [queryClient, enqueueSnackbar]
   );
@@ -376,8 +441,7 @@ export default function AuctionListPage() {
         enqueueSnackbar('Could not update thumbs up.', { variant: 'error' });
         return;
       }
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
     },
     [queryClient, enqueueSnackbar]
   );
@@ -400,8 +464,6 @@ export default function AuctionListPage() {
         enqueueSnackbar('Could not update archive state.', { variant: 'error' });
         return;
       }
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'watchlist'] });
       void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
     },
     [queryClient, enqueueSnackbar]
@@ -489,6 +551,9 @@ export default function AuctionListPage() {
       try {
         const k = isWatched ? BUYING_WATCHLIST_ORDERING_STORAGE_KEY : BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY;
         localStorage.setItem(k, next);
+        if (!isWatched) {
+          localStorage.setItem(BUYING_AUCTION_LIST_ORDERING_DAY_KEY, buyingListCdtYmd());
+        }
       } catch {
         /* ignore */
       }
@@ -503,13 +568,14 @@ export default function AuctionListPage() {
       if (ctrl) {
         if (next.has(id)) next.delete(id);
         else next.add(id);
+        if (next.size === 0) return new Set(DEFAULT_AUCTION_FILTER_CHIPS);
         return next;
       }
       if (next.size === 0) {
         return new Set([id]);
       }
       if (next.size === 1 && next.has(id)) {
-        return new Set();
+        return new Set(DEFAULT_AUCTION_FILTER_CHIPS);
       }
       if (next.size === 1 && !next.has(id)) {
         return new Set([id]);
@@ -520,7 +586,7 @@ export default function AuctionListPage() {
   }, []);
 
   const handleClearAllFilters = useCallback(() => {
-    setFilterChips(new Set());
+    setFilterChips(new Set(DEFAULT_AUCTION_FILTER_CHIPS));
     setSearchDraft('');
     setSearchCommitted('');
     if (marketplaces?.length) {
@@ -530,7 +596,13 @@ export default function AuctionListPage() {
   }, [marketplaces]);
 
   const handleClearMiscFilters = useCallback(() => {
-    setFilterChips(new Set());
+    setFilterChips(new Set(DEFAULT_AUCTION_FILTER_CHIPS));
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
+  }, []);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchDraft('');
+    setSearchCommitted('');
     setPaginationModel((pm) => ({ ...pm, page: 0 }));
   }, []);
 
@@ -639,46 +711,19 @@ export default function AuctionListPage() {
 
       {isMdUp ? <CategoryNeedPanel /> : null}
 
-      <Paper variant="outlined" sx={{ mb: 1.25, p: 1.5, flexShrink: 0 }}>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          spacing={1}
-          alignItems={{ sm: 'flex-start' }}
-          sx={{ mb: 1.25, width: '100%' }}
-        >
-          <TextField
-            size="small"
-            label="Search auctions"
-            placeholder="Title or vendor…"
-            value={searchDraft}
-            onChange={(e) => setSearchDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commitSearch();
-              }
-            }}
-            sx={{ flex: 1, minWidth: { xs: '100%', sm: 240 } }}
-          />
-          <Button variant="outlined" size="medium" onClick={commitSearch} sx={{ mt: { xs: 0, sm: 0.5 } }}>
-            Search
-          </Button>
-        </Stack>
-        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-          Press Enter or Search. Multiple words must all match (title or vendor each).
-        </Typography>
-        <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap spacing={0} sx={{ gap: 1.5, mb: 0.75 }}>
-          <Typography variant="subtitle2" fontWeight={600} color="text.primary">
-            Filters
-          </Typography>
-          <Typography
-            component="span"
-            variant="caption"
-            color="text.secondary"
-            sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}
-          >
-            {filtersSummaryLabel}
-          </Typography>
+      <Box
+        sx={{
+          borderTop: '0.5px solid rgba(0,0,0,0.06)',
+          borderBottom: '0.5px solid rgba(0,0,0,0.06)',
+          bgcolor: 'transparent',
+          py: 1,
+          px: 0,
+          mb: 0.75,
+          flexShrink: 0,
+        }}
+      >
+        <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap spacing={0} sx={{ gap: 1, mb: 0.75 }}>
+          <Typography sx={BUYING_SECTION_EYEBROW_SX}>Search & filters</Typography>
           {filtersActive ? (
             <Link
               component="button"
@@ -692,74 +737,261 @@ export default function AuctionListPage() {
             </Link>
           ) : null}
         </Stack>
-        <Stack spacing={1} sx={{ width: '100%' }}>
-          {marketplaces && activeSlugs ? (
-            <AuctionMarketplaceChips
-              marketplaces={marketplaces}
-              countBySlug={countBySlugMerged}
-              activeSlugs={activeSlugs}
-              onToggle={handleToggleMarketplace}
-              onResetAll={handleResetMarketplaces}
-            />
-          ) : null}
-          <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap spacing={0} sx={{ gap: 0.75 }}>
-            <Tooltip title="Clear Profitable / Needed / Thumbs / Watched / Has manifest / Completed (keeps marketplace + search)" enterDelay={400} placement="top">
+        <Stack spacing={0.75} sx={{ width: '100%', alignItems: 'stretch' }}>
+          {/* Row 1: col1 Clear search · col2 search + button */}
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1}
+            sx={{ width: '100%', flexWrap: { xs: 'wrap', sm: 'nowrap' } }}
+          >
+            <Box
+              sx={{
+                flexShrink: 0,
+                width: 48,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+              }}
+            >
               <Button
                 variant="text"
                 size="small"
-                onClick={handleClearMiscFilters}
+                onClick={handleClearSearch}
                 sx={{ minWidth: 0, px: 0.75, height: 26, fontSize: '0.75rem' }}
               >
                 Clear
               </Button>
-            </Tooltip>
-            <BuyingFilterChips
-              active={filterChips}
-              onToggle={handleFilterChipToggle}
-              archivedCount={archivedCount}
-            />
+            </Box>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={0.75}
+              alignItems={{ sm: 'center' }}
+              sx={{ flex: 1, minWidth: 0, alignItems: { xs: 'stretch', sm: 'center' } }}
+            >
+              <TextField
+                size="small"
+                label="Search auctions"
+                placeholder={
+                  isMdUp
+                    ? 'Press Enter or Search. Multiple words must all match (title or vendor each).'
+                    : 'Press Enter or Search.'
+                }
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitSearch();
+                  }
+                }}
+                sx={{ flex: 1, minWidth: { xs: '100%', sm: 240 } }}
+              />
+              <Button variant="outlined" size="medium" onClick={commitSearch} sx={{ alignSelf: { xs: 'stretch', sm: 'center' } }}>
+                Search
+              </Button>
+            </Stack>
+          </Stack>
+
+          {/* Row 2: col1 Clear (all marketplaces) · col2 chips */}
+          {marketplaces && activeSlugs ? (
+            <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ width: '100%' }}>
+              <Box
+                sx={{
+                  flexShrink: 0,
+                  width: 48,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'flex-start',
+                }}
+              >
+                <Tooltip title="Show all marketplaces" enterDelay={400} placement="top">
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={handleResetMarketplaces}
+                    disabled={
+                      activeSlugs.size === marketplaces.length &&
+                      marketplaces.every((m) => activeSlugs.has(m.slug))
+                    }
+                    sx={{ minWidth: 0, px: 0.75, height: 26, fontSize: '0.75rem' }}
+                  >
+                    Clear
+                  </Button>
+                </Tooltip>
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'flex-start' }}>
+                <AuctionMarketplaceChips
+                  marketplaces={marketplaces}
+                  countBySlug={countBySlugMerged}
+                  activeSlugs={activeSlugs}
+                  onToggle={handleToggleMarketplace}
+                  onResetAll={handleResetMarketplaces}
+                  hideAllButton
+                />
+              </Box>
+            </Stack>
+          ) : null}
+
+          {/* Row 3: col1 Clear row filters · col2 chips */}
+          <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ width: '100%' }}>
+            <Box
+              sx={{
+                flexShrink: 0,
+                width: 48,
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'flex-start',
+              }}
+            >
+              <Tooltip title="Reset row filters to Today only (keeps marketplace + search)" enterDelay={400} placement="top">
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={handleClearMiscFilters}
+                  sx={{ minWidth: 0, px: 0.75, height: 26, fontSize: '0.75rem' }}
+                >
+                  Clear
+                </Button>
+              </Tooltip>
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'flex-start' }}>
+              <BuyingFilterChips
+                active={filterChips}
+                onToggle={handleFilterChipToggle}
+                archivedCount={archivedCount}
+                completedCount={completedCount}
+              />
+            </Box>
           </Stack>
         </Stack>
-      </Paper>
+      </Box>
 
-      {isMdUp ? (
-        <AuctionListDesktop
-          rows={rows}
-          rowCount={rowCount}
-          loading={listLoading}
-          ordering={ordering}
-          onOrderingChange={handleOrderingChange}
-          paginationModel={paginationModel}
-          onPaginationModelChange={onPaginationModelChange}
-          onRowNavigate={(id) => navigate(`/buying/auctions/${id}`)}
-          isAdmin={isAdmin}
-          onThumbsToggle={isAdmin ? handleThumbsToggle : undefined}
-          onWatchToggle={handleWatchToggle}
-          watchlistIds={watchlistIdsForTint}
-          countdownTick={countdownTick}
-          onArchiveToggle={handleArchiveToggle}
-          onBulkWatch={handleBulkWatch}
-          onBulkThumbs={handleBulkThumbs}
-          onBulkArchive={handleBulkArchive}
-        />
-      ) : (
-        <AuctionListMobile
-          ordering={ordering}
-          onOrderingChange={handleOrderingChange}
-          rows={mobileRows}
-          hasNextPage={mobileInfinite.hasNextPage}
-          isFetchingNextPage={mobileInfinite.isFetchingNextPage}
-          isLoading={mobileInfinite.isLoading}
-          remainingCount={mobileRemaining}
-          onLoadMore={() => void mobileInfinite.fetchNextPage()}
-          onRowNavigate={(id) => navigate(`/buying/auctions/${id}`)}
-          watchlistIds={watchlistIdsForTint}
-          isAdmin={isAdmin}
-          onThumbsToggle={isAdmin ? handleThumbsToggle : undefined}
-          onWatchToggle={handleWatchToggle}
-          countdownTick={countdownTick}
-        />
-      )}
+      <Paper
+        elevation={0}
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          bgcolor: '#fff',
+          border: '0.5px solid rgba(0,0,0,0.08)',
+          px: 1,
+          pt: 0.75,
+          pb: 0,
+        }}
+      >
+        {isMdUp ? (
+          <Stack
+            direction="row"
+            alignItems="flex-start"
+            justifyContent="space-between"
+            flexWrap="wrap"
+            useFlexGap
+            spacing={0}
+            sx={{ gap: 1, mb: 0.75 }}
+          >
+            <Stack alignItems="flex-start" spacing={0.25} sx={{ minWidth: 0 }}>
+              <Typography sx={BUYING_SECTION_EYEBROW_SX}>Active auctions ({rowCount})</Typography>
+              <Typography
+                component="span"
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontVariantNumeric: 'tabular-nums', lineHeight: 1.3 }}
+              >
+                {filtersSummaryLabel}
+              </Typography>
+            </Stack>
+            <TablePagination
+              component="div"
+              size="small"
+              count={rowCount}
+              page={paginationModel.page}
+              onPageChange={(_e, newPage) =>
+                onPaginationModelChange({ ...paginationModel, page: newPage })
+              }
+              rowsPerPage={paginationModel.pageSize}
+              onRowsPerPageChange={(e) => {
+                const next = parseInt(e.target.value, 10);
+                onPaginationModelChange({ page: 0, pageSize: next });
+              }}
+              rowsPerPageOptions={[50, 25, 100]}
+              labelRowsPerPage="Rows"
+              sx={{
+                border: 'none',
+                color: 'rgba(0,0,0,0.45)',
+                '& .MuiTablePagination-toolbar': {
+                  minHeight: 32,
+                  pl: 0,
+                  pr: 0,
+                },
+                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                  fontSize: 11,
+                  m: 0,
+                },
+                '& .MuiTablePagination-select': {
+                  fontSize: 11,
+                  py: 0,
+                },
+              }}
+            />
+          </Stack>
+        ) : (
+          <Stack alignItems="flex-start" spacing={0.25} sx={{ mb: 0.75 }}>
+            <Typography sx={BUYING_SECTION_EYEBROW_SX}>Active auctions ({rowCount})</Typography>
+            <Typography
+              component="span"
+              variant="caption"
+              color="text.secondary"
+              sx={{ fontVariantNumeric: 'tabular-nums', lineHeight: 1.3 }}
+            >
+              {filtersSummaryLabel}
+            </Typography>
+          </Stack>
+        )}
+        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {isMdUp ? (
+          <AuctionListDesktop
+            rows={rows}
+            rowCount={rowCount}
+            loading={listLoading}
+            ordering={ordering}
+            onOrderingChange={handleOrderingChange}
+            paginationModel={paginationModel}
+            onPaginationModelChange={onPaginationModelChange}
+            onRowNavigate={(id) => navigate(`/buying/auctions/${id}`)}
+            canThumbsToggle={isStaff}
+            onThumbsToggle={isStaff ? handleThumbsToggle : undefined}
+            onWatchToggle={handleWatchToggle}
+            watchlistIds={watchlistIdsForTint}
+            countdownTick={countdownTick}
+            onArchiveToggle={handleArchiveToggle}
+            onBulkWatch={handleBulkWatch}
+            onBulkThumbs={handleBulkThumbs}
+            onBulkArchive={handleBulkArchive}
+            archivePendingIds={archiveGrace.pendingIds}
+          />
+        ) : (
+          <AuctionListMobile
+            ordering={ordering}
+            onOrderingChange={handleOrderingChange}
+            rows={mobileRows}
+            hasNextPage={mobileInfinite.hasNextPage}
+            isFetchingNextPage={mobileInfinite.isFetchingNextPage}
+            isLoading={mobileInfinite.isLoading}
+            remainingCount={mobileRemaining}
+            onLoadMore={() => void mobileInfinite.fetchNextPage()}
+            onRowNavigate={(id) => navigate(`/buying/auctions/${id}`)}
+            watchlistIds={watchlistIdsForTint}
+            canThumbsToggle={isStaff}
+            onThumbsToggle={isStaff ? handleThumbsToggle : undefined}
+            onWatchToggle={handleWatchToggle}
+            countdownTick={countdownTick}
+          />
+        )}
+        </Box>
+      </Paper>
     </Box>
   );
 }

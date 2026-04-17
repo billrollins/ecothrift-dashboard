@@ -9,7 +9,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.buying.filters import AuctionFilter
+from apps.buying.filters import AuctionFilter, cdt_today_window_utc
 from apps.buying.models import Auction, CategoryStats, Marketplace
 from apps.buying.services.category_need import build_category_need_rows
 from apps.buying.services.category_stats_sql import upsert_category_stats_from_sql
@@ -304,41 +304,25 @@ class RunAiEstimateSweepTests(TestCase):
         self.assertEqual(out.get("estimated"), 0)
 
 
-class AuctionFilterProfitableNeededTests(TestCase):
+class AuctionFilterTodayCdtTests(TestCase):
     def setUp(self):
         self.mp = Marketplace.objects.create(name="FilterMp", slug="filter-mp")
 
-    def test_profitable_true_filters_gte_1_5(self):
-        hi = Auction.objects.create(
+    def test_today_true_filters_end_time_on_cdt_calendar_day(self):
+        start_utc, end_utc = cdt_today_window_utc()
+        mid = start_utc + (end_utc - start_utc) / 2
+        inside = Auction.objects.create(
             marketplace=self.mp,
-            external_id="pf-hi",
-            profitability_ratio=Decimal("2.0"),
-            need_score=0,
+            external_id="today-in",
+            end_time=mid,
         )
         Auction.objects.create(
             marketplace=self.mp,
-            external_id="pf-lo",
-            profitability_ratio=Decimal("1.0"),
-            need_score=0,
+            external_id="not-today",
+            end_time=start_utc - timedelta(hours=2),
         )
-        f = AuctionFilter(data={"profitable": True}, queryset=Auction.objects.all())
-        self.assertEqual(list(f.qs), [hi])
-
-    def test_needed_true_filters_need_score_positive(self):
-        hi = Auction.objects.create(
-            marketplace=self.mp,
-            external_id="nd-hi",
-            profitability_ratio=None,
-            need_score=2,
-        )
-        Auction.objects.create(
-            marketplace=self.mp,
-            external_id="nd-lo",
-            profitability_ratio=None,
-            need_score=0,
-        )
-        f = AuctionFilter(data={"needed": True}, queryset=Auction.objects.all())
-        self.assertEqual(list(f.qs), [hi])
+        f = AuctionFilter(data={"today": True}, queryset=Auction.objects.all())
+        self.assertCountEqual(list(f.qs), [inside])
 
 
 class AuctionFilterQTests(TestCase):

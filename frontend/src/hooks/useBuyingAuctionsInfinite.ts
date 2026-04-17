@@ -26,6 +26,7 @@ export function useBuyingAuctionsInfinite(
       return allPages.length + 1;
     },
     enabled,
-    refetchOnMount: 'always',
+    refetchOnMount: false,
+    staleTime: 60_000,
   });
 }

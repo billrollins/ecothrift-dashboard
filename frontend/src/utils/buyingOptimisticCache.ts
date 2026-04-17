@@ -147,6 +147,77 @@ export function patchTintIdsForWatch(queryClient: QueryClient, auctionId: number
   );
 }
 
+/**
+ * Remove an auction row from every paginated auction list + watchlist cache. Used by the archive
+ * grace commit to make the row disappear without refetching. Also removes it from infinite pages.
+ */
+export function removeAuctionFromAllBuyingLists(queryClient: QueryClient, auctionId: number): void {
+  queryClient.setQueriesData(
+    { predicate: isBuyingAuctionsPaginatedListQuery },
+    (old: PaginatedResponse<BuyingAuctionListItem> | undefined) => {
+      if (!old?.results) return old;
+      if (!old.results.some((r) => r.id === auctionId)) return old;
+      return {
+        ...old,
+        results: old.results.filter((r) => r.id !== auctionId),
+        count: Math.max(0, old.count - 1),
+      };
+    }
+  );
+  queryClient.setQueriesData(
+    { predicate: isBuyingWatchlistAuctionListQuery },
+    (old: PaginatedResponse<BuyingWatchlistAuctionItem> | undefined) => {
+      if (!old?.results) return old;
+      if (!old.results.some((r) => r.id === auctionId)) return old;
+      return {
+        ...old,
+        results: old.results.filter((r) => r.id !== auctionId),
+        count: Math.max(0, old.count - 1),
+      };
+    }
+  );
+  queryClient.setQueriesData(
+    {
+      predicate: (q) => {
+        const k = q.queryKey;
+        return Array.isArray(k) && k[0] === 'buying' && k[1] === 'auctions' && k[2] === 'infinite';
+      },
+    },
+    (old: { pages?: PaginatedResponse<BuyingAuctionListItem>[]; pageParams?: unknown[] } | undefined) => {
+      if (!old?.pages) return old;
+      const pages = old.pages.map((p) => {
+        if (!p.results?.some((r) => r.id === auctionId)) return p;
+        return {
+          ...p,
+          results: p.results.filter((r) => r.id !== auctionId),
+          count: Math.max(0, p.count - 1),
+        };
+      });
+      return { ...old, pages };
+    }
+  );
+  queryClient.setQueriesData(
+    {
+      predicate: (q) => {
+        const k = q.queryKey;
+        return Array.isArray(k) && k[0] === 'buying' && k[1] === 'watchlist' && k[2] === 'infinite';
+      },
+    },
+    (old: { pages?: PaginatedResponse<BuyingWatchlistAuctionItem>[]; pageParams?: unknown[] } | undefined) => {
+      if (!old?.pages) return old;
+      const pages = old.pages.map((p) => {
+        if (!p.results?.some((r) => r.id === auctionId)) return p;
+        return {
+          ...p,
+          results: p.results.filter((r) => r.id !== auctionId),
+          count: Math.max(0, p.count - 1),
+        };
+      });
+      return { ...old, pages };
+    }
+  );
+}
+
 /** Remove a row from paginated watchlist list caches (when unwatching). */
 export function patchWatchlistRemoveAuction(queryClient: QueryClient, auctionId: number): void {
   queryClient.setQueriesData(

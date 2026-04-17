@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-17 (v2.18.1 — Manager Settings + auth serializer fix) -->
+<!-- Line 1 release: ## [2.18.2] — 2026-04-17 (Buying UX — list perf, detail gauge, category mix) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -8,6 +8,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [Unreleased]
+
+## [2.18.2] — 2026-04-17
+
+User-facing theme: **Buying UX polish** — snappier **active auctions** list (optimistic cache, no full-list refetch on toggles, archive **2s** cancel window), **auction detail** clarity (max-bid gauge **0 → break-even**, shared tooltips, category mix **Units**), and **filters / layout** refinements (two-column filter grid, pagination with results, category-need **ABA** rhythm). UI patterns: **`.ai/extended/ux-spec.md`**.
+
+### Added
+
+- **Buying / valuation** — Category mix table: **Units** column and footer total from `category_distribution` / `manifest_row_count` (`AuctionValuationCard`).
+- **Buying / detail** — Max bid at each target: gauge scale **0 → break-even**; compact chart labels **Tgt / Mod / BE**; shared max-bid tooltip on bid tiles and gauge (`AuctionSecondaryCard`).
+
+### Changed
+
+- **Buying / auction list** — React Query trusts optimistic list cache: no `invalidateQueries` on thumbs/watch/archive bulk actions; `refetchOnMount: false` and `staleTime` on list hooks; single-row archive **2s grace** with cancel and row removal before POST (`useBuyingArchiveGrace`, `buyingOptimisticCache`); neighbor page prefetch; pagination controls moved to results header; **ABA** section rhythm for category need; search/filters **two-column** layout (Clear / All / Clear per row); desktop row render polish (`AuctionListPage`, `AuctionListDesktop`).
+
+### Fixed
+
+- **Buying / auction list** — Non-admin thumbs cell **stopPropagation** so row click does not navigate to detail.
 
 ## [2.18.1] — 2026-04-17
 

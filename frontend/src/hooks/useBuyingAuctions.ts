@@ -10,7 +10,8 @@ export function useBuyingAuctions(
     queryKey: buyingAuctionListQueryKey(params),
     queryFn: () => fetchBuyingAuctions(params),
     enabled: options?.enabled ?? true,
-    refetchOnMount: 'always',
+    refetchOnMount: false,
+    staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
 }

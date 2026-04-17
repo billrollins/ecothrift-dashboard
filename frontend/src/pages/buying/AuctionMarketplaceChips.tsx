@@ -10,6 +10,8 @@ export type AuctionMarketplaceChipsProps = {
   activeSlugs: Set<string> | null;
   onToggle: (slug: string, event: MouseEvent) => void;
   onResetAll: () => void;
+  /** When true, omit the inline "All" control (e.g. parent renders it in a separate column). */
+  hideAllButton?: boolean;
 };
 
 /**
@@ -21,15 +23,11 @@ export default function AuctionMarketplaceChips({
   activeSlugs,
   onToggle,
   onResetAll,
+  hideAllButton = false,
 }: AuctionMarketplaceChipsProps) {
   const tooltipTitle = useMemo(() => multiSelectChipTooltip(), []);
   const sorted = [...marketplaces].sort((a, b) => a.name.localeCompare(b.name));
   if (!sorted.length) return null;
-
-  const allActive =
-    activeSlugs != null &&
-    activeSlugs.size === sorted.length &&
-    sorted.every((m) => activeSlugs.has(m.slug));
 
   return (
     <Box
@@ -42,17 +40,23 @@ export default function AuctionMarketplaceChips({
         maxWidth: '100%',
       }}
     >
-      <Tooltip title={tooltipTitle} enterDelay={400} placement="top">
-        <Button
-          size="small"
-          variant="text"
-          onClick={onResetAll}
-          sx={{ minWidth: 0, px: 0.75, height: 26, fontSize: '0.75rem' }}
-          disabled={allActive}
-        >
-          All
-        </Button>
-      </Tooltip>
+      {!hideAllButton ? (
+        <Tooltip title={tooltipTitle} enterDelay={400} placement="top">
+          <Button
+            size="small"
+            variant="text"
+            onClick={onResetAll}
+            sx={{ minWidth: 0, px: 0.75, height: 26, fontSize: '0.75rem' }}
+            disabled={
+              activeSlugs != null &&
+              activeSlugs.size === sorted.length &&
+              sorted.every((m) => activeSlugs.has(m.slug))
+            }
+          >
+            All
+          </Button>
+        </Tooltip>
+      ) : null}
       {sorted.map((m) => {
         const on = activeSlugs?.has(m.slug) ?? false;
         const count = countBySlug[m.slug] ?? 0;

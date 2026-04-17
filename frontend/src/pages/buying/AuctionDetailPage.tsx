@@ -27,6 +27,7 @@ import {
   FormControl,
   IconButton,
   InputLabel,
+  Link as MuiLink,
   MenuItem,
   Paper,
   Select,
@@ -37,7 +38,12 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { DataGrid, type GridColDef, type GridPaginationModel } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  type GridColDef,
+  type GridPaginationModel,
+  type GridSortModel,
+} from '@mui/x-data-grid';
 import { isAxiosError } from 'axios';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -76,6 +82,8 @@ import type {
   BuyingManifestRow,
   BuyingUploadManifestResponse,
 } from '../../types/buying.types';
+import { BUYING_AUCTION_LIST_HEADER_ICON_PX } from '../../constants/buyingAuctionListUi';
+import { manifestOrderingFromSortModel } from '../../utils/buyingManifestGrid';
 import { formatCurrency, formatNumber } from '../../utils/format';
 import {
   CartesianGrid,
@@ -122,7 +130,6 @@ function buildManifestColumns(manifestExtendedTotal: string | null | undefined):
       width: 112,
       minWidth: 96,
       maxWidth: 140,
-      sortable: false,
       renderCell: (params) => {
         const row = params.row;
         const label = row.canonical_category ?? row.fast_cat_value;
@@ -150,7 +157,43 @@ function buildManifestColumns(manifestExtendedTotal: string | null | undefined):
       },
     },
     { field: 'brand', headerName: 'Brand', width: 100, minWidth: 88, maxWidth: 120 },
-    { field: 'title', headerName: 'Title', flex: 1, minWidth: 200 },
+    {
+      field: 'title',
+      headerName: 'Title',
+      flex: 1,
+      minWidth: 200,
+      renderCell: (params) => {
+        const title = params.row.title?.trim() ?? '';
+        if (!title) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              —
+            </Typography>
+          );
+        }
+        const href = `https://www.google.com/search?q=${encodeURIComponent(title)}`;
+        return (
+          <MuiLink
+            component="a"
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="body2"
+            onClick={(e) => e.stopPropagation()}
+            underline="hover"
+            sx={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              display: 'block',
+              minWidth: 0,
+            }}
+          >
+            {title}
+          </MuiLink>
+        );
+      },
+    },
     {
       field: 'quantity',
       headerName: 'Qty',
@@ -169,8 +212,8 @@ function buildManifestColumns(manifestExtendedTotal: string | null | undefined):
       field: 'ext_retail',
       headerName: 'Ext Retail',
       width: 110,
-      sortable: false,
       align: 'right',
+      headerAlign: 'right',
       renderCell: (params) => (
         <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
           {formatCurrency(manifestExtRetail(params.row).toFixed(2))}
@@ -181,8 +224,8 @@ function buildManifestColumns(manifestExtendedTotal: string | null | undefined):
       field: 'pct_manifest',
       headerName: '% of Manifest',
       width: 118,
-      sortable: false,
       align: 'right',
+      headerAlign: 'right',
       renderCell: (params) => {
         const ext = manifestExtRetail(params.row);
         if (denom <= 0) {
@@ -231,6 +274,10 @@ export default function AuctionDetailPage() {
     pageSize: MANIFEST_PAGE_SIZE,
   });
 
+  const [manifestSortModel, setManifestSortModel] = useState<GridSortModel>([
+    { field: 'row_number', sort: 'asc' },
+  ]);
+
   const [manifestSearch, setManifestSearch] = useState('');
   const [debouncedManifestSearch, setDebouncedManifestSearch] = useState('');
   const [manifestCategoryFilter, setManifestCategoryFilter] = useState('');
@@ -248,9 +295,23 @@ export default function AuctionDetailPage() {
     () => ({
       search: debouncedManifestSearch.trim() || undefined,
       category: manifestCategoryFilter || undefined,
+      ordering: manifestOrderingFromSortModel(manifestSortModel),
     }),
-    [debouncedManifestSearch, manifestCategoryFilter]
+    [debouncedManifestSearch, manifestCategoryFilter, manifestSortModel]
   );
+
+  const handleManifestSortModelChange = useCallback((model: GridSortModel) => {
+    if (!model.length) {
+      setManifestSortModel([{ field: 'row_number', sort: 'asc' }]);
+    } else {
+      setManifestSortModel(model);
+    }
+    setPaginationModel((pm) => ({ ...pm, page: 0 }));
+  }, []);
+
+  const handleManifestCategoryFromMix = useCallback((filterValue: string) => {
+    setManifestCategoryFilter(filterValue);
+  }, []);
 
   const { data: detail, isLoading: detailLoading, isError: detailError } =
     useBuyingAuctionDetail(auctionId);
@@ -462,9 +523,7 @@ export default function AuctionDetailPage() {
 
   const manifestFileInputRef = useRef<HTMLInputElement>(null);
   const fullManifestDropDepth = useRef(0);
-  const replaceManifestDropDepth = useRef(0);
   const [fullManifestDropOver, setFullManifestDropOver] = useState(false);
-  const [replaceManifestDropOver, setReplaceManifestDropOver] = useState(false);
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => postBuyingUploadManifest(auctionId!, file),
@@ -609,40 +668,6 @@ export default function AuctionDetailPage() {
     e.stopPropagation();
     fullManifestDropDepth.current = 0;
     setFullManifestDropOver(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f && auctionId) uploadMutation.mutate(f);
-  };
-
-  const handleReplaceManifestDragEnter = (e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    replaceManifestDropDepth.current += 1;
-    if (dragHasFiles(e)) {
-      setReplaceManifestDropOver(true);
-    }
-  };
-
-  const handleReplaceManifestDragLeave = (e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    replaceManifestDropDepth.current -= 1;
-    if (replaceManifestDropDepth.current <= 0) {
-      replaceManifestDropDepth.current = 0;
-      setReplaceManifestDropOver(false);
-    }
-  };
-
-  const handleReplaceManifestDragOver = (e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'copy';
-  };
-
-  const handleReplaceManifestDrop = (e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    replaceManifestDropDepth.current = 0;
-    setReplaceManifestDropOver(false);
     const f = e.dataTransfer.files?.[0];
     if (f && auctionId) uploadMutation.mutate(f);
   };
@@ -803,7 +828,7 @@ export default function AuctionDetailPage() {
         <AuctionSecondaryCard detail={detail} />
         <ValuationCostsCard detail={detail} isAdmin={isAdmin} />
         <AuctionDetailsInfoCard detail={detail} />
-        <ValuationCategoryTableCard detail={detail} />
+        <ValuationCategoryTableCard detail={detail} onCategoryRowClick={handleManifestCategoryFromMix} />
         <Card
           variant="outlined"
           sx={{
@@ -934,37 +959,7 @@ export default function AuctionDetailPage() {
                 </Card>
               )
             ) : (
-              <Box
-                onDragEnter={handleReplaceManifestDragEnter}
-                onDragLeave={handleReplaceManifestDragLeave}
-                onDragOver={handleReplaceManifestDragOver}
-                onDrop={handleReplaceManifestDrop}
-                sx={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1.25,
-                  cursor: replaceManifestDropOver ? 'copy' : 'default',
-                  borderRadius: 1,
-                  bgcolor: replaceManifestDropOver ? 'action.selected' : 'transparent',
-                  transition: 'background-color 0.15s ease',
-                  position: 'relative',
-                }}
-              >
-                {replaceManifestDropOver ? (
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      inset: 0,
-                      bgcolor: 'primary.main',
-                      opacity: 0.06,
-                      pointerEvents: 'none',
-                      borderRadius: 1,
-                    }}
-                  />
-                ) : null}
-
+              <Stack spacing={1.25} sx={{ flex: 1, minHeight: 0 }}>
                 {/* Manifest metadata */}
                 <Box
                   sx={{
@@ -1016,42 +1011,20 @@ export default function AuctionDetailPage() {
                   </Stack>
                 </Box>
 
-                {/* Compact replace zone */}
-                {!isMappingBatch ? (
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    justifyContent="space-between"
-                    sx={{ px: 0.5 }}
-                  >
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Button
-                        variant="text"
-                        size="small"
-                        component="label"
-                        htmlFor="auction-manifest-upload-input"
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={uploadMutation.isPending}
-                        sx={{ textTransform: 'none', fontSize: '0.75rem', minWidth: 0 }}
-                      >
-                        {uploadMutation.isPending ? 'Processing…' : 'Replace manifest'}
-                      </Button>
-                      {uploadMutation.isPending && <CircularProgress size={16} />}
-                    </Stack>
-                    {showRemoveManifest ? (
-                      <Button
-                        size="small"
-                        variant="text"
-                        color="error"
-                        onClick={() => setRemoveDialogOpen(true)}
-                        sx={{ textTransform: 'none', fontSize: '0.75rem', minWidth: 0, flexShrink: 0 }}
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
+                {!isMappingBatch && showRemoveManifest ? (
+                  <Stack direction="row" justifyContent="flex-end" sx={{ px: 0.5 }}>
+                    <Button
+                      size="small"
+                      variant="text"
+                      color="error"
+                      onClick={() => setRemoveDialogOpen(true)}
+                      sx={{ textTransform: 'none', fontSize: '0.75rem', minWidth: 0, flexShrink: 0 }}
+                    >
+                      Remove
+                    </Button>
                   </Stack>
                 ) : null}
-              </Box>
+              </Stack>
             )}
           </Box>
         </Card>
@@ -1064,7 +1037,10 @@ export default function AuctionDetailPage() {
           Manifest Rows
         </Typography>
         {detail.category_distribution && detail.category_distribution.total_rows > 0 ? (
-          <CategoryDistributionBar dist={detail.category_distribution} />
+          <CategoryDistributionBar
+            dist={detail.category_distribution}
+            onCategoryClick={handleManifestCategoryFromMix}
+          />
         ) : null}
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
@@ -1110,12 +1086,51 @@ export default function AuctionDetailPage() {
             paginationMode="server"
             paginationModel={paginationModel}
             onPaginationModelChange={setPaginationModel}
+            sortingMode="server"
+            sortModel={manifestSortModel}
+            onSortModelChange={handleManifestSortModelChange}
+            sortingOrder={['asc', 'desc']}
+            disableColumnMenu
             getRowId={(row) => row.id}
             disableRowSelectionOnClick
             density="compact"
+            columnHeaderHeight={40}
             autoHeight
             sx={{
               border: 'none',
+              '& .MuiDataGrid-columnHeader': {
+                display: 'flex',
+                alignItems: 'center',
+                py: 0,
+                px: 0.75,
+              },
+              '& .MuiDataGrid-sortIcon': {
+                fontSize: BUYING_AUCTION_LIST_HEADER_ICON_PX,
+              },
+              '& .MuiDataGrid-cell': {
+                display: 'flex',
+                alignItems: 'center',
+                py: 0.5,
+                px: 0.75,
+                lineHeight: 1.25,
+              },
+              '& .MuiDataGrid-columnHeader .MuiDataGrid-columnHeaderTitleContainer': {
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                width: '100%',
+                gap: 0.5,
+              },
+              '& .MuiDataGrid-columnHeader .MuiDataGrid-columnHeaderTitleContainerContent': {
+                flex: '1 1 auto',
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              },
+              '& .MuiDataGrid-columnHeader .MuiDataGrid-iconButtonContainer': {
+                marginLeft: 'auto',
+                flexShrink: 0,
+              },
               '& .MuiDataGrid-footerContainer': { borderTop: '1px solid', borderColor: 'divider' },
             }}
           />
@@ -1130,8 +1145,31 @@ export default function AuctionDetailPage() {
             flatManifestRows.map((row) => (
               <Card key={row.id} variant="outlined">
                 <CardContent sx={{ '&:last-child': { pb: 2 } }}>
-                  <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                    #{row.row_number} · {row.title || '—'}
+                  <Typography
+                    variant="subtitle2"
+                    fontWeight={600}
+                    gutterBottom
+                    component="div"
+                    sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 0.5, rowGap: 0.25 }}
+                  >
+                    <span>#{row.row_number} ·</span>
+                    {row.title?.trim() ? (
+                      <MuiLink
+                        component="a"
+                        href={`https://www.google.com/search?q=${encodeURIComponent(row.title.trim())}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        variant="subtitle2"
+                        fontWeight={600}
+                        underline="hover"
+                        color="inherit"
+                        sx={{ wordBreak: 'break-word' }}
+                      >
+                        {row.title.trim()}
+                      </MuiLink>
+                    ) : (
+                      <span>—</span>
+                    )}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {row.brand || '—'}

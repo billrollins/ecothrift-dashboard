@@ -13,6 +13,7 @@ import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUp from '@mui/icons-material/KeyboardArrowUp';
 import { useBuyingCategoryNeed } from '../../hooks/useBuyingCategoryNeed';
 import type { BuyingCategoryNeedRow } from '../../types/buying.types';
+import { BUYING_SECTION_EYEBROW_SX } from '../../constants/buyingAuctionListUi';
 import CategoryNeedBars from './CategoryNeedBars';
 import CategoryNeedDetail from './CategoryNeedDetail';
 
@@ -102,7 +103,16 @@ export default function CategoryNeedPanel() {
   const toggleOpen = () => setSize(isOpen ? 'min' : 'window');
 
   return (
-    <Paper variant="outlined" sx={{ mb: 1.25, flexShrink: 0, overflow: 'hidden' }}>
+    <Paper
+      elevation={0}
+      sx={{
+        mb: 1.5,
+        flexShrink: 0,
+        overflow: 'hidden',
+        bgcolor: '#fff',
+        border: '0.5px solid rgba(0,0,0,0.08)',
+      }}
+    >
       <Stack
         direction="row"
         alignItems="center"
@@ -119,7 +129,7 @@ export default function CategoryNeedPanel() {
         }}
         onClick={toggleOpen}
       >
-        <Typography variant="subtitle2" fontWeight={700}>
+        <Typography component="span" sx={BUYING_SECTION_EYEBROW_SX}>
           Inventory need
         </Typography>
         <Typography

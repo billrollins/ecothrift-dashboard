@@ -1,4 +1,4 @@
-import { Box, Chip, IconButton, Tooltip } from '@mui/material';
+import { Box, IconButton, Tooltip } from '@mui/material';
 import BookmarkRemove from '@mui/icons-material/BookmarkRemove';
 import {
   DataGrid,
@@ -7,6 +7,8 @@ import {
   type GridRenderCellParams,
   type GridSortModel,
 } from '@mui/x-data-grid';
+import AuctionManifestStateIcon from '../../components/buying/AuctionManifestStateIcon';
+import { BUYING_AUCTION_LIST_ROW_ICON_PX } from '../../constants/buyingAuctionListUi';
 import { format, parseISO } from 'date-fns';
 import { formatCurrency } from '../../utils/format';
 import {
@@ -109,15 +111,14 @@ const columns = (
   {
     field: 'has_manifest',
     headerName: 'Manifest',
-    width: 100,
+    width: 76,
     sortable: false,
+    align: 'center',
+    headerAlign: 'center',
     renderCell: (params: GridRenderCellParams<BuyingWatchlistAuctionItem>) => (
-      <Chip
-        size="small"
-        label={params.row.has_manifest ? 'Yes' : 'No'}
-        color={params.row.has_manifest ? 'primary' : 'default'}
-        variant={params.row.has_manifest ? 'filled' : 'outlined'}
-      />
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+        <AuctionManifestStateIcon row={params.row} size={BUYING_AUCTION_LIST_ROW_ICON_PX} />
+      </Box>
     ),
   },
   {
