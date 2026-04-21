@@ -396,9 +396,10 @@ export default function AuctionDetailPage() {
     if (debounceMappingInvalidateRef.current != null) return;
     debounceMappingInvalidateRef.current = setTimeout(() => {
       debounceMappingInvalidateRef.current = null;
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'detail', auctionId] });
+      // Do not invalidate detail or list queries here: it races with in-flight
+      // valuation PATCHes and reverts user edits. Manifest grid + list summaries only.
       void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', auctionId, 'manifest_rows'] });
-      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions'] });
+      void queryClient.invalidateQueries({ queryKey: ['buying', 'auctions', 'summary'] });
     }, 1000);
   }, [auctionId, queryClient]);
 

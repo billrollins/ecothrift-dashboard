@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-17 (manifests: CSV upload only; order-process pull removed) -->
+<!-- Last updated: 2026-04-21 (v2.19.0 list ordering thumbs_up_count; my_thumbs_up JSON) -->
 # B-Stock API and scraper reference
 
 **Committed map:** This file is the **scraper-centric** reference aligned with `apps/buying/services/scraper.py`. A longer probe-backed catalog previously lived under **`.ai/reference/`**; that tree is **not** in the repo anymore — treat **`scraper.py`** + this doc as authoritative.
@@ -13,7 +13,7 @@ All B-Stock HTTP calls go through `apps/buying/services/scraper.py`. No calls ar
 
 ### Internal Django endpoints (staff REST — not B-Stock hosts)
 
-Phase **5** adds valuation-related routes on the **same** `/api/buying/` router (see `apps/buying/urls.py`, `api_views.py`): e.g. **`POST`/`DELETE` `/api/buying/auctions/{id}/thumbs-up/`** (Admin), **`PATCH` `/api/buying/auctions/{id}/valuation-inputs/`** (Admin), **`GET` `/api/buying/category-need/`**. List auctions supports **`ordering=-priority`** and **`thumbs_up`** filter. **`POST` `/api/buying/sweep/`** runs discovery then **optional** AI title-category estimate for a limited batch of new auctions and **`recompute_all_open_auctions()`** (see `backend.md` Buying section). These do **not** call B-Stock except via **`pipeline.run_discovery`** (search).
+Phase **5** adds valuation-related routes on the **same** `/api/buying/` router (see `apps/buying/urls.py`, `api_views.py`): e.g. **`POST`/`DELETE` `/api/buying/auctions/{id}/thumbs-up/`** (Admin; response **`my_thumbs_up`**, **`thumbs_up_count`**), **`PATCH` `/api/buying/auctions/{id}/valuation-inputs/`** (Admin), **`GET` `/api/buying/category-need/`**. List auctions supports **`ordering`** (e.g. **`-priority`**, **`-thumbs_up_count`**) and query filter **`thumbs_up`** (current user voted). List/detail JSON includes **`my_thumbs_up`** and **`thumbs_up_count`**. **`POST` `/api/buying/sweep/`** runs discovery then **optional** AI title-category estimate for a limited batch of new auctions and **`recompute_all_open_auctions()`** (see `backend.md` Buying section). These do **not** call B-Stock except via **`pipeline.run_discovery`** (search).
 
 | Function | Endpoint | Auth (in code) | Notes |
 |----------|----------|----------------|--------|

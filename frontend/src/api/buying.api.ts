@@ -290,8 +290,8 @@ export async function fetchBuyingCategoryNeed(): Promise<BuyingCategoryNeedRespo
 
 export async function postBuyingThumbsUp(
   auctionId: number
-): Promise<{ thumbs_up: boolean; thumbs_up_count: number }> {
-  const { data } = await api.post<{ thumbs_up: boolean; thumbs_up_count: number }>(
+): Promise<{ my_thumbs_up: boolean; thumbs_up_count: number }> {
+  const { data } = await api.post<{ my_thumbs_up: boolean; thumbs_up_count: number }>(
     `/buying/auctions/${auctionId}/thumbs-up/`
   );
   return data;
@@ -299,8 +299,8 @@ export async function postBuyingThumbsUp(
 
 export async function deleteBuyingThumbsUp(
   auctionId: number
-): Promise<{ thumbs_up: boolean; thumbs_up_count: number }> {
-  const { data } = await api.delete<{ thumbs_up: boolean; thumbs_up_count: number }>(
+): Promise<{ my_thumbs_up: boolean; thumbs_up_count: number }> {
+  const { data } = await api.delete<{ my_thumbs_up: boolean; thumbs_up_count: number }>(
     `/buying/auctions/${auctionId}/thumbs-up/`
   );
   return data;

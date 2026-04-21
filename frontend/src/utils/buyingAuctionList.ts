@@ -107,17 +107,33 @@ const ORDERING_FIELDS = [
   'priority',
   'need_score',
   'est_profit',
-  'thumbs_up',
+  'thumbs_up_count',
   'archived_at',
   'watchlist_sort',
 ] as const;
+
+/**
+ * Map legacy API ordering tokens (pre–v2.19) to current field names.
+ */
+export function normalizeBuyingListOrdering(ordering: string): string {
+  if (!ordering) return ordering;
+  return ordering
+    .split(',')
+    .map((part) => {
+      const t = part.trim();
+      if (t === '-thumbs_up') return '-thumbs_up_count';
+      if (t === 'thumbs_up') return 'thumbs_up_count';
+      return t;
+    })
+    .join(',');
+}
 
 /**
  * Default API `ordering` when the user has not chosen a column sort this session
  * (watch first, then thumbs, priority, need — all desc).
  */
 export const DEFAULT_BUYING_LIST_ORDERING =
-  '-watchlist_sort,-thumbs_up,-priority,-need_score';
+  '-watchlist_sort,-thumbs_up_count,-priority,-need_score';
 const DEFAULT_LIST_ORDERING = DEFAULT_BUYING_LIST_ORDERING;
 
 /** Session-sticky sort persistence (Phase 3B G). */
@@ -138,7 +154,8 @@ export function buyingListCdtYmd(): string {
 
 export function orderingFromSortModel(model: GridSortModel): string {
   if (!model.length) return DEFAULT_LIST_ORDERING;
-  const { field, sort } = model[0];
+  let { field, sort } = model[0];
+  if (field === 'thumbs_up') field = 'thumbs_up_count';
   const allowed = ORDERING_FIELDS as unknown as string[];
   if (!allowed.includes(field)) return DEFAULT_LIST_ORDERING;
   const prefix = sort === 'desc' ? '-' : '';
@@ -153,10 +170,12 @@ export function orderingFromSortModel(model: GridSortModel): string {
 }
 
 export function sortModelFromOrdering(ordering: string): GridSortModel {
-  if (!ordering) return [{ field: 'watchlist_sort', sort: 'desc' }];
-  const first = ordering.split(',')[0].trim();
+  const normalized = normalizeBuyingListOrdering(ordering);
+  if (!normalized) return [{ field: 'watchlist_sort', sort: 'desc' }];
+  const first = normalized.split(',')[0].trim();
   const desc = first.startsWith('-');
-  const field = (desc ? first.slice(1) : first) as (typeof ORDERING_FIELDS)[number];
+  let field = (desc ? first.slice(1) : first) as (typeof ORDERING_FIELDS)[number] | 'thumbs_up';
+  if (field === 'thumbs_up') field = 'thumbs_up_count';
   const allowed = ORDERING_FIELDS as unknown as string[];
   if (!allowed.includes(field)) return [{ field: 'watchlist_sort', sort: 'desc' }];
   return [{ field, sort: desc ? 'desc' : 'asc' }];

@@ -1,4 +1,4 @@
-<!-- Line 1 release: ## [2.18.2] — 2026-04-17 (Buying UX — list perf, detail gauge, category mix) -->
+<!-- Line 1 release: ## [2.19.1] — 2026-04-21 (Buying — valuation input save + UX) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,7 +9,46 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.19.1] — 2026-04-21
+
+User-facing theme: **Buying auction detail** — **valuation overrides** (fees, shipping, shrinkage, profit goal, pre-/post-shrink revenue) save **reliably**; invalid manifest-mapping refreshes no longer clobber in-flight **PATCH** responses; **invalid decimal input** returns **400** with a clear `detail` instead of **500**. Inline **Costs & revenue** fields **select all on focus** for replace-on-type.
+
+### Fixed
+
+- **Buying / React Query** — `useBuyingValuationInputsMutation` cancels in-flight detail queries, applies **`setQueryData`** before a **predicate** `invalidateQueries` (list/summary and other `buying/auctions/*` keys **excluding** the current detail) so a stale **GET** cannot overwrite a successful **PATCH** ([`useBuyingValuationInputsMutation.ts`](frontend/src/hooks/useBuyingValuationInputsMutation.ts)). Errors from **`PATCH …/valuation-inputs/`** show a **notistack** message via **`onError`**.
+
+- **Buying / detail / manifest** — Debounced `map_fast_cat_batch` progress only invalidates **`manifest_rows`** and **auction summary**; it no longer invalidates the auction **detail** or full **list** on every tick, avoiding races with staff editing valuation inputs ([`AuctionDetailPage.tsx`](frontend/src/pages/buying/AuctionDetailPage.tsx)). Final `refetchQueries` after mapping workers still refresh the detail.
+
+- **Buying / API** — `PATCH /api/buying/auctions/{id}/valuation-inputs/` normalizes string decimals (`strip`, leading `$`, commas), tolerates pastes like **`$12.34`**, and returns **400** `{"detail": "<field> must be a decimal number."}` on invalid input instead of an uncaught **InvalidOperation** ([`api_views.py`](apps/buying/api_views.py) `valuation_inputs`).
+
+### Changed
+
+- **Buying / `AuctionValuationCard`** — While the valuation mutation is **pending**, readouts prefer **local** state where applicable so the UI does not flash stale server values; **Fees / Shipping / Revenue** (empty local still shows table **estimated**). **`ValuationInlineField`** text inputs **`select()` on focus** (fees, shipping, shrinkage, profit, pre-shrink revenue, after-shrink revenue) ([`AuctionValuationCard.tsx`](frontend/src/components/buying/AuctionValuationCard.tsx)).
+
+### Documentation
+
+- **`.ai/`** — `context.md`, `consultant_context.md`, `extended/frontend.md`, `extended/backend.md` — v2.19.1 notes.
+
+## [2.19.0] — 2026-04-21
+
+User-facing theme: **Buying auction thumbs are per-user** — list and detail show **`my_thumbs_up`** (you voted) and **`thumbs_up_count`** (distinct staff voters). Legacy **`buying_auction.thumbs_up`** removed; votes remain in **`AuctionThumbsVote`**.
+
+### Changed
+
+- **Buying / API** — Auction list & detail JSON: **`thumbs_up`** replaced by **`my_thumbs_up`**; **`thumbs_up_count`** unchanged. **`POST`/`DELETE /api/buying/auctions/{id}/thumbs-up/`** response body uses **`my_thumbs_up`** instead of **`thumbs_up`**. List & watchlist **`ordering`** allow **`thumbs_up_count`** (replacing model field **`thumbs_up`**). Query filter **`thumbs_up`** (current user has a vote) unchanged — [`apps/buying/filters.py`](apps/buying/filters.py), [`apps/buying/serializers.py`](apps/buying/serializers.py), [`apps/buying/api_views.py`](apps/buying/api_views.py).
+- **Buying / React** — Grid and mobile use **`my_thumbs_up`** for highlight; default list ordering **`-watchlist_sort,-thumbs_up_count,-priority,-need_score`**; **`normalizeBuyingListOrdering`** maps legacy **`thumbs_up`** sort tokens — [`frontend/src/utils/buyingAuctionList.ts`](frontend/src/utils/buyingAuctionList.ts), [`frontend/src/pages/buying/AuctionListDesktop.tsx`](frontend/src/pages/buying/AuctionListDesktop.tsx).
+
+### Removed
+
+- **Buying / schema** — Field **`Auction.thumbs_up`**; migration [`0020_remove_auction_thumbs_up`](apps/buying/migrations/0020_remove_auction_thumbs_up.py). Raw sweep upsert no longer inserts **`thumbs_up`** — [`apps/buying/services/sweep_upsert.py`](apps/buying/services/sweep_upsert.py).
+
+### Fixed
+
+- **Buying / auction list** — Thumbs icon filled only when the **logged-in** staff user voted; count reflects **all** voters (eliminates serializer fallback to a global flag).
+
+### Documentation
+
+- **`.ai/`** — `context.md`, `consultant_context.md`, `extended/backend.md`, `extended/bstock.md`, `extended/frontend.md` — thumbs API and schema.
 
 ## [2.18.2] — 2026-04-17
 

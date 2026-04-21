@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.utils import timezone
 
@@ -106,7 +106,7 @@ def annotate_auction_list_extras(qs, user=None):
             output_field=DecimalField(max_digits=20, decimal_places=10, null=True),
         ),
     )
-    qs = qs.annotate(_thumbs_up_count=Count('staff_thumbs_votes', distinct=True))
+    qs = qs.annotate(thumbs_up_count=Count('staff_thumbs_votes', distinct=True))
     if user is not None and getattr(user, 'is_authenticated', False):
         qs = qs.annotate(
             _user_thumbs_up=Exists(
@@ -245,7 +245,7 @@ class WatchlistAuctionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         'profitability_ratio',
         'need_score',
         'est_profit',
-        'thumbs_up',
+        'thumbs_up_count',
         'archived_at',
         'watchlist_sort',
     ]
@@ -316,7 +316,7 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         'profitability_ratio',
         'need_score',
         'est_profit',
-        'thumbs_up',
+        'thumbs_up_count',
         'archived_at',
         'watchlist_sort',
     ]
@@ -330,7 +330,7 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
             qs = annotate_auction_list_extras(qs, self.request.user)
         if self.action == 'retrieve':
             qs = qs.annotate(manifest_rows_count=Count('manifest_rows', distinct=True))
-            qs = qs.annotate(_thumbs_up_count=Count('staff_thumbs_votes', distinct=True))
+            qs = qs.annotate(thumbs_up_count=Count('staff_thumbs_votes', distinct=True))
             u = self.request.user
             if getattr(u, 'is_authenticated', False):
                 qs = qs.annotate(
@@ -545,11 +545,7 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
             AuctionThumbsVote.objects.filter(auction=auction, user=request.user).delete()
             voted = False
         n = AuctionThumbsVote.objects.filter(auction=auction).count()
-        legacy = n > 0
-        if auction.thumbs_up != legacy:
-            auction.thumbs_up = legacy
-            auction.save(update_fields=['thumbs_up'])
-        return Response({'thumbs_up': voted, 'thumbs_up_count': n}, status=status.HTTP_200_OK)
+        return Response({'my_thumbs_up': voted, 'thumbs_up_count': n}, status=status.HTTP_200_OK)
 
     @action(
         detail=True,
@@ -574,7 +570,14 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
             if raw is None or raw == '':
                 setattr(auction, name, None)
             else:
-                setattr(auction, name, Decimal(str(raw)))
+                normalized = str(raw).strip().lstrip('$').replace(',', '')
+                try:
+                    setattr(auction, name, Decimal(normalized))
+                except (InvalidOperation, TypeError, ValueError):
+                    return Response(
+                        {'detail': f'{name} must be a decimal number.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
         if 'priority' in data and data.get('priority') is not None and data.get('priority') != '':
             try:
                 auction.priority = int(data.get('priority'))

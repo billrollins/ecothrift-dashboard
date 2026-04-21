@@ -159,6 +159,7 @@ function ValuationInlineField({
               autoFocus
               disabled={disabled}
               inputProps={{ inputMode }}
+              onFocus={(e) => (e.target as HTMLInputElement).select()}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -484,25 +485,61 @@ export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
   const profitTIsOverride =
     detail.profit_target_override != null && String(detail.profit_target_override).trim() !== '';
 
-  const feesDisplay = feesIsOverride
-    ? formatCurrency(detail.fees_override)
-    : formatCurrency(detail.estimated_fees);
-  const shipDisplay = shipIsOverride
-    ? formatCurrency(detail.shipping_override)
-    : formatCurrency(detail.estimated_shipping);
-  const revenueDisplay = revenueIsOverride
-    ? formatCurrency(detail.revenue_override)
-    : formatCurrency(detail.estimated_revenue);
+  const inputsPending = valuationMutation.isPending;
 
-  const appliedShrinkRatio = shrinkIsOverride
-    ? parseDec(detail.shrinkage_override)
-    : derivedAppliedShrinkageRatio(detail);
+  const feesDisplay = (() => {
+    if (inputsPending) {
+      if (local.fees.trim() !== '') return formatCurrency(local.fees);
+      return formatCurrency(detail.estimated_fees);
+    }
+    return feesIsOverride
+      ? formatCurrency(detail.fees_override)
+      : formatCurrency(detail.estimated_fees);
+  })();
+  const shipDisplay = (() => {
+    if (inputsPending) {
+      if (local.ship.trim() !== '') return formatCurrency(local.ship);
+      return formatCurrency(detail.estimated_shipping);
+    }
+    return shipIsOverride
+      ? formatCurrency(detail.shipping_override)
+      : formatCurrency(detail.estimated_shipping);
+  })();
+  const revenueDisplay = (() => {
+    if (inputsPending) {
+      if (local.revenue.trim() !== '') return formatCurrency(local.revenue);
+      return formatCurrency(detail.estimated_revenue);
+    }
+    return revenueIsOverride
+      ? formatCurrency(detail.revenue_override)
+      : formatCurrency(detail.estimated_revenue);
+  })();
+
+  const appliedShrinkRatio = (() => {
+    if (inputsPending) {
+      const t = local.shrink.trim();
+      if (t === '') return null;
+      return parseDec(t);
+    }
+    return shrinkIsOverride
+      ? parseDec(detail.shrinkage_override)
+      : derivedAppliedShrinkageRatio(detail);
+  })();
   const shrinkDisplay =
-    appliedShrinkRatio != null ? `${(appliedShrinkRatio * 100).toFixed(1)}%` : '—';
+    appliedShrinkRatio != null && Number.isFinite(appliedShrinkRatio)
+      ? `${(appliedShrinkRatio * 100).toFixed(1)}%`
+      : '—';
 
-  const appliedProfitTarget = profitTIsOverride
-    ? parseDec(detail.profit_target_override)
-    : DEFAULT_PROFIT_TARGET_RATIO;
+  const appliedProfitTarget = (() => {
+    if (inputsPending) {
+      const t = local.profitT.trim();
+      if (t === '') return null;
+      return parseDec(t);
+    }
+    return profitTIsOverride
+      ? parseDec(detail.profit_target_override)
+      : DEFAULT_PROFIT_TARGET_RATIO;
+  })();
   const profitTDisplay =
     appliedProfitTarget != null && Number.isFinite(appliedProfitTarget)
       ? `${appliedProfitTarget.toFixed(2)}x`

@@ -171,10 +171,10 @@ export default function AuctionListMobile({
                               aria-label="Thumbs up"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onThumbsToggle(row.id, !row.thumbs_up);
+                                onThumbsToggle(row.id, !row.my_thumbs_up);
                               }}
                             >
-                              {row.thumbs_up ? (
+                              {row.my_thumbs_up ? (
                                 <ThumbUpIcon fontSize="small" color="primary" />
                               ) : (
                                 <ThumbUpOutlinedIcon fontSize="small" color="disabled" />
@@ -190,7 +190,7 @@ export default function AuctionListMobile({
                           </Stack>
                         ) : (
                           <Stack direction="row" alignItems="center" spacing={0.35}>
-                            {row.thumbs_up ? (
+                            {row.my_thumbs_up ? (
                               <ThumbUpIcon fontSize="small" color="primary" />
                             ) : (
                               <ThumbUpOutlinedIcon fontSize="small" color="disabled" />

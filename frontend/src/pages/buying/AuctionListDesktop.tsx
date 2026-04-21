@@ -212,7 +212,7 @@ function DataGridTooltipPassthrough({ children }: { children?: ReactNode }) {
   return <>{children}</>;
 }
 
-type BulkSortableField = 'thumbs_up' | 'archived_at' | 'watchlist_sort';
+type BulkSortableField = 'thumbs_up_count' | 'archived_at' | 'watchlist_sort';
 
 function bulkColumnSortTooltip(field: BulkSortableField, dir: 'asc' | 'desc' | null): string {
   if (field === 'watchlist_sort') {
@@ -220,9 +220,11 @@ function bulkColumnSortTooltip(field: BulkSortableField, dir: 'asc' | 'desc' | n
     if (dir === 'desc') return 'Sorted by watched first — click to clear sort';
     return 'Sort by watch status';
   }
-  if (dir === 'asc') return `Sorted by ${field === 'thumbs_up' ? 'thumbs up' : 'archive date'} ascending — click for descending`;
-  if (dir === 'desc') return `Sorted by ${field === 'thumbs_up' ? 'thumbs up' : 'archive date'} descending — click to clear sort`;
-  return field === 'thumbs_up' ? 'Sort by thumbs up' : 'Sort by archived date';
+  if (dir === 'asc')
+    return `Sorted by ${field === 'thumbs_up_count' ? 'thumbs up count' : 'archive date'} ascending — click for descending`;
+  if (dir === 'desc')
+    return `Sorted by ${field === 'thumbs_up_count' ? 'thumbs up count' : 'archive date'} descending — click to clear sort`;
+  return field === 'thumbs_up_count' ? 'Sort by thumbs up count' : 'Sort by archived date';
 }
 
 /** Maps include/exclude selection models to selected row ids on the current page (GridRowId is often string). */
@@ -443,7 +445,7 @@ function buildColumns(
       },
     },
     {
-      field: 'thumbs_up',
+      field: 'thumbs_up_count',
       headerName: '',
       width: BUYING_COL_THUMBS_WIDTH,
       sortable: true,
@@ -452,14 +454,14 @@ function buildColumns(
       headerAlign: 'center',
       headerClassName: 'buying-col-header-icon buying-col-centered-tight',
       cellClassName: 'buying-col-centered-tight',
-      valueGetter: (_v, row) => (row.thumbs_up ? 1 : 0),
+      valueGetter: (_v, row) => (row.my_thumbs_up ? 1 : 0),
       renderHeader: () => {
         const { rows, selectedIds, sortModel } = stateRef.current;
         const targetRows = getTargetRowsForBulk(rows, selectedIds);
         const scope = scopePhrase(selectedIds);
         const noRows = targetRows.length === 0;
         const disabled = !canThumbsToggle || !onThumbsToggle || noRows;
-        const anyDown = targetRows.some((r) => !r.thumbs_up);
+        const anyDown = targetRows.some((r) => !r.my_thumbs_up);
         const tooltipTitle = !canThumbsToggle
           ? 'Thumbs up (staff only)'
           : noRows
@@ -473,12 +475,12 @@ function buildColumns(
           const s = stateRef.current;
           const tr = getTargetRowsForBulk(s.rows, s.selectedIds);
           if (tr.length === 0) return;
-          const anyUn = tr.some((r) => !r.thumbs_up);
+          const anyUn = tr.some((r) => !r.my_thumbs_up);
           void onBulkThumbs(tr.map((r) => r.id), anyUn);
         };
-        const sortEntry = sortModel.find((s) => s.field === 'thumbs_up');
+        const sortEntry = sortModel.find((s) => s.field === 'thumbs_up_count');
         const sortDir = sortEntry?.sort === 'asc' || sortEntry?.sort === 'desc' ? sortEntry.sort : null;
-        const sortTip = bulkColumnSortTooltip('thumbs_up', sortDir);
+        const sortTip = bulkColumnSortTooltip('thumbs_up_count', sortDir);
         return (
           <Box
             sx={{
@@ -496,14 +498,14 @@ function buildColumns(
             <BulkColumnSortAffordance
               sortDir={sortDir}
               sortTip={sortTip}
-              onSortClick={() => onBulkColumnSort('thumbs_up')}
+              onSortClick={() => onBulkColumnSort('thumbs_up_count')}
             />
           </Box>
         );
       },
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
         const row = params.row;
-        const active = Boolean(row.thumbs_up);
+        const active = Boolean(row.my_thumbs_up);
         const count = row.thumbs_up_count ?? 0;
         const canToggle = canThumbsToggle && onThumbsToggle;
         const icon = active ? (

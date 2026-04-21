@@ -1,15 +1,12 @@
-release(v2.18.2): Buying UX — snappier auction list, detail gauge & category mix
+fix(buying): v2.19.1 valuation input save + detail UX
 
 ## Summary
-- Active auctions: optimistic React Query cache (no full-list invalidation on
-  thumbs/watch/archive); refetchOnMount false + staleTime on list hooks. Single-
-  row archive 2s grace with cancel (useBuyingArchiveGrace). Neighbor page
-  prefetch; pagination with results; two-column filters + ABA category-need
-  rhythm; desktop row polish.
-- Auction detail: max-bid gauge 0→break-even; shared Tgt/Mod/BE tooltips on
-  tiles + gauge (AuctionSecondaryCard). Category mix Units + footer total
-  (AuctionValuationCard).
-- Fix: thumbs cell stopPropagation for non-admin (no accidental navigation).
+- React Query: cancel detail refetch before PATCH, setQueryData then predicate
+  invalidate (exclude this auction detail); onError notistack.
+- Manifest map_fast_cat debounce: only manifest_rows + summary — no detail list hammer.
+- PATCH valuation-inputs: strip/$/commas, 400 on bad Decimal, not 500.
+- ValuationCostsCard: pending readouts, select-all on focus for inline fields.
 
 ## Docs
-CHANGELOG [2.18.2] · .ai/extended/ux-spec.md · .ai/context.md · .ai/extended/frontend.md
+CHANGELOG [2.19.1] · .version · package.json · .ai/context.md ·
+.ai/consultant_context.md · .ai/extended/frontend.md · .ai/extended/backend.md

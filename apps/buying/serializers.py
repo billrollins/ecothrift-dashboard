@@ -36,7 +36,7 @@ class AuctionListSerializer(serializers.ModelSerializer):
     effective_revenue_after_shrink = serializers.SerializerMethodField()
     # Overrides model field: CSV uploaded into app (ManifestRow), not B-Stock `has_manifest` flag.
     has_manifest = serializers.SerializerMethodField()
-    thumbs_up = serializers.SerializerMethodField()
+    my_thumbs_up = serializers.SerializerMethodField()
     thumbs_up_count = serializers.SerializerMethodField()
     top_categories = serializers.SerializerMethodField()
 
@@ -73,7 +73,7 @@ class AuctionListSerializer(serializers.ModelSerializer):
             'priority',
             'priority_override',
             'archived_at',
-            'thumbs_up',
+            'my_thumbs_up',
             'thumbs_up_count',
             'top_categories',
             'valuation_source',
@@ -95,14 +95,12 @@ class AuctionListSerializer(serializers.ModelSerializer):
             return n > 0
         return ManifestRow.objects.filter(auction_id=obj.pk).exists()
 
-    def get_thumbs_up(self, obj: Auction) -> bool:
+    def get_my_thumbs_up(self, obj: Auction) -> bool:
         v = getattr(obj, '_user_thumbs_up', None)
-        if v is not None:
-            return bool(v)
-        return bool(obj.thumbs_up)
+        return bool(v) if v is not None else False
 
     def get_thumbs_up_count(self, obj: Auction) -> int:
-        n = getattr(obj, '_thumbs_up_count', None)
+        n = getattr(obj, 'thumbs_up_count', None)
         if n is not None:
             return int(n)
         return 0
@@ -252,7 +250,7 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     valuation_source = serializers.SerializerMethodField()
     has_revenue_override = serializers.SerializerMethodField()
     effective_revenue_after_shrink = serializers.SerializerMethodField()
-    thumbs_up = serializers.SerializerMethodField()
+    my_thumbs_up = serializers.SerializerMethodField()
     thumbs_up_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -302,21 +300,19 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'priority',
             'priority_override',
             'archived_at',
-            'thumbs_up',
+            'my_thumbs_up',
             'thumbs_up_count',
             'valuation_source',
             'has_revenue_override',
             'effective_revenue_after_shrink',
         ]
 
-    def get_thumbs_up(self, obj: Auction) -> bool:
+    def get_my_thumbs_up(self, obj: Auction) -> bool:
         v = getattr(obj, '_user_thumbs_up', None)
-        if v is not None:
-            return bool(v)
-        return bool(obj.thumbs_up)
+        return bool(v) if v is not None else False
 
     def get_thumbs_up_count(self, obj: Auction) -> int:
-        n = getattr(obj, '_thumbs_up_count', None)
+        n = getattr(obj, 'thumbs_up_count', None)
         if n is not None:
             return int(n)
         return 0

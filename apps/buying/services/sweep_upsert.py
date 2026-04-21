@@ -20,7 +20,7 @@ INSERT INTO buying_auction (
     total_retail_value, current_price, starting_price, buy_now_price,
     bid_count, time_remaining_seconds, end_time, status, has_manifest,
     ai_score_data,
-    priority, priority_override, thumbs_up,
+    priority, priority_override,
     first_seen_at, last_updated_at, created_at
 ) VALUES (
     %s, %s, %s, %s, %s, %s,
@@ -28,7 +28,7 @@ INSERT INTO buying_auction (
     %s, %s, %s, %s,
     %s, %s, %s, %s, %s,
     %s,
-    %s, %s, %s,
+    %s, %s,
     %s, %s, %s
 )
 ON CONFLICT (marketplace_id, external_id) DO UPDATE SET
@@ -112,7 +112,6 @@ def upsert_listings_raw(
                 fields['has_manifest'],
                 Json({}),
                 50,
-                False,
                 False,
                 now,
                 now,

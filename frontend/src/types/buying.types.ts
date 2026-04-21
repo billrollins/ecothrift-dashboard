@@ -59,7 +59,8 @@ export interface BuyingAuctionListItem {
   archived_at?: string | null;
   /** Annotated for ordering when API supports it; UI may derive from watchlist tint. */
   watchlist_sort?: boolean;
-  thumbs_up?: boolean;
+  /** True when the logged-in staff user has a thumbs-up vote on this auction. */
+  my_thumbs_up?: boolean;
   /** Aggregate staff thumbs-up votes (Phase 3B). */
   thumbs_up_count?: number;
   /** Top 3 category mix for list (manifest preferred, else AI). */

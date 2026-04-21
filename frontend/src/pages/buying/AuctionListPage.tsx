@@ -64,6 +64,7 @@ import {
   BUYING_WATCHLIST_ORDERING_STORAGE_KEY,
   DEFAULT_BUYING_LIST_ORDERING,
   buyingListCdtYmd,
+  normalizeBuyingListOrdering,
 } from '../../utils/buyingAuctionList';
 import {
   patchArchiveBulk,
@@ -202,7 +203,7 @@ export default function AuctionListPage() {
         localStorage.setItem(BUYING_AUCTION_LIST_ORDERING_DAY_KEY, todayCdt);
         return;
       }
-      setOrdering(v ?? DEFAULT_BUYING_LIST_ORDERING);
+      setOrdering(normalizeBuyingListOrdering(v ?? DEFAULT_BUYING_LIST_ORDERING));
     } catch {
       setOrdering(DEFAULT_BUYING_LIST_ORDERING);
     }
@@ -212,7 +213,7 @@ export default function AuctionListPage() {
     const p: BuyingAuctionListParams = {
       page: paginationModel.page + 1,
       page_size: paginationModel.pageSize,
-      ordering,
+      ordering: normalizeBuyingListOrdering(ordering),
     };
     if (marketplaceParam) p.marketplace = marketplaceParam;
     if (hasManifestFilter === true) p.has_manifest = true;
@@ -233,7 +234,9 @@ export default function AuctionListPage() {
   ]);
 
   const auctionListBase = useMemo((): Omit<BuyingAuctionListParams, 'page' | 'page_size'> => {
-    const p: Omit<BuyingAuctionListParams, 'page' | 'page_size'> = { ordering };
+    const p: Omit<BuyingAuctionListParams, 'page' | 'page_size'> = {
+      ordering: normalizeBuyingListOrdering(ordering),
+    };
     if (marketplaceParam) p.marketplace = marketplaceParam;
     if (hasManifestFilter === true) p.has_manifest = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;
@@ -245,7 +248,9 @@ export default function AuctionListPage() {
   }, [ordering, marketplaceParam, hasManifestFilter, filterChips, committedSearchTrimmed]);
 
   const watchlistListBase = useMemo((): Omit<BuyingWatchlistParams, 'page' | 'page_size'> => {
-    const p: Omit<BuyingWatchlistParams, 'page' | 'page_size'> = { ordering };
+    const p: Omit<BuyingWatchlistParams, 'page' | 'page_size'> = {
+      ordering: normalizeBuyingListOrdering(ordering),
+    };
     if (marketplaceParam) p.marketplace = marketplaceParam;
     if (hasManifestFilter === true) p.has_manifest = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;

@@ -422,7 +422,6 @@ class Auction(models.Model):
         db_index=True,
         help_text='When set, auction is archived (hidden from default lists and sweeps).',
     )
-    thumbs_up = models.BooleanField(default=False)
     manifest_pulled_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -447,7 +446,7 @@ class Auction(models.Model):
 
 
 class AuctionThumbsVote(models.Model):
-    """Staff thumbs-up per auction (Phase 3B aggregate count replaces single `Auction.thumbs_up` flag)."""
+    """Staff thumbs-up per auction (at most one row per staff user per auction)."""
 
     auction = models.ForeignKey(
         Auction,

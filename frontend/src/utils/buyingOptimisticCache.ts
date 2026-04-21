@@ -238,13 +238,13 @@ export function optimisticThumbsRow(
   row: BuyingAuctionListItem,
   active: boolean
 ): BuyingAuctionListItem {
-  const was = Boolean(row.thumbs_up);
+  const was = Boolean(row.my_thumbs_up);
   let nextCount = row.thumbs_up_count ?? 0;
   if (active && !was) nextCount += 1;
   if (!active && was) nextCount = Math.max(0, nextCount - 1);
   return {
     ...row,
-    thumbs_up: active,
+    my_thumbs_up: active,
     thumbs_up_count: nextCount,
   };
 }
