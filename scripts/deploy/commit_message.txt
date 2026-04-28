@@ -1,12 +1,13 @@
-fix(buying): v2.19.1 valuation input save + detail UX
+feat(inventory): PO Raw Manifest upload on Order detail + hardened upload-manifest
 
-## Summary
-- React Query: cancel detail refetch before PATCH, setQueryData then predicate
-  invalidate (exclude this auction detail); onError notistack.
-- Manifest map_fast_cat debounce: only manifest_rows + summary — no detail list hammer.
-- PATCH valuation-inputs: strip/$/commas, 400 on bad Decimal, not 500.
-- ValuationCostsCard: pending readouts, select-all on focus for inline fields.
+Order detail Raw Manifest card: CSV upload/replace via useUploadManifest / POST …/upload-manifest/
+(multipart FormData; axios strips Content-Type so boundary is set). Preprocessing unlocks when
+manifest_file exists.
 
-## Docs
-CHANGELOG [2.19.1] · .version · package.json · .ai/context.md ·
-.ai/consultant_context.md · .ai/extended/frontend.md · .ai/extended/backend.md
+Backend: structured error codes (missing_file, decode_error, empty_csv, storage_error, save_error);
+link new S3File before deleting prior blob; process-manifest ManifestRow replace in transaction.atomic().
+
+Docs: CHANGELOG [Unreleased]; .ai context/consultant_context/extended frontend + backend +
+inventory-pipeline; initiative inventory_intake_pipeline Session 2; initiatives _index active row.
+
+No .version bump (review_bump — run session_close to release semver).

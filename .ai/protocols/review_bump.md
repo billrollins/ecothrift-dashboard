@@ -1,7 +1,7 @@
-<!-- Last updated: 2026-04-17 (v2.18.0 release: review_bump + Heroku push) -->
-# Protocol: Review & Bump (docs audit → `.version` → `CHANGELOG`)
+<!-- Last updated: 2026-04-28 (review_bump: local safety commit) -->
+# Protocol: Review & Bump (docs audit → `.version` → `CHANGELOG` → local commit)
 
-**Scope:** Docs-audit + semver bump + `CHANGELOG` update. This is a **slice** of `session_close.md` — use when the user wants those without a full session close. **Optional:** align **`scripts/deploy/commit_message.txt`** with an upcoming push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**).
+**Scope:** Docs-audit + semver bump + `CHANGELOG` update + **local** `git add` / `git commit` with a **short** message. This is a **slice** of `session_close.md` — use when the user wants those without a full session close. **Optional:** grow **`scripts/deploy/commit_message.txt`** for the eventual push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**). **Push** stays separate: frequent local commits protect against lost work; only reviewed work goes to GitHub or production via `session_close.md` / deploy scripts.
 
 **Not this protocol:**
 - Session entry bookkeeping (`#### Result`, Session updates) → `session_checkpoint.md` / `session_close.md`.
@@ -196,7 +196,9 @@ grep -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | sort | uniq -d
 
 ---
 
-## Part 4 — Exit criteria (stop here)
+## Part 4 — Exit criteria and local safety commit
+
+### 4A — Exit checklist
 
 All of:
 
@@ -207,11 +209,34 @@ All of:
 - [ ] `frontend/package.json` `"version"` still `0.0.0`.
 - [ ] No secrets in touched files (`git diff` visual scan of `.env*`, `AWS_`, `ANTHROPIC_`, `SECRET_KEY`, `DATABASE_URL`).
 
-**This protocol does not commit or push by itself.** Hand back to the user, or continue to `session_close.md` Part 3 for pre-commit + push.
+### 4B — Local `git add` / `git commit` (no push)
+
+**Goal:** Checkpoint work often so long stretches are not vulnerable to loss or corruption. This is **local only** — it does **not** replace `session_close.md` Part 3 or **`2_push_github.bat`** for pushing **clean, reviewed** code to GitHub or production.
+
+**When:** After Part 4A passes, if there is anything meaningful to save (`git status` shows changes you intend to keep). If the tree is already clean, skip.
+
+**Commands:**
+
+```bash
+git add .
+git commit -m "<short subject line>"
+```
+
+**Short message (line 1 only):**
+
+- **Tie it to this period’s story:** same theme as what you just added or adjusted in **`CHANGELOG.md`** (dated section or `[Unreleased]` bullets) and the direction of **`scripts/deploy/commit_message.txt`** if you edited it — e.g. initiative name, area (`inventory`, `bstock`), or user-visible outcome.
+- **One line**, conventional if possible: `type: concise summary` (under ~72 characters).
+- **Not** the full contents of `commit_message.txt`. That file stays the **long-form** message for the push/deploy commit; the local commit is a **frequent, lightweight** anchor.
+
+**Do not** `git push` as part of this protocol unless the user explicitly asked to push now.
+
+After committing, hand back to the user or continue to `session_close.md` Part 3 when ready for pre-push review and remote push.
 
 ---
 
 ## Part 5 — `commit_message.txt` and `2_push_github.bat`
+
+**Two messages:** **Part 4B** uses `git commit -m` (short). **`commit_message.txt`** holds the **full** subject + body for the commit that **`2_push_github.bat`** creates when you push — expand it across review sessions; it is not copied verbatim into the Part 4B `-m` string.
 
 **Path:** [`scripts/deploy/commit_message.txt`](../../scripts/deploy/commit_message.txt). **Push script:** [`scripts/deploy/2_push_github.bat`](../../scripts/deploy/2_push_github.bat) runs `git add .`, then **`git commit -F`** on the **entire** file (not just line 1), then `git push origin main`. **Line 1** is validated separately and must **not** be the placeholder `---`.
 
@@ -224,7 +249,7 @@ All of:
 
 **Conventional shape:** line 1 = `type: short description`; blank line; body (bullets OK).
 
-**This protocol** does not require editing `commit_message.txt`; use Part 5 when a review session should leave the repo ready for a push with a coherent message.
+**Editing `commit_message.txt`:** Optional during review_bump; use Part 5 when accumulating the **full** push message. The **short** Part 4B commit should stay aligned in *theme* only.
 
 ---
 
@@ -235,5 +260,5 @@ All of:
 | `startup.md` | Creates the session entry this protocol updates `_index.md` / initiative file for |
 | `session_checkpoint.md` | Lighter pulse — `[Unreleased]` only, never `.version` |
 | `get_bearing.md` | Use when you're not sure what changed — do that before this protocol |
-| **`review_bump.md`** (this) | Docs audit + semver + CHANGELOG **slice** |
-| `session_close.md` | Superset — calls this protocol's work AND sets `#### Result` / `commit_message.txt` / pre-commit / push |
+| **`review_bump.md`** (this) | Docs audit + semver + CHANGELOG + **local** short commit |
+| `session_close.md` | Superset — calls this protocol's work AND sets `#### Result` / `commit_message.txt` / pre-commit / **push** |

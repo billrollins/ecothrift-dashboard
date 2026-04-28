@@ -209,6 +209,8 @@ export interface PurchaseOrder {
     batch_groups_pending: number;
     batch_groups_total: number;
   };
+  /** Present on retrieve (`PurchaseOrderDetailSerializer`); not on list rows. */
+  manifest_rows?: ManifestRow[];
   created_by: number | null;
   created_by_name: string | null;
   created_at: string;

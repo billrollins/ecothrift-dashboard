@@ -1,6 +1,6 @@
 # Consultant context: B-Stock auction intelligence + legacy data
 
-<!-- Last updated: 2026-04-21 (v2.19.1 valuation PATCH; v2.19.0 thumbs) -->
+<!-- Last updated: 2026-04-28 (review_bump; inventory PO manifest [Unreleased]) -->
 
 **Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
 
@@ -75,6 +75,8 @@ The dashboard UI is **React** (TypeScript, MUI, React Query). **Buying** staff r
 **Soft touch vs invasive:** **Soft touch** (default) means using the **public listings API** (`search.bstock.com` **GET** or **POST** — same payload semantics; the Django scraper uses **POST**) **without a JWT**. It is appropriate for **frequent or scheduled sweeps** and minimizes ban risk. **Invasive** flows use a **Bearer JWT** for **token-backed** endpoints where the app still requires them: **order-process manifests** (management commands / legacy pull), authenticated **listing** calls, etc. Invasive calls should be **rare**, **manually approved**, and tied to **intent to bid** or **must-have enrichment**. *(Research note: **GET** `auction.bstock.com` with `listingId` and **GET** order-process manifests have been observed **anonymous 200** for tested probes; the app still passes JWT where coded — policy may change. Committed detail: **`.ai/extended/bstock.md`**.)*
 
 **Manual manifest path (production):** **CSV upload** in the React **auction detail** page is **shipped** (**v2.7.0**, Phases 4.1A–4.1B): **`POST /api/buying/auctions/{id}/upload_manifest/`** with `ManifestTemplate` detection; optional **Claude** template completion for unknown headers; Stage **2** **`map_fast_cat_batch`** for unmapped **`fast_cat_key`** values. **Server-side** `pull_manifest` using a stored token remains useful for **local development** but is **not** the default production story, because cloud token automation is awkward and token-heavy calls drove **account blocks** during development.
+
+**Inventory PO manifests:** Staff upload/replace vendor CSV from **`/inventory/orders/:id`** (**Raw Manifest** card → **`POST /api/inventory/orders/{id}/upload-manifest/`**); standardization stays in **Preprocessing**. **`CHANGELOG [Unreleased]`**, **`.ai/extended/inventory-pipeline.md`**.
 
 **Ban mitigation:** If token-backed actions are blocked, **soft-touch discovery** can continue. Standard practices: **delays between requests**, **backoff on HTTP 429/403**, **logging response codes**, and **separating** listing sweeps from manifest pulls. See initiative **Open questions** for follow-up on per-account vs per-IP limits.
 

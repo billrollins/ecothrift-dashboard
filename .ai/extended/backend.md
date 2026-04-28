@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-21 (v2.19.1 valuation_inputs parse + 400) -->
+<!-- Last updated: 2026-04-28 (inventory PO manifest upload UI — Order detail) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -123,7 +123,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 |-------|------------|
 | **Vendor** | name, code (unique), vendor_type (liquidation/retail/direct/other), is_active. Legacy duplicate **TGT** merged into **TRGET** (migration `0018_merge_tgt_into_trget`); **TGT** row kept with `is_active=False`. |
 | **Category** | name, slug, parent (self-FK), spec_template (JSON) |
-| **PurchaseOrder** | vendor, order_number, status (ordered→paid→shipped→delivered→processing→complete), ordered_date, paid/shipped/delivered dates, purchase/shipping/fees, **total_cost** (sum of components), **retail_value** (B-Stock listing total — do not overwrite with sum of line retails), **est_shrink** (new POs: **`get_default_po_est_shrink()`** from **`AppSetting`** `po_default_est_shrink`, else model default **0.15**), manifest (FK core.S3File), manifest_preview (JSON) |
+| **PurchaseOrder** | vendor, order_number, status (ordered→paid→shipped→delivered→processing→complete), ordered_date, paid/shipped/delivered dates, purchase/shipping/fees, **total_cost** (sum of components), **retail_value** (B-Stock listing total — do not overwrite with sum of line retails), **est_shrink** (new POs: **`get_default_po_est_shrink()`** from **`AppSetting`** `po_default_est_shrink`, else model default **0.15**), manifest (FK core.S3File), manifest_preview (JSON); raw CSV upload/replace from staff UI — **Order detail** → Raw Manifest (`POST /api/inventory/orders/{id}/upload-manifest/`) |
 | **CSVTemplate** | vendor, name, header_signature, column_mappings (JSON), is_default |
 | **ManifestRow** | purchase_order, row_number, quantity, description, title, brand, model, category, condition, retail_value, proposed_price, final_price, pricing_stage, pricing_notes, upc, vendor_item_number, batch_flag, search_tags, specifications (JSON), matched_product, matched_product_title, matched_product_number, match_status, match_candidates (JSON), ai_match_decision, ai_reasoning, ai_suggested_title, ai_suggested_brand, ai_suggested_model, notes |
 | **Product** | product_number, title, brand, model, category, category_ref (FK Category), specifications (JSON), default_price, upc |

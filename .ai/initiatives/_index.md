@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T21:15:00-05:00 (no active initiatives) -->
+<!-- Last updated: 2026-04-28 (inventory_intake_pipeline active; review_bump steering sync) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| — | — | *None.* Add a row when scoped work is tracked here again (see **How to create a new initiative**). |
+| [inventory_intake_pipeline](./inventory_intake_pipeline.md) | Active | **Order → Receive → Preprocess → Process → WrapUp → Dispute** (full pipeline); **today:** Order + Preprocess + Process production-ready; Receive / WrapUp / Dispute later. |
 
 Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
 

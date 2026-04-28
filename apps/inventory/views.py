@@ -908,14 +908,29 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         file = request.FILES.get('file')
         if not file:
             return Response(
-                {'detail': 'No file provided.'},
+                {'detail': 'No file provided.', 'code': 'missing_file'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── Parse CSV ────────────────────────────────────────────────────
-        content = file.read().decode('utf-8-sig')
+        raw = file.read()
+        try:
+            content = raw.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            return Response(
+                {
+                    'detail': 'Could not decode file as UTF-8. Save the manifest as CSV (UTF-8).',
+                    'code': 'decode_error',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         reader = csv.reader(io.StringIO(content))
         headers = next(reader, [])
+        if not headers or not any(str(h).strip() for h in headers):
+            return Response(
+                {'detail': 'CSV has no header row.', 'code': 'empty_csv'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         sig = header_signature(headers)
         template = CSVTemplate.objects.filter(
@@ -931,28 +946,20 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'raw': dict(zip(headers, row)),
             })
 
-        # ── Save file to storage (S3 or local) ──────────────────────────
         s3_key = f'manifests/orders/{order.id}/{file.name}'
         file.seek(0)
-        saved_path = default_storage.save(s3_key, file)
+        try:
+            saved_path = default_storage.save(s3_key, file)
+        except Exception as e:
+            logger.exception('upload_manifest storage save failed order=%s', order.pk)
+            return Response(
+                {
+                    'detail': f'Could not save manifest file to storage: {e}',
+                    'code': 'storage_error',
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
-        # Delete old S3File record if replacing
-        if order.manifest:
-            try:
-                default_storage.delete(order.manifest.key)
-            except Exception:
-                pass
-            order.manifest.delete()
-
-        s3_file = S3File.objects.create(
-            key=saved_path,
-            filename=file.name,
-            size=file.size,
-            content_type=file.content_type or 'text/csv',
-            uploaded_by=request.user,
-        )
-
-        # ── Persist preview + link to PO ─────────────────────────────────
         preview_data = {
             'headers': headers,
             'signature': sig,
@@ -962,11 +969,43 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'row_count': len(rows_data),
             'rows': rows_data[:20],
         }
-        order.manifest = s3_file
-        order.manifest_preview = preview_data
-        order.save(update_fields=['manifest', 'manifest_preview'])
 
-        # Return the updated order so the frontend gets everything
+        old_manifest = order.manifest
+        try:
+            with transaction.atomic():
+                s3_file = S3File.objects.create(
+                    key=saved_path,
+                    filename=file.name,
+                    size=file.size,
+                    content_type=file.content_type or 'text/csv',
+                    uploaded_by=request.user,
+                )
+                order.manifest = s3_file
+                order.manifest_preview = preview_data
+                order.save(update_fields=['manifest', 'manifest_preview'])
+        except Exception as e:
+            logger.exception('upload_manifest DB save failed order=%s', order.pk)
+            try:
+                default_storage.delete(saved_path)
+            except Exception:
+                pass
+            return Response(
+                {'detail': f'Could not record manifest: {e}', 'code': 'save_error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        if old_manifest:
+            old_key = old_manifest.key
+            try:
+                old_manifest.delete()
+            except Exception:
+                logger.warning('upload_manifest failed to delete old S3File', exc_info=True)
+            try:
+                default_storage.delete(old_key)
+            except Exception:
+                pass
+
+        order.refresh_from_db()
         return Response(PurchaseOrderDetailSerializer(order).data)
 
     @action(detail=True, methods=['post'], url_path='process-manifest')
@@ -1037,50 +1076,51 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             )
 
         # Delete existing manifest rows for this PO
-        ManifestRow.objects.filter(purchase_order=order).delete()
-
         created = []
-        for row_data in normalized_rows:
-            proposed_price = parse_decimal(row_data.get('proposed_price'))
-            final_price = parse_decimal(row_data.get('final_price'))
-            pricing_stage = str(row_data.get('pricing_stage') or 'unpriced')
-            if pricing_stage not in dict(ManifestRow.PRICING_STAGE_CHOICES):
-                pricing_stage = 'unpriced'
-            if final_price is not None:
-                pricing_stage = 'final'
-            elif proposed_price is not None and pricing_stage == 'unpriced':
-                pricing_stage = 'draft'
+        with transaction.atomic():
+            ManifestRow.objects.filter(purchase_order=order).delete()
 
-            manifest_row = ManifestRow.objects.create(
-                purchase_order=order,
-                row_number=row_data.get('row_number', 0),
-                quantity=row_data.get('quantity', 1),
-                description=row_data.get('description', ''),
-                title=row_data.get('title', ''),
-                brand=row_data.get('brand', ''),
-                model=row_data.get('model', ''),
-                category=row_data.get('category', ''),
-                condition=row_data.get('condition', ''),
-                retail_value=row_data.get('retail_value'),
-                proposed_price=proposed_price,
-                final_price=final_price,
-                pricing_stage=pricing_stage,
-                pricing_notes=str(row_data.get('pricing_notes') or ''),
-                upc=row_data.get('upc', ''),
-                vendor_item_number=row_data.get('vendor_item_number', ''),
-                matched_product=None,
-                match_status='pending',
-                notes=row_data.get('notes', ''),
-            )
-            created.append(manifest_row)
+            for row_data in normalized_rows:
+                proposed_price = parse_decimal(row_data.get('proposed_price'))
+                final_price = parse_decimal(row_data.get('final_price'))
+                pricing_stage = str(row_data.get('pricing_stage') or 'unpriced')
+                if pricing_stage not in dict(ManifestRow.PRICING_STAGE_CHOICES):
+                    pricing_stage = 'unpriced'
+                if final_price is not None:
+                    pricing_stage = 'final'
+                elif proposed_price is not None and pricing_stage == 'unpriced':
+                    pricing_stage = 'draft'
 
-        if used_template and order.manifest_preview:
-            preview = dict(order.manifest_preview)
-            preview['template_id'] = used_template.id
-            preview['template_name'] = used_template.name
-            preview['template_mappings'] = normalized_mappings
-            order.manifest_preview = preview
-            order.save(update_fields=['manifest_preview', 'updated_at'])
+                manifest_row = ManifestRow.objects.create(
+                    purchase_order=order,
+                    row_number=row_data.get('row_number', 0),
+                    quantity=row_data.get('quantity', 1),
+                    description=row_data.get('description', ''),
+                    title=row_data.get('title', ''),
+                    brand=row_data.get('brand', ''),
+                    model=row_data.get('model', ''),
+                    category=row_data.get('category', ''),
+                    condition=row_data.get('condition', ''),
+                    retail_value=row_data.get('retail_value'),
+                    proposed_price=proposed_price,
+                    final_price=final_price,
+                    pricing_stage=pricing_stage,
+                    pricing_notes=str(row_data.get('pricing_notes') or ''),
+                    upc=row_data.get('upc', ''),
+                    vendor_item_number=row_data.get('vendor_item_number', ''),
+                    matched_product=None,
+                    match_status='pending',
+                    notes=row_data.get('notes', ''),
+                )
+                created.append(manifest_row)
+
+            if used_template and order.manifest_preview:
+                preview = dict(order.manifest_preview)
+                preview['template_id'] = used_template.id
+                preview['template_name'] = used_template.name
+                preview['template_mappings'] = normalized_mappings
+                order.manifest_preview = preview
+                order.save(update_fields=['manifest_preview', 'updated_at'])
 
         response_data = {
             'rows_created': len(created),

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
@@ -20,6 +20,8 @@ import {
   TableRow,
   TextField,
   Typography,
+  CircularProgress,
+  Stack,
 } from '@mui/material';
 import ArrowBack from '@mui/icons-material/ArrowBack';
 import BuildOutlined from '@mui/icons-material/BuildOutlined';
@@ -46,13 +48,20 @@ import {
   useRevertOrderPaid,
   useRevertOrderShipped,
   useOrderDeletePreview,
+  useUploadManifest,
 } from '../../hooks/useInventory';
 import type { OrderDeletePreviewResponse } from '../../api/inventory.api';
-import type {
-  ManifestRow,
-  PurchaseOrderCondition,
-  PurchaseOrderStatus,
-} from '../../types/inventory.types';
+import type { PurchaseOrderCondition, PurchaseOrderStatus } from '../../types/inventory.types';
+
+function inventoryUploadDetail(err: unknown): string {
+  const ax = err as { response?: { data?: { detail?: unknown } } };
+  const d = ax.response?.data?.detail;
+  if (typeof d === 'string') return d;
+  if (Array.isArray(d)) {
+    return d.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join('; ');
+  }
+  return 'Manifest upload failed';
+}
 
 const STATUS_STEPS: PurchaseOrderStatus[] = [
   'ordered', 'paid', 'shipped', 'delivered', 'processing', 'complete',
@@ -92,6 +101,11 @@ export default function OrderDetailPage() {
   const revertDelivered = useRevertOrderDelivered();
   const orderDeletePreview = useOrderDeletePreview();
   const purgeDeleteOrder = usePurgeDeleteOrder();
+  const uploadManifestMutation = useUploadManifest();
+
+  const manifestInputRef = useRef<HTMLInputElement>(null);
+  const manifestDropDepth = useRef(0);
+  const [manifestDropOver, setManifestDropOver] = useState(false);
 
   const [paidDialogOpen, setPaidDialogOpen] = useState(false);
   const [paidDate, setPaidDate] = useState<Date | null>(new Date());
@@ -104,8 +118,69 @@ export default function OrderDetailPage() {
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deletePreview, setDeletePreview] = useState<OrderDeletePreviewResponse | null>(null);
 
-  const manifestRows = (order as { manifest_rows?: ManifestRow[] } | null)?.manifest_rows ?? [];
   const statusIndex = order ? STATUS_STEPS.indexOf(order.status) : -1;
+
+  const uploadManifestFile = async (file: File | undefined) => {
+    if (!file || !orderId || !order) return;
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith('.csv')) {
+      enqueueSnackbar('Choose a .csv manifest file.', { variant: 'warning' });
+      return;
+    }
+    const standardizedCount = order.manifest_rows?.length ?? 0;
+    const replacing = Boolean(order.manifest_file);
+    if (replacing && standardizedCount > 0) {
+      const ok = window.confirm(
+        `Replace the raw manifest file? You already have ${standardizedCount} standardized row(s). `
+        + 'They may no longer match this CSV until you clear or re-standardize on Preprocessing. Continue?',
+      );
+      if (!ok) return;
+    }
+    try {
+      await uploadManifestMutation.mutateAsync({ orderId, file });
+      enqueueSnackbar('Manifest uploaded', { variant: 'success' });
+    } catch (err) {
+      enqueueSnackbar(inventoryUploadDetail(err), { variant: 'error' });
+    }
+  };
+
+  const onPickManifestFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    void uploadManifestFile(f);
+    e.target.value = '';
+  };
+
+  const handleManifestDragEnter = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    manifestDropDepth.current += 1;
+    setManifestDropOver(true);
+  };
+
+  const handleManifestDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    manifestDropDepth.current -= 1;
+    if (manifestDropDepth.current <= 0) {
+      manifestDropDepth.current = 0;
+      setManifestDropOver(false);
+    }
+  };
+
+  const handleManifestDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleManifestDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    manifestDropDepth.current = 0;
+    setManifestDropOver(false);
+    const f = e.dataTransfer.files?.[0];
+    void uploadManifestFile(f);
+  };
 
   const handleOpenDeleteDialog = async () => {
     if (!orderId) return;
@@ -201,6 +276,19 @@ export default function OrderDetailPage() {
 
   const canGoToPreprocessing = Boolean(order.manifest_file);
   const canGoToProcessing = ['delivered', 'processing', 'complete'].includes(order.status);
+
+  const rawManifestRowCount = order.manifest_preview?.row_count ?? 0;
+  const standardizedManifestRowCount = order.manifest_rows?.length ?? 0;
+  const manifestStatusParts: string[] = [];
+  if (rawManifestRowCount > 0) {
+    manifestStatusParts.push(`${formatNumber(rawManifestRowCount)} row(s) in file`);
+  }
+  if (standardizedManifestRowCount > 0) {
+    manifestStatusParts.push(`${formatNumber(standardizedManifestRowCount)} standardized rows`);
+  } else if (order.manifest_file) {
+    manifestStatusParts.push('Not yet standardized');
+  }
+  const manifestStatusCaption = manifestStatusParts.join(' · ');
 
   return (
     <Box>
@@ -348,17 +436,67 @@ export default function OrderDetailPage() {
       <Card sx={{ mb: 1.5 }}>
         <CardContent sx={{ pb: '12px !important' }}>
           <Typography variant="subtitle2" fontWeight={600} gutterBottom>Raw Manifest</Typography>
+          <input
+            id="po-manifest-upload-input"
+            ref={manifestInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            hidden
+            onChange={onPickManifestFile}
+          />
+          <Card
+            variant="outlined"
+            onDragEnter={handleManifestDragEnter}
+            onDragLeave={handleManifestDragLeave}
+            onDragOver={handleManifestDragOver}
+            onDrop={handleManifestDrop}
+            onClick={() => !uploadManifestMutation.isPending && manifestInputRef.current?.click()}
+            sx={{
+              borderStyle: 'dashed',
+              borderWidth: 2,
+              borderColor: manifestDropOver ? 'primary.main' : 'divider',
+              bgcolor: manifestDropOver ? 'action.selected' : 'background.paper',
+              cursor: uploadManifestMutation.isPending ? 'wait' : 'pointer',
+              p: 2,
+              mb: order.manifest_file ? 1.5 : 0,
+            }}
+          >
+            <Stack spacing={1} alignItems="flex-start">
+              <Typography variant="body2" color="text.secondary">
+                Drop a CSV here or click to browse. Upload replaces the stored raw file; standardization happens on Preprocessing.
+              </Typography>
+              <Button
+                variant="contained"
+                size="small"
+                component="label"
+                htmlFor="po-manifest-upload-input"
+                startIcon={
+                  uploadManifestMutation.isPending ? (
+                    <CircularProgress color="inherit" size={16} />
+                  ) : (
+                    <UploadFile />
+                  )
+                }
+                disabled={uploadManifestMutation.isPending}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {order.manifest_file ? 'Replace manifest' : 'Upload manifest'}
+              </Button>
+            </Stack>
+          </Card>
           {order.manifest_file ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
               <Box>
                 <Typography variant="body2">{order.manifest_file.filename}</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {manifestRows.length > 0 ? `${formatNumber(manifestRows.length)} standardized rows` : 'Not yet standardized'}
+                <Typography variant="caption" color="text.secondary" display="block">
+                  {manifestStatusCaption}
                 </Typography>
               </Box>
             </Box>
           ) : (
-            <Typography variant="body2" color="text.secondary">No manifest uploaded yet.</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              No manifest on file yet — use the upload area above.
+            </Typography>
           )}
         </CardContent>
       </Card>

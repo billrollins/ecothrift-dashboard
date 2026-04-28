@@ -362,7 +362,15 @@ export function uploadManifest(orderId: number, file: File): Promise<{ data: unk
   const formData = new FormData();
   formData.append('file', file);
   return api.post(`/inventory/orders/${orderId}/upload-manifest/`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    // Let the browser set multipart boundary (same pattern as Buying `postBuyingUploadManifest`).
+    transformRequest: [
+      (body, headers) => {
+        if (body instanceof FormData) {
+          delete headers['Content-Type'];
+        }
+        return body;
+      },
+    ],
   });
 }
 

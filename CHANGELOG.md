@@ -1,4 +1,5 @@
 <!-- Line 1 release: ## [2.19.1] — 2026-04-21 (Buying — valuation input save + UX) -->
+<!-- Last reviewed: 2026-04-28 (review_bump — inventory manifest UI remains under [Unreleased]) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -8,6 +9,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [Unreleased]
+
+### Added
+
+- **Inventory / Orders** — Purchase order detail **Raw Manifest**: upload or replace CSV via existing `POST /api/inventory/orders/{id}/upload-manifest/`; unlocks **Preprocessing** when saved ([`OrderDetailPage.tsx`](frontend/src/pages/inventory/OrderDetailPage.tsx); [`inventory.api.ts`](frontend/src/api/inventory.api.ts)).
+
+### Changed
+
+- **Inventory / API** — `upload-manifest` returns structured `code` on common errors (**`missing_file`**, **`decode_error`**, **`empty_csv`**, **`storage_error`**, **`save_error`**); writes new **`S3File`** + PO link before deleting prior storage object; **`process-manifest`** row replace uses **`transaction.atomic()`** ([`apps/inventory/views.py`](apps/inventory/views.py)).
+
+### Documentation
+
+- **`.ai/`** — `context.md` (active **`inventory_intake_pipeline`** pointer; **`[Unreleased]`** inventory manifest note), `consultant_context.md`, `extended/frontend.md` — **`review_bump`** sync (**2026-04-28**).
 
 ## [2.19.1] — 2026-04-21
 

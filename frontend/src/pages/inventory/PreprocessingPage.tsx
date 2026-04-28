@@ -498,14 +498,15 @@ export default function PreprocessingPage() {
 
       {!hasManifestFile && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          No manifest uploaded for this order. Upload a manifest from the{' '}
+          No manifest uploaded for this order. On the{' '}
           <Button
             variant="text" size="small"
             sx={{ textTransform: 'none', p: 0, minWidth: 'auto', verticalAlign: 'baseline' }}
             onClick={() => navigate(`/inventory/orders/${order.id}`)}
           >
-            Order page
-          </Button>.
+            Order detail page
+          </Button>
+          , use <strong>Raw Manifest</strong> to upload or replace the CSV, then return here.
         </Alert>
       )}
 

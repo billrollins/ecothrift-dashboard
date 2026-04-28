@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T14:45:00-05:00 -->
+<!-- Last updated: 2026-04-28T16:45:00-05:00 (Order detail manifest upload UI) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -91,6 +91,8 @@ Vendor → PurchaseOrder → CSV upload (S3) → Standard Manifest mapping (expr
 ---
 
 ## CSV Manifest Upload (S3)
+
+**Staff UI:** Inventory **Order detail** (`/inventory/orders/:id`) — **Raw Manifest** drop zone and **Upload manifest** / **Replace manifest** (CSV). Unlocks **Preprocessing** when `manifest_file` is present.
 
 **Upload flow**:
 1. File uploaded via `POST /inventory/orders/{id}/upload-manifest/`
