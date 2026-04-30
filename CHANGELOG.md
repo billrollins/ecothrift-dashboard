@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.19.1] — 2026-04-21 (Buying — valuation input save + UX) -->
-<!-- Last reviewed: 2026-04-28 (review_bump — inventory manifest UI remains under [Unreleased]) -->
+<!-- Last reviewed: 2026-04-29 (review_bump — initiative Sessions 2–4; `[Unreleased]` inventory) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -14,15 +14,23 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Inventory / Orders** — **Create Purchase Order** dialog (**Ctrl/Cmd+N** from list or detail): dashboard vendors only, tier-one fields plus collapsible details/costs, keyboard/tab UX; successful create navigates to the new order detail ([`CreatePurchaseOrderDialog.tsx`](frontend/src/components/inventory/CreatePurchaseOrderDialog.tsx); [`OrderListPage.tsx`](frontend/src/pages/inventory/OrderListPage.tsx); [`OrderDetailPage.tsx`](frontend/src/pages/inventory/OrderDetailPage.tsx)).
+- **Inventory / Orders** — **Purchase Orders dashboard** refresh: denormalized **`vendor_name_cache`**, **`vendor_code_cache`**, **`search_text`** on **`PurchaseOrder`**; **`GET /api/inventory/orders/summary/`** KPI aggregates matching list filters; redesigned **`OrderListPage`** (KPI cards, debounced search, status segments, lightweight table, legacy actions in overflow menu) ([`apps/inventory/models.py`](apps/inventory/models.py); [`apps/inventory/views.py`](apps/inventory/views.py); [`frontend/src/pages/inventory/OrderListPage.tsx`](frontend/src/pages/inventory/OrderListPage.tsx)).
 - **Inventory / Orders** — Purchase order detail **Raw Manifest**: upload or replace CSV via existing `POST /api/inventory/orders/{id}/upload-manifest/`; unlocks **Preprocessing** when saved ([`OrderDetailPage.tsx`](frontend/src/pages/inventory/OrderDetailPage.tsx); [`inventory.api.ts`](frontend/src/api/inventory.api.ts)).
+- **Inventory / Preprocessing** — New 3-step flow: **Standardize Manifest → AI Cleanup → Manual Review**. Standardization always previews, creates deterministic Product links and early `Item` records; AI cleanup has preprocessing model add/verify/default controls; Manual Review provides searchable item/product editing, pricing summaries, and individual/bulk ideal-price adjustments.
 
 ### Changed
 
+- **Inventory / Orders** — **Order detail** redesigned as a workspace panel (2×2 **Lifecycle / Costs / Details / Manifest**), header financial strip, debounced inline **PATCH** edits, lifecycle-derived **status** when PO is ordered→delivered, **Escape** to list when no focused control, bottom bar **Preprocessing / Processing / Delete** ([`OrderDetailPage.tsx`](frontend/src/pages/inventory/OrderDetailPage.tsx); [`InlineEditableValue.tsx`](frontend/src/components/inventory/orderDetail/InlineEditableValue.tsx)). **`POST …/upload-manifest/`** stores raw file + **10-row** `manifest_preview` sample only (drops preprocessing staging side effects; **`process-manifest`** seeds staging on demand); **`POST …/remove-manifest/`** clears file + preview ([`apps/inventory/views.py`](apps/inventory/views.py)).
+- **Inventory / routing** — **Orders** sidebar link targets **`/inventory/orders`** (dashboard); legacy hub lives at **`/inventory/legacy`** with **`/inventory/legacy/orders`** for legacy workflows; **`/inventory/inbound?view=orders`** redirects to **`/inventory/orders`**; **`/inventory/admin/legacy`** redirects to **`/inventory/legacy`** ([`App.tsx`](frontend/src/App.tsx); [`Sidebar.tsx`](frontend/src/components/layout/Sidebar.tsx)).
+- **Inventory / Orders** — **`GET /api/inventory/orders/`** and **`GET /api/inventory/orders/summary/`** only include purchase orders whose cached vendor display name is one of **Walmart**, **Target**, **Costco**, **Essendant**, **Wayfair**, **Home Depot**, **Amazon** ([`apps/inventory/constants.py`](apps/inventory/constants.py); [`apps/inventory/views.py`](apps/inventory/views.py)). Other vendors remain reachable via order detail and non-list APIs.
 - **Inventory / API** — `upload-manifest` returns structured `code` on common errors (**`missing_file`**, **`decode_error`**, **`empty_csv`**, **`storage_error`**, **`save_error`**); writes new **`S3File`** + PO link before deleting prior storage object; **`process-manifest`** row replace uses **`transaction.atomic()`** ([`apps/inventory/views.py`](apps/inventory/views.py)).
+- **Inventory / Preprocessing** — Product Matching is no longer staff-facing; exact deterministic product reuse happens during Product/Item preparation, and `create-items` now opens processing for existing early Items without duplicating them.
 
 ### Documentation
 
-- **`.ai/`** — `context.md` (active **`inventory_intake_pipeline`** pointer; **`[Unreleased]`** inventory manifest note), `consultant_context.md`, `extended/frontend.md` — **`review_bump`** sync (**2026-04-28**).
+- **Workspace (gitignored)** — Adjunct preprocessing manifest experimentation: **`workspace/ai-cleanup-grok/`** (Grok **`clean-grok.mjs`** runner + prompts; **`prompts/amazon-examples.json`** few-shot regeneration via **`helpers/build-amazon-examples.mjs`** — **not tracked** unless `.gitignore` whitelists explicitly). Steering: [.ai/initiatives/order_processing_pipeline_rebuild.md](.ai/initiatives/order_processing_pipeline_rebuild.md) Session 2–4 (**2026-04-29**).
+- **`.ai/`** — `context.md` (active **`order_processing_pipeline_rebuild`** pointer; **`inventory_intake_pipeline`** abandoned to **`_archived/_abandoned/`**; **`[Unreleased]`** inventory manifest note), `consultant_context.md`, `extended/frontend.md` — **`review_bump`** sync (**2026-04-28**).
 
 ## [2.19.1] — 2026-04-21
 

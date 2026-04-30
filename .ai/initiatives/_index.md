@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-28 (inventory_intake_pipeline active; review_bump steering sync) -->
+<!-- Last updated: 2026-04-29 (order_processing sessions 2–4; vendor_avatars backlog TOC) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,13 +11,13 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [inventory_intake_pipeline](./inventory_intake_pipeline.md) | Active | **Order → Receive → Preprocess → Process → WrapUp → Dispute** (full pipeline); **today:** Order + Preprocess + Process production-ready; Receive / WrapUp / Dispute later. |
+| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | Order / inbound fulfillment rebuild — **`46e0996`** shipped PO Raw Manifest CSV + steering / **`[Unreleased]`** inventory sync (**2026-04-29** git); **`Session 4`** (**WIP**, uncommitted): receiving UI (`frontend/src/components/inventory/receiving/`), Django migrations **`0024`–`0027`** (`Receiving` etc.), deltas on `models.py` / `serializers.py` / `views.py`; **offline Grok CSV cleanup**: `workspace/ai-cleanup-grok/` (**gitignored** — see initiative Session 2). Supporting docs: [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md). |
 
 Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
 
 **Current session details** (goal, finish line, updates) live **only** in each initiative file under **`## Sessions`** — not duplicated here.
 
-**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md) (2026-04-11; v2.10.0), [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10).
+**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md) (2026-04-11; v2.10.0), [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10). Recent backlog: [vendor_avatars](./_archived/_backlog/vendor_avatars.md) (2026-04-29).
 
 ---
 
