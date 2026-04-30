@@ -4,6 +4,8 @@ from .models import (
     Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
     ItemHistory, ItemScanHistory,
+    PreprocessingOrder, PreprocessingRow,
+    Receiving, ReceivingPallet, ReceivingAttachment,
 )
 
 
@@ -49,11 +51,238 @@ class ManifestRowSerializer(serializers.ModelSerializer):
         read_only=True,
         default=None,
     )
+    item_ids = serializers.SerializerMethodField()
+    first_item_id = serializers.SerializerMethodField()
+    first_item_sku = serializers.SerializerMethodField()
+    item_count = serializers.SerializerMethodField()
+    base_cost = serializers.SerializerMethodField()
+    ideal_price = serializers.SerializerMethodField()
+    set_price = serializers.SerializerMethodField()
+    ideal_delta_pct = serializers.SerializerMethodField()
 
     class Meta:
         model = ManifestRow
         fields = '__all__'
         read_only_fields = ['id']
+
+    def _items(self, obj):
+        prefetched = getattr(obj, '_prefetched_objects_cache', {}).get('items')
+        if prefetched is not None:
+            return list(prefetched)
+        return list(obj.items.all())
+
+    def get_item_ids(self, obj):
+        return [item.id for item in self._items(obj)]
+
+    def get_first_item_id(self, obj):
+        items = self._items(obj)
+        return items[0].id if items else None
+
+    def get_first_item_sku(self, obj):
+        items = self._items(obj)
+        return items[0].sku if items else None
+
+    def get_item_count(self, obj):
+        return len(self._items(obj))
+
+    def get_base_cost(self, obj):
+        if not obj.purchase_order_id:
+            return None
+        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        return str(cost) if cost is not None else None
+
+    def get_ideal_price(self, obj):
+        if not obj.purchase_order_id:
+            return None
+        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        return str(cost * 2) if cost is not None else None
+
+    def get_set_price(self, obj):
+        price = obj.final_price if obj.final_price is not None else obj.proposed_price
+        return str(price) if price is not None else None
+
+    def get_ideal_delta_pct(self, obj):
+        price = obj.final_price if obj.final_price is not None else obj.proposed_price
+        if price is None or not obj.purchase_order_id:
+            return None
+        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        if cost is None or cost <= 0:
+            return None
+        ideal = cost * 2
+        return round(float((price - ideal) / ideal * 100), 1)
+
+
+class ManualReviewRowSerializer(serializers.ModelSerializer):
+    first_item_sku = serializers.SerializerMethodField()
+    item_count = serializers.SerializerMethodField()
+    base_cost = serializers.SerializerMethodField()
+    ideal_price = serializers.SerializerMethodField()
+    set_price = serializers.SerializerMethodField()
+    ideal_delta_pct = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ManifestRow
+        fields = [
+            'id',
+            'row_number',
+            'description',
+            'title',
+            'brand',
+            'model',
+            'category',
+            'condition',
+            'retail_value',
+            'proposed_price',
+            'final_price',
+            'pricing_stage',
+            'pricing_notes',
+            'ai_reasoning',
+            'ai_suggested_title',
+            'ai_suggested_brand',
+            'ai_suggested_model',
+            'notes',
+            'first_item_sku',
+            'item_count',
+            'base_cost',
+            'ideal_price',
+            'set_price',
+            'ideal_delta_pct',
+        ]
+
+    def _items(self, obj):
+        prefetched = getattr(obj, '_prefetched_objects_cache', {}).get('items')
+        if prefetched is not None:
+            return list(prefetched)
+        return list(obj.items.all())
+
+    def get_first_item_sku(self, obj):
+        items = self._items(obj)
+        return items[0].sku if items else None
+
+    def get_item_count(self, obj):
+        return len(self._items(obj))
+
+    def get_base_cost(self, obj):
+        if not obj.purchase_order_id:
+            return None
+        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        return str(cost) if cost is not None else None
+
+    def get_ideal_price(self, obj):
+        if not obj.purchase_order_id:
+            return None
+        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        return str(cost * 2) if cost is not None else None
+
+    def get_set_price(self, obj):
+        price = obj.final_price if obj.final_price is not None else obj.proposed_price
+        return str(price) if price is not None else None
+
+    def get_ideal_delta_pct(self, obj):
+        price = obj.final_price if obj.final_price is not None else obj.proposed_price
+        if price is None or not obj.purchase_order_id:
+            return None
+        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        if cost is None or cost <= 0:
+            return None
+        ideal = cost * 2
+        return round(float((price - ideal) / ideal * 100), 1)
+
+
+class PreprocessingOrderSerializer(serializers.ModelSerializer):
+    vendor_name = serializers.CharField(source='purchase_order.vendor.name', read_only=True)
+
+    class Meta:
+        model = PreprocessingOrder
+        fields = [
+            'id',
+            'purchase_order',
+            'workflow_status',
+            'current_step',
+            'manifest_headers',
+            'header_signature',
+            'standardization_formulas',
+            'template',
+            'template_name',
+            'row_count',
+            'standardized_at',
+            'last_ai_import_at',
+            'review_saved_at',
+            'finalized_at',
+            'vendor_name',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
+    """Staging-native review row; no Product/Item fields exist before finalization."""
+    base_cost = serializers.SerializerMethodField()
+    ideal_price = serializers.SerializerMethodField()
+    set_price = serializers.SerializerMethodField()
+    ideal_delta_pct = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PreprocessingRow
+        fields = [
+            'id',
+            'row_number',
+            'description',
+            'title',
+            'brand',
+            'model',
+            'category',
+            'condition',
+            'retail_value',
+            'proposed_price',
+            'final_price',
+            'pricing_stage',
+            'pricing_notes',
+            'ai_reasoning',
+            'ai_suggested_title',
+            'ai_suggested_brand',
+            'ai_suggested_model',
+            'upc',
+            'vendor_item_number',
+            'batch_flag',
+            'search_tags',
+            'specifications',
+            'notes',
+            'base_cost',
+            'ideal_price',
+            'set_price',
+            'ideal_delta_pct',
+        ]
+
+    def get_base_cost(self, obj):
+        po = obj.purchase_order
+        if not po:
+            return None
+        cost = po.compute_item_cost(obj.retail_value)
+        return str(cost) if cost is not None else None
+
+    def get_ideal_price(self, obj):
+        po = obj.purchase_order
+        if not po:
+            return None
+        cost = po.compute_item_cost(obj.retail_value)
+        return str(cost * 2) if cost is not None else None
+
+    def get_set_price(self, obj):
+        price = obj.final_price if obj.final_price is not None else obj.proposed_price
+        return str(price) if price is not None else None
+
+    def get_ideal_delta_pct(self, obj):
+        price = obj.final_price if obj.final_price is not None else obj.proposed_price
+        po = obj.purchase_order
+        if price is None or not po:
+            return None
+        cost = po.compute_item_cost(obj.retail_value)
+        if cost is None or cost <= 0:
+            return None
+        ideal = cost * 2
+        return round(float((price - ideal) / ideal * 100), 1)
 
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):
@@ -73,7 +302,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'purchase_cost', 'shipping_cost', 'fees',
             'total_cost', 'retail_value', 'est_shrink',
             'condition', 'description',
-            'item_count', 'notes', 'manifest', 'manifest_file', 'manifest_preview',
+            'item_count', 'order_pallet_count', 'notes', 'manifest', 'manifest_file', 'manifest_preview',
             'processing_stats',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
@@ -126,7 +355,8 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
 class PurchaseOrderListSerializer(serializers.ModelSerializer):
     """Lean rows for GET /inventory/orders/ (list only). No manifest payload or processing_stats."""
 
-    vendor_name = serializers.CharField(source='vendor.name', read_only=True)
+    vendor_name = serializers.CharField(source='vendor_name_cache', read_only=True)
+    vendor_code = serializers.CharField(source='vendor_code_cache', read_only=True)
     has_manifest = serializers.SerializerMethodField()
 
     class Meta:
@@ -135,6 +365,7 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
             'id',
             'vendor',
             'vendor_name',
+            'vendor_code',
             'order_number',
             'status',
             'ordered_date',
@@ -143,6 +374,7 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
             'condition',
             'description',
             'item_count',
+            'order_pallet_count',
             'total_cost',
             'retail_value',
             'has_manifest',
@@ -161,10 +393,16 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
 
 
 class PurchaseOrderDetailSerializer(PurchaseOrderSerializer):
-    manifest_rows = ManifestRowSerializer(many=True, read_only=True)
+    manifest_row_count = serializers.SerializerMethodField()
 
     class Meta(PurchaseOrderSerializer.Meta):
-        fields = PurchaseOrderSerializer.Meta.fields + ['manifest_rows']
+        fields = PurchaseOrderSerializer.Meta.fields + ['manifest_row_count']
+
+    def get_manifest_row_count(self, obj):
+        annotated = getattr(obj, '_manifest_row_count', None)
+        if annotated is not None:
+            return annotated
+        return obj.manifest_rows.count()
 
 
 class CSVTemplateSerializer(serializers.ModelSerializer):
@@ -314,3 +552,120 @@ class ItemScanHistorySerializer(serializers.ModelSerializer):
         model = ItemScanHistory
         fields = '__all__'
         read_only_fields = ['id', 'scanned_at', 'outcome', 'cart', 'created_by']
+
+
+# --- Receiving ----------------------------------------------------------------
+
+class ReceivingPalletWriteSerializer(serializers.Serializer):
+    pallet_number = serializers.IntegerField(min_value=1, max_value=99)
+    damaged = serializers.BooleanField(required=False, default=False)
+
+
+class ReceivingDraftPatchSerializer(serializers.Serializer):
+    received_date = serializers.DateField(required=False, allow_null=True)
+    start_time = serializers.TimeField(required=False, allow_null=True)
+    end_time = serializers.TimeField(required=False, allow_null=True)
+    condition = serializers.ChoiceField(
+        choices=['', 'good', 'mixed', 'damaged'],
+        required=False,
+        allow_blank=True,
+    )
+    issues = serializers.CharField(required=False, allow_blank=True)
+    pallet_count = serializers.IntegerField(required=False, min_value=0, max_value=99)
+    pallets = ReceivingPalletWriteSerializer(many=True, required=False, allow_null=True)
+
+
+class ReceivingPalletSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReceivingPallet
+        fields = ['pallet_number', 'damaged']
+
+
+class ReceivingAttachmentSerializer(serializers.ModelSerializer):
+    s3_file = S3FileSerializer(read_only=True)
+
+    class Meta:
+        model = ReceivingAttachment
+        fields = [
+            'id',
+            'kind',
+            'pallet_number',
+            'side',
+            'client_photo_id',
+            's3_file',
+            'created_at',
+        ]
+
+
+class ReceivingDetailSerializer(serializers.ModelSerializer):
+    pallets = ReceivingPalletSerializer(many=True, read_only=True)
+    attachments = ReceivingAttachmentSerializer(many=True, read_only=True)
+    is_draft = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Receiving
+        fields = [
+            'id',
+            'purchase_order_id',
+            'received_date',
+            'start_time',
+            'end_time',
+            'condition',
+            'issues',
+            'pallet_count',
+            'completed_at',
+            'draft_version',
+            'is_draft',
+            'pallets',
+            'attachments',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'draft_version',
+            'completed_at',
+            'created_at',
+            'updated_at',
+        ]
+
+    def get_is_draft(self, obj):
+        return obj.completed_at is None
+
+
+class OrderForReceivingListSerializer(PurchaseOrderListSerializer):
+    """Orders eligible for receiving + draft/complete flags."""
+
+    has_receiving_draft = serializers.SerializerMethodField()
+    has_receiving_complete = serializers.SerializerMethodField()
+
+    class Meta(PurchaseOrderListSerializer.Meta):
+        fields = PurchaseOrderListSerializer.Meta.fields + [
+            'has_receiving_draft',
+            'has_receiving_complete',
+        ]
+
+    def get_has_receiving_draft(self, obj):
+        if getattr(obj, '_recv_draft_exists', None) is not None:
+            return bool(obj._recv_draft_exists)
+        r = getattr(obj, '_receiving_flags', None)
+        if r is not None:
+            return r.get('draft', False)
+        try:
+            rec = obj.receiving_record
+        except Receiving.DoesNotExist:
+            return False
+        return rec.completed_at is None
+
+    def get_has_receiving_complete(self, obj):
+        if getattr(obj, '_recv_complete_exists', None) is not None:
+            return bool(obj._recv_complete_exists)
+        r = getattr(obj, '_receiving_flags', None)
+        if r is not None:
+            return r.get('complete', False)
+        try:
+            rec = obj.receiving_record
+        except Receiving.DoesNotExist:
+            return False
+        return rec.completed_at is not None

@@ -1,0 +1,3 @@
+Past orders / comps (optional block—inject when you have retrieved examples; leave empty otherwise):
+
+{{ORDER_EXAMPLES_JSON}}

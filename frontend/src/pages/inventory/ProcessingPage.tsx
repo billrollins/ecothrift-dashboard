@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Autocomplete,
@@ -33,7 +33,7 @@ import PrintDisabled from '@mui/icons-material/PrintDisabled';
 import Search from '@mui/icons-material/Search';
 import Settings from '@mui/icons-material/Settings';
 import Tune from '@mui/icons-material/Tune';
-import { DataGrid, type GridColDef, type GridRenderCellParams } from '@mui/x-data-grid';
+import { DataGrid, type GridColDef, type GridPaginationModel, type GridRenderCellParams } from '@mui/x-data-grid';
 import { format } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -56,9 +56,10 @@ import {
   useCheckInOrderItems,
   useCreateItems,
   useDetachBatchItem,
-  useItemsAllPages,
+  useItems,
   useMarkItemBroken,
   useMarkOrderComplete,
+  usePreprocessingStatus,
   usePurchaseOrder,
   usePurchaseOrders,
   useUncheckInItem,
@@ -155,6 +156,7 @@ async function printBatchLabels(
 
 export default function ProcessingPage() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const orderParam = searchParams.get('order');
   const { enqueueSnackbar } = useSnackbar();
@@ -188,6 +190,8 @@ export default function ProcessingPage() {
   const [checkedInBulkDialogOpen, setCheckedInBulkDialogOpen] = useState(false);
   const [checkedInBulkForm, setCheckedInBulkForm] = useState({ condition: '', location: '', price: '' });
   const [batchApplyForm, setBatchApplyForm] = useState({ condition: '', location: '', price: '' });
+  const [itemPagination, setItemPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 50 });
+  const [checkedInPagination, setCheckedInPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 50 });
 
   // Detach confirmation
   const [detachDialogOpen, setDetachDialogOpen] = useState(false);
@@ -197,31 +201,89 @@ export default function ProcessingPage() {
   const [searchInputValue, setSearchInputValue] = useState('');
   const generalSearchRef = useRef<HTMLInputElement>(null);
 
+  const closeProcessingSettingsModal = useCallback(() => {
+    setSettingsModalOpen(false);
+    if (location.hash === '#settings') {
+      navigate(
+        { pathname: location.pathname, search: location.search, hash: '' },
+        { replace: true },
+      );
+    }
+  }, [location.hash, location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    if (searchParams.get('settings') === '1') setSettingsModalOpen(true);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (location.hash === '#settings') setSettingsModalOpen(true);
+  }, [location.hash]);
+
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInputValue.trim()), 300);
     return () => clearTimeout(t);
   }, [searchInputValue]);
 
+  useEffect(() => {
+    setItemPagination((prev) => ({ ...prev, page: 0 }));
+    setCheckedInPagination((prev) => ({ ...prev, page: 0 }));
+  }, [search, selectedOrderId]);
+
   // ─── Queries ────────────────────────────────────────────────────────────────
 
   const { data: ordersData } = usePurchaseOrders({ status__in: 'delivered,processing,complete' });
   const { data: order } = usePurchaseOrder(selectedOrderId);
+  const { data: preprocessingStatus } = usePreprocessingStatus(selectedOrderId);
   const { data: batchGroupsData, isLoading: batchLoading } = useBatchGroups(
     {
       purchase_order: selectedOrderId,
+      page_size: 100,
       ...(search ? { search } : {}),
     },
     selectedOrderId != null,
   );
-  const { data: itemsData, isLoading: itemsLoading } = useItemsAllPages(
+  const itemQueueParams = useMemo(() => (
     selectedOrderId == null
       ? undefined
       : {
           purchase_order: selectedOrderId,
+          status: 'intake,processing',
+          processing_tier: 'individual',
+          page: itemPagination.page + 1,
+          page_size: itemPagination.pageSize,
           ...(search ? { q: search } : {}),
-        },
-    selectedOrderId != null,
-  );
+        }
+  ), [itemPagination.page, itemPagination.pageSize, search, selectedOrderId]);
+  const checkedInParams = useMemo(() => (
+    selectedOrderId == null
+      ? undefined
+      : {
+          purchase_order: selectedOrderId,
+          status: 'on_shelf',
+          page: checkedInPagination.page + 1,
+          page_size: checkedInPagination.pageSize,
+          ordering: '-updated_at',
+          ...(search ? { q: search } : {}),
+        }
+  ), [checkedInPagination.page, checkedInPagination.pageSize, search, selectedOrderId]);
+  const activeBatchItemParams = useMemo(() => (
+    activeBatch == null
+      ? undefined
+      : {
+          batch_group: activeBatch.id,
+          page_size: 100,
+          ordering: 'id',
+        }
+  ), [activeBatch]);
+  const { data: itemsData, isLoading: itemsLoading } = useItems(itemQueueParams, {
+    enabled: selectedOrderId != null,
+  });
+  const { data: checkedInData, isLoading: checkedInLoading } = useItems(checkedInParams, {
+    enabled: selectedOrderId != null,
+  });
+  const { data: activeBatchItemsData } = useItems(activeBatchItemParams, {
+    enabled: activeBatch != null,
+  });
 
   // ─── Mutations ──────────────────────────────────────────────────────────────
 
@@ -241,6 +303,8 @@ export default function ProcessingPage() {
 
   const orders = ordersData?.results ?? [];
   const items = itemsData?.results ?? [];
+  const checkedInItems = checkedInData?.results ?? [];
+  const activeBatchItems = activeBatchItemsData?.results ?? [];
   const batchGroups = batchGroupsData?.results ?? [];
 
   const stats = order?.processing_stats;
@@ -249,18 +313,8 @@ export default function ProcessingPage() {
   const totalTracked = onShelf + pendingCount;
   const progressValue = totalTracked > 0 ? (onShelf / totalTracked) * 100 : 0;
 
-  const pendingItems = useMemo(
-    () => items.filter((i) => ['intake', 'processing'].includes(i.status)),
-    [items],
-  );
-  const individualQueue = useMemo(
-    () => pendingItems.filter((i) => i.processing_tier === 'individual' || !i.batch_group),
-    [pendingItems],
-  );
-  const checkedInItems = useMemo(
-    () => items.filter((i) => i.status === 'on_shelf'),
-    [items],
-  );
+  const pendingItems = items;
+  const individualQueue = items;
   const batchQueue = useMemo(
     () => batchGroups.filter((g) => (g.intake_items_count ?? 0) > 0 || g.status !== 'complete'),
     [batchGroups],
@@ -269,23 +323,28 @@ export default function ProcessingPage() {
   const batchPendingItems = useMemo(
     () =>
       activeBatch
-        ? items.filter(
+        ? activeBatchItems.filter(
             (i) => i.batch_group === activeBatch.id && ['intake', 'processing'].includes(i.status),
           )
         : [],
-    [items, activeBatch],
+    [activeBatchItems, activeBatch],
   );
   const batchCheckedInItems = useMemo(
     () =>
       activeBatch
-        ? items.filter(
+        ? activeBatchItems.filter(
             (i) => i.batch_group === activeBatch.id && ['on_shelf', 'scrapped'].includes(i.status),
           )
         : [],
-    [items, activeBatch],
+    [activeBatchItems, activeBatch],
   );
 
+  const prepSession = preprocessingStatus?.preprocessing;
+  const preprocessingIncomplete =
+    Boolean(prepSession && prepSession.row_count > 0 && !prepSession.finalized_at);
+
   const queueNotBuilt =
+    !preprocessingIncomplete &&
     order != null &&
     ['delivered', 'processing'].includes(order.status) &&
     (order.item_count === 0 || (!itemsLoading && items.length === 0));
@@ -293,7 +352,7 @@ export default function ProcessingPage() {
   const allCheckedIn =
     order != null && pendingCount === 0 && onShelf > 0 && order.item_count > 0;
 
-  const loading = batchLoading || itemsLoading;
+  const loading = batchLoading || itemsLoading || checkedInLoading;
 
   // ─── Drawer handlers ───────────────────────────────────────────────────────
 
@@ -425,9 +484,7 @@ export default function ProcessingPage() {
         enqueueSnackbar('Failed to check in item', { variant: 'error' });
       }
     } else if (drawerMode === 'batch' && activeBatch) {
-      const batchItems = pendingItems.filter(
-        (i) => i.batch_group === activeBatch.id && ['intake', 'processing'].includes(i.status),
-      );
+      const batchItems = batchPendingItems;
       const hasPartial = extra && (extra.scrapCount != null || extra.checkInCount != null);
       try {
         const result = await checkInBatchGroup.mutateAsync({
@@ -470,7 +527,7 @@ export default function ProcessingPage() {
         enqueueSnackbar('Failed to check in batch', { variant: 'error' });
       }
     }
-  }, [drawerMode, activeItem, activeBatch, form, pendingItems, printOnCheckIn, autoAdvance,
+  }, [drawerMode, activeItem, activeBatch, form, batchPendingItems, printOnCheckIn, autoAdvance,
     checkInItem, checkInBatchGroup, handlePrint, advanceToNext, enqueueSnackbar]);
 
   const handleReprint = useCallback(async () => {
@@ -1098,6 +1155,16 @@ export default function ProcessingPage() {
       </Card>
 
       {/* ── Smart alerts ────────────────────────────────────────────── */}
+      {selectedOrderId && order && preprocessingIncomplete && (
+        <Alert severity="info" sx={{ mb: 2 }} action={
+          <Button size="small" color="inherit" onClick={() => navigate(`/inventory/preprocessing/${order.id}`)}>
+            Open Preprocessing
+          </Button>
+        }>
+          Manifest preprocessing isn&apos;t finalized yet. Finish pricing on the Preprocessing page and click{' '}
+          <strong>Go to Processing</strong> there to create inventory items.
+        </Alert>
+      )}
       {selectedOrderId && order && queueNotBuilt && (
         <Alert severity="warning" sx={{ mb: 2 }} action={
           <Button size="small" color="inherit" onClick={handleBuildQueue} disabled={createItemsMutation.isPending}>
@@ -1157,13 +1224,13 @@ export default function ProcessingPage() {
                 </Badge>
               } />
               <Tab label={
-                <Badge badgeContent={individualQueue.length} color="warning" max={999}>
-                  <Box sx={{ pr: individualQueue.length > 0 ? 2 : 0 }}>Items</Box>
+                <Badge badgeContent={itemsData?.count ?? individualQueue.length} color="warning" max={999}>
+                  <Box sx={{ pr: (itemsData?.count ?? individualQueue.length) > 0 ? 2 : 0 }}>Items</Box>
                 </Badge>
               } />
               <Tab label={
-                <Badge badgeContent={checkedInItems.length} color="success" max={999}>
-                  <Box sx={{ pr: checkedInItems.length > 0 ? 2 : 0 }}>Checked In</Box>
+                <Badge badgeContent={checkedInData?.count ?? checkedInItems.length} color="success" max={999}>
+                  <Box sx={{ pr: (checkedInData?.count ?? checkedInItems.length) > 0 ? 2 : 0 }}>Checked In</Box>
                 </Badge>
               } />
             </Tabs>
@@ -1320,7 +1387,10 @@ export default function ProcessingPage() {
                     onProcessRowUpdateError={(err) => enqueueSnackbar(err.message || 'Update failed', { variant: 'error' })}
                     loading={itemsLoading}
                     pageSizeOptions={[10, 25, 50]}
-                    initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                    paginationMode="server"
+                    rowCount={itemsData?.count ?? 0}
+                    paginationModel={itemPagination}
+                    onPaginationModelChange={setItemPagination}
                     getRowId={(row: Item) => row.id}
                     onRowClick={(params) => openItemDrawer(params.row as Item)}
                     checkboxSelection
@@ -1340,10 +1410,13 @@ export default function ProcessingPage() {
                   rows={checkedInItems}
                   columns={checkedInColumnState.columns}
                   onColumnWidthChange={checkedInColumnState.onColumnWidthChange}
-                  loading={itemsLoading}
+                  loading={checkedInLoading}
                   pageSizeOptions={[10, 25, 50]}
+                  paginationMode="server"
+                  rowCount={checkedInData?.count ?? 0}
+                  paginationModel={checkedInPagination}
+                  onPaginationModelChange={setCheckedInPagination}
                   initialState={{
-                    pagination: { paginationModel: { pageSize: 10 } },
                     sorting: { sortModel: [{ field: 'checked_in_at', sort: 'desc' }] },
                   }}
                   getRowId={(row: Item) => row.id}
@@ -1431,7 +1504,7 @@ export default function ProcessingPage() {
       {/* ── Settings modal ───────────────────────────────────────────── */}
       <ProcessingSettingsModal
         open={settingsModalOpen}
-        onClose={() => setSettingsModalOpen(false)}
+        onClose={closeProcessingSettingsModal}
         autoAdvance={autoAdvance}
         onAutoAdvanceChange={setAutoAdvance}
         printOnCheckIn={printOnCheckIn}

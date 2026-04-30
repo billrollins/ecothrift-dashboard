@@ -10,6 +10,9 @@ interface ModelSelectorProps {
   size?: 'small' | 'medium';
   fullWidth?: boolean;
   label?: string;
+  models?: Array<{ id: string; name: string; default?: boolean }>;
+  defaultModel?: string;
+  disabled?: boolean;
 }
 
 export default function ModelSelector({
@@ -18,14 +21,17 @@ export default function ModelSelector({
   size = 'small',
   fullWidth = false,
   label = 'AI Model',
+  models: providedModels,
+  defaultModel: providedDefaultModel,
+  disabled = false,
 }: ModelSelectorProps) {
   const { data } = useAIModels();
   const [localValue, setLocalValue] = useState<string>(
     () => localStorage.getItem(STORAGE_KEY) || '',
   );
 
-  const models = data?.models ?? [];
-  const defaultModel = data?.default ?? '';
+  const models = providedModels ?? data?.models ?? [];
+  const defaultModel = providedDefaultModel ?? data?.default ?? '';
 
   useEffect(() => {
     if (!localValue && defaultModel) {
@@ -45,7 +51,7 @@ export default function ModelSelector({
   return (
     <FormControl size={size} fullWidth={fullWidth} sx={{ minWidth: 180 }}>
       <InputLabel>{label}</InputLabel>
-      <Select value={selected} onChange={handleChange} label={label}>
+      <Select value={selected} onChange={handleChange} label={label} disabled={disabled}>
         {models.map((m) => (
           <MenuItem key={m.id} value={m.id}>
             {m.name}{m.default ? ' (default)' : ''}

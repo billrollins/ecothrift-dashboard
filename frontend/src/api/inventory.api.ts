@@ -3,6 +3,8 @@ import type {
   Vendor,
   PurchaseOrder,
   PurchaseOrderListRow,
+  PurchaseOrderSummary,
+  OrderForReceivingRow,
   Product,
   Item,
   ItemStatsResponse,
@@ -11,6 +13,9 @@ import type {
   VendorProductRef,
   BatchGroup,
   ItemHistory,
+  ReceivingDetailDTO,
+  ReceivingPatchPayload,
+  ReceivingCompleteResponse,
 } from '../types/inventory.types';
 import api, { apiPublic } from './client';
 
@@ -18,6 +23,8 @@ export type {
   Vendor,
   PurchaseOrder,
   PurchaseOrderListRow,
+  PurchaseOrderSummary,
+  OrderForReceivingRow,
   Product,
   Item,
   CSVTemplate,
@@ -25,6 +32,7 @@ export type {
   VendorProductRef,
   BatchGroup,
   ItemHistory,
+  ReceivingDetailDTO,
 };
 
 type Order = PurchaseOrder;
@@ -81,6 +89,8 @@ export interface ReviewMatchesResponse {
 export interface CreateItemsResponse {
   batch_id: number;
   items_created: number;
+  items_updated?: number;
+  item_count?: number;
   batch_groups_created: number;
 }
 
@@ -138,6 +148,10 @@ export interface ProcessManifestPayload {
 export interface ProcessManifestResponse {
   rows_created: number;
   order_status: string;
+  products_created?: number;
+  items_created?: number;
+  items_updated?: number;
+  item_count?: number;
   row_count_in_file?: number;
   rows_selected?: number;
   header_signature?: string;
@@ -304,6 +318,12 @@ export function getOrders(params?: Record<string, unknown>): Promise<{ data: Pag
   return api.get<PaginatedResponse<OrderListRow>>('/inventory/orders/', { params });
 }
 
+export function getOrderSummary(
+  params?: Record<string, unknown>,
+): Promise<{ data: PurchaseOrderSummary }> {
+  return api.get<PurchaseOrderSummary>('/inventory/orders/summary/', { params });
+}
+
 export function getOrder(id: number): Promise<{ data: Order }> {
   return api.get<Order>(`/inventory/orders/${id}/`);
 }
@@ -374,6 +394,10 @@ export function uploadManifest(orderId: number, file: File): Promise<{ data: unk
   });
 }
 
+export function removeManifest(orderId: number): Promise<{ data: Order }> {
+  return api.post<Order>(`/inventory/orders/${orderId}/remove-manifest/`, {});
+}
+
 export function processManifest(
   orderId: number,
   data: ProcessManifestPayload
@@ -429,16 +453,53 @@ export interface AICleanupRowsPayload {
   model?: string;
   batch_size?: number;
   offset?: number;
+  debug_payload?: boolean;
+  mode?: 'fast' | 'rich';
 }
 
 export interface AICleanupSuggestion {
   row_id: number;
+  row_number?: number;
+  item_id?: number | null;
   title: string;
   brand: string;
   model: string;
+  category?: string;
+  condition?: string;
+  price?: string;
   search_tags: string;
   specifications: Record<string, unknown>;
+  notes?: string;
   reasoning: string;
+  low_confidence?: boolean;
+  low_confidence_reason?: string;
+}
+
+export interface AICleanupSubmittedRow {
+  row_id: number;
+  row_number: number;
+  item_id: number | null;
+  sku: string;
+  description: string;
+  title: string;
+  brand: string;
+  model: string;
+  category: string;
+  condition: string;
+  upc: string;
+  retail_value: string;
+  base_cost: string;
+  ideal_price: string;
+}
+
+export interface AICleanupDiscardedRow {
+  row_id: number;
+  row_number: number;
+  item_id: number | null;
+  reason: 'missing' | 'row_number_mismatch' | 'item_id_mismatch' | 'parse_failed' | string;
+  detail?: string;
+  received_row_number?: number | string;
+  received_item_id?: number | string | null;
 }
 
 export interface AICleanupTiming {
@@ -456,13 +517,28 @@ export interface AICleanupRowsResponse {
   rows_saved?: number;
   total_rows: number;
   offset: number;
+  batch_size?: number;
+  row_start?: number | null;
+  row_end?: number | null;
+  submitted_row_ids?: number[];
+  submitted_row_numbers?: number[];
+  submitted_rows?: AICleanupSubmittedRow[];
   suggestions: AICleanupSuggestion[];
   model_used: string;
   has_more: boolean;
   timing?: AICleanupTiming;
   stop_reason?: string;
+  mode?: 'fast' | 'rich' | string;
   /** True when cancel ran during the API call; this batch was not saved. */
   cancelled?: boolean;
+  rows_discarded?: number;
+  rows_low_confidence?: number;
+  received_response?: boolean;
+  response_text_length?: number;
+  parsed_count?: number;
+  validated_row_ids?: number[];
+  discarded_rows?: AICleanupDiscardedRow[];
+  item_count?: number;
 }
 
 export interface AICleanupStatusResponse {
@@ -492,6 +568,7 @@ export function cancelAICleanup(orderId: number): Promise<{ data: CancelAICleanu
 
 export interface ClearManifestRowsResponse {
   rows_deleted: number;
+  items_deleted?: number;
 }
 
 export function clearManifestRows(orderId: number): Promise<{ data: ClearManifestRowsResponse }> {
@@ -558,6 +635,180 @@ export interface FinalizeRowsResponse {
   order_id: number;
 }
 
+export interface CleanupModelOption {
+  id: string;
+  name: string;
+}
+
+export interface CleanupModelsResponse {
+  models: CleanupModelOption[];
+  default: string;
+}
+
+export interface VerifyCleanupModelResponse {
+  ok: boolean;
+  model?: string;
+  detail?: string;
+}
+
+export interface UploadCleanupCsvRejectedRow {
+  line?: number;
+  row_id?: number;
+  row_number?: number;
+  item_id?: number;
+  row_ids?: number[];
+  reason: string;
+  detail?: string;
+}
+
+export interface UploadCleanupCsvResponse {
+  rows_seen: number;
+  rows_updated: number;
+  rows_rejected: number;
+  rejected_rows: UploadCleanupCsvRejectedRow[];
+  items_updated: number;
+  products_updated: number;
+}
+
+export interface ManualReviewSummary {
+  total_paid: string;
+  total_ideal_price: string;
+  total_set_prices: string;
+  ideal_delta_pct: number | null;
+  total_rows: number;
+  total_units: number;
+  missing_price: number;
+  low_confidence: number;
+}
+
+export interface PreprocessingSessionInfo {
+  workflow_status: string;
+  current_step: number;
+  finalized_at: string | null;
+  row_count: number;
+}
+
+export interface PreprocessingStatusResponse {
+  order: {
+    id: number;
+    order_number: string;
+    vendor_name: string;
+    status: string;
+    item_count: number;
+    has_manifest_file: boolean;
+  };
+  counts: {
+    standardized_rows: number;
+    cleaned_rows: number;
+    final_rows: number;
+    missing_price: number;
+    total_units: number;
+  };
+  summary: Pick<ManualReviewSummary, 'total_paid' | 'total_ideal_price' | 'total_set_prices' | 'ideal_delta_pct'>;
+  completed_step: number;
+  preprocessing?: PreprocessingSessionInfo | null;
+}
+
+export interface ManualReviewParams {
+  page?: number;
+  page_size?: number;
+  search?: string;
+  missing_price?: boolean;
+}
+
+export interface ManualReviewResponse {
+  rows: import('../types/inventory.types').ManifestRow[];
+  summary: ManualReviewSummary;
+  count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+export interface ManualReviewRowUpdate extends FinalizeRowData {
+  pricing_notes?: string;
+}
+
+export interface ManualReviewUpdateResponse {
+  rows_updated: number;
+  items_updated: number;
+  products_updated: number;
+}
+
+export interface PreprocessingReviewRow {
+  id: number;
+  row_number: number;
+  quantity: number;
+  description: string;
+  title: string;
+  brand: string;
+  model: string;
+  category: string;
+  condition: import('../types/inventory.types').ItemCondition | '';
+  retail_value: string | null;
+  proposed_price: string | null;
+  final_price: string | null;
+  pricing_stage: import('../types/inventory.types').ManifestPricingStage;
+  pricing_notes: string;
+  ai_reasoning: string;
+  ai_suggested_title: string;
+  ai_suggested_brand: string;
+  ai_suggested_model: string;
+  upc: string;
+  vendor_item_number: string;
+  batch_flag: boolean;
+  search_tags: string;
+  specifications: Record<string, unknown>;
+  notes: string;
+  base_cost: string | null;
+  ideal_price: string | null;
+  set_price: string | null;
+  ideal_delta_pct: number | null;
+}
+
+export type PreprocessingReviewSummary = ManualReviewSummary;
+export type PreprocessingReviewParams = ManualReviewParams;
+
+export type PreprocessingReviewRowPatch = Partial<Pick<
+  PreprocessingReviewRow,
+  | 'title'
+  | 'brand'
+  | 'model'
+  | 'category'
+  | 'condition'
+  | 'final_price'
+  | 'proposed_price'
+  | 'pricing_notes'
+  | 'notes'
+  | 'batch_flag'
+  | 'search_tags'
+  | 'specifications'
+>>;
+
+export interface PreprocessingReviewRowUpdate extends PreprocessingReviewRowPatch {
+  id: number;
+  patch?: PreprocessingReviewRowPatch;
+}
+
+export interface PreprocessingReviewResponse {
+  rows: PreprocessingReviewRow[];
+  summary: PreprocessingReviewSummary;
+  count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+export interface PreprocessingReviewUpdateResponse {
+  rows_updated: number;
+  changed_row_ids: number[];
+  items_updated: 0;
+  products_updated: 0;
+  summary: PreprocessingReviewSummary;
+}
+
 export function suggestFinalization(
   orderId: number,
   data?: SuggestFinalizationPayload,
@@ -574,6 +825,116 @@ export function finalizeRows(
 
 export function createItems(orderId: number): Promise<{ data: CreateItemsResponse }> {
   return api.post<CreateItemsResponse>(`/inventory/orders/${orderId}/create-items/`);
+}
+
+/** Promotes staging rows to ManifestRow + Product + Item (+ batch groups when applicable). */
+export interface FinalizePreprocessingResponse extends CreateItemsResponse {
+  finalized_at: string | null;
+  manifest_rows: number;
+  processing_batch_id: number | null;
+  rows?: number;
+  rows_linked?: number;
+  products_created?: number;
+  items_updated?: number;
+  items_deleted?: number;
+}
+
+export function finalizePreprocessing(
+  orderId: number,
+): Promise<{ data: FinalizePreprocessingResponse }> {
+  return api.post<FinalizePreprocessingResponse>(
+    `/inventory/orders/${orderId}/finalize-preprocessing/`,
+  );
+}
+
+export function getCleanupModels(orderId: number): Promise<{ data: CleanupModelsResponse }> {
+  return api.get<CleanupModelsResponse>(`/inventory/orders/${orderId}/ai-cleanup-models/`);
+}
+
+export function addCleanupModel(
+  orderId: number,
+  model: CleanupModelOption,
+): Promise<{ data: CleanupModelsResponse }> {
+  return api.post<CleanupModelsResponse>(`/inventory/orders/${orderId}/ai-cleanup-models/`, {
+    action: 'add',
+    ...model,
+  });
+}
+
+export function setDefaultCleanupModel(
+  orderId: number,
+  modelId: string,
+): Promise<{ data: CleanupModelsResponse }> {
+  return api.post<CleanupModelsResponse>(`/inventory/orders/${orderId}/ai-cleanup-models/`, {
+    action: 'set_default',
+    id: modelId,
+  });
+}
+
+export function verifyCleanupModel(
+  orderId: number,
+  modelId: string,
+): Promise<{ data: VerifyCleanupModelResponse }> {
+  return api.post<VerifyCleanupModelResponse>(`/inventory/orders/${orderId}/ai-cleanup-models/`, {
+    action: 'verify',
+    id: modelId,
+  });
+}
+
+export function downloadCleanupCsv(orderId: number): Promise<{ data: Blob }> {
+  return api.get(`/inventory/orders/${orderId}/download-cleanup-csv/`, {
+    responseType: 'blob',
+  });
+}
+
+export function uploadCleanupCsv(
+  orderId: number,
+  file: File,
+): Promise<{ data: UploadCleanupCsvResponse }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post<UploadCleanupCsvResponse>(`/inventory/orders/${orderId}/upload-cleanup-csv/`, formData, {
+    transformRequest: [
+      (body, headers) => {
+        if (body instanceof FormData) {
+          delete headers['Content-Type'];
+        }
+        return body;
+      },
+    ],
+  });
+}
+
+export function getPreprocessingStatus(orderId: number): Promise<{ data: PreprocessingStatusResponse }> {
+  return api.get<PreprocessingStatusResponse>(`/inventory/orders/${orderId}/preprocessing-status/`);
+}
+
+export function getManualReview(
+  orderId: number,
+  params?: ManualReviewParams,
+): Promise<{ data: ManualReviewResponse }> {
+  return api.get<ManualReviewResponse>(`/inventory/orders/${orderId}/manual-review/`, { params });
+}
+
+export function updateManualReview(
+  orderId: number,
+  rows: ManualReviewRowUpdate[],
+): Promise<{ data: ManualReviewUpdateResponse }> {
+  return api.post<ManualReviewUpdateResponse>(`/inventory/orders/${orderId}/manual-review/`, { rows });
+}
+
+export function getPreprocessingReview(
+  orderId: number,
+  params?: PreprocessingReviewParams,
+): Promise<{ data: PreprocessingReviewResponse }> {
+  return api.get<PreprocessingReviewResponse>(`/inventory/orders/${orderId}/preprocessing-review/`, { params });
+}
+
+export function updatePreprocessingReview(
+  orderId: number,
+  rows: PreprocessingReviewRowUpdate[],
+): Promise<{ data: PreprocessingReviewUpdateResponse }> {
+  return api.patch<PreprocessingReviewUpdateResponse>(`/inventory/orders/${orderId}/preprocessing-review/`, { rows });
 }
 
 export function matchProducts(
@@ -893,4 +1254,64 @@ export function getStoreReport(params?: { stale_days?: number; location?: string
   price_histogram: Array<{ range: string; count: number }>;
 } }> {
   return api.get('/inventory/store-report/', { params });
+}
+
+// ── Receiving v1 ───────────────────────────────────────────────────────────
+
+export function fetchOrdersForReceiving(
+  params?: Record<string, unknown>,
+): Promise<{ data: PaginatedResponse<OrderForReceivingRow> }> {
+  return api.get<PaginatedResponse<OrderForReceivingRow>>('/inventory/orders/for-receiving/', { params });
+}
+
+export function fetchReceiving(orderId: number): Promise<{ data: ReceivingDetailDTO }> {
+  return api.get<ReceivingDetailDTO>(`/inventory/orders/${orderId}/receiving/`);
+}
+
+export function patchReceiving(
+  orderId: number,
+  data: ReceivingPatchPayload,
+): Promise<{ data: ReceivingDetailDTO }> {
+  return api.patch<ReceivingDetailDTO>(`/inventory/orders/${orderId}/receiving/`, data);
+}
+
+export function uploadReceivingPhoto(
+  orderId: number,
+  file: Blob,
+  fields: {
+    kind: 'bol' | 'truck' | 'pallet_side';
+    client_photo_id?: string | null;
+    pallet_number?: number;
+    side?: string;
+    filename?: string;
+  },
+): Promise<{ data: import('../types/inventory.types').ReceivingAttachmentDTO }> {
+  const formData = new FormData();
+  formData.append('file', file, fields.filename ?? 'photo.jpg');
+  formData.append('kind', fields.kind);
+  if (fields.client_photo_id != null && fields.client_photo_id !== '') {
+    formData.append('client_photo_id', fields.client_photo_id);
+  }
+  if (fields.pallet_number != null) formData.append('pallet_number', String(fields.pallet_number));
+  if (fields.side != null && fields.side !== '') formData.append('side', fields.side);
+
+  type Att = import('../types/inventory.types').ReceivingAttachmentDTO;
+  return api.post<Att>(`/inventory/orders/${orderId}/receiving/photos/`, formData, {
+    transformRequest: [
+      (body, headers) => {
+        if (body instanceof FormData) {
+          delete headers['Content-Type'];
+        }
+        return body;
+      },
+    ],
+  });
+}
+
+export function deleteReceivingPhoto(orderId: number, attachmentId: number): Promise<void> {
+  return api.delete(`/inventory/orders/${orderId}/receiving/photos/${attachmentId}/`);
+}
+
+export function completeReceiving(orderId: number): Promise<{ data: ReceivingCompleteResponse }> {
+  return api.post<ReceivingCompleteResponse>(`/inventory/orders/${orderId}/receiving/complete/`, {});
 }

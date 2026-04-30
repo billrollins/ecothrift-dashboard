@@ -103,7 +103,15 @@ class PurchaseOrder(models.Model):
     condition = models.CharField(max_length=20, choices=CONDITION_CHOICES, blank=True, default='')
     description = models.CharField(max_length=500, blank=True, default='')
     item_count = models.IntegerField(default=0)
+    order_pallet_count = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text='Expected pallet count when ordering (optional).',
+    )
     notes = models.TextField(blank=True, default='')
+    vendor_name_cache = models.CharField(max_length=200, blank=True, default='')
+    vendor_code_cache = models.CharField(max_length=20, blank=True, default='')
+    search_text = models.TextField(blank=True, default='', db_index=True)
     ai_cleanup_generation = models.PositiveIntegerField(
         default=0,
         help_text='Incremented on cancel-ai-cleanup so in-flight batches skip writes.',
@@ -141,9 +149,38 @@ class PurchaseOrder(models.Model):
 
     class Meta:
         ordering = ['-ordered_date']
+        indexes = [
+            models.Index(fields=['status', '-ordered_date'], name='inv_po_status_ordered_dt'),
+        ]
 
     def __str__(self):
         return f'{self.order_number} ({self.vendor.code})'
+
+    def refresh_cached_vendor_fields(self):
+        """Snapshot vendor display fields onto the PO for fast list/search (no Vendor join)."""
+        if not self.vendor_id:
+            self.vendor_name_cache = ''
+            self.vendor_code_cache = ''
+            return
+        try:
+            v = Vendor.objects.only('name', 'code').get(pk=self.vendor_id)
+        except Vendor.DoesNotExist:
+            self.vendor_name_cache = ''
+            self.vendor_code_cache = ''
+            return
+        self.vendor_name_cache = (v.name or '')[:200]
+        self.vendor_code_cache = (v.code or '')[:20]
+
+    def rebuild_search_text(self) -> str:
+        """Lowercased text for order number, cached vendor fields, and description (word-split search)."""
+        parts = [
+            self.order_number or '',
+            self.vendor_name_cache or '',
+            self.vendor_code_cache or '',
+            self.description or '',
+        ]
+        text = ' '.join(parts).lower()
+        return re.sub(r'\s+', ' ', text).strip()
 
     def save(self, *args, **kwargs):
         """Auto-compute total_cost from component fields when any are set."""
@@ -160,6 +197,8 @@ class PurchaseOrder(models.Model):
             self.total_cost = sum(
                 (c for c in components if c is not None), Decimal('0.00')
             )
+        self.refresh_cached_vendor_fields()
+        self.search_text = self.rebuild_search_text()
         super().save(*args, **kwargs)
         if prior is not None and (
             prior['est_shrink'] != self.est_shrink
@@ -327,6 +366,120 @@ class ManifestRow(models.Model):
 
     def __str__(self):
         return f'Row {self.row_number}: {self.description[:50]}'
+
+
+class PreprocessingOrder(models.Model):
+    """Session-scoped preprocessing state for a purchase order (staging before ManifestRow/items)."""
+
+    WORKFLOW_STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('standardized', 'Standardized'),
+        ('ai_imported', 'AI Imported'),
+        ('review', 'Manual Review'),
+        ('finalized', 'Finalized'),
+    ]
+
+    purchase_order = models.OneToOneField(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='preprocessing',
+    )
+    workflow_status = models.CharField(
+        max_length=20,
+        choices=WORKFLOW_STATUS_CHOICES,
+        default='draft',
+    )
+    current_step = models.PositiveSmallIntegerField(
+        default=0,
+        help_text='0=standardize, 1=AI cleanup, 2=manual review',
+    )
+    manifest_headers = models.JSONField(default=list, blank=True)
+    header_signature = models.CharField(max_length=255, blank=True, default='')
+    standardization_formulas = models.JSONField(default=dict, blank=True)
+    template = models.ForeignKey(
+        CSVTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='preprocessing_orders',
+    )
+    template_name = models.CharField(max_length=200, blank=True, default='')
+    row_count = models.PositiveIntegerField(default=0)
+    standardized_at = models.DateTimeField(null=True, blank=True)
+    last_ai_import_at = models.DateTimeField(null=True, blank=True)
+    review_saved_at = models.DateTimeField(null=True, blank=True)
+    finalized_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Preprocessing Order'
+        verbose_name_plural = 'Preprocessing Orders'
+
+    def __str__(self):
+        return f'Preprocessing({self.purchase_order.order_number})'
+
+
+class PreprocessingRow(models.Model):
+    """Flat staging row for preprocessing; promoted to ManifestRow on finalize."""
+
+    preprocessing_order = models.ForeignKey(
+        PreprocessingOrder,
+        on_delete=models.CASCADE,
+        related_name='rows',
+    )
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='preprocessing_rows',
+    )
+    row_number = models.PositiveIntegerField()
+    raw_row = models.JSONField(default=dict, blank=True)
+
+    quantity = models.IntegerField(default=1)
+    description = models.TextField(blank=True, default='')
+    title = models.CharField(max_length=300, blank=True, default='')
+    brand = models.CharField(max_length=200, blank=True, default='')
+    model = models.CharField(max_length=200, blank=True, default='')
+    category = models.CharField(max_length=200, blank=True, default='')
+    condition = models.CharField(max_length=20, blank=True, default='')
+    retail_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    proposed_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    final_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    pricing_stage = models.CharField(
+        max_length=20,
+        choices=ManifestRow.PRICING_STAGE_CHOICES,
+        default='unpriced',
+    )
+    pricing_notes = models.TextField(blank=True, default='')
+    upc = models.CharField(max_length=100, blank=True, default='')
+    vendor_item_number = models.CharField(max_length=100, blank=True, default='')
+    batch_flag = models.BooleanField(default=False)
+    search_tags = models.TextField(blank=True, default='')
+    specifications = models.JSONField(default=dict, blank=True)
+    ai_reasoning = models.TextField(blank=True, default='')
+    ai_suggested_title = models.CharField(max_length=300, blank=True, default='')
+    ai_suggested_brand = models.CharField(max_length=200, blank=True, default='')
+    ai_suggested_model = models.CharField(max_length=200, blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['preprocessing_order', 'row_number']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['preprocessing_order', 'row_number'],
+                name='inventory_preproc_row_unique_order_rn',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['preprocessing_order', 'row_number']),
+            models.Index(fields=['purchase_order', 'row_number']),
+        ]
+
+    def __str__(self):
+        return f'PreprocessingRow {self.row_number} PO={self.purchase_order_id}'
 
 
 class Product(models.Model):
@@ -824,3 +977,112 @@ class ItemScanHistory(models.Model):
 
     def __str__(self):
         return f'{self.item.sku} scanned at {self.scanned_at}'
+
+
+class Receiving(models.Model):
+    """Inbound receiving session for one PO. Draft while completed_at is null."""
+
+    CONDITION_CHOICES = [
+        ('good', 'Good'),
+        ('mixed', 'Mixed'),
+        ('damaged', 'Damaged'),
+    ]
+
+    purchase_order = models.OneToOneField(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='receiving_record',
+    )
+    received_date = models.DateField(null=True, blank=True)
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    condition = models.CharField(
+        max_length=20,
+        choices=CONDITION_CHOICES,
+        blank=True,
+        default='',
+    )
+    issues = models.TextField(blank=True, default='')
+    pallet_count = models.PositiveSmallIntegerField(default=0)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    draft_version = models.PositiveIntegerField(default=1)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='receiving_records_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f'Receiving for {self.purchase_order_id}'
+
+
+class ReceivingPallet(models.Model):
+    """Per-pallet damage flag keyed by 1-indexed pallet number."""
+
+    receiving = models.ForeignKey(
+        Receiving,
+        on_delete=models.CASCADE,
+        related_name='pallets',
+    )
+    pallet_number = models.PositiveSmallIntegerField()
+    damaged = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['pallet_number']
+        constraints = [
+            models.UniqueConstraint(
+                fields=('receiving', 'pallet_number'),
+                name='uniq_receiving_pallet_number',
+            ),
+        ]
+
+    def __str__(self):
+        return f'Pallet {self.pallet_number} (Receiving {self.receiving_id})'
+
+
+class ReceivingAttachment(models.Model):
+    """Receiving photo:BOL/truck/or one side of a pallet.Links core.S3File."""
+
+    ATTACH_KIND = [
+        ('bol', 'BOL'),
+        ('truck', 'Truck'),
+        ('pallet_side', 'Pallet Side'),
+    ]
+    SIDE_CHOICES = [
+        ('front', 'Front'),
+        ('right', 'Right'),
+        ('back', 'Back'),
+        ('left', 'Left'),
+    ]
+
+    receiving = models.ForeignKey(
+        Receiving,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+    )
+    s3_file = models.ForeignKey(
+        'core.S3File',
+        on_delete=models.CASCADE,
+        related_name='receiving_attachments',
+    )
+    kind = models.CharField(max_length=20, choices=ATTACH_KIND)
+    pallet_number = models.PositiveSmallIntegerField(null=True, blank=True)
+    side = models.CharField(max_length=10, choices=SIDE_CHOICES, blank=True, default='')
+    client_photo_id = models.UUIDField(null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['receiving', 'kind']),
+            models.Index(fields=['receiving', 'client_photo_id']),
+        ]
+
+    def __str__(self):
+        return f'{self.kind} {self.receiving_id}'

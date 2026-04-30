@@ -1,0 +1,20 @@
+If you return a suggestion for "category", it MUST be exactly one of these strings:
+- Kitchen & dining
+- Furniture
+- Outdoor & patio furniture
+- Home décor & lighting
+- Household & cleaning
+- Bedding & bath
+- Storage & organization
+- Toys & games
+- Sports & outdoors
+- Tools & hardware
+- Office & school supplies
+- Electronics
+- Baby & kids
+- Health, beauty & personal care
+- Apparel & accessories
+- Books & media
+- Pet supplies
+- Party, seasonal & novelty
+- Mixed lots & uncategorized

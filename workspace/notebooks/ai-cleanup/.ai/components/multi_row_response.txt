@@ -1,0 +1,1 @@
+When the user payload contains multiple objects in "rows", return JSON with a top-level "results" array, same length and order as "rows". Each element: {"suggestions": {...}, "low_confidence": false, "low_confidence_reason": "..."} using the same rules as single-row mode. If the client sends one row per API call, omit this rule and return a single object as in output_schema.txt.

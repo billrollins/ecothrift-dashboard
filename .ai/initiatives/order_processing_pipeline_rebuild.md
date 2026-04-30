@@ -1,5 +1,5 @@
 <!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-04-29 -->
-<!-- Last updated: 2026-04-29 (Sessions 2–4 — offline Grok cleanup; shipped manifest CSV; inbound WIP) -->
+<!-- Last updated: 2026-04-29 (Session 5 — receiving entry + for-receiving ordering; v2.20.0) -->
 
 # Initiative: Order / Processing pipeline rebuild
 
@@ -21,7 +21,7 @@ Subgroup headers under collapsible **Inventory**:
 |----------|------------------|---------------|
 | **Inbound fulfillment** | Orders | `/inventory/orders` |
 | | Manifest prep | `/inventory/preprocessing` (legacy UI until replaced) |
-| | Receiving | `/inventory/inbound/receiving` — roadmap placeholder |
+| | Receiving | `/inventory/receiving` → next eligible PO (`ReceivingEntryRedirect`); work at `/inventory/receiving/:id` |
 | | Processing | `/inventory/processing` |
 | | Finalization | `/inventory/inbound/finalization` — roadmap placeholder |
 | | Disputes | `/inventory/inbound/disputes` — roadmap placeholder |
@@ -102,6 +102,14 @@ TBD per session. Buying auction manifests (`/buying/*`) remain a separate domain
 
 - **Evidence:** working tree snapshot (uncommitted / untracked vs **`HEAD`** at stewardship); not necessarily present on **`origin/main`**. Modified **`frontend/src/App.tsx`**, **`frontend/src/components/layout/Sidebar.tsx`**, **`apps/inventory/models.py`**, **`serializers.py`**, **`views.py`**; untracked **`frontend/src/components/inventory/receiving/`**, migrations **`0024_preprocessing_staging.py`**, **`0025_po_vendor_cache_search.py`**, **`0026_receiving_models.py`** (introduces **`Receiving`**), **`0027_purchase_order_order_pallet_count.py`**, plus tests **`test_receiving_api.py`**, **`test_preprocessing_redesign.py`**, **`test_po_dashboard.py`**, **`test_purchase_order_pallet_count.py`**. **Receiving** dirs/files visible in **`git status`** as **`??`** at capture time.
 - **Finish line:** TBD once committed and reviewed — do not treat API/UI guarantees as shipped until merged.
+- **Start:** 2026-04-29
+
+### Session 5 — Receiving entry + `for-receiving` ordering (`v2.20.0`)
+
+- **Evidence:** **`review_bump`** aligns **`.version`**, **`CHANGELOG [2.20.0]`**, steering docs (**2026-04-29**).
+- **Goal:** Tiered **`GET /api/inventory/orders/for-receiving/`** queryset; **`/inventory/receiving`** resolves to the first PO in that list; **Orders** table **Receive** truck when status is eligible; back from receiving to **`/inventory/orders`** (no separate receiving list page).
+- **Scope:** `apps/inventory/views.py` (for-receiving ordering + tests); `ReceivingEntryRedirect.tsx`; `App.tsx`; `OrderListPage.tsx`; `ReceivingOrderPage.tsx`; removed `ReceivingListPage.tsx`.
+- **Finish line:** Sidebar **Receiving** and orders **Receive** both land staff on dock receive for the right PO by **expected_delivery** priority.
 - **Start:** 2026-04-29
 
 ---

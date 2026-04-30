@@ -1,0 +1,6 @@
+{
+  "requested_fields": {{REQUESTED_FIELDS}},
+  "rows": {{ROWS_JSON}},
+  "store_examples": {{STORE_EXAMPLES_JSON}},
+  "order_context": {{ORDER_CONTEXT_JSON}}
+}

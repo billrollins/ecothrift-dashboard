@@ -62,7 +62,7 @@ export default function MainLayout() {
         overflowX: 'hidden',
       }}
     >
-      <Box sx={{ p: 2, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
+      <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
         <img src={logo} alt="Eco-Thrift" style={{ maxWidth: '100%', width: 180, height: 'auto' }} />
       </Box>
       <Divider />
@@ -96,6 +96,7 @@ export default function MainLayout() {
               width: SIDEBAR_WIDTH,
               boxSizing: 'border-box',
               overflowX: 'hidden',
+              borderRight: '1px solid #f1f5f9',
             },
           }}
         >
@@ -111,8 +112,7 @@ export default function MainLayout() {
               width: SIDEBAR_WIDTH,
               boxSizing: 'border-box',
               overflowX: 'hidden',
-              borderRight: '1px solid',
-              borderColor: 'divider',
+              borderRight: '1px solid #f1f5f9',
             },
           }}
         >

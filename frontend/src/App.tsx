@@ -17,12 +17,19 @@ import VendorListPage from './pages/inventory/VendorListPage';
 import VendorDetailPage from './pages/inventory/VendorDetailPage';
 import OrderListPage from './pages/inventory/OrderListPage';
 import OrderDetailPage from './pages/inventory/OrderDetailPage';
+import ReceivingEntryRedirect from './pages/inventory/ReceivingEntryRedirect';
+import ReceivingOrderPage from './pages/inventory/ReceivingOrderPage';
 import PreprocessingPage from './pages/inventory/PreprocessingPage';
 import ProcessingPage from './pages/inventory/ProcessingPage';
 import ProductListPage from './pages/inventory/ProductListPage';
 import ItemListPage from './pages/inventory/ItemListPage';
 import ItemDetailPage from './pages/inventory/ItemDetailPage';
 import QuickRepricePage from './pages/inventory/QuickRepricePage';
+import InventoryRoadmapPage from './pages/inventory/InventoryRoadmapPage';
+import InventoryLegacyHubPage from './pages/inventory/InventoryLegacyHubPage';
+import InventoryLegacyOrdersPage from './pages/inventory/InventoryLegacyOrdersPage';
+import InboundFulfillmentPlaceholderPage from './pages/inventory/InboundFulfillmentPlaceholderPage';
+import ManifestTemplatesSplashPage from './pages/inventory/ManifestTemplatesSplashPage';
 import TerminalPage from './pages/pos/TerminalPage';
 import DrawerListPage from './pages/pos/DrawerListPage';
 import CashManagementPage from './pages/pos/CashManagementPage';
@@ -74,7 +81,7 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
 function PreprocessingRedirect() {
   const lastId = localStorage.getItem('lastPreprocessOrderId');
   if (lastId) return <Navigate to={`/inventory/preprocessing/${lastId}`} replace />;
-  return <Navigate to="/inventory/orders" replace />;
+  return <Navigate to="/inventory/legacy" replace />;
 }
 
 function PreprocessingLegacyRedirect() {
@@ -111,6 +118,8 @@ export default function App() {
         <Route path="/inventory/vendors/:id" element={<VendorDetailPage />} />
         <Route path="/inventory/orders" element={<OrderListPage />} />
         <Route path="/inventory/orders/:id" element={<OrderDetailPage />} />
+        <Route path="/inventory/receiving" element={<ReceivingEntryRedirect />} />
+        <Route path="/inventory/receiving/:id" element={<ReceivingOrderPage />} />
         <Route path="/inventory/preprocessing" element={<PreprocessingRedirect />} />
         <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
         <Route path="/inventory/orders/:id/preprocess" element={<PreprocessingLegacyRedirect />} />
@@ -118,7 +127,22 @@ export default function App() {
         <Route path="/inventory/products" element={<ProductListPage />} />
         <Route path="/inventory/items" element={<ItemListPage />} />
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
+        <Route path="/inventory/templates" element={<ManifestTemplatesSplashPage />} />
+        <Route path="/inventory/legacy/orders" element={<InventoryLegacyOrdersPage />} />
+        <Route path="/inventory/legacy" element={<InventoryLegacyHubPage />} />
+        <Route path="/inventory/admin/legacy" element={<Navigate to="/inventory/legacy" replace />} />
+        <Route path="/inventory/inbound" element={<InboundFulfillmentPlaceholderPage />} />
         <Route path="/inventory/quick-reprice" element={<QuickRepricePage />} />
+        <Route path="/inventory/inbound/receiving" element={<Navigate to="/inventory/receiving" replace />} />
+        <Route
+          path="/inventory/inbound/finalization"
+          element={<Navigate to="/inventory/inbound?view=finalization" replace />}
+        />
+        <Route path="/inventory/inbound/disputes" element={<Navigate to="/inventory/inbound?view=disputes" replace />} />
+        <Route
+          path="/inventory/admin/categories"
+          element={<InventoryRoadmapPage title="Categories" subtitle="Browse and edit taxonomy (planned)." />}
+        />
         <Route path="/pos/terminal" element={<TerminalPage />} />
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         <Route path="/pos/cash" element={<CashManagementPage />} />

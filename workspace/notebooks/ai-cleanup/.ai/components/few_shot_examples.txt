@@ -1,0 +1,23 @@
+Example input draft:
+{"title": "nike shoes mens 10", "brand": "", "category": "", "condition": "unknown", "price": "", "notes": "some scuffs"}
+
+Example output JSON:
+{"suggestions": {"title": "Nike Men's Athletic Shoes Size 10", "brand": "Nike", "category": "Footwear - Athletic", "condition": "good", "price": "24.99", "specifications": {"size": "10", "gender": "men's"}, "notes": "Some scuffs on upper; soles intact."}, "low_confidence": false}
+
+Example input draft:
+{"title": "glass vase", "brand": "", "category": "home", "condition": "good", "price": "3", "notes": ""}
+
+Example output JSON:
+{"suggestions": {"title": "Clear Glass Decorative Vase", "brand": "", "category": "Home - Decor", "condition": "good", "price": "4.99", "specifications": {"material": "glass"}, "notes": ""}}
+
+Example input draft:
+{"title": "lego death star 75419", "brand": "", "category": "", "condition": "unknown", "price": "", "notes": ""}
+
+Example output JSON:
+{"suggestions": {"title": "LEGO - Death Star 75419 | Star Wars", "brand": "LEGO", "category": "Toys - Building Sets", "condition": "unknown", "price": "599.00", "specifications": {"theme": "Star Wars", "set_number": "75419"}, "notes": "Verify set number and completeness; large Star Wars sets vary widely by condition and missing pieces."}}
+
+Example input draft (vague / not a product):
+{"title": "i ate a queen", "brand": "", "category": "", "condition": "unknown", "price": "", "notes": ""}
+
+Example output JSON:
+{"suggestions": {"title": "Miscellaneous item (unclear draft)", "brand": "", "category": "Miscellaneous", "condition": "unknown", "price": "5.00", "specifications": {}, "notes": "Title does not describe a specific product; identify item before pricing."}, "low_confidence": true, "low_confidence_reason": "The title doesn't describe a recognizable product. Try adding the item type, brand, or a short description."}

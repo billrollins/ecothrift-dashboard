@@ -14,7 +14,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TextField,
   Typography,
 } from '@mui/material';
 import ArrowBack from '@mui/icons-material/ArrowBack';
@@ -29,64 +28,38 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
   useClearManifestRows,
-  useCreateItems,
-  useFinalizeRows,
+  useFinalizePreprocessing,
   useManifestRows,
-  useMatchProducts,
-  useMatchResults,
-  usePreviewStandardize,
+  usePreprocessingReview,
   useProcessManifest,
-  usePurchaseOrder,
-  useReviewMatches,
+  usePreprocessingStatus,
   useSuggestFormulas,
-  useUpdateManifestPricing,
   useCancelAICleanup,
-  useUndoProductMatching,
-  useClearPricing,
+  useUpdatePreprocessingReview,
 } from '../../hooks/useInventory';
 import { useStandardManifest } from '../../hooks/useStandardManifest';
 import { StandardManifestBuilder } from '../../components/inventory/StandardManifestBuilder';
 import { StandardManifestPreview } from '../../components/inventory/StandardManifestPreview';
 import { RowProcessingPanel } from '../../components/inventory/RowProcessingPanel';
-import { ProductMatchingPanel } from '../../components/inventory/ProductMatchingPanel';
-import { FinalizePanel } from '../../components/inventory/FinalizePanel';
-import type { ManifestColumnMapping, ReviewMatchDecision, FinalizeRowData } from '../../api/inventory.api';
-import type { ManifestRow } from '../../types/inventory.types';
+import { PreprocessingReviewTable } from '../../components/inventory/PreprocessingReviewTable';
+import { getPreprocessingReview } from '../../api/inventory.api';
+import type {
+  ManifestColumnMapping,
+  ManifestRawRow,
+  PreprocessingReviewRow,
+  PreprocessingReviewRowUpdate,
+  StandardColumnDefinition,
+} from '../../api/inventory.api';
 
-const STEPS = ['Standardize Manifest', 'AI Cleanup', 'Product Matching', 'Pricing'];
+/** Stable fallbacks — avoid `?? []` literals that allocate new refs each render (breaks useStandardManifest deps). */
+const EMPTY_HEADERS: string[] = [];
+const EMPTY_STANDARD_COLUMNS: StandardColumnDefinition[] = [];
+const EMPTY_TEMPLATE_MAPPINGS: ManifestColumnMapping[] = [];
+const EMPTY_RAW_ROWS: ManifestRawRow[] = [];
+
+const STEPS = ['Standardize Manifest', 'AI Cleanup', 'Manual Review'];
 
 type StepState = 'selected' | 'done' | 'ready' | 'notReady';
-
-/**
- * Derives the highest fully-completed step (0-indexed).
- * -1  = nothing done (no manifest rows)
- *  0  = standardized (rows exist)
- *  1  = AI cleanup complete (all rows have ai_reasoning)
- *  2  = product matching confirmed
- *  3  = pricing complete (all rows pricing_stage === 'final')
- *
- * This is the single source of truth. Undo operations clear data and
- * cause this function to return a lower value, which re-gates the UI.
- */
-function deriveCompletedStep(manifestRows: ManifestRow[]): number {
-  if (manifestRows.length === 0) return -1;
-
-  const allCleaned = manifestRows.every((r) => r.ai_reasoning);
-  if (!allCleaned) return 0;
-
-  const hasMatchDecisions = manifestRows.some(
-    (r) =>
-      r.matched_product ||
-      (r.match_candidates?.length ?? 0) > 0 ||
-      (r.ai_match_decision && r.ai_match_decision !== 'pending_review'),
-  );
-  if (!hasMatchDecisions) return 1;
-
-  const allPriced = manifestRows.every((r) => r.pricing_stage === 'final');
-  if (!allPriced) return 2;
-
-  return 3;
-}
 
 function getStepState(index: number, activeStep: number, completedStep: number): StepState {
   if (index === activeStep) return 'selected';
@@ -101,23 +74,35 @@ export default function PreprocessingPage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
 
-  const { data: order, isLoading } = usePurchaseOrder(orderId);
-  const previewStandardize = usePreviewStandardize();
+  const { data: preprocessingStatus, isLoading } = usePreprocessingStatus(orderId);
+  const order = preprocessingStatus?.order ?? null;
   const processManifest = useProcessManifest();
-  const updateManifestPricing = useUpdateManifestPricing();
   const suggestFormulasMutation = useSuggestFormulas();
-  const matchProductsMutation = useMatchProducts();
-  const reviewMatchesMutation = useReviewMatches();
   const clearManifestRowsMutation = useClearManifestRows();
   const cancelAICleanupMutation = useCancelAICleanup();
-  const undoProductMatchingMutation = useUndoProductMatching();
-  const clearPricingMutation = useClearPricing();
-  const { data: matchResultsData } = useMatchResults(orderId);
-  const finalizeRowsMutation = useFinalizeRows();
-  const createItemsMutation = useCreateItems();
-
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [stepDerived, setStepDerived] = useState(false);
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewPageSize, setReviewPageSize] = useState(50);
+  const [reviewSearchInput, setReviewSearchInput] = useState('');
+  const [reviewSearch, setReviewSearch] = useState('');
+  const [reviewMissingOnly, setReviewMissingOnly] = useState(false);
+  const reviewParams = useMemo(() => ({
+    page: reviewPage,
+    page_size: reviewPageSize,
+    search: reviewSearch.trim() || undefined,
+    missing_price: reviewMissingOnly || undefined,
+  }), [reviewMissingOnly, reviewPage, reviewPageSize, reviewSearch]);
+  const hasActivePreprocessingSession = Boolean(
+    preprocessingStatus?.preprocessing?.row_count && !preprocessingStatus.preprocessing.finalized_at,
+  );
+  const { data: preprocessingReviewData, isFetching: preprocessingReviewLoading } = usePreprocessingReview(
+    orderId,
+    reviewParams,
+    activeStep === 2 && hasActivePreprocessingSession,
+  );
+  const updatePreprocessingReview = useUpdatePreprocessingReview();
+  const finalizePreprocessingMutation = useFinalizePreprocessing();
 
   // Step 1 (Standardize) state
   const [aiReasonings, setAiReasonings] = useState<Record<string, string>>({});
@@ -126,20 +111,19 @@ export default function PreprocessingPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [rawReferenceOpen, setRawReferenceOpen] = useState(false);
   const [processResult, setProcessResult] = useState<{ rows_created: number } | null>(null);
-  const [searchInput, setSearchInput] = useState('');
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isLoadingSavedPreview, setIsLoadingSavedPreview] = useState(false);
+  const reviewSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const standardizedFormulasRef = useRef<Record<string, string> | null>(null);
 
   useEffect(() => {
     if (orderId) localStorage.setItem('lastPreprocessOrderId', String(orderId));
   }, [orderId]);
 
-  const manifestRows = useMemo(
-    () => (order as { manifest_rows?: ManifestRow[] } | null)?.manifest_rows ?? [],
-    [order],
-  );
-
-  const completedStep = useMemo(() => deriveCompletedStep(manifestRows), [manifestRows]);
+  const standardizedRowCount = preprocessingStatus?.counts.standardized_rows ?? 0;
+  const cleanedRowCount = preprocessingStatus?.counts.cleaned_rows ?? 0;
+  const missingPriceCount = preprocessingStatus?.counts.missing_price ?? 0;
+  const completedStep = preprocessingStatus?.completed_step ?? -1;
+  const hasCanonicalProcessingQueue = !hasActivePreprocessingSession && standardizedRowCount > 0;
 
   const stepDerivedRef = useRef<number | null>(null);
   useEffect(() => {
@@ -149,7 +133,7 @@ export default function PreprocessingPage() {
     setStepDerived(true);
   }, [orderId, order?.id, completedStep]);
 
-  const hasManifestFileForParams = !!order?.manifest_file;
+  const hasManifestFileForParams = !!order?.has_manifest_file && activeStep === 0;
   const rawManifestParams = useMemo(() => {
     if (!hasManifestFileForParams) return undefined;
     return { limit: 100 };
@@ -158,19 +142,17 @@ export default function PreprocessingPage() {
   const {
     data: manifestRowsRawData,
     isLoading: manifestRowsRawLoading,
-  } = useManifestRows(orderId, rawManifestParams);
+  } = useManifestRows(orderId, rawManifestParams, hasManifestFileForParams);
 
-  const headers = manifestRowsRawData?.headers ?? order?.manifest_preview?.headers ?? [];
-  const headerSignature = manifestRowsRawData?.signature ?? order?.manifest_preview?.signature ?? '';
-  const standardColumns = manifestRowsRawData?.standard_columns ?? [];
+  const headers = manifestRowsRawData?.headers ?? EMPTY_HEADERS;
+  const headerSignature = manifestRowsRawData?.signature ?? '';
+  const standardColumns = manifestRowsRawData?.standard_columns ?? EMPTY_STANDARD_COLUMNS;
   const templateMappings = (
-    manifestRowsRawData?.template_mappings
-    ?? order?.manifest_preview?.template_mappings
-    ?? []
+    manifestRowsRawData?.template_mappings ?? EMPTY_TEMPLATE_MAPPINGS
   ) as ManifestColumnMapping[];
-  const templateId = manifestRowsRawData?.template_id ?? order?.manifest_preview?.template_id ?? undefined;
-  const templateName = manifestRowsRawData?.template_name ?? order?.manifest_preview?.template_name ?? '';
-  const rawManifestRows = manifestRowsRawData?.rows ?? order?.manifest_preview?.rows ?? [];
+  const templateId = manifestRowsRawData?.template_id ?? undefined;
+  const templateName = manifestRowsRawData?.template_name ?? '';
+  const rawManifestRows = manifestRowsRawData?.rows ?? EMPTY_RAW_ROWS;
   const rawSampleRows = rawManifestRows.slice(0, 5);
   const rawHeaders = headers.length ? headers : Object.keys(rawSampleRows[0]?.raw ?? {});
 
@@ -188,32 +170,35 @@ export default function PreprocessingPage() {
     initialMappings: templateMappings,
   });
 
-  // Auto-preview when search input changes (debounced)
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchInput(value);
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      if (!orderId || !order?.manifest_file) return;
-      void previewStandardize.mutateAsync({
-        orderId,
-        data: {
-          template_id: templateId,
-          column_mappings: formulaMappings,
-          preview_limit: 100,
-          search_term: value.trim() || undefined,
-        },
-      }).then((result) => {
-        setPreviewRows(result.normalized_preview || []);
-        setPreviewMeta({ rowCountInFile: result.row_count_in_file, rowsSelected: result.rows_selected });
-        setPreviewOpen(true);
-      }).catch(() => {
-        enqueueSnackbar('Preview failed', { variant: 'error' });
-      });
-    }, 500);
-  }, [orderId, order?.manifest_file, templateId, formulaMappings, previewStandardize, enqueueSnackbar]);
+  const loadSavedPreview = useCallback(async () => {
+    if (!orderId) return;
+    setIsLoadingSavedPreview(true);
+    try {
+      const { data } = await getPreprocessingReview(orderId, { page: 1, page_size: 100 });
+      setPreviewRows((data.rows || []).map((row: PreprocessingReviewRow) => ({ ...row })));
+      setPreviewMeta({ rowCountInFile: data.summary.total_rows, rowsSelected: data.rows.length });
+      setPreviewOpen(true);
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(detail || 'Failed to load saved preview rows', { variant: 'error' });
+    } finally {
+      setIsLoadingSavedPreview(false);
+    }
+  }, [enqueueSnackbar, orderId]);
+
+  useEffect(() => {
+    if (reviewSearchDebounceRef.current) clearTimeout(reviewSearchDebounceRef.current);
+    reviewSearchDebounceRef.current = setTimeout(() => {
+      setReviewSearch(reviewSearchInput);
+      setReviewPage(1);
+    }, 300);
+    return () => {
+      if (reviewSearchDebounceRef.current) clearTimeout(reviewSearchDebounceRef.current);
+    };
+  }, [reviewSearchInput]);
 
   useEffect(() => () => {
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (reviewSearchDebounceRef.current) clearTimeout(reviewSearchDebounceRef.current);
   }, []);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -242,7 +227,7 @@ export default function PreprocessingPage() {
   };
 
   const handleStandardizeManifest = async () => {
-    if (!orderId || !order?.manifest_file) return;
+    if (!orderId || !order?.has_manifest_file) return;
     if (!hasMapping('description')) {
       enqueueSnackbar('Set a formula for Description before standardizing', { variant: 'warning' });
       return;
@@ -253,7 +238,7 @@ export default function PreprocessingPage() {
     }
     if (completedStep >= 1) {
       const ok = window.confirm(
-        'Re-standardizing will clear all AI Cleanup, Product Matching, and Pricing data. Continue?',
+        'Re-standardizing will rebuild manifest rows plus any non-terminal generated Products/Items. Continue?',
       );
       if (!ok) return;
     }
@@ -269,7 +254,11 @@ export default function PreprocessingPage() {
       });
       setProcessResult({ rows_created: result.rows_created });
       standardizedFormulasRef.current = { ...formulas };
-      enqueueSnackbar(`Standardized ${result.rows_created} row(s)`, { variant: 'success' });
+      enqueueSnackbar(
+        `Standardized ${result.rows_created} staged row(s)`,
+        { variant: 'success' },
+      );
+      await loadSavedPreview();
       setActiveStep(1);
     } catch {
       enqueueSnackbar('Failed to standardize manifest', { variant: 'error' });
@@ -278,20 +267,15 @@ export default function PreprocessingPage() {
 
   const handleClearStandardization = async () => {
     if (!orderId) return;
-    // Block if items already exist
-    if (order && order.item_count > 0) {
-      enqueueSnackbar('Cannot clear manifest — items have already been created. Undo the check-in queue first.', { variant: 'error' });
-      return;
-    }
     const parts: string[] = ['standardized rows'];
     if (completedStep >= 1) parts.push('AI cleanup data');
-    if (completedStep >= 2) parts.push('product matching');
-    if (completedStep >= 3) parts.push('pricing');
+    if (completedStep >= 2) parts.push('manual review/pricing');
+    parts.push('non-terminal generated items');
     const ok = window.confirm(`This will permanently delete all ${parts.join(', ')}. Continue?`);
     if (!ok) return;
     try {
       const result = await clearManifestRowsMutation.mutateAsync(orderId);
-      enqueueSnackbar(`Cleared ${result.rows_deleted} manifest rows`, { variant: 'info' });
+      enqueueSnackbar(`Cleared ${result.rows_deleted} manifest rows and ${result.items_deleted ?? 0} item(s)`, { variant: 'info' });
       setProcessResult(null);
       standardizedFormulasRef.current = null;
       setActiveStep(0);
@@ -304,119 +288,51 @@ export default function PreprocessingPage() {
 
   const handleClearAICleanup = async () => {
     if (!orderId) return;
-    // cascade warning: also clears matching
-    const msg = completedStep >= 2
-      ? 'Clearing AI Cleanup will also reset Product Matching data. Pricing will be preserved. Continue?'
-      : 'This will clear all AI cleanup data. Continue?';
+    const msg = 'This will clear all AI cleanup suggestions. Product/Item links and pricing are preserved. Continue?';
     const ok = window.confirm(msg);
     if (!ok) return;
     try {
       await cancelAICleanupMutation.mutateAsync(orderId);
-      enqueueSnackbar('AI cleanup and product matching data cleared', { variant: 'info' });
+      enqueueSnackbar('AI cleanup data cleared', { variant: 'info' });
       setActiveStep(1);
     } catch {
       enqueueSnackbar('Failed to clear AI cleanup', { variant: 'error' });
     }
   };
 
-  const handleClearMatching = async () => {
+  const handlePreprocessingReviewSave = async (rows: PreprocessingReviewRowUpdate[]) => {
     if (!orderId) return;
-    const ok = window.confirm('This will clear all product matching decisions. Pricing will be preserved. Continue?');
-    if (!ok) return;
     try {
-      await undoProductMatchingMutation.mutateAsync(orderId);
-      enqueueSnackbar('Product matching cleared', { variant: 'info' });
-      setActiveStep(2);
+      const result = await updatePreprocessingReview.mutateAsync({ orderId, rows });
+      enqueueSnackbar(`Saved ${result.rows_updated} staged row(s)`, { variant: 'success' });
     } catch {
-      enqueueSnackbar('Failed to clear product matching', { variant: 'error' });
+      enqueueSnackbar('Failed to save preprocessing review', { variant: 'error' });
     }
   };
 
-  const handleClearPricing = async () => {
-    if (!orderId) return;
-    const ok = window.confirm('This will clear all prices and reset pricing status to unpriced. Continue?');
-    if (!ok) return;
-    try {
-      await clearPricingMutation.mutateAsync(orderId);
-      enqueueSnackbar('Pricing cleared', { variant: 'info' });
-      setActiveStep(3);
-    } catch {
-      enqueueSnackbar('Failed to clear pricing', { variant: 'error' });
-    }
-  };
-
-  const handleRunMatching = async () => {
-    if (!orderId) return;
-    try {
-      const result = await matchProductsMutation.mutateAsync({ orderId, data: { use_ai: true } });
-      enqueueSnackbar(
-        `Matching complete: ${result.confirmed} confirmed, ${result.uncertain} uncertain, ${result.new_products} new`,
-        { variant: 'success' },
-      );
-    } catch {
-      enqueueSnackbar('Product matching failed', { variant: 'error' });
-    }
-  };
-
-  const handleConfirmProducts = async (decisions: ReviewMatchDecision[]) => {
-    if (!orderId) return;
-    try {
-      const result = await reviewMatchesMutation.mutateAsync({ orderId, data: { decisions } });
-      enqueueSnackbar(
-        `Products confirmed: ${result.accepted} accepted, ${result.rejected} rejected, ${result.new_products} new`,
-        { variant: 'success' },
-      );
-      setActiveStep(3);
-    } catch {
-      enqueueSnackbar('Failed to confirm products', { variant: 'error' });
-    }
-  };
-
-  const handleFinalizeRows = async (rows: FinalizeRowData[]) => {
-    if (!orderId) return;
-    try {
-      const result = await finalizeRowsMutation.mutateAsync({ orderId, data: { rows } });
-      enqueueSnackbar(`Preprocessing complete — ${result.rows_updated} row(s) finalized`, { variant: 'success' });
-    } catch {
-      enqueueSnackbar('Failed to finalize rows', { variant: 'error' });
-    }
-  };
-
-  const handleSavePricing = async (prices: Record<number, string>) => {
-    if (!orderId || !manifestRows.length) return;
-    const rows = manifestRows.map((row) => {
-      const priceVal = (prices[row.id] ?? '').trim();
-      return {
-        id: row.id,
-        proposed_price: priceVal === '' ? null : priceVal,
-        pricing_stage: 'draft' as const,
-        pricing_notes: '',
-      };
-    });
-    await updateManifestPricing.mutateAsync({ orderId, data: { rows } });
-    enqueueSnackbar('Pricing saved', { variant: 'success' });
-  };
-
-  const handleNavigateToProcessing = async () => {
+  const handleFinalizeAndOpenProcessing = async () => {
     if (!orderId || !order) return;
     try {
-      const canCreateItems = ['delivered', 'processing', 'complete'].includes(order.status);
-      if (order.item_count === 0 && canCreateItems) {
-        const result = await createItemsMutation.mutateAsync(orderId);
-        enqueueSnackbar(`Created ${result.items_created} item(s), ${result.batch_groups_created} batch(es)`, {
-          variant: 'success',
-        });
-      }
+      const result = await finalizePreprocessingMutation.mutateAsync(orderId);
+      enqueueSnackbar(
+        `Finalized ${result.manifest_rows} row(s); ${result.items_created ?? 0} item(s), ${result.batch_groups_created} batch(es).`,
+        { variant: 'success' },
+      );
       navigate(`/inventory/processing?order=${order.id}`);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { detail?: string } } };
       const msg = axiosErr?.response?.data?.detail;
-      enqueueSnackbar(msg || 'Failed to build check-in queue', { variant: 'error' });
+      enqueueSnackbar(msg || 'Failed to finalize preprocessing', { variant: 'error' });
     }
   };
 
-  const canStandardize = Boolean(order?.manifest_file) && !processManifest.isPending;
-  const hasManifestFile = Boolean(order?.manifest_file);
+  const handleOpenProcessing = () => {
+    if (!order) return;
+    navigate(`/inventory/processing?order=${order.id}`);
+  };
+
+  const canStandardize = Boolean(order?.has_manifest_file) && !processManifest.isPending;
+  const hasManifestFile = Boolean(order?.has_manifest_file);
   const hasMandatoryMappings = hasMapping('description') && hasMapping('retail_value');
 
   type Step1State = 'clear' | 'partial' | 'ready' | 'done' | 'edited' | 'edited_partial';
@@ -453,27 +369,6 @@ export default function PreprocessingPage() {
     }
     setAllFormulas(empty);
   }, [formulas, setAllFormulas]);
-
-  const rowPanelRows = matchResultsData?.rows ?? manifestRows;
-  const rowPanelMatchSummary = useMemo(() =>
-    matchResultsData?.summary ?? {
-      total: manifestRows.length,
-      matched: 0,
-      pending_review: 0,
-      confirmed: 0,
-      uncertain: 0,
-      new_product: 0,
-    },
-    [matchResultsData?.summary, manifestRows.length],
-  );
-  const finalizePanelRows = useMemo(
-    () => matchResultsData?.rows ?? manifestRows,
-    [matchResultsData?.rows, manifestRows],
-  );
-  const unpricedCount = useMemo(
-    () => manifestRows.filter((r) => r.pricing_stage !== 'final').length,
-    [manifestRows],
-  );
 
   if (isLoading && !order) return <LoadingScreen />;
   if (!order) return <Typography>Order not found.</Typography>;
@@ -552,31 +447,8 @@ export default function PreprocessingPage() {
               );
             })}
 
-            {activeStep === 3 && unpricedCount === 0 && completedStep < 3 && (
-              <Button
-                variant="contained"
-                color="success"
-                size="small"
-                startIcon={finalizeRowsMutation.isPending ? <CircularProgress size={14} /> : <Lock />}
-                onClick={() => {
-                  const finalizedRows: FinalizeRowData[] = manifestRows.map((row) => ({
-                    id: row.id,
-                    title: row.title || row.ai_suggested_title || row.description,
-                    brand: row.brand || row.ai_suggested_brand || '',
-                    model: row.model || row.ai_suggested_model || '',
-                    category: row.category || '',
-                    condition: row.condition || '',
-                    search_tags: row.search_tags || '',
-                    batch_flag: row.batch_flag ?? false,
-                    final_price: row.final_price || row.proposed_price || null,
-                    proposed_price: row.final_price || row.proposed_price || null,
-                  }));
-                  void handleFinalizeRows(finalizedRows);
-                }}
-                disabled={finalizeRowsMutation.isPending}
-              >
-                {finalizeRowsMutation.isPending ? 'Completing...' : 'Complete Preprocessing'}
-              </Button>
+            {activeStep === 2 && hasActivePreprocessingSession && missingPriceCount === 0 && completedStep < 2 && standardizedRowCount > 0 && (
+              <Chip icon={<Lock />} label="All rows priced" color="success" />
             )}
           </Box>
 
@@ -623,7 +495,7 @@ export default function PreprocessingPage() {
 
               {completedStep >= 0 && (
                 <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 1.5 }}>
-                  Standardization complete — {manifestRows.length} row(s) created.
+                  Standardization complete — {standardizedRowCount} row(s) created.
                 </Alert>
               )}
 
@@ -720,17 +592,11 @@ export default function PreprocessingPage() {
                     sx={{ px: 0 }}
                   >
                     {previewOpen ? 'Hide' : 'Show'} Standardization Preview
-                    {previewStandardize.isPending && <CircularProgress size={12} sx={{ ml: 1 }} />}
+                    {isLoadingSavedPreview && <CircularProgress size={12} sx={{ ml: 1 }} />}
                   </Button>
-                  <TextField
-                    size="small"
-                    sx={{ minWidth: 240 }}
-                    label="Search preview"
-                    placeholder="Auto-searches as you type"
-                    value={searchInput}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    disabled={!order.manifest_file || manifestRowsRawLoading}
-                  />
+                  <Typography variant="caption" color="text.secondary">
+                    Preview loads once after Standardize saves staged rows.
+                  </Typography>
                 </Box>
                 <Collapse in={previewOpen}>
                   <StandardManifestPreview
@@ -752,12 +618,13 @@ export default function PreprocessingPage() {
             <Box>
               {completedStep >= 1 && (
                 <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 1.5 }}>
-                  AI Cleanup complete — all {manifestRows.length} row(s) cleaned.
+                  AI Cleanup complete — all {standardizedRowCount} row(s) cleaned.
                 </Alert>
               )}
               <RowProcessingPanel
                 orderId={orderId!}
-                rows={manifestRows}
+                rowCount={standardizedRowCount}
+                cleanedRows={cleanedRowCount}
                 completedStep={completedStep}
                 onClearCleanup={() => void handleClearAICleanup()}
                 isClearingCleanup={cancelAICleanupMutation.isPending}
@@ -766,51 +633,56 @@ export default function PreprocessingPage() {
           )}
 
           {/* ════════════════════════════════════════════════════════
-              STEP 3: Product Matching
+              STEP 3: Manual Review
           ════════════════════════════════════════════════════════ */}
           {activeStep === 2 && (
             <Box>
-              {completedStep >= 2 && (
+              {completedStep >= 2 && hasActivePreprocessingSession && (
                 <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 1.5 }}>
-                  Product matching confirmed — products are linked.
+                  Manual review complete — all staged rows are priced.
                 </Alert>
               )}
-              <ProductMatchingPanel
-                orderId={orderId!}
-                rows={rowPanelRows}
-                matchSummary={rowPanelMatchSummary}
-                onRunMatching={handleRunMatching}
-                onConfirmProducts={handleConfirmProducts}
-                onClearMatching={() => void handleClearMatching()}
-                isMatching={matchProductsMutation.isPending}
-                isSubmitting={reviewMatchesMutation.isPending}
-                isClearingMatching={undoProductMatchingMutation.isPending}
-                completedStep={completedStep}
-              />
-            </Box>
-          )}
-
-          {/* ════════════════════════════════════════════════════════
-              STEP 4: Pricing
-          ════════════════════════════════════════════════════════ */}
-          {activeStep === 3 && (
-            <Box>
-              {completedStep >= 3 && (
-                <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 1.5 }}>
-                  Preprocessing complete — all rows priced and finalized.
+              {hasActivePreprocessingSession ? (
+                <PreprocessingReviewTable
+                  rows={preprocessingReviewData?.rows ?? []}
+                  summary={preprocessingReviewData?.summary ?? null}
+                  count={preprocessingReviewData?.count ?? 0}
+                  page={preprocessingReviewData?.page ?? reviewPage}
+                  pageSize={preprocessingReviewData?.page_size ?? reviewPageSize}
+                  isLoading={preprocessingReviewLoading}
+                  searchValue={reviewSearchInput}
+                  missingPriceOnly={reviewMissingOnly}
+                  onPageChange={setReviewPage}
+                  onPageSizeChange={(size) => {
+                    setReviewPageSize(size);
+                    setReviewPage(1);
+                  }}
+                  onSearchChange={(search) => {
+                    setReviewSearchInput(search);
+                  }}
+                  onMissingPriceChange={(missingOnly) => {
+                    setReviewMissingOnly(missingOnly);
+                    setReviewPage(1);
+                  }}
+                  onSaveRows={handlePreprocessingReviewSave}
+                  onFinalize={handleFinalizeAndOpenProcessing}
+                  isSaving={updatePreprocessingReview.isPending}
+                  isFinalizing={finalizePreprocessingMutation.isPending}
+                />
+              ) : hasCanonicalProcessingQueue ? (
+                <Box>
+                  <Alert severity="info" sx={{ mb: 1.5 }}>
+                    This order already has a canonical processing queue with {standardizedRowCount} row(s). There is no active staged preprocessing session to review.
+                  </Alert>
+                  <Button variant="contained" onClick={handleOpenProcessing}>
+                    Open Processing
+                  </Button>
+                </Box>
+              ) : (
+                <Alert severity="info">
+                  Standardize the manifest first to create staged rows for review.
                 </Alert>
               )}
-              <FinalizePanel
-                rows={finalizePanelRows}
-                onSavePricing={handleSavePricing}
-                onNavigateToProcessing={handleNavigateToProcessing}
-                onClearPricing={() => void handleClearPricing()}
-                isSavingPrices={updateManifestPricing.isPending}
-                isCreatingItems={createItemsMutation.isPending}
-                isClearingPricing={clearPricingMutation.isPending}
-                completedStep={completedStep}
-                orderStatus={order.status}
-              />
             </Box>
           )}
         </>

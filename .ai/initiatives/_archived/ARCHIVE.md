@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-11T23:15:00-05:00 -->
+<!-- Last updated: 2026-04-29 (vendor_avatars → _backlog) -->
 # Archive index — initiatives
 
 ## What this is
@@ -73,6 +73,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [schema_public_to_ecothrift.md](./_backlog/schema_public_to_ecothrift.md) | Move V3 Django tables from `public` to schema `ecothrift` for shared Postgres with `darkhorse`. | 2026-03-28 |
 | [category_taxonomy_from_sales_history.md](./_backlog/category_taxonomy_from_sales_history.md) | Derive canonical category set from historical sales/inventory; map legacy labels → V3 seeds. | 2026-03-28 |
 | [item_retail_price_on_instance.md](./_backlog/item_retail_price_on_instance.md) | Retail/estimated retail on `Item` (not Product); migrations, backfill, API/UI; foundation for DS. Parked — interim SQL uses RetagLog + ManifestRow. | 2026-04-06 |
+| [vendor_avatars.md](./_backlog/vendor_avatars.md) | **Vendor avatars:** upload image per vendor (`S3File` FK), API + staff UI; show photo on PO dashboard + Create PO (+ optional rollout). Parked — not scheduled. | 2026-04-29 |
 
 ---
 
@@ -92,7 +93,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
-| — | *None yet.* | — |
+| [inventory_intake_pipeline.md](./_abandoned/inventory_intake_pipeline.md) | Order → dispute intake initiative; Order/Preprocess/Process redesign **superseded** by **`order_processing_pipeline_rebuild`** (pages/processes torn down for rebuild). | 2026-04-29 |
 
 ---
 

@@ -1,9 +1,9 @@
-<!-- Last updated: 2026-04-29 (order_processing sessions 2–4; vendor_avatars backlog TOC) -->
+<!-- Last updated: 2026-04-29 (`v2.20.0` — order_processing Session 5; vendor_avatars backlog TOC) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
 
-**`CHANGELOG.md` (`[Unreleased]`)** and the current session message also drive priorities.
+**`CHANGELOG.md`** top dated section **`## [2.20.0]`** (inventory inbound); **`[Unreleased]`** resumes when new work lands. The current session message also drives priorities.
 
 ---
 
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | Order / inbound fulfillment rebuild — **`46e0996`** shipped PO Raw Manifest CSV + steering / **`[Unreleased]`** inventory sync (**2026-04-29** git); **`Session 4`** (**WIP**, uncommitted): receiving UI (`frontend/src/components/inventory/receiving/`), Django migrations **`0024`–`0027`** (`Receiving` etc.), deltas on `models.py` / `serializers.py` / `views.py`; **offline Grok CSV cleanup**: `workspace/ai-cleanup-grok/` (**gitignored** — see initiative Session 2). Supporting docs: [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md). |
+| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | **`v2.20.0`**: PO dashboard + preprocessing + **`for-receiving`** tiered ordering; **`/inventory/receiving`** redirect + orders **Receive** truck (**Session 5**); **`46e0996`** manifest CSV (**Session 3**). Offline Grok: `workspace/ai-cleanup-grok/` (gitignored — Session 2). WIP groundwork: **`order_processing_pipeline_rebuild` Session 4** (receiving models/migrations — superseded partially by Session 5 ship list). Supporting docs: [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md). |
 
 Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
 

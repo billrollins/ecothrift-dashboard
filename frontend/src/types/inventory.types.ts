@@ -131,6 +131,14 @@ export interface ManifestRow {
   ai_suggested_brand: string;
   ai_suggested_model: string;
   notes: string;
+  item_ids?: number[];
+  first_item_id?: number | null;
+  first_item_sku?: string | null;
+  item_count?: number;
+  base_cost?: string | null;
+  ideal_price?: string | null;
+  set_price?: string | null;
+  ideal_delta_pct?: number | null;
 }
 
 /** GET /api/inventory/orders/ list rows (`PurchaseOrderListSerializer`). */
@@ -138,6 +146,7 @@ export interface PurchaseOrderListRow {
   id: number;
   vendor: number;
   vendor_name: string;
+  vendor_code: string;
   order_number: string;
   status: PurchaseOrderStatus;
   ordered_date: string;
@@ -146,11 +155,22 @@ export interface PurchaseOrderListRow {
   condition: PurchaseOrderCondition;
   description: string;
   item_count: number;
+  order_pallet_count: number | null;
   total_cost: string | null;
   retail_value: string | null;
   has_manifest: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** GET /api/inventory/orders/summary/ KPI aggregates (matches current list filters). */
+export interface PurchaseOrderSummary {
+  total_orders: number;
+  total_cost: string;
+  retail_value: string;
+  items_received: number;
+  delivered_count: number;
+  margin_percent: number | null;
 }
 
 export interface PurchaseOrder {
@@ -175,6 +195,8 @@ export interface PurchaseOrder {
   condition: PurchaseOrderCondition;
   description: string;
   item_count: number;
+  /** Expected pallet count when ordering; null if unknown (distinct from receiving pallet count). */
+  order_pallet_count: number | null;
   notes: string;
   manifest: number | null;
   manifest_file: {
@@ -210,6 +232,7 @@ export interface PurchaseOrder {
     batch_groups_total: number;
   };
   /** Present on retrieve (`PurchaseOrderDetailSerializer`); not on list rows. */
+  manifest_row_count?: number;
   manifest_rows?: ManifestRow[];
   created_by: number | null;
   created_by_name: string | null;
@@ -393,4 +416,77 @@ export interface ItemScanHistory {
   outcome?: ItemScanOutcome;
   cart?: number | null;
   created_by?: number | null;
+}
+
+/** Load condition for receiving (not the same as PO cosmetic condition). */
+export type ReceivingLoadCondition = '' | 'good' | 'mixed' | 'damaged';
+
+/** GET /inventory/orders/for-receiving/ extends list row. */
+export interface OrderForReceivingRow extends PurchaseOrderListRow {
+  has_receiving_draft: boolean;
+  has_receiving_complete: boolean;
+}
+
+export interface S3FileBrief {
+  id: number;
+  key: string;
+  filename: string;
+  size: number;
+  content_type: string;
+  uploaded_at: string;
+  url: string | null;
+}
+
+export type ReceivingAttachmentKind = 'bol' | 'truck' | 'pallet_side';
+export type PalletSideId = 'front' | 'right' | 'back' | 'left';
+
+export interface ReceivingAttachmentDTO {
+  id: number;
+  kind: ReceivingAttachmentKind;
+  pallet_number: number | null;
+  side: PalletSideId | '';
+  client_photo_id: string | null;
+  s3_file: S3FileBrief;
+  created_at: string;
+}
+
+export interface ReceivingPalletDTO {
+  pallet_number: number;
+  damaged: boolean;
+}
+
+export interface ReceivingDetailDTO {
+  id: number;
+  purchase_order_id: number;
+  received_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  condition: ReceivingLoadCondition;
+  issues: string;
+  pallet_count: number;
+  completed_at: string | null;
+  draft_version: number;
+  is_draft: boolean;
+  pallets: ReceivingPalletDTO[];
+  attachments: ReceivingAttachmentDTO[];
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** POST receiving/complete/ response includes updated order snapshot. */
+export interface ReceivingCompleteResponse extends ReceivingDetailDTO {
+  order: PurchaseOrder;
+  items_created?: number;
+  batch_groups_created?: number;
+}
+
+export interface ReceivingPatchPayload {
+  received_date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  condition?: ReceivingLoadCondition;
+  issues?: string;
+  pallet_count?: number;
+  pallets?: Array<{ pallet_number: number; damaged?: boolean }> | null;
 }

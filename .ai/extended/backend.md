@@ -1,10 +1,12 @@
-<!-- Last updated: 2026-04-28 (inventory PO manifest upload UI — Order detail) -->
+<!-- Last updated: 2026-04-28 (inventory preprocessing redesign) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
 **2026-04:** Buying — **Manifest ingestion is CSV upload only** (`upload_manifest` / `DELETE …/manifest/`). Anonymous order-process manifest pulls, staff **`pull_manifest`** REST actions, **`pull_manifests*`** / **`benchmark_manifest_pull`** management commands, and **`manifest_api_pipeline`** were removed. Historical **`ManifestPullLog`** rows may remain in the DB.
 
 **v2.14.0:** Buying — **`CategoryStats.need_score_1to99`** (daily **`compute_daily_category_stats`** / **`category_stats_sql`**); auction **`need_score`** & **`priority`** = weighted mix **1–99** (**`valuation._auction_need_from_mix`**). Inventory — **`PurchaseOrder.est_shrink`** drives **`Item.cost`**; **`recompute_all_item_costs`** for backfill. Details under **inventory** and **Item acquisition cost** sections below.
+
+**2026-04 Inventory preprocessing redesign:** `PurchaseOrderViewSet.process_manifest` standardizes rows and immediately prepares deterministic Product links plus one intake `Item` per manifest unit. Staff-facing Product Matching is bypassed; exact reuse happens by UPC, vendor ref, or normalized `(title, brand, model, category)`. `ai-cleanup-rows` now uses Add Item-style bulk prompts with row/item identity echo and AppSetting-backed cleanup model controls. `manual-review` is the canonical review/pricing endpoint, and `create-items` opens Processing for existing early Items instead of duplicating inventory.
 
 ## Project Structure
 

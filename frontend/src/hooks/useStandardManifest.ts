@@ -152,11 +152,17 @@ export function useStandardManifest({
     [standardColumns],
   );
 
+  /** Content keys — stable across renders when parents pass `?? []` with the same values (new array refs each render). */
+  const headersSignature = headers.join('\x00');
+  const mappingsSignature = JSON.stringify(initialMappings ?? []);
+
   const [formulas, setFormulas] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setFormulas(buildFormulas(headers, columns, initialMappings ?? []));
-  }, [signature, headers, columns, initialMappings]);
+    // headers / initialMappings intentionally omitted — keyed by headersSignature / mappingsSignature (stable when content matches).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, headersSignature, mappingsSignature, columns]);
 
   const setFormula = (target: string, expression: string) => {
     setFormulas((prev) => ({ ...prev, [target]: expression }));

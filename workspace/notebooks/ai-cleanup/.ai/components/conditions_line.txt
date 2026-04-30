@@ -1,0 +1,1 @@
+Allowed condition values (exactly one if returning condition): new, like_new, very_good, good, fair, salvage, unknown
