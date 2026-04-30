@@ -1,7 +1,7 @@
 <!-- Last updated: 2026-04-16T22:45:00-05:00 (commit_message + 2_push_github; review_bump Part 5) -->
 # Protocol: Session close (docs, version, commit)
 
-Run when you are ready to **finish a work session** and optionally **commit / release**. It is **one protocol** with three parts — record the session, update docs (scoped), stage the commit. For **docs audit + semver + `CHANGELOG`** without a full session close, use **`review.0.Bump.md`** (optional **`commit_message.txt`** notes in Part 5).
+Run when you are ready to **finish a work session** and optionally **commit / release**. It is **one protocol** with three parts — record the session, update docs (scoped), stage the commit. For **docs audit + semver + `CHANGELOG`** without a full session close, use **`review.0.Bump.md`** (optional **`commit_message.txt`** notes in Part 5). For **that bump checklist plus immediate GitHub push** via **`2_push_github.bat`** and the **full** **`commit_message.txt`**, use **`code.9.Push.md`** instead of **`review.0.Bump`** Part 4B alone.
 
 **Not a substitute for:** ongoing pulses during work — use **`session.1.Checkpoint.md`** to keep session updates and **`[Unreleased]`** current. Use **`code.1.Bearing.md`** if you are **lost** or need a compass vs the written goal.
 
@@ -61,7 +61,7 @@ Run when you are ready to **finish a work session** and optionally **commit / re
 
 - **Line 1** must be the **conventional commit subject** (`feat:`, `fix:`, `docs:`, `chore:`, …). It must **not** be the placeholder `---` (the push script errors if line 1 is `---`).
 - **Lines 2+** are the commit body (blank line after subject, then bullets or session notes). You may **append** across sessions before one push.
-- After a **successful** standalone `2_push_github.bat`, the file is reset to a single line `---`. **Replace the whole file** before the next push — do not leave `---` on line 1 with a draft underneath.
+- After a **successful** `2_push_github.bat` push (standalone **or** **`--called`**), **`commit_message.txt`** resets to a single line **`---`**. **Replace the whole file** before the next push — do not leave **`---`** on line 1 with a draft underneath.
 
 ### Pre-commit checks
 
@@ -94,7 +94,8 @@ Types: `feat`, `fix`, `refactor`, `docs`, `style`, `chore`.
 | `code.0.Startup.md` | Session start | Load context; **frame session**; **create session entry** |
 | `session.1.Checkpoint.md` | Several times per session | Session updates + **`[Unreleased]`** + light docs |
 | `code.1.Bearing.md` | Mid-session when stuck | Compare progress to **written** session goal |
-| `review.0.Bump.md` | Docs audit + semver + `CHANGELOG` slice | Steering/extended checklist, bump matrix, no commit/push |
+| `review.0.Bump.md` | Docs audit + semver + `CHANGELOG` slice | Steering/extended checklist, bump matrix; **local** short commit Part 4B; **no** `git push` unless user asks |
+| **`code.9.Push.md`** | Bump checklist then GitHub push | **`review.0.Bump`** through Part 5 + **`2_push_github.bat`** — skip Part 4B when the bat performs the commit |
 | **`session.9.Close.md`** (this) | **End** of session / before commit | **`Result`**, scoped docs, version bump, commit message |
 | [`extended/consultant_handoff.md`](../extended/consultant_handoff.md) | After build phase / handoff | Spot-check + **flat** copy — **`workspace/to_consultant/files-update/`** |
 

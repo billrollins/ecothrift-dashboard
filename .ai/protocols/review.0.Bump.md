@@ -1,7 +1,7 @@
 <!-- Last updated: 2026-04-30 (bstock initiative example path in table) -->
 # Protocol: Review & Bump (docs audit → `.version` → `CHANGELOG` → local commit)
 
-**Scope:** Docs-audit + semver bump + `CHANGELOG` update + **local** `git add` / `git commit` with a **short** message. This is a **slice** of `session.9.Close.md` — use when the user wants those without a full session close. **Optional:** grow **`scripts/deploy/commit_message.txt`** for the eventual push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**). **Push** stays separate: frequent local commits protect against lost work; only reviewed work goes to GitHub or production via `session.9.Close.md` / deploy scripts.
+**Scope:** Docs-audit + semver bump + `CHANGELOG` update + **local** `git add` / `git commit` with a **short** message. This is a **slice** of `session.9.Close.md` — use when the user wants those without a full session close. **Optional:** grow **`scripts/deploy/commit_message.txt`** for the eventual push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**). **Bump then push in one flow:** **`code.9.Push.md`** runs this checklist + fills **`commit_message.txt`** + **`2_push_github.bat`** (skip Part 4B there). Otherwise **push** stays separate: frequent local commits protect against lost work; only reviewed work goes to GitHub or production via **`session.9.Close.md`** / deploy scripts.
 
 **Not this protocol:**
 - Session entry bookkeeping (`#### Result`, Session updates) → `session.1.Checkpoint.md` / `session.9.Close.md`.
@@ -245,7 +245,8 @@ After committing, hand back to the user or continue to `session.9.Close.md` Part
 | **After a successful push** | `2_push_github.bat` resets `commit_message.txt` to a **single line** `---`. Before the next push, **replace the whole file** with the new message (subject on line 1, blank line, then body). Do **not** keep `---` on line 1 with more text below — the script rejects `---` as the first line and you will not get a real subject. |
 | **File already has a full message** (not placeholder) | Run `2_push_github.bat` when ready — the **entire** file becomes the git commit message. To add more, **edit** the file (append or rewrite), then run the script; nothing auto-appends. |
 | **Placeholder only** (`---` alone) | **Replace completely** with your real subject + body. |
-| **Called from** `5_deploy_yolo.bat` / `4_deploy_careful.bat` | Same rules; on success the caller may not reset the file (see `--called` behavior in the `.bat`). |
+| **`code.9.Push.md`** | Runs this checklist + **`commit_message.txt`** + **`2_push_github.bat`** — skip Part 4B unless you intentionally want a separate short commit before the bat runs. |
+| **`Called from** `4_deploy_careful.bat` / `5_deploy_yolo.bat` | Same **`commit_message.txt`** rules; **`2_push_github.bat`** resets to **`---`** after a successful push. |
 
 **Conventional shape:** line 1 = `type: short description`; blank line; body (bullets OK).
 
@@ -261,4 +262,5 @@ After committing, hand back to the user or continue to `session.9.Close.md` Part
 | `session.1.Checkpoint.md` | Lighter pulse — `[Unreleased]` only, never `.version` |
 | `code.1.Bearing.md` | Use when you're not sure what changed — do that before this protocol |
 | **`review.0.Bump.md`** (this) | Docs audit + semver + CHANGELOG + **local** short commit |
+| **`code.9.Push.md`** | Same checklist + **`commit_message.txt`** + **`2_push_github.bat`** — **no** separate Part 4B short commit |
 | `session.9.Close.md` | Superset — calls this protocol's work AND sets `#### Result` / `commit_message.txt` / pre-commit / **push** |

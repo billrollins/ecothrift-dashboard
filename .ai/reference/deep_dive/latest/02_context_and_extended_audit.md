@@ -13,7 +13,7 @@
 |---|---|---|---|---|
 | `.ai/context.md` | Buying Phase 6 link targets **non-existent** root path | Line ~118: `(initiatives/bstock_auction_intelligence.md)` — file is under `_archived/_completed/` | Update link to archived path + note “archived initiative” | P1 |
 | `.ai/consultant_context.md` | Same path error in opening maintenance paragraph | Line 7: `` `initiatives/bstock_auction_intelligence.md` `` | Same | P1 |
-| `.ai/context.md` | Protocol list in file map includes `review.1.Deep` | Line 43 | OK | — |
+| `.ai/context.md` | Protocol list in file map includes `review.9.Deep` | Line 43 | OK | — |
 
 ## Extended Docs TOC Parity
 
@@ -62,9 +62,9 @@
 | Protocol / path | Listed where expected? | Finding | Recommendation |
 |---|---:|---|---|
 | `.ai/protocols/code.0.Startup.md` | `context.md`, `README.md` | OK | — |
-| `.ai/protocols/review.1.Deep.md` | `README.md`, `context.md` Quick Ref | OK | — |
+| `.ai/protocols/review.9.Deep.md` | `README.md`, `context.md` Quick Ref | OK | — |
 | `.ai/protocols/session.0.Create.md` | `README.md` | Marked placeholder in `code.0.Startup` | OK — intentional |
-| Deep dive output `.ai/reference/deep_dive/latest/` | `review.1.Deep.md` only (meta) | New layout — not in `README` table explicitly | Optional one-line in README AI table | P3 |
+| Deep dive output `.ai/reference/deep_dive/latest/` | `review.9.Deep.md` only (meta) | New layout — not in `README` table explicitly | Optional one-line in README AI table | P3 |
 | `.ai/initiatives/_protocols/*.md` | `ARCHIVE.md` points to `_archived/_protocols` | **Duplicate** copy at initiatives root | Consolidate (see PLAN `STRUCT-001`) | P2 |
 
 ## Stale References

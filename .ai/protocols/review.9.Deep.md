@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-30 (initial protocol) -->
+<!-- Last updated: 2026-04-30 (protocol filename: review.9.Deep.md) -->
 # Protocol: Deep Research - Update All Context
 
 Exhaustive repo + AI-steering audit. Use when the user asks for **deep research**, **update all context**, **full context refresh**, or a broad documentation / initiative / changelog integrity pass.
@@ -193,6 +193,7 @@ File removals:
 | `code.0.Startup.md` | Normal session context load; this protocol uses only enough startup to orient |
 | `code.1.Bearing.md` | Short mid-session compass; this protocol is a full audit |
 | `review.0.Bump.md` | Scoped docs/version/changelog pass; this protocol produces reports and a plan before edits |
+| `code.9.Push.md` | Bump checklist + **`commit_message.txt`** + **`2_push_github.bat`** — unrelated to audit deliverables |
 | `session.1.Checkpoint.md` | Work-session pulse; not used for deep audit reports |
 | `session.9.Close.md` | Commit/release/session-result gate after approved plan execution |
 | `.ai/initiatives/_archived/_protocols/*` | Required only after user approves initiative disposition changes |

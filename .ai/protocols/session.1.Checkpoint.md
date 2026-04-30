@@ -81,7 +81,7 @@ If something belongs in **`session_close`** (full **`Result`**, **version bump**
 | **`code.0.Startup.md`** | Session start | Context load; **session entry** + framing questions |
 | **`session.1.Checkpoint.md`** (this) | **Several times** per session | Session updates + **`[Unreleased]`** + light docs |
 | **`code.1.Bearing.md`** | Mid-session when **stuck** / drifting | Compass vs written goal; git truth; bearing card |
-| **`review.0.Bump.md`** | Isolated docs + semver + `CHANGELOG` | Full audit checklist; no **`Result`** / commit / push |
+| **`review.0.Bump.md`** | Isolated docs + semver + `CHANGELOG` | Full audit checklist; **local** Part 4B commit; **no** remote push |
 | **`session.9.Close.md`** | **End** of session / before commit | **`Result`**, semver gate, full doc scope, `commit_message.txt`, pre-commit |
 | [`extended/consultant_handoff.md`](../extended/consultant_handoff.md) | Consultant handoff | Spot-check + **flat** bundle under **`workspace/to_consultant/files-update/`** |
 

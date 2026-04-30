@@ -20,7 +20,7 @@
 | P1 | **`ARCHIVE.md` `_completed` TOC missing two files** | Archive index is the contract for discoverability; drift erodes trust | On disk: **16** `_completed/*.md`; TOC lists **14** rows — missing **`bstock_auction_intelligence.md`**, **`ui_ux_polish.md`** | Add TOC rows + bump `ARCHIVE.md` timestamp (`SAFE-002`) |
 | P2 | **Duplicate initiative lifecycle protocol trees** | Same six protocols maintained under `.ai/initiatives/_protocols/` and `.ai/initiatives/_archived/_protocols/` | Both trees contain 6 protocol files + README; root README admits canonical wording “under `_archived/_protocols/`” | Pick one canonical location; symlink or delete duplicate after approval (`STRUCT-001`) |
 | P2 | **Untracked reference debris** | Clutters repo and may get committed accidentally | `git status`: `.ai/reference/Mockups/files.zip`; optional mock JSX/MD under Mockups | Classify: gitignore, delete, or track intentionally (`DEL-001`) |
-| P3 | **README “last updated” vs reality** | Onboarding table may undersell current protocols | `README.md` header still says initiatives index “may be empty”; `review.1.Deep` and deep-dive layout exist | Light README touch when doing doc pass (`SAFE-003`) |
+| P3 | **README “last updated” vs reality** | Onboarding table may undersell current protocols | `README.md` header still says initiatives index “may be empty”; `review.9.Deep` and deep-dive layout exist | Light README touch when doing doc pass (`SAFE-003`) |
 
 ## Report Index
 

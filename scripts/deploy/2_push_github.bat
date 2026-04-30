@@ -88,9 +88,7 @@ if !PUSH_RC! neq 0 (
 )
 
 :: Success only: reset placeholder for next push to single-line three-dashes
-if "%~1" neq "--called" (
-    (echo ---)> "!COMMIT_MSG_FILE!"
-)
+(echo ---)> "!COMMIT_MSG_FILE!"
 
 echo.
 echo ========================================
@@ -100,8 +98,6 @@ echo.
 echo   Pushed to origin/main
 echo   Subject: !FIRST_LINE!
 echo.
-if "%~1" neq "--called" (
-    echo   commit_message.txt reset to --- — replace the whole file before next push.
-    echo.
-    pause
-)
+echo   commit_message.txt reset to --- — replace the whole file before next push.
+echo.
+if "%~1" neq "--called" pause
