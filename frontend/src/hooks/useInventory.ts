@@ -12,6 +12,7 @@ import {
   updateVendor,
   getOrders,
   getOrderSummary,
+  getPreprocessingQueue,
   getOrder,
   createOrder,
   updateOrder,
@@ -81,12 +82,14 @@ import {
   verifyCleanupModel,
   downloadCleanupCsv,
   uploadCleanupCsv,
+  uploadCleanupCsvRows,
   getPreprocessingStatus,
   getPreprocessingReview,
   updatePreprocessingReview,
   getManualReview,
   updateManualReview,
 } from '../api/inventory.api';
+import { prepS1 } from '../utils/preprocessingStep1Diag';
 import { devLog } from '../utils/logger';
 import type {
   SuggestFormulasPayload,
@@ -103,7 +106,7 @@ import type {
   PreprocessingReviewRowUpdate,
 } from '../api/inventory.api';
 import type { PaginatedResponse } from '../types/common.types';
-import type { Item, PurchaseOrder, PurchaseOrderListRow, PurchaseOrderSummary } from '../types/inventory.types';
+import type { Item, PurchaseOrder, PurchaseOrderListRow, PurchaseOrderSummary, PreprocessingQueueResponse } from '../types/inventory.types';
 
 type PurchaseOrdersQueryOptions = Pick<
   UseQueryOptions<PaginatedResponse<PurchaseOrderListRow>>,
@@ -192,6 +195,18 @@ export function usePurchaseOrders(
     enabled: enabled !== false,
     placeholderData,
     staleTime,
+  });
+}
+
+export function usePreprocessingQueue(enabled = true) {
+  return useQuery<PreprocessingQueueResponse>({
+    queryKey: ['preprocessingQueue'],
+    queryFn: async () => {
+      const { data } = await getPreprocessingQueue();
+      return data;
+    },
+    enabled,
+    staleTime: 15_000,
   });
 }
 
@@ -473,6 +488,7 @@ export function useProcessManifest() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', variables.orderId] });
       queryClient.invalidateQueries({ queryKey: ['manifestRowsRaw'] });
+      queryClient.invalidateQueries({ queryKey: ['preprocessingQueue'] });
     },
   });
 }
@@ -579,6 +595,7 @@ export function useClearManifestRows() {
       queryClient.invalidateQueries({ queryKey: ['aiCleanupStatus', orderId] });
       queryClient.invalidateQueries({ queryKey: ['manualReview', orderId] });
       queryClient.invalidateQueries({ queryKey: ['manifestRowsRaw'] });
+      queryClient.invalidateQueries({ queryKey: ['preprocessingQueue'] });
     },
   });
 }
@@ -703,17 +720,25 @@ export function useFinalizePreprocessing() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (orderId: number) => {
-      const { data } = await finalizePreprocessing(orderId);
+    mutationFn: async ({
+      orderId,
+      rows,
+    }: {
+      orderId: number;
+      rows?: import('../api/inventory.api').PreprocessingReviewRowUpdate[];
+    }) => {
+      const { data } = await finalizePreprocessing(orderId, rows?.length ? { rows } : {});
       return data;
     },
-    onSuccess: (_data, orderId) => {
+    onSuccess: (_data, variables) => {
+      const orderId = variables.orderId;
       queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', orderId] });
       queryClient.invalidateQueries({ queryKey: ['manualReview', orderId] });
       queryClient.invalidateQueries({ queryKey: ['preprocessingReview', orderId] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       queryClient.invalidateQueries({ queryKey: ['items'] });
       queryClient.invalidateQueries({ queryKey: ['batchGroups'] });
+      queryClient.invalidateQueries({ queryKey: ['preprocessingQueue'] });
     },
   });
 }
@@ -790,12 +815,39 @@ export function useUploadCleanupCsv() {
   });
 }
 
+export function useUploadCleanupCsvRows() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ orderId, rows }: { orderId: number; rows: import('../api/inventory.api').CleanupCsvApplyRowPayload[] }) => {
+      const { data } = await uploadCleanupCsvRows(orderId, rows);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: ['preprocessingReview', variables.orderId] });
+    },
+  });
+}
+
 export function usePreprocessingStatus(orderId: number | null | undefined) {
   return useQuery({
     queryKey: ['preprocessingStatus', orderId],
     queryFn: async () => {
       if (!orderId) return null;
       const { data } = await getPreprocessingStatus(orderId);
+      if (import.meta.env.DEV) {
+        const ms = data.order?.manifest_sample;
+        prepS1('react-query preprocessing-status fetched', {
+          orderId,
+          has_manifest_file: data.order?.has_manifest_file,
+          manifest_sample_null: ms == null,
+          headers_len: ms?.headers?.length ?? 0,
+          rows_len: ms?.rows?.length ?? 0,
+          template_mappings_len: ms?.template_mappings?.length ?? 0,
+          matching_templates_len: ms?.matching_templates?.length ?? 0,
+          header_sample: (ms?.headers ?? []).slice(0, 8),
+        });
+      }
       return data;
     },
     enabled: !!orderId,

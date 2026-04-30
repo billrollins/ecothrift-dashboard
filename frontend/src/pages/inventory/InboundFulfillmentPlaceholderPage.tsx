@@ -3,7 +3,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
 const VIEW_TITLES: Record<string, string> = {
   orders: 'Orders',
-  manifest: 'Manifest prep',
+  manifest: 'Preprocessing',
   receiving: 'Receiving',
   processing: 'Processing',
   finalization: 'Finalization',
@@ -35,7 +35,7 @@ export default function InboundFulfillmentPlaceholderPage() {
       <Card variant="outlined">
         <CardContent>
           <Typography variant="body2">
-            Open legacy inventory tools (orders, manifest prep, processing, settings) from one place:
+            Open legacy inventory tools (orders, preprocessing, processing, settings) from one place:
           </Typography>
           <Button sx={{ mt: 2 }} variant="contained" size="small" onClick={() => navigate('/inventory/legacy')}>
             Legacy inventory pages

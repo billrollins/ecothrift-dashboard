@@ -1,11 +1,12 @@
-<!-- initiative: slug=ui-ux-polish status=active updated=2026-04-15 -->
-<!-- Last updated: 2026-04-16T14:35:00-05:00 (Session 7 — v2.15.0–v2.15.3 release train) -->
+<!-- initiative: slug=ui-ux-polish status=archived updated=2026-04-16 -->
+<!-- Archived 2026-04-16: disposition=completed — buying UX polish train through v2.15.x -->
+<!-- Last updated: 2026-04-30 (See also links; bstock path text) -->
 
 > **Superseded:** Thru column replaced by Recovery (recovery_rate refactor, v2.16.0). See CHANGELOG.
 
 # Initiative: UI/UX polish and metric corrections
 
-**Status:** Active
+**Status:** Archived (completed)
 
 ---
 
@@ -143,7 +144,7 @@ committed as **v2.11.2** (release includes `CHANGELOG` **2.11.2**, `.version`, r
 #### Session updates
 
 - `2026-04-13T14:00:00-05:00` **Session close** — **`v2.12.0`** shipped in one commit with cached item list total count.
-- `2026-04-13T15:30:00-05:00` **`session_close.md`** — Finalized `#### Result` with short hash; `manage.py check`, `tsc --noEmit`, `compileall` on `apps/`; `.ai/context.md` version pointer; **push** to `origin/main` still pending locally.
+- `2026-04-13T15:30:00-05:00` **`session.9.Close.md`** — Finalized `#### Result` with short hash; `manage.py check`, `tsc --noEmit`, `compileall` on `apps/`; `.ai/context.md` version pointer; **push** to `origin/main` still pending locally.
 - `2026-04-13T15:35:00-05:00` **Docs commit** — `.ai/context.md`, `.ai/consultant_context.md` aligned to **v2.12.0** (session_close Part 2).
 
 #### Result
@@ -293,7 +294,7 @@ Shipped as **v2.15.0** (see root `CHANGELOG.md` section **[2.15.0]**).
 - `2026-04-16T10:15:00-05:00` `useLiveBuyingCountdown` hook — per-row 1 s interval only under threshold (avoids parent re-renders); reused on desktop list + detail.
 - `2026-04-16T11:00:00-05:00` `ManifestQueueDialog` (Next up + Pull log) + `ManifestPullProgressPanel` + `useBuyingManifestPullProgress` wire into anonymous manifest pull queue; `BuyingSweepProgressDialog` replaces inline sweep status.
 - `2026-04-16T12:00:00-05:00` `CategoryNeedDetail` redesigned around raw 1–99 inputs + "sold-items window since"; `CategoryNeedBars` / `NeedPill` aligned to same thresholds.
-- `2026-04-16T13:00:00-05:00` `AssumptionsPage` stub (admin) — placeholder for staff-editable universal defaults (B6 captured in `.ai/initiatives/ui_ux_polish.md` (todo B6)); implementation deferred.
+- `2026-04-16T13:00:00-05:00` `AssumptionsPage` stub (admin) — placeholder for staff-editable universal defaults (B6 captured in `.ai/initiatives/_archived/_completed/ui_ux_polish.md` (todo B6)); implementation deferred.
 - `2026-04-16T14:35:00-05:00` Session close — docs + changelog + version sync for v2.15.3 release train; all open initiative Sessions closed.
 
 #### Result
@@ -304,6 +305,6 @@ Prepared for release as part of the **v2.15.3** release train (see root `CHANGEL
 
 ## See also
 
-- [`.ai/context.md`](../context.md) — project state
-- [`.ai/extended/frontend.md`](../extended/frontend.md) — React / buying UI
-- [`.ai/initiatives/bstock_auction_intelligence.md`](bstock_auction_intelligence.md) — buying valuation / category need product context
+- [`.ai/context.md`](../../../context.md) — project state
+- [`.ai/extended/frontend.md`](../../../extended/frontend.md) — React / buying UI
+- [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](./bstock_auction_intelligence.md) — buying valuation / category need product context

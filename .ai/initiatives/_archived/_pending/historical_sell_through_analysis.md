@@ -1,6 +1,6 @@
 <!-- Archived 2026-04-10: disposition=pending paused off main index (initial rates seeded manually v2.8.0; data-backed refinement deferred until needed) -->
 <!-- initiative: slug=historical-sell-through-analysis status=pending updated=2026-04-10 -->
-<!-- Last updated: 2026-04-10T14:15:00-05:00 -->
+<!-- Last updated: 2026-04-30 (bstock initiative link → _completed) -->
 # Initiative: Historical sell-through analysis
 
 **Status:** Pending — initial rates seeded manually (v2.8.0); data-backed refinement deferred until needed.
@@ -201,6 +201,6 @@ Completed — committed as v2.8.0 at `d863b4f` (seeds shipped with buying Phase 
 
 ## See also
 
-- [`.ai/initiatives/bstock_auction_intelligence.md`](../../bstock_auction_intelligence.md) Phase 5 (consumer of this data)
+- [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](../_completed/bstock_auction_intelligence.md) Phase 5 (consumer of this data)
 - `workspace/notebooks/category-research/` (prior Bin 2 analysis, taxonomy_v1)
 - `.ai/extended/databases.md` (database connection reference)

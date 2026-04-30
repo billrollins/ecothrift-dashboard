@@ -392,6 +392,21 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
         return bool(getattr(obj, 'manifest_id', None))
 
 
+class PreprocessingQueueOrderSerializer(serializers.ModelSerializer):
+    """Lean rows for GET …/orders/preprocessing-queue/ (navbar picker)."""
+
+    vendor_name = serializers.CharField(source='vendor_name_cache', read_only=True)
+    preprocessing_row_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PurchaseOrder
+        fields = ['id', 'order_number', 'vendor_name', 'preprocessing_row_count']
+
+    def get_preprocessing_row_count(self, obj):
+        prep = getattr(obj, 'preprocessing', None)
+        return prep.row_count if prep else 0
+
+
 class PurchaseOrderDetailSerializer(PurchaseOrderSerializer):
     manifest_row_count = serializers.SerializerMethodField()
 

@@ -1,24 +1,21 @@
 import { useRef, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  LinearProgress,
-  Paper,
-  Typography,
-} from '@mui/material';
+import { Alert, Box, Button, Typography } from '@mui/material';
 import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
 import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined';
-import { useDownloadCleanupCsv, useUploadCleanupCsv } from '../../hooks/useInventory';
+import type { CleanupCsvApplyRowPayload } from '../../api/inventory.api';
+import { useDownloadCleanupCsv } from '../../hooks/useInventory';
+import { parseNarrowCleanupCsv } from './preprocessing/cleanupCsv';
+import { preprocessingFonts } from './preprocessing/preprocessingTokens';
 
 interface RowProcessingPanelProps {
   orderId: number;
+  orderNumber?: string;
   rowCount: number;
-  cleanedRows: number;
-  completedStep: number;
-  onClearCleanup: () => void;
-  isClearingCleanup: boolean;
+  /** PreprocessingRow ids required in CSV (exactly once each). */
+  expectedRowIds: Set<number>;
+  /** Parent-owned validated payloads ready for JSON POST. */
+  validatedPayload: CleanupCsvApplyRowPayload[] | null;
+  onValidatedPayloadChange: (rows: CleanupCsvApplyRowPayload[] | null) => void;
 }
 
 interface LogEntry {
@@ -41,41 +38,42 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export function RowProcessingPanel({
   orderId,
+  orderNumber,
   rowCount,
-  cleanedRows,
+  expectedRowIds,
+  validatedPayload,
+  onValidatedPayloadChange,
 }: RowProcessingPanelProps) {
   const downloadCleanupCsv = useDownloadCleanupCsv();
-  const uploadCleanupCsv = useUploadCleanupCsv();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const logIdRef = useRef(0);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
-  const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const isBusy = downloadCleanupCsv.isPending || uploadCleanupCsv.isPending;
+  const isBusy = downloadCleanupCsv.isPending;
 
   const addLog = (message: string, level: LogEntry['level'] = 'info') => {
     logIdRef.current += 1;
-    setLogEntries((prev) => [
-      {
-        id: logIdRef.current,
-        timestamp: new Date(),
-        level,
-        message,
-      },
-      ...prev,
-    ].slice(0, 50));
+    setLogEntries((prev) =>
+      [
+        {
+          id: logIdRef.current,
+          timestamp: new Date(),
+          level,
+          message,
+        },
+        ...prev,
+      ].slice(0, 50),
+    );
   };
 
   const handleDownload = async () => {
     setErrorMessage('');
-    setStatusMessage('');
     addLog('Preparing cleanup CSV download...');
     try {
       const blob = await downloadCleanupCsv.mutateAsync(orderId);
-      downloadBlob(blob, `order-${orderId}-cleanup.csv`);
-      const message = `Downloaded cleanup source CSV with ${rowCount} row(s). Run local AI cleanup, then upload the narrow cleaned CSV.`;
-      setStatusMessage(message);
-      addLog(message, 'success');
+      const fname = `${(orderNumber || `order-${orderId}`).replace(/[^\w.\-]+/g, '_')}.csv`;
+      downloadBlob(blob, fname);
+      addLog(`Downloaded standardized manifest CSV (${rowCount} row(s)) for offline cleanup.`, 'success');
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       const message = detail || 'Failed to download cleanup CSV.';
@@ -84,123 +82,163 @@ export function RowProcessingPanel({
     }
   };
 
-  const handleUpload = async (file: File | undefined) => {
+  const validateAgainstExpected = (rows: CleanupCsvApplyRowPayload[]): string | null => {
+    if (rows.length !== expectedRowIds.size) {
+      return `Expected ${expectedRowIds.size} row(s), CSV has ${rows.length}.`;
+    }
+    const seen = new Set<number>();
+    for (const r of rows) {
+      if (!expectedRowIds.has(r.row_id)) return `Unknown row_id ${r.row_id} — not a preprocessing row for this order.`;
+      if (seen.has(r.row_id)) return `Duplicate row_id ${r.row_id}.`;
+      seen.add(r.row_id);
+    }
+    if (seen.size !== expectedRowIds.size) return 'Some preprocessing rows are missing from the CSV.';
+    return null;
+  };
+
+  const handleFile = async (file: File | undefined) => {
     if (!file) return;
     setErrorMessage('');
-    setStatusMessage('');
-    addLog(`Uploading ${file.name}...`);
+    onValidatedPayloadChange(null);
+    addLog(`Reading ${file.name}…`);
     try {
-      const result = await uploadCleanupCsv.mutateAsync({ orderId, file });
-      const message = `Upload complete: ${result.rows_updated}/${result.rows_seen} row(s) imported. Strict validation rejected ${result.rows_rejected}.`;
-      setStatusMessage(message);
-      addLog(message, result.rows_rejected ? 'warning' : 'success');
-      addLog(`Synced ${result.items_updated} item(s) and ${result.products_updated} product(s).`, 'success');
-      if (result.rejected_rows?.length) {
-        const preview = result.rejected_rows
-          .slice(0, 5)
-          .map((row) => `line ${row.line}: ${row.reason}`)
-          .join('; ');
-        addLog(`Rejected row details: ${preview}`, 'warning');
+      const text = await file.text();
+      const parsed = parseNarrowCleanupCsv(text);
+      if (!parsed.ok) {
+        const msg = parsed.error;
+        setErrorMessage(msg);
+        addLog(msg, 'error');
+        return;
       }
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      const message = detail || 'Failed to upload cleanup CSV.';
-      setErrorMessage(message);
-      addLog(message, 'error');
+      const rows: CleanupCsvApplyRowPayload[] = parsed.rows.map((r) => ({
+        row_id: typeof r.row_id === 'number' ? r.row_id : Number.parseInt(String(r.row_id), 10),
+        ai_title: String(r.ai_title ?? ''),
+        ai_brand: String(r.ai_brand ?? ''),
+        ai_model: String(r.ai_model ?? ''),
+        category: String(r.category ?? ''),
+        condition: String(r.condition ?? ''),
+        proposed_price: String(r.proposed_price ?? ''),
+      }));
+      const vErr = validateAgainstExpected(rows);
+      if (vErr) {
+        setErrorMessage(vErr);
+        addLog(vErr, 'error');
+        return;
+      }
+      onValidatedPayloadChange(rows);
+      addLog(`Validated ${rows.length} row(s) locally — click Run Cleanup in the toolbar to apply.`, 'success');
+    } catch {
+      const msg = 'Could not read CSV file.';
+      setErrorMessage(msg);
+      addLog(msg, 'error');
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  return (
-    <Box>
-      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Offline Cleanup CSV
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Download the source rows for local cleanup. Upload must be the strict narrow AI output CSV
-          with exactly: row_id, ai_title, ai_brand, ai_model, category, condition, proposed_price.
-          The upload validates the full file before applying any row changes.
-        </Typography>
+  const fnameBase = (orderNumber || `order-${orderId}`).replace(/[^\w.\-]+/g, '_');
 
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
-          <Button
-            variant="contained"
-            startIcon={<FileDownloadOutlined />}
-            onClick={() => void handleDownload()}
-            disabled={isBusy}
-          >
-            {downloadCleanupCsv.isPending ? 'Preparing CSV...' : 'Download Cleanup CSV'}
+  return (
+    <Box sx={{ fontFamily: preprocessingFonts.sans }}>
+      <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#1B4332', mb: 1 }}>
+        Offline AI Cleanup
+      </Typography>
+      <Typography sx={{ fontSize: 13, color: '#666', mb: 2, lineHeight: 1.5 }}>
+        Upload parses <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 12 }}>row_id, ai_title, ai_brand, ai_model, category, condition, proposed_price</Typography>{' '}
+        locally. Run Cleanup in the toolbar sends the validated rows to the server — no second validation round-trip.
+      </Typography>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5, mb: 2 }}>
+        <Box sx={{ border: '1px solid #DDD5C9', borderRadius: '8px', p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25, textAlign: 'center' }}>
+          <Box sx={{ width: 48, height: 48, borderRadius: '50%', bgcolor: '#F0F7F4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: '#2D6A4F', fontWeight: 700 }}>↓</Box>
+          <Typography sx={{ fontSize: 15, fontWeight: 700, color: '#1B4332', m: 0 }}>Download Cleanup CSV</Typography>
+          <Typography sx={{ fontFamily: preprocessingFonts.mono, fontSize: 13, color: '#2D6A4F', bgcolor: '#F0F7F4', px: 1.5, py: 0.5, borderRadius: 1, fontWeight: 600 }}>
+            {fnameBase}.csv
+          </Typography>
+          <Typography sx={{ fontSize: 11, px: 1, py: 0.25, borderRadius: '10px', bgcolor: '#E3F2FD', color: '#1565C0', fontWeight: 500 }}>{rowCount} rows</Typography>
+          <Button variant="contained" startIcon={<FileDownloadOutlined />} onClick={() => void handleDownload()} disabled={isBusy} sx={{ bgcolor: '#2D6A4F', textTransform: 'none', fontWeight: 600 }}>
+            {downloadCleanupCsv.isPending ? 'Preparing…' : 'Download CSV'}
           </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            hidden
-            onChange={(event) => void handleUpload(event.target.files?.[0])}
-          />
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={<UploadFileOutlined />}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isBusy}
-          >
-            {uploadCleanupCsv.isPending ? 'Uploading...' : 'Upload Completed CSV'}
-          </Button>
-          <Chip size="small" label={`${rowCount} standardized row(s)`} variant="outlined" />
-          <Chip size="small" label={`${cleanedRows} imported/cleaned`} color={cleanedRows ? 'success' : 'default'} variant="outlined" />
         </Box>
 
-        {isBusy && <LinearProgress sx={{ mb: 2 }} />}
-
-        {statusMessage && (
-          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setStatusMessage('')}>
-            {statusMessage}
-          </Alert>
-        )}
-        {errorMessage && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setErrorMessage('')}>
-            {errorMessage}
-          </Alert>
-        )}
-      </Paper>
-
-      <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.50' }}>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Upload Log
-        </Typography>
-        {logEntries.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            No CSV activity yet.
-          </Typography>
-        ) : (
-          <Box sx={{ display: 'grid', gap: 0.75 }}>
-            {logEntries.map((entry) => (
-              <Box key={entry.id} sx={{ display: 'flex', gap: 1, alignItems: 'baseline' }}>
-                <Typography variant="caption" color="text.disabled" sx={{ minWidth: 80 }}>
-                  {entry.timestamp.toLocaleTimeString()}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color={
-                    entry.level === 'error'
-                      ? 'error.main'
-                      : entry.level === 'warning'
-                        ? 'warning.dark'
-                        : entry.level === 'success'
-                          ? 'success.main'
-                          : 'text.secondary'
-                  }
-                >
-                  {entry.message}
-                </Typography>
-              </Box>
-            ))}
+        <Box sx={{ border: '1px solid #DDD5C9', borderRadius: '8px', p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25, textAlign: 'center' }}>
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              bgcolor: validatedPayload ? '#E8F5EE' : '#FFF3E0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 22,
+              color: validatedPayload ? '#2D6A4F' : '#B8860B',
+              fontWeight: 700,
+            }}
+          >
+            ↑
           </Box>
+          <Typography sx={{ fontSize: 15, fontWeight: 700, color: '#1B4332', m: 0 }}>Upload Completed CSV</Typography>
+          <Typography sx={{ fontFamily: preprocessingFonts.mono, fontSize: 13, color: '#2D6A4F', bgcolor: '#F0F7F4', px: 1.5, py: 0.5, borderRadius: 1, fontWeight: 600 }}>
+            {fnameBase}-cleaned.csv
+          </Typography>
+          <Typography sx={{ fontSize: 11, px: 1, py: 0.25, borderRadius: '10px', bgcolor: validatedPayload ? '#E8F5EE' : '#FFF3E0', color: validatedPayload ? '#2D6A4F' : '#B8860B', fontWeight: 500 }}>
+            {validatedPayload ? `${validatedPayload.length} validated` : '0 validated'}
+          </Typography>
+          <Box
+            component="label"
+            sx={{
+              border: '2px dashed #B8D4C8',
+              borderRadius: '8px',
+              px: 3,
+              py: 2,
+              cursor: 'pointer',
+              fontSize: 13,
+              color: '#666',
+              width: '100%',
+              boxSizing: 'border-box',
+            }}
+          >
+            <input ref={fileInputRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => void handleFile(e.target.files?.[0])} />
+            <Typography sx={{ pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+              <UploadFileOutlined fontSize="small" /> Choose narrow CSV…
+            </Typography>
+          </Box>
+          {validatedPayload && (
+            <Typography sx={{ fontSize: 14, fontWeight: 600, color: '#2D6A4F', px: 2, py: 1, bgcolor: '#D4EDDA', borderRadius: '6px' }}>
+              ✓ Validated — ready to apply
+            </Typography>
+          )}
+        </Box>
+      </Box>
+
+      {errorMessage && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setErrorMessage('')}>
+          {errorMessage}
+        </Alert>
+      )}
+
+      <Box sx={{ mt: 2, p: 1.5, bgcolor: '#f9f9f7', borderRadius: '6px', border: '1px solid #EDE8E0', fontFamily: preprocessingFonts.mono, fontSize: 11 }}>
+        <Typography sx={{ fontSize: 12, fontFamily: preprocessingFonts.sans, fontWeight: 600, mb: 1 }}>Upload log</Typography>
+        {logEntries.length === 0 ? (
+          <Typography sx={{ color: '#888' }}>No activity yet.</Typography>
+        ) : (
+          logEntries.map((entry) => (
+            <Box key={entry.id} sx={{ py: 0.25 }}>
+              <Typography component="span" sx={{ color: '#aaa', mr: 1 }}>{entry.timestamp.toLocaleTimeString()}</Typography>
+              <Typography
+                component="span"
+                sx={{
+                  color:
+                    entry.level === 'error' ? '#c0392b' : entry.level === 'warning' ? '#B8860B' : entry.level === 'success' ? '#2D6A4F' : '#555',
+                }}
+              >
+                {entry.message}
+              </Typography>
+            </Box>
+          ))
         )}
-      </Paper>
+      </Box>
     </Box>
   );
 }

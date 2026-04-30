@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-29 (`v2.20.0` — order_processing Session 5; vendor_avatars backlog TOC) -->
+<!-- Last updated: 2026-04-30 (preprocessing lean CSV note in unreleased CHANGELOG) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | **`v2.20.0`**: PO dashboard + preprocessing + **`for-receiving`** tiered ordering; **`/inventory/receiving`** redirect + orders **Receive** truck (**Session 5**); **`46e0996`** manifest CSV (**Session 3**). Offline Grok: `workspace/ai-cleanup-grok/` (gitignored — Session 2). WIP groundwork: **`order_processing_pipeline_rebuild` Session 4** (receiving models/migrations — superseded partially by Session 5 ship list). Supporting docs: [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md). |
+| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | Pipeline **`Orders → Preprocessing → Receiving → …`**: **Orders** + **Receiving** shipped (**`v2.20.0`**). **Next:** preprocessing UX (**lean **`download-cleanup-csv`** + offline apply** in **`CHANGELOG [Unreleased]`**). Ref: **[Preprocessing — target UX](order_processing_pipeline_rebuild.md#preprocessing--target-ux)** (Session 6). Prior: **`46e0996`** manifest CSV (Session 3); offline Grok (Session 2). Ref folder: [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md). |
 
 Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
 
@@ -48,7 +48,7 @@ Other `.md` files in this folder (e.g. buying or UI polish history) stay for **s
 
 - **Do not** bump repo root [`.version`](../.version) or [CHANGELOG.md](../../CHANGELOG.md) **only** because an initiative file was added, edited, or archived. That keeps **product semver** separate from **steering docs**.
 - **Do** add **`[Unreleased]`** bullets when **shipping code** that fulfills an initiative; you may cite the initiative filename for traceability.
-- **On release:** follow [`.ai/protocols/session_close.md`](../protocols/session_close.md) (bump `.version`, root `package.json`, new `CHANGELOG` section). **Patch vs minor** follows user-visible/API semver for the app—not “one minor bump per initiative.”
+- **On release:** follow [`.ai/protocols/session.9.Close.md`](../protocols/session.9.Close.md) (bump `.version`, root `package.json`, new `CHANGELOG` section). **Patch vs minor** follows user-visible/API semver for the app—not “one minor bump per initiative.”
 
 ---
 
@@ -65,7 +65,7 @@ Other `.md` files in this folder (e.g. buying or UI polish history) stay for **s
 
 1. **Confirm with the user** that the initiative should leave the active index.
 2. Follow [`.ai/initiatives/_archived/ARCHIVE.md`](./_archived/ARCHIVE.md) — disposition, `git mv`, archive marker, update **`ARCHIVE.md`** and **this** `_index.md` in one pass.
-3. Prefer the matching file under [`.ai/initiatives/_archived/_protocols/`](./_archived/_protocols/README.md) (`move_initiative_to_*`, `activate_initiative`) plus [`.ai/protocols/session_close.md`](../protocols/session_close.md) so **`.ai/context.md`** and **`CHANGELOG.md`** stay aligned.
+3. Prefer the matching file under [`.ai/initiatives/_archived/_protocols/`](./_archived/_protocols/README.md) (`move_initiative_to_*`, `activate_initiative`) plus [`.ai/protocols/session.9.Close.md`](../protocols/session.9.Close.md) so **`.ai/context.md`** and **`CHANGELOG.md`** stay aligned.
 
 ---
 

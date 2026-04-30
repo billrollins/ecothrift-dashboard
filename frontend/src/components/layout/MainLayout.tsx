@@ -121,7 +121,7 @@ export default function MainLayout() {
       )}
 
       {/* Main Content */}
-      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         {/* AppBar */}
         <AppBar
           position="sticky"
@@ -176,7 +176,17 @@ export default function MainLayout() {
         </AppBar>
 
         {/* Page Content */}
-        <Box component="main" sx={{ flexGrow: 1, p: 3, bgcolor: 'background.default' }}>
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            minWidth: 0,
+            maxWidth: '100%',
+            overflowX: 'hidden',
+            p: 3,
+            bgcolor: 'background.default',
+          }}
+        >
           <Outlet />
         </Box>
       </Box>

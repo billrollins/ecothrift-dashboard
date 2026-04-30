@@ -112,4 +112,4 @@ Before / alongside product work we added **hierarchical dev logging** so Add Ite
 ## See also
 
 - `.ai/extended/inventory-pipeline.md` — processing vs standalone add item.
-- `.ai/protocols/session_close.md` — session close, docs, version bump, handoff.
+- `.ai/protocols/session.9.Close.md` — session close, docs, version bump, handoff.

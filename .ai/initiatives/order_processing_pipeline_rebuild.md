@@ -1,5 +1,5 @@
-<!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-04-29 -->
-<!-- Last updated: 2026-04-29 (Session 5 — receiving entry + for-receiving ordering; v2.20.0) -->
+<!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-04-30 -->
+<!-- Last updated: 2026-04-30 (Step 2 steering: lean pre-AI download CSV vs ai_suggested_* apply) -->
 
 # Initiative: Order / Processing pipeline rebuild
 
@@ -9,7 +9,34 @@
 
 ## Umbrella product name — **Inbound fulfillment**
 
-Staff-facing umbrella for PO → manifest → dock receive → processing → finalize → disputes → shelf. Nav uses plain language first; URLs may remain `inventory/*` until reroutes.
+Staff-facing umbrella for **`Orders → Preprocessing → Receiving → Processing → Finalization → Disputes`**. Plain-language sidebar first; URLs may remain `inventory/*` until deliberate reroutes.
+
+---
+
+## Canonical pipeline sequence
+
+**Orders → Preprocessing → Receiving → Processing → Finalization → Disputes**
+
+| Stage | Meaning (high level) |
+|-------|----------------------|
+| **Orders** | PO list + detail — manifest upload (**Raw Manifest** CSV to S3), lifecycle, dashboards. |
+| **Preprocessing** | Standardize vendor CSV into internal shape (templates, staged rows, external clean step, review). |
+| **Receiving** | Dock receiving against the PO (pallets, shortages, discrepancy handling). **`/inventory/receiving`** / **`/inventory/receiving/:id`**. |
+| **Processing** | Item-level processing workspace (check-in, labels, batches). **`/inventory/processing`**. |
+| **Finalization** | Placeholder route until scoped. **`/inventory/inbound/finalization`**. |
+| **Disputes** | Placeholder route until scoped. **`/inventory/inbound/disputes`**. |
+
+---
+
+## Progress (rollup)
+
+| Stage | Status |
+|-------|--------|
+| **Orders** | **Shipped** — dashboard, create PO, order detail workspace, **`POST …/upload-manifest/`**, [`CHANGELOG [2.20.0]`](../../CHANGELOG.md). |
+| **Receiving** | **Shipped** — **`GET …/orders/for-receiving/`** tiered ED ordering; **`/inventory/receiving`** → next PO; **`OrderListPage`** receive truck; **`ReceivingOrderPage`** + desktop/mobile receiving UI. |
+| **Preprocessing** | **Next** — see [Preprocessing — target UX](#preprocessing--target-ux) (stepper rename, Standardize/Clean/Final Review, template-only Step 1 until apply, CSV round-trip Step 2, placeholder Step 3). |
+| **Processing** | In place; iterative hardening ongoing. **`/inventory/processing`** |
+| **Finalization / Disputes** | Roadmap placeholders. |
 
 ---
 
@@ -20,7 +47,7 @@ Subgroup headers under collapsible **Inventory**:
 | Subgroup | Sidebar entries | Route / notes |
 |----------|------------------|---------------|
 | **Inbound fulfillment** | Orders | `/inventory/orders` |
-| | Manifest prep | `/inventory/preprocessing` (legacy UI until replaced) |
+| | Preprocessing | `/inventory/preprocessing` (**`/inventory/preprocessing/:id`**); **`/inventory/preprocessing`** redirects via last-ID or empty state |
 | | Receiving | `/inventory/receiving` → next eligible PO (`ReceivingEntryRedirect`); work at `/inventory/receiving/:id` |
 | | Processing | `/inventory/processing` |
 | | Finalization | `/inventory/inbound/finalization` — roadmap placeholder |
@@ -33,6 +60,8 @@ Subgroup headers under collapsible **Inventory**:
 | **Admin** | Categories | `/inventory/admin/categories` — roadmap placeholder |
 | | Processing settings | `/inventory/processing` + **`#settings`** opens settings modal (`?settings=1` still honored) |
 | | Legacy inventory pages | `/inventory/legacy` — hub; **`/inventory/legacy/orders`** — legacy manifest/preprocessing/processing entry points ( **`/inventory/admin/legacy`** redirects here ) |
+
+**Label:** Sidebar and **PreprocessingPage** **`PageHeader`** title use **Preprocessing** — not ~~Manifest prep~~.
 
 ---
 
@@ -53,14 +82,14 @@ This initiative **replaces** the approach and shipped direction of **[Inventory 
 
 ## Objectives (brief)
 
-1. **Rebuild** staff-facing **Order** and **Processing** flows (and manifest/preprocessing steps as defined in later sessions) so they are coherent, maintainable, and match operational reality.
+1. **Rebuild** staff-facing flows so **Orders → … → Disputes** is coherent—especially **Preprocessing**, **Receiving**, **Processing**.
 2. **Remove or supersede** UI/API paths introduced under the abandoned initiative where they conflict with the new design—explicitly **not** layering fixes on top of the discarded approach.
 
 ---
 
 ## Acceptance
 
-To be refined after discovery sessions. High level: one PO can flow **order → manifest/intake → processing** without dead ends, with errors surfaced and docs kept current.
+High level: one PO can traverse **Orders → Preprocessing → Receiving → Processing** without dead ends; errors surfaced; **`CHANGELOG`** and extended docs kept current.
 
 ---
 
@@ -73,6 +102,62 @@ TBD per session. Buying auction manifests (`/buying/*`) remain a separate domain
 ## Backend follow-ups (tracked)
 
 - **`est_shrink` on purchase orders:** Serializer currently keeps **`est_shrink`** read-only; **`PurchaseOrder.save`** applies default shrink from **`get_default_po_est_shrink()`**. Before staff can tune shrink from the **order detail** UI (not the create modal), add an explicit write path + validation on **`PurchaseOrderSerializer`** and ensure saves still trigger item cost recompute. Create modal intentionally omits **`est_shrink`** until then.
+
+---
+
+## Preprocessing — target UX
+
+_Next implementation (tracked here; shipping is Session 6)._
+
+**Route:** keep **`/inventory/preprocessing`** and **`/inventory/preprocessing/:id`** unless we decide a clearer path later (either is fine).
+
+**Global chrome**
+
+- **Stepper across the top** (visual): **1. Standardize** → **2. Clean** → **3. Final Review**
+  - Highlight the **active** step.
+  - **Grey out** steps not yet reachable (future steps).
+  - **Checkmark** completed steps.
+
+---
+
+### Step 1 — Standardize
+
+Template matching / creation. This is **not** the old “instant write to DB” story until **Apply**.
+
+- **On load:** try to match the order’s manifest to an existing vendor/signature **template**.
+- **If no match:** user creates a template manually or with AI assistance.
+- **Preview data source:** **only** the order model’s **`manifest_preview`** (**manifest sample JSON**). **Do not** read or mutate the canonical CSV object on AWS/S3 **during editing**—only **`manifest_preview`** drives the UI.
+- **Session-only transforms:** all field mappings and transform definitions run on **session / draft state**. **Nothing persists** until the user explicitly **Save / Apply**.
+- **Preview timing:** preview updates **on user interaction** only (formula change, toggle, blur, explicit refresh)—**not** polling, not background auto-refresh.
+- **On Save / Apply (commit):**
+  - If linking an **existing** template: persist **template ID** on the preprocessing order row (or equivalent association).
+  - If **new** template: **create** template row **first**, **then** link it.
+  - **Then:** load CSV from AWS, apply the template pipeline, generate **standardized preprocessing rows** (`process-manifest`/successor semantics).
+- **After apply:** Step 1 is **locked** visually—read-only / finalized; treated as complete.
+- **Undo / change template (full reset):** delete **all** preprocessing staged rows for this PO, clear preprocessing state **as if new**. Confirmation modal:  
+  **“This will delete all preprocessing data and start over. Are you sure?”**
+
+---
+
+### Step 2 — Clean
+
+Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
+
+- **Download:** export standardized preprocessing rows as **CSV**.
+  - Filename: **order number**, e.g. **`C5TC0-OM1-A8R3.csv`** (**no** `-cleaned` suffix).
+- **Upload:** user uploads the cleaned file back.
+  - **Convention:** **`{order number}-cleaned.csv`** expected.
+  - **Behavior:** **update existing** preprocessing rows — populate **`ai_*`** prefixed columns (and any agreed cleanup fields)—**do not create new rows**; merge by stable row identifiers as defined when implemented.
+- **Export vs apply:** **`GET …/download-cleanup-csv`** delivers a standardized **pre-AI** snapshot (standard row fields plus **`base_cost`** / **`ideal_price`**—no AI-only columns). **`upload-cleanup-csv`** / **`apply-cleanup-csv`** still merge cleanup outputs into **`ai_suggested_*`** (and related fields) on **`PreprocessingRow`** / **`ManifestRow`** by **`row_id`**—that narrow payload is separate from the download schema.
+
+---
+
+### Step 3 — Final Review
+
+**Placeholder until spec’d.**
+
+- Page title **Final Review**; body copy along the lines of **Coming soon**.
+- Later: manual walk-through of each row — pricing adjustments and other corrections (full spec **next iteration**).
 
 ---
 
@@ -95,7 +180,7 @@ TBD per session. Buying auction manifests (`/buying/*`) remain a separate domain
 ### Session 3 — PO Raw Manifest CSV (git: `46e0996`)
 
 - **Evidence:** local commit **`46e0996`** — **`feat(inventory): PO manifest upload + review_bump steering`** (`git show --stat`).
-- **Scope:** `apps/inventory/views.py` (manifest upload / remove / staging expectations); **`OrderDetailPage.tsx`** Raw Manifest flow; **`PreprocessingPage.tsx`** small wiring; **`frontend/src/api/inventory.api.ts`**, **`frontend/src/types/inventory.types.ts`**; **`CHANGELOG.md`** **`[Unreleased]`** inventory manifest bullets expanded; `.ai/context.md`, `.ai/consultant_context.md`, `.ai/extended/{backend,frontend,inventory-pipeline}.md`; `.ai/protocols/review_bump.md`; `.ai/initiatives/_index.md`; additional initiative bookkeeping files per **`git show --stat 46e0996`**.
+- **Scope:** `apps/inventory/views.py` (manifest upload / remove / staging expectations); **`OrderDetailPage.tsx`** Raw Manifest flow; **`PreprocessingPage.tsx`** small wiring; **`frontend/src/api/inventory.api.ts`**, **`frontend/src/types/inventory.types.ts`**; **`CHANGELOG.md`** **`[Unreleased]`** inventory manifest bullets expanded; `.ai/context.md`, `.ai/consultant_context.md`, `.ai/extended/{backend,frontend,inventory-pipeline}.md`; `.ai/protocols/review.0.Bump.md`; `.ai/initiatives/_index.md`; additional initiative bookkeeping files per **`git show --stat 46e0996`**.
 - **Finish line (for this slice):** doc + changelog alignment with unreleased backend/FE prep; semver bump deferred per protocol until explicit release (`session_close`).
 
 ### Session 4 — Inbound receiving + preprocessing primitives (working tree only)
@@ -111,6 +196,28 @@ TBD per session. Buying auction manifests (`/buying/*`) remain a separate domain
 - **Scope:** `apps/inventory/views.py` (for-receiving ordering + tests); `ReceivingEntryRedirect.tsx`; `App.tsx`; `OrderListPage.tsx`; `ReceivingOrderPage.tsx`; removed `ReceivingListPage.tsx`.
 - **Finish line:** Sidebar **Receiving** and orders **Receive** both land staff on dock receive for the right PO by **expected_delivery** priority.
 - **Start:** 2026-04-29
+
+### Session 6 — Preprocessing (**next**)
+
+- **Goal:** Implement [Preprocessing — target UX](#preprocessing--target-ux) above: stepper **Standardize / Clean / Final Review**, Step 1 semantics (**`manifest_preview` only** until apply), Step 2 CSV **`{order}-cleaned`** upload into **`ai_*`** columns, Step 3 placeholder.
+- **Scope (initial):** `PreprocessingPage.tsx` + preprocessing-related API/views/models as needed; **`Sidebar.tsx`** entry already **Preprocessing**; **`MainLayout`/document title parity** — keep route **`/inventory/preprocessing`** unless we deliberately rename URLs.
+- **Finish line:** Staff can describe the three-step story without contradicting persisted data rules above; changelog + extended docs when shipped.
+- **Start:** when picked up (**TBD**)
+
+### Session 7 — Startup + `ai-cleanup-grok` review
+
+- **Goal:** Run **`code.0.Startup`**: load **`.ai/context.md`**, version (**`v2.20.0`**), **`CHANGELOG`** (`[Unreleased]` + **`[2.20.0]`**), **`.ai/initiatives/_index.md`** + **`ARCHIVE.md`**, terminals check; deliver a concise **code review** of **`workspace/ai-cleanup-grok/`** (offline Grok CSV cleanup harness).
+- **Finish line:** Startup summary + review notes in session chat; this session block recorded.
+- **Scope:** Read-only assessment of **`clean-grok.mjs`**, **`.config`**, **`helpers/build-amazon-examples.mjs`**, **`prompts/`**; no repo product code changes.
+- **Out of scope:** Session 6 preprocessing implementation; committing **`workspace/`** (remains gitignored unless whitelisted).
+- **Start:** 2026-04-30
+
+### Session 8 — Startup + Preprocessing Step 2 (Clean) understanding
+
+- **Goal:** Run **`code.0.Startup`** and map **initiative Step 2 — Clean** to the **current shipped** preprocessing UI/API.
+- **Finish line:** Startup checklist + concise explanation of Step 2 flow (download → offline edit → upload → apply) and naming/label gaps vs target UX.
+- **Scope:** Read-only: **`.ai/context.md`**, **`.version`**, **`CHANGELOG`** top, **`_index.md`**, initiative file, **`PreprocessingPage`**, **`CleanupStep`**, **`RowProcessingPanel`**, inventory views cleanup endpoints.
+- **Start:** 2026-04-30
 
 ---
 

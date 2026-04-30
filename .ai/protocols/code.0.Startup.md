@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T23:30:00-05:00 (efforts/ handoff step 1b) -->
+<!-- Last updated: 2026-04-30 (consultant_context scope note) -->
 # Protocol: Session Startup
 
 How to begin a new AI session on this project.
@@ -9,9 +9,9 @@ How to begin a new AI session on this project.
 
 **Modular `.ai/` (default for coding agents)** — **`.ai/initiatives/`**, **`.ai/extended/<domain>.md`**, and deep initiative files exist so an agent can load **only what the task needs**. That keeps sessions focused and avoids burning context on domains that are not in scope.
 
-**Single-file consultant handoff** — **`.ai/consultant_context.md`** is a **single, information-dense** document for **external advisors** (and for sessions whose goal is to **review or edit** that handoff). It is meant to be **all-encompassing** for its topic: business context, architecture, APIs, phases, gotchas, and open questions in one place. It does **not** replace initiatives or extended docs for implementers; it **consolidates** what a consultant must see without chasing multiple trees.
+**Single-file consultant handoff** — **`.ai/consultant_context.md`** is a **single, information-dense** document for **external advisors** (and for sessions whose goal is to **review or edit** that handoff). It opens with **whole-product** stack and domains, then goes deep on **B-Stock**, manifests, and legacy data—so advisors can skim the top or read the full appendix as needed. It does **not** replace initiatives or extended docs for implementers; it **consolidates** what a consultant must see without chasing every file.
 
-- **Coding / implementation sessions:** follow the steps below (read `context.md`, initiatives as needed, **extended only on demand**). Do **not** assume you must read `consultant_context.md` unless the user is steering toward consultant prep or B-Stock advisory context.
+- **Coding / implementation sessions:** follow the steps below (read `context.md`, initiatives as needed, **extended only on demand**). Do **not** assume you must read `consultant_context.md` unless the user is steering toward **consultant prep** or a **cross-app / advisor** snapshot.
 - **Consultant-facing or “explain the whole initiative” sessions:** read **`.ai/consultant_context.md`** in full (and still use `context.md` + `_index.md` if the task spans multiple initiatives).
 
 ---
@@ -32,7 +32,7 @@ How to begin a new AI session on this project.
 
 4. **Check initiatives.**
    - Read **`.ai/initiatives/_index.md`** for **active**, **on hold**, and **backlog** initiatives, and **`.ai/initiatives/_archived/ARCHIVE.md`** for archived work. **Lifecycle how-tos** (`activate_initiative`, `move_initiative_to_*`): **`.ai/initiatives/_archived/_protocols/README.md`**. Priorities also live in `CHANGELOG.md` (`[Unreleased]`) and the user’s message.
-   - **Alignment:** Substantial or multi-session work should map to a **named initiative** (file + row in `_index.md`). **Repo version bumps** (major / minor / patch) relate to **what shipped** and should stay traceable to initiatives and user-visible/API semver — see `.ai/protocols/session_close.md` Part 2 (version bump gate). If it is unclear **which initiative** the session continues or which one a release would fulfill, **ask the user** to name it or to **create** a new initiative (add `.md` + row in `_index.md`) before treating scope as settled.
+   - **Alignment:** Substantial or multi-session work should map to a **named initiative** (file + row in `_index.md`). **Repo version bumps** (major / minor / patch) relate to **what shipped** and should stay traceable to initiatives and user-visible/API semver — see `.ai/protocols/session.9.Close.md` Part 2 (version bump gate). If it is unclear **which initiative** the session continues or which one a release would fulfill, **ask the user** to name it or to **create** a new initiative (add `.md` + row in `_index.md`) before treating scope as settled.
 
 5. **Load extended context only when needed.**
    - The **Extended docs TOC** in **`.ai/context.md`** lists every file in `.ai/extended/` with a one-line description. Use it to pick the right file for your domain. Do **not** read all extended files at session start. (Consultants needing a **single full picture** should use **`.ai/consultant_context.md`** instead — see **Audience** above.)
@@ -61,7 +61,7 @@ How to begin a new AI session on this project.
    - If the work is **non-trivial** but has **no initiative**, **stop** and ask the user to name one or create it (add `.md` + row in `_index.md`) before writing code.
    - The session goal is **written to disk**, not only discussed in chat.
 
-9. **During the session,** run **`.ai/protocols/session_checkpoint.md`** on a steady cadence (roughly every 1–2 hours or after each mergeable chunk) to append **Session updates**, keep **`CHANGELOG` `[Unreleased]`** honest, and touch **extended** docs when behavior changes. **End** the session with **`session_close.md`** (not repeated checkpoints).
+9. **During the session,** run **`.ai/protocols/session.1.Checkpoint.md`** on a steady cadence (roughly every 1–2 hours or after each mergeable chunk) to append **Session updates**, keep **`CHANGELOG` `[Unreleased]`** honest, and touch **extended** docs when behavior changes. **End** the session with **`session.9.Close.md`** (not repeated checkpoints).
 
 ---
 
@@ -70,7 +70,7 @@ How to begin a new AI session on this project.
 - Do NOT read every file in `.ai/extended/` at session start — load domain files on demand (step 5). Do **not** treat **all** initiatives as required reading unless the task is cross-cutting or consultant-style (then prefer **`consultant_context.md`** where it applies).
 - Do NOT run migrations, seeds, or builds unless asked.
 - Do NOT commit, push, or deploy anything.
-- Do NOT create or modify documentation unless asked (exceptions: **step 8** session entry when mapping to an initiative; **`session_checkpoint.md`** / **`session_close.md`** when the user or protocol calls for those passes).
+- Do NOT create or modify documentation unless asked (exceptions: **step 8** session entry when mapping to an initiative; **`session.1.Checkpoint.md`** / **`session.9.Close.md`** when the user or protocol calls for those passes).
 - Do NOT assume **which initiative** is in scope when the user’s message and `_index.md` leave it ambiguous — ask, or confirm a new initiative should be added.
 - Do **not** move or archive initiative files under `.ai/initiatives/` unless the **user explicitly** says to (or confirms when asked).
 
@@ -80,15 +80,17 @@ How to begin a new AI session on this project.
 
 | Protocol | When | Purpose |
 |----------|------|---------|
-| **`startup.md`** (this) | Session start | Load context; **frame session**; **create session entry** |
-| **`session_checkpoint.md`** | **Several times** per session | Session updates + **`[Unreleased]`** + light docs |
-| `get_bearing.md` | Mid-session when stuck / drifting | Compare progress to written session goal |
-| `review_bump.md` | Isolated docs audit + semver + `CHANGELOG` | Checklist + bump matrix; optional **`commit_message.txt`** + **`2_push_github.bat`** (Part 5); no `Result` by itself |
-| `session_close.md` | **End** of session / before commit | Record **`Result`**, docs, version bump, commit message |
+| **`code.0.Startup.md`** (this) | Session start | Load context; **frame session**; **create session entry** |
+| `session.0.Create.md` | Reserved | Placeholder; session-block-only protocol TBD (today: step 8 in this file). |
+| **`session.1.Checkpoint.md`** | **Several times** per session | Session updates + **`[Unreleased]`** + light docs |
+| `code.1.Bearing.md` | Mid-session when stuck / drifting | Compare progress to written session goal |
+| `review.0.Bump.md` | Isolated docs audit + semver + `CHANGELOG` | Checklist + bump matrix; optional **`commit_message.txt`** + **`2_push_github.bat`** (Part 5); no `Result` by itself |
+| `review.1.Deep.md` | Full repo/context audit | Generates human-readable reports + plan under `.ai/reference/deep_dive/latest/`; does not execute changes by default |
+| `session.9.Close.md` | **End** of session / before commit | Record **`Result`**, docs, version bump, commit message |
 | [`extended/consultant_handoff.md`](../extended/consultant_handoff.md) | Mid-session or rotation | Spot-check docs + **flat** copy to **`workspace/to_consultant/files-update/`** |
 
 ---
 
 ## Next protocols
 
-During work: **`.ai/protocols/session_checkpoint.md`**. When stuck: **`get_bearing.md`**. Docs audit + bump slice only: **`review_bump.md`**. When finishing: **`session_close.md`**. Consultant handoff: **[`extended/consultant_handoff.md`](../extended/consultant_handoff.md)**.
+During work: **`.ai/protocols/session.1.Checkpoint.md`**. When stuck: **`code.1.Bearing.md`**. Docs audit + bump slice only: **`review.0.Bump.md`**. Full context refresh / report set: **`review.1.Deep.md`**. When finishing: **`session.9.Close.md`**. Consultant handoff: **[`extended/consultant_handoff.md`](../extended/consultant_handoff.md)**.

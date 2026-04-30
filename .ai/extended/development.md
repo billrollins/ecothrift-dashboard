@@ -90,7 +90,7 @@ If **POS registers** or **supplemental drawer** rows are missing (e.g. after `re
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |
 
-**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See `.ai/protocols/session_close.md`.
+**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See `.ai/protocols/session.9.Close.md`.
 
 **Jupyter (DB1 / DB2 / DB3):** From repo root: `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` (and `jupyter` / `jupyterlab` as needed). Copy **`workspace/notebooks/_shared/config.example.py`** → **`config_local.py`** (gitignored) for multi-DB connection dicts aligned with root **`.env`**.
 

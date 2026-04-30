@@ -88,4 +88,4 @@ Let staff **upload a photo per vendor** that serves as a **visual avatar** (repl
 
 ## Sessions
 
-_When this leaves backlog and work starts, add **`## Sessions`** blocks in the file at the initiatives root per [`.ai/protocols/startup.md`](../../../protocols/startup.md) step 8._
+_When this leaves backlog and work starts, add **`## Sessions`** blocks in the file at the initiatives root per [`.ai/protocols/code.0.Startup.md`](../../../protocols/code.0.Startup.md) step 8._

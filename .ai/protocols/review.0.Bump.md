@@ -1,12 +1,12 @@
-<!-- Last updated: 2026-04-28 (review_bump: local safety commit) -->
+<!-- Last updated: 2026-04-30 (bstock initiative example path in table) -->
 # Protocol: Review & Bump (docs audit → `.version` → `CHANGELOG` → local commit)
 
-**Scope:** Docs-audit + semver bump + `CHANGELOG` update + **local** `git add` / `git commit` with a **short** message. This is a **slice** of `session_close.md` — use when the user wants those without a full session close. **Optional:** grow **`scripts/deploy/commit_message.txt`** for the eventual push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**). **Push** stays separate: frequent local commits protect against lost work; only reviewed work goes to GitHub or production via `session_close.md` / deploy scripts.
+**Scope:** Docs-audit + semver bump + `CHANGELOG` update + **local** `git add` / `git commit` with a **short** message. This is a **slice** of `session.9.Close.md` — use when the user wants those without a full session close. **Optional:** grow **`scripts/deploy/commit_message.txt`** for the eventual push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**). **Push** stays separate: frequent local commits protect against lost work; only reviewed work goes to GitHub or production via `session.9.Close.md` / deploy scripts.
 
 **Not this protocol:**
-- Session entry bookkeeping (`#### Result`, Session updates) → `session_checkpoint.md` / `session_close.md`.
-- Full pre-commit matrix / explicit user “commit” request → `session_close.md` Part 3.
-- Orientation when drifted → `get_bearing.md`.
+- Session entry bookkeeping (`#### Result`, Session updates) → `session.1.Checkpoint.md` / `session.9.Close.md`.
+- Full pre-commit matrix / explicit user “commit” request → `session.9.Close.md` Part 3.
+- Orientation when drifted → `code.1.Bearing.md`.
 
 ---
 
@@ -70,7 +70,7 @@ grep -oE '\[.*\]\(\./[a-z_]+\.md\)' .ai/initiatives/_index.md
 ### 1D. Gotchas (things that are almost always wrong)
 
 - `frontend/package.json` `"version"` is **independently versioned** (`0.0.0`). **Do not** bump.
-- `.env` / secrets must never be committed. `git diff --cached` review is in `session_close.md`, not here — but flag if you see one.
+- `.env` / secrets must never be committed. `git diff --cached` review is in `session.9.Close.md`, not here — but flag if you see one.
 - `CHANGELOG.md` entries live at **root**, not under `.ai/`.
 - Initiative `## Sessions` entries are **append-only** — never rewrite a prior session's `#### Result`.
 
@@ -83,7 +83,7 @@ grep -oE '\[.*\]\(\./[a-z_]+\.md\)' .ai/initiatives/_index.md
 ### 2A. Gate — bump ONLY if
 
 1. User explicitly asked for a release, OR
-2. Work ships a user-visible / API-relevant change and this is `session_close.md` (not a checkpoint), AND
+2. Work ships a user-visible / API-relevant change and this is `session.9.Close.md` (not a checkpoint), AND
 3. You can **name the initiative** the release fulfills (or explicitly declare "outside initiatives" hotfix).
 
 If any of those three fail → **do not bump**; log under `[Unreleased]` in `CHANGELOG.md` and stop.
@@ -172,7 +172,7 @@ User-facing theme: **<one-sentence what shipped>**.
 | Rule | Enforcement |
 |---|---|
 | Bullets are **1–2 sentences**, not paragraphs | If >2 sentences, split or prune |
-| Cite **initiative filename** when the bullet continues a tracked initiative | `see [bstock_auction_intelligence.md](...)` |
+| Cite **initiative filename** when the bullet continues a tracked initiative | `see [.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md](...)` (or active initiative path under `.ai/initiatives/`) |
 | Cite **file / model / endpoint / command names** in backticks | `` `recompute_buying_valuations` ``, `` `POST /api/auth/login/` `` |
 | Cite **migration numbers** for schema changes | `` migration `0023_po_est_shrink_remove_cost_pipeline_fields` `` |
 | Do **not** include implementation narrative | Move that to commit message body |
@@ -211,7 +211,7 @@ All of:
 
 ### 4B — Local `git add` / `git commit` (no push)
 
-**Goal:** Checkpoint work often so long stretches are not vulnerable to loss or corruption. This is **local only** — it does **not** replace `session_close.md` Part 3 or **`2_push_github.bat`** for pushing **clean, reviewed** code to GitHub or production.
+**Goal:** Checkpoint work often so long stretches are not vulnerable to loss or corruption. This is **local only** — it does **not** replace `session.9.Close.md` Part 3 or **`2_push_github.bat`** for pushing **clean, reviewed** code to GitHub or production.
 
 **When:** After Part 4A passes, if there is anything meaningful to save (`git status` shows changes you intend to keep). If the tree is already clean, skip.
 
@@ -230,7 +230,7 @@ git commit -m "<short subject line>"
 
 **Do not** `git push` as part of this protocol unless the user explicitly asked to push now.
 
-After committing, hand back to the user or continue to `session_close.md` Part 3 when ready for pre-push review and remote push.
+After committing, hand back to the user or continue to `session.9.Close.md` Part 3 when ready for pre-push review and remote push.
 
 ---
 
@@ -257,8 +257,8 @@ After committing, hand back to the user or continue to `session_close.md` Part 3
 
 | Protocol | Role vs this one |
 |---|---|
-| `startup.md` | Creates the session entry this protocol updates `_index.md` / initiative file for |
-| `session_checkpoint.md` | Lighter pulse — `[Unreleased]` only, never `.version` |
-| `get_bearing.md` | Use when you're not sure what changed — do that before this protocol |
-| **`review_bump.md`** (this) | Docs audit + semver + CHANGELOG + **local** short commit |
-| `session_close.md` | Superset — calls this protocol's work AND sets `#### Result` / `commit_message.txt` / pre-commit / **push** |
+| `code.0.Startup.md` | Creates the session entry this protocol updates `_index.md` / initiative file for |
+| `session.1.Checkpoint.md` | Lighter pulse — `[Unreleased]` only, never `.version` |
+| `code.1.Bearing.md` | Use when you're not sure what changed — do that before this protocol |
+| **`review.0.Bump.md`** (this) | Docs audit + semver + CHANGELOG + **local** short commit |
+| `session.9.Close.md` | Superset — calls this protocol's work AND sets `#### Result` / `commit_message.txt` / pre-commit / **push** |

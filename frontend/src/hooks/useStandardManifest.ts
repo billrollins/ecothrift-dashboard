@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   FormulaMapping,
   ManifestColumnMapping,
   StandardColumnDefinition,
   StandardManifestMapping,
 } from '../api/inventory.api';
+import { prepS1 } from '../utils/preprocessingStep1Diag';
 
 export type StandardFunctionId =
   | 'trim'
@@ -34,7 +35,7 @@ const FALLBACK_STANDARD_COLUMNS: StandardColumnDefinition[] = [
   { key: 'model', label: 'Model', required: false },
   { key: 'category', label: 'Category', required: false },
   { key: 'condition', label: 'Condition', required: false },
-  { key: 'retail_value', label: 'Retail Cost', required: false },
+  { key: 'retail_value', label: 'Unit retail (MSRP)', required: false },
   { key: 'upc', label: 'UPC', required: false },
   { key: 'vendor_item_number', label: 'Vendor Item #', required: false },
   { key: 'notes', label: 'Notes', required: false },
@@ -48,7 +49,27 @@ const SOURCE_ALIASES: Record<string, string[]> = {
   model: ['model', 'model_number', 'model number'],
   category: ['category', 'department'],
   condition: ['condition', 'item condition'],
-  retail_value: ['retail_value', 'retail value', 'unit_cost', 'unit cost', 'cost', 'price'],
+  // Prefer vendor unit stated retail (e.g. B-Stock "Unit Retail"); extended/total line fallbacks last.
+  retail_value: [
+    'unit retail',
+    'unit retail price',
+    'retail price',
+    'msrp',
+    'list price',
+    'stated retail',
+    'vendor retail',
+    'original retail',
+    'ext retail',
+    'ext. retail',
+    'extended retail',
+    'total retail',
+    'retail value',
+    'retail_value',
+    'price',
+    'unit_cost',
+    'unit cost',
+    'cost',
+  ],
   upc: ['upc', 'upc/ean', 'barcode'],
   vendor_item_number: ['vendor_item_number', 'vendor item number', 'item #', 'item number', 'tcin', 'sku'],
   notes: ['notes', 'comment'],
@@ -100,7 +121,7 @@ function autoFormulaForField(headers: string[], fieldKey: string): string {
   return '';
 }
 
-function buildFormulas(
+export function buildFormulas(
   headers: string[],
   columns: StandardColumnDefinition[],
   mappings: ManifestColumnMapping[],
@@ -135,6 +156,8 @@ function buildFormulas(
 }
 
 interface UseStandardManifestArgs {
+  /** Purchase order id (or stable session key) — resets user edits when switching orders. */
+  manifestSessionKey: number;
   signature: string;
   headers: string[];
   standardColumns?: StandardColumnDefinition[];
@@ -142,6 +165,7 @@ interface UseStandardManifestArgs {
 }
 
 export function useStandardManifest({
+  manifestSessionKey,
   signature,
   headers,
   standardColumns,
@@ -156,20 +180,77 @@ export function useStandardManifest({
   const headersSignature = headers.join('\x00');
   const mappingsSignature = JSON.stringify(initialMappings ?? []);
 
-  const [formulas, setFormulas] = useState<Record<string, string>>({});
+  const builtFormulas = useMemo(
+    () => buildFormulas(headers, columns, initialMappings ?? []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by signatures (stable when content matches)
+    [signature, headersSignature, mappingsSignature, columns],
+  );
 
-  useEffect(() => {
-    setFormulas(buildFormulas(headers, columns, initialMappings ?? []));
-    // headers / initialMappings intentionally omitted — keyed by headersSignature / mappingsSignature (stable when content matches).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature, headersSignature, mappingsSignature, columns]);
+  /** Switched preprocessing order: ignore stale delta for one render before layout commits anchor. */
+  const sessionAnchorRef = useRef(manifestSessionKey);
+  const sessionMismatchRender = sessionAnchorRef.current !== manifestSessionKey;
+
+  const [formulaDelta, setFormulaDelta] = useState<Record<string, string>>({});
+
+  const formulas = useMemo(() => {
+    if (sessionMismatchRender) return builtFormulas;
+    return { ...builtFormulas, ...formulaDelta };
+  }, [builtFormulas, formulaDelta, sessionMismatchRender]);
+
+  useLayoutEffect(() => {
+    sessionAnchorRef.current = manifestSessionKey;
+  }, [manifestSessionKey]);
+
+  useLayoutEffect(() => {
+    setFormulaDelta({});
+  }, [manifestSessionKey, signature, headersSignature, mappingsSignature]);
+
+  useLayoutEffect(() => {
+    if (!import.meta.env.DEV) return;
+    prepS1('useStandardManifest: builtFormulas (sync) + merge state', {
+      manifestSessionKey,
+      sessionMismatchRender,
+      signatureLen: signature.length,
+      headersCount: headers.length,
+      builtNonEmptyFields: Object.entries(builtFormulas)
+        .filter(([, v]) => (v ?? '').trim())
+        .map(([k]) => k),
+      deltaKeys: Object.keys(formulaDelta),
+      mergedNonEmptyFields: Object.entries(formulas)
+        .filter(([, v]) => (v ?? '').trim())
+        .map(([k]) => k),
+    });
+  }, [
+    manifestSessionKey,
+    sessionMismatchRender,
+    signature,
+    headers.length,
+    builtFormulas,
+    formulaDelta,
+    formulas,
+  ]);
 
   const setFormula = (target: string, expression: string) => {
-    setFormulas((prev) => ({ ...prev, [target]: expression }));
+    setFormulaDelta((prev) => ({ ...prev, [target]: expression }));
   };
 
   const setAllFormulas = (newFormulas: Record<string, string>) => {
-    setFormulas((prev) => ({ ...prev, ...newFormulas }));
+    setFormulaDelta((prev) => ({ ...prev, ...newFormulas }));
+  };
+
+  const setFormulas = (next: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => {
+    setFormulaDelta((delta) => {
+      const current = { ...builtFormulas, ...delta };
+      const resolved = typeof next === 'function' ? next(current) : next;
+      const out: Record<string, string> = {};
+      for (const col of columns) {
+        const k = col.key;
+        const nv = resolved[k] ?? '';
+        const bv = builtFormulas[k] ?? '';
+        if (nv.trim() !== bv.trim()) out[k] = nv;
+      }
+      return out;
+    });
   };
 
   const formulaMappings = useMemo<FormulaMapping[]>(

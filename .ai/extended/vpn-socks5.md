@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T14:00:00-05:00 -->
+<!-- Last updated: 2026-04-30T12:00:00-05:00 (bstock initiative link → archived) -->
 # VPN / SOCKS5 proxy — PIA configuration and diagnostics
 
 All outbound B-Stock HTTP (`*.bstock.com`) in `apps/buying/services/scraper.py` can be routed through a SOCKS5 proxy. The current provider is **Private Internet Access (PIA)**. This file documents the setup, known behavior, troubleshooting, and diagnostic tooling.
@@ -185,7 +185,7 @@ Optional: `BUYING_SOCKS5_PROXY_IP`, `BUYING_SOCKS5_DEV_AUDIT`, `BUYING_SOCKS5_EG
 ### Fallback
 
 - **PIA SOCKS unreachable from Heroku:** set `BUYING_SOCKS5_PROXY_ENABLED=False` — direct B-Stock until fixed.
-- **B-Stock blocks datacenter / Heroku egress even through SOCKS:** consider running sweep from a trusted local machine and a **push-to-API** pattern (not built here); see [`.ai/initiatives/bstock_auction_intelligence.md`](../initiatives/bstock_auction_intelligence.md) open questions.
+- **B-Stock blocks datacenter / Heroku egress even through SOCKS:** consider running sweep from a trusted local machine and a **push-to-API** pattern (not built here); see [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](../initiatives/_archived/_completed/bstock_auction_intelligence.md) open questions.
 
 ---
 

@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Collapse,
-  Divider,
   Table,
   TableBody,
   TableCell,
@@ -16,70 +14,89 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import ArrowBack from '@mui/icons-material/ArrowBack';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
-import ExpandMore from '@mui/icons-material/ExpandMore';
-import ExpandLess from '@mui/icons-material/ExpandLess';
 import AutoAwesome from '@mui/icons-material/AutoAwesome';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
-import Lock from '@mui/icons-material/Lock';
 import { useSnackbar } from 'notistack';
-import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
   useClearManifestRows,
   useFinalizePreprocessing,
-  useManifestRows,
-  usePreprocessingReview,
   useProcessManifest,
   usePreprocessingStatus,
+  usePreprocessingQueue,
   useSuggestFormulas,
-  useCancelAICleanup,
   useUpdatePreprocessingReview,
+  useUploadCleanupCsvRows,
 } from '../../hooks/useInventory';
-import { useStandardManifest } from '../../hooks/useStandardManifest';
+import { prepS1 } from '../../utils/preprocessingStep1Diag';
+import { useStandardManifest, buildFormulas } from '../../hooks/useStandardManifest';
 import { StandardManifestBuilder } from '../../components/inventory/StandardManifestBuilder';
-import { StandardManifestPreview } from '../../components/inventory/StandardManifestPreview';
-import { RowProcessingPanel } from '../../components/inventory/RowProcessingPanel';
 import { PreprocessingReviewTable } from '../../components/inventory/PreprocessingReviewTable';
-import { getPreprocessingReview } from '../../api/inventory.api';
+import { getPreprocessingReview, getTemplate } from '../../api/inventory.api';
 import type {
+  CleanupCsvApplyRowPayload,
   ManifestColumnMapping,
   ManifestRawRow,
   PreprocessingReviewRow,
+  PreprocessingReviewRowPatch,
   PreprocessingReviewRowUpdate,
   StandardColumnDefinition,
 } from '../../api/inventory.api';
+import type { PreprocessingQueueOrder } from '../../types/inventory.types';
+import { preprocessingFonts, preprocessingRootSx, preprocessingStep1 } from '../../components/inventory/preprocessing/preprocessingTokens';
+import { PreprocessingStepper, PREPROCESSING_STEP_LABELS } from '../../components/inventory/preprocessing/PreprocessingStepper';
+import { TemplateSelector } from '../../components/inventory/preprocessing/TemplateSelector';
+import { CleanupStep } from '../../components/inventory/preprocessing/CleanupStep';
+import { summarizePreprocessingReviewRows } from '../../components/inventory/preprocessing/reviewSummary';
+import { PreprocessingPageHeader } from '../../components/inventory/preprocessing/PreprocessingPageHeader';
+import { ConfirmModal } from '../../components/inventory/preprocessing/ConfirmModal';
+import { FormulaPreview } from '../../components/inventory/preprocessing/FormulaPreview';
+import {
+  computeFormulaPreviewGrid,
+  computeSampleFormulaSnapshot,
+} from '../../components/inventory/preprocessing/formulaPreviewSnapshot';
+import { buildAiBaselinePatch, type PreprocessingAiBaselinePatch } from '../../components/inventory/preprocessing/aiBaseline';
+import { formatCurrency } from '../../utils/format';
+import { stableFormulasFingerprint } from '../../utils/stableFormulasFingerprint';
 
 /** Stable fallbacks — avoid `?? []` literals that allocate new refs each render (breaks useStandardManifest deps). */
 const EMPTY_HEADERS: string[] = [];
 const EMPTY_STANDARD_COLUMNS: StandardColumnDefinition[] = [];
 const EMPTY_TEMPLATE_MAPPINGS: ManifestColumnMapping[] = [];
-const EMPTY_RAW_ROWS: ManifestRawRow[] = [];
-
-const STEPS = ['Standardize Manifest', 'AI Cleanup', 'Manual Review'];
-
-type StepState = 'selected' | 'done' | 'ready' | 'notReady';
-
-function getStepState(index: number, activeStep: number, completedStep: number): StepState {
-  if (index === activeStep) return 'selected';
-  if (index <= completedStep) return 'done';
-  if (index === completedStep + 1) return 'ready';
-  return 'notReady';
-}
+const EMPTY_EXPECTED_ROW_IDS = new Set<number>();
 
 export default function PreprocessingPage() {
-  const { id } = useParams<{ id: string }>();
-  const orderId = id ? Number.parseInt(id, 10) : null;
+  const { id: idParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
+
+  const orderId =
+    idParam && /^\d+$/.test(idParam) ? Number.parseInt(idParam, 10) : null;
+
+  const { data: queueData, isLoading: queueLoading } = usePreprocessingQueue();
+  const queueOrders = queueData?.results ?? [];
+
+  useEffect(() => {
+    if (orderId != null) return;
+    if (queueLoading) return;
+    const rows = queueData?.results ?? [];
+    if (!rows.length) return;
+    const lastRaw = localStorage.getItem('lastPreprocessOrderId');
+    const lastId = lastRaw ? Number.parseInt(lastRaw, 10) : NaN;
+    const pick =
+      Number.isFinite(lastId) && rows.some((o) => o.id === lastId) ? lastId : rows[0].id;
+    navigate(`/inventory/preprocessing/${pick}`, { replace: true });
+  }, [orderId, queueLoading, queueData?.results, navigate]);
+
+  const showResolveSpinner = queueLoading || (orderId === null && queueOrders.length > 0);
 
   const { data: preprocessingStatus, isLoading } = usePreprocessingStatus(orderId);
   const order = preprocessingStatus?.order ?? null;
   const processManifest = useProcessManifest();
   const suggestFormulasMutation = useSuggestFormulas();
   const clearManifestRowsMutation = useClearManifestRows();
-  const cancelAICleanupMutation = useCancelAICleanup();
+  const uploadCleanupRowsMutation = useUploadCleanupCsvRows();
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [stepDerived, setStepDerived] = useState(false);
   const [reviewPage, setReviewPage] = useState(1);
@@ -87,36 +104,41 @@ export default function PreprocessingPage() {
   const [reviewSearchInput, setReviewSearchInput] = useState('');
   const [reviewSearch, setReviewSearch] = useState('');
   const [reviewMissingOnly, setReviewMissingOnly] = useState(false);
-  const reviewParams = useMemo(() => ({
-    page: reviewPage,
-    page_size: reviewPageSize,
-    search: reviewSearch.trim() || undefined,
-    missing_price: reviewMissingOnly || undefined,
-  }), [reviewMissingOnly, reviewPage, reviewPageSize, reviewSearch]);
+  const [reviewRowsFull, setReviewRowsFull] = useState<PreprocessingReviewRow[] | null>(null);
+  const [reviewFullLoading, setReviewFullLoading] = useState(false);
+  const [reviewBaselineByRowId, setReviewBaselineByRowId] = useState<Record<number, PreprocessingAiBaselinePatch>>({});
   const hasActivePreprocessingSession = Boolean(
     preprocessingStatus?.preprocessing?.row_count && !preprocessingStatus.preprocessing.finalized_at,
-  );
-  const { data: preprocessingReviewData, isFetching: preprocessingReviewLoading } = usePreprocessingReview(
-    orderId,
-    reviewParams,
-    activeStep === 2 && hasActivePreprocessingSession,
   );
   const updatePreprocessingReview = useUpdatePreprocessingReview();
   const finalizePreprocessingMutation = useFinalizePreprocessing();
 
+  const [selectedManifestTemplateId, setSelectedManifestTemplateId] = useState<number | null>(null);
+
+  const [cleanupValidatedPayload, setCleanupValidatedPayload] = useState<CleanupCsvApplyRowPayload[] | null>(null);
+  const [cleanupExpectedRowIds, setCleanupExpectedRowIds] = useState<Set<number> | null>(null);
+  const [reviewDirtyCount, setReviewDirtyCount] = useState(0);
+  const [confirmDialog, setConfirmDialog] = useState<null | 'undo_std' | 'restandardize' | 'finalize'>(null);
+  const [newTemplateName, setNewTemplateName] = useState('');
+
   // Step 1 (Standardize) state
   const [aiReasonings, setAiReasonings] = useState<Record<string, string>>({});
-  const [previewRows, setPreviewRows] = useState<Record<string, unknown>[]>([]);
-  const [previewMeta, setPreviewMeta] = useState<{ rowCountInFile?: number; rowsSelected?: number }>({});
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [formulaPreviewOpen, setFormulaPreviewOpen] = useState(false);
   const [rawReferenceOpen, setRawReferenceOpen] = useState(false);
   const [processResult, setProcessResult] = useState<{ rows_created: number } | null>(null);
-  const [isLoadingSavedPreview, setIsLoadingSavedPreview] = useState(false);
   const reviewSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const standardizedFormulasRef = useRef<Record<string, string> | null>(null);
 
+  const templateBaselineFingerprintRef = useRef<string | null>(null);
+  const baselineSeedKeySeenRef = useRef('');
+  const baselineOrderAnchorRef = useRef<number | null>(null);
+
   useEffect(() => {
-    if (orderId) localStorage.setItem('lastPreprocessOrderId', String(orderId));
+    if (order?.id) localStorage.setItem('lastPreprocessOrderId', String(order.id));
+  }, [order?.id]);
+
+  useEffect(() => {
+    setNewTemplateName('');
   }, [orderId]);
 
   const standardizedRowCount = preprocessingStatus?.counts.standardized_rows ?? 0;
@@ -129,32 +151,234 @@ export default function PreprocessingPage() {
   useEffect(() => {
     if (!orderId || !order || stepDerivedRef.current === orderId) return;
     stepDerivedRef.current = orderId;
-    setActiveStep(Math.min(completedStep + 1, STEPS.length - 1));
+    setActiveStep(Math.min(completedStep + 1, PREPROCESSING_STEP_LABELS.length - 1));
     setStepDerived(true);
   }, [orderId, order?.id, completedStep]);
 
-  const hasManifestFileForParams = !!order?.has_manifest_file && activeStep === 0;
-  const rawManifestParams = useMemo(() => {
-    if (!hasManifestFileForParams) return undefined;
-    return { limit: 100 };
-  }, [hasManifestFileForParams]);
+  const manifestPreview = order?.manifest_sample ?? null;
 
-  const {
-    data: manifestRowsRawData,
-    isLoading: manifestRowsRawLoading,
-  } = useManifestRows(orderId, rawManifestParams, hasManifestFileForParams);
-
-  const headers = manifestRowsRawData?.headers ?? EMPTY_HEADERS;
-  const headerSignature = manifestRowsRawData?.signature ?? '';
-  const standardColumns = manifestRowsRawData?.standard_columns ?? EMPTY_STANDARD_COLUMNS;
+  const headers = manifestPreview?.headers ?? EMPTY_HEADERS;
+  const headerSignature = manifestPreview?.signature ?? '';
+  const standardColumns = manifestPreview?.standard_columns ?? EMPTY_STANDARD_COLUMNS;
   const templateMappings = (
-    manifestRowsRawData?.template_mappings ?? EMPTY_TEMPLATE_MAPPINGS
+    manifestPreview?.template_mappings ?? EMPTY_TEMPLATE_MAPPINGS
   ) as ManifestColumnMapping[];
-  const templateId = manifestRowsRawData?.template_id ?? undefined;
-  const templateName = manifestRowsRawData?.template_name ?? '';
-  const rawManifestRows = manifestRowsRawData?.rows ?? EMPTY_RAW_ROWS;
-  const rawSampleRows = rawManifestRows.slice(0, 5);
-  const rawHeaders = headers.length ? headers : Object.keys(rawSampleRows[0]?.raw ?? {});
+  const templateMappingsKey = useMemo(() => JSON.stringify(templateMappings), [templateMappings]);
+  const templateId = manifestPreview?.template_id ?? undefined;
+  const templateName = manifestPreview?.template_name ?? '';
+
+  const manifestSampleRowsForUi = useMemo((): ManifestRawRow[] => {
+    const rows = manifestPreview?.rows;
+    if (!rows?.length) return [];
+    return rows.map((r) => ({
+      row_number: r.row_number,
+      raw: Object.fromEntries(
+        Object.entries(r.raw ?? {}).map(([k, v]) => [k, String(v ?? '')]),
+      ),
+    }));
+  }, [manifestPreview?.rows]);
+
+  const rawHeaders = headers.length ? headers : Object.keys(manifestSampleRowsForUi[0]?.raw ?? {});
+  const matchingTemplates = manifestPreview?.matching_templates ?? [];
+
+  const step1AwaitingStatus = activeStep === 0 && isLoading;
+  const step1PreviewMissing =
+    activeStep === 0 && !isLoading && Boolean(order?.has_manifest_file) && headers.length === 0;
+  const step1ActionsLocked = step1AwaitingStatus || step1PreviewMissing;
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const ms = order?.manifest_sample;
+    const r0 = ms?.rows?.[0];
+    prepS1('API-derived manifest_sample + gates', {
+      orderId,
+      queryLoading: isLoading,
+      activeStep,
+      has_order: Boolean(order),
+      order_has_manifest_file: Boolean(order?.has_manifest_file),
+      manifest_sample_is_null: ms == null,
+      headers_len: ms?.headers?.length ?? 0,
+      preview_rows_len: ms?.rows?.length ?? 0,
+      row0_raw_is_object: r0 != null && typeof r0.raw === 'object' && !Array.isArray(r0.raw),
+      row0_raw_key_sample: r0?.raw && typeof r0.raw === 'object' ? Object.keys(r0.raw).slice(0, 10) : [],
+      signature_len: (ms?.signature ?? '').length,
+      standard_columns_len: ms?.standard_columns?.length ?? 0,
+      template_mappings_len: ms?.template_mappings?.length ?? 0,
+      matching_templates_len: ms?.matching_templates?.length ?? 0,
+      branch_step1AwaitingStatus: step1AwaitingStatus,
+      branch_step1PreviewMissing: step1PreviewMissing,
+      branch_step1ActionsLocked: step1ActionsLocked,
+    });
+  }, [
+    orderId,
+    isLoading,
+    activeStep,
+    order,
+    step1AwaitingStatus,
+    step1PreviewMissing,
+    step1ActionsLocked,
+  ]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const r0 = manifestSampleRowsForUi[0];
+    prepS1('manifestSampleRowsForUi (normalized for formula engine)', {
+      ui_rows_len: manifestSampleRowsForUi.length,
+      row1_number: r0?.row_number,
+      row1_raw_keys: r0 ? Object.keys(r0.raw ?? {}).slice(0, 15) : [],
+    });
+    if (order?.has_manifest_file && manifestSampleRowsForUi.length === 0) {
+      prepS1('DECISION: manifest file exists but UI sample rows length is 0 → Sample column stays blank unless formulas need no row context', {
+        hint: 'Check DB manifest_preview.rows or preprocessing-status payload',
+      });
+    }
+  }, [order?.has_manifest_file, manifestSampleRowsForUi]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || activeStep !== 0) return;
+    prepS1('Formula / column wiring (before snapshots)', {
+      headerSignature_len: headerSignature.length,
+      headers_len_for_builder: headers.length,
+      standard_columns_len: standardColumns.length,
+      templateMappings_len: templateMappings.length,
+      matching_templates_len: matchingTemplates.length,
+    });
+  }, [
+    activeStep,
+    headerSignature,
+    headers.length,
+    standardColumns.length,
+    templateMappings.length,
+    matchingTemplates.length,
+  ]);
+
+  useEffect(() => {
+    if (!orderId || !hasActivePreprocessingSession || standardizedRowCount <= 0) {
+      setCleanupExpectedRowIds(null);
+      return;
+    }
+    let cancelled = false;
+    void getPreprocessingReview(orderId, { full: true })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setCleanupExpectedRowIds(new Set(data.rows.map((r) => r.id)));
+      })
+      .catch(() => {
+        if (!cancelled) setCleanupExpectedRowIds(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId, hasActivePreprocessingSession, standardizedRowCount]);
+
+  useEffect(() => {
+    setReviewRowsFull(null);
+    setReviewBaselineByRowId({});
+    setCleanupValidatedPayload(null);
+    setCleanupExpectedRowIds(null);
+  }, [orderId]);
+
+  useEffect(() => {
+    setSelectedManifestTemplateId(templateId ?? null);
+  }, [templateId]);
+
+  useEffect(() => {
+    if (!hasActivePreprocessingSession) {
+      setReviewRowsFull(null);
+      setReviewBaselineByRowId({});
+    }
+  }, [hasActivePreprocessingSession]);
+
+  useEffect(() => {
+    if (!orderId || activeStep !== 2 || !hasActivePreprocessingSession) return;
+    let cancelled = false;
+    setReviewFullLoading(true);
+    void getPreprocessingReview(orderId, { full: true })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setReviewRowsFull(data.rows);
+        const snap: Record<number, PreprocessingAiBaselinePatch> = {};
+        for (const r of data.rows) snap[r.id] = buildAiBaselinePatch(r);
+        setReviewBaselineByRowId(snap);
+      })
+      .catch((err: unknown) => {
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+        enqueueSnackbar(detail || 'Failed to load review rows', { variant: 'error' });
+      })
+      .finally(() => {
+        if (!cancelled) setReviewFullLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId, activeStep, hasActivePreprocessingSession, enqueueSnackbar, preprocessingStatus?.preprocessing?.row_count]);
+
+  const filteredReviewRows = useMemo(() => {
+    if (!reviewRowsFull) return [];
+    const term = reviewSearch.trim().toLowerCase();
+    let out = reviewRowsFull;
+    if (term) {
+      out = out.filter((row) => {
+        const hay = [
+          row.ai_suggested_title,
+          row.title,
+          row.description,
+          row.brand,
+          row.ai_suggested_brand,
+        ]
+          .map((f) => String(f || '').toLowerCase())
+          .join(' ');
+        return hay.includes(term);
+      });
+    }
+    if (reviewMissingOnly) {
+      out = out.filter((row) => {
+        const has = (v: unknown) => v != null && String(v).trim() !== '';
+        return !has(row.final_price) && !has(row.proposed_price);
+      });
+    }
+    return out;
+  }, [reviewRowsFull, reviewSearch, reviewMissingOnly]);
+
+  const reviewPageSlice = useMemo(() => {
+    const start = (reviewPage - 1) * reviewPageSize;
+    return filteredReviewRows.slice(start, start + reviewPageSize);
+  }, [filteredReviewRows, reviewPage, reviewPageSize]);
+
+  const clientReviewSummary = useMemo(
+    () =>
+      summarizePreprocessingReviewRows(
+        preprocessingStatus?.summary?.total_paid ?? '0',
+        filteredReviewRows,
+      ),
+    [preprocessingStatus?.summary?.total_paid, filteredReviewRows],
+  );
+
+  const stagedRowById = useMemo(() => {
+    const m = new Map<number, PreprocessingReviewRow>();
+    if (reviewRowsFull) for (const r of reviewRowsFull) m.set(r.id, r);
+    return m;
+  }, [reviewRowsFull]);
+
+  const getStagedRow = useCallback((id: number) => stagedRowById.get(id), [stagedRowById]);
+
+  const mergeReviewPatches = useCallback((updates: PreprocessingReviewRowUpdate[]) => {
+    setReviewRowsFull((prev) => {
+      if (!prev) return prev;
+      return prev.map((row) => {
+        const u = updates.find((x) => x.id === row.id);
+        if (!u) return row;
+        const patch = u.patch;
+        if (!patch || typeof patch !== 'object') return row;
+        const merged = { ...row } as Record<string, unknown>;
+        (Object.keys(patch) as (keyof PreprocessingReviewRowPatch)[]).forEach((k) => {
+          const val = patch[k];
+          if (val !== undefined) merged[k as string] = val as unknown;
+        });
+        return merged as unknown as PreprocessingReviewRow;
+      });
+    });
+  }, []);
 
   const {
     columns,
@@ -164,27 +388,90 @@ export default function PreprocessingPage() {
     formulaMappings,
     hasMapping,
   } = useStandardManifest({
+    manifestSessionKey: orderId ?? -1,
     signature: headerSignature,
     headers,
     standardColumns,
     initialMappings: templateMappings,
   });
 
-  const loadSavedPreview = useCallback(async () => {
-    if (!orderId) return;
-    setIsLoadingSavedPreview(true);
-    try {
-      const { data } = await getPreprocessingReview(orderId, { page: 1, page_size: 100 });
-      setPreviewRows((data.rows || []).map((row: PreprocessingReviewRow) => ({ ...row })));
-      setPreviewMeta({ rowCountInFile: data.summary.total_rows, rowsSelected: data.rows.length });
-      setPreviewOpen(true);
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      enqueueSnackbar(detail || 'Failed to load saved preview rows', { variant: 'error' });
-    } finally {
-      setIsLoadingSavedPreview(false);
+  const formulasFingerprint = useMemo(() => stableFormulasFingerprint(formulas), [formulas]);
+
+  const baselineSeedKey = useMemo(
+    () =>
+      orderId != null && headerSignature && headers.length
+        ? `${orderId}|${headerSignature}|${templateMappingsKey}`
+        : '',
+    [orderId, headerSignature, templateMappingsKey, headers.length],
+  );
+
+  if (baselineOrderAnchorRef.current !== orderId) {
+    baselineOrderAnchorRef.current = orderId;
+    baselineSeedKeySeenRef.current = '';
+    templateBaselineFingerprintRef.current = null;
+  }
+
+  if (baselineSeedKey && baselineSeedKeySeenRef.current !== baselineSeedKey) {
+    baselineSeedKeySeenRef.current = baselineSeedKey;
+    templateBaselineFingerprintRef.current = formulasFingerprint;
+  }
+
+  const needsSaveAsNew =
+    matchingTemplates.length === 0 ||
+    (templateBaselineFingerprintRef.current !== null &&
+      formulasFingerprint !== templateBaselineFingerprintRef.current);
+
+  const standardizeBlockedByName = needsSaveAsNew && !newTemplateName.trim();
+
+  const formulasRef = useRef(formulas);
+  formulasRef.current = formulas;
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
+
+  const [formulaPreviewGridSnapshot, setFormulaPreviewGridSnapshot] = useState<{
+    previewTargets: string[];
+    previewRows: Array<{ row_number: number; cells: Record<string, string> }>;
+  }>(() => ({ previewTargets: [], previewRows: [] }));
+
+  const formulaSampleSnapshot = useMemo(() => {
+    const snap = computeSampleFormulaSnapshot(formulas, columns, manifestSampleRowsForUi);
+    prepS1('sample snapshot computed (useMemo)', {
+      manifestSampleRowsCount: manifestSampleRowsForUi.length,
+      columnsCount: columns.length,
+      formulasNonEmptyCount: Object.values(formulas).filter((v) => (v ?? '').trim()).length,
+      sampleEvalOkCount: Object.keys(snap.samples).length,
+      sampleNonEmptyDisplayCount: Object.values(snap.samples).filter((v) => String(v ?? '').trim() !== '').length,
+      sampleErrorFields: Object.keys(snap.sampleErrors),
+      fieldsWithNoFormulaExpr: columns.filter((c) => !(formulas[c.key] ?? '').trim()).map((c) => c.key),
+      row1RawKeyCount: manifestSampleRowsForUi[0] ? Object.keys(manifestSampleRowsForUi[0].raw ?? {}).length : 0,
+    });
+    return snap;
+  }, [formulas, columns, manifestSampleRowsForUi]);
+
+  const runFormulaPreviewSnapshot = useCallback(() => {
+    const grid = computeFormulaPreviewGrid(formulasRef.current, columnsRef.current, manifestSampleRowsForUi);
+    prepS1('Formula Preview grid computed', {
+      previewTargetsCount: grid.previewTargets.length,
+      previewTargets: grid.previewTargets,
+      previewRowsCount: grid.previewRows.length,
+      manifestRowsUsed: manifestSampleRowsForUi.length,
+    });
+    setFormulaPreviewGridSnapshot(grid);
+  }, [manifestSampleRowsForUi]);
+
+  const formulaPreviewWasExpandedRef = useRef(false);
+  useEffect(() => {
+    if (formulaPreviewOpen && !formulaPreviewWasExpandedRef.current) {
+      prepS1('DECISION: Formula Preview opened (collapsed→expanded) → run grid snapshot');
+      runFormulaPreviewSnapshot();
     }
-  }, [enqueueSnackbar, orderId]);
+    if (!formulaPreviewOpen && formulaPreviewWasExpandedRef.current) {
+      prepS1('Formula Preview collapsed');
+    }
+    formulaPreviewWasExpandedRef.current = formulaPreviewOpen;
+  }, [formulaPreviewOpen, runFormulaPreviewSnapshot]);
+
+  const effectiveManifestTemplateId = selectedManifestTemplateId ?? templateId;
 
   useEffect(() => {
     if (reviewSearchDebounceRef.current) clearTimeout(reviewSearchDebounceRef.current);
@@ -208,7 +495,7 @@ export default function PreprocessingPage() {
     try {
       const result = await suggestFormulasMutation.mutateAsync({
         orderId,
-        data: { template_id: templateId },
+        data: { template_id: effectiveManifestTemplateId },
       });
       const newFormulas: Record<string, string> = {};
       const newReasonings: Record<string, string> = {};
@@ -220,9 +507,44 @@ export default function PreprocessingPage() {
       }
       setAllFormulas(newFormulas);
       setAiReasonings(newReasonings);
+      const snap = computeSampleFormulaSnapshot(newFormulas, columns, manifestSampleRowsForUi);
+      prepS1('handleSuggestFormulas: applied AI suggestions → immediate sample snapshot', {
+        suggestionTargets: Object.keys(newFormulas),
+        sampleCellsFilled: Object.keys(snap.samples).length,
+        sampleErrors: Object.keys(snap.sampleErrors),
+      });
       enqueueSnackbar(`AI suggested formulas for ${result.suggestions.length} field(s)`, { variant: 'success' });
     } catch {
       enqueueSnackbar('Failed to get AI suggestions', { variant: 'error' });
+    }
+  };
+
+  const executeStandardizeManifestCore = async () => {
+    if (!orderId || !order?.has_manifest_file) return;
+    if (needsSaveAsNew && !newTemplateName.trim()) {
+      enqueueSnackbar('Enter a name for the new CSV template before standardizing.', { variant: 'warning' });
+      return;
+    }
+    try {
+      const result = await processManifest.mutateAsync({
+        orderId,
+        data: {
+          template_id: effectiveManifestTemplateId,
+          column_mappings: formulaMappings,
+          save_template: true,
+          save_template_as_new: needsSaveAsNew,
+          template_name: needsSaveAsNew ? newTemplateName.trim() : templateName || undefined,
+        },
+      });
+      setProcessResult({ rows_created: result.rows_created });
+      standardizedFormulasRef.current = { ...formulas };
+      templateBaselineFingerprintRef.current = stableFormulasFingerprint(formulas);
+      setNewTemplateName('');
+      enqueueSnackbar(`Standardized ${result.rows_created} staged row(s)`, { variant: 'success' });
+      setCleanupValidatedPayload(null);
+      setActiveStep(1);
+    } catch {
+      enqueueSnackbar('Failed to standardize manifest', { variant: 'error' });
     }
   };
 
@@ -233,46 +555,18 @@ export default function PreprocessingPage() {
       return;
     }
     if (!hasMapping('retail_value')) {
-      enqueueSnackbar('Set a formula for Retail Cost before standardizing — required for pricing', { variant: 'warning' });
+      enqueueSnackbar('Set a formula for unit retail (MSRP) before standardizing — required for pricing', { variant: 'warning' });
       return;
     }
     if (completedStep >= 1) {
-      const ok = window.confirm(
-        'Re-standardizing will rebuild manifest rows plus any non-terminal generated Products/Items. Continue?',
-      );
-      if (!ok) return;
+      setConfirmDialog('restandardize');
+      return;
     }
-    try {
-      const result = await processManifest.mutateAsync({
-        orderId,
-        data: {
-          template_id: templateId,
-          column_mappings: formulaMappings,
-          save_template: true,
-          template_name: templateName || undefined,
-        },
-      });
-      setProcessResult({ rows_created: result.rows_created });
-      standardizedFormulasRef.current = { ...formulas };
-      enqueueSnackbar(
-        `Standardized ${result.rows_created} staged row(s)`,
-        { variant: 'success' },
-      );
-      await loadSavedPreview();
-      setActiveStep(1);
-    } catch {
-      enqueueSnackbar('Failed to standardize manifest', { variant: 'error' });
-    }
+    await executeStandardizeManifestCore();
   };
 
-  const handleClearStandardization = async () => {
+  const executeClearStandardization = async () => {
     if (!orderId) return;
-    const parts: string[] = ['standardized rows'];
-    if (completedStep >= 1) parts.push('AI cleanup data');
-    if (completedStep >= 2) parts.push('manual review/pricing');
-    parts.push('non-terminal generated items');
-    const ok = window.confirm(`This will permanently delete all ${parts.join(', ')}. Continue?`);
-    if (!ok) return;
     try {
       const result = await clearManifestRowsMutation.mutateAsync(orderId);
       enqueueSnackbar(`Cleared ${result.rows_deleted} manifest rows and ${result.items_deleted ?? 0} item(s)`, { variant: 'info' });
@@ -280,23 +574,24 @@ export default function PreprocessingPage() {
       standardizedFormulasRef.current = null;
       setActiveStep(0);
       setStepDerived(false);
+      setCleanupValidatedPayload(null);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { detail?: string } } };
       enqueueSnackbar(axiosErr?.response?.data?.detail || 'Failed to clear standardization', { variant: 'error' });
     }
   };
 
-  const handleClearAICleanup = async () => {
-    if (!orderId) return;
-    const msg = 'This will clear all AI cleanup suggestions. Product/Item links and pricing are preserved. Continue?';
-    const ok = window.confirm(msg);
-    if (!ok) return;
+  const handleClearStandardizationRequest = () => setConfirmDialog('undo_std');
+
+  const handleRunCleanupApply = async () => {
+    if (!orderId || !cleanupValidatedPayload?.length) return;
     try {
-      await cancelAICleanupMutation.mutateAsync(orderId);
-      enqueueSnackbar('AI cleanup data cleared', { variant: 'info' });
-      setActiveStep(1);
-    } catch {
-      enqueueSnackbar('Failed to clear AI cleanup', { variant: 'error' });
+      await uploadCleanupRowsMutation.mutateAsync({ orderId, rows: cleanupValidatedPayload });
+      enqueueSnackbar(`Applied cleanup to ${cleanupValidatedPayload.length} row(s)`, { variant: 'success' });
+      setCleanupValidatedPayload(null);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      enqueueSnackbar(axiosErr?.response?.data?.detail || 'Failed to apply cleanup CSV', { variant: 'error' });
     }
   };
 
@@ -310,20 +605,33 @@ export default function PreprocessingPage() {
     }
   };
 
-  const handleFinalizeAndOpenProcessing = async () => {
+  const handleFinalizeAndOpenProcessing = async (pending?: PreprocessingReviewRowUpdate[]) => {
     if (!orderId || !order) return;
     try {
-      const result = await finalizePreprocessingMutation.mutateAsync(orderId);
+      const result = await finalizePreprocessingMutation.mutateAsync({
+        orderId,
+        rows: pending?.length ? pending : undefined,
+      });
       enqueueSnackbar(
         `Finalized ${result.manifest_rows} row(s); ${result.items_created ?? 0} item(s), ${result.batch_groups_created} batch(es).`,
         { variant: 'success' },
       );
       navigate(`/inventory/processing?order=${order.id}`);
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      const axiosErr = err as { response?: { data?: { detail?: unknown } } };
       const msg = axiosErr?.response?.data?.detail;
-      enqueueSnackbar(msg || 'Failed to finalize preprocessing', { variant: 'error' });
+      enqueueSnackbar(typeof msg === 'string' ? msg : msg ? JSON.stringify(msg) : 'Failed to finalize preprocessing', { variant: 'error' });
     }
+  };
+
+  const requestFinalizePreprocessing = () => {
+    if (missingPriceCount > 0 || reviewDirtyCount > 0) return;
+    setConfirmDialog('finalize');
+  };
+
+  const confirmFinalizePreprocessing = async () => {
+    setConfirmDialog(null);
+    await handleFinalizeAndOpenProcessing();
   };
 
   const handleOpenProcessing = () => {
@@ -370,29 +678,176 @@ export default function PreprocessingPage() {
     setAllFormulas(empty);
   }, [formulas, setAllFormulas]);
 
+  const handleManifestTemplateSelect = useCallback(async (pickedId: number) => {
+    setSelectedManifestTemplateId(pickedId);
+    try {
+      const { data } = await getTemplate(pickedId);
+      const mappings = (data.column_mappings ?? []) as ManifestColumnMapping[];
+      const nextFormulas = buildFormulas(headers, columns, mappings);
+      setAllFormulas(nextFormulas);
+      templateBaselineFingerprintRef.current = stableFormulasFingerprint(nextFormulas);
+      const snap = computeSampleFormulaSnapshot(nextFormulas, columns, manifestSampleRowsForUi);
+      prepS1('handleManifestTemplateSelect: template loaded → sample snapshot', {
+        templateId: pickedId,
+        sampleCellsFilled: Object.keys(snap.samples).length,
+      });
+    } catch {
+      enqueueSnackbar('Failed to load template mappings', { variant: 'error' });
+    }
+  }, [columns, enqueueSnackbar, headers, manifestSampleRowsForUi, setAllFormulas]);
+
+  const dropdownOrders: PreprocessingQueueOrder[] = useMemo(() => {
+    const rows = [...(queueData?.results ?? [])];
+    if (order && !rows.some((r) => r.id === order.id)) {
+      rows.unshift({
+        id: order.id,
+        order_number: order.order_number,
+        vendor_name: order.vendor_name ?? '',
+        preprocessing_row_count: preprocessingStatus?.preprocessing?.row_count ?? 0,
+      });
+    }
+    return rows;
+  }, [
+    queueData?.results,
+    order?.id,
+    order?.order_number,
+    order?.vendor_name,
+    preprocessingStatus?.preprocessing?.row_count,
+  ]);
+
+  const headerTotalUnits = preprocessingStatus?.counts.total_units ?? 0;
+  const headerEstimatedRetailLabel = formatCurrency(preprocessingStatus?.summary.total_ideal_price ?? '0');
+
+  let stepperActionHint: ReactNode = null;
+  if (activeStep === 0 && step1State === 'partial') {
+    stepperActionHint = 'Fill required fields (Description, unit retail / MSRP) to standardize';
+  } else if (activeStep === 2 && reviewDirtyCount > 0) {
+    stepperActionHint = 'Save changes before finalizing';
+  }
+
+  let stepperActionSlot: ReactNode = null;
+  if (activeStep === 0) {
+    if (step1State === 'ready') {
+      stepperActionSlot = (
+        <Button
+          variant="contained"
+          size="small"
+          onClick={() => void handleStandardizeManifest()}
+          disabled={!canStandardize || step1ActionsLocked || standardizeBlockedByName}
+          sx={{ bgcolor: '#2D6A4F', fontSize: 14, fontWeight: 600, textTransform: 'none', py: '10px', px: '20px' }}
+        >
+          {processManifest.isPending ? 'Standardizing...' : 'Standardize'}
+        </Button>
+      );
+    } else if (completedStep >= 0) {
+      stepperActionSlot = (
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Button
+            variant="outlined"
+            color="warning"
+            size="small"
+            startIcon={clearManifestRowsMutation.isPending ? <CircularProgress size={14} /> : <DeleteOutline />}
+            onClick={handleClearStandardizationRequest}
+            disabled={clearManifestRowsMutation.isPending}
+            sx={{ fontSize: 13, fontWeight: 600, textTransform: 'none' }}
+          >
+            {clearManifestRowsMutation.isPending ? 'Clearing...' : 'Undo'}
+          </Button>
+          {(step1State === 'edited' || step1State === 'edited_partial' || step1State === 'done') && (
+            <Button
+              variant="contained"
+              size="small"
+              onClick={() => void handleStandardizeManifest()}
+              disabled={!canStandardize || step1ActionsLocked || standardizeBlockedByName}
+              sx={{ bgcolor: '#2D6A4F', fontSize: 14, fontWeight: 600, textTransform: 'none', py: '10px', px: '20px' }}
+            >
+              {processManifest.isPending ? 'Re-standardizing...' : 'Re-standardize'}
+            </Button>
+          )}
+        </Box>
+      );
+    }
+  } else if (activeStep === 1) {
+    const cleanupRunnable =
+      hasActivePreprocessingSession &&
+      standardizedRowCount > 0 &&
+      cleanedRowCount < standardizedRowCount &&
+      Boolean(cleanupValidatedPayload?.length);
+    if (cleanupRunnable) {
+      stepperActionSlot = (
+        <Button
+          variant="contained"
+          size="small"
+          onClick={() => void handleRunCleanupApply()}
+          disabled={uploadCleanupRowsMutation.isPending}
+          sx={{ bgcolor: '#1565C0', fontSize: 14, fontWeight: 600, textTransform: 'none', py: '10px', px: '20px' }}
+        >
+          {uploadCleanupRowsMutation.isPending ? 'Applying…' : 'Run Cleanup'}
+        </Button>
+      );
+    }
+  } else if (activeStep === 2 && hasActivePreprocessingSession) {
+    const finalizeDisabled = missingPriceCount > 0 || reviewDirtyCount > 0 || finalizePreprocessingMutation.isPending;
+    stepperActionSlot = (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+        {completedStep >= 2 && missingPriceCount === 0 && (
+          <Typography component="span" sx={{ fontSize: 12, color: '#2D6A4F', fontWeight: 600 }}>
+            ✓ All rows priced
+          </Typography>
+        )}
+        <Button
+          variant="contained"
+          size="small"
+          onClick={requestFinalizePreprocessing}
+          disabled={finalizeDisabled}
+          sx={{ bgcolor: '#2D6A4F', fontSize: 14, fontWeight: 600, textTransform: 'none', py: '10px', px: '20px' }}
+        >
+          Finalize
+        </Button>
+      </Box>
+    );
+  }
+
+  if (showResolveSpinner) return <LoadingScreen />;
+
+  if (orderId === null) {
+    return (
+      <Box>
+        <Typography component="h1" sx={preprocessingStep1.pageTitleSx}>
+          Preprocessing
+        </Typography>
+        <Alert severity="info" sx={{ mt: 2 }}>
+          No purchase orders are waiting for manifest preprocessing. Upload a manifest on an order (
+          dashboard vendors) to start.
+        </Alert>
+      </Box>
+    );
+  }
+
   if (isLoading && !order) return <LoadingScreen />;
   if (!order) return <Typography>Order not found.</Typography>;
   if (activeStep === null) return <LoadingScreen />;
 
   return (
-    <Box>
-      <PageHeader
-        title="Preprocess Manifest"
-        subtitle={`Order #${order.order_number} — ${order.vendor_name}`}
-        action={
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<ArrowBack />}
-            onClick={() => navigate(`/inventory/orders/${order.id}`)}
-          >
-            Back to Order
-          </Button>
-        }
+    <Box
+      sx={{
+        bgcolor: '#F4F1EB',
+        minWidth: 0,
+        maxWidth: '100%',
+        overflowX: 'hidden',
+      }}
+    >
+      <PreprocessingPageHeader
+        orders={dropdownOrders}
+        selectedOrderId={order.id}
+        onSelectOrderId={(id) => navigate(`/inventory/preprocessing/${id}`)}
+        totalUnits={headerTotalUnits}
+        estimatedRetailLabel={headerEstimatedRetailLabel}
+        onBackToOrder={() => navigate(`/inventory/orders/${order.id}`)}
       />
 
       {!hasManifestFile && (
-        <Alert severity="info" sx={{ mb: 2 }}>
+        <Alert severity="info" sx={{ mb: 2, mx: 3 }}>
           No manifest uploaded for this order. On the{' '}
           <Button
             variant="text" size="small"
@@ -406,136 +861,200 @@ export default function PreprocessingPage() {
       )}
 
       {hasManifestFile && (
-        <>
-          {/* ── Step breadcrumbs ────────────────────────────────────── */}
-          <Box sx={{ display: 'flex', gap: 1, mb: 2.5, flexWrap: 'wrap' }}>
-            {STEPS.map((label, index) => {
-              const state = getStepState(index, activeStep, completedStep);
-              const isReachable = index <= completedStep + 1;
-              const isLast = index === STEPS.length - 1;
-              return (
-                <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  <Chip
-                    label={`${index + 1}. ${label}`}
-                    color={
-                      state === 'selected' ? 'primary'
-                      : state === 'done' ? 'success'
-                      : state === 'ready' ? 'info'
-                      : 'default'
-                    }
-                    variant={state === 'notReady' ? 'outlined' : 'filled'}
-                    icon={state === 'done' ? <CheckCircleOutline /> : undefined}
-                    onClick={isReachable ? () => setActiveStep(index) : undefined}
-                    sx={{
-                      cursor: isReachable ? 'pointer' : 'default',
-                      fontWeight: state === 'selected' ? 700 : 400,
-                      opacity: state === 'notReady' ? 0.45 : 1,
-                      // Pulse animation for "ready" chips
-                      ...(state === 'ready' && {
-                        '@keyframes pulse': {
-                          '0%, 100%': { boxShadow: '0 0 0 0 rgba(2, 136, 209, 0.4)' },
-                          '50%': { boxShadow: '0 0 0 5px rgba(2, 136, 209, 0)' },
-                        },
-                        animation: 'pulse 2s ease-in-out infinite',
-                      }),
-                    }}
-                  />
-                  {!isLast && (
-                    <Typography color="text.disabled" sx={{ fontSize: '0.75rem' }}>—</Typography>
-                  )}
-                </Box>
-              );
-            })}
-
-            {activeStep === 2 && hasActivePreprocessingSession && missingPriceCount === 0 && completedStep < 2 && standardizedRowCount > 0 && (
-              <Chip icon={<Lock />} label="All rows priced" color="success" />
-            )}
-          </Box>
+        <Box sx={{ ...preprocessingRootSx, minWidth: 0, maxWidth: '100%', px: 3, pb: 2 }}>
+          <PreprocessingStepper
+            activeStep={activeStep}
+            completedStep={completedStep}
+            onStepChange={setActiveStep}
+            actionHint={stepperActionHint}
+            actionSlot={stepperActionSlot}
+          />
 
           {/* ════════════════════════════════════════════════════════
               STEP 1: Standardize Manifest
           ════════════════════════════════════════════════════════ */}
           {activeStep === 0 && (
-            <Box>
-              {/* Primary action bar: Standardize / Re-standardize / Undo */}
-              <Box sx={{ display: 'flex', gap: 1, mb: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
-                {step1State === 'ready' && (
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={() => void handleStandardizeManifest()}
-                    disabled={!canStandardize || manifestRowsRawLoading}
-                  >
-                    {processManifest.isPending ? 'Standardizing...' : 'Standardize'}
-                  </Button>
-                )}
-                {step1State === 'edited' && (
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={() => void handleStandardizeManifest()}
-                    disabled={!canStandardize || manifestRowsRawLoading}
-                  >
-                    {processManifest.isPending ? 'Re-standardizing...' : 'Re-standardize'}
-                  </Button>
-                )}
-                {(step1State === 'done' || step1State === 'edited' || step1State === 'edited_partial') && (
-                  <Button
-                    variant="outlined"
-                    color="warning"
-                    size="small"
-                    startIcon={clearManifestRowsMutation.isPending ? <CircularProgress size={14} /> : <DeleteOutline />}
-                    onClick={() => void handleClearStandardization()}
-                    disabled={clearManifestRowsMutation.isPending}
-                  >
-                    {clearManifestRowsMutation.isPending ? 'Clearing...' : 'Undo'}
-                  </Button>
-                )}
-              </Box>
-
+            <Box sx={{ maxWidth: '100%', minWidth: 0 }}>
               {completedStep >= 0 && (
-                <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 1.5 }}>
+                <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 2 }}>
                   Standardization complete — {standardizedRowCount} row(s) created.
                 </Alert>
               )}
 
-              {/* Read-only template info */}
-              {(templateName || headerSignature) && (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                  {templateName ? `Template: ${templateName}` : ''}{headerSignature ? ` · Header key: ${headerSignature}` : ''}
-                </Typography>
+              {step1PreviewMissing && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Stored manifest preview is missing or empty. On the order detail page, re-upload the raw manifest CSV
+                  so Step 1 can load headers and sample rows without re-parsing the full file.
+                </Alert>
               )}
 
-              <Divider sx={{ my: 2 }} />
+              {/* Formula Mappings card (mock `st.card`) */}
+              <Box sx={preprocessingStep1.cardSurfaceSx}>
+                <Box
+                  sx={{
+                    ...preprocessingStep1.cardHeaderRowSx,
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
+                    <Typography component="h2" sx={preprocessingStep1.cardTitleSx}>
+                      Formula Mappings
+                    </Typography>
+                    <Typography component="span" sx={preprocessingStep1.badgeSx}>
+                      {columns.length} fields
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', ml: { xs: 0, sm: 'auto' } }}>
+                    {step1State !== 'clear' && (
+                      <Button
+                        variant="text"
+                        size="small"
+                        onClick={handleClearFormulas}
+                        sx={{ color: '#c0392b', fontSize: 12, fontWeight: 600, textTransform: 'none' }}
+                      >
+                        Clear Formulas
+                      </Button>
+                    )}
+                    {(step1State === 'edited' || step1State === 'edited_partial') && (
+                      <Button
+                        variant="text"
+                        size="small"
+                        onClick={handleCancelFormulaEdits}
+                        sx={{ color: '#555', fontSize: 12, fontWeight: 600, textTransform: 'none' }}
+                      >
+                        Cancel Edits
+                      </Button>
+                    )}
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={suggestFormulasMutation.isPending ? <CircularProgress size={14} /> : <AutoAwesome />}
+                      onClick={() => void handleSuggestFormulas()}
+                      disabled={suggestFormulasMutation.isPending || !headers.length}
+                      sx={{
+                        color: '#2D6A4F',
+                        borderColor: '#2D6A4F',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        py: '6px',
+                        px: '14px',
+                      }}
+                    >
+                      {suggestFormulasMutation.isPending ? 'AI analyzing...' : 'Use AI'}
+                    </Button>
+                  </Box>
+                </Box>
 
-              {/* Collapsible: Raw Column Reference */}
-              {rawSampleRows.length > 0 && (
-                <Box sx={{ mb: 1.5 }}>
-                  <Button
-                    variant="text" size="small"
-                    onClick={() => setRawReferenceOpen(!rawReferenceOpen)}
-                    startIcon={rawReferenceOpen ? <ExpandLess /> : <ExpandMore />}
-                    sx={{ px: 0 }}
+                <Box sx={preprocessingStep1.templateRowSx}>
+                  <TemplateSelector
+                    templates={matchingTemplates}
+                    selectedTemplateId={selectedManifestTemplateId ?? templateId ?? null}
+                    disabled={step1ActionsLocked}
+                    onSelectTemplateId={(id) => void handleManifestTemplateSelect(id)}
+                    saveAsNew={
+                      needsSaveAsNew
+                        ? {
+                            value: newTemplateName,
+                            onChange: setNewTemplateName,
+                            error: standardizeBlockedByName,
+                            disabled: step1ActionsLocked,
+                            infoTooltip:
+                              matchingTemplates.length === 0
+                                ? 'No saved templates matched this manifest header signature. When you standardize, we save the current formulas as a new template using the name you enter.'
+                                : 'Formulas differ from the loaded template or preview baseline. When you standardize, we save the current formulas as a new template using the name you enter.',
+                          }
+                        : undefined
+                    }
+                  />
+                  <Typography
+                    sx={{
+                      fontSize: 11,
+                      color: '#888',
+                      fontFamily: preprocessingFonts.mono,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
                   >
-                    {rawReferenceOpen ? 'Hide' : 'Show'} Raw Column Reference ({rawHeaders.length} columns)
-                  </Button>
+                    Header key: {headerSignature || '--'}
+                  </Typography>
+                </Box>
+
+                <StandardManifestBuilder
+                  headers={headers}
+                  columns={columns}
+                  formulas={formulas}
+                  onFormulaChange={setFormula}
+                  aiReasonings={aiReasonings}
+                  formulaSamples={formulaSampleSnapshot.samples}
+                  formulaSampleErrors={formulaSampleSnapshot.sampleErrors}
+                />
+              </Box>
+
+              {/* Raw Column Reference card */}
+              {manifestSampleRowsForUi.length > 0 && (
+                <Box sx={preprocessingStep1.cardSurfaceSx}>
+                  <Box
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setRawReferenceOpen(!rawReferenceOpen)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setRawReferenceOpen(!rawReferenceOpen);
+                      }
+                    }}
+                    sx={{
+                      ...preprocessingStep1.cardHeaderRowSx,
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      mb: rawReferenceOpen ? 1 : 0,
+                    }}
+                  >
+                    <Typography sx={{ ...preprocessingStep1.cardTitleSx, fontSize: 14 }}>
+                      {rawReferenceOpen ? '▾' : '▸'} Raw Column Reference ({rawHeaders.length} columns)
+                    </Typography>
+                    <Typography component="span" sx={preprocessingStep1.badgeMutedSx}>
+                      Stored sample (≤10 rows)
+                    </Typography>
+                  </Box>
                   <Collapse in={rawReferenceOpen}>
-                    <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1, maxHeight: 200, mt: 0.5 }}>
-                      <Table size="small" stickyHeader>
+                    <TableContainer
+                      sx={{
+                        ...preprocessingStep1.tableWrapSx,
+                        maxHeight: 200,
+                        mt: 1,
+                        border: '1px solid #DDD5C9',
+                        borderRadius: 1,
+                      }}
+                    >
+                      <Table size="small" stickyHeader sx={{ borderCollapse: 'collapse', fontSize: 13 }}>
                         <TableHead>
                           <TableRow>
-                            <TableCell sx={{ width: 50 }}>Row</TableCell>
+                            <TableCell sx={{ ...preprocessingStep1.tableHeaderSmallSx, width: 40 }}>Row</TableCell>
                             {rawHeaders.map((header, idx) => (
-                              <TableCell key={`${header}-${idx}`} sx={{ whiteSpace: 'nowrap' }}>{header}</TableCell>
+                              <TableCell key={`${header}-${idx}`} sx={preprocessingStep1.tableHeaderSmallSx}>
+                                {header}
+                              </TableCell>
                             ))}
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {rawSampleRows.map((row) => (
-                            <TableRow key={row.row_number}>
-                              <TableCell>{row.row_number}</TableCell>
+                          {manifestSampleRowsForUi.map((row, ri) => (
+                            <TableRow
+                              key={row.row_number}
+                              sx={{ bgcolor: ri % 2 === 0 ? '#FAFAF6' : undefined }}
+                            >
+                              <TableCell sx={preprocessingStep1.tableBodySmallSx}>{row.row_number}</TableCell>
                               {rawHeaders.map((header, idx) => (
-                                <TableCell key={`${row.row_number}-${header}-${idx}`}>{row.raw[header] || ''}</TableCell>
+                                <TableCell key={`${row.row_number}-${header}-${idx}`} sx={preprocessingStep1.tableBodySmallSx}>
+                                  {row.raw[header] || ''}
+                                </TableCell>
                               ))}
                             </TableRow>
                           ))}
@@ -546,68 +1065,19 @@ export default function PreprocessingPage() {
                 </Box>
               )}
 
-              <Divider sx={{ my: 2 }} />
-
-              {/* Formula section actions: Clear / Cancel / AI Suggest */}
-              <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                {step1State !== 'clear' && (
-                  <Button variant="text" size="small" onClick={handleClearFormulas}>
-                    Clear Formulas
-                  </Button>
-                )}
-                {(step1State === 'edited' || step1State === 'edited_partial') && (
-                  <Button variant="text" size="small" onClick={handleCancelFormulaEdits}>
-                    Cancel Edits
-                  </Button>
-                )}
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={suggestFormulasMutation.isPending ? <CircularProgress size={14} /> : <AutoAwesome />}
-                  onClick={() => void handleSuggestFormulas()}
-                  disabled={suggestFormulasMutation.isPending || !headers.length}
-                >
-                  {suggestFormulasMutation.isPending ? 'AI analyzing...' : 'Use AI'}
-                </Button>
-              </Box>
-
-              {/* Formula form */}
-              <StandardManifestBuilder
-                headers={headers}
+              <FormulaPreview
+                expanded={formulaPreviewOpen}
+                onToggle={() => {
+                  prepS1('Formula Preview toggle clicked', {
+                    nextExpanded: !formulaPreviewOpen,
+                  });
+                  setFormulaPreviewOpen(!formulaPreviewOpen);
+                }}
+                onRefresh={runFormulaPreviewSnapshot}
+                previewTargets={formulaPreviewGridSnapshot.previewTargets}
+                previewRows={formulaPreviewGridSnapshot.previewRows}
                 columns={columns}
-                formulas={formulas}
-                onFormulaChange={setFormula}
-                aiReasonings={aiReasonings}
               />
-
-              <Divider sx={{ my: 2 }} />
-
-              {/* Collapsible: Standardization Preview with auto-search */}
-              <Box>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 0.5 }}>
-                  <Button
-                    variant="text" size="small"
-                    onClick={() => setPreviewOpen(!previewOpen)}
-                    startIcon={previewOpen ? <ExpandLess /> : <ExpandMore />}
-                    sx={{ px: 0 }}
-                  >
-                    {previewOpen ? 'Hide' : 'Show'} Standardization Preview
-                    {isLoadingSavedPreview && <CircularProgress size={12} sx={{ ml: 1 }} />}
-                  </Button>
-                  <Typography variant="caption" color="text.secondary">
-                    Preview loads once after Standardize saves staged rows.
-                  </Typography>
-                </Box>
-                <Collapse in={previewOpen}>
-                  <StandardManifestPreview
-                    columns={columns}
-                    rows={previewRows}
-                    rowCountInFile={previewMeta.rowCountInFile}
-                    rowsSelected={previewMeta.rowsSelected}
-                    maxHeight={400}
-                  />
-                </Collapse>
-              </Box>
             </Box>
           )}
 
@@ -615,21 +1085,16 @@ export default function PreprocessingPage() {
               STEP 2: AI Cleanup
           ════════════════════════════════════════════════════════ */}
           {activeStep === 1 && (
-            <Box>
-              {completedStep >= 1 && (
-                <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 1.5 }}>
-                  AI Cleanup complete — all {standardizedRowCount} row(s) cleaned.
-                </Alert>
-              )}
-              <RowProcessingPanel
-                orderId={orderId!}
-                rowCount={standardizedRowCount}
-                cleanedRows={cleanedRowCount}
-                completedStep={completedStep}
-                onClearCleanup={() => void handleClearAICleanup()}
-                isClearingCleanup={cancelAICleanupMutation.isPending}
-              />
-            </Box>
+            <CleanupStep
+              orderId={orderId!}
+              orderNumber={order.order_number}
+              standardizedRowCount={standardizedRowCount}
+              cleanedRowCount={cleanedRowCount}
+              completedStep={completedStep}
+              expectedRowIds={cleanupExpectedRowIds ?? EMPTY_EXPECTED_ROW_IDS}
+              validatedPayload={cleanupValidatedPayload}
+              onValidatedPayloadChange={setCleanupValidatedPayload}
+            />
           )}
 
           {/* ════════════════════════════════════════════════════════
@@ -643,32 +1108,42 @@ export default function PreprocessingPage() {
                 </Alert>
               )}
               {hasActivePreprocessingSession ? (
-                <PreprocessingReviewTable
-                  rows={preprocessingReviewData?.rows ?? []}
-                  summary={preprocessingReviewData?.summary ?? null}
-                  count={preprocessingReviewData?.count ?? 0}
-                  page={preprocessingReviewData?.page ?? reviewPage}
-                  pageSize={preprocessingReviewData?.page_size ?? reviewPageSize}
-                  isLoading={preprocessingReviewLoading}
-                  searchValue={reviewSearchInput}
-                  missingPriceOnly={reviewMissingOnly}
-                  onPageChange={setReviewPage}
-                  onPageSizeChange={(size) => {
-                    setReviewPageSize(size);
-                    setReviewPage(1);
-                  }}
-                  onSearchChange={(search) => {
-                    setReviewSearchInput(search);
-                  }}
-                  onMissingPriceChange={(missingOnly) => {
-                    setReviewMissingOnly(missingOnly);
-                    setReviewPage(1);
-                  }}
-                  onSaveRows={handlePreprocessingReviewSave}
-                  onFinalize={handleFinalizeAndOpenProcessing}
-                  isSaving={updatePreprocessingReview.isPending}
-                  isFinalizing={finalizePreprocessingMutation.isPending}
-                />
+                <>
+                  {reviewFullLoading && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Loading {preprocessingStatus?.preprocessing?.row_count ?? ''} staged rows…
+                    </Typography>
+                  )}
+                  <PreprocessingReviewTable
+                    rows={reviewPageSlice}
+                    getStagedRow={getStagedRow}
+                    filteredRowIds={filteredReviewRows.map((r) => r.id)}
+                    baselineByRowId={reviewBaselineByRowId}
+                    summary={clientReviewSummary}
+                    totalFilteredCount={filteredReviewRows.length}
+                    page={reviewPage}
+                    pageSize={reviewPageSize}
+                    isLoading={reviewFullLoading && !reviewRowsFull?.length}
+                    searchValue={reviewSearchInput}
+                    missingPriceOnly={reviewMissingOnly}
+                    onPageChange={setReviewPage}
+                    onPageSizeChange={(size) => {
+                      setReviewPageSize(size);
+                      setReviewPage(1);
+                    }}
+                    onSearchChange={(search) => {
+                      setReviewSearchInput(search);
+                    }}
+                    onMissingPriceChange={(missingOnly) => {
+                      setReviewMissingOnly(missingOnly);
+                      setReviewPage(1);
+                    }}
+                    onSaveRows={handlePreprocessingReviewSave}
+                    onPersistSuccess={mergeReviewPatches}
+                    onDirtyCountChange={setReviewDirtyCount}
+                    isSaving={updatePreprocessingReview.isPending}
+                  />
+                </>
               ) : hasCanonicalProcessingQueue ? (
                 <Box>
                   <Alert severity="info" sx={{ mb: 1.5 }}>
@@ -685,8 +1160,45 @@ export default function PreprocessingPage() {
               )}
             </Box>
           )}
-        </>
+        </Box>
       )}
+
+      <ConfirmModal
+        open={confirmDialog === 'undo_std'}
+        emoji="⚠️"
+        title="Undo standardization?"
+        message="This permanently deletes standardized rows, cleanup suggestions, manual review edits on staged rows, and non-terminal generated products/items tied to this workflow."
+        confirmLabel="Undo standardization"
+        danger
+        isBusy={clearManifestRowsMutation.isPending}
+        onCancel={() => setConfirmDialog(null)}
+        onConfirm={() => {
+          setConfirmDialog(null);
+          void executeClearStandardization();
+        }}
+      />
+      <ConfirmModal
+        open={confirmDialog === 'restandardize'}
+        emoji="⚠️"
+        title="Re-standardize manifest?"
+        message="Re-standardizing rebuilds staged manifest rows and may reset related generated products/items that are not terminal. Continue?"
+        confirmLabel="Re-standardize"
+        isBusy={processManifest.isPending}
+        onCancel={() => setConfirmDialog(null)}
+        onConfirm={() => {
+          setConfirmDialog(null);
+          void executeStandardizeManifestCore();
+        }}
+      />
+      <ConfirmModal
+        open={confirmDialog === 'finalize'}
+        title="Finalize preprocessing?"
+        message={`Create processing batches from ${standardizedRowCount} staged row(s) and open the processing queue.`}
+        confirmLabel="Finalize"
+        isBusy={finalizePreprocessingMutation.isPending}
+        onCancel={() => setConfirmDialog(null)}
+        onConfirm={() => void confirmFinalizePreprocessing()}
+      />
     </Box>
   );
 }

@@ -3,19 +3,19 @@
 
 Run **several times per session** (for example every **1–2 hours**, after a mergeable chunk of work, or when the user says **“checkpoint”**). This keeps **session updates**, **`CHANGELOG` `[Unreleased]`**, and **light doc sync** current **while** you work.
 
-**This is not `session_close.md`.** Checkpoints **do not** finalize **`#### Result`**, **do not** run the full pre-commit checklist, and **do not** bump **`.version`** / add a **dated `CHANGELOG` section** unless the user **explicitly** asks for a release mid-session (rare). **Versioned releases** stay with **`session_close.md`**.
+**This is not `session.9.Close.md`.** Checkpoints **do not** finalize **`#### Result`**, **do not** run the full pre-commit checklist, and **do not** bump **`.version`** / add a **dated `CHANGELOG` section** unless the user **explicitly** asks for a release mid-session (rare). **Versioned releases** stay with **`session.9.Close.md`**.
 
 ### Changelog and `.version` — checkpoint vs session close
 
-| Artifact | **Checkpoint** (this protocol) | **`session_close.md`** |
+| Artifact | **Checkpoint** (this protocol) | **`session.9.Close.md`** |
 |----------|----------------------------------|-------------------------|
 | **`CHANGELOG.md`** | Add or tighten bullets under **`## [Unreleased]`** for anything user-visible or API-relevant from this pulse. | Add a **new dated version section**; **move** (or copy) the right bullets from **`[Unreleased]`** into it; keep **`[Unreleased]`** honest for what is not yet released. |
-| **`.version`** | **Do not** bump. | Bump **`vMAJOR.MINOR.PATCH`** when shipping (see **`session_close.md`** Part 2 version gate). |
+| **`.version`** | **Do not** bump. | Bump **`vMAJOR.MINOR.PATCH`** when shipping (see **`session.9.Close.md`** Part 2 version gate). |
 | **`package.json`** `"version"` | **Do not** bump. | Bump to match **`.version`** (numeric semver, no `v`). |
 
-**Rule of thumb:** Every shipping session should end with **`session_close.md`** so **semver** and the **dated `CHANGELOG` section** stay in sync with **`[Unreleased]`** work. Checkpoints **feed** that close: if **`[Unreleased]`** is empty or stale at close, the version bump has nothing to document — avoid that by updating **`[Unreleased]`** at each checkpoint.
+**Rule of thumb:** Every shipping session should end with **`session.9.Close.md`** so **semver** and the **dated `CHANGELOG` section** stay in sync with **`[Unreleased]`** work. Checkpoints **feed** that close: if **`[Unreleased]`** is empty or stale at close, the version bump has nothing to document — avoid that by updating **`[Unreleased]`** at each checkpoint.
 
-**This is not `get_bearing.md`.** Checkpoints are **forward motion** (what changed, what to log). **Bearing** is **orientation** when stuck, drifting, or before a big decision — see **`.ai/protocols/get_bearing.md`**.
+**This is not `code.1.Bearing.md`.** Checkpoints are **forward motion** (what changed, what to log). **Bearing** is **orientation** when stuck, drifting, or before a big decision — see **`.ai/protocols/code.1.Bearing.md`**.
 
 ---
 
@@ -32,7 +32,7 @@ Run **several times per session** (for example every **1–2 hours**, after a me
 
 ## Time budget
 
-**About 5–10 minutes.** If it grows into a full doc audit or release prep, you are doing **`session_close.md`** instead.
+**About 5–10 minutes.** If it grows into a full doc audit or release prep, you are doing **`session.9.Close.md`** instead.
 
 ---
 
@@ -48,8 +48,8 @@ Run **several times per session** (for example every **1–2 hours**, after a me
 ### 2. Changelog (`[Unreleased]` at checkpoint; dated section at close)
 
 1. Re-read **`git diff`** / **`git status`** for this pulse.
-2. For **user-visible** or **API-relevant** changes, add or tighten **bullets under `## [Unreleased]`** in root **`CHANGELOG.md`** — same style as **`session_close.md`** Part 2 (short bullets, initiative link where applicable). Steering-only doc edits may use a **Documentation / steering** subheading under **`[Unreleased]`** when useful.
-3. **Do not** add a **new dated version section**, bump **`.version`**, or bump **`package.json`** here unless the user **explicitly** asked to cut a release **now** (then treat the rest like **`session_close.md`** Part 2 version gate). Otherwise, the **version bump** and **new `CHANGELOG` dated section** happen only in **`session_close.md`** when the user finishes the session or asks to release.
+2. For **user-visible** or **API-relevant** changes, add or tighten **bullets under `## [Unreleased]`** in root **`CHANGELOG.md`** — same style as **`session.9.Close.md`** Part 2 (short bullets, initiative link where applicable). Steering-only doc edits may use a **Documentation / steering** subheading under **`[Unreleased]`** when useful.
+3. **Do not** add a **new dated version section**, bump **`.version`**, or bump **`package.json`** here unless the user **explicitly** asked to cut a release **now** (then treat the rest like **`session.9.Close.md`** Part 2 version gate). Otherwise, the **version bump** and **new `CHANGELOG` dated section** happen only in **`session.9.Close.md`** when the user finishes the session or asks to release.
 
 ### 3. Scoped docs (only what this pulse touched)
 
@@ -68,8 +68,8 @@ If something belongs in **`session_close`** (full **`Result`**, **version bump**
 
 ## What NOT to do at a checkpoint
 
-- Do **not** set **`#### Result`** to a final **`committed as …`** unless you are about to commit in the same breath (then use **`session_close.md`**).
-- Do **not** replace **`get_bearing.md`** when you are **lost** — run **bearing** for git/diff truth and the bearing card.
+- Do **not** set **`#### Result`** to a final **`committed as …`** unless you are about to commit in the same breath (then use **`session.9.Close.md`**).
+- Do **not** replace **`code.1.Bearing.md`** when you are **lost** — run **bearing** for git/diff truth and the bearing card.
 - Do **not** run the full **`session_close`** pre-commit matrix unless the user asked to **close** the session.
 
 ---
@@ -78,17 +78,17 @@ If something belongs in **`session_close`** (full **`Result`**, **version bump**
 
 | Protocol | When | Purpose |
 |----------|------|---------|
-| **`startup.md`** | Session start | Context load; **session entry** + framing questions |
-| **`session_checkpoint.md`** (this) | **Several times** per session | Session updates + **`[Unreleased]`** + light docs |
-| **`get_bearing.md`** | Mid-session when **stuck** / drifting | Compass vs written goal; git truth; bearing card |
-| **`review_bump.md`** | Isolated docs + semver + `CHANGELOG` | Full audit checklist; no **`Result`** / commit / push |
-| **`session_close.md`** | **End** of session / before commit | **`Result`**, semver gate, full doc scope, `commit_message.txt`, pre-commit |
+| **`code.0.Startup.md`** | Session start | Context load; **session entry** + framing questions |
+| **`session.1.Checkpoint.md`** (this) | **Several times** per session | Session updates + **`[Unreleased]`** + light docs |
+| **`code.1.Bearing.md`** | Mid-session when **stuck** / drifting | Compass vs written goal; git truth; bearing card |
+| **`review.0.Bump.md`** | Isolated docs + semver + `CHANGELOG` | Full audit checklist; no **`Result`** / commit / push |
+| **`session.9.Close.md`** | **End** of session / before commit | **`Result`**, semver gate, full doc scope, `commit_message.txt`, pre-commit |
 | [`extended/consultant_handoff.md`](../extended/consultant_handoff.md) | Consultant handoff | Spot-check + **flat** bundle under **`workspace/to_consultant/files-update/`** |
 
-**Typical flow:** **`startup`** → (work) → **`checkpoint`** → (work) → **`checkpoint`** → … → **`get_bearing`** (if needed) → **`review_bump`** (optional, isolated audit) → **`session_close`** when done.
+**Typical flow:** **`code.0.Startup.md`** → (work) → **`session.1.Checkpoint.md`** → (work) → **`session.1.Checkpoint.md`** → … → **`code.1.Bearing.md`** (if needed) → **`review.0.Bump.md`** (optional) → **`session.9.Close.md`** when done.
 
 ---
 
 ## Next
 
-Continue work, or run **`.ai/protocols/get_bearing.md`** if direction is unclear, or **`.ai/protocols/session_close.md`** when finishing — that pass is where **`.version`**, **`package.json`**, and the **dated `CHANGELOG`** section are applied for a release.
+Continue work, or run **`.ai/protocols/code.1.Bearing.md`** if direction is unclear, or **`.ai/protocols/session.9.Close.md`** when finishing — that pass is where **`.version`**, **`package.json`**, and the **dated `CHANGELOG`** section are applied for a release.

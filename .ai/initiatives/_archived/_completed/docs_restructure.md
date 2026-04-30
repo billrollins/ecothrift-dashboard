@@ -11,7 +11,7 @@
 
 ## Context
 
-Steering docs and protocols tracked **what shipped** well but not **what is happening between commits**. Sessions (goal, finish line, scope) had no canonical home. This initiative introduces session entries inside initiative files, replaces `review_bump.md` with `session_close.md`, rewrites `startup.md` and `get_bearing.md`, prunes `context.md` redundancy, and generalizes `collect_for_consultant.md`.
+Steering docs and protocols tracked **what shipped** well but not **what is happening between commits**. Sessions (goal, finish line, scope) had no canonical home. This initiative introduces session entries inside initiative files, replaces `review.0.Bump.md` with `session.9.Close.md`, rewrites `code.0.Startup.md` and `code.1.Bearing.md`, prunes `context.md` redundancy, and generalizes `collect_for_consultant.md`.
 
 ---
 
@@ -36,7 +36,7 @@ Steering docs and protocols tracked **what shipped** well but not **what is happ
 
 ### Phase 1: Foundation — protocols and index — **done**
 
-New `session_close.md`; rewrite `startup.md`, `get_bearing.md`; delete `review_bump.md`; update `_index.md` table; fix cross-links across repo.
+New `session.9.Close.md`; rewrite `code.0.Startup.md`, `code.1.Bearing.md`; delete `review.0.Bump.md`; update `_index.md` table; fix cross-links across repo.
 
 ### Phase 2: Initiative session logs — **done**
 
@@ -54,7 +54,7 @@ Prune `context.md` Working section; move domain notes from archived `review_bump
 
 **Goal:** Implement the approved plan: new protocols, initiative updates, context prune, consultant protocol, link sweep.
 
-**Finish line:** All plan waves done; `review_bump.md` removed; references point to `session_close.md`; archive checklist satisfied.
+**Finish line:** All plan waves done; `review.0.Bump.md` removed; references point to `session.9.Close.md`; archive checklist satisfied.
 
 **Scope:** `.ai/protocols/`, `.ai/initiatives/`, `.ai/context.md`, `.ai/extended/` (warning relocations only), `README.md`, initiative lifecycle protocol links.
 
@@ -73,7 +73,7 @@ Completed — committed (no semver bump) — docs-only steering under **`[Unrele
 
 ## Acceptance
 
-- [x] **Phase 1 complete:** `session_close.md`; `startup` / `get_bearing` rewritten; `review_bump.md` deleted; `_index` + link sweep.
+- [x] **Phase 1 complete:** `session.9.Close.md`; `startup` / `get_bearing` rewritten; `review.0.Bump.md` deleted; `_index` + link sweep.
 - [x] **Phase 2 complete:** `Sessions` sections in `bstock_auction_intelligence.md`, `historical_sell_through_analysis.md` (acceptance + current phase for historical).
 - [x] **Phase 3 complete:** `context.md` Working pruned; guardrails in `extended/frontend.md`, `extended/retag-operations.md`; `collect_for_consultant.md` generalized; archive copy removed after porting.
 - [x] **Phase 4 complete:** First implementation session used the new startup/session format; friction: agents should confirm `### Session` numbering when multiple initiatives are touched in one day.
@@ -81,10 +81,10 @@ Completed — committed (no semver bump) — docs-only steering under **`[Unrele
 ### Wave 4 — friction notes
 
 - **Multi-initiative days:** If work jumps initiatives, close or update the session **Result** in the first initiative before opening Session N+1 in another file.
-- **`commit_message.txt`:** Line 1 remains the deploy script subject; append session blocks on lines 2+ between pushes (see `session_close.md` Part 3).
+- **`commit_message.txt`:** Line 1 remains the deploy script subject; append session blocks on lines 2+ between pushes (see `session.9.Close.md` Part 3).
 
 ## See also
 
-- [`.ai/protocols/session_close.md`](../../protocols/session_close.md)
-- [`.ai/protocols/startup.md`](../../protocols/startup.md)
-- [`.ai/initiatives/_index.md`](../_index.md)
+- [`.ai/protocols/session.9.Close.md`](../../../protocols/session.9.Close.md)
+- [`.ai/protocols/code.0.Startup.md`](../../../protocols/code.0.Startup.md)
+- [`.ai/initiatives/_index.md`](../../_index.md)

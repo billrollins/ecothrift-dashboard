@@ -81,7 +81,7 @@ Largest surface areas for future splits (if ever): `inventory`, `pos`. Managemen
 
 | Area | Doc |
 |------|-----|
-| Session / AI context | `.ai/context.md`, `.ai/protocols/startup.md` |
+| Session / AI context | `.ai/context.md`, `.ai/protocols/code.0.Startup.md` |
 | Retag (ops + technical) | `.ai/extended/retag-operations.md`, `.ai/extended/inventory-pipeline.md`; archived cutover plan: `.ai/initiatives/_archived/_completed/retag_cutover.md` |
 | Dev setup | `.ai/extended/development.md` |
 

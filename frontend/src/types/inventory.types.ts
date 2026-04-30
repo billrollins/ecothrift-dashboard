@@ -163,6 +163,19 @@ export interface PurchaseOrderListRow {
   updated_at: string;
 }
 
+/** GET /api/inventory/orders/preprocessing-queue/ (`PreprocessingQueueOrderSerializer`). */
+export interface PreprocessingQueueOrder {
+  id: number;
+  order_number: string;
+  vendor_name: string;
+  preprocessing_row_count: number;
+}
+
+/** GET /api/inventory/orders/preprocessing-queue/ */
+export interface PreprocessingQueueResponse {
+  results: PreprocessingQueueOrder[];
+}
+
 /** GET /api/inventory/orders/summary/ KPI aggregates (matches current list filters). */
 export interface PurchaseOrderSummary {
   total_orders: number;

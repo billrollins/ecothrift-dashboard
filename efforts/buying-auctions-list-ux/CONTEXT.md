@@ -3,7 +3,7 @@
 **Effort folder:** `efforts/buying-auctions-list-ux/` (committed). Optional mirror: **`workspace/buying-auctions-list-ux/CONTEXT.md`**.  
 **Last updated:** 2026-04-17 (v2.17.1 — manifest retail per-unit invariant)  
 
-**How to use:** Read **after** `.ai/protocols/startup.md` (and `.ai/context.md`) when this thread is in scope. Supplements modular docs; does not replace initiatives or extended domain files.
+**How to use:** Read **after** `.ai/protocols/code.0.Startup.md` (and `.ai/context.md`) when this thread is in scope. Supplements modular docs; does not replace initiatives or extended domain files.
 
 ---
 

@@ -4,6 +4,8 @@ import type {
   PurchaseOrder,
   PurchaseOrderListRow,
   PurchaseOrderSummary,
+  PreprocessingQueueOrder,
+  PreprocessingQueueResponse,
   OrderForReceivingRow,
   Product,
   Item,
@@ -24,6 +26,7 @@ export type {
   PurchaseOrder,
   PurchaseOrderListRow,
   PurchaseOrderSummary,
+  PreprocessingQueueOrder,
   OrderForReceivingRow,
   Product,
   Item,
@@ -143,6 +146,8 @@ export interface ProcessManifestPayload {
   template_id?: number | null;
   save_template?: boolean;
   template_name?: string;
+  /** When true, always create a new CSVTemplate row (do not update resolved template). */
+  save_template_as_new?: boolean;
 }
 
 export interface ProcessManifestResponse {
@@ -190,6 +195,15 @@ export interface ManifestRawRow {
   raw: Record<string, string>;
 }
 
+export interface ManifestMatchingTemplate {
+  id: number;
+  name: string;
+  created_at: string | null;
+  is_default: boolean;
+  use_count: number;
+  last_used_at: string | null;
+}
+
 export interface ManifestRowsResponse {
   headers: string[];
   signature: string;
@@ -200,6 +214,7 @@ export interface ManifestRowsResponse {
   template_id?: number | null;
   template_name?: string | null;
   template_mappings?: ManifestColumnMapping[];
+  matching_templates?: ManifestMatchingTemplate[];
   standard_columns?: StandardColumnDefinition[];
   available_functions?: ManifestFunctionDefinition[];
 }
@@ -324,6 +339,12 @@ export function getOrderSummary(
   return api.get<PurchaseOrderSummary>('/inventory/orders/summary/', { params });
 }
 
+export function getPreprocessingQueue(
+  params?: Record<string, unknown>,
+): Promise<{ data: PreprocessingQueueResponse }> {
+  return api.get<PreprocessingQueueResponse>('/inventory/orders/preprocessing-queue/', { params });
+}
+
 export function getOrder(id: number): Promise<{ data: Order }> {
   return api.get<Order>(`/inventory/orders/${id}/`);
 }
@@ -417,6 +438,26 @@ export function getManifestRows(
   params?: Record<string, unknown>,
 ): Promise<{ data: ManifestRowsResponse }> {
   return api.get<ManifestRowsResponse>(`/inventory/orders/${orderId}/manifest-rows/`, { params });
+}
+
+export interface PreviewManifestFormulasPayload {
+  raw_row: Record<string, unknown>;
+  formulas: Record<string, string>;
+}
+
+export interface PreviewManifestFormulasResponse {
+  results: Record<string, string>;
+  errors: Record<string, string>;
+}
+
+export function previewManifestFormulas(
+  orderId: number,
+  data: PreviewManifestFormulasPayload,
+): Promise<{ data: PreviewManifestFormulasResponse }> {
+  return api.post<PreviewManifestFormulasResponse>(
+    `/inventory/orders/${orderId}/preview-manifest-formulas/`,
+    data,
+  );
 }
 
 export function updateManifestPricing(
@@ -688,6 +729,21 @@ export interface PreprocessingSessionInfo {
   row_count: number;
 }
 
+export interface ManifestSamplePayload {
+  headers: string[];
+  rows: { row_number: number; raw: Record<string, string> }[];
+  row_count: number | null;
+  signature: string;
+  delimiter?: string;
+  template_id?: number | null;
+  template_name?: string | null;
+  /** Effective mappings (normalized upload snapshot or alias defaults). */
+  template_mappings?: ManifestColumnMapping[];
+  vendor_name?: string;
+  matching_templates?: ManifestMatchingTemplate[];
+  standard_columns?: StandardColumnDefinition[];
+}
+
 export interface PreprocessingStatusResponse {
   order: {
     id: number;
@@ -696,6 +752,8 @@ export interface PreprocessingStatusResponse {
     status: string;
     item_count: number;
     has_manifest_file: boolean;
+    /** Subset of manifest file persisted at upload (max 10 preview rows). */
+    manifest_sample: ManifestSamplePayload | null;
   };
   counts: {
     standardized_rows: number;
@@ -715,6 +773,11 @@ export interface ManualReviewParams {
   search?: string;
   missing_price?: boolean;
 }
+
+export type PreprocessingReviewParams = ManualReviewParams & {
+  /** When true, return all staged rows (max 10k) for client-side filter/pagination. */
+  full?: boolean;
+};
 
 export interface ManualReviewResponse {
   rows: import('../types/inventory.types').ManifestRow[];
@@ -768,7 +831,6 @@ export interface PreprocessingReviewRow {
 }
 
 export type PreprocessingReviewSummary = ManualReviewSummary;
-export type PreprocessingReviewParams = ManualReviewParams;
 
 export type PreprocessingReviewRowPatch = Partial<Pick<
   PreprocessingReviewRow,
@@ -795,10 +857,11 @@ export interface PreprocessingReviewResponse {
   rows: PreprocessingReviewRow[];
   summary: PreprocessingReviewSummary;
   count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-  has_previous: boolean;
+  page?: number;
+  page_size?: number;
+  has_next?: boolean;
+  has_previous?: boolean;
+  full?: boolean;
 }
 
 export interface PreprocessingReviewUpdateResponse {
@@ -841,9 +904,11 @@ export interface FinalizePreprocessingResponse extends CreateItemsResponse {
 
 export function finalizePreprocessing(
   orderId: number,
+  data?: { rows?: PreprocessingReviewRowUpdate[] },
 ): Promise<{ data: FinalizePreprocessingResponse }> {
   return api.post<FinalizePreprocessingResponse>(
     `/inventory/orders/${orderId}/finalize-preprocessing/`,
+    data ?? {},
   );
 }
 
@@ -903,6 +968,23 @@ export function uploadCleanupCsv(
       },
     ],
   });
+}
+
+export interface CleanupCsvApplyRowPayload {
+  row_id: number;
+  ai_title: string;
+  ai_brand: string;
+  ai_model: string;
+  category: string;
+  condition: string;
+  proposed_price: string;
+}
+
+export function uploadCleanupCsvRows(
+  orderId: number,
+  rows: CleanupCsvApplyRowPayload[],
+): Promise<{ data: UploadCleanupCsvResponse }> {
+  return api.post<UploadCleanupCsvResponse>(`/inventory/orders/${orderId}/apply-cleanup-csv/`, { rows });
 }
 
 export function getPreprocessingStatus(orderId: number): Promise<{ data: PreprocessingStatusResponse }> {

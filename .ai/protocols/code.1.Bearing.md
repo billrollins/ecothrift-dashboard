@@ -1,7 +1,7 @@
 <!-- Last updated: 2026-04-16T21:30:00-05:00 (who can run — no persona files) -->
 # Protocol: Get bearing
 
-A **mid-session** orientation check. Run when you have been heads-down and need an honest picture of where things stand. This is **not** the rolling doc/changelog pulse (that is **`session_checkpoint.md`**). This is **not** the pre-commit gate (that is **`session_close.md`**). This is a **compass** check when something feels off.
+A **mid-session** orientation check. Run when you have been heads-down and need an honest picture of where things stand. This is **not** the rolling doc/changelog pulse (that is **`session.1.Checkpoint.md`**). This is **not** the pre-commit gate (that is **`session.9.Close.md`**). This is a **compass** check when something feels off.
 
 **Anchor:** Progress is measured against the **session entry** already in the initiative file (goal, finish line, scope) — not against memory alone.
 
@@ -24,7 +24,7 @@ Bill or any agent (or collaborator in the session). The data-gathering steps are
 
 **About 5 minutes** to run and read the output. If it takes longer, you are going too deep — flag and move on.
 
-**Do not** run full build checks here (`python manage.py check`, `npx tsc`) — those belong in **`session_close.md`**. Exception: if you need a quick signal for a specific blocker, note it in the bearing card only.
+**Do not** run full build checks here (`python manage.py check`, `npx tsc`) — those belong in **`session.9.Close.md`**. Exception: if you need a quick signal for a specific blocker, note it in the bearing card only.
 
 ---
 
@@ -32,7 +32,7 @@ Bill or any agent (or collaborator in the session). The data-gathering steps are
 
 1. Open the **active initiative** from **`.ai/initiatives/_index.md`**.
 2. Find the **active session** — the latest **`### Session N`** under **`## Sessions`** whose **`#### Result`** is empty or **`still open`**.
-3. Copy **Goal**, **Finish line**, and **Scope** into your head. If you cannot find a session entry, **that is the first finding** — run **`startup.md` steps 8–9** or record one before continuing work.
+3. Copy **Goal**, **Finish line**, and **Scope** into your head. If you cannot find a session entry, **that is the first finding** — run **`code.0.Startup.md` steps 8–9** or record one before continuing work.
 
 **Drift:** If the real work no longer matches the written goal, either **update the session entry** (explicit decision) or **cut the tangent**.
 
@@ -85,7 +85,7 @@ If stuck in a debug spiral: time-box the next attempt (~30 min); if unresolved, 
 
 **Loose ends** — quick scan of touched files for `TODO`, `FIXME`, `HACK`, temp filenames, `print(` debug, stubs with `pass` / `NotImplementedError`. On Windows PowerShell you may use `git diff -U0 | Select-String -Pattern 'TODO|FIXME|HACK'` or search in the IDE.
 
-**Doc drift (flag only):** If code changed but matching **`.ai/extended/<domain>.md`** timestamps look stale, note it — fix at the next **`session_checkpoint.md`** or **`session_close.md`** (bearing only flags).
+**Doc drift (flag only):** If code changed but matching **`.ai/extended/<domain>.md`** timestamps look stale, note it — fix at the next **`session.1.Checkpoint.md`** or **`session.9.Close.md`** (bearing only flags).
 
 **Dependencies and environment**
 
@@ -154,10 +154,10 @@ Append a **timestamped line** to the active session’s **`#### Session updates`
 
 | Protocol | When | Purpose |
 |----------|------|---------|
-| `startup.md` | Session start | Load context; frame session; create session entry |
-| `session_checkpoint.md` | Several times per session | Session updates + `[Unreleased]` + light docs |
-| **`get_bearing.md`** (this) | Mid-session when **stuck** / drifting | Check heading vs written goal |
-| `session_close.md` | Before commit / release | Record result, docs, version bump, commit message |
+| `code.0.Startup.md` | Session start | Load context; frame session; create session entry |
+| `session.1.Checkpoint.md` | Several times per session | Session updates + `[Unreleased]` + light docs |
+| **`code.1.Bearing.md`** (this) | Mid-session when **stuck** / drifting | Check heading vs written goal |
+| `session.9.Close.md` | Before commit / release | Record result, docs, version bump, commit message |
 | [`extended/consultant_handoff.md`](../extended/consultant_handoff.md) | Consultant handoff | Spot-check + **flat** bundle — **`workspace/to_consultant/files-update/`** |
 
-A bearing check often means it is time for **`session_checkpoint.md`** or **`session_close.md`** when you are ready to sync or commit.
+A bearing check often means it is time for **`session.1.Checkpoint.md`** or **`session.9.Close.md`** when you are ready to sync or commit.

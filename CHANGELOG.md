@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.20.0] — 2026-04-29 (Inventory — orders + receiving) -->
-<!-- Last reviewed: 2026-04-29 (review_bump — `v2.20.0` inventory inbound) -->
+<!-- Last reviewed: 2026-04-30 (`review.0.Bump` — preprocessing CSV unreleased + steering) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,20 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+### Changed
+
+- **Inventory / Preprocessing** — **`GET /api/inventory/orders/{id}/download-cleanup-csv/`** exports a lean pre-AI CSV: **`row_id`**, **`row_number`**, **`description`**, **`title`**, **`brand`**, **`model`**, **`category`**, **`condition`**, **`sku`**, **`upc`**, **`quantity`**, **`retail_value`**, **`notes`**, **`base_cost`** (**`PurchaseOrder.compute_item_cost`**), **`ideal_price`** (2× unit base cost). Removed the prior wide columns (**`item_id`**, **`current_*`**, AI/pricing/tag extras). Offline scripts must expect the new header; **`POST …/apply-cleanup-csv/`** / **`upload-cleanup-csv`** narrow apply schema is unchanged ([`apps/inventory/views.py`](apps/inventory/views.py)).
+
+### Documentation
+
+- **AI steering** — Preprocessing Step 2 narrative: **`order_processing_pipeline_rebuild`** export vs **`apply-cleanup-csv`** → **`ai_suggested_*`**; **`context.md`** / **`consultant_context.md`**; **`extended/backend.md`** / **`inventory-pipeline.md`** ([`.ai/initiatives/order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)).
+- **AI steering** — Initiative links and archive TOC aligned with on-disk location of **[`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md)**; **[`ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md)** `_completed` table lists **`bstock_auction_intelligence.md`** and **`ui_ux_polish.md`**; duplicate lifecycle protocol copies removed from **`.ai/initiatives/_protocols/`** (canonical: **`_archived/_protocols/`**).
+
 
 ---
 
@@ -217,9 +231,9 @@ User-facing theme: **AI steering and repository hygiene** — consolidate `.ai/`
 
 - **Workspace** — Cleared **`workspace/data/`** (generated CSV/JSON; **`.gitkeep`** only). Removed notebook **`README.md`** files; Jupyter setup consolidated in **`.ai/extended/development.md`**. Pruned notebook temp artifacts (**`.csv`**, **`.pkl`**, caches, empty **`bstock-intelligence/`**). Dropped **`workspace/testing/`** gitignore exceptions (folder unused). Updated cross-links in **`README`**, **`databases.md`**, initiatives, **`CHANGELOG`** history where cited.
 
-- **AI steering** — Added [`.ai/protocols/review_bump.md`](.ai/protocols/review_bump.md): docs-audit checklist (steering + extended TOC), semver bump matrix, `CHANGELOG` update rules, drift-check shell snippets; Part 5 documents **`commit_message.txt`** + **`2_push_github.bat`**. Cross-links from `.ai/context.md`, **`README`** AI steering table, and `startup` / `session_checkpoint` / `session_close` protocol relationship tables.
+- **AI steering** — Added [`.ai/protocols/review.0.Bump.md`](.ai/protocols/review.0.Bump.md): docs-audit checklist (steering + extended TOC), semver bump matrix, `CHANGELOG` update rules, drift-check shell snippets; Part 5 documents **`commit_message.txt`** + **`2_push_github.bat`**. Cross-links from `.ai/context.md`, **`README`** AI steering table, and `startup` / `session_checkpoint` / `session_close` protocol relationship tables.
 - **Consultant handoff** — Removed **`.ai/protocols/consult_retire_charlie.md`** and **`.ai/protocols/consult_retire_scout.md`**. Advisor bundle procedure is only [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md) (**`workspace/to_consultant/files-update/`**).
-- **Personas** — Removed **`.ai/personas/`** (Scout / Christina role prompts). Updated [`.ai/context.md`](.ai/context.md), [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md), and [`.ai/protocols/get_bearing.md`](.ai/protocols/get_bearing.md) so docs do not reference those paths.
+- **Personas** — Removed **`.ai/personas/`** (Scout / Christina role prompts). Updated [`.ai/context.md`](.ai/context.md), [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md), and [`.ai/protocols/code.1.Bearing.md`](.ai/protocols/code.1.Bearing.md) so docs do not reference those paths.
 - **Workspace hygiene** — Removed **`workspace/notes/`** ignore whitelist for a non-existent tracked script; **`scripts/data/build_sell_through_rates.py`** reads **`workspace/data/historical_keys_mapped.csv`**. Session drop **`workspace/4-16-26 Collection/`** and temp **`workspace/file_cleanup.md`** deleted from disk when present.
 
 - **Env templates** — Removed **`template.env`** and **`extract-env-vars.bat`** from repo root; use **`.env.example`** as the committed template (copy to **`.env`** locally).
@@ -337,7 +351,7 @@ User-facing theme: **Simpler buying NEED scores + inventory item cost** — rati
 
 ## [2.13.1] — 2026-04-15
 
-User-facing theme: **Buying desktop auction list — snappy interactions + inline row detail** ([`.ai/initiatives/ui_ux_polish.md`](.ai/initiatives/ui_ux_polish.md), Session 5 follow-up) — stable DataGrid columns, optimistic watch row patch, microtask-friendly query cancel.
+User-facing theme: **Buying desktop auction list — snappy interactions + inline row detail** ([`.ai/initiatives/_archived/_completed/ui_ux_polish.md`](.ai/initiatives/_archived/_completed/ui_ux_polish.md), Session 5 follow-up) — stable DataGrid columns, optimistic watch row patch, microtask-friendly query cancel.
 
 ### Changed
 
@@ -349,7 +363,7 @@ User-facing theme: **Buying desktop auction list — snappy interactions + inlin
 
 ## [2.13.0] — 2026-04-15
 
-User-facing theme: **Fast auction sweep** + **optional SOCKS5 for search** ([`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md)) — parallel B-Stock search, raw SQL upsert, richer sweep API, single-request Refresh UX.
+User-facing theme: **Fast auction sweep** + **optional SOCKS5 for search** ([`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md)) — parallel B-Stock search, raw SQL upsert, richer sweep API, single-request Refresh UX.
 
 ### Added
 
@@ -381,7 +395,7 @@ User-facing theme: **Fast auction sweep** + **optional SOCKS5 for search** ([`.a
 
 ## [2.12.1] — 2026-04-14
 
-User-facing theme: **Auction list & detail polish** (Phase 3A, [`.ai/initiatives/ui_ux_polish.md`](.ai/initiatives/ui_ux_polish.md)) — staff buying UI and buying API filters for active-auctions workflow, manifest truth from uploads, and detail recompute without B-Stock tokens.
+User-facing theme: **Auction list & detail polish** (Phase 3A, [`.ai/initiatives/_archived/_completed/ui_ux_polish.md`](.ai/initiatives/_archived/_completed/ui_ux_polish.md)) — staff buying UI and buying API filters for active-auctions workflow, manifest truth from uploads, and detail recompute without B-Stock tokens.
 
 ### Changed
 
@@ -396,7 +410,7 @@ User-facing theme: **Memory/performance**, **buying category need**, **inventory
 
 ### Added
 
-- **Inventory / POS — Phase 2 polish** ([`.ai/initiatives/ui_ux_polish.md`](.ai/initiatives/ui_ux_polish.md)) — Item list (`ItemListPanel`) and POS **transactions** receipt search commit on **Enter** / **Search** (draft text does not refetch lists). **Orders list API** — `PurchaseOrderListSerializer` with **`has_manifest`**; list queryset skips heavy PO stats annotations; no `processing_stats` or nested `manifest_file` on list. **Add Item** — category **taxonomy `Autocomplete`**, **retail (MSRP)** + validation, brand default **Generic**; **`PurchaseOrderListRow`** type for list responses. **AI** — `suggest_item` and `ai_cleanup_rows` default **`AI_MODEL_FAST`**; suggest-item includes canonical category list, **one retry** if category invalid, fallback to **Mixed lots & uncategorized**.
+- **Inventory / POS — Phase 2 polish** ([`.ai/initiatives/_archived/_completed/ui_ux_polish.md`](.ai/initiatives/_archived/_completed/ui_ux_polish.md)) — Item list (`ItemListPanel`) and POS **transactions** receipt search commit on **Enter** / **Search** (draft text does not refetch lists). **Orders list API** — `PurchaseOrderListSerializer` with **`has_manifest`**; list queryset skips heavy PO stats annotations; no `processing_stats` or nested `manifest_file` on list. **Add Item** — category **taxonomy `Autocomplete`**, **retail (MSRP)** + validation, brand default **Generic**; **`PurchaseOrderListRow`** type for list responses. **AI** — `suggest_item` and `ai_cleanup_rows` default **`AI_MODEL_FAST`**; suggest-item includes canonical category list, **one retry** if category invalid, fallback to **Mixed lots & uncategorized**.
 - **Item list API — cached total count** — For **unfiltered** list requests (no `q`, `search`, status/condition/source, filterset fields, or `updated_after`), DRF pagination **`count`** uses **`cache.get_or_set('item_list_total_count', …, 300)`** so large-table **`COUNT(*)`** is not repeated every request (`ItemListPagination` + `CachedTotalCountPaginator`). Filtered lists still run a normal count.
 - **Heroku memory ops** — [`docs/operations/heroku-memory.md`](docs/operations/heroku-memory.md): `log-runtime-metrics`, tail web dyno, rollback note (pairs Procfile/Gunicorn + cache deploy).
 - **Consignment agreements** — `SearchFilter` on list API so Add Item agreement autocomplete can search by number / consignee fields.
@@ -407,7 +421,7 @@ User-facing theme: **Memory/performance**, **buying category need**, **inventory
 - **Cache** — Django **database** cache backend (`django_cache_table`; tests use LocMem); **TTL-only** cache for item **global** stats block and **category-need** API response (no signal invalidation).
 - **Purchase orders (list)** — Annotated item/batch counts for `processing_stats`; **list** no longer prefetches all `manifest_rows` / `batch_groups` (detail still prefetches manifest rows).
 - **Item stats API** — `_item_stats_payload` uses a **single aggregate** query where applicable.
-- **Buying / category need** — Metric windowing: all-time financials and `sell_through_pct` denominator; 90-day **`sold_count`** / **`sold_pct`** unchanged semantically; [`CategoryNeedBars`](frontend/src/components/buying/CategoryNeedBars.tsx) layered bars (see [`.ai/initiatives/ui_ux_polish.md`](.ai/initiatives/ui_ux_polish.md)).
+- **Buying / category need** — Metric windowing: all-time financials and `sell_through_pct` denominator; 90-day **`sold_count`** / **`sold_pct`** unchanged semantically; [`CategoryNeedBars`](frontend/src/components/buying/CategoryNeedBars.tsx) layered bars (see [`.ai/initiatives/_archived/_completed/ui_ux_polish.md`](.ai/initiatives/_archived/_completed/ui_ux_polish.md)).
 - **Frontend lists** — **Server-side** DataGrid pagination for orders, items (`ItemListPanel`), POS transactions; **`useItemsAllPages`** for Processing page when a PO has many items; item list **`q`** and POS receipt filter use **committed** search (Enter/Search/Clear), not live-typing refetch.
 - **Add Item form** — Purchase order and agreement pickers: **async** search (small page size) instead of loading hundreds of rows.
 
@@ -475,9 +489,9 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 - **POS reporting:** [`historical_revenue`](apps/pos/views.py) excludes carts on register **`BACKFILL`** from db3 aggregates while **`HistoricalTransaction`** rows exist for db1/db2 (avoids double-counting legacy totals vs `import_historical_transactions`). After deleting db1/db2 historical rows or loading only via Phase 4, totals reflect Carts.
 - **Data backfill initiative (Phase 0 close / consultant pass):** Production deployment strategy (export CSVs + `import_backfill`); Phase 1–5 text corrections (inline PO enrichment, verify `PurchaseOrder` mappings before code, product dedup evaluation, backfilled items never `on_shelf`, taxonomy label count unverified). [`.ai/initiatives/data_backfill_initiative.md`](.ai/initiatives/data_backfill_initiative.md). Added [`workspace/scripts/convert_pickles_to_csv.py`](workspace/scripts/convert_pickles_to_csv.py) — pickle→CSV using `pickle/manifest.json` (run in notebook venv if `read_pickle` fails).
-- **AI steering / protocols:** Replaced **`review_bump.md`** with **`session_close.md`**; rewrote **`startup.md`** (session entry step) and **`get_bearing.md`** (progress vs written session). Generalized consultant bundle workflow (today: **`extended/consultant_handoff.md`**). [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) uses **Phase** + **Notes** columns; session detail lives in initiative files only. [`.ai/context.md`](.ai/context.md) **Working** section is short capability pointers (detail in **`.ai/extended/`**). Cross-links updated (README, lifecycle protocols, CHANGELOG history where cited). Django admin vs React **`/admin/*`** and retag history serializer guardrails moved to [`.ai/extended/frontend.md`](.ai/extended/frontend.md) and [`.ai/extended/retag-operations.md`](.ai/extended/retag-operations.md).
+- **AI steering / protocols:** Replaced **`review.0.Bump.md`** with **`session.9.Close.md`**; rewrote **`code.0.Startup.md`** (session entry step) and **`code.1.Bearing.md`** (progress vs written session). Generalized consultant bundle workflow (today: **`extended/consultant_handoff.md`**). [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) uses **Phase** + **Notes** columns; session detail lives in initiative files only. [`.ai/context.md`](.ai/context.md) **Working** section is short capability pointers (detail in **`.ai/extended/`**). Cross-links updated (README, lifecycle protocols, CHANGELOG history where cited). Django admin vs React **`/admin/*`** and retag history serializer guardrails moved to [`.ai/extended/frontend.md`](.ai/extended/frontend.md) and [`.ai/extended/retag-operations.md`](.ai/extended/retag-operations.md).
 - **Initiative archiving:** [docs_restructure](.ai/initiatives/_archived/_completed/docs_restructure.md) archived as **completed**; [historical_sell_through_analysis](.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md) moved to **pending** (initial rates seeded manually v2.8.0; data-backed refinement deferred). Session history seeded in initiative files.
-- **AI steering / protocols (follow-up):** Added [`.ai/protocols/session_checkpoint.md`](.ai/protocols/session_checkpoint.md) for **mid-session** pulses (session updates, **`[Unreleased]`**, light extended-doc sync). **`startup.md`** now includes **framing questions** (success, intent, time, owner, out-of-scope, ship expectation) and points to checkpoints vs **`session_close`**. **`README`**, **`context`**, **`get_bearing`**, **`session_close`** cross-links updated.
+- **AI steering / protocols (follow-up):** Added [`.ai/protocols/session.1.Checkpoint.md`](.ai/protocols/session.1.Checkpoint.md) for **mid-session** pulses (session updates, **`[Unreleased]`**, light extended-doc sync). **`code.0.Startup.md`** now includes **framing questions** (success, intent, time, owner, out-of-scope, ship expectation) and points to checkpoints vs **`session_close`**. **`README`**, **`context`**, **`get_bearing`**, **`session_close`** cross-links updated.
 
 ### Fixed
 
@@ -493,7 +507,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Added
 
-- **Buying — Phase 5 (React UI):** [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — **Auction list** (`/buying/auctions`): valuation **DataGrid** columns — **Profitability** / **Need** pills, **Est. revenue**, **Retail** (manifest vs listing tooltip), **Priority** with Admin **steppers**, **Thumbs up** toggle (Admin), **Time left** with color bands; default server sort **`-priority,end_time`**. **Filter chips** (server-side **`AuctionFilter`** / **`WatchlistAuctionFilter`**): **Profitable**, **Needed**, **Thumbs up**, **Watched**, **Has manifest** — multi-select with Ctrl/⌘ (plain click isolates / clears per row semantics); **marketplace** chips: **All** first, Ctrl/⌘ multi-vendor; layout: **Filters** + **Clear all**, then marketplace row, then filter row; mobile-scaled chips. **Category need panel** (desktop **`md+`**): **Min** / **Window** / **Full** sizing, bar charts, category detail, staff **want vote** slider (debounced). **Auction detail:** **AuctionValuationCard** (full computation breakdown, revenue/fees/shipping/shrinkage/profit-target/priority overrides, **max bid** line), **AiManifestComparisonStrip** when both AI and manifest mix exist. **Watchlist** row tint on main list (≤**100** watchlist IDs for tint query). **Mobile** list: scaled chips, time formatting, infinite scroll. **React Query:** `placeholderData: keepPreviousData` on auction + watchlist list queries so **server pagination** stays stable when the page param changes. **API:** **`GET /api/buying/category-need/`** category rows include **`sell_through_rate`**; list params **`profitable`**, **`needed`**; **`GET /api/buying/watchlist/`** accepts **`marketplace`**, **`status`**, **`has_manifest`**, **`profitable`**, **`needed`**, **`thumbs_up`** (watchlist filter parity with main list). **Backend:** `WatchlistAuctionFilter` extended for **`profitable`**, **`needed`**, **`thumbs_up`**; manifest-based **`has_manifest`** filtering aligned with list queryset.
+- **Buying — Phase 5 (React UI):** [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md) — **Auction list** (`/buying/auctions`): valuation **DataGrid** columns — **Profitability** / **Need** pills, **Est. revenue**, **Retail** (manifest vs listing tooltip), **Priority** with Admin **steppers**, **Thumbs up** toggle (Admin), **Time left** with color bands; default server sort **`-priority,end_time`**. **Filter chips** (server-side **`AuctionFilter`** / **`WatchlistAuctionFilter`**): **Profitable**, **Needed**, **Thumbs up**, **Watched**, **Has manifest** — multi-select with Ctrl/⌘ (plain click isolates / clears per row semantics); **marketplace** chips: **All** first, Ctrl/⌘ multi-vendor; layout: **Filters** + **Clear all**, then marketplace row, then filter row; mobile-scaled chips. **Category need panel** (desktop **`md+`**): **Min** / **Window** / **Full** sizing, bar charts, category detail, staff **want vote** slider (debounced). **Auction detail:** **AuctionValuationCard** (full computation breakdown, revenue/fees/shipping/shrinkage/profit-target/priority overrides, **max bid** line), **AiManifestComparisonStrip** when both AI and manifest mix exist. **Watchlist** row tint on main list (≤**100** watchlist IDs for tint query). **Mobile** list: scaled chips, time formatting, infinite scroll. **React Query:** `placeholderData: keepPreviousData` on auction + watchlist list queries so **server pagination** stays stable when the page param changes. **API:** **`GET /api/buying/category-need/`** category rows include **`sell_through_rate`**; list params **`profitable`**, **`needed`**; **`GET /api/buying/watchlist/`** accepts **`marketplace`**, **`status`**, **`has_manifest`**, **`profitable`**, **`needed`**, **`thumbs_up`** (watchlist filter parity with main list). **Backend:** `WatchlistAuctionFilter` extended for **`profitable`**, **`needed`**, **`thumbs_up`**; manifest-based **`has_manifest`** filtering aligned with list queryset.
 
 ### Fixed
 
@@ -509,7 +523,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Initiative
 
-- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — Phase **5** **React UI** shipped (**v2.9.0**); **Phase 6** (outcomes) next.
+- [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md) — Phase **5** **React UI** shipped (**v2.9.0**); **Phase 6** (outcomes) next.
 
 ---
 
@@ -525,11 +539,11 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 - **Seeds & management commands:** **`python manage.py seed_pricing_rules`** (CSV + **`AppSetting`** keys); **`python manage.py seed_marketplace_pricing_defaults`**; **`python manage.py estimate_auction_categories`**; **`python manage.py recompute_buying_valuations`**.
 - **Manifest upload hooks:** **`manifest_upload`** computes **`manifest_category_distribution`** and triggers valuation **recompute** when mapping completes (**`upload_manifest`**, **`map_fast_cat_batch`** when queue clears, **`DELETE …/manifest/`**); **`pipeline`** sweep runs limited AI estimate batch + **`recompute_all_open_auctions`**.
 - **Tests:** **`apps/buying/tests/test_valuation.py`**, **`apps/buying/tests/test_phase5_category_need.py`**.
-- **Documentation & AI steering:** New protocol [`.ai/protocols/get_bearing.md`](.ai/protocols/get_bearing.md); consultant bundle procedure now [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md); personas [`.ai/personas/Scout.md`](.ai/personas/Scout.md), [`.ai/personas/Christina.md`](.ai/personas/Christina.md); updates to **`.ai/context.md`**, **`.ai/extended/backend.md`**, **`.ai/extended/bstock.md`**, **`.ai/extended/frontend.md`**, **`.ai/consultant_context.md`**, **`.ai/initiatives/_index.md`**, **`bstock_auction_intelligence.md`**.
+- **Documentation & AI steering:** New protocol [`.ai/protocols/code.1.Bearing.md`](.ai/protocols/code.1.Bearing.md); consultant bundle procedure now [`.ai/extended/consultant_handoff.md`](.ai/extended/consultant_handoff.md); personas [`.ai/personas/Scout.md`](.ai/personas/Scout.md), [`.ai/personas/Christina.md`](.ai/personas/Christina.md); updates to **`.ai/context.md`**, **`.ai/extended/backend.md`**, **`.ai/extended/bstock.md`**, **`.ai/extended/frontend.md`**, **`.ai/consultant_context.md`**, **`.ai/initiatives/_index.md`**, **`bstock_auction_intelligence.md`**.
 
 ### Initiative
 
-- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — Phase **5** backend/API shipped; **next:** Phase **5** React valuation columns (optional) or **Phase 6** outcomes.
+- [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md) — Phase **5** backend/API shipped; **next:** Phase **5** React valuation columns (optional) or **Phase 6** outcomes.
 
 ---
 
@@ -570,7 +584,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Initiative
 
-- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — Phase **4.1B** shipped; **next: Phase 5** (auction valuation).
+- [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md) — Phase **4.1B** shipped; **next: Phase 5** (auction valuation).
 
 ---
 
@@ -588,7 +602,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Initiative
 
-- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — Phase **4.1A** manifest upload + fast-cat seed shipped; Phase **5** (valuation) still next.
+- [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md) — Phase **4.1A** manifest upload + fast-cat seed shipped; Phase **5** (valuation) still next.
 
 ---
 
@@ -606,11 +620,11 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Changed
 
-- **Initiative** [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md): Phases **3–4** acceptance complete; **Phase 7** removed from phased plan; **Operational notes** (soft-touch vs invasive sweep, manual manifest path, ban mitigation); **Open questions** updated (ban risk, retrospective deferred). **Consultant:** [`.ai/consultant_context.md`](.ai/consultant_context.md) aligned.
+- **Initiative** [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md): Phases **3–4** acceptance complete; **Phase 7** removed from phased plan; **Operational notes** (soft-touch vs invasive sweep, manual manifest path, ban mitigation); **Open questions** updated (ban risk, retrospective deferred). **Consultant:** [`.ai/consultant_context.md`](.ai/consultant_context.md) aligned.
 
 ### Initiative
 
-- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — **Phases 3–4 complete.** **Next: Phase 5** (auction valuation).
+- [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md) — **Phases 3–4 complete.** **Next: Phase 5** (auction valuation).
 
 ---
 
@@ -622,11 +636,11 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Changed
 
-- **Phase 2A** (auction list UI) shipped in **v2.4.1**; this minor release completes **Phase 2** under [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
+- **Phase 2A** (auction list UI) shipped in **v2.4.1**; this minor release completes **Phase 2** under [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md).
 
 ### Initiative
 
-- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — **Phase 2 (2A–2C) complete.** Next: **Phase 3** (watchlist polling, **`AuctionSnapshot`**, price history).
+- [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md) — **Phase 2 (2A–2C) complete.** Next: **Phase 3** (watchlist polling, **`AuctionSnapshot`**, price history).
 
 ---
 
@@ -642,7 +656,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Initiative
 
-- [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md) — Phase 2A auction list shipped; Phase 2B detail / manifests / watchlist next.
+- [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md) — Phase 2A auction list shipped; Phase 2B detail / manifests / watchlist next.
 
 ---
 
@@ -650,7 +664,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Added
 
-- **Buying / B-Stock (Phase 1 complete):** Django app **`apps/buying/`** with models, services (**`scraper`**, **`pipeline`**, **`normalize`**), management commands **`sweep_auctions`**, **`pull_manifests`**, **`bstock_token`**; **`POST /api/buying/token/`** (DEBUG or localhost) writes **`workspace/.bstock_token`**; rejects JWE cookie tokens (`eyJhbGciOiJSU0EtT0FF`). **`scripts/refresh_bstock.bat`**. Bookmarklet and docs: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. Notebook workbench: **`.ai/extended/development.md (Jupyter)`**. Initiative: [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
+- **Buying / B-Stock (Phase 1 complete):** Django app **`apps/buying/`** with models, services (**`scraper`**, **`pipeline`**, **`normalize`**), management commands **`sweep_auctions`**, **`pull_manifests`**, **`bstock_token`**; **`POST /api/buying/token/`** (DEBUG or localhost) writes **`workspace/.bstock_token`**; rejects JWE cookie tokens (`eyJhbGciOiJSU0EtT0FF`). **`scripts/refresh_bstock.bat`**. Bookmarklet and docs: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. Notebook workbench: **`.ai/extended/development.md (Jupyter)`**. Initiative: [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md).
 
 ### Changed
 
@@ -670,7 +684,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Added
 
-- **Buying / B-Stock (Phase 1):** New Django app **`apps/buying/`** for auction intelligence: models `Marketplace`, `Auction`, `AuctionSnapshot`, `ManifestRow`, `WatchlistEntry`, `Bid`, `Outcome`; server-side services **`discover_auctions`**, **`get_auction_detail`**, **`get_manifest`** (manifest URL optional until DevTools capture); **`python manage.py sweep_auctions`** and **`python manage.py pull_manifests`**; Postgres-backed persistence; Django admin registration. Configuration via **`BSTOCK_*`** and **`BUYING_REQUEST_DELAY_SECONDS`** in `.env` (see **`.env.example`**). Explicit **`requests`** dependency in **`requirements.txt`**. Notebook workbench: **`.ai/extended/development.md (Jupyter)`**. Initiative: [`.ai/initiatives/bstock_auction_intelligence.md`](.ai/initiatives/bstock_auction_intelligence.md).
+- **Buying / B-Stock (Phase 1):** New Django app **`apps/buying/`** for auction intelligence: models `Marketplace`, `Auction`, `AuctionSnapshot`, `ManifestRow`, `WatchlistEntry`, `Bid`, `Outcome`; server-side services **`discover_auctions`**, **`get_auction_detail`**, **`get_manifest`** (manifest URL optional until DevTools capture); **`python manage.py sweep_auctions`** and **`python manage.py pull_manifests`**; Postgres-backed persistence; Django admin registration. Configuration via **`BSTOCK_*`** and **`BUYING_REQUEST_DELAY_SECONDS`** in `.env` (see **`.env.example`**). Explicit **`requests`** dependency in **`requirements.txt`**. Notebook workbench: **`.ai/extended/development.md (Jupyter)`**. Initiative: [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md).
 
 ---
 
@@ -752,7 +766,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 
 ### Added
 
-- **Steering:** Initiative **archiving** requires **explicit user approval** (documented in [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md), [`_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md), [`.ai/protocols/startup.md`](.ai/protocols/startup.md), [`.ai/protocols/session_close.md`](.ai/protocols/session_close.md), [`.ai/context.md`](.ai/context.md)). Initiative [`e2e_retag_quick_reprice_fixes.md`](.ai/initiatives/e2e_retag_quick_reprice_fixes.md) **restored** to the active index with expanded scope *(now archived as [completed](.ai/initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md)).*
+- **Steering:** Initiative **archiving** requires **explicit user approval** (documented in [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md), [`_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md), [`.ai/protocols/code.0.Startup.md`](.ai/protocols/code.0.Startup.md), [`.ai/protocols/session.9.Close.md`](.ai/protocols/session.9.Close.md), [`.ai/context.md`](.ai/context.md)). Initiative [`e2e_retag_quick_reprice_fixes.md`](.ai/initiatives/e2e_retag_quick_reprice_fixes.md) **restored** to the active index with expanded scope *(now archived as [completed](.ai/initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md)).*
 - **Inventory — Quick reprice (sold units):** **`POST /api/inventory/items/:id/duplicate-for-resale/`** (staff) creates a new **on-shelf** item from a **sold** row; **`POST /api/inventory/items/:id/mark-on-shelf/`** (Manager/Admin) when no completed POS sale exists. **Quick Reprice** dialog: **Create unsold copy & reprice**, **Mark on shelf again**, **Cancel**.
 - **Inventory — Quick reprice UX:** **This Session** card with **expand/collapse** (chevron) listing all repriced items with links to **`/inventory/items/:id`**. **`?sku=`** query prefill when opening Quick Reprice from item detail.
 - **Inventory — Item detail:** **Print tag** and **Reprice** (deep-link to Quick Reprice with `?sku=`). Initiative: [`e2e_retag_quick_reprice_fixes.md`](.ai/initiatives/_archived/_completed/e2e_retag_quick_reprice_fixes.md).
@@ -799,7 +813,7 @@ User-facing theme: **Buying dashboards and category need reflect ~3 years of rea
 ### Added
 - **Purchase order reset safety:** `GET /api/inventory/orders/:id/delete-preview/` and `POST /api/inventory/orders/:id/purge-delete/` (order-number confirmation).
 - **Preprocessing preview search:** Server-side search over full raw manifest and full standardized output (top-100 preview window per endpoint).
-- **Project / AI layout (BEST-spec alignment):** Repo root `.version` and `CHANGELOG.md`; `.ai/protocols/` (`startup.md`, `session_close.md`, `get_bearing.md`); `.ai/plans/_index.md` and `plans/archive/`; `.ai/reference/`; committed `scripts/dev/` (`start_servers.bat`, `kill_servers.bat`) and `scripts/deploy/commit_message.txt`.
+- **Project / AI layout (BEST-spec alignment):** Repo root `.version` and `CHANGELOG.md`; `.ai/protocols/` (`code.0.Startup.md`, `session.9.Close.md`, `code.1.Bearing.md`); `.ai/plans/_index.md` and `plans/archive/`; `.ai/reference/`; committed `scripts/dev/` (`start_servers.bat`, `kill_servers.bat`) and `scripts/deploy/commit_message.txt`.
 - **Root spec:** `2.EcoThrift.project_build_spec.md` describing layout, versioning, and protocols.
 - **Multi-DB Jupyter:** Tracked `workspace/notebooks/` (selective gitignore): `config.example.py`, `db_explorer.ipynb` — SQLAlchemy + pandas helpers, pickles dir ignored; optional `requirements-notebooks.txt` (includes former ML deps).
 - **`.ai/extended/databases.md`:** DB1 / DB2 / DB3 overview; credentials stay out of repo; points to `docs/Database Audits/`.

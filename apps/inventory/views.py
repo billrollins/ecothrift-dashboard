@@ -15,6 +15,7 @@ from django.db.models import (
     Case,
     Count,
     F,
+    Max,
     Prefetch,
     Q,
     Sum,
@@ -31,6 +32,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes as perm_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -64,6 +66,7 @@ from .serializers import (
     VendorSerializer,
     PurchaseOrderSerializer,
     PurchaseOrderListSerializer,
+    PreprocessingQueueOrderSerializer,
     PurchaseOrderDetailSerializer,
     CategorySerializer, CSVTemplateSerializer, ManifestRowSerializer, ManualReviewRowSerializer,
     PreprocessingOrderSerializer, PreprocessingReviewRowSerializer,
@@ -106,7 +109,7 @@ MANIFEST_STANDARD_COLUMNS = (
     {'key': 'model', 'label': 'Model', 'required': False},
     {'key': 'category', 'label': 'Category', 'required': False},
     {'key': 'condition', 'label': 'Condition', 'required': False},
-    {'key': 'retail_value', 'label': 'Retail Cost', 'required': False},
+    {'key': 'retail_value', 'label': 'Unit retail (MSRP)', 'required': False},
     {'key': 'upc', 'label': 'UPC', 'required': False},
     {'key': 'vendor_item_number', 'label': 'Vendor Item #', 'required': False},
     {'key': 'notes', 'label': 'Notes', 'required': False},
@@ -127,7 +130,27 @@ MANIFEST_SOURCE_ALIASES = {
     'brand': ['brand', 'manufacturer'],
     'model': ['model', 'model_number', 'model number'],
     'category': ['category', 'department'],
-    'retail_value': ['retail_value', 'retail value', 'unit_cost', 'unit cost', 'cost', 'price'],
+    # Prefer vendor unit stated retail (e.g. B-Stock "Unit Retail"); extended line fallbacks last.
+    'retail_value': [
+        'unit retail',
+        'unit retail price',
+        'retail price',
+        'msrp',
+        'list price',
+        'stated retail',
+        'vendor retail',
+        'original retail',
+        'ext retail',
+        'ext. retail',
+        'extended retail',
+        'total retail',
+        'retail value',
+        'retail_value',
+        'price',
+        'unit_cost',
+        'unit cost',
+        'cost',
+    ],
     'upc': ['upc', 'upc/ean', 'barcode'],
     'vendor_item_number': [
         'vendor_item_number',
@@ -263,6 +286,31 @@ def default_column_mappings(headers):
     return mappings
 
 
+def matching_templates_payload_for_vendor_signature(vendor, sig):
+    """Template picker options for a header signature (no S3 / CSV parse)."""
+    if vendor is None or not sig:
+        return []
+    qs = (
+        CSVTemplate.objects.filter(vendor=vendor, header_signature=sig)
+        .annotate(
+            use_count=Count('preprocessing_orders', distinct=True),
+            last_used_at=Max('preprocessing_orders__updated_at'),
+        )
+        .order_by('-is_default', '-id')[:25]
+    )
+    return [
+        {
+            'id': tpl.id,
+            'name': tpl.name,
+            'created_at': tpl.created_at.isoformat() if getattr(tpl, 'created_at', None) else None,
+            'is_default': tpl.is_default,
+            'use_count': tpl.use_count,
+            'last_used_at': tpl.last_used_at.isoformat() if tpl.last_used_at else None,
+        }
+        for tpl in qs
+    ]
+
+
 def normalize_standard_mappings(mappings):
     """Normalize mixed mapping payloads to {target, source, transforms[]} or {target, formula}."""
     normalized = []
@@ -335,6 +383,21 @@ def effective_preprocessing_row_price(row):
     if row.proposed_price is not None:
         return row.proposed_price
     return None
+
+
+def _safe_attachment_filename_stem(name: str, fallback: str = 'download') -> str:
+    base = str(name or '').strip() or fallback
+    base = re.sub(r'[^\w.\-]+', '_', base, flags=re.ASCII)
+    return base[:120] or fallback
+
+
+def _unit_base_cost_and_ideal_price(order, retail_value):
+    """Per-unit acquisition cost and 2× ideal unit price (aligned with preprocessing-status totals)."""
+    base_cost = order.compute_item_cost(retail_value)
+    if base_cost is None:
+        return None, None
+    ideal_price = (base_cost * Decimal('2')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return base_cost, ideal_price
 
 
 PREPROCESSING_REVIEW_EDITABLE_FIELDS = (
@@ -462,9 +525,8 @@ def update_preprocessing_review_rows(prep, rows_payload):
         price_field = 'final_price' if 'final_price' in row_data else None
         if price_field:
             row.final_price = parse_decimal(row_data.get(price_field))
-            row.proposed_price = row.final_price
             row.pricing_stage = 'final' if row.final_price is not None else 'unpriced'
-            update_fields.extend(['final_price', 'proposed_price', 'pricing_stage'])
+            update_fields.extend(['final_price', 'pricing_stage'])
         elif 'proposed_price' in row_data:
             row.proposed_price = parse_decimal(row_data.get('proposed_price'))
             if row.final_price is None:
@@ -1455,12 +1517,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     def filter_queryset(self, queryset):
         qs = super().filter_queryset(queryset)
-        if getattr(self, 'action', None) in ('list', 'summary', 'for_receiving'):
+        if getattr(self, 'action', None) in ('list', 'summary', 'for_receiving', 'preprocessing_queue'):
             qs = self._filter_purchase_order_list_extras(qs, self.request)
         return qs
 
     def get_queryset(self):
-        if getattr(self, 'action', None) in ('list', 'summary', 'for_receiving'):
+        if getattr(self, 'action', None) in ('list', 'summary', 'for_receiving', 'preprocessing_queue'):
             return PurchaseOrder.objects.filter(
                 vendor_name_cache__in=PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES,
             )
@@ -1473,9 +1535,25 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return PurchaseOrderListSerializer
         if self.action == 'for_receiving':
             return OrderForReceivingListSerializer
+        if self.action == 'preprocessing_queue':
+            return PreprocessingQueueOrderSerializer
         if self.action == 'retrieve':
             return PurchaseOrderDetailSerializer
         return PurchaseOrderSerializer
+
+    @action(detail=False, methods=['get'], url_path='preprocessing-queue')
+    def preprocessing_queue(self, request):
+        """Orders with a manifest whose preprocessing session is not finalized (or not started)."""
+        qs = (
+            self.filter_queryset(self.get_queryset())
+            .filter(manifest_id__isnull=False)
+            .exclude(status='cancelled')
+            .filter(Q(preprocessing__isnull=True) | Q(preprocessing__finalized_at__isnull=True))
+            .select_related('preprocessing')
+            .order_by('-preprocessing__current_step', '-preprocessing__updated_at', '-ordered_date')
+        )
+        serializer = PreprocessingQueueOrderSerializer(qs, many=True)
+        return Response({'results': serializer.data})
 
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):
@@ -2055,6 +2133,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         )
         template_id = request.data.get('template_id')
         save_template = bool(request.data.get('save_template', False))
+        save_template_as_new = bool(request.data.get('save_template_as_new'))
         template_name = str(request.data.get('template_name') or '').strip()
         header_sig = None
         row_count_in_file = None
@@ -2087,7 +2166,22 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 default_template_name = (
                     f'{order.vendor.code} Standard Manifest {timezone.now().date().isoformat()}'
                 )
-                if used_template:
+                if save_template_as_new:
+                    if not template_name:
+                        return Response(
+                            {
+                                'detail': 'template_name is required when save_template_as_new is true.',
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    used_template = CSVTemplate.objects.create(
+                        vendor=order.vendor,
+                        name=template_name,
+                        header_signature=header_sig,
+                        column_mappings=normalized_mappings,
+                        is_default=False,
+                    )
+                elif used_template:
                     used_template.name = template_name or used_template.name
                     used_template.header_signature = header_sig
                     used_template.column_mappings = normalized_mappings
@@ -2314,6 +2408,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         model_id = request.data.get('model', '')
         template_id = request.data.get('template_id')
 
+        preview = order.manifest_preview or {}
+        headers_list = list(preview.get('headers') or [])
+        if not headers_list:
+            return Response(
+                {'error': 'manifest_preview missing or has no headers; re-upload the manifest.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         api_key = getattr(django_settings, 'ANTHROPIC_API_KEY', '')
         if not api_key:
             return Response(
@@ -2321,21 +2423,23 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        headers_list, raw_rows = parse_manifest_file(order)
-        if not headers_list:
-            return Response(
-                {'error': 'No manifest file uploaded for this order.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        rows_preview = preview.get('rows') or []
+        sample_rows = []
+        for r in rows_preview[:10]:
+            if not isinstance(r, dict):
+                continue
+            sample_rows.append({
+                'row_number': r.get('row_number'),
+                'raw': r.get('raw') if isinstance(r.get('raw'), dict) else {},
+            })
 
-        sample_rows = raw_rows[:10]
         prior_templates = []
         if template_id:
             tpl = CSVTemplate.objects.filter(id=template_id, vendor=order.vendor).first()
             if tpl:
                 prior_templates.append({'name': tpl.name, 'mappings': tpl.column_mappings})
         if not prior_templates:
-            sig = header_signature(headers_list)
+            sig = str(preview.get('signature') or '') or header_signature(headers_list)
             for tpl in CSVTemplate.objects.filter(vendor=order.vendor, header_signature=sig)[:3]:
                 prior_templates.append({'name': tpl.name, 'mappings': tpl.column_mappings})
 
@@ -2354,6 +2458,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             "- String concatenation: expr + \" \" + expr\n"
             "- String literals: \"quoted text\"\n\n"
             "Standard fields:\n" + "\n".join(standard_fields_desc) + "\n\n"
+            "Field-specific hints:\n"
+            "- retail_value (unit retail / MSRP): Prefer a per-unit vendor stated retail column such as "
+            "\"Unit Retail\" or \"MSRP\". Avoid extended line totals (e.g. \"Ext. Retail\" = unit × qty) "
+            "when a unit column exists.\n\n"
             "Return ONLY valid JSON with this structure:\n"
             '{"suggestions": [{"target": "field_key", "formula": "expression", "reasoning": "brief explanation"}]}\n'
             "Only include fields where you can identify a reasonable mapping. "
@@ -2973,7 +3081,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='download-cleanup-csv')
     def download_cleanup_csv(self, request, pk=None):
-        """Download manifest rows with AI-equivalent cleanup columns for offline editing."""
+        """Lean standardized-row CSV for offline cleanup (pre-AI columns only)."""
         order = self.get_object()
         prep = getattr(order, 'preprocessing', None)
         use_staging = bool(prep and prep.row_count > 0 and not prep.finalized_at)
@@ -2992,107 +3100,56 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         columns = [
             'row_id',
             'row_number',
-            'item_id',
-            'sku',
-            'quantity',
             'description',
-            'current_title',
-            'current_brand',
-            'current_model',
-            'current_category',
-            'current_condition',
-            'upc',
-            'retail_value',
-            'base_cost',
-            'ideal_price',
-            'ai_title',
-            'ai_brand',
-            'ai_model',
+            'title',
+            'brand',
+            'model',
             'category',
             'condition',
-            'proposed_price',
-            'search_tags',
+            'sku',
+            'upc',
+            'quantity',
+            'retail_value',
             'notes',
-            'low_confidence',
-            'low_confidence_reason',
+            'base_cost',
+            'ideal_price',
         ]
 
         response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = (
-            f'attachment; filename="order-{order.id}-cleanup.csv"'
-        )
+        fname = _safe_attachment_filename_stem(getattr(order, 'order_number', None) or str(order.pk))
+        response['Content-Disposition'] = (f'attachment; filename="{fname}.csv"')
         writer = csv.DictWriter(response, fieldnames=columns, extrasaction='ignore')
         writer.writeheader()
 
         for row in rows:
             if use_staging:
-                first_item = None
+                sku_val = ''
             else:
                 first_item = row.items.exclude(status__in=TERMINAL_ITEM_STATUSES).order_by('id').first()
-            base_cost = order.compute_item_cost(row.retail_value)
-            ideal_price = (
-                (base_cost * Decimal('2')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                if base_cost is not None
-                else None
-            )
+                sku_val = first_item.sku if first_item else ''
+            base_cost, ideal_price = _unit_base_cost_and_ideal_price(order, row.retail_value)
             writer.writerow({
                 'row_id': row.id,
                 'row_number': row.row_number,
-                'item_id': first_item.id if first_item else '',
-                'sku': first_item.sku if first_item else '',
-                'quantity': row.quantity,
                 'description': row.description,
-                'current_title': row.title,
-                'current_brand': row.brand,
-                'current_model': row.model,
-                'current_category': row.category,
-                'current_condition': row.condition,
-                'upc': row.upc,
-                'retail_value': row.retail_value or '',
-                'base_cost': base_cost or '',
-                'ideal_price': ideal_price or '',
-                'ai_title': row.ai_suggested_title or row.title or row.description,
-                'ai_brand': row.ai_suggested_brand or row.brand,
-                'ai_model': row.ai_suggested_model or row.model,
+                'title': row.title,
+                'brand': row.brand,
+                'model': row.model,
                 'category': row.category,
                 'condition': row.condition,
-                'proposed_price': row.proposed_price or row.final_price or '',
-                'search_tags': row.search_tags,
+                'sku': sku_val,
+                'upc': row.upc,
+                'quantity': row.quantity,
+                'retail_value': row.retail_value or '',
                 'notes': row.notes,
-                'low_confidence': '',
-                'low_confidence_reason': '',
+                'base_cost': base_cost or '',
+                'ideal_price': ideal_price or '',
             })
 
         return response
 
-    @action(detail=True, methods=['post'], url_path='upload-cleanup-csv')
-    def upload_cleanup_csv(self, request, pk=None):
-        """Import strict local AI cleanup CSV results into ManifestRows and linked Items."""
-        order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        use_staging = bool(prep and prep.row_count > 0 and not prep.finalized_at)
-        upload = request.FILES.get('file')
-        if not upload:
-            return Response(
-                {'detail': 'CSV file is required.', 'code': 'missing_file'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            decoded = upload.read().decode('utf-8-sig')
-        except UnicodeDecodeError:
-            return Response(
-                {'detail': 'CSV must be UTF-8 encoded.', 'code': 'decode_error'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        reader = csv.DictReader(io.StringIO(decoded))
-        if not reader.fieldnames:
-            return Response(
-                {'detail': 'CSV header row is required.', 'code': 'empty_csv'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+    def _parse_cleanup_csv_upload(self, request):
+        """Return (csv_rows, None) or (None, Response) — list of dicts matching narrow cleanup columns."""
         expected_fields = [
             'row_id',
             'ai_title',
@@ -3102,8 +3159,59 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'condition',
             'proposed_price',
         ]
+        rows_payload = request.data.get('rows') if isinstance(request.data, dict) else None
+        if isinstance(rows_payload, list):
+            if not rows_payload:
+                return None, Response(
+                    {'detail': 'JSON body `rows` must be a non-empty array.', 'code': 'empty_rows'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            csv_rows = []
+            for idx, row in enumerate(rows_payload):
+                if not isinstance(row, dict):
+                    return None, Response(
+                        {
+                            'detail': f'rows[{idx}] must be an object.',
+                            'code': 'invalid_row_shape',
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                missing = [f for f in expected_fields if f not in row]
+                if missing:
+                    return None, Response(
+                        {
+                            'detail': f'rows[{idx}] missing keys: {missing}',
+                            'code': 'invalid_row_keys',
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                csv_rows.append({k: row[k] for k in expected_fields})
+            return csv_rows, None
+
+        upload = request.FILES.get('file')
+        if not upload:
+            return None, Response(
+                {'detail': 'Provide multipart `file` or JSON `{ "rows": [...] }`.', 'code': 'missing_input'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            decoded = upload.read().decode('utf-8-sig')
+        except UnicodeDecodeError:
+            return None, Response(
+                {'detail': 'CSV must be UTF-8 encoded.', 'code': 'decode_error'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reader = csv.DictReader(io.StringIO(decoded))
+        if not reader.fieldnames:
+            return None, Response(
+                {'detail': 'CSV header row is required.', 'code': 'empty_csv'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if reader.fieldnames != expected_fields:
-            return Response(
+            return None, Response(
                 {
                     'detail': 'Cleanup CSV must use the exact narrow AI cleanup header.',
                     'code': 'invalid_header',
@@ -3112,6 +3220,26 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        return list(reader), None
+
+    @action(detail=True, methods=['post'], url_path='upload-cleanup-csv')
+    def upload_cleanup_csv(self, request, pk=None):
+        """Import AI cleanup results from CSV file or JSON `{rows:[...]}` into staging or ManifestRows."""
+        return self._upload_cleanup_csv_impl(request)
+
+    @action(detail=True, methods=['post'], url_path='apply-cleanup-csv')
+    def apply_cleanup_csv(self, request, pk=None):
+        """Alias for upload_cleanup_csv (JSON body apply path)."""
+        return self._upload_cleanup_csv_impl(request)
+
+    def _upload_cleanup_csv_impl(self, request):
+        order = self.get_object()
+        prep = getattr(order, 'preprocessing', None)
+        use_staging = bool(prep and prep.row_count > 0 and not prep.finalized_at)
+        csv_rows, parse_error = self._parse_cleanup_csv_upload(request)
+        if parse_error is not None:
+            return parse_error
 
         if use_staging:
             rows_by_id = {
@@ -3130,7 +3258,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         rejected = []
         payloads = []
         seen_ids = set()
-        csv_rows = list(reader)
         rows_seen = len(csv_rows)
 
         if rows_seen != len(rows_by_id):
@@ -3451,6 +3578,30 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if total_rows > 0 and final_rows == total_rows:
             completed_step = 2
 
+        preview = order.manifest_preview or {}
+        manifest_sample = None
+        if preview:
+            # Persisted at manifest upload; `rows` holds up to 10 raw sample rows (see upload_manifest).
+            headers_list = list(preview.get('headers') or [])
+            sig = str(preview.get('signature') or '')
+            tm_norm = normalize_standard_mappings(preview.get('template_mappings'))
+            if not tm_norm:
+                tm_norm = default_column_mappings(headers_list)
+            vendor = order.vendor if order.vendor_id else None
+            manifest_sample = {
+                'headers': headers_list,
+                'rows': preview.get('rows') or [],
+                'row_count': preview.get('row_count'),
+                'signature': sig,
+                'delimiter': preview.get('delimiter'),
+                'template_id': preview.get('template_id'),
+                'template_name': preview.get('template_name'),
+                'template_mappings': tm_norm,
+                'vendor_name': str(preview.get('vendor_name') or ''),
+                'matching_templates': matching_templates_payload_for_vendor_signature(vendor, sig),
+                'standard_columns': list(MANIFEST_STANDARD_COLUMNS),
+            }
+
         payload = {
             'order': {
                 'id': order.id,
@@ -3459,6 +3610,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'status': order.status,
                 'item_count': order.item_count,
                 'has_manifest_file': bool(order.manifest_id),
+                'manifest_sample': manifest_sample,
             },
             'counts': {
                 'standardized_rows': total_rows,
@@ -3484,6 +3636,25 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             }
         else:
             payload['preprocessing'] = None
+        if settings.DEBUG:
+            ms = payload['order'].get('manifest_sample')
+            logger.info(
+                '[preprocessing_status] order=%s has_manifest=%s manifest_sample=%s',
+                order.id,
+                payload['order'].get('has_manifest_file'),
+                None
+                if not ms
+                else {
+                    'headers': len(ms.get('headers') or []),
+                    'rows': len(ms.get('rows') or []),
+                    'row_count': ms.get('row_count'),
+                    'signature_prefix': (ms.get('signature') or '')[:12],
+                    'template_id': ms.get('template_id'),
+                    'template_mappings': len(ms.get('template_mappings') or []),
+                    'matching_templates': len(ms.get('matching_templates') or []),
+                    'standard_columns': len(ms.get('standard_columns') or []),
+                },
+            )
         return Response(payload)
 
     @action(detail=True, methods=['get', 'patch'], url_path='preprocessing-review')
@@ -3505,6 +3676,27 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             )
 
         if request.method == 'GET':
+            full_flag = str(request.query_params.get('full') or '').lower() in ('1', 'true', 'yes')
+            if full_flag:
+                if prep.row_count > 10000:
+                    return Response(
+                        {'detail': 'Too many staged rows for full export (max 10000).'},
+                        status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    )
+                rows_qs = (
+                    PreprocessingRow.objects.filter(preprocessing_order=prep)
+                    .select_related('purchase_order')
+                    .order_by('row_number')
+                )
+                page_rows = list(rows_qs)
+                serializer = PreprocessingReviewRowSerializer(page_rows, many=True)
+                return Response({
+                    'rows': serializer.data,
+                    'count': len(page_rows),
+                    'full': True,
+                    'summary': summarize_preprocessing_rows(order, rows_qs),
+                })
+
             rows_qs = build_preprocessing_review_queryset(prep, request.query_params)
             page, page_size = _parse_page_params(request.query_params)
             start = (page - 1) * page_size
@@ -3698,132 +3890,145 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        staging_rows = list(prep.rows.order_by('row_number'))
-        validation_errors = []
-        for sr in staging_rows:
-            if effective_preprocessing_row_price(sr) is None:
-                validation_errors.append({'row_number': sr.row_number, 'reason': 'missing_price'})
-            elif not (
-                str(sr.description or '').strip()
-                or str(sr.title or '').strip()
-                or str(sr.ai_suggested_title or '').strip()
-            ):
-                validation_errors.append({
-                    'row_number': sr.row_number,
-                    'reason': 'missing_title_or_description',
-                })
-
-        if validation_errors:
-            return Response(
-                {
-                    'detail': 'All staging rows must have a listing title/description and a price.',
-                    'code': 'validation_failed',
-                    'errors': validation_errors[:100],
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        rows_payload = request.data.get('rows')
+        if rows_payload is not None and not isinstance(rows_payload, list):
+            return Response({'detail': 'rows must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
 
         now = timezone.now()
         ensure_summary = {}
         batch_groups_created = 0
         batch = None
+        staging_rows = []
 
-        with transaction.atomic():
-            ManifestRow.objects.filter(purchase_order=order).delete()
-            order.items.exclude(status__in=TERMINAL_ITEM_STATUSES).delete()
-            order.batch_groups.all().delete()
+        try:
+            with transaction.atomic():
+                if rows_payload:
+                    update_preprocessing_review_rows(prep, rows_payload)
+                staging_rows = list(prep.rows.order_by('row_number'))
+                validation_errors = []
+                for sr in staging_rows:
+                    if effective_preprocessing_row_price(sr) is None:
+                        validation_errors.append({'row_number': sr.row_number, 'reason': 'missing_price'})
+                    elif not (
+                        str(sr.description or '').strip()
+                        or str(sr.title or '').strip()
+                        or str(sr.ai_suggested_title or '').strip()
+                    ):
+                        validation_errors.append({
+                            'row_number': sr.row_number,
+                            'reason': 'missing_title_or_description',
+                        })
 
-            manifest_objs = []
-            for sr in staging_rows:
-                manifest_objs.append(
-                    ManifestRow(
-                        purchase_order=order,
-                        row_number=sr.row_number,
-                        quantity=sr.quantity or 1,
-                        description=sr.description or '',
-                        title=sr.title or '',
-                        brand=sr.brand or '',
-                        model=sr.model or '',
-                        category=sr.category or '',
-                        condition=sr.condition or '',
-                        retail_value=sr.retail_value,
-                        proposed_price=sr.proposed_price,
-                        final_price=sr.final_price,
-                        pricing_stage=sr.pricing_stage or 'unpriced',
-                        pricing_notes=sr.pricing_notes or '',
-                        upc=sr.upc or '',
-                        vendor_item_number=sr.vendor_item_number or '',
-                        batch_flag=sr.batch_flag,
-                        search_tags=sr.search_tags or '',
-                        specifications=sr.specifications or {},
-                        ai_reasoning=sr.ai_reasoning or '',
-                        ai_suggested_title=sr.ai_suggested_title or '',
-                        ai_suggested_brand=sr.ai_suggested_brand or '',
-                        ai_suggested_model=sr.ai_suggested_model or '',
-                        notes=sr.notes or '',
-                        match_status='pending',
-                    ),
-                )
-            ManifestRow.objects.bulk_create(manifest_objs)
+                if validation_errors:
+                    raise ValidationError({
+                        'detail': 'All staging rows must have a listing title/description and a price.',
+                        'code': 'validation_failed',
+                        'errors': validation_errors[:100],
+                    })
 
-            ensure_summary = ensure_manifest_products_and_items(order, request.user)
+                ManifestRow.objects.filter(purchase_order=order).delete()
+                order.items.exclude(status__in=TERMINAL_ITEM_STATUSES).delete()
+                order.batch_groups.all().delete()
 
-            rows = list(
-                ManifestRow.objects.filter(purchase_order=order).select_related('matched_product'),
-            )
-            batch = ProcessingBatch.objects.filter(purchase_order=order).order_by('-started_at').first()
-            if not batch:
-                batch = ProcessingBatch.objects.create(
-                    purchase_order=order,
-                    status='in_progress',
-                    total_rows=len(rows),
-                    processed_count=len(rows),
-                    items_created=order.items.count(),
-                    started_at=now,
-                    completed_at=now,
-                    created_by=request.user,
-                )
-
-            for row in rows:
-                quantity = row.quantity if row.quantity and row.quantity > 0 else 1
-                row_price = effective_manifest_row_price(row)
-                is_batch = False
-                if row_price is not None:
-                    is_batch = quantity >= 6 and float(row_price) < 75
-                elif quantity >= 10:
-                    is_batch = True
-                if not is_batch:
-                    continue
-                batch_group = row.batch_groups.first()
-                if not batch_group:
-                    batch_group = BatchGroup.objects.create(
-                        batch_number=BatchGroup.generate_batch_number(),
-                        product=row.matched_product,
-                        purchase_order=order,
-                        manifest_row=row,
-                        total_qty=quantity,
-                        unit_price=row_price,
-                        unit_cost=row.retail_value,
-                        condition='unknown',
-                        status='pending',
+                manifest_objs = []
+                for sr in staging_rows:
+                    manifest_objs.append(
+                        ManifestRow(
+                            purchase_order=order,
+                            row_number=sr.row_number,
+                            quantity=sr.quantity or 1,
+                            description=sr.description or '',
+                            title=sr.title or '',
+                            brand=sr.brand or '',
+                            model=sr.model or '',
+                            category=sr.category or '',
+                            condition=sr.condition or '',
+                            retail_value=sr.retail_value,
+                            proposed_price=sr.proposed_price,
+                            final_price=sr.final_price,
+                            pricing_stage=sr.pricing_stage or 'unpriced',
+                            pricing_notes=sr.pricing_notes or '',
+                            upc=sr.upc or '',
+                            vendor_item_number=sr.vendor_item_number or '',
+                            batch_flag=sr.batch_flag,
+                            search_tags=sr.search_tags or '',
+                            specifications=sr.specifications or {},
+                            ai_reasoning=sr.ai_reasoning or '',
+                            ai_suggested_title=sr.ai_suggested_title or '',
+                            ai_suggested_brand=sr.ai_suggested_brand or '',
+                            ai_suggested_model=sr.ai_suggested_model or '',
+                            notes=sr.notes or '',
+                            match_status='pending',
+                        ),
                     )
-                    batch_groups_created += 1
-                row.items.exclude(status__in=TERMINAL_ITEM_STATUSES).update(
-                    batch_group=batch_group,
-                    processing_tier='batch',
+                ManifestRow.objects.bulk_create(manifest_objs)
+
+                ensure_summary = ensure_manifest_products_and_items(order, request.user)
+
+                rows = list(
+                    ManifestRow.objects.filter(purchase_order=order).select_related('matched_product'),
+                )
+                batch = ProcessingBatch.objects.filter(purchase_order=order).order_by('-started_at').first()
+                if not batch:
+                    batch = ProcessingBatch.objects.create(
+                        purchase_order=order,
+                        status='in_progress',
+                        total_rows=len(rows),
+                        processed_count=len(rows),
+                        items_created=order.items.count(),
+                        started_at=now,
+                        completed_at=now,
+                        created_by=request.user,
+                    )
+
+                for row in rows:
+                    quantity = row.quantity if row.quantity and row.quantity > 0 else 1
+                    row_price = effective_manifest_row_price(row)
+                    is_batch = False
+                    if row_price is not None:
+                        is_batch = quantity >= 6 and float(row_price) < 75
+                    elif quantity >= 10:
+                        is_batch = True
+                    if not is_batch:
+                        continue
+                    batch_group = row.batch_groups.first()
+                    if not batch_group:
+                        batch_group = BatchGroup.objects.create(
+                            batch_number=BatchGroup.generate_batch_number(),
+                            product=row.matched_product,
+                            purchase_order=order,
+                            manifest_row=row,
+                            total_qty=quantity,
+                            unit_price=row_price,
+                            unit_cost=row.retail_value,
+                            condition='unknown',
+                            status='pending',
+                        )
+                        batch_groups_created += 1
+                    row.items.exclude(status__in=TERMINAL_ITEM_STATUSES).update(
+                        batch_group=batch_group,
+                        processing_tier='batch',
+                    )
+
+                prep.finalized_at = now
+                prep.workflow_status = 'finalized'
+                prep.current_step = max(prep.current_step, 2)
+                prep.save(
+                    update_fields=[
+                        'finalized_at',
+                        'workflow_status',
+                        'current_step',
+                        'updated_at',
+                    ],
                 )
 
-            prep.finalized_at = now
-            prep.workflow_status = 'finalized'
-            prep.current_step = max(prep.current_step, 2)
-            prep.save(
-                update_fields=[
-                    'finalized_at',
-                    'workflow_status',
-                    'current_step',
-                    'updated_at',
-                ],
-            )
+        except ValidationError as exc:
+            detail = exc.detail
+            if isinstance(detail, dict):
+                return Response(detail, status=status.HTTP_400_BAD_REQUEST)
+            if isinstance(detail, list):
+                return Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': str(detail)}, status=status.HTTP_400_BAD_REQUEST)
 
         order.refresh_from_db()
         return Response({
@@ -3833,6 +4038,37 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'processing_batch_id': batch.id if batch else None,
             **ensure_summary,
         })
+
+    @action(detail=True, methods=['post'], url_path='preview-manifest-formulas')
+    def preview_manifest_formulas(self, request, pk=None):
+        """Evaluate mapping formulas against one raw row (debounced sample column on Step 1)."""
+        order = self.get_object()
+        if not order.manifest_id:
+            return Response(
+                {'detail': 'No manifest file uploaded for this order.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        raw_row = request.data.get('raw_row')
+        formulas = request.data.get('formulas')
+        if not isinstance(raw_row, dict):
+            return Response({'detail': 'raw_row must be an object.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(formulas, dict):
+            return Response({'detail': 'formulas must be an object.'}, status=status.HTTP_400_BAD_REQUEST)
+        raw_as_strings = {str(k): '' if v is None else str(v) for k, v in raw_row.items()}
+        results = {}
+        errors = {}
+        for target, formula in formulas.items():
+            if target not in MANIFEST_TARGET_FIELDS:
+                errors[target] = 'unknown_target'
+                continue
+            if not isinstance(formula, str):
+                errors[target] = 'invalid_formula_type'
+                continue
+            try:
+                results[target] = evaluate_formula(formula, raw_as_strings)
+            except FormulaError as exc:
+                errors[target] = str(exc)
+        return Response({'results': results, 'errors': errors})
 
     @action(detail=True, methods=['get'], url_path='manifest-rows')
     def manifest_rows(self, request, pk=None):
@@ -3860,10 +4096,31 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             ]
 
         sig = header_signature(headers)
-        template = CSVTemplate.objects.filter(
-            vendor=order.vendor,
-            header_signature=sig,
-        ).order_by('-is_default', '-id').first()
+        matching_templates_qs = (
+            CSVTemplate.objects.filter(vendor=order.vendor, header_signature=sig)
+            .annotate(
+                use_count=Count('preprocessing_orders', distinct=True),
+                last_used_at=Max('preprocessing_orders__updated_at'),
+            )
+            .order_by('-is_default', '-id')[:25]
+        )
+        matching_templates = [
+            {
+                'id': tpl.id,
+                'name': tpl.name,
+                'created_at': tpl.created_at.isoformat() if getattr(tpl, 'created_at', None) else None,
+                'is_default': tpl.is_default,
+                'use_count': tpl.use_count,
+                'last_used_at': tpl.last_used_at.isoformat() if tpl.last_used_at else None,
+            }
+            for tpl in matching_templates_qs
+        ]
+        template = matching_templates_qs.first() if matching_templates_qs else None
+        if template is None:
+            template = CSVTemplate.objects.filter(
+                vendor=order.vendor,
+                header_signature=sig,
+            ).order_by('-is_default', '-id').first()
         template_mappings = normalize_standard_mappings(
             template.column_mappings if template and template.column_mappings else None,
         )
@@ -3880,6 +4137,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'template_id': template.id if template else None,
             'template_name': template.name if template else None,
             'template_mappings': template_mappings,
+            'matching_templates': matching_templates,
             'standard_columns': MANIFEST_STANDARD_COLUMNS,
             'available_functions': MANIFEST_FUNCTION_OPTIONS,
         })

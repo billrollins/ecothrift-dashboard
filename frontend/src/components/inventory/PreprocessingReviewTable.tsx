@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -19,7 +19,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import PlayArrow from '@mui/icons-material/PlayArrow';
 import type {
   PreprocessingReviewRow,
   PreprocessingReviewRowPatch,
@@ -28,16 +27,23 @@ import type {
 } from '../../api/inventory.api';
 import { formatConditionLabel, ITEM_CONDITIONS } from '../../constants/inventory.constants';
 import { formatCurrency } from '../../utils/format';
+import type { PreprocessingAiBaselinePatch } from './preprocessing/aiBaseline';
+import { baselineToRowPatch } from './preprocessing/aiBaseline';
 
 interface PreprocessingReviewTableProps {
+  /** Current page slice only (client-side pagination). */
   rows: PreprocessingReviewRow[];
+  /** Lookup full row by id (bulk actions use filtered ids across pages). */
+  getStagedRow: (id: number) => PreprocessingReviewRow | undefined;
+  /** Bulk toolbar applies to this id list (full filtered set). */
+  filteredRowIds: number[];
+  baselineByRowId: Record<number, PreprocessingAiBaselinePatch>;
   summary: PreprocessingReviewSummary | null;
-  count?: number;
-  page?: number;
-  pageSize?: number;
+  totalFilteredCount: number;
+  page: number;
+  pageSize: number;
   isLoading?: boolean;
   isSaving: boolean;
-  isFinalizing?: boolean;
   searchValue: string;
   missingPriceOnly: boolean;
   onPageChange?: (page: number) => void;
@@ -45,7 +51,10 @@ interface PreprocessingReviewTableProps {
   onSearchChange?: (search: string) => void;
   onMissingPriceChange?: (missingOnly: boolean) => void;
   onSaveRows: (rows: PreprocessingReviewRowUpdate[]) => Promise<void>;
-  onFinalize: () => void | Promise<void>;
+  /** Persist succeeded — parent merges into full-row snapshot. */
+  onPersistSuccess?: (rows: PreprocessingReviewRowUpdate[]) => void;
+  /** Dirty rows count for parent chrome (e.g. stepper finalize). */
+  onDirtyCountChange?: (count: number) => void;
 }
 
 function money(value: string | null | undefined) {
@@ -63,15 +72,36 @@ function rowValue(row: PreprocessingReviewRow, patch: PreprocessingReviewRowPatc
   return patch && field in patch ? patch[field] : row[field as keyof PreprocessingReviewRow];
 }
 
+/** Compound ±10% uses stored/edited final_price only (not proposed_price). */
+function currentFinalNumeric(row: PreprocessingReviewRow, draft?: PreprocessingReviewRowPatch): number {
+  const d = draft?.final_price;
+  if (d !== undefined && d !== null && String(d).trim() !== '') {
+    const n = Number.parseFloat(String(d));
+    return Number.isFinite(n) ? n : 0;
+  }
+  const fp = row.final_price;
+  if (fp != null && String(fp).trim() !== '') {
+    const n = Number.parseFloat(String(fp));
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+function baselinePatchFromRow(b: PreprocessingAiBaselinePatch): PreprocessingReviewRowPatch {
+  return baselineToRowPatch(b);
+}
+
 export function PreprocessingReviewTable({
   rows,
+  getStagedRow,
+  filteredRowIds,
+  baselineByRowId,
   summary,
-  count = rows.length,
-  page = 1,
-  pageSize = 50,
+  totalFilteredCount,
+  page,
+  pageSize,
   isLoading = false,
   isSaving,
-  isFinalizing = false,
   searchValue,
   missingPriceOnly,
   onPageChange,
@@ -79,7 +109,8 @@ export function PreprocessingReviewTable({
   onSearchChange,
   onMissingPriceChange,
   onSaveRows,
-  onFinalize,
+  onPersistSuccess,
+  onDirtyCountChange,
 }: PreprocessingReviewTableProps) {
   const [draftsById, setDraftsById] = useState<Record<number, PreprocessingReviewRowPatch>>({});
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -95,6 +126,33 @@ export function PreprocessingReviewTable({
     setSelected(new Set());
   }, [rowIdKey]);
 
+  useEffect(() => {
+    onDirtyCountChange?.(dirtyIds.length);
+  }, [dirtyIds.length, onDirtyCountChange]);
+
+  const draftsRef = useRef(draftsById);
+  draftsRef.current = draftsById;
+
+  useEffect(() => {
+    if (!dirtyIds.length) return;
+    const t = window.setTimeout(() => {
+      const ids = Object.keys(draftsRef.current).map(Number).filter((id) => Object.keys(draftsRef.current[id] ?? {}).length > 0);
+      if (!ids.length) return;
+      void saveIds(ids);
+    }, 30000);
+    return () => window.clearTimeout(t);
+  }, [draftsById, dirtyIds.length]);
+
+  useEffect(() => {
+    if (!dirtyIds.length) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirtyIds.length]);
+
   const setField = (id: number, field: keyof PreprocessingReviewRowPatch, value: PreprocessingReviewRowPatch[keyof PreprocessingReviewRowPatch]) => {
     setDraftsById((prev) => ({
       ...prev,
@@ -108,13 +166,14 @@ export function PreprocessingReviewTable({
   const saveIds = async (ids: number[]) => {
     const payload = ids
       .map((id) => {
-        const patch = draftsById[id];
+        const patch = draftsRef.current[id];
         if (!patch || Object.keys(patch).length === 0) return null;
         return { id, patch };
       })
       .filter(Boolean) as PreprocessingReviewRowUpdate[];
     if (!payload.length) return;
     await onSaveRows(payload);
+    onPersistSuccess?.(payload);
     setDraftsById((prev) => {
       const next = { ...prev };
       for (const id of ids) delete next[id];
@@ -122,26 +181,66 @@ export function PreprocessingReviewTable({
     });
   };
 
-  const applyIdealPct = async (ids: number[], multiplier: number, note: string) => {
+  const mergeBulkDrafts = async (updates: Record<number, PreprocessingReviewRowPatch>) => {
+    const entries = Object.entries(updates);
+    if (!entries.length) return;
+    setDraftsById((prev) => {
+      const next = { ...prev };
+      for (const [idStr, patch] of entries) {
+        const id = Number(idStr);
+        next[id] = { ...(next[id] ?? {}), ...patch };
+      }
+      return next;
+    });
+    const payload = entries.map(([idStr, patch]) => ({ id: Number(idStr), patch })) as PreprocessingReviewRowUpdate[];
+    await onSaveRows(payload);
+    onPersistSuccess?.(payload);
+    setDraftsById((prev) => {
+      const next = { ...prev };
+      for (const [idStr] of entries) delete next[Number(idStr)];
+      return next;
+    });
+  };
+
+  const applyPctCompound = async (ids: number[], factor: number, note: string) => {
     const updates: Record<number, PreprocessingReviewRowPatch> = {};
-    for (const row of rows) {
-      if (!ids.includes(row.id)) continue;
-      const ideal = Number.parseFloat(row.ideal_price ?? '');
-      if (!Number.isFinite(ideal) || ideal <= 0) continue;
-      updates[row.id] = {
-        ...(draftsById[row.id] ?? {}),
-        final_price: (ideal * multiplier).toFixed(2),
+    for (const id of ids) {
+      const row = getStagedRow(id);
+      if (!row) continue;
+      const draft = draftsRef.current[id];
+      const cur = currentFinalNumeric(row, draft);
+      const next = (Math.round(cur * factor * 100) / 100).toFixed(2);
+      updates[id] = {
+        ...(draft ?? {}),
+        final_price: next,
         pricing_notes: note,
       };
     }
-    if (!Object.keys(updates).length) return;
-    setDraftsById((prev) => ({ ...prev, ...updates }));
-    await onSaveRows(Object.entries(updates).map(([id, patch]) => ({ id: Number(id), patch })));
-    setDraftsById((prev) => {
-      const next = { ...prev };
-      for (const id of Object.keys(updates)) delete next[Number(id)];
-      return next;
-    });
+    await mergeBulkDrafts(updates);
+  };
+
+  const applyVisibleIdeal = async () => {
+    const updates: Record<number, PreprocessingReviewRowPatch> = {};
+    for (const id of filteredRowIds) {
+      const row = getStagedRow(id);
+      if (!row || row.proposed_price == null || String(row.proposed_price).trim() === '') continue;
+      updates[id] = {
+        ...(draftsRef.current[id] ?? {}),
+        final_price: row.proposed_price,
+        pricing_notes: 'Visible = Ideal',
+      };
+    }
+    await mergeBulkDrafts(updates);
+  };
+
+  const applyResetToAi = async () => {
+    const updates: Record<number, PreprocessingReviewRowPatch> = {};
+    for (const id of filteredRowIds) {
+      const baseline = baselineByRowId[id];
+      if (!baseline) continue;
+      updates[id] = baselinePatchFromRow(baseline);
+    }
+    await mergeBulkDrafts(updates);
   };
 
   const applySuggestion = (row: PreprocessingReviewRow) => {
@@ -154,10 +253,17 @@ export function PreprocessingReviewTable({
     }
   };
 
-  const selectedIds = [...selected];
+  const buildDirtyUpdates = (): PreprocessingReviewRowUpdate[] =>
+    dirtyIds
+      .map((id) => {
+        const patch = draftsById[id];
+        if (!patch || Object.keys(patch).length === 0) return null;
+        return { id, patch };
+      })
+      .filter(Boolean) as PreprocessingReviewRowUpdate[];
 
   if (!rows.length && !isLoading) {
-    return <Typography color="text.secondary">No staged rows are ready for review.</Typography>;
+    return <Typography color="text.secondary">No staged rows match the current filters.</Typography>;
   }
 
   return (
@@ -197,26 +303,34 @@ export function PreprocessingReviewTable({
           <Button
             size="small"
             variant="outlined"
-            disabled={!selectedIds.length || isSaving}
-            onClick={() => void applyIdealPct(selectedIds, 0.9, 'Manual bulk -10% from ideal')}
+            disabled={!filteredRowIds.length || isSaving}
+            onClick={() => void applyPctCompound(filteredRowIds, 0.9, 'Bulk -10% (compound on final_price)')}
           >
-            Selected -10%
+            -10%
           </Button>
           <Button
             size="small"
             variant="outlined"
-            disabled={!selectedIds.length || isSaving}
-            onClick={() => void applyIdealPct(selectedIds, 1.1, 'Manual bulk +10% from ideal')}
+            disabled={!filteredRowIds.length || isSaving}
+            onClick={() => void applyPctCompound(filteredRowIds, 1.1, 'Bulk +10% (compound on final_price)')}
           >
-            Selected +10%
+            +10%
           </Button>
           <Button
             size="small"
             variant="outlined"
-            disabled={isSaving}
-            onClick={() => void applyIdealPct(visibleIds, 1, 'Manual visible set to ideal')}
+            disabled={!filteredRowIds.length || isSaving}
+            onClick={() => void applyVisibleIdeal()}
           >
             Visible = Ideal
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={!filteredRowIds.length || isSaving}
+            onClick={() => void applyResetToAi()}
+          >
+            Reset to AI
           </Button>
           <Button
             size="small"
@@ -353,8 +467,18 @@ export function PreprocessingReviewTable({
                       slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }}
                     />
                     <Stack direction="row" spacing={0.5} justifyContent="flex-end" sx={{ mt: 0.5 }}>
-                      <Button size="small" onClick={() => void applyIdealPct([row.id], 0.9, 'Manual -10% from ideal')}>-10%</Button>
-                      <Button size="small" onClick={() => void applyIdealPct([row.id], 1.1, 'Manual +10% from ideal')}>+10%</Button>
+                      <Button
+                        size="small"
+                        onClick={() => void applyPctCompound([row.id], 0.9, 'Row -10% (compound on final_price)')}
+                      >
+                        -10%
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() => void applyPctCompound([row.id], 1.1, 'Row +10% (compound on final_price)')}
+                      >
+                        +10%
+                      </Button>
                     </Stack>
                   </TableCell>
                   <TableCell align="right">
@@ -374,29 +498,13 @@ export function PreprocessingReviewTable({
 
       <TablePagination
         component="div"
-        count={count}
+        count={totalFilteredCount}
         page={Math.max(0, page - 1)}
         rowsPerPage={pageSize}
         rowsPerPageOptions={[25, 50, 100]}
         onPageChange={(_event, nextPage) => onPageChange?.(nextPage + 1)}
         onRowsPerPageChange={(event) => onPageSizeChange?.(Number(event.target.value))}
       />
-
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 2 }}>
-        {dirtyIds.length > 0 && (
-          <Alert severity="warning" sx={{ flex: 1 }}>
-            Save pending edits before finalizing.
-          </Alert>
-        )}
-        <Button
-          variant="contained"
-          startIcon={isFinalizing ? <CircularProgress size={16} /> : <PlayArrow />}
-          disabled={isFinalizing || isSaving || dirtyIds.length > 0}
-          onClick={() => void onFinalize()}
-        >
-          {isFinalizing ? 'Finalizing...' : 'Finalize and Open Processing'}
-        </Button>
-      </Stack>
     </Box>
   );
 }

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-29 (vendor_avatars → _backlog) -->
+<!-- Last updated: 2026-04-30 (ARCHIVE _completed TOC: bstock + ui_ux) -->
 # Archive index — initiatives
 
 ## What this is
@@ -9,7 +9,7 @@ This folder, **`.ai/initiatives/_archived/`**, holds initiative markdown files t
 
 ### Initiative lifecycle protocols (`_protocols/`)
 
-Step-by-step protocols (which files to edit, `git mv`, `session_close.md`) live in **[`_protocols/README.md`](./_protocols/README.md)** — **`activate_initiative`**, **`move_initiative_to_pending`**, **`move_initiative_to_backlog`**, **`move_initiative_to_completed`**, **`move_initiative_to_abandoned`**. Use those when the user drops a protocol into chat with an initiative name.
+Step-by-step protocols (which files to edit, `git mv`, `session.9.Close.md`) live in **[`_protocols/README.md`](./_protocols/README.md)** — **`activate_initiative`**, **`move_initiative_to_pending`**, **`move_initiative_to_backlog`**, **`move_initiative_to_completed`**, **`move_initiative_to_abandoned`**. Use those when the user drops a protocol into chat with an initiative name.
 
 ---
 
@@ -63,6 +63,8 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [category_sales_inventory_and_taxonomy.md](./_completed/category_sales_inventory_and_taxonomy.md) | Category intelligence: unified bin SQL, 19-category `taxonomy_v1`, manifest mapping (`cr/taxonomy_estimate.py`), Claude categorization (`cr/prompts.py`, `cr/categorize.py`), Bin 2 vs Bin 3 sell-through; **actionable buying recommendations**; [`.ai/extended/development.md`](../../extended/development.md) (*Jupyter* / category-research notebooks). Phases 0–7 complete. | 2026-04-06 |
 | [docs_restructure.md](./_completed/docs_restructure.md) | `.ai` documentation restructure: `session_close`, `startup` step 8, `get_bearing` protocols; `context.md` Working prune to capability pointers; domain warnings to `extended/`; consultant bundle workflow generalized (today: `extended/consultant_handoff.md`); session history in initiative files. No semver bump (docs-only). | 2026-04-10 |
 | [data_backfill_initiative.md](./_completed/data_backfill_initiative.md) | Historical V1/V2 → V3 backfill: phased loaders through `backfill_phase5_categories` + `classify_v2_iterate`; taxonomy + `PricingRule` on loaded DB; Phase 6 verification. Shipped **v2.10.0**; portable production CSV export / `import_backfill` still deferred. | 2026-04-11 |
+| [bstock_auction_intelligence.md](./_completed/bstock_auction_intelligence.md) | B-Stock auction intelligence: **`apps/buying/`**, scraper/sweep, manifests (CSV upload **v2.18.0**+), valuation + category need through **v2.9.0**; **Phase 6** (outcomes) next. Session history + phased checklist in file. | 2026-04-16 |
+| [ui_ux_polish.md](./_completed/ui_ux_polish.md) | Buying / auction list + detail UX polish and metric corrections (**v2.12.1**–**v2.15.x**); superseded column notes per file (e.g. Recovery vs Thru). | 2026-04-16 |
 
 ---
 

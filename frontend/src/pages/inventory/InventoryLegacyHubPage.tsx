@@ -19,7 +19,7 @@ export default function InventoryLegacyHubPage() {
       path: '/inventory/legacy/orders',
     },
     {
-      label: 'Manifest prep / preprocessing',
+      label: 'Preprocessing',
       detail: 'Standardize manifest workflow',
       path: '/inventory/preprocessing',
     },

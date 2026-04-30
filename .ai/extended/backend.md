@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-28 (inventory preprocessing redesign) -->
+<!-- Last updated: 2026-04-30 (preprocessing offline CSV round-trip) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -270,6 +270,12 @@ consignment.ConsignmentPayout → User (consignee)
 - **`POST /api/inventory/orders/:id/match-products/`** — Fuzzy scoring (UPC, VendorRef, text similarity) + AI batch decisions.
 - **`POST /api/inventory/orders/:id/review-matches/`** — User submits accept/reject/modify decisions for match results.
 - **`GET /api/inventory/orders/:id/match-results/`** — Returns all rows with candidates, AI decisions, scores.
+
+**Preprocessing offline cleanup CSV (inventory PO manifests)** — shipped Step 2 path on [`PreprocessingPage`](../../frontend/src/pages/inventory/PreprocessingPage.tsx):
+
+- **`GET /api/inventory/orders/:id/download-cleanup-csv/`** — Lean standardized export (`row_id`, `row_number`, description/title/brand/model/category/condition/sku/upc/quantity/retail_value/notes, **`base_cost`**, **`ideal_price`**) for external cleanup; **`base_cost`** = **`PurchaseOrder.compute_item_cost`** per line retail; **`ideal_price`** = 2× **`base_cost`** per unit (consistent with preprocessing-status ideal totals).
+- **`POST /api/inventory/orders/:id/upload-cleanup-csv/`** — Multipart **`file`**: narrow CSV header **`row_id`, `ai_title`, `ai_brand`, `ai_model`, `category`, `condition`, `proposed_price`** only; validates taxonomy + condition; updates staging **`PreprocessingRow`** or legacy **`ManifestRow`** by **`row_id`** (exact row coverage required).
+- **`POST /api/inventory/orders/:id/apply-cleanup-csv/`** — Same merge semantics as upload; JSON **`{ "rows": [ ... ] }`** with those keys per row (SPA **`apply-cleanup-csv`** path).
 
 ## Expression Formula Engine (`apps/inventory/formula_engine.py`) — Added v1.6.0
 

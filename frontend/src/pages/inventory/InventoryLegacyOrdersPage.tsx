@@ -23,7 +23,7 @@ export default function InventoryLegacyOrdersPage() {
 
   const links: LegacyLink[] = [
     {
-      label: 'Manifest prep / preprocessing',
+      label: 'Preprocessing',
       detail: 'Standardize manifest workflow',
       path: '/inventory/preprocessing',
     },

@@ -78,12 +78,6 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function PreprocessingRedirect() {
-  const lastId = localStorage.getItem('lastPreprocessOrderId');
-  if (lastId) return <Navigate to={`/inventory/preprocessing/${lastId}`} replace />;
-  return <Navigate to="/inventory/legacy" replace />;
-}
-
 function PreprocessingLegacyRedirect() {
   const { id } = useParams();
   return <Navigate to={`/inventory/preprocessing/${id}`} replace />;
@@ -120,7 +114,7 @@ export default function App() {
         <Route path="/inventory/orders/:id" element={<OrderDetailPage />} />
         <Route path="/inventory/receiving" element={<ReceivingEntryRedirect />} />
         <Route path="/inventory/receiving/:id" element={<ReceivingOrderPage />} />
-        <Route path="/inventory/preprocessing" element={<PreprocessingRedirect />} />
+        <Route path="/inventory/preprocessing" element={<PreprocessingPage />} />
         <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
         <Route path="/inventory/orders/:id/preprocess" element={<PreprocessingLegacyRedirect />} />
         <Route path="/inventory/processing" element={<ProcessingPage />} />

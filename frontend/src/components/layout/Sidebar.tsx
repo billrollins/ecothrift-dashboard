@@ -161,9 +161,8 @@ const navSections: NavSection[] = [
             icon: <ShoppingCart />,
           },
           {
-            path: '/inventory/inbound',
-            navSearch: '?view=manifest',
-            label: 'Manifest prep',
+            path: '/inventory/preprocessing',
+            label: 'Preprocessing',
             icon: <Article />,
           },
           {

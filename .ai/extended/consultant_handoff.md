@@ -24,7 +24,7 @@ When Bill asks for a **refreshed consultant snapshot** without a full rotation:
 
 ## Consultant replacement (rotation)
 
-The incoming advisor should read **`.ai/protocols/startup.md`**, **`.ai/consultant_context.md`**, and **`.ai/context.md`**, then deep-link into **`.ai/extended/`** by task. After onboarding, produce the same **flat** bundle so the outgoing advisor can archive it.
+The incoming advisor should read **`.ai/protocols/code.0.Startup.md`**, **`.ai/consultant_context.md`**, and **`.ai/context.md`**, then deep-link into **`.ai/extended/`** by task. After onboarding, produce the same **flat** bundle so the outgoing advisor can archive it.
 
 ## Outgoing consultant
 
@@ -32,4 +32,4 @@ Bundle **`.ai/consultant_context.md`**, initiative index + active initiative fil
 
 ## Related
 
-- **`.ai/protocols/session_close.md`** — end-of-session docs + version bump (may reference refreshing advisor-facing copies).
+- **`.ai/protocols/session.9.Close.md`** — end-of-session docs + version bump (may reference refreshing advisor-facing copies).

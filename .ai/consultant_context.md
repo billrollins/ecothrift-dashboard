@@ -1,14 +1,56 @@
-# Consultant context: B-Stock auction intelligence + legacy data
+# Consultant context — Eco-Thrift Dashboard
 
-<!-- Last updated: 2026-04-29 (inventory **`v2.20.0` receiving routes + for-receiving`) -->
+<!-- Last updated: 2026-04-30T18:30:00-05:00 (preprocessing Step 2 lean CSV narrative) -->
 
-**Purpose.** This is the **single-file, information-dense** handoff for **external advisors** on **Eco-Thrift Dashboard**. The **primary** narrative is **B-Stock auction intelligence** (`apps/buying/`). A **second** stream—**historical sell-through / legacy PO extracts**—uses ad hoc scripts and local DBs; it is summarized below so advisors do not have to infer it from the buying initiative alone.
+**Purpose.** Single **information-dense** handoff for **external advisors** on the **full** Eco-Thrift Dashboard—not only liquidation buying. **[`.ai/context.md`](context.md)** is the living **agent** summary (version roll-up, known issues, file map). This file gives **cross-cutting architecture**, a **short recent / near-term** slice, then—below—a **detailed** treatment of **B-Stock**, manifests, valuation, and **legacy data / backfill** archaeology that sourcing-focused engagements still need.
 
-**Why not only `initiatives/` and `extended/`?** Those trees are **modular** so **coding agents** load only what a task needs and avoid irrelevant context. A **consultant** needs the **whole picture**—business, architecture, APIs, phases, gotchas, open questions—without opening many files. This document **consolidates** that; it does **not** replace **`.ai/initiatives/bstock_auction_intelligence.md`** for phase checklists and acceptance criteria—**keep both aligned** when either changes.
+**Why not only `initiatives/` and `extended/`?** Those trees are **modular** so implementers load small slices. Consultants often want **one pass**: business, stack, domains, and risks. Modular deep-dives remain authoritative per domain (**`extended/*.md`**). The **archived** phased buying checklist is **[`initiatives/_archived/_completed/bstock_auction_intelligence.md`](initiatives/_archived/_completed/bstock_auction_intelligence.md)**—**keep it aligned** when buying behavior or this appendix changes.
+
+---
+
+## System overview
+
+| Topic | Fact |
+|--------|------|
+| **Business** | Eco-Thrift — thrift retail (Omaha area). One internal app runs **HR**, **inventory** (vendors, POs, preprocessing, receiving, item processing), **POS**, **consignment** + consignee portal, **admin**, and **B-Stock–driven buying**. |
+| **Stack** | **Django 5.2** + **DRF**, **PostgreSQL**, **React 18.3** + **TypeScript** + **MUI v7** + **Vite**, **TanStack Query**. **Heroku** deployment for always-on access. |
+| **Version** | Repo root **`.version`** + **`CHANGELOG.md`** (e.g. **v2.20.0** at time of this edit). |
+
+### Backend (`apps/`)
+
+| App | Role |
+|-----|------|
+| **accounts** | Users, JWT auth, permissions |
+| **ai** | Claude API proxy |
+| **core** | Locations, app settings, S3 |
+| **hr** | Time clock, departments, sick leave |
+| **inventory** | Vendors, POs, products, items, preprocessing, receiving, processing |
+| **pos** | Registers, drawers, carts, receipts, cash management |
+| **consignment** | Agreements, payouts, consignee portal |
+| **buying** | B-Stock auctions, scraper, staff REST, React **`/buying/*`** |
+
+REST: **`/api/{auth,accounts,core,hr,inventory,pos,consignment,ai,buying}/`**. Django **contrib.admin**: **`/db-admin/`** (staff React admin lives at **`/admin/*`** in the SPA).
+
+### Frontend
+
+One SPA: staff **`MainLayout`** (HR, inventory—including **inbound** **orders → preprocessing → receiving → processing**—POS, consignment, buying, manager/admin). **Consignee** layout for the portal. **Public:** login, item pricing lookup. Details: **[`extended/frontend.md`](extended/frontend.md)**.
+
+---
+
+## Recent work and near-term
+
+| Horizon | What to know |
+|---------|----------------|
+| **Recently shipped** | **v2.20.0:** inventory **inbound**—PO list/detail, raw manifest upload, **preprocessing** (standardize → cleanup → review), **receiving** routes and **`for-receiving`** API (**`CHANGELOG [2.20.0]`**). Step 2 **`download-cleanup-csv`** is a **lean pre-AI** standardized export (**`base_cost`**/**`ideal_price`** included); **`apply-cleanup-csv`** merges cleanup into **`ai_suggested_*`**—see **`CHANGELOG [Unreleased]`** until release. Buying valuation / thumbs / list UX: **v2.19.x** and earlier—see **`CHANGELOG`**. |
+| **Active initiative** | **[`order_processing_pipeline_rebuild`](initiatives/order_processing_pipeline_rebuild.md)**—umbrella **Orders → Preprocessing → Receiving → Processing → …**; **preprocessing UX** remains the main forward focus after orders + receiving. |
+| **Buying roadmap** | Phases **1–5** + **4.1A/B** **shipped**. **Phase 6** (auction **outcomes**) and **auction won → `PurchaseOrder`** link are **not** built—see **`context.md` → Not Yet Implemented** and the appendix below. |
+| **Ongoing risks** | Wrong PO **`retail_value`** poisons **`Item.cost`** and category-need displays until recomputed; **wrong-marketplace** auction manifest **`DELETE`** can leave stale **`CategoryMapping`** (TODO in buying API). Thin automated tests outside pockets (e.g. POS cart). |
 
 ---
 
 ## Historical sell-through — legacy Purchase Order extract (v2.7.1)
+
+*From here through **Open questions**, the emphasis is **B-Stock HTTP**, **manifests**, **valuation**, and **legacy analytics**. Skim **System overview** and **Recent work** if the engagement is mostly store ops or inventory inbound.*
 
 **Initiative:** [`.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md`](.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md) (**pending**; initial `PricingRule` rates seeded manually v2.8.0; data-backed refinement deferred until needed. PO extract and joins **feed** **`seed_pricing_rules`** / category economics. **Live valuation** reads **`CategoryStats`** (daily SQL aggregates); **`PricingRule`** is retained for legacy/admin only.
 
@@ -36,13 +78,11 @@
 
 ---
 
-## Business context
+## Business context (B-Stock sourcing)
 
-**Eco-Thrift** is a thrift retail operation (Omaha area) that runs its business on an internal full-stack app: Django and Postgres on the backend, React on the frontend, deployed to **Heroku** for always-on access.
+Retail operations overview: see **System overview** above. Here: **why auctions matter** for inventory supply.
 
-**B-Stock** operates business-to-business liquidation marketplaces. Vendors (for example big-box retailers) sell customer returns, shelf pulls, and similar inventory in **auction** format. Eco-Thrift participates as a buyer, sourcing pallets and truckloads at prices that can support resale margins.
-
-The owner buys **liquidation inventory through auctions** because it is a primary supply path for sellable goods at scale. Decisions are **time-sensitive**: auctions have fixed end times, and competitive bidding often compresses into the **final seconds**. Missing an end time or misjudging value against time pressure directly affects whether the business wins useful lots at acceptable prices.
+**B-Stock** operates B2B liquidation marketplaces (customer returns, shelf pulls, etc.). Eco-Thrift buys in **auction** format across **six** in-scope marketplaces (see **Marketplaces in scope** below). Decisions are **time-sensitive** (fixed end times; bids often cluster in the **final seconds**).
 
 ### Marketplaces in scope
 
@@ -50,7 +90,7 @@ The initiative focuses on **six B-Stock marketplaces** the owner actually shops 
 
 ---
 
-## Architecture decisions (and why)
+## Architecture decisions — buying (`apps/buying/`)
 
 ### Single Django app inside the existing dashboard
 
@@ -76,7 +116,7 @@ The dashboard UI is **React** (TypeScript, MUI, React Query). **Buying** staff r
 
 **Manual manifest path (production):** **CSV upload** in the React **auction detail** page is **shipped** (**v2.7.0**, Phases 4.1A–4.1B): **`POST /api/buying/auctions/{id}/upload_manifest/`** with `ManifestTemplate` detection; optional **Claude** template completion for unknown headers; Stage **2** **`map_fast_cat_batch`** for unmapped **`fast_cat_key`** values. **Server-side** `pull_manifest` using a stored token remains useful for **local development** but is **not** the default production story, because cloud token automation is awkward and token-heavy calls drove **account blocks** during development.
 
-**Inventory PO manifests:** Staff upload/replace vendor CSV from **`/inventory/orders/:id`** (**Raw Manifest** card → **`POST /api/inventory/orders/{id}/upload-manifest/`**); standardization stays in **Preprocessing**. **`CHANGELOG [Unreleased]`**, **`.ai/extended/inventory-pipeline.md`**.
+**Inventory PO manifests:** Staff upload/replace vendor CSV from **`/inventory/orders/:id`** (**Raw Manifest** card → **`POST /api/inventory/orders/{id}/upload-manifest/`**); standardization stays in **Preprocessing**. Offline Step 2 cleanup: **`GET /api/inventory/orders/{id}/download-cleanup-csv/`** returns a **pre-AI** lean CSV (standard row fields + **`base_cost`**/**`ideal_price`**); **`POST …/apply-cleanup-csv`** (or multipart **`upload-cleanup-csv`**) writes cleanup suggestions into **`ai_suggested_*`** on staged/manifest rows. **`CHANGELOG [2.20.0]`**, **`CHANGELOG [Unreleased]`**, **`.ai/extended/inventory-pipeline.md`**, **`.ai/extended/backend.md`**.
 
 **Ban mitigation:** If token-backed actions are blocked, **soft-touch discovery** can continue. Standard practices: **delays between requests**, **backoff on HTTP 429/403**, **logging response codes**, and **separating** listing sweeps from manifest pulls. See initiative **Open questions** for follow-up on per-account vs per-IP limits.
 
@@ -206,7 +246,7 @@ Scheduled **sweeps** on Heroku can run **without** a token if only search is use
 
 ---
 
-## What is implemented (Phases 1–5 + 4.1A–4.1B)
+## What is implemented — buying (`apps/buying/`; Phases 1–5 + 4.1A–4.1B)
 
 ### Phase 1 (shipped)
 
@@ -262,7 +302,7 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 **Production inventory alignment:** Heroku **V3** holds backfilled **Item** / **PricingRule** / cost data (see **CHANGELOG** through **[2.12.0]**), so **category-need** and valuation inputs reflect live historical data where applicable. **B-Stock Phase 6** (outcome tracking) is next.
 
-**UI/UX polish:** [`.ai/initiatives/ui_ux_polish.md`](initiatives/ui_ux_polish.md) — **Phase 1** (category-need windowing, **`CategoryNeedBars`**) and **Phase 2** (inventory/POS UX, lean PO list, Add Item taxonomy, AI fast defaults) shipped **v2.12.0**; **unfiltered** item list pagination **`count`** uses a **TTL cache** (`item_list_total_count`, 300s) to reduce large-table **`COUNT(*)`**.
+**UI/UX polish:** [`.ai/initiatives/_archived/_completed/ui_ux_polish.md`](initiatives/_archived/_completed/ui_ux_polish.md) — **Phase 1** (category-need windowing, **`CategoryNeedBars`**) and **Phase 2** (inventory/POS UX, lean PO list, Add Item taxonomy, AI fast defaults) shipped **v2.12.0**; **unfiltered** item list pagination **`count`** uses a **TTL cache** (`item_list_total_count`, 300s) to reduce large-table **`COUNT(*)`**.
 
 ---
 
@@ -275,27 +315,19 @@ The **Django app** `apps/buying/` includes models: **Marketplace**, **Auction**,
 
 ---
 
-## What is not implemented yet
+## Buying gaps and future direction (summary)
 
-**Phase 6 (outcomes):** hammer, fees, shipping, per-line results, outcome UI.
+**Buying-specific gaps** (see also **Recent work and near-term** above for cross-app items): **Phase 6** — outcomes (hammer, fees, per-line results, UI). **`Bid`** / **`Outcome`** models exist but are not fully wired. Token-backed B-Stock from **REST** is **disabled**; **CSV upload** + soft-touch sweep are the staff path. Optional UX: watchlist sidebar badge; inline watchlist priority editing. **Scheduler / worker** posture on Heroku — confirm **`extended/development.md`**.
 
-**Heroku Scheduler** (or a worker dyno) for production jobs may be partial; confirm deployment docs.
+**Item-processing AI (longer horizon):** Standardized manifest rows through AI at **item processing** time (metadata, category, retail checks, price recommendations from margins / models / cost floors)—**separate** from auction intelligence; depends on **Phase 4.1**-style standardization already in production.
 
-**Manual manifest upload** in the React UI (drag/drop) is **shipped** (**v2.7.0** with **4.1B** AI flows).
-
-**Bid** and **Outcome** models exist; full outcome tracking UI and workflows are **Phase 6**.
-
-Optional UX gaps: **sidebar watchlist badge**; **inline** priority/status editing on the watchlist page.
-
-### Future direction
-
-Item processing AI: a future initiative will send standardized manifest rows through AI during item processing for improved metadata (title, brand, model, notes), better canonical category assignment, retail value validation, and price recommendations. Price recommendations will draw from multiple estimate sources (category margin rates, scoring models, cost-based minimums) with a dynamic admin-level pricing throttle. This is separate from the buying/auction intelligence initiative and depends on the fast categorization and standardization infrastructure being built in Phase 4.1.
+**Authoritative phased checklist** for buying (sessions, acceptance): **[`initiatives/_archived/_completed/bstock_auction_intelligence.md`](initiatives/_archived/_completed/bstock_auction_intelligence.md)**.
 
 ---
 
-## Current phase plan (summary)
+## Current phase plan (buying — summary)
 
-The initiative file is authoritative. At a high level:
+**Buying** delivery phases (initiative file + **`CHANGELOG`** are authoritative):
 
 | Phase | Focus |
 |-------|--------|
@@ -305,7 +337,7 @@ The initiative file is authoritative. At a high level:
 | **4** | **`CategoryMapping`**, 3-tier categorization, seed/categorize commands, **`category_distribution`**, UI bar + chips, retail cents fix. **Done.** |
 | **4.1A** | **`ManifestTemplate`**, CSV **`upload_manifest`**, **`fast_cat_key`** / **`fast_cat_value`**, **`seed_manifest_templates`** + **`seed_fast_cat_mappings`** (343 keys), unknown-template stub, **`create_test_auctions`**. **Done (v2.6.1).** E2E validated **2026-04**. |
 | **4.1B** | AI template creation, AI key mapping, **`map_fast_cat_batch`**, **`DELETE manifest`**, usage logging, **`ManifestUploadProgress`**, **`__no_key__`** exclusion. **Done (v2.7.0).** |
-| **5** | Auction valuation: **`PricingRule`**, **`valuation`** + AI title mix, need/want APIs, overrides, thumbs-up, serializers + hooks + commands + **React list/detail/category-need UI**. **Done (API v2.8.0, React v2.9.0).** |
+| **5** | Auction valuation: **`PricingRule`**, **`valuation`** + AI title mix, overrides, thumbs, serializers + hooks + commands + **React list/detail/category-need UI**. **Done (API v2.8.0, React v2.9.0).** |
 | **6** | Outcome tracking. **Future.** |
 
 The plan was **reordered** so the **frontend** lands before heavy backend-only intelligence, so the owner uses the product daily instead of only admin and SQL.
@@ -334,7 +366,7 @@ The plan was **reordered** so the **frontend** lands before heavy backend-only i
 
 ---
 
-## Open questions (carried from the initiative)
+## Open questions — buying / operations
 
 **Outcome truth:** When a lot is won, is the **source of truth** the **B-Stock API hammer** or **internal POS / receipt** after physical pickup? That affects reconciliation and learning labels.
 
@@ -376,8 +408,8 @@ These are the domain deep-dive files that coding agents load on demand. Consulta
 
 ## Document maintenance
 
-When APIs, phases, or shipped behavior change, update **this file** and the relevant **initiative files** together so advisors and implementers stay aligned. Prefer **density** (tables, tight bullets) over prose; avoid duplicating **`.ai/extended/`** verbatim—summarize what consultants must know.
+When APIs, phases, or shipped behavior change, update **this file** and the relevant **initiative** / **`extended`** files together. Prefer **density** (tables, tight bullets). **Front matter:** when a **major** release changes staff-facing domains (inventory inbound, POS, etc.), refresh **System overview** and **Recent work and near-term**—do not let the opening drift while the B-Stock appendix stays current.
 
 **Extended docs TOC:** When a file is **added, renamed, or removed** in `.ai/extended/`, the TOC table above **and** the matching table in **`.ai/context.md`** must both be updated.
 
-Session startup and context rules: **`.ai/protocols/startup.md`** (Audience: coding agent vs consultant), **`.ai/context.md`**.
+Session startup and context rules: **`.ai/protocols/code.0.Startup.md`** (Audience: coding agent vs consultant), **`.ai/context.md`**.

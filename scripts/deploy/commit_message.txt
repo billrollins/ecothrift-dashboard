@@ -1,13 +1,12 @@
-feat(inventory): PO Raw Manifest upload on Order detail + hardened upload-manifest
+feat(inventory): lean preprocessing download CSV + steering (CHANGELOG unreleased)
 
-Order detail Raw Manifest card: CSV upload/replace via useUploadManifest / POST …/upload-manifest/
-(multipart FormData; axios strips Content-Type so boundary is set). Preprocessing unlocks when
-manifest_file exists.
+GET …/download-cleanup-csv/ exports a lean pre-AI CSV (standard row fields +
+PurchaseOrder.compute_item_cost → base_cost; ideal_price = 2× unit base cost).
+upload-cleanup-csv / apply-cleanup-csv narrow schema unchanged (→ ai_suggested_*).
+RowProcessingPanel log copy; test_download_cleanup_csv_staging_lean_schema_and_row_order.
 
-Backend: structured error codes (missing_file, decode_error, empty_csv, storage_error, save_error);
-link new S3File before deleting prior blob; process-manifest ManifestRow replace in transaction.atomic().
+Steering: order_processing_pipeline_rebuild Step 2 export vs apply; context.md +
+consultant_context.md; extended/backend.md + inventory-pipeline.md; initiatives _index;
+README review.0.Bump protocol row (local commit, no push).
 
-Docs: CHANGELOG [Unreleased]; .ai context/consultant_context/extended frontend + backend +
-inventory-pipeline; initiative inventory_intake_pipeline Session 2; initiatives _index active row.
-
-No .version bump (review_bump — run session_close to release semver).
+CHANGELOG [Unreleased] — no .version bump per review.0.Bump (release via session.9.Close).

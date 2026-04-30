@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-29 (receiving **`for-receiving`** + preprocessing) -->
+<!-- Last updated: 2026-04-30 (preprocessing Step 2 offline CSV) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -24,15 +24,15 @@ Alternative approaches (including lot-ledger/deferred unitization) were archived
 ## Pipeline Overview
 
 ```
-Vendor → PurchaseOrder → CSV upload (S3) → Standard Manifest mapping (expression formulas + always-refresh preview) → ManifestRow + Product + Item preparation → bulk AI Cleanup → Manual Review/Pricing → open Processing (create-items) → Check-in + print tags
+Vendor → PurchaseOrder → CSV upload (S3) → Standardize (expression formulas + preview) → Preprocessing staging rows → offline cleanup CSV round-trip (download → edit → apply-cleanup-csv) → Manual Review/Pricing → finalize → Processing → Check-in + print tags
 ```
 
 1. **Vendor** — Source of purchased inventory (liquidation, retail, direct, other).
 2. **PurchaseOrder** — Order placed with a vendor; tracks status from ordered through completion.
 3. **CSV manifest upload** — Staff uploads a vendor CSV via `POST /inventory/orders/{id}/upload-manifest/`. File is saved to S3, preview persisted in `manifest_preview` JSON field. (Done on OrderDetailPage.)
-4. **Standard Manifest preprocessing** (Step 1 of PreprocessingPage) — Raw CSV rows are loaded with `GET /inventory/orders/{id}/manifest-rows/`. Expression-based formulas map source columns to standard fields. Previewed via `POST .../preview-standardize/` with formula/search debounce and a manual refresh button; blank formulas render blank preview columns. Committed with `POST .../process-manifest/`. Commit creates `ManifestRow` records plus deterministic Product links and early intake `Item` records.
-5. **AI Cleanup** (Step 2 of PreprocessingPage) — `POST .../ai-cleanup-rows/` sends compact row/item payloads to Claude using Add Item-style standards. Frontend controls preprocessing-specific model choices (`AppSetting` keys `ai_models_inventory_cleanup`, `ai_default_inventory_cleanup_model`), batch iteration, pause/resume, and cancel. Responses must echo `row_id`, `row_number`, and `item_id`; mismatched rows are discarded.
-6. **Manual Review / Pricing** (Step 3) — `GET/POST .../manual-review/` shows searchable linked item/product rows, total paid / total ideal / total set prices, missing price counts, and per-row pricing deltas. Staff can inline-edit fields and apply individual or selected ±10% ideal-price adjustments.
+4. **Standardize** (Step 1 of PreprocessingPage) — Uses persisted **`manifest_preview`** on the PO for headers/sample rows until **`POST .../process-manifest/`** commits (pulls full CSV from S3). Expression formulas map vendor columns to standard fields (preview-standardize / Formula Preview). Commit seeds **`PreprocessingOrder`** / **`PreprocessingRow`** staging and prepares deterministic **`Product`** links plus early **`Item`** records per current **`process_manifest`** behavior.
+5. **Clean** (Step 2 of PreprocessingPage) — Primary path: **`GET .../download-cleanup-csv/`** exports a lean standardized CSV (**`row_id`**, core fields, **`base_cost`**, **`ideal_price`**). Staff edit offline (e.g. Grok/Excel), then **`POST .../apply-cleanup-csv/`** with JSON **`rows`** or **`POST .../upload-cleanup-csv/`** with a narrow CSV (**`row_id`, `ai_title`, `ai_brand`, `ai_model`, `category`, `condition`, `proposed_price`**) to merge cleanup into staging rows by **`row_id`**. Legacy alternate still on the API: **`POST .../ai-cleanup-rows/`** (in-app Claude batches) — not wired as the main Step 2 UI today.
+6. **Manual Review / Pricing** (Step 3) — Preprocessing review (`GET/PATCH .../preprocessing-review/`) over staged rows; pricing summaries and finalize handoff to processing (`POST .../finalize-preprocessing/` per shipped routes).
 7. **Eco-Thrift Receiving** — `GET /api/inventory/orders/for-receiving/` prioritizes POs by **expected_delivery** tiers for next-PO UX (**v2.20.0**). Staff open **`/inventory/receiving/:id`** from sidebar **Receiving** or the orders **Receive** control.
 8. **Processing handoff** — `POST /inventory/orders/{id}/create-items/` no longer duplicates Items. It ensures Products/Items still exist, creates/open `ProcessingBatch`, creates needed `BatchGroup` rows, and moves delivered orders to processing.
 9. **Arrival check-in** — Items/batches are checked in and marked shelf-ready via dedicated check-in actions, then labels are printed.

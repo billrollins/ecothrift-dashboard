@@ -1,10 +1,11 @@
-<!-- initiative: slug=bstock-auction-intelligence status=active updated=2026-04-16 -->
-<!-- Last updated: 2026-04-16T20:30:00-05:00 (paths: notebooks + AI log tooling) -->
+<!-- initiative: slug=bstock-auction-intelligence status=archived updated=2026-04-16 -->
+<!-- Archived 2026-04-16: disposition=completed — Phases 1–5 shipped; Phase 6 (outcomes) next -->
+<!-- Last updated: 2026-04-30 (relative links from _completed; status banner) -->
 # Initiative: B-Stock auction intelligence (AI, scraping, learning)
 
-**Status:** Active
+**Status:** Archived (completed) — **Phase 6** (outcome tracking) remains future work; narrative also in **`.ai/consultant_context.md`**.
 
-**Predecessor:** Prior notebook scraper scope is documented in [`.ai/initiatives/_archived/_pending/bstock_scraper.md`](./_archived/_pending/bstock_scraper.md). The old [`workspace/notebooks/bstock-scraper/Scraper/`](../../workspace/notebooks/bstock-scraper/Scraper/) package is **historical reference only** for API discovery notes and endpoint patterns. Production logic lives in **`apps/buying/`**.
+**Predecessor:** Prior notebook scraper scope is documented in [`.ai/initiatives/_archived/_pending/bstock_scraper.md`](../_pending/bstock_scraper.md). The old [`workspace/notebooks/bstock-scraper/Scraper/`](../../../../workspace/notebooks/bstock-scraper/Scraper/) package is **historical reference only** for API discovery notes and endpoint patterns. Production logic lives in **`apps/buying/`**.
 
 ---
 
@@ -287,7 +288,7 @@ Completed — docs and handoff bundle only (not committed). No version bump. Com
 - 2026-04-15 **v2.14.0 shipped:** Replaced legacy nightly cost pipeline with **`PurchaseOrder.est_shrink`** item cost formula + **`recompute_all_item_costs`** backfill; buying need = **`CategoryStats.need_score_1to99`** + auction **`need_score`**/**`priority`** SUMPRODUCT — see **CHANGELOG [2.14.0]** and **`.ai/context.md`**.
 - 2026-04-15T12:00:00-05:00 **Checkpoint (research):** local probe script + reference research doc + JSON samples under **`workspace/data/`** (not all committed today) — endpoint catalog, search **max limit 200**, anonymous vs JWT behaviors; **CHANGELOG** `[Unreleased]` bullet; no app code changes. *(Reference MD tree later removed; see **`.ai/extended/bstock.md`**.)*
 - 2026-04-14T22:00:00-05:00 **Checkpoint (consultant handoff prep):** **`consultant_context`** + **`bstock.md`** — search **GET/POST**, **`limit` 200**, auction/manifest anonymous probes; **[`extended/consultant_handoff.md`](../extended/consultant_handoff.md)** + **flat** bundle; **`backend.md`** — cache TTLs, **`AI_MODEL_FAST`** defaults, **`suggest_item`** retry. *(Personas / reference prompts / **`sweep_fast.py`** were documented at the time; **`.ai/reference/`** and that script are not in the repo now.)*
-- 2026-04-16T12:00:00-05:00 **Bearing** — MESSY — ~63 files unstaged (+3825/−2078); 0 staged; uncommitted work spans v2.13–v2.15+ (buying, inventory, migrations, UI); not measurable vs Session 22 finish line (v2.11.1); Session 23+ Session 6 initiative **Results** describe shipped releases but **git** still dirty — next: **`startup.md` steps 8–9** (new session entry for this tree) or **`session_close.md`** to commit/reconcile; see chat bearing card.
+- 2026-04-16T12:00:00-05:00 **Bearing** — MESSY — ~63 files unstaged (+3825/−2078); 0 staged; uncommitted work spans v2.13–v2.15+ (buying, inventory, migrations, UI); not measurable vs Session 22 finish line (v2.11.1); Session 23+ Session 6 initiative **Results** describe shipped releases but **git** still dirty — next: **`code.0.Startup.md` steps 8–9** (new session entry for this tree) or **`session.9.Close.md`** to commit/reconcile; see chat bearing card.
 
 #### Result
 
@@ -456,7 +457,7 @@ Prepared for release as **v2.15.3** (current `.version`) — shipped in the comb
 - **Groq Llama 3.1 8B for fast-cat key mapping:** cost optimization (~$0.05/M tokens vs current Sonnet/Haiku rates). Example: ~$1.19 for 310 keys on one manifest; simple classification task suitable for a smaller model.
 - **Switch `ai_key_mapping.py` to `AI_MODEL_FAST` instead of `AI_MODEL`:** one-line change to route key mapping through Haiku instead of Sonnet and cut cost immediately.
 - **`ai_key_mapping.py` / model choice:** future discussion on whether fast-cat mapping should use a smaller/cheaper model consistently (see also **Groq** idea above); no code change required for Phase 5 ship.
-- **Data backfill initiative:** **done** — see [archived initiative](./_archived/_completed/data_backfill_initiative.md) (v2.10.0). Production CSV export/deploy to other hosts remains deferred.
+- **Data backfill initiative:** **done** — see [archived initiative](./data_backfill_initiative.md) (v2.10.0). Production CSV export/deploy to other hosts remains deferred.
 - **Postgres test DB schema fix:** test runner fails on Postgres when `ecothrift` schema is missing in the new test DB; low priority while SQLite `test_settings` works.
 
 ---
@@ -464,12 +465,12 @@ Prepared for release as **v2.15.3** (current `.version`) — shipped in the comb
 ## See also
 
 - **`apps/buying/`** (Django app; production logic)
-- [`.ai/initiatives/_archived/_pending/bstock_scraper.md`](./_archived/_pending/bstock_scraper.md) (archived API notes)
-- [`workspace/notebooks/bstock-scraper/Scraper/`](../../workspace/notebooks/bstock-scraper/Scraper/) (historical reference for discovery only)
-- [`workspace/notebooks/_shared/config.example.py`](../../workspace/notebooks/_shared/config.example.py) (notebook DB access; copy to `config_local.py`)
-- [`.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md`](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (related learning pattern)
+- [`.ai/initiatives/_archived/_pending/bstock_scraper.md`](../_pending/bstock_scraper.md) (archived API notes)
+- [`workspace/notebooks/bstock-scraper/Scraper/`](../../../../workspace/notebooks/bstock-scraper/Scraper/) (historical reference for discovery only)
+- [`workspace/notebooks/_shared/config.example.py`](../../../../workspace/notebooks/_shared/config.example.py) (notebook DB access; copy to `config_local.py`)
+- [`.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md`](./category_sales_inventory_and_taxonomy.md) (related learning pattern)
 - **Future:** Scoring model initiative (data science project to replace v1 category-margin pricing with a trained model; depends on outcome data from **Phase 6**).
 
 ---
 
-*Parent: [`.ai/initiatives/_index.md`](./_index.md).*
+*Parent: [`.ai/initiatives/_index.md`](../../_index.md).*
