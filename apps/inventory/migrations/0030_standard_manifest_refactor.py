@@ -96,33 +96,43 @@ ALTER TABLE inventory_preprocessingrow
 ALTER TABLE inventory_preprocessingrow
   ADD COLUMN IF NOT EXISTS taxonomy jsonb NOT NULL DEFAULT '{}'::jsonb;
 
+-- Rename uses real table schema (production uses ecothrift search_path — not public).
 DO $$
+DECLARE
+  sch text;
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'inventory_manifestrow' AND column_name = 'retail_value'
-  ) THEN
-    ALTER TABLE inventory_manifestrow RENAME COLUMN retail_value TO unit_retail;
+  SELECT c.table_schema INTO sch FROM information_schema.columns c
+  WHERE c.table_name = 'inventory_manifestrow' AND c.column_name = 'retail_value'
+  ORDER BY CASE c.table_schema WHEN 'ecothrift' THEN 0 WHEN 'public' THEN 1 ELSE 2 END
+  LIMIT 1;
+  IF sch IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE %I.%I RENAME COLUMN retail_value TO unit_retail', sch, 'inventory_manifestrow');
   END IF;
 END $$;
 
 DO $$
+DECLARE
+  sch text;
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'inventory_preprocessingrow' AND column_name = 'retail_value'
-  ) THEN
-    ALTER TABLE inventory_preprocessingrow RENAME COLUMN retail_value TO unit_retail;
+  SELECT c.table_schema INTO sch FROM information_schema.columns c
+  WHERE c.table_name = 'inventory_preprocessingrow' AND c.column_name = 'retail_value'
+  ORDER BY CASE c.table_schema WHEN 'ecothrift' THEN 0 WHEN 'public' THEN 1 ELSE 2 END
+  LIMIT 1;
+  IF sch IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE %I.%I RENAME COLUMN retail_value TO unit_retail', sch, 'inventory_preprocessingrow');
   END IF;
 END $$;
 
 DO $$
+DECLARE
+  sch text;
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'inventory_item' AND column_name = 'retail_value'
-  ) THEN
-    ALTER TABLE inventory_item RENAME COLUMN retail_value TO unit_retail;
+  SELECT c.table_schema INTO sch FROM information_schema.columns c
+  WHERE c.table_name = 'inventory_item' AND c.column_name = 'retail_value'
+  ORDER BY CASE c.table_schema WHEN 'ecothrift' THEN 0 WHEN 'public' THEN 1 ELSE 2 END
+  LIMIT 1;
+  IF sch IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE %I.%I RENAME COLUMN retail_value TO unit_retail', sch, 'inventory_item');
   END IF;
 END $$;
 """
@@ -141,22 +151,28 @@ ALTER TABLE inventory_preprocessingrow DROP COLUMN IF EXISTS search_tags;
 
 RENAME_SEARCH_TAGS_TMP_SQL = """
 DO $$
+DECLARE
+  sch text;
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'inventory_manifestrow' AND column_name = 'search_tags_tmp'
-  ) THEN
-    ALTER TABLE inventory_manifestrow RENAME COLUMN search_tags_tmp TO search_tags;
+  SELECT c.table_schema INTO sch FROM information_schema.columns c
+  WHERE c.table_name = 'inventory_manifestrow' AND c.column_name = 'search_tags_tmp'
+  ORDER BY CASE c.table_schema WHEN 'ecothrift' THEN 0 WHEN 'public' THEN 1 ELSE 2 END
+  LIMIT 1;
+  IF sch IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE %I.%I RENAME COLUMN search_tags_tmp TO search_tags', sch, 'inventory_manifestrow');
   END IF;
 END $$;
 
 DO $$
+DECLARE
+  sch text;
 BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'inventory_preprocessingrow' AND column_name = 'search_tags_tmp'
-  ) THEN
-    ALTER TABLE inventory_preprocessingrow RENAME COLUMN search_tags_tmp TO search_tags;
+  SELECT c.table_schema INTO sch FROM information_schema.columns c
+  WHERE c.table_name = 'inventory_preprocessingrow' AND c.column_name = 'search_tags_tmp'
+  ORDER BY CASE c.table_schema WHEN 'ecothrift' THEN 0 WHEN 'public' THEN 1 ELSE 2 END
+  LIMIT 1;
+  IF sch IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE %I.%I RENAME COLUMN search_tags_tmp TO search_tags', sch, 'inventory_preprocessingrow');
   END IF;
 END $$;
 """
