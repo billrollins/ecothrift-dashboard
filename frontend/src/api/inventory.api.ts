@@ -855,6 +855,11 @@ export interface PreprocessingReviewRow {
   pricing_stage: import('../types/inventory.types').ManifestPricingStage;
   pricing_notes: string;
   ai_reasoning: string;
+  /** From Grok cleaned CSV: validation / recovery state for Final Review */
+  ai_status?: {
+    state?: 'clean' | 'soft_flagged' | 'hard_flagged' | 'recovered';
+    issues?: unknown[];
+  };
   batch_flag: boolean;
   notes: string;
   final_layer_visible: boolean;
@@ -1052,6 +1057,8 @@ export interface CleanupCsvApplyRowPayload {
   notes?: string;
   specifications_json?: string;
   search_tags_json?: string;
+  /** JSON string Grok validation cell; backend normalizes malformed/empty to clean-equivalent. */
+  ai_status?: string;
 }
 
 export function uploadCleanupCsvRows(

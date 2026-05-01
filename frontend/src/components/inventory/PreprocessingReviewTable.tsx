@@ -159,6 +159,48 @@ function LayerPreviewTable({ row }: { row: PreprocessingReviewRow }) {
   );
 }
 
+function PreprocessingAiStatusBar({ row }: { row: PreprocessingReviewRow }) {
+  const raw = row.ai_status;
+  if (!raw || typeof raw !== 'object') return null;
+  const state = typeof raw.state === 'string' ? raw.state.trim() : '';
+  const issues = Array.isArray(raw.issues) ? raw.issues : [];
+  const meaningfulState = Boolean(state && state !== 'clean');
+  if (!meaningfulState && issues.length === 0) return null;
+
+  const chipColor: 'error' | 'warning' | 'default' =
+    state === 'hard_flagged' ? 'error' : state === 'soft_flagged' || issues.length > 0 ? 'warning' : 'default';
+
+  return (
+    <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: 0.75 }}>
+      {meaningfulState && (
+        <Chip
+          size="small"
+          label={state.replace(/_/g, ' ')}
+          color={chipColor === 'default' ? 'default' : chipColor}
+          variant="outlined"
+        />
+      )}
+      {issues.slice(0, 6).map((issue, idx) => {
+        const o = issue as Record<string, unknown>;
+        const rule = typeof o.rule === 'string' ? o.rule : '';
+        const reason = typeof o.reason === 'string' ? o.reason : '';
+        const col = typeof o.column === 'string' ? o.column : '';
+        const parts = [rule, col ? `@${col}` : '', reason].filter((p) => p && String(p).trim());
+        const label = parts.join(' — ');
+        if (!label) return null;
+        return (
+          <Chip
+            key={idx}
+            size="small"
+            label={label.length > 70 ? `${label.slice(0, 68)}…` : label}
+            variant="outlined"
+          />
+        );
+      })}
+    </Stack>
+  );
+}
+
 function pctDelta(price: string | null | undefined, ideal: string | null | undefined): number | null {
   const p = Number.parseFloat(price ?? '');
   const i = Number.parseFloat(ideal ?? '');
@@ -524,6 +566,7 @@ export function PreprocessingReviewTable({
                   </TableCell>
                   <TableCell sx={{ minWidth: 220 }}>
                     <Typography variant="body2">{row.description}</Typography>
+                    <PreprocessingAiStatusBar row={row} />
                     {upcHint && (
                       <Typography variant="caption" color="text.secondary">
                         UPC {upcHint}

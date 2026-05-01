@@ -1,6 +1,6 @@
 import { Alert, Box } from '@mui/material';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
-import type { CleanupCsvApplyRowPayload } from '../../../api/inventory.api';
+import type { CleanupCsvApplyRowPayload, CleanupCsvSoftWarning } from '../../../api/inventory.api';
 import { RowProcessingPanel } from '../RowProcessingPanel';
 
 interface CleanupStepProps {
@@ -13,6 +13,8 @@ interface CleanupStepProps {
   rowNumberById: Record<number, number>;
   validatedPayload: CleanupCsvApplyRowPayload[] | null;
   onValidatedPayloadChange: (rows: CleanupCsvApplyRowPayload[] | null) => void;
+  lastApplySoftWarnings?: CleanupCsvSoftWarning[] | null;
+  onDismissApplyWarnings?: () => void;
 }
 
 export function CleanupStep({
@@ -25,6 +27,8 @@ export function CleanupStep({
   rowNumberById,
   validatedPayload,
   onValidatedPayloadChange,
+  lastApplySoftWarnings,
+  onDismissApplyWarnings,
 }: CleanupStepProps) {
   const cleanupComplete = standardizedRowCount > 0 && cleanedRowCount >= standardizedRowCount;
 
@@ -48,6 +52,8 @@ export function CleanupStep({
         rowNumberById={rowNumberById}
         validatedPayload={validatedPayload}
         onValidatedPayloadChange={onValidatedPayloadChange}
+        lastApplySoftWarnings={lastApplySoftWarnings}
+        onDismissApplyWarnings={onDismissApplyWarnings}
       />
     </Box>
   );

@@ -37,6 +37,7 @@ import { PreprocessingReviewTable } from '../../components/inventory/Preprocessi
 import { getPreprocessingReview, getTemplate } from '../../api/inventory.api';
 import type {
   CleanupCsvApplyRowPayload,
+  CleanupCsvSoftWarning,
   ManifestColumnMapping,
   ManifestRawRow,
   PreprocessingReviewRow,
@@ -119,6 +120,7 @@ export default function PreprocessingPage() {
   const [selectedManifestTemplateId, setSelectedManifestTemplateId] = useState<number | null>(null);
 
   const [cleanupValidatedPayload, setCleanupValidatedPayload] = useState<CleanupCsvApplyRowPayload[] | null>(null);
+  const [cleanupApplySoftWarnings, setCleanupApplySoftWarnings] = useState<CleanupCsvSoftWarning[] | null>(null);
   const [cleanupExpectedRowIds, setCleanupExpectedRowIds] = useState<Set<number> | null>(null);
   const [cleanupRowNumberById, setCleanupRowNumberById] = useState<Record<number, number>>({});
   const [reviewDirtyCount, setReviewDirtyCount] = useState(0);
@@ -404,6 +406,19 @@ export default function PreprocessingPage() {
   const getStagedRow = useCallback((id: number) => stagedRowById.get(id), [stagedRowById]);
 
   const mergeReviewPatches = useCallback((updates: PreprocessingReviewRowUpdate[]) => {
+    const patchKeysClearingAiStatus: (keyof PreprocessingReviewRowPatch)[] = [
+      'title',
+      'brand',
+      'model',
+      'category',
+      'condition',
+      'description',
+      'notes',
+      'search_tags',
+      'specifications',
+      'proposed_price',
+      'final_price',
+    ];
     setReviewRowsFull((prev) => {
       if (!prev) return prev;
       return prev.map((row) => {
@@ -411,11 +426,13 @@ export default function PreprocessingPage() {
         if (!u) return row;
         const patch = u.patch;
         if (!patch || typeof patch !== 'object') return row;
+        const clearsAiStatus = patchKeysClearingAiStatus.some((k) => patch[k] !== undefined);
         const merged = { ...row } as Record<string, unknown>;
         (Object.keys(patch) as (keyof PreprocessingReviewRowPatch)[]).forEach((k) => {
           const val = patch[k];
           if (val !== undefined) merged[k as string] = val as unknown;
         });
+        if (clearsAiStatus) merged.ai_status = {};
         return merged as unknown as PreprocessingReviewRow;
       });
     });
@@ -723,6 +740,7 @@ export default function PreprocessingPage() {
     try {
       const result = await uploadCleanupRowsMutation.mutateAsync({ orderId, rows: cleanupValidatedPayload });
       const sw = result.soft_warnings?.length ?? 0;
+      setCleanupApplySoftWarnings(result.soft_warnings?.length ? result.soft_warnings : null);
       enqueueSnackbar(
         sw
           ? `Applied cleanup to ${cleanupValidatedPayload.length} row(s) — ${sw} soft warning(s) (see upload log).`
@@ -1272,6 +1290,8 @@ export default function PreprocessingPage() {
               rowNumberById={cleanupRowNumberById}
               validatedPayload={cleanupValidatedPayload}
               onValidatedPayloadChange={setCleanupValidatedPayload}
+              lastApplySoftWarnings={cleanupApplySoftWarnings}
+              onDismissApplyWarnings={() => setCleanupApplySoftWarnings(null)}
             />
           )}
 

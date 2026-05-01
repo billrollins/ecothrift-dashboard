@@ -314,6 +314,7 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
             'pricing_stage',
             'pricing_notes',
             'ai_reasoning',
+            'ai_status',
             'batch_flag',
             'final_layer_visible',
             'base_cost',

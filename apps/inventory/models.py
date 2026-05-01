@@ -457,6 +457,12 @@ class PreprocessingRow(models.Model):
     batch_flag = models.BooleanField(default=False)
     ai_reasoning = models.TextField(blank=True, default='')
 
+    ai_status = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='{"state": clean|soft_flagged|hard_flagged|recovered, "issues": [...]}',
+    )
+
     standard_description = models.TextField(blank=True, default='')
     ai_description = models.TextField(blank=True, default='')
     final_description = models.TextField(blank=True, null=True)

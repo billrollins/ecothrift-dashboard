@@ -269,7 +269,145 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(first.title, 'Acme Two Slice Toaster')
         self.assertEqual(first.category, 'Kitchen & dining')
 
-    def test_preprocessing_status_includes_manifest_sample_from_preview(self):
+    def test_upload_cleanup_json_rows_accepts_ai_status_dict_staging_wide(self):
+        prep = PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='standardized',
+            row_count=1,
+        )
+        sr = PreprocessingRow.objects.create(
+            preprocessing_order=prep,
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            standard_description='Coffee grinder thing',
+            ai_title='Grinder',
+            standard_brand='Acme',
+            standard_taxonomy={'category': 'Kitchen & dining'},
+            standard_condition='good',
+            unit_retail=Decimal('20.00'),
+            pricing_stage='unpriced',
+        )
+        view = PurchaseOrderViewSet.as_view({'post': 'upload_cleanup_csv'})
+        rows = [
+            {
+                'row_id': sr.id,
+                'row_number': 1,
+                'title': 'Acme Coffee Grinder Pro',
+                'brand': 'Acme',
+                'model': 'CG-1',
+                'category': 'Kitchen & dining',
+                'condition': 'good',
+                'proposed_price': '9.99',
+                'description': 'Electric burr grinder with multiple grind settings for home use.',
+                'notes': '',
+                'specifications_json': '{"wattage":"120W"}',
+                'search_tags_json': '["grinder","coffee"]',
+                'ai_status': {
+                    'state': 'soft_flagged',
+                    'issues': [{'rule': 'SOFT_DESC_NO_BRAND', 'column': 'description', 'reason': 'test'}],
+                },
+            },
+        ]
+        request = APIRequestFactory().post(
+            f'/api/inventory/orders/{self.order.pk}/upload-cleanup-csv/',
+            {'rows': rows},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=self.order.pk)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['rows_updated'], 1)
+        sr.refresh_from_db()
+        self.assertEqual(sr.ai_title, 'Acme Coffee Grinder Pro')
+        self.assertEqual(sr.ai_status.get('state'), 'soft_flagged')
+        self.assertEqual(len(sr.ai_status.get('issues', [])), 1)
+
+    def test_upload_cleanup_csv_malformed_ai_status_defaults_empty_staging_wide(self):
+        prep = PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='standardized',
+            row_count=1,
+        )
+        sr = PreprocessingRow.objects.create(
+            preprocessing_order=prep,
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            standard_description='Coffee grinder thing',
+            ai_title='Grinder',
+            standard_brand='Acme',
+            standard_taxonomy={'category': 'Kitchen & dining'},
+            standard_condition='good',
+            unit_retail=Decimal('20.00'),
+            pricing_stage='unpriced',
+        )
+        bad_status = '{not valid json'
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow([
+            'row_id', 'row_number', 'title', 'brand', 'model', 'category', 'condition', 'proposed_price',
+            'description', 'notes', 'specifications_json', 'search_tags_json', 'ai_status',
+        ])
+        w.writerow([
+            sr.id, 1, 'New Title', 'Acme', 'M', 'Kitchen & dining', 'good', '9.99',
+            'Short description here.',
+            '',
+            '{"wattage":"1"}',
+            '["a"]',
+            bad_status,
+        ])
+        csv_text = out.getvalue()
+        response = self._upload_cleanup_csv(csv_text)
+        self.assertEqual(response.status_code, 200)
+        sr.refresh_from_db()
+        self.assertEqual(sr.ai_title, 'New Title')
+        self.assertEqual(sr.ai_status, {})
+
+    def test_preprocessing_review_patch_clears_ai_status_when_title_edited(self):
+        prep, first, _second = self._create_preprocessing_rows_for_review()
+        first.ai_status = {
+            'state': 'soft_flagged',
+            'issues': [{'rule': 'SOFT_X', 'reason': 'needs fix'}],
+        }
+        first.save(update_fields=['ai_status'])
+
+        response = self._preprocessing_review_patch([
+            {'id': first.id, 'patch': {'title': 'Edited Toaster Title'}},
+        ])
+
+        self.assertEqual(response.status_code, 200)
+        first.refresh_from_db()
+        self.assertEqual(first.ai_title, 'Edited Toaster Title')
+        self.assertEqual(first.ai_status, {})
+
+    def test_preprocessing_review_patch_keeps_ai_status_when_only_batch_flag(self):
+        prep, first, _second = self._create_preprocessing_rows_for_review()
+        status = {'state': 'soft_flagged', 'issues': [{'rule': 'R'}]}
+        first.ai_status = status
+        first.save(update_fields=['ai_status'])
+
+        response = self._preprocessing_review_patch([
+            {'id': first.id, 'patch': {'batch_flag': True}},
+        ])
+
+        self.assertEqual(response.status_code, 200)
+        first.refresh_from_db()
+        self.assertTrue(first.batch_flag)
+        self.assertEqual(first.ai_status, status)
+
+    def test_preprocessing_review_lists_ai_status_on_row(self):
+        prep, first, _second = self._create_preprocessing_rows_for_review()
+        first.ai_status = {'state': 'hard_flagged', 'issues': [{'rule': 'HARD_X', 'reason': 'check'}]}
+        first.save(update_fields=['ai_status'])
+
+        response = self._preprocessing_review_get()
+
+        self.assertEqual(response.status_code, 200)
+        row = next(r for r in response.data['rows'] if r['id'] == first.id)
+        self.assertEqual(row['ai_status']['state'], 'hard_flagged')
+        self.assertEqual(len(row['ai_status']['issues']), 1)
         self.order.manifest_preview = {
             'headers': ['A', 'B'],
             'signature': 'abc123',

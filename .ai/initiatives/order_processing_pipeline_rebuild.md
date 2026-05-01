@@ -145,9 +145,9 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 
 - **Download:** export standardized preprocessing rows (**16-column** standard CSV: economics + vendor text + `*_json` buckets) from the preprocessing UI. Filename defaults to **`{order_number}.csv`** (sanitized).
 - **Upload:** user uploads the cleaned file (any filename). **Supported wire formats:**
-  - **12-column Grok response:** `row_id`, `row_number`, `title`, `brand`, `model`, `category`, `condition`, `proposed_price`, `description`, `notes`, `specifications_json`, `search_tags_json` (see `workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`).
+  - **Wide Grok / Excel response:** `row_id`, `row_number`, `title`, `brand`, `model`, `category`, `condition`, `proposed_price`, `description`, `notes`, `specifications_json`, `search_tags_json`, plus optional **`ai_status`** (JSON object per row for validation/recovery metadata — see `workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md` and **[`cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)**).
   - **Legacy 7-column narrow:** `row_id`, `ai_title`, `ai_brand`, `ai_model`, `category`, `condition`, `proposed_price`.
-- **Behavior:** server validates hard/soft gates (`apps/inventory/cleanup_csv_validate.py`), normalizes condition (`cleanup_condition.py`), then updates existing **PreprocessingRow** `ai_*` fields and **`proposed_price`**. Spoofed locked `identifiers` / `taxonomy` / `tracking` JSON in the CSV must not override standard buckets (copied from `standard_*` on write). **All-or-nothing** per upload when any row fails or counts mismatch. **Soft warnings** returned in API only (`soft_warnings`).
+- **Behavior:** server validates via `apps/inventory/cleanup_csv_validate.py` (**wide** staging import uses **`block_on_quality=False`**: most quality **`HARD_*`** rules surface in **`soft_warnings`** instead of **`400`**; invalid JSON in blob cells / bad **`ai_status`** still rejects), normalizes condition (`cleanup_condition.py`), then updates existing **PreprocessingRow** `ai_*`, **`ai_status`**, and **`proposed_price`**. Spoofed locked `identifiers` / `taxonomy` / `tracking` JSON in the CSV must not override standard buckets (copied from `standard_*` on write). **All-or-nothing** per upload when any row fails or counts mismatch. **`soft_warnings`** returned in API only (includes folded quality rules on wide apply).
 - **Export vs apply:** **`GET …/download-cleanup-csv`** pre-AI snapshot; **`POST …/upload-cleanup-csv`** / **`POST …/apply-cleanup-csv`** apply AI output to staging rows.
 
 ---
@@ -197,7 +197,7 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 
 ### Session 6 — Preprocessing (**core shipped 2026-05**)
 
-- **Goal (met):** [Preprocessing — target UX](#preprocessing--target-ux): stepper **Standardize / Clean / Final Review**, Step 1 **`manifest_preview` until apply**, Step 2 **12-column Grok + legacy narrow** cleanup apply with server validation, Step 3 **Final Review** + **`finalize-preprocessing`** coalesce to **`ManifestRow`**.
+- **Goal (met):** [Preprocessing — target UX](#preprocessing--target-ux): stepper **Standardize / Clean / Final Review**, Step 1 **`manifest_preview` until apply**, Step 2 **wide Grok CSV (+ optional `ai_status`) + legacy narrow** cleanup apply with server validation, Step 3 **Final Review** + **`finalize-preprocessing`** coalesce to **`ManifestRow`**.
 - **Scope (shipped):** `PreprocessingPage.tsx` + preprocessing API/views/models (**`apps/inventory/views.py`**, **`cleanup_csv_validate.py`**, **`layer_helpers.py`**, three-layer **`PreprocessingRow`**), **`Sidebar`** **Preprocessing** entry, route **`/inventory/preprocessing`**. See **`test_preprocessing_redesign.py`**.
 - **Finish line:** Staff can run export → offline clean → apply → final review → finalize; canonical manifest reflects **`final_*`**.
 - **Remaining:** UX polish, optional advanced pricing; keep **`CHANGELOG`** + extended docs in sync.
@@ -223,6 +223,13 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 - **Goal:** Align **[Unreleased]** **`CHANGELOG`** + **`inventory-pipeline.md`** with the adjunct **Grok** path and three-layer staging; local **`git commit`** (no semver bump).
 - **Scope:** `CHANGELOG.md`, `.ai/extended/inventory-pipeline.md`, this initiative header; **`workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`** (workspace; gitignored unless whitelisted); committed **`workspace/notebooks/ai-cleanup/`** tree **removed** — notebook narrative lives in handoff + **[`cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)** instead.
 - **Finish line:** No steering references to missing notebook paths unless marked historical.
+- **Start:** 2026-05-01
+
+### Session 10 — Final Review **`ai_status`** + second **`review.0.Bump`**
+
+- **Goal:** Surface **`ai_status`** on Final Review; keep client/server in sync when staff edits clear it; refresh **`CHANGELOG [Unreleased]`**, **`context.md`** / **`consultant_context.md`**, **`extended/*`**, initiative Sessions; local **`git commit`** (no **`.version`** bump).
+- **Scope:** `PreprocessingReviewTable.tsx`, `PreprocessingPage.tsx` (`mergeReviewPatches`), `RowProcessingPanel.tsx`, `cleanupCsv.ts`, `apps/inventory/views.py` (`_normalize_cleanup_ai_status_value`, `update_preprocessing_review_rows`), `test_preprocessing_redesign.py`.
+- **Finish line:** Steering + **[Unreleased]** describe 13-col CSV, **`soft_warnings`**, Final Review chips, and clear-on-edit semantics.
 - **Start:** 2026-05-01
 
 ---

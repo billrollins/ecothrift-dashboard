@@ -379,6 +379,58 @@ PREPROCESSING_REVIEW_EDITABLE_FIELDS = (
     'pricing_notes',
 )
 
+# Editing these staging fields clears Grok ai_status flags (staff fixed the row).
+_PREPROCESSING_REVIEW_AI_STATUS_CLEAR_FIELDS = frozenset({
+    'ai_title', 'ai_brand', 'ai_model', 'ai_category', 'ai_condition',
+    'ai_description', 'ai_notes', 'ai_search_tags', 'ai_specifications',
+    'proposed_price', 'final_price',
+})
+
+
+def _preprocessing_review_update_clears_ai_status(update_fields):
+    return bool(_PREPROCESSING_REVIEW_AI_STATUS_CLEAR_FIELDS.intersection(update_fields))
+
+
+def _normalize_cleanup_ai_status_value(raw):
+    """Normalize cleanup CSV / JSON ai_status to a JSON-serializable dict.
+
+    Empty, whitespace-only, malformed JSON, or non-dict payloads become {} (clean-equivalent).
+    """
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        if not raw:
+            return {}
+        out = {}
+        st = raw.get('state')
+        if isinstance(st, str) and st.strip():
+            out['state'] = st.strip()
+        issues = raw.get('issues')
+        if isinstance(issues, list):
+            out['issues'] = issues[:50]
+        elif issues is not None:
+            out['issues'] = []
+        else:
+            out['issues'] = []
+        for k, v in raw.items():
+            if k in ('state', 'issues'):
+                continue
+            if isinstance(v, (str, int, float, bool)) or v is None:
+                out[k] = v
+            elif isinstance(v, dict) and len(v) < 20:
+                out[k] = v
+        return out
+    s = str(raw).strip()
+    if not s:
+        return {}
+    try:
+        loaded = json.loads(s)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return {}
+    if isinstance(loaded, dict):
+        return _normalize_cleanup_ai_status_value(loaded)
+    return {}
+
 
 def _parse_page_params(query_params):
     try:
@@ -548,7 +600,11 @@ def update_preprocessing_review_rows(prep, rows_payload):
                 update_fields.append('pricing_stage')
             update_fields.append('proposed_price')
         if update_fields:
-            row.save(update_fields=list(dict.fromkeys(update_fields)))
+            uf = list(dict.fromkeys(update_fields))
+            if _preprocessing_review_update_clears_ai_status(uf):
+                row.ai_status = {}
+                uf.append('ai_status')
+            row.save(update_fields=list(dict.fromkeys(uf)))
             changed_rows.append(row)
             changed_ids.append(row.id)
     if changed_rows:
@@ -3552,7 +3608,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             brand_soft = str(norm.get('ai_brand') or norm.get('brand') or '').strip()
             _bc, ideal_row = _unit_base_cost_and_ideal_price(order, row.unit_retail)
 
-            hard_errs, soft_ws, proposed_price, parsed_specs, parsed_search_tags = validate_cleanup_row_values(
+            ai_status_obj = _normalize_cleanup_ai_status_value(norm.get('ai_status'))
+
+            hard_errs, soft_ws, proposed_price, parsed_specs, parsed_search_tags, quality_issues = validate_cleanup_row_values(
                 line=idx,
                 row_id=row_id,
                 staging_wide=staging_wide,
@@ -3567,6 +3625,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 extra_description=extra_description,
                 brand_for_soft=brand_soft,
                 category_for_soft=category,
+                block_on_quality=not staging_wide,
             )
             if hard_errs:
                 for h in hard_errs:
@@ -3581,6 +3640,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 continue
 
             all_soft_warnings.extend(soft_ws)
+            for q in quality_issues:
+                all_soft_warnings.append({
+                    'line': q['line'],
+                    'row_id': q['row_id'],
+                    'rule': q['rule'],
+                    'column': q.get('column'),
+                    'reason': q['reason'],
+                })
 
             csv_rn = str(norm.get('row_number') or '').strip()
             if csv_rn:
@@ -3613,6 +3680,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'parsed_search_tags': parsed_search_tags,
                 'extra_description': extra_description,
                 'extra_notes': extra_notes,
+                'ai_status': ai_status_obj,
             })
 
         missing_ids = sorted(set(rows_by_id) - referenced_in_csv)
@@ -3658,9 +3726,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     row.ai_taxonomy = deepcopy(row.standard_taxonomy or {})
                     row.ai_tracking = deepcopy(row.standard_tracking or {})
                     row.ai_condition = condition
+                    row.ai_status = deepcopy(pl.get('ai_status') or {})
                     update_fields_set.update({
                         'ai_title', 'ai_brand', 'ai_model', 'ai_category',
                         'ai_identifiers', 'ai_taxonomy', 'ai_tracking', 'ai_condition',
+                        'ai_status',
                     })
                     if staging_wide:
                         desc = pl['extra_description']

@@ -134,97 +134,154 @@ def validate_cleanup_row_values(
     extra_description: str,
     brand_for_soft: str,
     category_for_soft: str,
+    block_on_quality: bool = True,
 ) -> tuple[
     list[dict[str, Any]],
     list[dict[str, Any]],
     Decimal | None,
     dict[str, Any] | None,
     list[str] | None,
+    list[dict[str, Any]],
 ]:
     """
-    Returns (hard_errors, soft_warnings, proposed_price_decimal, specs_dict, tags_list).
+    Returns (blocking_errors, soft_warnings, proposed_price_decimal, specs_dict, tags_list, quality_issues).
+
+    When block_on_quality is False (Grok cleaned CSV import), former hard quality gates are returned
+    in quality_issues and do not block the upload; invalid JSON in required blob cells still blocks.
     """
-    hard: list[dict[str, Any]] = []
+    blocking: list[dict[str, Any]] = []
+    quality_issues: list[dict[str, Any]] = []
     soft: list[dict[str, Any]] = []
+
+    def reject_q(rule: str, column: str, reason: str) -> None:
+        rec = _emit_hard(line, row_id, rule, column, reason)
+        if block_on_quality:
+            blocking.append(rec)
+        else:
+            quality_issues.append(rec)
 
     wc = _word_count(display_title)
     if not (display_title or '').strip():
-        hard.append(_emit_hard(line, row_id, 'HARD_TITLE_PRESENT', 'title', 'title required'))
+        reject_q('HARD_TITLE_PRESENT', 'title', 'title required')
     elif staging_wide:
         if wc < 3 or wc > 15:
-            hard.append(_emit_hard(
-                line, row_id, 'HARD_TITLE_LENGTH', 'title',
+            reject_q(
+                'HARD_TITLE_LENGTH', 'title',
                 f'title word count must be 3–15 inclusive, got {wc}',
-            ))
+            )
 
     if category not in taxonomy_set:
-        hard.append(_emit_hard(
-            line, row_id, 'HARD_CATEGORY_VALID', 'category',
+        reject_q(
+            'HARD_CATEGORY_VALID', 'category',
             f'unknown category {category!r}',
-        ))
+        )
 
     if normalize_cleanup_condition(condition_raw) is None:
-        hard.append(_emit_hard(
-            line, row_id, 'HARD_CONDITION_VALID', 'condition',
+        reject_q(
+            'HARD_CONDITION_VALID', 'condition',
             f'unknown condition {condition_raw!r}',
-        ))
+        )
 
     price, price_err = _parse_price(proposed_price_raw)
     if price_err:
-        hard.append(_emit_hard(line, row_id, 'HARD_PRICE_NUMERIC', 'proposed_price', price_err))
+        reject_q('HARD_PRICE_NUMERIC', 'proposed_price', price_err)
     elif staging_wide:
         if price is None:
-            hard.append(_emit_hard(line, row_id, 'HARD_PRICE_PRESENT', 'proposed_price', 'required'))
+            reject_q('HARD_PRICE_PRESENT', 'proposed_price', 'required')
         elif price < Decimal('0.01'):
-            hard.append(_emit_hard(line, row_id, 'HARD_PRICE_MIN', 'proposed_price', 'must be >= 0.01'))
+            reject_q('HARD_PRICE_MIN', 'proposed_price', 'must be >= 0.01')
         elif price > Decimal('10000'):
-            hard.append(_emit_hard(line, row_id, 'HARD_PRICE_MAX', 'proposed_price', 'must be <= 10000'))
+            reject_q('HARD_PRICE_MAX', 'proposed_price', 'must be <= 10000')
     else:
         if proposed_price_raw.strip() and price is not None:
             if price < Decimal('0.01'):
-                hard.append(_emit_hard(line, row_id, 'HARD_PRICE_MIN', 'proposed_price', 'must be >= 0.01'))
+                reject_q('HARD_PRICE_MIN', 'proposed_price', 'must be >= 0.01')
             elif price > Decimal('10000'):
-                hard.append(_emit_hard(line, row_id, 'HARD_PRICE_MAX', 'proposed_price', 'must be <= 10000'))
+                reject_q('HARD_PRICE_MAX', 'proposed_price', 'must be <= 10000')
 
     parsed_specs: dict[str, Any] | None = None
     parsed_tags: list[str] | None = None
     if staging_wide:
         if not (extra_description or '').strip():
-            hard.append(_emit_hard(
-                line, row_id, 'HARD_DESCRIPTION_PRESENT', 'description', 'required',
-            ))
+            reject_q(
+                'HARD_DESCRIPTION_PRESENT', 'description', 'required',
+            )
         spec_cell = str(norm.get('specifications_json') or '').strip()
-        if not spec_cell:
-            hard.append(_emit_hard(
-                line, row_id, 'HARD_SPECS_OBJECT', 'specifications_json', 'required non-empty object',
-            ))
-        else:
-            parsed_specs, serrs = validate_cleanup_specs_cell(spec_cell)
-            for e in serrs:
-                hard.append(_emit_hard(line, row_id, e['rule'], e['column'], e['reason']))
-            if not serrs and isinstance(parsed_specs, dict) and len(parsed_specs) == 0:
-                hard.append(_emit_hard(
-                    line, row_id, 'HARD_SPECS_NO_EMPTY', 'specifications_json',
-                    'object must have at least one key',
-                ))
-
         tag_cell = str(norm.get('search_tags_json') or '').strip()
-        if not tag_cell:
-            hard.append(_emit_hard(
-                line, row_id, 'HARD_TAGS_ARRAY', 'search_tags_json', 'required non-empty array',
-            ))
-        else:
-            parsed_tags, terrs = validate_cleanup_tags_cell(tag_cell)
-            for e in terrs:
-                hard.append(_emit_hard(line, row_id, e['rule'], e['column'], e['reason']))
-            if not terrs and isinstance(parsed_tags, list) and len(parsed_tags) == 0:
-                hard.append(_emit_hard(
-                    line, row_id, 'HARD_TAGS_STRINGS', 'search_tags_json',
-                    'array must have at least one tag',
-                ))
 
-    if hard:
-        return hard, soft, price, None, None
+        if block_on_quality:
+            if not spec_cell:
+                reject_q(
+                    'HARD_SPECS_OBJECT', 'specifications_json', 'required non-empty object',
+                )
+            else:
+                parsed_specs, serrs = validate_cleanup_specs_cell(spec_cell)
+                for e in serrs:
+                    blocking.append(_emit_hard(line, row_id, e['rule'], e['column'], e['reason']))
+                if not serrs and isinstance(parsed_specs, dict) and len(parsed_specs) == 0:
+                    blocking.append(_emit_hard(
+                        line, row_id, 'HARD_SPECS_NO_EMPTY', 'specifications_json',
+                        'object must have at least one key',
+                    ))
+
+            if not tag_cell:
+                reject_q(
+                    'HARD_TAGS_ARRAY', 'search_tags_json', 'required non-empty array',
+                )
+            else:
+                parsed_tags, terrs = validate_cleanup_tags_cell(tag_cell)
+                for e in terrs:
+                    blocking.append(_emit_hard(line, row_id, e['rule'], e['column'], e['reason']))
+                if not terrs and isinstance(parsed_tags, list) and len(parsed_tags) == 0:
+                    blocking.append(_emit_hard(
+                        line, row_id, 'HARD_TAGS_STRINGS', 'search_tags_json',
+                        'array must have at least one tag',
+                    ))
+        else:
+            if not spec_cell:
+                parsed_specs = {}
+            else:
+                try:
+                    raw_sp = json.loads(spec_cell)
+                except json.JSONDecodeError:
+                    blocking.append(_emit_hard(
+                        line, row_id, 'HARD_SPECS_OBJECT', 'specifications_json', 'invalid JSON',
+                    ))
+                else:
+                    if not isinstance(raw_sp, dict):
+                        blocking.append(_emit_hard(
+                            line, row_id, 'HARD_SPECS_OBJECT', 'specifications_json', 'must be a JSON object',
+                        ))
+                    else:
+                        parsed_specs = {
+                            str(k): str(v)
+                            for k, v in raw_sp.items()
+                            if KEY_SNAKE.match(str(k)) and v is not None and str(v).strip() != ''
+                        }
+
+            if not tag_cell:
+                parsed_tags = []
+            else:
+                try:
+                    raw_tg = json.loads(tag_cell)
+                except json.JSONDecodeError:
+                    blocking.append(_emit_hard(
+                        line, row_id, 'HARD_TAGS_ARRAY', 'search_tags_json', 'invalid JSON',
+                    ))
+                else:
+                    if not isinstance(raw_tg, list):
+                        blocking.append(_emit_hard(
+                            line, row_id, 'HARD_TAGS_ARRAY', 'search_tags_json', 'must be a JSON array',
+                        ))
+                    else:
+                        parsed_tags = [
+                            str(x).strip()
+                            for x in raw_tg
+                            if isinstance(x, str) and str(x).strip()
+                        ]
+
+    if blocking:
+        return blocking, soft, price, None, None, quality_issues
 
     # Soft checks (only when we have economics)
     if price is not None and unit_retail is not None and unit_retail > 0:
@@ -258,4 +315,4 @@ def validate_cleanup_row_values(
             'description contains category string',
         ))
 
-    return hard, soft, price, parsed_specs, parsed_tags
+    return blocking, soft, price, parsed_specs, parsed_tags, quality_issues

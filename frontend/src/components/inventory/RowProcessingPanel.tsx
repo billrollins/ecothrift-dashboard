@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Alert, Box, Button, Typography } from '@mui/material';
 import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
 import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined';
-import type { CleanupCsvApplyRowPayload } from '../../api/inventory.api';
+import type { CleanupCsvApplyRowPayload, CleanupCsvSoftWarning } from '../../api/inventory.api';
 import { useDownloadCleanupCsv } from '../../hooks/useInventory';
 import { parseCleanupCsv } from './preprocessing/cleanupCsv';
 import { preprocessingFonts } from './preprocessing/preprocessingTokens';
@@ -18,6 +18,8 @@ interface RowProcessingPanelProps {
   /** Parent-owned validated payloads ready for JSON POST. */
   validatedPayload: CleanupCsvApplyRowPayload[] | null;
   onValidatedPayloadChange: (rows: CleanupCsvApplyRowPayload[] | null) => void;
+  lastApplySoftWarnings?: CleanupCsvSoftWarning[] | null;
+  onDismissApplyWarnings?: () => void;
 }
 
 interface LogEntry {
@@ -46,6 +48,8 @@ export function RowProcessingPanel({
   rowNumberById,
   validatedPayload,
   onValidatedPayloadChange,
+  lastApplySoftWarnings,
+  onDismissApplyWarnings,
 }: RowProcessingPanelProps) {
   const downloadCleanupCsv = useDownloadCleanupCsv();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -105,6 +109,7 @@ export function RowProcessingPanel({
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
+    onDismissApplyWarnings?.();
     setErrorMessage('');
     onValidatedPayloadChange(null);
     addLog(`Reading ${file.name}…`);
@@ -117,7 +122,9 @@ export function RowProcessingPanel({
         addLog(msg, 'error');
         return;
       }
-      addLog(`Detected ${parsed.format === 'grok12' ? '12-column Grok' : '7-column narrow'} CSV.`, 'info');
+      const fmtLabel =
+        parsed.format === 'grok13' ? '13-column Grok (+ ai_status)' : parsed.format === 'grok12' ? '12-column Grok' : '7-column narrow';
+      addLog(`Detected ${fmtLabel} CSV.`, 'info');
       const rows: CleanupCsvApplyRowPayload[] = parsed.rows.map((r) => ({
         row_id: typeof r.row_id === 'number' ? r.row_id : Number.parseInt(String(r.row_id), 10),
         row_number: r.row_number,
@@ -131,6 +138,7 @@ export function RowProcessingPanel({
         notes: r.notes,
         specifications_json: r.specifications_json,
         search_tags_json: r.search_tags_json,
+        ai_status: r.ai_status,
       }));
       const vErr = validateAgainstExpected(rows);
       if (vErr) {
@@ -157,8 +165,9 @@ export function RowProcessingPanel({
         Offline AI Cleanup
       </Typography>
       <Typography sx={{ fontSize: 13, color: '#666', mb: 2, lineHeight: 1.5 }}>
-        Upload accepts a <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 12 }}>12-column Grok</Typography> response (
-        <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 11 }}>row_id … search_tags_json</Typography>) or legacy{' '}
+        Upload accepts a <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 12 }}>12- or 13-column Grok</Typography> response (
+        <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 11 }}>row_id … search_tags_json</Typography>, optional trailing{' '}
+        <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 11 }}>ai_status</Typography>) or legacy{' '}
         <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 12 }}>7-column narrow</Typography> (
         <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 11 }}>ai_title…</Typography>). Run Cleanup in the toolbar posts JSON to
         the server for full validation.
@@ -217,7 +226,7 @@ export function RowProcessingPanel({
           >
             <input ref={fileInputRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => void handleFile(e.target.files?.[0])} />
             <Typography sx={{ pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-              <UploadFileOutlined fontSize="small" /> Choose CSV (Grok 12-col or narrow)…
+              <UploadFileOutlined fontSize="small" /> Choose CSV (Grok 12/13-col or narrow)…
             </Typography>
           </Box>
           {validatedPayload && (
@@ -227,6 +236,24 @@ export function RowProcessingPanel({
           )}
         </Box>
       </Box>
+
+      {lastApplySoftWarnings && lastApplySoftWarnings.length > 0 && (
+        <Alert severity="info" sx={{ mb: 2 }} onClose={() => onDismissApplyWarnings?.()}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+            Soft warnings from last apply ({lastApplySoftWarnings.length})
+          </Typography>
+          <Box component="ul" sx={{ m: 0, pl: 2, maxHeight: 220, overflow: 'auto' }}>
+            {lastApplySoftWarnings.slice(0, 100).map((w, i) => (
+              <Typography component="li" key={`${w.row_id}-${w.rule}-${i}`} variant="caption" sx={{ display: 'list-item' }}>
+                {w.row_id != null ? `row ${w.row_id}` : 'row ?'}
+                {w.rule ? ` — ${w.rule}` : ''}
+                {w.reason ? `: ${w.reason}` : ''}
+                {w.column ? ` (${w.column})` : ''}
+              </Typography>
+            ))}
+          </Box>
+        </Alert>
+      )}
 
       {errorMessage && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setErrorMessage('')}>
