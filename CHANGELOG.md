@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.20.0] — 2026-04-29 (Inventory — orders + receiving) -->
-<!-- Last reviewed: 2026-04-30 (`review.0.Bump` — llm_chat Grok + manifest aliases under [Unreleased]) -->
+<!-- Last reviewed: 2026-05-01 (`review.0.Bump` — cleanup.ipynb + inventory-pipeline adjunct under [Unreleased]) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -26,6 +26,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Documentation
 
+- **Notebooks** — **`workspace/notebooks/ai-cleanup/notebooks/cleanup.ipynb`**: intro documents lean **`GET …/download-cleanup-csv/`** columns, opaque vendor **`category`/`condition`** codes, narrow apply/merge schema (**`ai_*`**, **`proposed_price`**), and a short disclaimer that older executed outputs may still show legacy headers.
+- **Inventory pipeline (extended)** — [`.ai/extended/inventory-pipeline.md`](.ai/extended/inventory-pipeline.md) notes the optional gitignored adjunct **`workspace/ai-cleanup-grok/`** (**`clean-grok.mjs`**) for offline xAI cleanup (strict JSON Schema enums, optional **`--batch-api`**).
 - **Environment template** — xAI Grok (**`XAI_API_KEY`** / **`GROK_API_KEY`**, **`AI_PROVIDER`**, **`XAI_API_BASE`**) aligned with Django settings ([`.env.example`](.env.example); [`.ai/extended/development.md`](.ai/extended/development.md)).
 - **AI steering** — Preprocessing Step 2 narrative: **`order_processing_pipeline_rebuild`** export vs **`apply-cleanup-csv`** → **`ai_suggested_*`**; **`context.md`** / **`consultant_context.md`**; **`extended/backend.md`** / **`inventory-pipeline.md`** ([`.ai/initiatives/order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)).
 - **AI steering** — Initiative links and archive TOC aligned with on-disk location of **[`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md)**; **[`ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md)** `_completed` table lists **`bstock_auction_intelligence.md`** and **`ui_ux_polish.md`**; duplicate lifecycle protocol copies removed from **`.ai/initiatives/_protocols/`** (canonical: **`_archived/_protocols/`**).

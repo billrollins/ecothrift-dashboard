@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-30 (preprocessing Step 2 lean CSV steering) -->
+<!-- Last updated: 2026-05-01 (review.0.Bump: [Unreleased] notebook + inventory-pipeline adjunct) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary

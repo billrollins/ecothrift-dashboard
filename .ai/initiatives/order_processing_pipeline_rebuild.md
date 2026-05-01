@@ -1,5 +1,5 @@
-<!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-04-30 -->
-<!-- Last updated: 2026-04-30 (Step 2 steering: lean pre-AI download CSV vs ai_suggested_* apply) -->
+<!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-05-01 -->
+<!-- Last updated: 2026-05-01 (review.0.Bump: cleanup.ipynb + CHANGELOG [Unreleased] adjunct docs) -->
 
 # Initiative: Order / Processing pipeline rebuild
 
@@ -218,6 +218,13 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 - **Finish line:** Startup checklist + concise explanation of Step 2 flow (download → offline edit → upload → apply) and naming/label gaps vs target UX.
 - **Scope:** Read-only: **`.ai/context.md`**, **`.version`**, **`CHANGELOG`** top, **`_index.md`**, initiative file, **`PreprocessingPage`**, **`CleanupStep`**, **`RowProcessingPanel`**, inventory views cleanup endpoints.
 - **Start:** 2026-04-30
+
+### Session 9 — `review.0.Bump` (cleanup notebook + unreleased docs)
+
+- **Goal:** Run **`review.0.Bump`**: **[Unreleased]** **`CHANGELOG`** bullets for **`cleanup.ipynb`** + **`inventory-pipeline.md`** adjunct; local **`git commit`** (no semver bump).
+- **Scope:** `CHANGELOG.md`, `.ai/extended/inventory-pipeline.md`, this initiative header; `workspace/notebooks/ai-cleanup/notebooks/cleanup.ipynb` (lean CSV / apply schema intro).
+- **Finish line:** Steering matches shipped notebook narrative; `workspace/ai-cleanup-grok/` remains gitignored.
+- **Start:** 2026-05-01
 
 ---
 

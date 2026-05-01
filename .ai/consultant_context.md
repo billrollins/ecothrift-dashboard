@@ -1,6 +1,6 @@
 # Consultant context — Eco-Thrift Dashboard
 
-<!-- Last updated: 2026-04-30T18:30:00-05:00 (preprocessing Step 2 lean CSV narrative) -->
+<!-- Last updated: 2026-05-01T12:00:00-05:00 (review.0.Bump: [Unreleased] cleanup.ipynb + inventory-pipeline clean-grok adjunct) -->
 
 **Purpose.** Single **information-dense** handoff for **external advisors** on the **full** Eco-Thrift Dashboard—not only liquidation buying. **[`.ai/context.md`](context.md)** is the living **agent** summary (version roll-up, known issues, file map). This file gives **cross-cutting architecture**, a **short recent / near-term** slice, then—below—a **detailed** treatment of **B-Stock**, manifests, valuation, and **legacy data / backfill** archaeology that sourcing-focused engagements still need.
 
@@ -116,7 +116,7 @@ The dashboard UI is **React** (TypeScript, MUI, React Query). **Buying** staff r
 
 **Manual manifest path (production):** **CSV upload** in the React **auction detail** page is **shipped** (**v2.7.0**, Phases 4.1A–4.1B): **`POST /api/buying/auctions/{id}/upload_manifest/`** with `ManifestTemplate` detection; optional **Claude** template completion for unknown headers; Stage **2** **`map_fast_cat_batch`** for unmapped **`fast_cat_key`** values. **Server-side** `pull_manifest` using a stored token remains useful for **local development** but is **not** the default production story, because cloud token automation is awkward and token-heavy calls drove **account blocks** during development.
 
-**Inventory PO manifests:** Staff upload/replace vendor CSV from **`/inventory/orders/:id`** (**Raw Manifest** card → **`POST /api/inventory/orders/{id}/upload-manifest/`**); standardization stays in **Preprocessing**. Offline Step 2 cleanup: **`GET /api/inventory/orders/{id}/download-cleanup-csv/`** returns a **pre-AI** lean CSV (standard row fields + **`base_cost`**/**`ideal_price`**); **`POST …/apply-cleanup-csv`** (or multipart **`upload-cleanup-csv`**) writes cleanup suggestions into **`ai_suggested_*`** on staged/manifest rows. **`CHANGELOG [2.20.0]`**, **`CHANGELOG [Unreleased]`**, **`.ai/extended/inventory-pipeline.md`**, **`.ai/extended/backend.md`**.
+**Inventory PO manifests:** Staff upload/replace vendor CSV from **`/inventory/orders/:id`** (**Raw Manifest** card → **`POST /api/inventory/orders/{id}/upload-manifest/`**); standardization stays in **Preprocessing**. Offline Step 2 cleanup: **`GET /api/inventory/orders/{id}/download-cleanup-csv/`** returns a **pre-AI** lean CSV (standard row fields + **`base_cost`**/**`ideal_price`**); **`POST …/apply-cleanup-csv`** (or multipart **`upload-cleanup-csv`**) writes cleanup suggestions into **`ai_suggested_*`** on staged/manifest rows. Optional local adjunct (**gitignored** **`workspace/ai-cleanup-grok/clean-grok.mjs`**) may call xAI with strict JSON Schema outputs. Pointers: **`CHANGELOG [Unreleased]`**, **`CHANGELOG [2.20.0]`**, **`.ai/extended/inventory-pipeline.md`**, **`.ai/extended/backend.md`**.
 
 **Ban mitigation:** If token-backed actions are blocked, **soft-touch discovery** can continue. Standard practices: **delays between requests**, **backoff on HTTP 429/403**, **logging response codes**, and **separating** listing sweeps from manifest pulls. See initiative **Open questions** for follow-up on per-account vs per-IP limits.
 
