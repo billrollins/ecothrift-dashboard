@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-30 (preprocessing offline CSV round-trip) -->
+<!-- Last updated: 2026-04-30 (llm_chat + suggest-formulas Grok path) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -266,7 +266,7 @@ consignment.ConsignmentPayout → User (consignee)
 - **`POST /api/inventory/orders/:id/ai-cleanup-rows/`** — Sends manifest rows to Claude in batches for title/brand/model/specs cleanup. Accepts `model`, `batch_size`, `offset`. Returns `{ rows_processed, total_rows, offset, suggestions, model_used, has_more }`.
 - **`GET /api/inventory/orders/:id/ai-cleanup-status/`** — Returns `{ total_rows, cleaned_rows, remaining_rows }`.
 - **`POST /api/inventory/orders/:id/cancel-ai-cleanup/`** — Clears all AI-generated fields on manifest rows.
-- **`POST /api/inventory/orders/:id/suggest-formulas/`** — AI suggests expression formulas for standard fields given manifest headers and sample data.
+- **`POST /api/inventory/orders/:id/suggest-formulas/`** — AI suggests expression formulas for standard fields given manifest headers and sample data; implemented via **`apps.core.services.llm_chat.llm_chat_completion_text`** (Anthropic Claude or xAI Grok per **`AI_PROVIDER`** / model id — same env keys as Django **`ecothrift/settings.py`**).
 - **`POST /api/inventory/orders/:id/match-products/`** — Fuzzy scoring (UPC, VendorRef, text similarity) + AI batch decisions.
 - **`POST /api/inventory/orders/:id/review-matches/`** — User submits accept/reject/modify decisions for match results.
 - **`GET /api/inventory/orders/:id/match-results/`** — Returns all rows with candidates, AI decisions, scores.

@@ -161,6 +161,32 @@ class PreprocessingRedesignTests(TestCase):
         by_target = {m['target']: m for m in mappings}
         self.assertEqual(by_target['retail_value']['source'], 'Unit Retail')
 
+    def test_default_column_mappings_maps_lean_cleanup_csv_headers(self):
+        """download-cleanup-csv shape: title/condition/sku columns map to standard fields."""
+        headers = [
+            'row_id',
+            'row_number',
+            'description',
+            'title',
+            'brand',
+            'model',
+            'category',
+            'condition',
+            'sku',
+            'upc',
+            'quantity',
+            'retail_value',
+            'notes',
+            'base_cost',
+            'ideal_price',
+        ]
+        mappings = default_column_mappings(headers)
+        by_target = {m['target']: m for m in mappings}
+        self.assertEqual(by_target['title']['source'], 'title')
+        self.assertEqual(by_target['condition']['source'], 'condition')
+        self.assertEqual(by_target['description']['source'], 'description')
+        self.assertEqual(by_target['vendor_item_number']['source'], 'sku')
+
     def test_ensure_manifest_products_and_items_is_idempotent(self):
         ManifestRow.objects.create(
             purchase_order=self.order,

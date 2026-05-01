@@ -111,7 +111,7 @@ MANIFEST_STANDARD_COLUMNS = (
     {'key': 'condition', 'label': 'Condition', 'required': False},
     {'key': 'retail_value', 'label': 'Unit retail (MSRP)', 'required': False},
     {'key': 'upc', 'label': 'UPC', 'required': False},
-    {'key': 'vendor_item_number', 'label': 'Vendor Item #', 'required': False},
+    {'key': 'vendor_item_number', 'label': 'Vendor Item # (CSV "sku" in cleanup export)', 'required': False},
     {'key': 'notes', 'label': 'Notes', 'required': False},
 )
 
@@ -127,9 +127,18 @@ MANIFEST_FUNCTION_OPTIONS = (
 MANIFEST_SOURCE_ALIASES = {
     'quantity': ['quantity', 'qty', 'units', 'count', 'qnty'],
     'description': ['description', 'item description', 'title', 'product', 'item'],
+    'title': ['title', 'product name', 'item name', 'name', 'current_title'],
     'brand': ['brand', 'manufacturer'],
     'model': ['model', 'model_number', 'model number'],
     'category': ['category', 'department'],
+    'condition': [
+        'condition',
+        'item condition',
+        'current_condition',
+        'used_fair',
+        'used_good',
+        'used_like_new',
+    ],
     # Prefer vendor unit stated retail (e.g. B-Stock "Unit Retail"); extended line fallbacks last.
     'retail_value': [
         'unit retail',
@@ -2399,13 +2408,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='suggest-formulas')
     def suggest_formulas(self, request, pk=None):
-        """Ask Claude to suggest formula mappings for all standard fields."""
-        from django.conf import settings as django_settings
-        import anthropic as anthropic_lib
+        """Suggest formula mappings for standard manifest fields (Anthropic or xAI Grok per settings)."""
         import json as json_lib
 
+        from apps.core.services.llm_chat import LLMConfigError, llm_chat_completion_text
+
         order = self.get_object()
-        model_id = request.data.get('model', '')
         template_id = request.data.get('template_id')
 
         preview = order.manifest_preview or {}
@@ -2414,13 +2422,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return Response(
                 {'error': 'manifest_preview missing or has no headers; re-upload the manifest.'},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        api_key = getattr(django_settings, 'ANTHROPIC_API_KEY', '')
-        if not api_key:
-            return Response(
-                {'error': 'ANTHROPIC_API_KEY not configured.'},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
         rows_preview = preview.get('rows') or []
@@ -2476,30 +2477,40 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if prior_templates:
             user_message_parts.append(f"Prior templates for this vendor: {json_lib.dumps(prior_templates)}")
 
+        user_content = '\n'.join(user_message_parts)
+        model_id = str(request.data.get('model') or '').strip() or DEFAULT_AI_MODEL
+
         try:
-            client = anthropic_lib.Anthropic(api_key=api_key)
-            if not model_id:
-                model_id = DEFAULT_AI_MODEL
-
-            response = client.messages.create(
-                model=model_id,
+            content_text, model_used = llm_chat_completion_text(
+                system=system_prompt,
+                user=user_content,
+                model_id=model_id,
                 max_tokens=2048,
-                system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
-                messages=[{'role': 'user', 'content': '\n'.join(user_message_parts)}],
+                log_source='ai_suggest_formulas',
+                log_detail=f'order={order.pk} suggest-formulas',
             )
-
-            log_ai_usage_from_response(
+        except LLMConfigError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.error('AI error in suggest-formulas: %s', e)
+            log_ai_usage(
                 'ai_suggest_formulas',
-                response,
-                model=model_id,
+                model_id,
+                0,
+                0,
                 detail=f'order={order.pk} suggest-formulas',
+                success=False,
+                error=str(e),
+            )
+            return Response(
+                {'error': f'AI service error: {e}'},
+                status=status.HTTP_502_BAD_GATEWAY,
             )
 
-            content_text = ''
-            for block in response.content:
-                if block.type == 'text':
-                    content_text += block.text
-
+        try:
             json_match = re.search(r'\{[\s\S]*\}', content_text)
             if not json_match:
                 return Response(
@@ -2512,25 +2523,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
             return Response({
                 'suggestions': suggestions,
-                'model_used': response.model,
+                'model_used': model_used,
             })
-
-        except anthropic_lib.APIError as e:
-            logger.error('Anthropic API error in suggest-formulas: %s', e)
-            _mid = (self.request.data.get('model', '') or DEFAULT_AI_MODEL)
-            log_ai_usage(
-                'ai_suggest_formulas',
-                _mid,
-                0,
-                0,
-                detail=f'order={order.pk} suggest-formulas',
-                success=False,
-                error=str(e),
-            )
-            return Response(
-                {'error': f'AI service error: {e}'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
         except (json_lib.JSONDecodeError, KeyError) as e:
             return Response(
                 {'error': f'Failed to parse AI response: {e}'},

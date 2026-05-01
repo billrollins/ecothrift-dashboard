@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-17T00:00:00-05:00 (post-deploy recompute_all_item_costs) -->
+<!-- Last updated: 2026-04-30 (xAI Grok env keys for llm_chat-backed paths) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -125,8 +125,11 @@ Defined in `.env` (gitignored):
 | `AWS_S3_REGION_NAME` | S3 region | `us-east-2` |
 | `ALLOWED_HOSTS` | Comma-separated hosts | `localhost,127.0.0.1` |
 | `ANTHROPIC_API_KEY` | Anthropic API key (Claude — buying 4.1B, inventory AI, `apps/ai`, etc.) | — |
-| `AI_MODEL` | Default Claude model id (`ecothrift/settings.py` default e.g. Sonnet) | see `settings.py` |
+| `AI_MODEL` | Default model id for Anthropic paths (`ecothrift/settings.py`; Grok ids allowed where **`llm_chat`** is wired, e.g. **`suggest-formulas`**) | see `settings.py` |
 | `AI_MODEL_FAST` | Optional faster/cheaper model id where used | see `settings.py` |
+| `XAI_API_KEY` | xAI Grok API key (**`GROK_API_KEY`** is an alias) | — |
+| `XAI_API_BASE` | OpenAI-compatible base URL for Grok | `https://api.x.ai/v1` |
+| `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI), `anthropic`, or `xai` | `auto` |
 | `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs logged to **`workspace/logs/ai_usage.jsonl`** | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest when `browser` is enabled in `.ai/debug/log.config` | `false` |
 | `BSTOCK_AUTH_TOKEN` | Fallback JWT if `workspace/.bstock_token` is missing (from `python manage.py bstock_token` or DevTools) | — |

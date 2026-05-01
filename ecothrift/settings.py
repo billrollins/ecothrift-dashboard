@@ -234,19 +234,29 @@ else:
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
 
-# ── AI / Anthropic ───────────────────────────────────────────────────────────
+# ── AI / LLM (Anthropic Claude + optional xAI Grok) ──────────────────────────
 def _normalize_anthropic_model_id(model_id: str) -> str:
     """Map invalid ids (e.g. claude-haiku-4-6 does not exist; Haiku 4.x is claude-haiku-4-5)."""
     mid = (model_id or '').strip()
+    if mid.lower().startswith('grok'):
+        return mid
     if mid == 'claude-haiku-4-6':
         return 'claude-haiku-4-5'
     return mid
 
 
 ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
-# Default model for most AI calls (buying, chat proxy, inventory cleanup, etc.).
+# xAI Grok (OpenAI-compatible API). GROK_API_KEY is an alias for convenience.
+XAI_API_KEY = (
+    config('XAI_API_KEY', default='').strip() or config('GROK_API_KEY', default='').strip()
+)
+XAI_API_BASE = config('XAI_API_BASE', default='https://api.x.ai/v1').strip()
+# Which backend to use: auto | anthropic | xai
+# auto: model id starting with "grok" → xAI; otherwise Anthropic.
+AI_PROVIDER = config('AI_PROVIDER', default='auto').strip().lower()
+# Default model for most AI calls (Claude id or Grok id, e.g. grok-3, grok-4).
 AI_MODEL = _normalize_anthropic_model_id(config('AI_MODEL', default='claude-sonnet-4-6'))
-# Reserved for cheaper high-volume paths (optional; not required for all features).
+# Cheaper/faster model for high-volume paths (when those paths support it).
 AI_MODEL_FAST = _normalize_anthropic_model_id(config('AI_MODEL_FAST', default='claude-haiku-4-5'))
 # Backward compatibility: single knob — same as AI_MODEL.
 BUYING_CATEGORY_AI_MODEL = AI_MODEL

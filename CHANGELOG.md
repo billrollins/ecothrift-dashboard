@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.20.0] — 2026-04-29 (Inventory — orders + receiving) -->
-<!-- Last reviewed: 2026-04-30 (`review.0.Bump` — preprocessing CSV unreleased + steering) -->
+<!-- Last reviewed: 2026-04-30 (`review.0.Bump` — llm_chat Grok + manifest aliases under [Unreleased]) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -12,12 +12,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Core / LLM** — **`apps/core/services/llm_chat.py`**: single-turn **`llm_chat_completion_text`** routes to Anthropic or xAI Grok from **`AI_PROVIDER`** (`auto` / `anthropic` / `xai`) and model id (`grok*` → xAI when **`auto`**). Dependency **`openai`** ([`requirements.txt`](requirements.txt)).
+
 ### Changed
 
+- **Inventory / Preprocessing** — **`POST /api/inventory/orders/{id}/suggest-formulas/`** uses **`llm_chat_completion_text`** instead of Anthropic-only SDK calls; missing credentials return **`LLMConfigError`** as HTTP 503 ([`apps/inventory/views.py`](apps/inventory/views.py)).
+- **Settings** — **`XAI_API_KEY`** (alias **`GROK_API_KEY`**), **`XAI_API_BASE`**, **`AI_PROVIDER`**; **`_normalize_anthropic_model_id`** passes through Grok model ids ([`ecothrift/settings.py`](ecothrift/settings.py)).
+- **Manifest mapping** — **`MANIFEST_SOURCE_ALIASES`** adds **`title`** and **`condition`** synonyms; vendor item column label notes cleanup CSV **`sku`** ([`apps/inventory/views.py`](apps/inventory/views.py)).
+- **Tests** — **`test_default_column_mappings_maps_lean_cleanup_csv_headers`** covers lean **`download-cleanup-csv`** headers → standard targets ([`apps/inventory/tests/test_preprocessing_redesign.py`](apps/inventory/tests/test_preprocessing_redesign.py)).
 - **Inventory / Preprocessing** — **`GET /api/inventory/orders/{id}/download-cleanup-csv/`** exports a lean pre-AI CSV: **`row_id`**, **`row_number`**, **`description`**, **`title`**, **`brand`**, **`model`**, **`category`**, **`condition`**, **`sku`**, **`upc`**, **`quantity`**, **`retail_value`**, **`notes`**, **`base_cost`** (**`PurchaseOrder.compute_item_cost`**), **`ideal_price`** (2× unit base cost). Removed the prior wide columns (**`item_id`**, **`current_*`**, AI/pricing/tag extras). Offline scripts must expect the new header; **`POST …/apply-cleanup-csv/`** / **`upload-cleanup-csv`** narrow apply schema is unchanged ([`apps/inventory/views.py`](apps/inventory/views.py)).
 
 ### Documentation
 
+- **Environment template** — xAI Grok (**`XAI_API_KEY`** / **`GROK_API_KEY`**, **`AI_PROVIDER`**, **`XAI_API_BASE`**) aligned with Django settings ([`.env.example`](.env.example); [`.ai/extended/development.md`](.ai/extended/development.md)).
 - **AI steering** — Preprocessing Step 2 narrative: **`order_processing_pipeline_rebuild`** export vs **`apply-cleanup-csv`** → **`ai_suggested_*`**; **`context.md`** / **`consultant_context.md`**; **`extended/backend.md`** / **`inventory-pipeline.md`** ([`.ai/initiatives/order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)).
 - **AI steering** — Initiative links and archive TOC aligned with on-disk location of **[`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md)**; **[`ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md)** `_completed` table lists **`bstock_auction_intelligence.md`** and **`ui_ux_polish.md`**; duplicate lifecycle protocol copies removed from **`.ai/initiatives/_protocols/`** (canonical: **`_archived/_protocols/`**).
 
