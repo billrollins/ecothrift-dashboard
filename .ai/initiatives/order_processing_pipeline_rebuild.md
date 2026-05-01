@@ -200,7 +200,7 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 - **Goal (met):** [Preprocessing — target UX](#preprocessing--target-ux): stepper **Standardize / Clean / Final Review**, Step 1 **`manifest_preview` until apply**, Step 2 **wide Grok CSV (+ optional `ai_status`) + legacy narrow** cleanup apply with server validation, Step 3 **Final Review** + **`finalize-preprocessing`** coalesce to **`ManifestRow`**.
 - **Scope (shipped):** `PreprocessingPage.tsx` + preprocessing API/views/models (**`apps/inventory/views.py`**, **`cleanup_csv_validate.py`**, **`layer_helpers.py`**, three-layer **`PreprocessingRow`**), **`Sidebar`** **Preprocessing** entry, route **`/inventory/preprocessing`**. See **`test_preprocessing_redesign.py`**.
 - **Finish line:** Staff can run export → offline clean → apply → final review → finalize; canonical manifest reflects **`final_*`**.
-- **Remaining:** UX polish, optional advanced pricing; keep **`CHANGELOG`** + extended docs in sync.
+- **Remaining:** Step 3 **mockup** Final Review UI (**[`fix_this.md`](../reference/fix_this.md)**); UX polish, optional advanced pricing; keep **`CHANGELOG`** + extended docs in sync.
 - **Start:** 2026-04-29; **core complete:** 2026-05-01
 
 ### Session 7 — Startup + `ai-cleanup-grok` review
@@ -231,6 +231,13 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 - **Scope:** `PreprocessingReviewTable.tsx`, `PreprocessingPage.tsx` (`mergeReviewPatches`), `RowProcessingPanel.tsx`, `cleanupCsv.ts`, `apps/inventory/views.py` (`_normalize_cleanup_ai_status_value`, `update_preprocessing_review_rows`), `test_preprocessing_redesign.py`.
 - **Finish line:** Steering + **[Unreleased]** describe 13-col CSV, **`soft_warnings`**, Final Review chips, and clear-on-edit semantics.
 - **Start:** 2026-05-01
+
+### Session 11 — `review.0.Bump` (visual directive vs `[Unreleased]` plan)
+
+- **Goal:** Align **`CHANGELOG [Unreleased]`** with **Pass 1 (mockup directive)** vs **Pass 2 (broader UI rebuild plan)**; refresh steering (**`context.md`**, **`consultant_context.md`**, **`extended/frontend.md`**, **`extended/inventory-pipeline.md`**) with **`fix_this.md`** / directive pointers and **`ux-spec`** expectations; record session; local **`git commit`** (no **`.version`** bump).
+- **Scope:** `CHANGELOG.md`, `.ai/context.md`, `.ai/consultant_context.md`, `.ai/extended/frontend.md`, `.ai/extended/inventory-pipeline.md`, this file (session only), `.ai/protocols/review.0.Bump.md` timestamp.
+- **Finish line:** Readers are not misled by older “selection + virtualize first” bullets; **`frontend/package.json`** **`0.0.0`** unchanged.
+- **Start:** 2026-05-02
 
 ---
 

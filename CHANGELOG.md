@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.20.0] — 2026-04-29 (Inventory — orders + receiving) -->
-<!-- Last reviewed: 2026-05-01 (`review.0.Bump` + `code.9.Push` — `[Unreleased]` doc bullets; no semver) -->
+<!-- Last reviewed: 2026-05-02 (`review.0.Bump` — visual directive vs Pass 2 plan in `[Unreleased]`; no semver) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+### Changed (Preprocessing Final Review UI — visual rebuild planned)
+
+- **Visual authority:** **[`final_review_visual_rebuild_directive.md`](.ai/reference/final_review_visual_rebuild_directive.md)** is mockup ground truth for Pass 1; **[`fix_this.md`](.ai/reference/fix_this.md)** is the short pointer. **[`consult_design_final_review.md`](.ai/reference/consult_design_final_review.md)** and **[`final_review_ui_rebuild_plan.md`](.ai/reference/final_review_ui_rebuild_plan.md)** stay useful for behavior notes; where they **disagree on visuals**, the **directive** wins for the first pass.
+- **Pass 1 (directive):** Stepper labels (**Manual Review** / **Finalize and Open Processing**), six summary stats, toolbar **Save Changes** tied to the active filter, dense table columns without horizontal scroll, bulk pricing on **filtered rows** (not a row-selection gate). **No** `@tanstack/react-virtual` in Pass 1. Count-based indicators **hidden at zero** and variance **tolerance bands** per **[`.ai/extended/ux-spec.md`](.ai/extended/ux-spec.md)**.
+- **Later / Pass 2 (broader plan):** Explicit row selection for bulk, single `deriveFinalReviewIssues` source of truth, remove blur/interval auto-save in favor of **Save Changes** + `useBlocker`, keyboard cheatsheet, virtualization — see **`final_review_ui_rebuild_plan.md`** (banner: directive precedes conflicting items). Checklist and review gate (section 8 in that doc): **`final_review_visual_pass_plan.md`**.
+
+**Out of scope for this rebuild:** Step 1 Standardize Manifest and Step 2 AI Cleanup panels unchanged; API contract, `PreprocessingRow` model, and serializers unchanged.
 
 ### Added
 
@@ -34,10 +42,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Docs / reference** — **[`.ai/reference/cleanup_csv_contract.md`](.ai/reference/cleanup_csv_contract.md)** summarizes **`apply-cleanup-csv`** / **`upload-cleanup-csv`**: wide vs narrow rows, optional **`ai_status`**, staging-wide **relaxed** validation (quality **`HARD_*`** folded into **`soft_warnings`**), validation **`rule`** ids, and **`rejected_rows`** / **`soft_warnings`** response shape. **Historical:** a committed Jupyter tree under **`workspace/notebooks/ai-cleanup/`** was removed from the repo (**2026-05**); use **`workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`** (gitignored unless whitelisted) plus the contract doc for CSV semantics.
 - **Inventory pipeline (extended)** — [`.ai/extended/inventory-pipeline.md`](.ai/extended/inventory-pipeline.md) notes the optional gitignored adjunct **`workspace/ai-cleanup-grok/helpers/clean-grok.mjs`** for offline xAI cleanup (strict JSON Schema enums, single **`.cleaned.csv`** output with **`ai_status`**, optional **`--batch-api`**).
 - **Environment template** — xAI Grok (**`XAI_API_KEY`** / **`GROK_API_KEY`**, **`AI_PROVIDER`**, **`XAI_API_BASE`**) aligned with Django settings ([`.env.example`](.env.example); [`.ai/extended/development.md`](.ai/extended/development.md)).
-- **AI steering** — Preprocessing: Step 2 **`apply-cleanup-csv`** → staging **`ai_*`** / **`ai_title`** / optional **`ai_status`** (13-col client + **`soft_warnings`**); Step 3 **Final Review** — **`ai_status`** chips + clear-on-edit (`preprocessing-review`, **`finalize-preprocessing`**) — **`order_processing_pipeline_rebuild` Session 10**, **`cleanup_csv_contract.md`**, **`context.md`** / **`consultant_context.md`**, **`extended/backend.md`** / **`inventory-pipeline.md`** / **`frontend.md`** ([`.ai/initiatives/order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)).
-- **Steering / process** — **`review.0.Bump`** (**2026-05-01**): extended TOC parity verified (`context.md` ↔ `consultant_context.md`); **`frontend/package.json`** **`0.0.0`** unchanged; **no** `.version` bump (release gate — Part 2 **2A**).
+- **AI steering** — Preprocessing: Step 2 **`apply-cleanup-csv`** → staging **`ai_*`** / **`ai_title`** / optional **`ai_status`** (13-col client + **`soft_warnings`**); Step 3 **Final Review** — **`ai_status`** chips + clear-on-edit (`preprocessing-review`, **`finalize-preprocessing`**); Step 3 **mockup visual rebuild** (**[`fix_this.md`](.ai/reference/fix_this.md)**) **pending** — **`order_processing_pipeline_rebuild` Session 11**, **`cleanup_csv_contract.md`**, **`context.md`** / **`consultant_context.md`**, **`extended/backend.md`** / **`inventory-pipeline.md`** / **`frontend.md`** ([`.ai/initiatives/order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)).
+- **Steering / process** — **`review.0.Bump`** (**2026-05-02**): **`[Unreleased]`** Pass 1 (**directive**) vs Pass 2 plan clarified; extended TOC parity verified (`context.md` ↔ `consultant_context.md`); **`frontend/package.json`** **`0.0.0`** unchanged; **no** `.version` bump (release gate — Part 2 **2A**).
 - **Steering / protocol** — **`review.9.Deep.md`**: preprocessing-through–Final Review trace (models, views, `cleanup_csv_validate`, Grok adjunct, FE) for full audits; output under **`.ai/reference/deep_dive/latest/`** including GitHub / Heroku / prod DB gap (commit vs push vs `release:` migrate).
-- **Reference** — **[`.ai/reference/preprocessing_page_review.md`](.ai/reference/preprocessing_page_review.md)** (API-aligned review checklist); **`consult_design_final_review.md`** (Final Review UX spec).
+- **Reference** — **[`.ai/reference/fix_this.md`](.ai/reference/fix_this.md)** (pointer to Final Review visual rebuild spec); **[`.ai/reference/preprocessing_page_review.md`](.ai/reference/preprocessing_page_review.md)** (API-aligned review checklist); **`consult_design_final_review.md`** (Final Review UX spec); **[`.ai/reference/final_review_ui_rebuild_plan.md`](.ai/reference/final_review_ui_rebuild_plan.md)** (implementation plan, amended 2026-05-02); **[`.ai/reference/final_review_visual_rebuild_directive.md`](.ai/reference/final_review_visual_rebuild_directive.md)** (mockup ground truth, visual pass); **[`.ai/reference/final_review_visual_pass_plan.md`](.ai/reference/final_review_visual_pass_plan.md)** (execution plan for visual pass; includes review gate section 8).
 - **Initiative** — **[`order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)** preprocessing rollup links **`apps/inventory/cleanup_csv_validate.py`** (`validate_cleanup_row_values`, **`rule`** / **`rejected_rows`**).
 - **Dev hygiene** — [`.gitignore`](.gitignore): **`frontend/.vite/`**, **`.pytest_cache/`**.
 

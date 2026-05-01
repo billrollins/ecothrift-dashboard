@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-01 (Final Review `PreprocessingReviewTable` + `ai_status`; Step 2 soft_warnings) -->
+<!-- Last updated: 2026-05-02 (Final Review mockup visual rebuild pending — `fix_this.md`; chips + `ai_status` shipped) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -40,7 +40,7 @@
 - (**`v2.20.0`**) **`/inventory/receiving`** resolves to the first PO from **`GET /api/inventory/orders/for-receiving/`** (**`ReceivingEntryRedirect`**) or **`/inventory/orders`**; **`/inventory/receiving/:id`** — **`ReceivingOrderPage`**. **`OrderListPage`**: **Receive** column (**`LocalShipping`**) when PO status permits receiving.
 
 - **`OrderDetailPage`** handles order status management, **Raw Manifest** CSV upload/replace (`useUploadManifest` → `POST …/upload-manifest/`; multipart **`FormData`** without forcing boundary), and post-preprocessing actions (Open Item Processor, Mark Complete). **Preprocessing** unlocks when **`manifest_file`** exists. "Start Preprocessing" navigates to `/inventory/preprocessing/:id`.
-- `PreprocessingPage` (`/inventory/preprocessing/:id`) is a standalone 3-step wizard: Standardize Manifest → AI Cleanup → **Final Review** (stepper label; implementation still uses `ManualReviewPanel`). Has own sidebar nav entry "Preprocessing". localStorage persists last order ID. Legacy route `/inventory/orders/:id/preprocess` redirects.
+- `PreprocessingPage` (`/inventory/preprocessing/:id`) is a standalone 3-step wizard: Standardize Manifest → AI Cleanup → **Final Review** (stepper label; implementation still uses `ManualReviewPanel`). **Mockup-aligned** stepper copy and layout are **pending** — **[`fix_this.md`](../reference/fix_this.md)** / **`final_review_visual_rebuild_directive.md`**. Has own sidebar nav entry "Preprocessing". localStorage persists last order ID. Legacy route `/inventory/orders/:id/preprocess` redirects.
 - **Standardize Manifest** auto-refreshes preview after formula/search changes and has an explicit **Refresh Preview** button; blank formulas render blank standardized fields. Commit creates `ManifestRow` plus early Product/Item records.
 - **AI Cleanup** uses `RowProcessingPanel` with preprocessing-specific model controls (add model id/name, verify, set default), batch size 5/10/25/50, concurrency default **1**, optional 4/8/16 — multi-thread mode is best-effort, expandable rows showing original data vs AI suggestions, optional **13-column** Grok CSV (trailing **`ai_status`**), and post-apply **`soft_warnings`** from the server.
 - **Final Review** uses **`PreprocessingReviewTable`**: searchable staging grid, summary chips, inline edits, bulk ±10% ideal pricing, per-row **`ai_status`** state/issue chips, and client clears local **`ai_status`** when saves touch the same fields the backend clears.
