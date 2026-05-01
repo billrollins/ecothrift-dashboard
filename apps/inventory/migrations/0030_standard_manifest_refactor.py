@@ -86,7 +86,7 @@ def noop_reverse(apps, schema_editor):
     pass
 
 
-ADD_JSON_AND_RENAME_SQL = """
+ADD_JSON_COLUMNS_SQL = """
 ALTER TABLE inventory_manifestrow
   ADD COLUMN IF NOT EXISTS identifiers jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE inventory_manifestrow
@@ -95,8 +95,11 @@ ALTER TABLE inventory_preprocessingrow
   ADD COLUMN IF NOT EXISTS identifiers jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE inventory_preprocessingrow
   ADD COLUMN IF NOT EXISTS taxonomy jsonb NOT NULL DEFAULT '{}'::jsonb;
+"""
 
--- Rename uses real table schema (production uses ecothrift search_path — not public).
+# Separate from ADD_JSON_COLUMNS_SQL: same execute() batched DDL + rename hits
+# "cannot ALTER TABLE … pending trigger events" on Postgres (Heroku/ecothrift).
+RENAME_UNIT_RETAIL_SQL = """
 DO $$
 DECLARE
   sch text;
@@ -208,6 +211,9 @@ DROP INDEX IF EXISTS inv_mr_ident_asin;
 
 class Migration(migrations.Migration):
 
+    # PG can raise "pending trigger events" mixing ADD COLUMN + RENAME within one txn.
+    atomic = False
+
     dependencies = [
         ('inventory', '0029_describe_your_change'),
     ]
@@ -215,7 +221,8 @@ class Migration(migrations.Migration):
     operations = [
         migrations.SeparateDatabaseAndState(
             database_operations=[
-                migrations.RunSQL(ADD_JSON_AND_RENAME_SQL, migrations.RunSQL.noop),
+                migrations.RunSQL(ADD_JSON_COLUMNS_SQL, migrations.RunSQL.noop),
+                migrations.RunSQL(RENAME_UNIT_RETAIL_SQL, migrations.RunSQL.noop),
             ],
             state_operations=[
                 migrations.AddField(
