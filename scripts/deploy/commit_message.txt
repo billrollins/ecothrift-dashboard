@@ -1,12 +1,23 @@
-feat(inventory): lean preprocessing download CSV + steering (CHANGELOG unreleased)
+feat(inventory): preprocessing three-layer, ai_status Final Review, llm_chat + Grok
 
-GET …/download-cleanup-csv/ exports a lean pre-AI CSV (standard row fields +
-PurchaseOrder.compute_item_cost → base_cost; ideal_price = 2× unit base cost).
-upload-cleanup-csv / apply-cleanup-csv narrow schema unchanged (→ ai_suggested_*).
-RowProcessingPanel log copy; test_download_cleanup_csv_staging_lean_schema_and_row_order.
+Ships backlog on main since v2.20.0 tag: PO/manifest steering, preprocessing redesign,
+cleanup CSV/Grok wiring, core LLM abstraction, docs/protocols — CHANGELOG stays [Unreleased];
+no semver bump per review.0.Bump Part 2A.
 
-Steering: order_processing_pipeline_rebuild Step 2 export vs apply; context.md +
-consultant_context.md; extended/backend.md + inventory-pipeline.md; initiatives _index;
-README review.0.Bump protocol row (local commit, no push).
+Inventory / preprocessing
+- Three-layer PreprocessingRow (standard_*, ai_*, final_*); migrations 0036/0038; finalize
+  coalesce + ManifestRow rebuild; lean download-cleanup-csv (base_cost, ideal_price);
+  apply/upload-cleanup-csv wide vs narrow + optional ai_status + relaxed wide validation.
+- Final Review UI: ai_status chips; PATCH clears ai_status on listing/price edits;
+  cleanupCsv thirteen-column parsing + soft_warnings surfaced in Step 2.
+- suggest-formulas uses llm_chat_completion_text; XAI_API_KEY/GROK_API_KEY, AI_PROVIDER,
+  openai SDK dependency.
 
-CHANGELOG [Unreleased] — no .version bump per review.0.Bump (release via session.9.Close).
+Docs / steering
+- cleanup_csv_contract, inventory-pipeline, context/consultant_context, initiatives,
+  review.9.Deep (+ deep_dive latest: deploy gap vs origin/heroku),
+  preprocessing_page_review, consult_design_final_review, development.md Procfile spelling,
+  .gitignore (frontend/.vite, .pytest_cache), code.9.Push protocol.
+
+Receiving / orders (already in CHANGELOG [2.20.0])
+- Earlier commits include v2.20.0 receiving + PO dashboard; see dated section.

@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.20.0] — 2026-04-29 (Inventory — orders + receiving) -->
-<!-- Last reviewed: 2026-05-01 (`review.0.Bump` — extended TOC parity; `[Unreleased]` only; no semver) -->
+<!-- Last reviewed: 2026-05-01 (`review.0.Bump` + `code.9.Push` — `[Unreleased]` doc bullets; no semver) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -36,6 +36,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Environment template** — xAI Grok (**`XAI_API_KEY`** / **`GROK_API_KEY`**, **`AI_PROVIDER`**, **`XAI_API_BASE`**) aligned with Django settings ([`.env.example`](.env.example); [`.ai/extended/development.md`](.ai/extended/development.md)).
 - **AI steering** — Preprocessing: Step 2 **`apply-cleanup-csv`** → staging **`ai_*`** / **`ai_title`** / optional **`ai_status`** (13-col client + **`soft_warnings`**); Step 3 **Final Review** — **`ai_status`** chips + clear-on-edit (`preprocessing-review`, **`finalize-preprocessing`**) — **`order_processing_pipeline_rebuild` Session 10**, **`cleanup_csv_contract.md`**, **`context.md`** / **`consultant_context.md`**, **`extended/backend.md`** / **`inventory-pipeline.md`** / **`frontend.md`** ([`.ai/initiatives/order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)).
 - **Steering / process** — **`review.0.Bump`** (**2026-05-01**): extended TOC parity verified (`context.md` ↔ `consultant_context.md`); **`frontend/package.json`** **`0.0.0`** unchanged; **no** `.version` bump (release gate — Part 2 **2A**).
+- **Steering / protocol** — **`review.9.Deep.md`**: preprocessing-through–Final Review trace (models, views, `cleanup_csv_validate`, Grok adjunct, FE) for full audits; output under **`.ai/reference/deep_dive/latest/`** including GitHub / Heroku / prod DB gap (commit vs push vs `release:` migrate).
+- **Reference** — **[`.ai/reference/preprocessing_page_review.md`](.ai/reference/preprocessing_page_review.md)** (API-aligned review checklist); **`consult_design_final_review.md`** (Final Review UX spec).
+- **Initiative** — **[`order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)** preprocessing rollup links **`apps/inventory/cleanup_csv_validate.py`** (`validate_cleanup_row_values`, **`rule`** / **`rejected_rows`**).
+- **Dev hygiene** — [`.gitignore`](.gitignore): **`frontend/.vite/`**, **`.pytest_cache/`**.
 
 
 ---
