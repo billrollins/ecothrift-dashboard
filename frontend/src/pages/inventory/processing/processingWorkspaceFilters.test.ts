@@ -137,5 +137,9 @@ describe('processingWorkspaceFilters', () => {
         ),
       ).toBe(false);
     });
+    it('matches segment via row.status when items[] omitted (lazy list)', () => {
+      expect(rowMatchesStatusSegment({ status: 'partial', items: [] }, 'partial')).toBe(true);
+      expect(rowMatchesStatusSegment({ status: 'partial', items: [] }, 'pending')).toBe(false);
+    });
   });
 });

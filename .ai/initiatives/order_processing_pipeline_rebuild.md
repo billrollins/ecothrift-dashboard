@@ -1,5 +1,5 @@
-<!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-05-02 -->
-<!-- Last updated: 2026-05-02 (Session 12: Item Processor read-only pricing audit + steering bump) -->
+<!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-05-01 -->
+<!-- Last updated: 2026-05-01 (Release **v2.21.0**: `ProcessingRow` + paginated workspace + lazy detail; swap removed — `CHANGELOG [2.21.0]`) -->
 
 # Initiative: Order / Processing pipeline rebuild
 
@@ -35,7 +35,7 @@ Staff-facing umbrella for **`Orders → Preprocessing → Receiving → Processi
 | **Orders** | **Shipped** — dashboard, create PO, order detail workspace, **`POST …/upload-manifest/`**, [`CHANGELOG [2.20.0]`](../../CHANGELOG.md). |
 | **Receiving** | **Shipped** — **`GET …/orders/for-receiving/`** tiered ED ordering; **`/inventory/receiving`** → next PO; **`OrderListPage`** receive truck; **`ReceivingOrderPage`** + desktop/mobile receiving UI. |
 | **Preprocessing** | **Shipped (core)** — three-step **`PreprocessingPage`**: Standardize → Clean → **Final Review**; **`download-cleanup-csv`** / **`apply-cleanup-csv`** (wide Grok + narrow legacy); **`preprocessing-review`**; **`finalize-preprocessing`** (three-layer **`PreprocessingRow`** → **`final_*`** → rebuilt **`ManifestRow`**). **Iterative hardening** (UX polish, edge cases): [Preprocessing — target UX](#preprocessing--target-ux), **[`cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)**. Row validation (**`rule`** ids, **`rejected_rows`** / **`soft_warnings`**) lives in **`apps/inventory/cleanup_csv_validate.py`** (`validate_cleanup_row_values`). |
-| **Processing** | Item Processor workspace shipped (**`/inventory/processing`**, **`/inventory/processing/:id`**); legacy batch UI **`/inventory/processing-legacy`**. Backend workspace + mutations (`processing-workspace`, print-and-check-in, dispute, merge, swap, bulk). See **`CHANGELOG [Unreleased]`**, **`inventory-pipeline.md`**. |
+| **Processing** | Item Processor workspace shipped (**`/inventory/processing`**, **`/inventory/processing/:id`**); legacy **`/inventory/processing-legacy`**. **v2.21.0:** **`ProcessingRow`** queue rows, **`GET …/processing-workspace/`** pagination (**default 25**), **`GET …/processing-row-detail/`**, **`workspace_patch`** on mutations — **`CHANGELOG [2.21.0]`**. **`POST …/processing-swap/`** removed from scope (**`inventory-pipeline.md`**). |
 | **Finalization / Disputes** | Roadmap placeholders. |
 
 ---

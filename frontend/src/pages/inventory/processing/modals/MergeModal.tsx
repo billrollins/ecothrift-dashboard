@@ -134,7 +134,7 @@ export function MergeModal({ open, onClose, manifestRowIds, rows, loading, onSub
               >
                 {rows.map((r, idx) => (
                   <FormControlLabel
-                    key={`${fk}-${r.manifest_row_id}`}
+                    key={`${fk}-${r.processing_row_id}`}
                     value={String(idx)}
                     control={<Radio size="small" />}
                     label={

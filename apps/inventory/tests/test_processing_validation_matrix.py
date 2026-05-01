@@ -16,11 +16,13 @@ from rest_framework.test import APIClient
 from apps.inventory.models import (
     Item,
     ManifestRow,
+    ProcessingRow,
     Product,
     ProductMergeAudit,
     PurchaseOrder,
     Vendor,
 )
+from apps.inventory.services.processing_workspace import refresh_processing_rows_denorm
 
 
 class ProcessingValidationMatrixMarkCompleteTests(TestCase):
@@ -220,6 +222,23 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             status='intake',
             condition='good',
         )
+        ProcessingRow.objects.create(
+            purchase_order=self.po,
+            row_number=int(self.mr1.row_number),
+            quantity=int(self.mr1.quantity or 2),
+            manifest_row=self.mr1,
+            matched_product=self.p1,
+            title=str(self.mr1.title or ''),
+        )
+        ProcessingRow.objects.create(
+            purchase_order=self.po,
+            row_number=int(self.mr2.row_number),
+            quantity=int(self.mr2.quantity or 1),
+            manifest_row=self.mr2,
+            matched_product=self.p2,
+            title=str(self.mr2.title or ''),
+        )
+        refresh_processing_rows_denorm(self.po)
 
     def test_v02_workspace_payload_shape(self):
         r = self.client.get(f'/api/inventory/orders/{self.po.id}/processing-workspace/')
@@ -229,11 +248,54 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertIn('session', r.data)
         self.assertIn('progress', r.data)
         self.assertEqual(len(r.data['rows']), 2)
+        self.assertEqual(r.data.get('row_count_filtered'), 2)
+        self.assertEqual(r.data.get('row_count_total_po'), 2)
         row_nums = {row['rowNum'] for row in r.data['rows']}
         self.assertEqual(row_nums, {1, 2})
         r1 = next(x for x in r.data['rows'] if x['rowNum'] == 1)
-        self.assertEqual(len(r1['items']), 2)
+        self.assertEqual(len(r1['items']), 0)
+        self.assertIn('processing_row_id', r1)
         self.assertIn('likelyDuplicateOf', r1)
+
+    def test_workspace_pagination_default_limit(self):
+        """List returns at most ``limit`` rows; metadata counts full filtered set."""
+        r = self.client.get(
+            f'/api/inventory/orders/{self.po.id}/processing-workspace/',
+            {'limit': '1', 'offset': '0'},
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(len(r.data['rows']), 1)
+        self.assertEqual(r.data.get('row_count_filtered'), 2)
+        self.assertEqual(r.data['rows'][0]['rowNum'], 1)
+        r2 = self.client.get(
+            f'/api/inventory/orders/{self.po.id}/processing-workspace/',
+            {'limit': '1', 'offset': '1'},
+        )
+        self.assertEqual(r2.status_code, 200, r2.data)
+        self.assertEqual(len(r2.data['rows']), 1)
+        self.assertEqual(r2.data['rows'][0]['rowNum'], 2)
+
+    def test_lazy_workspace_list_queries_skip_manifest_reads(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from apps.inventory.services.processing_workspace import build_processing_workspace
+
+        with CaptureQueriesContext(connection) as ctx:
+            build_processing_workspace(self.po)
+        joined = '\n'.join(q['sql'].lower() for q in ctx.captured_queries)
+        self.assertNotIn('manifestrow', joined)
+
+    def test_processing_row_detail_returns_items_and_product(self):
+        pr = ProcessingRow.objects.get(purchase_order=self.po, row_number=1)
+        r = self.client.get(
+            f'/api/inventory/orders/{self.po.id}/processing-row-detail/',
+            {'processing_row_id': pr.pk},
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        row = r.data['row']
+        self.assertEqual(len(row['items']), 2)
+        self.assertIsNotNone(row.get('product'))
 
     def test_processing_print_multiple_runs_select_for_update_inside_atomic(self):
         """select_for_update must run inside transaction.atomic (avoids 500 on strict DBs)."""

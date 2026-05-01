@@ -54,7 +54,7 @@ export function PrintMultipleModal({ open, onClose, row, onSubmit, loading }: Pr
     if (qty > max) setQty(Math.max(1, max));
   }, [open, row, pendingCount, qty]);
 
-  const canSubmit = Boolean(row) && pendingCount >= 2 && qty >= 1 && qty <= pendingCount;
+  const canSubmit = Boolean(row?.manifest_row_id) && pendingCount >= 2 && qty >= 1 && qty <= pendingCount;
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && !loading) {
@@ -69,7 +69,7 @@ export function PrintMultipleModal({ open, onClose, row, onSubmit, loading }: Pr
   };
 
   const submitPayload = () => ({
-    manifest_row_id: row!.manifest_row_id,
+    manifest_row_id: row!.manifest_row_id as number,
     qty,
     condition: conditionUi,
     dispatch,

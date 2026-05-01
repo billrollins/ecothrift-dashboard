@@ -195,11 +195,6 @@ export function ProcessingWorkspaceHeader({
           </Typography>
         ) : null}
         <Box sx={{ flex: 1 }} />
-        <Tooltip title="Legacy batch grid">
-          <IconButton size="small" onClick={() => navigate('/inventory/processing-legacy')} aria-label="Legacy processing">
-            <OpenInNew fontSize="small" />
-          </IconButton>
-        </Tooltip>
         <Button size="small" variant="outlined" startIcon={<OpenInNew />} onClick={() => navigate(`/inventory/orders/${order.id}`)}>
           Open PO
         </Button>

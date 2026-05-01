@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-01 (ManifestRow fields; PreprocessingRow three-layer) -->
+<!-- Last updated: 2026-05-01 (`ProcessingRow`; paginated **`processing-workspace`** + **`processing-row-detail`**; **`processing-swap` removed** — **`CHANGELOG [2.21.0]`**) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -9,6 +9,8 @@
 **2026-04 Inventory preprocessing redesign:** `PurchaseOrderViewSet.process_manifest` seeds **`PreprocessingRow`** staging (`standard_*`). Staff download **lean cleanup CSV**, apply Grok/Excel output via **`apply-cleanup-csv`** into **`ai_*`** / **`ai_title`** (optional per-row **`ai_status`** JSON on wide import; empty/malformed → **`{}`**); **Final Review** uses **`preprocessing-review`** (**`PATCH`** clears **`ai_status`** when listing or price fields change, not for **`batch_flag`** / **`pricing_notes`** only); **`finalize-preprocessing`** runs **`snapshot_finalize_from_ai_and_standard`** then rebuilds **`ManifestRow`** from **`final_*`**. Legacy **`ai-cleanup-rows`** (Anthropic) can still mutate **`ManifestRow`** when those rows exist. `manual-review` is the canonical **post-finalize** review/pricing surface over **`ManifestRow`**. `create-items` opens Processing for existing early Items instead of duplicating inventory.
 
 **Timeouts (`finalize-preprocessing`):** Finalize can run tens of seconds on large manifests (staging snapshot, bulk manifest rows, product/item upserts). Keep finalize synchronous unless logs show proxy timeouts. Ops should set reverse-proxy and app-server HTTP timeouts **≥ 120s** (e.g. nginx `proxy_read_timeout`, uvicorn/gunicorn graceful limits) for staff uploading large CSVs; correlate with structured finalize duration logs before adding async jobs.
+
+**v2.21.0 Item Processor:** **`ProcessingRow`** persists per-manifest-line queue state (**`ManifestRow`** 1:1 at finalize — migrations **`0040_processing_row_bookmarks`**, **`0041_processing_row_canonical_denorm`**). **`GET /api/inventory/orders/{id}/processing-workspace/`** serves a **`rows`** page (**`limit`/`offset`** + filters); **`GET …/processing-row-detail/`** returns **`items`** + **`product`** for one bookmark. Mutations return **`workspace_patch`** for incremental client cache updates. **`POST …/processing-swap/`** is **not** part of shipping scope (**`CHANGELOG [2.21.0]`** — historical **`ItemSwapAudit`** rows may exist).
 
 ## Project Structure
 
@@ -130,6 +132,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 | **PurchaseOrder** | vendor, order_number, status (ordered→paid→shipped→delivered→processing→complete), ordered_date, paid/shipped/delivered dates, purchase/shipping/fees, **total_cost** (sum of components), **retail_value** (B-Stock listing total — do not overwrite with sum of line retails), **est_shrink** (new POs: **`get_default_po_est_shrink()`** from **`AppSetting`** `po_default_est_shrink`, else model default **0.15**), manifest (FK core.S3File), manifest_preview (JSON); raw CSV upload/replace from staff UI — **Order detail** → Raw Manifest (`POST /api/inventory/orders/{id}/upload-manifest/`) |
 | **CSVTemplate** | vendor, name, header_signature, column_mappings (JSON), is_default |
 | **ManifestRow** | purchase_order, row_number, quantity, description, title, brand, model, category, condition, **unit_retail**, proposed_price, final_price, pricing_stage, pricing_notes, batch_flag, identifiers / taxonomy / tracking (JSON), search_tags, specifications (JSON), matched_product, match_status, match_candidates (JSON), ai_match_decision, ai_reasoning, notes — **canonical listing fields** after preprocessing finalize (**no** separate **`ai_suggested_*`** columns) |
+| **ProcessingRow** | **Queue bookmark / list projection** for Item Processor (**v2.21.0**): **`purchase_order`**, **`row_number`**, optional **`manifest_row`** + **`matched_product`** (lazy detail + denorm); optional **`preprocessing_row`** FK (audit trail); mirrored listing + pricing columns; **`queue_*`** aggregates (**`queue_status`**, **`qty_dispositioned`**, **`pending_item_count`**, **`has_on_shelf_unit`**, **`list_*`**, **`item_ids`**) for paginated **`processing-workspace`** — migrations **`0040`** / **`0041`** |
 | **PreprocessingOrder** / **PreprocessingRow** | Staging before finalize: **`standard_*`**, **`ai_*`**, **`final_*`**, **`ai_title`** / **`final_title`**, **`ai_status`** (JSON — Grok validation/recovery metadata); CSV cleanup apply writes **`ai_*`** + **`ai_status`**; **`finalize-preprocessing`** coalesces then rebuilds **`ManifestRow`** |
 | **Product** | product_number, title, brand, model, category, category_ref (FK Category), specifications (JSON), default_price, upc |
 | **VendorProductRef** | vendor, product, vendor_item_number, vendor_description, last_unit_cost, times_seen, last_seen_date |
@@ -181,6 +184,7 @@ core.WorkLocation
 
 inventory.PurchaseOrder → inventory.Vendor, core.S3File
 inventory.ManifestRow → inventory.PurchaseOrder
+inventory.ProcessingRow → inventory.PurchaseOrder, optional FKs to **`ManifestRow`**, **`PreprocessingRow`** (audit), **`Product`** (`matched_product`)
 inventory.Product → inventory.Category (optional)
 inventory.VendorProductRef → inventory.Vendor, inventory.Product
 inventory.BatchGroup → inventory.Product, inventory.PurchaseOrder, inventory.ManifestRow

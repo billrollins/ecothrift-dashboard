@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-02 (Item Processor read-only `manual-review` audit UI; Final Review mockup visual pending — `fix_this.md`; `ai_status` / cleanup CSV) -->
+<!-- Last updated: 2026-05-01 (**v2.21.0** — `ProcessingRow`, paginated `processing-workspace`, `processing-row-detail`; **swap** endpoint removed — `CHANGELOG [2.21.0]`) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -330,8 +330,8 @@ Moved to **`/inventory/processing-legacy`**. The primary staff flow is **Item Pr
 
 ### Item Processor workspace (`ProcessingWorkspacePage.tsx`) — current
 
-- **Routes**: **`/inventory/processing`** (`ProcessingEntryRedirect` — `?order=` or last-used PO from eligible list), **`/inventory/processing/:id`** (`ProcessingWorkspacePage`), legacy **`/inventory/processing-legacy`** (`ProcessingPage`).
-- **Read**: **`GET /api/inventory/orders/{id}/processing-workspace/`** — nested manifest rows, items, products, progress, duplicate-row hints (UPC).
+- **Routes**: **`/inventory/processing`** (`ProcessingEntryRedirect`), **`/inventory/processing/:id`** (`ProcessingWorkspacePage`), legacy **`/inventory/processing-legacy`** (`ProcessingPage`).
+- **Workspace list**: **`GET …/processing-workspace/`** — slim **`ProcessingRow`** slice (**`limit`/`offset`**, **`segment`**, **`search`**, etc.): queue fields + counts; **`row_count_filtered`** / **`row_count_total_po`**. Hydrate one row (**items**, **`product`**) via **`GET …/processing-row-detail/`** (`processing_row_id`).
 - **Pricing audit (read-only, UI)**: expanding **Manifest pricing audit** calls **`GET /api/inventory/orders/{id}/manual-review/`** — same paginated **`ManifestRow`** economics surface as legacy manual review (**`unit_retail`**, allocated base, 2× ideal, set price); edits remain on preprocessing/Final Review or via **`POST …/manual-review/`** when exposed elsewhere.
 - **Check-in**: **`POST /api/inventory/items/{id}/processing-print-and-check-in/`** then browser **`localPrintService`** (persist-first); optional sibling **`applyRetailAll`** / **`applyConditionAll`**.
 - **Print multiple / dispute / merge / swap / bulk disposition**: order-scoped **`POST`** actions (see `inventory.api.ts`); UI wires **`ProcessingBulkActionBar`** + **`MergeModal`** / **`BulkDispositionModal`** / **`SwapModal`** + dispute flows.
@@ -365,7 +365,7 @@ Moved to **`/inventory/processing-legacy`**. The primary staff flow is **Item Pr
 
 - Orders: `getOrders`, `getOrder`, `createOrder`, `updateOrder`, `deleteOrder`, `getOrderDeletePreview`, `purgeDeleteOrder`
 - Status: `markOrderPaid`, `revertOrderPaid`, `markOrderShipped`, `revertOrderShipped`, `deliverOrder`, `revertOrderDelivered`
-- Manifest/processing: `uploadManifest`, `getManifestRows`, `previewStandardize`, `processManifest`, `updateManifestPricing`, `matchProducts`, `createItems`, `checkInOrderItems`, `markOrderComplete`, `getProcessingWorkspace`, `processingPrintAndCheckIn`, `processingPrintMultiple`, `processingDispute`, `processingMergeRows`, `processingSwap`, `processingBulkDisposition`, `processingPatchItem`, `aiCleanupRows`, `getAICleanupStatus`, `cancelAICleanup`
+- Manifest/processing: `uploadManifest`, `getManifestRows`, `previewStandardize`, `processManifest`, `updateManifestPricing`, `matchProducts`, `createItems`, `checkInOrderItems`, `markOrderComplete`, `getProcessingWorkspace`, `getProcessingRowDetail`, `processingPrintAndCheckIn`, `processingPrintMultiple`, `processingDispute`, `processingMergeRows`, `processingBulkDisposition`, `processingPatchItem`, `aiCleanupRows`, `getAICleanupStatus`, `cancelAICleanup`
 - Batch groups: `getBatchGroups`, `updateBatchGroup`, `processBatchGroup`, `checkInBatchGroup`, `detachBatchItem`
 - Items: `getItems`, `updateItem`, `checkInItem`, `markItemReady`
 - Public: `itemLookup(sku)` — no auth

@@ -44,13 +44,18 @@ function rowStatusMeta(status: string) {
 
 export interface ProcessingQueueTableProps {
   rows: ProcessingWorkspaceRowDTO[];
+  /** When the queue is empty, distinguishes “not finalized prep” vs edge cases after finalize */
+  preprocessingFinalizedAt?: string | null;
+  preprocessingBookmarkOnly?: boolean;
   totalWorkspaceRowCount: number;
   orderId: number;
   orderStatus: PurchaseOrderStatus;
-  detailManifestRowId: number | null;
-  onOpenDetail: (manifestRowId: number) => void;
+  detailProcessingRowId: number | null;
+  onOpenDetail: (processingRowId: number) => void;
+  /** Hover prefetch row detail so clicks open the card from cache when possible */
+  onPrefetchDetail?: (processingRowId: number) => void;
   bulkSelectedIds: Set<number>;
-  onToggleBulkOne: (manifestRowId: number, selected: boolean) => void;
+  onToggleBulkOne: (processingRowId: number, selected: boolean) => void;
   onToggleBulkAll: (selected: boolean) => void;
 }
 
@@ -58,11 +63,14 @@ type SortCycleState = { field: QueueSortField; dir: 'asc' | 'desc' } | null;
 
 export function ProcessingQueueTable({
   rows,
+  preprocessingFinalizedAt,
+  preprocessingBookmarkOnly,
   totalWorkspaceRowCount,
   orderId,
   orderStatus,
-  detailManifestRowId,
+  detailProcessingRowId,
   onOpenDetail,
+  onPrefetchDetail,
   bulkSelectedIds,
   onToggleBulkOne,
   onToggleBulkAll,
@@ -122,7 +130,7 @@ export function ProcessingQueueTable({
     return copy;
   }, [rows, sortState]);
 
-  const allSelectableIds = sortedRows.map((r) => r.manifest_row_id);
+  const allSelectableIds = sortedRows.map((r) => r.processing_row_id);
   const allSelected =
     allSelectableIds.length > 0 && allSelectableIds.every((id) => bulkSelectedIds.has(id));
   const someSelected = allSelectableIds.some((id) => bulkSelectedIds.has(id)) && !allSelected;
@@ -146,11 +154,39 @@ export function ProcessingQueueTable({
   };
 
   return (
-    <Box sx={{ overflow: 'auto', maxHeight: 'min(52vh, 560px)', border: 1, borderColor: 'divider', borderRadius: 1 }}>
-      <Table size="small" stickyHeader sx={{ '& .MuiTableCell-root': { py: 1.25, px: 1.25 } }}>
+    <Box
+      sx={{
+        flex: 1,
+        minHeight: 0,
+        overflow: 'auto',
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 1,
+      }}
+    >
+      <Table
+        size="small"
+        stickyHeader
+        sx={{
+          tableLayout: 'fixed',
+          width: '100%',
+          '& .MuiTableCell-root': {
+            py: '4px',
+            px: '8px',
+            fontSize: (theme) => theme.typography.pxToRem(12),
+            lineHeight: 1.25,
+          },
+          '& .MuiTableHead-root .MuiTableCell-root': {
+            py: '6px',
+            bgcolor: 'background.paper',
+            fontWeight: 700,
+          },
+          '& .MuiTableSortLabel-root': { fontSize: 'inherit', lineHeight: 1.25 },
+        }}
+      >
         <TableHead>
           <TableRow>
-            <TableCell padding="checkbox" sx={{ width: 36 }}>
+            <TableCell padding="checkbox" sx={{ width: 34, px: '4px !important' }}>
               <Checkbox
                 size="small"
                 checked={allSelected}
@@ -159,7 +195,7 @@ export function ProcessingQueueTable({
                 inputProps={{ 'aria-label': 'Select all rows' }}
               />
             </TableCell>
-            <TableCell align="right" sx={{ width: 56 }}>
+            <TableCell align="right" sx={{ width: 48, whiteSpace: 'nowrap' }}>
               <TableSortLabel
                 active={sortState?.field === 'rowNum'}
                 direction={sortState?.field === 'rowNum' ? sortState.dir : 'asc'}
@@ -186,7 +222,7 @@ export function ProcessingQueueTable({
                 Brand
               </TableSortLabel>
             </TableCell>
-            <TableCell align="right">
+            <TableCell align="right" sx={{ width: 72, whiteSpace: 'nowrap' }}>
               <TableSortLabel
                 active={sortState?.field === 'qty'}
                 direction={sortState && sortState.field === 'qty' ? sortState.dir : 'asc'}
@@ -195,7 +231,7 @@ export function ProcessingQueueTable({
                 Qty
               </TableSortLabel>
             </TableCell>
-            <TableCell align="right">
+            <TableCell align="right" sx={{ width: 88, whiteSpace: 'nowrap' }}>
               <TableSortLabel
                 active={sortState?.field === 'retail'}
                 direction={sortState && sortState.field === 'retail' ? sortState.dir : 'asc'}
@@ -204,7 +240,7 @@ export function ProcessingQueueTable({
                 Retail
               </TableSortLabel>
             </TableCell>
-            <TableCell align="right">
+            <TableCell align="right" sx={{ width: 88, whiteSpace: 'nowrap' }}>
               <TableSortLabel
                 active={sortState?.field === 'price'}
                 direction={sortState && sortState.field === 'price' ? sortState.dir : 'asc'}
@@ -244,7 +280,7 @@ export function ProcessingQueueTable({
         </TableHead>
         <TableBody>
           {sortedRows.map((r) => {
-            const selected = r.manifest_row_id === detailManifestRowId;
+            const selected = r.processing_row_id === detailProcessingRowId;
             const meta = rowStatusMeta(r.status);
             const title = r.title || r.product?.title || '—';
             const dupTooltip =
@@ -254,81 +290,121 @@ export function ProcessingQueueTable({
 
             return (
               <TableRow
-                key={r.manifest_row_id}
+                key={r.processing_row_id}
                 hover
                 selected={selected}
+                onPointerEnter={() => onPrefetchDetail?.(r.processing_row_id)}
                 sx={{
                   cursor: 'pointer',
                   ...(selected ? { bgcolor: 'action.selected' } : {}),
-                  '& .MuiTableCell-root': { height: 44 },
+                  '& .MuiTableCell-root': { py: '4px' },
                 }}
               >
                 <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
                   <Checkbox
                     size="small"
-                    checked={bulkSelectedIds.has(r.manifest_row_id)}
-                    onChange={(_, c) => onToggleBulkOne(r.manifest_row_id, c)}
+                    checked={bulkSelectedIds.has(r.processing_row_id)}
+                    onChange={(_, c) => onToggleBulkOne(r.processing_row_id, c)}
                     inputProps={{ 'aria-label': `Select row ${r.rowNum}` }}
                   />
                 </TableCell>
                 <TableCell
                   align="right"
-                  onClick={() => onOpenDetail(r.manifest_row_id)}
+                  onClick={() => onOpenDetail(r.processing_row_id)}
                   sx={{ fontVariantNumeric: 'tabular-nums', color: 'text.secondary' }}
                 >
                   {r.rowNum}
                 </TableCell>
-                <TableCell onClick={() => onOpenDetail(r.manifest_row_id)}>
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, flexWrap: 'wrap' }}>
-                    <Typography variant="body2" fontWeight={700}>
+                <TableCell onClick={() => onOpenDetail(r.processing_row_id)} sx={{ maxWidth: 0 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                    <Typography
+                      component="span"
+                      sx={{ fontSize: '0.8125rem', fontWeight: 700, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    >
                       {title}
                     </Typography>
                     {dupTooltip ? (
                       <Tooltip title={dupTooltip}>
-                        <Chip size="small" label="dup?" variant="outlined" sx={{ height: 20, fontSize: 10 }} onClick={(e) => e.stopPropagation()} />
+                        <Chip
+                          size="small"
+                          label="dup?"
+                          variant="outlined"
+                          sx={{ height: 18, fontSize: 9, flexShrink: 0 }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                       </Tooltip>
                     ) : null}
                   </Box>
-                  <Typography variant="caption" sx={{ fontFamily: 'ui-monospace, monospace', color: 'text.secondary', display: 'block' }}>
-                    {r.sku || `${r.items.length} unit(s)`}
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontFamily: 'ui-monospace, monospace',
+                      color: 'text.secondary',
+                      display: 'block',
+                      fontSize: '0.68rem',
+                      lineHeight: 1.2,
+                      mt: 0.125,
+                    }}
+                  >
+                    {r.sku ||
+                      `${
+                        r.pendingItemCount != null ? r.pendingItemCount : (r.items?.length ?? 0)
+                      } unit(s)`}
                   </Typography>
                 </TableCell>
-                <TableCell onClick={() => onOpenDetail(r.manifest_row_id)}>
-                  <Typography variant="body2">{r.brand || '—'}</Typography>
+                <TableCell onClick={() => onOpenDetail(r.processing_row_id)} sx={{ whiteSpace: 'nowrap' }}>
+                  <Typography sx={{ fontSize: '0.8125rem' }}>{r.brand || '—'}</Typography>
                 </TableCell>
-                <TableCell align="right" onClick={() => onOpenDetail(r.manifest_row_id)} sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                  <Typography component="span" fontWeight={700}>
+                <TableCell
+                  align="right"
+                  onClick={() => onOpenDetail(r.processing_row_id)}
+                  sx={{ fontVariantNumeric: 'tabular-nums', width: 72, whiteSpace: 'nowrap', fontSize: '0.8125rem' }}
+                >
+                  <Typography component="span" sx={{ fontWeight: 700, fontSize: 'inherit' }}>
                     {r.qtyDispositioned}
                   </Typography>
-                  <Typography component="span" color="text.secondary">
-                    {' '}
-                    / {r.qty}
+                  <Typography component="span" sx={{ fontSize: 'inherit' }} color="text.secondary">
+                    {' '}/ {r.qty}
                   </Typography>
                 </TableCell>
-                <TableCell align="right" onClick={() => onOpenDetail(r.manifest_row_id)} sx={{ fontVariantNumeric: 'tabular-nums', color: 'text.secondary' }}>
+                <TableCell
+                  align="right"
+                  onClick={() => onOpenDetail(r.processing_row_id)}
+                  sx={{ fontVariantNumeric: 'tabular-nums', width: 88, whiteSpace: 'nowrap', fontSize: '0.8125rem', color: 'text.secondary' }}
+                >
                   {money(r.unitRetail)}
                 </TableCell>
-                <TableCell align="right" onClick={() => onOpenDetail(r.manifest_row_id)} sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+                <TableCell
+                  align="right"
+                  onClick={() => onOpenDetail(r.processing_row_id)}
+                  sx={{
+                    fontVariantNumeric: 'tabular-nums',
+                    width: 88,
+                    whiteSpace: 'nowrap',
+                    fontWeight: 700,
+                    fontSize: '0.8125rem',
+                  }}
+                >
                   {money(r.price)}
                 </TableCell>
-                <TableCell onClick={() => onOpenDetail(r.manifest_row_id)}>
-                  <Typography variant="body2">{r.condition}</Typography>
+                <TableCell onClick={() => onOpenDetail(r.processing_row_id)}>
+                  <Typography sx={{ fontSize: '0.8125rem' }}>{r.condition}</Typography>
                 </TableCell>
-                <TableCell onClick={() => onOpenDetail(r.manifest_row_id)}>
+                <TableCell onClick={() => onOpenDetail(r.processing_row_id)}>
                   <Chip
                     label={(r.dispatch || 'on_shelf').replace('_', ' ')}
                     size="small"
                     variant="outlined"
-                    sx={{ borderColor: processingTokens.border, height: 22, fontSize: 11 }}
+                    sx={{ borderColor: processingTokens.border, height: 18, fontSize: 10 }}
                   />
                 </TableCell>
-                <TableCell onClick={() => onOpenDetail(r.manifest_row_id)}>
+                <TableCell onClick={() => onOpenDetail(r.processing_row_id)}>
                   <Chip
                     label={meta.label}
                     size="small"
                     sx={{
-                      height: 22,
-                      fontSize: 11,
+                      height: 18,
+                      fontSize: 10,
                       bgcolor: meta.bg,
                       color: meta.color,
                       border: 'none',
@@ -344,23 +420,37 @@ export function ProcessingQueueTable({
         <Box sx={{ p: 3, textAlign: 'center' }}>
           {noManifestLines ? (
             <>
-              {['processing', 'delivered'].includes(orderStatus) ? (
+              {preprocessingFinalizedAt ?
+                <>
+                  <Alert severity="warning" sx={{ mb: 2, textAlign: 'left' }}>
+                    <Typography variant="subtitle2" component="div" fontWeight={700} gutterBottom>
+                      Preprocessing is finalized but this workspace has no rows
+                    </Typography>
+                    <Typography variant="body2">
+                      Try refreshing this page. If it stays empty, return to preprocessing to confirm bookmark rows exist, then use
+                      <strong>Create Processing Data</strong> at the top of this page once rows appear here.
+                    </Typography>
+                  </Alert>
+                  <Typography variant="body2" color="text.secondary" gutterBottom sx={{ px: 1 }}>
+                    Unexpected state because finalize normally creates bookmarks before you navigate here — contact support if this persists.
+                  </Typography>
+                </>
+              : ['processing', 'delivered'].includes(orderStatus) ?
                 <Alert severity="warning" sx={{ mb: 2, textAlign: 'left' }}>
                   <Typography variant="subtitle2" component="div" fontWeight={700} gutterBottom>
-                    No manifest lines for this order yet
+                    No processing lines yet
                   </Typography>
                   <Typography variant="body2">
-                    Status is <strong>{orderStatus}</strong>, but this workspace is empty. If the manifest was uploaded, finish and
-                    finalize preprocessing so manifest rows and items are created—otherwise you will only see lines here after that
-                    step.
+                    Status is <strong>{orderStatus}</strong>. After the manifest uploads, finish preprocessing review and finalize — that
+                    creates bookmark rows instantly. Then return here and click <strong>Create Processing Data</strong> to generate
+                    manifest rows and inventory items.
                   </Typography>
                 </Alert>
-              ) : (
-                <Typography color="text.secondary" gutterBottom>
-                  No manifest lines for this order yet. When the manifest is ready, run preprocessing—lines will appear here after
-                  finalize.
-                </Typography>
-              )}
+
+              : <Typography color="text.secondary" gutterBottom>
+                  No processing rows yet. When the manifest is ready, finalize preprocessing from the preprocessing page (
+                  bookmarks appear here immediately), then use <strong>Create Processing Data</strong> above to build items.
+                </Typography>}
               <Box sx={{ mt: 2 }}>
                 <Button component={RouterLink} to={`/inventory/preprocessing/${orderId}`} variant="outlined" size="small">
                   Open preprocessing
@@ -375,6 +465,12 @@ export function ProcessingQueueTable({
           ) : filteredZeroButWorkspaceHasRows ? (
             <Typography color="text.secondary">
               No rows match filters. Clear search, set Queue to All, or turn off &quot;Hide dispositioned&quot; to see more rows.
+              {preprocessingBookmarkOnly ?
+                <>
+                  {' '}
+                  Rows are bookmarks only until you click <strong>Create Processing Data</strong>.
+                </>
+              : null}
             </Typography>
           ) : (
             <Typography color="text.secondary">No rows match filters.</Typography>

@@ -16,17 +16,20 @@ from django.utils import timezone
 from apps.inventory.models import (
     Item,
     ItemHistory,
-    ItemSwapAudit,
     ManifestRow,
+    ProcessingRow,
     Product,
     ProductMergeAudit,
     PurchaseOrder,
 )
 from apps.inventory.serializers import ItemSerializer
 from apps.inventory.services.processing_workspace import (
-    build_processing_workspace,
+    build_workspace_patch,
     condition_ui_to_db,
     dispatch_to_location,
+    printed_items_preview,
+    processing_row_ids_for_manifest_rows,
+    refresh_processing_rows_denorm,
 )
 
 
@@ -96,6 +99,7 @@ def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
     else:
         location = dispatch_to_location(dispatch)
 
+    touched_mrs: set[int] = set()
     histories: list[ItemHistory] = []
     now = timezone.now()
 
@@ -134,6 +138,8 @@ def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
                             created_by=user,
                         ),
                     )
+                if sib.manifest_row_id:
+                    touched_mrs.add(sib.manifest_row_id)
 
         updates = {'condition': cond_db, 'location': location, 'notes': notes}
         if price is not None:
@@ -178,13 +184,23 @@ def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
         if histories:
             ItemHistory.objects.bulk_create(histories)
 
+        if item.manifest_row_id:
+            touched_mrs.add(item.manifest_row_id)
+
         item.refresh_from_db()
-        po = PurchaseOrder.objects.get(pk=item.purchase_order_id)
-        ws = build_processing_workspace(po)
+
+    po = PurchaseOrder.objects.get(pk=item.purchase_order_id)
+    pr_ids = processing_row_ids_for_manifest_rows(po, touched_mrs)
+    refresh_processing_rows_denorm(po, processing_row_ids=pr_ids)
 
     out = ItemSerializer(item).data
     out['checked_in'] = True
-    return {'item': out, 'workspace': ws, 'label_print_job_id': ''}
+    return {
+        'item': out,
+        'workspace_patch': build_workspace_patch(po, touched_processing_row_ids=pr_ids),
+        'printed_items_preview': printed_items_preview([item.pk]),
+        'label_print_job_id': '',
+    }
 
 
 def processing_print_multiple(user, order: PurchaseOrder, data: dict) -> dict:
@@ -262,9 +278,12 @@ def processing_print_multiple(user, order: PurchaseOrder, data: dict) -> dict:
             ItemHistory.objects.bulk_create(histories)
 
     order.refresh_from_db()
+    pr_ids = processing_row_ids_for_manifest_rows(order, [mr.pk])
+    refresh_processing_rows_denorm(order, processing_row_ids=pr_ids)
     return {
         'checked_in_item_ids': checked,
-        'workspace': build_processing_workspace(order),
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=pr_ids),
+        'printed_items_preview': printed_items_preview(checked),
         'label_print_job_id': '',
     }
 
@@ -346,7 +365,11 @@ def processing_dispute(user, order: PurchaseOrder, data: dict) -> dict:
             )
         ItemHistory.objects.bulk_create(histories)
 
-    return {'workspace': build_processing_workspace(order)}
+    m_ids = {it.manifest_row_id for it in target_items if it.manifest_row_id}
+    pr_ids = processing_row_ids_for_manifest_rows(order, m_ids)
+    refresh_processing_rows_denorm(order, processing_row_ids=pr_ids)
+
+    return {'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=pr_ids)}
 
 
 def _apply_product_field_values(product: Product, fv: dict) -> None:
@@ -431,113 +454,9 @@ def processing_merge_rows(user, order: PurchaseOrder, data: dict) -> dict:
             snapshot={'rows': snapshots, 'prior_canonical': pre_merge},
         )
 
-    return {'workspace': build_processing_workspace(order)}
-
-
-def _row_checked_in(items: list[Item]) -> bool:
-    return any(i.status == 'on_shelf' for i in items)
-
-
-def processing_swap(user, order: PurchaseOrder, data: dict) -> dict:
-    row_a_num = int(data.get('row_a') or 0)
-    row_b_num = int(data.get('row_b') or 0)
-    mode = data.get('mode') or ''
-    if row_a_num <= 0 or row_b_num <= 0:
-        raise ValueError('row_a and row_b required')
-    if row_a_num == row_b_num:
-        raise ValueError('Rows must differ')
-
-    ra = ManifestRow.objects.filter(purchase_order=order, row_number=row_a_num).first()
-    rb = ManifestRow.objects.filter(purchase_order=order, row_number=row_b_num).first()
-    if not ra or not rb:
-        raise ValueError('Manifest row not found')
-
-    items_a = list(Item.objects.filter(manifest_row=ra).order_by('id'))
-    items_b = list(Item.objects.filter(manifest_row=rb).order_by('id'))
-
-    a_in = _row_checked_in(items_a)
-    b_in = _row_checked_in(items_b)
-
-    def fields_tuple(it: Item):
-        return {
-            'condition': it.condition,
-            'unit_retail': it.unit_retail,
-            'price': it.price,
-            'location': it.location,
-            'notes': it.notes,
-            'status': it.status,
-            'listed_at': it.listed_at,
-            'checked_in_at': it.checked_in_at,
-            'checked_in_by_id': it.checked_in_by_id,
-        }
-
-    def apply_fields(it: Item, src: dict):
-        it.condition = src['condition']
-        it.unit_retail = src['unit_retail']
-        it.price = src['price']
-        it.location = src['location']
-        it.notes = src['notes']
-        it.status = src['status']
-        it.listed_at = src['listed_at']
-        it.checked_in_at = src['checked_in_at']
-        it.checked_in_by_id = src['checked_in_by_id']
-
-    def reset_to_pending(it: Item):
-        it.status = 'intake'
-        it.listed_at = None
-        it.checked_in_at = None
-        it.checked_in_by = None
-
-    with transaction.atomic():
-        if not a_in and not b_in:
-            raise ValueError('Neither row has checked-in items to swap')
-
-        if mode == 'a_to_b':
-            if not a_in or b_in:
-                raise ValueError('Invalid swap mode for row states')
-            if len(items_a) != len(items_b):
-                raise ValueError('Row item counts must match for swap')
-            for ia, ib in zip(items_a, items_b):
-                snap = fields_tuple(ia)
-                apply_fields(ib, snap)
-                ib.save()
-                reset_to_pending(ia)
-                ia.save()
-        elif mode == 'b_to_a':
-            if not b_in or a_in:
-                raise ValueError('Invalid swap mode for row states')
-            if len(items_a) != len(items_b):
-                raise ValueError('Row item counts must match for swap')
-            for ib, ia in zip(items_b, items_a):
-                snap = fields_tuple(ib)
-                apply_fields(ia, snap)
-                ia.save()
-                reset_to_pending(ib)
-                ib.save()
-        elif mode == 'both':
-            if not a_in or not b_in:
-                raise ValueError('Invalid swap mode for row states')
-            if len(items_a) != len(items_b):
-                raise ValueError('Row item counts must match for swap')
-            for ia, ib in zip(items_a, items_b):
-                sa, sb = fields_tuple(ia), fields_tuple(ib)
-                apply_fields(ia, sb)
-                apply_fields(ib, sa)
-                ia.save()
-                ib.save()
-        else:
-            raise ValueError('Invalid mode')
-
-        ItemSwapAudit.objects.create(
-            purchase_order=order,
-            swapped_by=user,
-            source_row=ra,
-            target_row=rb,
-            mode=mode,
-            snapshot={'row_a': row_a_num, 'row_b': row_b_num},
-        )
-
-    return {'workspace': build_processing_workspace(order)}
+    pr_ids = list(ProcessingRow.objects.filter(purchase_order=order).values_list('pk', flat=True))
+    refresh_processing_rows_denorm(order, processing_row_ids=pr_ids)
+    return {'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=pr_ids)}
 
 
 def processing_bulk_disposition(user, order: PurchaseOrder, data: dict) -> dict:
@@ -625,7 +544,10 @@ def processing_bulk_disposition(user, order: PurchaseOrder, data: dict) -> dict:
         if histories:
             ItemHistory.objects.bulk_create(histories)
 
-    return {'workspace': build_processing_workspace(order)}
+    pr_ids = processing_row_ids_for_manifest_rows(order, row_ids)
+    refresh_processing_rows_denorm(order, processing_row_ids=pr_ids)
+
+    return {'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=pr_ids)}
 
 
 def processing_patch_item(user, item: Item, data: dict) -> dict:
@@ -673,4 +595,10 @@ def processing_patch_item(user, item: Item, data: dict) -> dict:
 
     item.refresh_from_db()
     po = PurchaseOrder.objects.get(pk=item.purchase_order_id)
-    return {'item': ItemSerializer(item).data, 'workspace': build_processing_workspace(po)}
+    mids = {item.manifest_row_id} if item.manifest_row_id else set()
+    pr_ids = processing_row_ids_for_manifest_rows(po, mids)
+    refresh_processing_rows_denorm(po, processing_row_ids=pr_ids)
+    return {
+        'item': ItemSerializer(item).data,
+        'workspace_patch': build_workspace_patch(po, touched_processing_row_ids=pr_ids),
+    }

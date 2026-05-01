@@ -17,6 +17,7 @@ from apps.inventory.models import (
     ManifestRow,
     PreprocessingOrder,
     PreprocessingRow,
+    ProcessingRow,
     Product,
     PurchaseOrder,
     Vendor,
@@ -88,6 +89,26 @@ class PreprocessingRedesignTests(TestCase):
         request = APIRequestFactory().patch(
             f'/api/inventory/orders/{self.order.pk}/preprocessing-review/',
             {'rows': rows},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        return view(request, pk=self.order.pk)
+
+    def _finalize_preprocessing_fast(self):
+        view = PurchaseOrderViewSet.as_view({'post': 'finalize_preprocessing'})
+        request = APIRequestFactory().post(
+            f'/api/inventory/orders/{self.order.pk}/finalize-preprocessing/',
+            {},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        return view(request, pk=self.order.pk)
+
+    def _build_processing_data(self):
+        view = PurchaseOrderViewSet.as_view({'post': 'build_processing_data'})
+        request = APIRequestFactory().post(
+            f'/api/inventory/orders/{self.order.pk}/build-processing-data/',
+            {},
             format='json',
         )
         force_authenticate(request, user=self.user)
@@ -973,9 +994,12 @@ class PreprocessingRedesignTests(TestCase):
             quantity=2,
             standard_description='Widget A',
             ai_title='Widget A',
+            final_title='Widget A',
+            final_description='Full widget A desc',
             standard_brand='BrandA',
             standard_taxonomy={'category': 'Kitchen & dining'},
             ai_category='Kitchen & dining',
+            final_category='Kitchen & dining',
             ai_condition='good',
             standard_condition='good',
             unit_retail=Decimal('40.00'),
@@ -990,9 +1014,12 @@ class PreprocessingRedesignTests(TestCase):
             quantity=1,
             standard_description='Gadget B',
             ai_title='Gadget B',
+            final_title='Gadget B',
+            final_description='Gadget detail',
             standard_brand='BrandB',
             standard_taxonomy={'category': 'Home décor & lighting'},
             ai_category='Home décor & lighting',
+            final_category='Home décor & lighting',
             ai_condition='good',
             standard_condition='good',
             unit_retail=Decimal('30.00'),
@@ -1001,15 +1028,14 @@ class PreprocessingRedesignTests(TestCase):
             pricing_stage='final',
         )
 
-        view = PurchaseOrderViewSet.as_view({'post': 'finalize_preprocessing'})
-        request = APIRequestFactory().post(
-            f'/api/inventory/orders/{self.order.pk}/finalize-preprocessing/',
-            {},
-        )
-        force_authenticate(request, user=self.user)
-        response = view(request, pk=self.order.pk)
+        fin = self._finalize_preprocessing_fast()
+        self.assertEqual(fin.status_code, 200, fin.data if hasattr(fin, 'data') else fin.content)
+        self.assertEqual(ProcessingRow.objects.filter(purchase_order=self.order).count(), 2)
+        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 0)
+        self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 0)
 
-        self.assertEqual(response.status_code, 200)
+        build_resp = self._build_processing_data()
+        self.assertEqual(build_resp.status_code, 200, build_resp.data)
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 2)
         self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 3)
         mrows = list(ManifestRow.objects.filter(purchase_order=self.order).order_by('row_number'))
@@ -1040,7 +1066,34 @@ class PreprocessingRedesignTests(TestCase):
         self.assertIn('title', row)
         self.assertNotIn('identifiers', row)
 
-    def test_finalize_preprocessing_applies_rows_payload_before_promotion(self):
+    def test_finalize_preprocessing_rejects_inline_rows_payload(self):
+        prep = PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='review',
+            row_count=1,
+        )
+        PreprocessingRow.objects.create(
+            preprocessing_order=prep,
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            final_title='T',
+            final_description='D',
+            unit_retail=Decimal('40.00'),
+            final_price=Decimal('15.00'),
+            pricing_stage='final',
+        )
+        view = PurchaseOrderViewSet.as_view({'post': 'finalize_preprocessing'})
+        request = APIRequestFactory().post(
+            f'/api/inventory/orders/{self.order.pk}/finalize-preprocessing/',
+            {'rows': []},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=self.order.pk)
+        self.assertEqual(response.status_code, 400)
+
+    def test_finalize_after_review_patch_then_build_creates_manifest(self):
         prep = PreprocessingOrder.objects.create(
             purchase_order=self.order,
             workflow_status='review',
@@ -1053,6 +1106,8 @@ class PreprocessingRedesignTests(TestCase):
             quantity=1,
             standard_description='Widget',
             ai_title='AI Widget Title',
+            final_title='AI Widget Title',
+            final_description='Widget body',
             standard_brand='',
             ai_brand='',
             standard_model='',
@@ -1066,19 +1121,18 @@ class PreprocessingRedesignTests(TestCase):
             pricing_stage='unpriced',
         )
 
-        view = PurchaseOrderViewSet.as_view({'post': 'finalize_preprocessing'})
-        request = APIRequestFactory().post(
-            f'/api/inventory/orders/{self.order.pk}/finalize-preprocessing/',
-            {'rows': [{'id': row.id, 'patch': {'final_price': '15.00'}}]},
-            format='json',
-        )
-        force_authenticate(request, user=self.user)
-        response = view(request, pk=self.order.pk)
+        patch_resp = self._preprocessing_review_patch([{'id': row.id, 'patch': {'final_price': '15.00'}}])
+        self.assertEqual(patch_resp.status_code, 200, patch_resp.data)
 
-        self.assertEqual(response.status_code, 200)
+        fin = self._finalize_preprocessing_fast()
+        self.assertEqual(fin.status_code, 200, fin.data)
+        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 0)
+
+        build_resp = self._build_processing_data()
+        self.assertEqual(build_resp.status_code, 200)
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 1)
 
-    def test_finalize_preprocessing_fill_missing_only_preserves_final_review_edits(self):
+    def test_finalize_preprocessing_preserves_staff_final_review_on_bookmarks_then_manifest(self):
         prep = PreprocessingOrder.objects.create(
             purchase_order=self.order,
             workflow_status='review',
@@ -1104,29 +1158,64 @@ class PreprocessingRedesignTests(TestCase):
             pricing_stage='final',
             final_title='Staff Final Title',
             final_category='Kitchen & dining',
-            final_description=None,
-            final_brand=None,
+            final_description='Standard widget body copy',
+            final_brand='Staff Brand',
         )
 
-        view = PurchaseOrderViewSet.as_view({'post': 'finalize_preprocessing'})
-        request = APIRequestFactory().post(
-            f'/api/inventory/orders/{self.order.pk}/finalize-preprocessing/',
-            {},
-            format='json',
-        )
-        force_authenticate(request, user=self.user)
-        response = view(request, pk=self.order.pk)
+        fin = self._finalize_preprocessing_fast()
+        self.assertEqual(fin.status_code, 200)
 
-        self.assertEqual(response.status_code, 200)
         row.refresh_from_db()
         self.assertEqual(row.final_title, 'Staff Final Title')
         self.assertEqual(row.final_category, 'Kitchen & dining')
         self.assertEqual(row.final_description, 'Standard widget body copy')
-        self.assertEqual(row.final_brand, 'VendorBrand')
+        self.assertEqual(row.final_brand, 'Staff Brand')
+
+        bm = ProcessingRow.objects.get(purchase_order=self.order, row_number=1)
+        self.assertEqual(bm.title, 'Staff Final Title')
+        self.assertEqual(bm.description, 'Standard widget body copy')
+        self.assertEqual(bm.brand, 'Staff Brand')
+
+        build_resp = self._build_processing_data()
+        self.assertEqual(build_resp.status_code, 200, build_resp.data)
         m = ManifestRow.objects.get(purchase_order=self.order, row_number=1)
         self.assertEqual(m.title, 'Staff Final Title')
         self.assertEqual(m.description, 'Standard widget body copy')
-        self.assertEqual(m.brand, 'VendorBrand')
+        self.assertEqual(m.brand, 'Staff Brand')
+
+    def test_processing_workspace_shows_bookmarks_before_build(self):
+        from apps.inventory.services.processing_workspace import build_processing_workspace
+
+        prep = PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='review',
+            row_count=1,
+        )
+        PreprocessingRow.objects.create(
+            preprocessing_order=prep,
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            final_title='T',
+            final_description='D',
+            final_category='Cat',
+            unit_retail=Decimal('10.00'),
+            final_price=Decimal('5.00'),
+            pricing_stage='final',
+        )
+        self.assertEqual(self._finalize_preprocessing_fast().status_code, 200)
+        ws = build_processing_workspace(self.order)
+        self.assertTrue(ws.get('processingBookmarkOnly'))
+        self.assertIsNotNone(ws.get('preprocessing_finalized_at'))
+        self.assertEqual(len(ws['rows']), 1)
+        self.assertIsNone(ws['rows'][0]['manifest_row_id'])
+        self.assertIn('processing_row_id', ws['rows'][0])
+
+        self.assertEqual(self._build_processing_data().status_code, 200)
+        ws2 = build_processing_workspace(self.order)
+        self.assertFalse(ws2.get('processingBookmarkOnly'))
+        self.assertIsNotNone(ws2.get('preprocessing_finalized_at'))
+        self.assertIsNotNone(ws2['rows'][0]['manifest_row_id'])
 
     def test_preview_manifest_formulas_requires_manifest_file(self):
         view = PurchaseOrderViewSet.as_view({'post': 'preview_manifest_formulas'})

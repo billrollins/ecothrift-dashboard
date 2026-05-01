@@ -1909,8 +1909,8 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'processing_print_multiple_action',
         'processing_dispute_action',
         'processing_merge_rows_action',
-        'processing_swap_action',
         'processing_bulk_disposition_action',
+        'build_processing_data',
     },
 )
 
@@ -4502,7 +4502,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='finalize-preprocessing')
     def finalize_preprocessing(self, request, pk=None):
-        """Promote staging rows to ManifestRow, Product, Item, and optional BatchGroups."""
+        """Materialize processing bookmarks from narrow final-layer staging fields; defer canonical build.
+
+        Canonical ``ManifestRow`` / ``Product`` / ``Item`` creation runs via
+        ``POST .../build-processing-data/`` so this stay fast and deterministic.
+        """
         order = self.get_object()
         prep = getattr(order, 'preprocessing', None)
         if not prep or prep.row_count == 0:
@@ -4513,6 +4517,16 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if prep.finalized_at:
             return Response(
                 {'detail': 'Preprocessing is already finalized.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        rows_payload = request.data.get('rows')
+        if rows_payload is not None:
+            return Response(
+                {
+                    'detail': 'Save preprocessing review via PATCH preprocessing-review before finalizing.',
+                    'code': 'finalize_with_rows_body',
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -4528,157 +4542,17 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        rows_payload = request.data.get('rows')
-        if rows_payload is not None and not isinstance(rows_payload, list):
-            return Response({'detail': 'rows must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.inventory.services.processing_finalize import finalize_preprocessing_to_bookmarks
 
         t0 = time.perf_counter()
         finalization_logger.info(
-            'finalize_preprocessing_start order_id=%s staging_row_count=%s',
+            'finalize_preprocessing_start_fast order_id=%s staging_row_count=%s',
             order.id,
             prep.rows.count(),
         )
 
-        now = timezone.now()
-        ensure_summary = {}
-        batch_groups_created = 0
-        batch = None
-        staging_rows = []
-
         try:
-            with transaction.atomic():
-                if rows_payload:
-                    update_preprocessing_review_rows(prep, rows_payload)
-                staging_rows = list(prep.rows.order_by('row_number'))
-                validation_errors = []
-                for sr in staging_rows:
-                    if effective_preprocessing_row_price(sr) is None:
-                        validation_errors.append({'row_number': sr.row_number, 'reason': 'missing_price'})
-                    elif (
-                        not str(effective_preprocessing_triple(sr, 'description') or '').strip()
-                        and not effective_preprocessing_title(sr).strip()
-                    ):
-                        validation_errors.append({
-                            'row_number': sr.row_number,
-                            'reason': 'missing_title_or_description',
-                        })
-
-                if validation_errors:
-                    raise ValidationError({
-                        'detail': 'All staging rows must have a listing title/description and a price.',
-                        'code': 'validation_failed',
-                        'errors': validation_errors[:100],
-                    })
-
-                final_field_names = [f'final_{base}' for base in TRIPLE_LAYER_SPECS.keys()] + [
-                    'final_title',
-                    'final_category',
-                ]
-                for sr in staging_rows:
-                    snapshot_finalize_from_ai_and_standard(sr, fill_missing_only=True)
-                PreprocessingRow.objects.bulk_update(staging_rows, final_field_names)
-
-                ManifestRow.objects.filter(purchase_order=order).delete()
-                order.items.exclude(status__in=TERMINAL_ITEM_STATUSES).delete()
-                order.batch_groups.all().delete()
-
-                manifest_objs = []
-                for sr in staging_rows:
-                    stags = sr.final_search_tags
-                    if stags is None:
-                        stags = []
-                    elif not isinstance(stags, list):
-                        stags = slugify_formula_search_tags(str(stags or ''))
-                    manifest_objs.append(
-                        ManifestRow(
-                            purchase_order=order,
-                            row_number=sr.row_number,
-                            quantity=sr.quantity or 1,
-                            description=str(sr.final_description or ''),
-                            title=str(sr.final_title or ''),
-                            brand=str(sr.final_brand or ''),
-                            model=str(sr.final_model or ''),
-                            category=str(sr.final_category or '')[:200],
-                            condition=str(sr.final_condition or ''),
-                            unit_retail=sr.unit_retail,
-                            proposed_price=sr.proposed_price,
-                            final_price=sr.final_price,
-                            pricing_stage=sr.pricing_stage or 'unpriced',
-                            pricing_notes=sr.pricing_notes or '',
-                            batch_flag=sr.batch_flag,
-                            identifiers=dict(sr.final_identifiers or {}),
-                            taxonomy=dict(sr.final_taxonomy or {}),
-                            search_tags=stags or [],
-                            specifications=dict(sr.final_specifications or {}),
-                            tracking=dict(sr.final_tracking or {}),
-                            ai_reasoning=sr.ai_reasoning or '',
-                            notes=str(sr.final_notes or ''),
-                            match_status='pending',
-                        ),
-                    )
-                ManifestRow.objects.bulk_create(manifest_objs)
-
-                ensure_summary = ensure_manifest_products_and_items(order, request.user)
-
-                rows = list(
-                    ManifestRow.objects.filter(purchase_order=order)
-                    .select_related('matched_product')
-                    .prefetch_related('batch_groups'),
-                )
-                batch = ProcessingBatch.objects.filter(purchase_order=order).order_by('-started_at').first()
-                if not batch:
-                    batch = ProcessingBatch.objects.create(
-                        purchase_order=order,
-                        status='in_progress',
-                        total_rows=len(rows),
-                        processed_count=len(rows),
-                        items_created=order.items.count(),
-                        started_at=now,
-                        completed_at=now,
-                        created_by=request.user,
-                    )
-
-                for row in rows:
-                    quantity = row.quantity if row.quantity and row.quantity > 0 else 1
-                    row_price = effective_manifest_row_price(row)
-                    is_batch = False
-                    if row_price is not None:
-                        is_batch = quantity >= 6 and float(row_price) < 75
-                    elif quantity >= 10:
-                        is_batch = True
-                    if not is_batch:
-                        continue
-                    batch_group = row.batch_groups.first()
-                    if not batch_group:
-                        batch_group = BatchGroup.objects.create(
-                            batch_number=BatchGroup.generate_batch_number(),
-                            product=row.matched_product,
-                            purchase_order=order,
-                            manifest_row=row,
-                            total_qty=quantity,
-                            unit_price=row_price,
-                            unit_cost=row.unit_retail,
-                            condition='unknown',
-                            status='pending',
-                        )
-                        batch_groups_created += 1
-                    row.items.exclude(status__in=TERMINAL_ITEM_STATUSES).update(
-                        batch_group=batch_group,
-                        processing_tier='batch',
-                    )
-
-                prep.finalized_at = now
-                prep.workflow_status = 'finalized'
-                prep.current_step = max(prep.current_step, 2)
-                prep.save(
-                    update_fields=[
-                        'finalized_at',
-                        'workflow_status',
-                        'current_step',
-                        'updated_at',
-                    ],
-                )
-
+            n = finalize_preprocessing_to_bookmarks(order, prep)
         except ValidationError as exc:
             finalization_logger.warning(
                 'finalize_preprocessing_validation_failed order_id=%s elapsed_ms=%.1f detail=%s',
@@ -4694,24 +4568,47 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return Response({'detail': str(detail)}, status=status.HTTP_400_BAD_REQUEST)
 
         order.refresh_from_db()
+        prep.refresh_from_db()
         elapsed_ms = (time.perf_counter() - t0) * 1000
         finalization_logger.info(
-            'finalize_preprocessing_complete order_id=%s manifest_rows=%s elapsed_ms=%.1f '
-            'products_created=%s items_created=%s batch_groups_created=%s',
+            'finalize_preprocessing_complete_fast order_id=%s processing_bookmarks=%s elapsed_ms=%.1f',
             order.id,
-            len(staging_rows),
+            n,
             elapsed_ms,
-            ensure_summary.get('products_created'),
-            ensure_summary.get('items_created'),
-            batch_groups_created,
         )
         return Response({
             'finalized_at': prep.finalized_at.isoformat() if prep.finalized_at else None,
-            'manifest_rows': len(staging_rows),
-            'batch_groups_created': batch_groups_created,
-            'processing_batch_id': batch.id if batch else None,
-            **ensure_summary,
+            'processing_row_count': n,
         })
+
+    @action(detail=True, methods=['post'], url_path='build-processing-data')
+    def build_processing_data(self, request, pk=None):
+        """Rebuild canonical ManifestRow/Product/Item from processing bookmarks."""
+
+        order = self.get_object()
+        prep = getattr(order, 'preprocessing', None)
+        if not prep or not prep.finalized_at:
+            return Response(
+                {'detail': 'Finalize preprocessing before building processing data.', 'code': 'not_finalized'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.inventory.services.processing_finalize import build_manifest_from_processing_rows
+
+        try:
+            payload = build_manifest_from_processing_rows(order, request.user)
+        except ValidationError as exc:
+            detail = exc.detail
+            status_code = status.HTTP_400_BAD_REQUEST
+            if isinstance(detail, dict) and detail.get('code') == 'terminal_items_block':
+                status_code = status.HTTP_409_CONFLICT
+            if isinstance(detail, dict):
+                return Response(detail, status=status_code)
+            if isinstance(detail, list):
+                return Response({'detail': detail}, status=status_code)
+            return Response({'detail': str(detail)}, status=status_code)
+
+        return Response(payload)
 
     @action(detail=True, methods=['post'], url_path='preview-manifest-formulas')
     def preview_manifest_formulas(self, request, pk=None):
@@ -5694,7 +5591,50 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         from apps.inventory.services.processing_workspace import build_processing_workspace
 
         order = self.get_object()
-        return Response(build_processing_workspace(order))
+
+        def _qint(name: str, default: int) -> int:
+            raw = request.query_params.get(name)
+            if raw is None or str(raw).strip() == '':
+                return default
+            try:
+                return int(raw)
+            except ValueError:
+                return default
+
+        segment = str(request.query_params.get('segment') or 'all').strip() or 'all'
+        search = str(request.query_params.get('search') or '').strip()
+        product_raw = request.query_params.get('product_id')
+        product_id = None
+        if product_raw not in (None, '') and str(product_raw).strip().isdigit():
+            product_id = int(str(product_raw).strip())
+        hci_raw = str(request.query_params.get('hide_checked_in') or 'true').strip().lower()
+        hide_checked_in = hci_raw not in {'0', 'false', 'no'}
+
+        return Response(
+            build_processing_workspace(
+                order,
+                limit=_qint('limit', 25),
+                offset=_qint('offset', 0),
+                segment=segment,
+                product_id=product_id,
+                search=search,
+                hide_checked_in=hide_checked_in,
+            ),
+        )
+
+    @action(detail=True, methods=['get'], url_path='processing-row-detail')
+    def processing_row_detail(self, request, pk=None):
+        from apps.inventory.services.processing_workspace import build_processing_row_detail
+
+        order = self.get_object()
+        raw = request.query_params.get('processing_row_id')
+        if raw is None or not str(raw).strip().isdigit():
+            return Response({'detail': 'processing_row_id query parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            payload = build_processing_row_detail(order, processing_row_id=int(raw))
+        except LookupError:
+            return Response({'detail': 'Processing row not found for this order.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(payload)
 
     @action(detail=True, methods=['post'], url_path='processing-print-multiple')
     def processing_print_multiple_action(self, request, pk=None):
@@ -5723,16 +5663,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         try:
             return Response(processing_merge_rows(request.user, order, request.data))
-        except ValueError as e:
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['post'], url_path='processing-swap')
-    def processing_swap_action(self, request, pk=None):
-        from apps.inventory.processing_ops import processing_swap
-
-        order = self.get_object()
-        try:
-            return Response(processing_swap(request.user, order, request.data))
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

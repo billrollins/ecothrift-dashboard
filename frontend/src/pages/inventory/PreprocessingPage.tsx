@@ -842,15 +842,14 @@ export default function PreprocessingPage() {
     }
   };
 
-  const handleFinalizeAndOpenProcessing = async (pending?: PreprocessingReviewRowUpdate[]) => {
+  const handleFinalizeAndOpenProcessing = async () => {
     if (!orderId || !order) return;
     try {
       const result = await finalizePreprocessingMutation.mutateAsync({
         orderId,
-        rows: pending?.length ? pending : undefined,
       });
       enqueueSnackbar(
-        `Finalized ${result.manifest_rows} row(s); ${result.items_created ?? 0} item(s), ${result.batch_groups_created} batch(es).`,
+        `Finalized ${result.processing_row_count} bookmark row(s). Use Create Processing Data on the Processing page to generate items.`,
         { variant: 'success' },
       );
       navigate(`/inventory/processing/${order.id}`);
@@ -1464,7 +1463,7 @@ export default function PreprocessingPage() {
       <ConfirmModal
         open={confirmDialog === 'finalize'}
         title="Finalize preprocessing?"
-        message={`Create processing batches from ${standardizedRowCount} staged row(s) and open the processing queue.`}
+        message={`Save any review edits first, then finalize into processing bookmarks (${standardizedRowCount} row(s)). On Processing, tap Create Processing Data to build items.`}
         confirmLabel="Finalize"
         isBusy={finalizePreprocessingMutation.isPending}
         onCancel={() => setConfirmDialog(null)}

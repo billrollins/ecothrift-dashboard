@@ -19,6 +19,7 @@ import type {
   ReceivingPatchPayload,
   ReceivingCompleteResponse,
   ProcessingWorkspaceDTO,
+  ProcessingWorkspacePatchDTO,
 } from '../types/inventory.types';
 import api, { apiPublic } from './client';
 
@@ -977,26 +978,32 @@ export function createItems(orderId: number): Promise<{ data: CreateItemsRespons
   return api.post<CreateItemsResponse>(`/inventory/orders/${orderId}/create-items/`);
 }
 
-/** Promotes staging rows to ManifestRow + Product + Item (+ batch groups when applicable). */
-export interface FinalizePreprocessingResponse extends CreateItemsResponse {
+/** Finalize writes processing bookmarks; use buildProcessingData for ManifestRow/Item. */
+export interface FinalizePreprocessingResponse {
   finalized_at: string | null;
+  processing_row_count: number;
+}
+
+export function finalizePreprocessing(orderId: number): Promise<{ data: FinalizePreprocessingResponse }> {
+  return api.post<FinalizePreprocessingResponse>(`/inventory/orders/${orderId}/finalize-preprocessing/`, {});
+}
+
+export interface BuildProcessingDataResponse {
   manifest_rows: number;
+  processing_row_bookmarks: number;
+  batch_groups_created: number;
   processing_batch_id: number | null;
   rows?: number;
   rows_linked?: number;
   products_created?: number;
+  items_created?: number;
   items_updated?: number;
   items_deleted?: number;
+  item_count?: number;
 }
 
-export function finalizePreprocessing(
-  orderId: number,
-  data?: { rows?: PreprocessingReviewRowUpdate[] },
-): Promise<{ data: FinalizePreprocessingResponse }> {
-  return api.post<FinalizePreprocessingResponse>(
-    `/inventory/orders/${orderId}/finalize-preprocessing/`,
-    data ?? {},
-  );
+export function buildProcessingData(orderId: number): Promise<{ data: BuildProcessingDataResponse }> {
+  return api.post<BuildProcessingDataResponse>(`/inventory/orders/${orderId}/build-processing-data/`, {});
 }
 
 export function getCleanupModels(orderId: number): Promise<{ data: CleanupModelsResponse }> {
@@ -1145,13 +1152,43 @@ export function markOrderComplete(orderId: number): Promise<{ data: Order }> {
   return api.post<Order>(`/inventory/orders/${orderId}/mark-complete/`);
 }
 
-export function getProcessingWorkspace(orderId: number): Promise<{ data: ProcessingWorkspaceDTO }> {
-  return api.get<ProcessingWorkspaceDTO>(`/inventory/orders/${orderId}/processing-workspace/`);
+export function getProcessingWorkspace(
+  orderId: number,
+  params?: Record<string, string | number | boolean | undefined>,
+): Promise<{ data: ProcessingWorkspaceDTO }> {
+  return api.get<ProcessingWorkspaceDTO>(`/inventory/orders/${orderId}/processing-workspace/`, {
+    params: params
+      ?
+        Object.fromEntries(
+          Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+        )
+      : undefined,
+  });
+}
+
+export function getProcessingRowDetail(
+  orderId: number,
+  processingRowId: number,
+): Promise<{ data: { row: ProcessingWorkspaceDTO['rows'][number] } }> {
+  return api.get<{ row: ProcessingWorkspaceDTO['rows'][number] }>(
+    `/inventory/orders/${orderId}/processing-row-detail/`,
+    { params: { processing_row_id: processingRowId } },
+  );
+}
+
+export interface PrintedItemPreview {
+  id: number;
+  sku: string;
+  title: string;
+  price: string;
+  brand: string;
+  product_number: string | null;
 }
 
 export interface ProcessingPrintAndCheckInResponse {
   item: Item;
-  workspace: ProcessingWorkspaceDTO;
+  workspace_patch: ProcessingWorkspacePatchDTO;
+  printed_items_preview?: PrintedItemPreview[];
   label_print_job_id: string;
 }
 
@@ -1167,7 +1204,8 @@ export function processingPrintAndCheckIn(
 
 export interface ProcessingPrintMultipleResponse {
   checked_in_item_ids: number[];
-  workspace: ProcessingWorkspaceDTO;
+  workspace_patch: ProcessingWorkspacePatchDTO;
+  printed_items_preview: PrintedItemPreview[];
   label_print_job_id: string;
 }
 
@@ -1184,8 +1222,8 @@ export function processingPrintMultiple(
 export function processingDispute(
   orderId: number,
   payload: Record<string, unknown>,
-): Promise<{ data: { workspace: ProcessingWorkspaceDTO } }> {
-  return api.post<{ workspace: ProcessingWorkspaceDTO }>(
+): Promise<{ data: { workspace_patch: ProcessingWorkspacePatchDTO } }> {
+  return api.post<{ workspace_patch: ProcessingWorkspacePatchDTO }>(
     `/inventory/orders/${orderId}/processing-dispute/`,
     payload,
   );
@@ -1194,19 +1232,9 @@ export function processingDispute(
 export function processingMergeRows(
   orderId: number,
   payload: Record<string, unknown>,
-): Promise<{ data: { workspace: ProcessingWorkspaceDTO } }> {
-  return api.post<{ workspace: ProcessingWorkspaceDTO }>(
+): Promise<{ data: { workspace_patch: ProcessingWorkspacePatchDTO } }> {
+  return api.post<{ workspace_patch: ProcessingWorkspacePatchDTO }>(
     `/inventory/orders/${orderId}/processing-merge-rows/`,
-    payload,
-  );
-}
-
-export function processingSwap(
-  orderId: number,
-  payload: Record<string, unknown>,
-): Promise<{ data: { workspace: ProcessingWorkspaceDTO } }> {
-  return api.post<{ workspace: ProcessingWorkspaceDTO }>(
-    `/inventory/orders/${orderId}/processing-swap/`,
     payload,
   );
 }
@@ -1214,8 +1242,8 @@ export function processingSwap(
 export function processingBulkDisposition(
   orderId: number,
   payload: Record<string, unknown>,
-): Promise<{ data: { workspace: ProcessingWorkspaceDTO } }> {
-  return api.post<{ workspace: ProcessingWorkspaceDTO }>(
+): Promise<{ data: { workspace_patch: ProcessingWorkspacePatchDTO } }> {
+  return api.post<{ workspace_patch: ProcessingWorkspacePatchDTO }>(
     `/inventory/orders/${orderId}/processing-bulk-disposition/`,
     payload,
   );
@@ -1224,8 +1252,8 @@ export function processingBulkDisposition(
 export function processingPatchItem(
   itemId: number,
   payload: Record<string, unknown>,
-): Promise<{ data: { item: Item; workspace: ProcessingWorkspaceDTO } }> {
-  return api.patch<{ item: Item; workspace: ProcessingWorkspaceDTO }>(
+): Promise<{ data: { item: Item; workspace_patch: ProcessingWorkspacePatchDTO } }> {
+  return api.patch<{ item: Item; workspace_patch: ProcessingWorkspacePatchDTO }>(
     `/inventory/items/${itemId}/processing-patch/`,
     payload,
   );

@@ -75,7 +75,7 @@ Authoritative wiring lives on **`PurchaseOrderViewSet`** in **`apps/inventory/vi
 | Reset | POST | `preprocessing-review-reset-final` | Targeted reset |
 | Finalize | POST | `finalize-preprocessing` | Coalesce `final_*` → `ManifestRow` / products |
 | Processor workspace | GET | `processing-workspace` | Active processor UI payload |
-| Processor ops | POST | `processing-*` family | Print, dispute, merge, swap, bulk disposition |
+| Processor ops | POST | `processing-*` family | Print, dispute, merge, bulk disposition |
 
 Validation helpers: **`apps/inventory/cleanup_csv_validate.py`** (contract summarized in `.ai/reference/cleanup_csv_contract.md`).
 

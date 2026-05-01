@@ -1,15 +1,19 @@
 # Processing data lifecycle — post-finalize CRUD vs Item Processor
 
 **Audience:** Staff-facing inventory pipeline (engineering).  
-**Last reviewed:** 2026-05-01 (against `apps/inventory/models.py`, `views.py`, `processing_ops.py`, `services/processing_workspace.py`).
+**Last reviewed:** 2026-05-01 (**v2.21.0**: `ProcessingRow`, paginated workspace, lazy detail, **no** `processing-swap`; against `apps/inventory/models.py`, `views.py`, `processing_ops.py`, `services/processing_workspace.py`).
 
 ---
 
-## 1. There are no `processing_row` / `processing_order` tables
+## 1. `ProcessingRow` queue bookmarks (**v2.21.0**)
 
-EcoThrift today persists processing-related state on **`ManifestRow`**, **`Product`**, **`Item`**, optional **`BatchGroup`**, and a lightweight **`ProcessingBatch`** audit/run header — **not** on tables named `inventory_processingrow` or `inventory_processingorder`.
+The **`ProcessingRow`** table (`inventory_processingrow`) holds **one row per manifest queue line** for Item Processor UI: FK **`purchase_order`**, **`row_number`**, optional **`manifest_row`** / **`matched_product`**, mirrored listing + **`queue_*`** denormalizations (`queue_status`, `qty_dispositioned`, `pending_item_count`, `list_*`, `item_ids`). Bookmarks align with preprocessing finalize → **`ManifestRow`** + **`Product`** + **`Item`** creation (see **`build-processing-data`** / **`finalize-preprocessing`** flow in **`views.py`**).
 
-The Item Processor UI reads a **derived JSON workspace** from **`GET …/processing-workspace/`** (`build_processing_workspace`). Mutations write **`Item`** (and sometimes **`ManifestRow`** / **`Product`**) via dedicated endpoints.
+**`GET …/processing-workspace/`** builds a paginated **`rows`** slice primarily from **`ProcessingRow`** (**not** hydrating every nested **`Item`** for the PO). **`GET …/processing-row-detail/`** returns full **`items` + `product`** for one bookmark when the active card expands.
+
+Older **`ProcessingBatch`** remains audit/run metadata only — **not** a substitute for **`ProcessingRow`**.
+
+Mutations in **`processing_ops.py`** persist **`Item`** (and **`ManifestRow`/`Product`** when merging or syncing manual-review).
 
 ---
 
@@ -19,7 +23,7 @@ The Item Processor UI reads a **derived JSON workspace** from **`GET …/process
 |-------|------|----------------|-----------|
 | **A — Bootstrap** | Immediately after **`POST …/finalize-preprocessing/`** succeeds | `ManifestRow`, `Product`, `Item`, optional `BatchGroup`, `ProcessingBatch`; `PreprocessingOrder.finalized_at` set | Finalize runs internally; optional **`GET …/manual-review/`** calls `ensure_manifest_products_and_items` if no items yet |
 | **B — Canonical line CRUD** | Any time after finalize (order-level listing edits) | `ManifestRow` (+ sync to `Product` + non-terminal `Item`) | **`GET/POST …/manual-review/`** |
-| **C — Unit-level processing** | Dock / Item Processor | **`Item`** is the unit of work; `ManifestRow`/`Product` stay listing catalog glue | **`GET …/processing-workspace/`** + mutations below |
+| **C — Unit-level processing** | Dock / Item Processor | **`ProcessingRow`** (paginated workspace list), **`Item`** units; **`ManifestRow`/`Product`** listing glue | **`GET …/processing-workspace/`** + **`GET …/processing-row-detail/`** + mutation endpoints below |
 
 ---
 
@@ -63,13 +67,12 @@ The Item Processor UI reads a **derived JSON workspace** from **`GET …/process
 
 ## 5. Phase C — During Item Processor (“processing”)
 
-**Read model:** **`GET …/api/inventory/orders/{id}/processing-workspace/`** → `build_processing_workspace(order)`:
+**Read model (**v2.21.0**):**
 
-- Joins **`ManifestRow`** → **`matched_product`** → prefetched **`items`**.
-- Derives **row queue status** (`pending` / `partial` / `checked_in` / `disputed`) from **`Item.status`** (and dispute mapping).
-- Maps **`Item.location`** ↔ UI **`dispatch`** (`on_shelf`, `restoration`, `back_storage`, `online_sales`, `salvage`).
-- Maps **`Item.status`** ↔ UI **`disposition`** (`pending` ↔ intake/processing, `checked_in` ↔ on_shelf, broken/undelivered ↔ scrapped/lost).
-- Aggregates **progress** (`total_units`, `pending_units`, dispositioned counts).
+- **`GET …/processing-workspace/`** — **`build_processing_workspace`** returns **`rows`** (**`ProcessingRow`** + light joins), **`progress`** aggregates, **`row_count_filtered`/`row_count_total_po`**. Optional duplicate hints when enabled (no longer require scanning the **entire** PO manifest on every lazy-detail request — see **`processing_workspace.py`**).
+- **`GET …/processing-row-detail/`** — full nested **`manifest_row`/`items`/`product`** slice for **`processing_row_id`**.
+
+Historical note: legacy docs described a single **`build_processing_workspace`** graph that hydrated **all** manifest lines at once — that path is superseded by the split **list/detail** posture above.
 
 **Writes** (orchestrated in `processing_ops.py`, exposed on `PurchaseOrderViewSet`):
 
@@ -79,7 +82,6 @@ The Item Processor UI reads a **derived JSON workspace** from **`GET …/process
 | **`POST …/processing-print-multiple/`** | Batch print path for a manifest row + qty (pending items) |
 | **`POST …/processing-dispute/`** | Dispute / scrapped / lost paths — **`Item`** dispute fields + status |
 | **`POST …/processing-merge-rows/`** | Merge manifest/products/items |
-| **`POST …/processing-swap/`** | Swap items between rows |
 | **`POST …/processing-bulk-disposition/`** | Bulk disposition |
 
 **Essential data touched in C (MVP operational loop):**
@@ -88,7 +90,9 @@ The Item Processor UI reads a **derived JSON workspace** from **`GET …/process
 |--------|-------------------|
 | **`Item`** | **`status`** (intake → processing → on_shelf; terminal disputed paths), **`condition`**, **`price`**, **`unit_retail`**, **`location`** (dispatch), **`notes`**, **`checked_in_at`**, **`checked_in_by`**, **`listed_at`**, **`dispute_*`** fields |
 | **`ItemHistory`** | Audit rows for check-in and field changes |
-| **`ManifestRow` / `Product`** | **Indirectly** only when merge/swap or manual-review sync runs — **not** on every check-in |
+| **`ManifestRow` / `Product`** | When merge runs or **`manual-review`** sync runs — **not** on every check-in |
+
+**Removed from shipping:** **`POST …/processing-swap/`** — see **`CHANGELOG [2.21.0]`**.
 
 **`ProcessingBatch`** — audit/run header (`inventory_processingbatch`); **not** a row-level workspace table.
 
@@ -115,9 +119,9 @@ The Item Processor UI reads a **derived JSON workspace** from **`GET …/process
 | 5 | Progress counts | **`processing_workspace`** `progress` block |
 | 6 | Audit trail | **`ItemHistory`** on check-in |
 
-**Nice-to-have / beyond MVP:** merge, swap, bulk disposition, multi-print, disputes — **present** in `processing_ops.py`; enable/disable per UX rollout.
+**Nice-to-have / beyond MVP:** bulk disposition + multi-print + disputes — routed through `processing_ops.py` per UX rollout (**swap intentionally not shipped** in **v2.21.0**).
 
-**Explicit non-MVP for this doc:** introducing **`inventory_processingrow`** — would duplicate **`ManifestRow` + `Item`** unless scoped as a **derived cache** or **workflow projection**; no migration exists today.
+**Schema note:** **`ProcessingRow`** (**`inventory_processingrow`**) ships in **v2.21.0** as the **`processing-workspace`** queue projection — **`CHANGELOG [2.21.0]`**.
 
 ---
 
@@ -130,10 +134,10 @@ The Item Processor UI reads a **derived JSON workspace** from **`GET …/process
 | Post-final row CRUD | `manual_review` |
 | Workspace JSON | `apps/inventory/services/processing_workspace.py` — `build_processing_workspace` |
 | Processor mutations | `apps/inventory/processing_ops.py` |
-| Models | `apps/inventory/models.py` — `ManifestRow`, `Product`, `Item`, `BatchGroup`, `ProcessingBatch`, `PreprocessingOrder`, `PreprocessingRow` |
+| Models | `apps/inventory/models.py` — **`ProcessingRow`**, `ManifestRow`, `Product`, `Item`, `BatchGroup`, `ProcessingBatch`, `PreprocessingOrder`, `PreprocessingRow` |
 
 ---
 
 ## 9. Summary sentence
 
-**After final:** treat **`ManifestRow`** as the canonical **line** and **`Item`** as the **unit**; **`manual-review`** is **line CRUD + sync**; **processing** is mostly **`Item`** updates with **`processing-workspace`** as a read model — **no separate processing-row table** in the current schema.
+**After final:** **`ManifestRow`** is the canonical **line**; **`Item`** is the **unit**; **`ProcessingRow`** is the **paginated queue projection** consumed by **`processing-workspace`**; **`manual-review`** is **line CRUD + sync**; processing mutations primarily update **`Item`** (**`processing-swap`** removed from shipping scope — **v2.21.0**) with **`processing-row-detail`** for heavy nested reads.

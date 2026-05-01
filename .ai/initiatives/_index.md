@@ -1,9 +1,9 @@
-<!-- Last updated: 2026-05-02 (`review.0.Bump` Session 12 — Item Processor pricing audit docs) -->
+<!-- Last updated: 2026-05-01 (`review.0.Bump` — **`v2.21.0`**: paginated Item Processor, `ProcessingRow`, lazy row detail; swap removed) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
 
-**`CHANGELOG.md`** top dated section **`## [2.20.0]`** (inventory inbound); **`[Unreleased]`** resumes when new work lands. The current session message also drives priorities.
+**`CHANGELOG.md`** latest dated **`## [2.21.0]`** (Item Processor workspace hardening — **`ProcessingRow`**, pagination, lazy detail; **swap** cut); **`[Unreleased]`** resumes for Final Review UI planning and preprocessing backlog bullets. Session message drives day-to-day priorities.
 
 ---
 
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | **Inbound:** **Orders** + **Receiving** + preprocessing **core** shipped (**Standardize → Clean → Final Review**, three-layer staging, **`cleanup_csv_contract.md`**). **Iterative:** Final Review mockup UI; Item Processor **read-only pricing audit** (**`GET …/manual-review/`** on workspace — **`CHANGELOG [Unreleased]`**). Ref: **[Preprocessing — target UX](order_processing_pipeline_rebuild.md#preprocessing--target-ux)** (Session 6). Offline Grok: Session 2; ref folder: [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md). |
+| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | **Inbound:** **Orders** + **Receiving** + preprocessing **core** shipped. **Processing (v2.21.0):** paginated **`processing-workspace`**, **`processing-row-detail`**, **`ProcessingRow`** denorm (**`CHANGELOG [2.21.0]`**); **`processing-swap`** not shipped. **Iterative:** Final Review mockup UI (**`fix_this.md`**) + **`manual-review`** read-only accordion on workspace. Ref: **[Preprocessing — target UX](order_processing_pipeline_rebuild.md#preprocessing--target-ux)**. Offline Grok: Session 2; ref folder: [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md). |
 
 Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
 

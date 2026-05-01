@@ -9,8 +9,12 @@ export interface ProcessingFilterRowProps {
   onSegmentChange: (v: ProcessingStatusSegment) => void;
   hideDispositioned: boolean;
   onHideDispositionedChange: (v: boolean) => void;
+  /** Current page row count (typically ≤ page size) */
   filteredCount: number;
+  /** Total rows matching active filters before pagination */
   totalCount: number;
+  /** Overrides the default summary line when using server pagination */
+  rangeCaption?: string;
   productFilterProductId: number | null;
   productFilterTitle?: string;
   onClearProductFilter: () => void;
@@ -31,6 +35,7 @@ export function ProcessingFilterRow({
   onHideDispositionedChange,
   filteredCount,
   totalCount,
+  rangeCaption,
   productFilterProductId,
   productFilterTitle,
   onClearProductFilter,
@@ -100,7 +105,7 @@ export function ProcessingFilterRow({
         ) : null}
       </Box>
       <Typography variant="caption" color="text.secondary">
-        Showing {filteredCount} of {totalCount} rows
+        {rangeCaption ?? `Showing ${filteredCount} of ${totalCount} rows`}
       </Typography>
     </Box>
   );

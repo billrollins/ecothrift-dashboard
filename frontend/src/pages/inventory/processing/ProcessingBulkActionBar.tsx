@@ -8,8 +8,6 @@ export interface ProcessingBulkActionBarProps {
   onBulkDisposition: () => void;
   onMarkBroken: () => void;
   onMarkUndelivered: () => void;
-  /** When exactly two manifest rows are selected — swap checked-in states between rows. */
-  onSwap?: () => void;
 }
 
 /** Inverse bulk strip — §6.7 mockup. */
@@ -21,7 +19,6 @@ export function ProcessingBulkActionBar({
   onBulkDisposition,
   onMarkBroken,
   onMarkUndelivered,
-  onSwap,
 }: ProcessingBulkActionBarProps) {
   if (selectedCount < 2) return null;
 
@@ -70,11 +67,6 @@ export function ProcessingBulkActionBar({
       <Button size="small" variant="outlined" color="warning" onClick={onMarkBroken}>
         Mark broken
       </Button>
-      {selectedCount === 2 && onSwap ? (
-        <Button size="small" variant="text" sx={{ color: 'grey.300', ml: 'auto' }} onClick={onSwap}>
-          Swap rows…
-        </Button>
-      ) : null}
     </Box>
   );
 }

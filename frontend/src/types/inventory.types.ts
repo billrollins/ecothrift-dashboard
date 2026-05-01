@@ -372,8 +372,10 @@ export interface ProcessingWorkspaceItemDTO {
   dispute_description: string;
 }
 
+/** Subset returned from GET processing-workspace (no nested items/products). */
 export interface ProcessingWorkspaceRowDTO {
-  manifest_row_id: number;
+  processing_row_id: number;
+  manifest_row_id: number | null;
   rowNum: number;
   productId: number | null;
   product: ProcessingWorkspaceProductDTO | null;
@@ -387,10 +389,14 @@ export interface ProcessingWorkspaceRowDTO {
   category: string;
   qty: number;
   qtyDispositioned: number;
+  /** Pending unit count when list-only; detail query may hydrate items[]. */
+  pendingItemCount?: number;
+  hasOnShelfUnit?: boolean;
   unitRetail: string | null;
   manifestNotes: string;
   identifiers: Record<string, unknown>;
   tracking: Record<string, unknown>;
+  /** Empty on list payloads; hydrated from processing-row-detail. */
   items: ProcessingWorkspaceItemDTO[];
   status: string;
   likelyDuplicateOf: number[];
@@ -419,6 +425,13 @@ export interface ProcessingWorkspaceOrderDTO {
 export interface ProcessingWorkspaceDTO {
   order: ProcessingWorkspaceOrderDTO;
   rows: ProcessingWorkspaceRowDTO[];
+  /** After server-side filtering; pagination applies on top */
+  row_count_filtered?: number;
+  /** ProcessingRow count for this PO (ignores filters) */
+  row_count_total_po?: number;
+  manifest_qty_dispositioned_total?: number;
+  workspace_limit?: number;
+  workspace_offset?: number;
   session: {
     items_per_hour: number;
     elapsed_seconds: number;
@@ -429,6 +442,16 @@ export interface ProcessingWorkspaceDTO {
     dispositioned_units: number;
     pending_units: number;
   };
+  /** True when rows come from processing bookmarks (finalize) only; run build-processing-data for items. */
+  processingBookmarkOnly?: boolean;
+  /** ISO timestamp when preprocessing was finalized on this PO, if any (empty workspace UX). */
+  preprocessing_finalized_at?: string | null;
+}
+
+/** PATCH payload returned by processor mutations (`workspace_patch`). */
+export interface ProcessingWorkspacePatchDTO {
+  progress: ProcessingWorkspaceDTO['progress'];
+  rows: ProcessingWorkspaceRowDTO[];
 }
 
 export interface ProcessingBatch {

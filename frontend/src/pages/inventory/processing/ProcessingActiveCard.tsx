@@ -1,5 +1,4 @@
 import ArrowBack from '@mui/icons-material/ArrowBack';
-import CallSplit from '@mui/icons-material/CallSplit';
 import FilterAlt from '@mui/icons-material/FilterAlt';
 import Gavel from '@mui/icons-material/Gavel';
 import LibraryBooks from '@mui/icons-material/LibraryBooks';
@@ -56,7 +55,6 @@ export interface ProcessingActiveCardProps {
   onShowAllThisProduct?: () => void;
   productFilterActive?: boolean;
   onWorkspaceInvalidated?: () => void | Promise<void>;
-  onOpenSwapPrefill?: () => void;
   onPrepareMergeFromCard?: () => void;
 }
 
@@ -76,7 +74,6 @@ export function ProcessingActiveCard({
   onShowAllThisProduct,
   productFilterActive,
   onWorkspaceInvalidated,
-  onOpenSwapPrefill,
   onPrepareMergeFromCard,
 }: ProcessingActiveCardProps) {
   const qc = useQueryClient();
@@ -204,15 +201,6 @@ export function ProcessingActiveCard({
             <MoreVert fontSize="small" />
           </IconButton>
           <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
-            <MenuItem
-              onClick={() => {
-                setMenuAnchor(null);
-                onOpenSwapPrefill?.();
-              }}
-              disabled={!onOpenSwapPrefill}
-            >
-              <CallSplit sx={{ mr: 1 }} fontSize="small" /> Swap rows…
-            </MenuItem>
             <MenuItem
               onClick={() => {
                 setMenuAnchor(null);

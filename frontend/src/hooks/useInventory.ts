@@ -723,14 +723,8 @@ export function useFinalizePreprocessing() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      orderId,
-      rows,
-    }: {
-      orderId: number;
-      rows?: import('../api/inventory.api').PreprocessingReviewRowUpdate[];
-    }) => {
-      const { data } = await finalizePreprocessing(orderId, rows?.length ? { rows } : {});
+    mutationFn: async ({ orderId }: { orderId: number }) => {
+      const { data } = await finalizePreprocessing(orderId);
       return data;
     },
     onSuccess: (_data, variables) => {
@@ -742,6 +736,7 @@ export function useFinalizePreprocessing() {
       queryClient.invalidateQueries({ queryKey: ['items'] });
       queryClient.invalidateQueries({ queryKey: ['batchGroups'] });
       queryClient.invalidateQueries({ queryKey: ['preprocessingQueue'] });
+      queryClient.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
     },
   });
 }

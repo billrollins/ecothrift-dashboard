@@ -530,6 +530,110 @@ class PreprocessingRow(models.Model):
         return f'PreprocessingRow {self.row_number} PO={self.purchase_order_id}'
 
 
+class ProcessingRow(models.Model):
+    """Bookmark of finalized preprocessing fields before canonical ManifestRow/Item build.
+
+    Written by fast ``finalize-preprocessing``; ManifestRow/Product/Item creation runs via
+    ``build-processing-data`` so heavy work stays separate from session finalization.
+    """
+
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='processing_bookmarks',
+    )
+    preprocessing_row = models.ForeignKey(
+        PreprocessingRow,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='processing_bookmarks',
+        help_text='Source staging row ID at finalize-time (audit only).',
+    )
+    row_number = models.PositiveIntegerField()
+
+    manifest_row = models.ForeignKey(
+        'ManifestRow',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        help_text='Canonical manifest line after build-processing-data (lazy detail source).',
+    )
+    matched_product = models.ForeignKey(
+        'Product',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        help_text='Denormalized from manifest row after product matching / build.',
+    )
+
+    queue_status = models.CharField(
+        max_length=16,
+        blank=True,
+        default='pending',
+        db_index=True,
+        help_text='pending | partial | checked_in | disputed — mirrors Item aggregate for this row.',
+    )
+    qty_dispositioned = models.PositiveIntegerField(default=0)
+    pending_item_count = models.PositiveIntegerField(default=0)
+    has_on_shelf_unit = models.BooleanField(default=False)
+    list_dispatch = models.CharField(max_length=32, blank=True, default='on_shelf')
+    list_sku = models.CharField(max_length=120, blank=True, default='')
+    list_unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    item_ids = models.JSONField(default=list, blank=True)
+
+    quantity = models.IntegerField(default=1)
+    unit_retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    proposed_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    final_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    pricing_stage = models.CharField(
+        max_length=20,
+        choices=ManifestRow.PRICING_STAGE_CHOICES,
+        default='unpriced',
+    )
+    pricing_notes = models.TextField(blank=True, default='')
+    batch_flag = models.BooleanField(default=False)
+    ai_reasoning = models.TextField(blank=True, default='')
+
+    title = models.CharField(max_length=300, blank=True, default='')
+    brand = models.CharField(max_length=200, blank=True, default='')
+    model = models.CharField(max_length=200, blank=True, default='')
+    category = models.CharField(max_length=200, blank=True, default='')
+    condition = models.CharField(max_length=20, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+
+    identifiers = models.JSONField(default=dict, blank=True)
+    taxonomy = models.JSONField(default=dict, blank=True)
+    specifications = models.JSONField(default=dict, blank=True)
+    tracking = models.JSONField(default=dict, blank=True)
+    search_tags = models.JSONField(default=list, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['purchase_order', 'row_number']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['purchase_order', 'row_number'],
+                name='inv_proc_bm_po_rn_unique',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['purchase_order', 'row_number']),
+            models.Index(fields=['manifest_row']),
+            models.Index(fields=['matched_product']),
+            models.Index(fields=['purchase_order', 'queue_status']),
+        ]
+
+    def __str__(self):
+        return f'ProcessingBm {self.row_number} PO={self.purchase_order_id}'
+
+
 class Product(models.Model):
     """Reusable product catalog entry."""
     product_number = models.CharField(

@@ -121,16 +121,18 @@ export function deriveProcessingRowStatus(
 }
 
 export function rowMatchesStatusSegment(
-  row: { items: Array<{ status: string }> },
+  row: { items?: Array<{ status: string }>; status?: string },
   segment: ProcessingStatusSegment,
 ): boolean {
   if (segment === 'all') return true;
 
-  const disp = row.items.map((i) => mapItemStatusToDisposition(i.status));
-  if (segment === 'disputed') {
-    return disp.some((d) => d === 'broken' || d === 'undelivered');
-  }
+  const derived: 'pending' | 'partial' | 'checked_in' | 'disputed' =
+    row.items && row.items.length > 0 ?
+      deriveProcessingRowStatus(row.items)
+    : ((row.status || 'pending') as 'pending' | 'partial' | 'checked_in' | 'disputed');
 
-  const derived = deriveProcessingRowStatus(row.items);
+  if (segment === 'disputed') {
+    return derived === 'disputed';
+  }
   return derived === segment;
 }
