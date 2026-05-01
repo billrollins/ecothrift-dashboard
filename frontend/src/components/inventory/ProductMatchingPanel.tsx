@@ -207,9 +207,9 @@ export function ProductMatchingPanel({
             const productTitle = row.matched_product_title || row.match_candidates?.[0]?.product_title || '—';
             const score = row.match_candidates?.[0]?.score;
             const matchType = row.match_candidates?.[0]?.match_type;
-            const aiTitle = row.ai_suggested_title || row.title || row.description;
-            const aiBrand = row.ai_suggested_brand || row.brand;
-            const aiModel = row.ai_suggested_model || row.model;
+            const aiTitle = row.title || row.description;
+            const aiBrand = row.brand;
+            const aiModel = row.model;
 
             return (
               <Paper key={row.id} variant="outlined" sx={{ mb: 1, overflow: 'hidden' }}>
@@ -320,9 +320,9 @@ export function ProductMatchingPanel({
           </Typography>
 
           {newProductRows.map((row) => {
-            const aiTitle = row.ai_suggested_title || row.title || row.description;
-            const aiBrand = row.ai_suggested_brand || row.brand;
-            const aiModel = row.ai_suggested_model || row.model;
+            const aiTitle = row.title || row.description;
+            const aiBrand = row.brand;
+            const aiModel = row.model;
 
             return (
               <Paper key={row.id} variant="outlined" sx={{ mb: 1, px: 2, py: 1.5 }}>

@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -20,11 +21,13 @@ from apps.inventory.models import (
     PurchaseOrder,
     Vendor,
 )
+from apps.inventory.manifest_standard_fields import validate_mapping_target
 from apps.inventory.views import (
     PurchaseOrderViewSet,
     default_column_mappings,
     ensure_manifest_products_and_items,
     header_signature,
+    normalize_row,
     parse_ai_cleanup_suggestions,
 )
 
@@ -101,13 +104,17 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='Acme Toaster 2 Slice',
-            title='Acme Toaster',
-            brand='Acme',
-            category='Kitchen & dining',
-            condition='unknown',
-            retail_value=Decimal('50.00'),
-            notes='low confidence',
+            standard_description='Acme Toaster 2 Slice',
+            ai_title='Acme Toaster',
+            standard_brand='Acme',
+            standard_taxonomy={'category': 'Kitchen & dining'},
+            standard_identifiers={'sku': 'SKU-AAA', 'upc': '100'},
+            standard_specifications={'origin': 'US'},
+            standard_tracking={'lot_id': 'L42'},
+            standard_search_tags=['x', 'y'],
+            standard_condition='unknown',
+            unit_retail=Decimal('50.00'),
+            standard_notes='low confidence',
             pricing_stage='unpriced',
         )
         second = PreprocessingRow.objects.create(
@@ -115,12 +122,12 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=2,
             quantity=1,
-            description='Bright LED Lamp',
-            title='LED Lamp',
-            brand='BrightCo',
-            category='Home décor & lighting',
-            condition='unknown',
-            retail_value=Decimal('25.00'),
+            standard_description='Bright LED Lamp',
+            ai_title='LED Lamp',
+            standard_brand='BrightCo',
+            standard_taxonomy={'category': 'Home décor & lighting'},
+            standard_condition='unknown',
+            unit_retail=Decimal('25.00'),
             proposed_price=Decimal('12.50'),
             pricing_stage='draft',
         )
@@ -134,11 +141,11 @@ class PreprocessingRedesignTests(TestCase):
             description='Acme Toaster 2 Slice',
             title='Acme Toaster',
             brand='Acme',
-            category='Kitchen & dining',
+            taxonomy={'category': 'Kitchen & dining'},
             condition='unknown',
-            retail_value=Decimal('50.00'),
+            unit_retail=Decimal('50.00'),
             notes='keep this note',
-            search_tags='keep-tag',
+            search_tags=['keep-tag'],
             pricing_stage='unpriced',
         )
         second = ManifestRow.objects.create(
@@ -148,9 +155,9 @@ class PreprocessingRedesignTests(TestCase):
             description='Bright LED Lamp',
             title='LED Lamp',
             brand='BrightCo',
-            category='Home décor & lighting',
+            taxonomy={'category': 'Home décor & lighting'},
             condition='unknown',
-            retail_value=Decimal('25.00'),
+            unit_retail=Decimal('25.00'),
             pricing_stage='unpriced',
         )
         return first, second
@@ -159,33 +166,39 @@ class PreprocessingRedesignTests(TestCase):
         headers = ['Qty', 'Unit Retail', 'Ext. Retail', 'Item Description']
         mappings = default_column_mappings(headers)
         by_target = {m['target']: m for m in mappings}
-        self.assertEqual(by_target['retail_value']['source'], 'Unit Retail')
+        self.assertEqual(by_target['unit_retail']['source'], 'Unit Retail')
 
     def test_default_column_mappings_maps_lean_cleanup_csv_headers(self):
-        """download-cleanup-csv shape: title/condition/sku columns map to standard fields."""
+        """download-cleanup-csv heuristic: overlapping flat targets map by column name."""
         headers = [
             'row_id',
             'row_number',
-            'description',
-            'title',
-            'brand',
-            'model',
-            'category',
-            'condition',
-            'sku',
-            'upc',
             'quantity',
-            'retail_value',
-            'notes',
+            'unit_retail',
             'base_cost',
             'ideal_price',
+            'description',
+            'brand',
+            'model',
+            'condition',
+            'notes',
+            'identifiers_json',
+            'taxonomy_json',
+            'specifications_json',
+            'tracking_json',
+            'search_tags_json',
         ]
         mappings = default_column_mappings(headers)
         by_target = {m['target']: m for m in mappings}
-        self.assertEqual(by_target['title']['source'], 'title')
+        self.assertEqual(by_target['taxonomy.category']['source'], '')
+        self.assertEqual(by_target['identifiers.upc']['source'], '')
+        self.assertEqual(by_target['identifiers.sku']['source'], '')
         self.assertEqual(by_target['condition']['source'], 'condition')
         self.assertEqual(by_target['description']['source'], 'description')
-        self.assertEqual(by_target['vendor_item_number']['source'], 'sku')
+        self.assertEqual(by_target['brand']['source'], 'brand')
+        self.assertEqual(by_target['quantity']['source'], 'quantity')
+        self.assertEqual(by_target['notes']['source'], 'notes')
+        self.assertEqual(by_target['unit_retail']['source'], 'unit_retail')
 
     def test_ensure_manifest_products_and_items_is_idempotent(self):
         ManifestRow.objects.create(
@@ -196,8 +209,8 @@ class PreprocessingRedesignTests(TestCase):
             title='Acme Toaster',
             brand='Acme',
             model='T2',
-            category='Kitchen',
-            retail_value=Decimal('50.00'),
+            taxonomy={'category': 'Kitchen & dining'},
+            unit_retail=Decimal('50.00'),
             proposed_price=Decimal('22.22'),
             pricing_stage='draft',
         )
@@ -253,7 +266,8 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['rows_updated'], 2)
         first.refresh_from_db()
-        self.assertEqual(first.ai_suggested_title, 'Acme Two Slice Toaster')
+        self.assertEqual(first.title, 'Acme Two Slice Toaster')
+        self.assertEqual(first.category, 'Kitchen & dining')
 
     def test_preprocessing_status_includes_manifest_sample_from_preview(self):
         self.order.manifest_preview = {
@@ -282,7 +296,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertIn('standard_columns', ms)
         self.assertGreater(len(ms['standard_columns']), 0)
         self.assertIsInstance(ms['template_mappings'], list)
-        self.assertEqual(len(ms['template_mappings']), 11)
+        self.assertEqual(len(ms['template_mappings']), len(default_column_mappings(ms['headers'])))
 
     def test_preprocessing_status_manifest_sample_matching_templates_by_signature(self):
         sig = 'abc123'
@@ -330,7 +344,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 200)
         tm = response.data['order']['manifest_sample']['template_mappings']
         by_target = {m['target']: m for m in tm}
-        self.assertEqual(by_target['retail_value']['source'], 'Unit Retail')
+        self.assertEqual(by_target['unit_retail']['source'], 'Unit Retail')
 
     def test_suggest_formulas_returns_400_without_manifest_preview_headers(self):
         view = PurchaseOrderViewSet.as_view({'post': 'suggest_formulas'})
@@ -360,16 +374,31 @@ class PreprocessingRedesignTests(TestCase):
 
         first.refresh_from_db()
         second.refresh_from_db()
-        self.assertEqual(first.ai_suggested_title, 'Acme Two Slice Toaster')
-        self.assertEqual(first.ai_suggested_brand, 'Acme')
-        self.assertEqual(first.ai_suggested_model, 'T2')
+        self.assertEqual(first.title, 'Acme Two Slice Toaster')
+        self.assertEqual(first.brand, 'Acme')
+        self.assertEqual(first.model, 'T2')
         self.assertEqual(first.category, 'Kitchen & dining')
+        self.assertEqual((first.taxonomy or {}).get('category'), 'Kitchen & dining')
         self.assertEqual(first.condition, 'good')
         self.assertEqual(first.proposed_price, Decimal('19.99'))
         self.assertEqual(first.notes, 'keep this note')
-        self.assertEqual(first.search_tags, 'keep-tag')
+        self.assertEqual(first.search_tags, ['keep-tag'])
         self.assertEqual(first.pricing_stage, 'draft')
-        self.assertEqual(second.ai_suggested_title, 'BrightCo LED Desk Lamp')
+        self.assertEqual(second.title, 'BrightCo LED Desk Lamp')
+
+    def test_upload_cleanup_csv_normalizes_grok_style_conditions(self):
+        first, second = self._create_manifest_rows()
+        csv_text = (
+            'row_id,ai_title,ai_brand,ai_model,category,condition,proposed_price\n'
+            f'{first.id},Acme Two Slice Toaster,Acme,T2,Kitchen & dining,used_good,19.99\n'
+            f'{second.id},BrightCo LED Desk Lamp,BrightCo,,Home décor & lighting,USED_FAIR,12.50\n'
+        )
+        response = self._upload_cleanup_csv(csv_text)
+        self.assertEqual(response.status_code, 200)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.condition, 'good')
+        self.assertEqual(second.condition, 'fair')
 
     def test_upload_cleanup_csv_rejects_missing_row_without_partial_changes(self):
         first, second = self._create_manifest_rows()
@@ -384,8 +413,8 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.data['code'], 'row_count_mismatch')
         first.refresh_from_db()
         second.refresh_from_db()
-        self.assertEqual(first.ai_suggested_title, '')
-        self.assertEqual(second.ai_suggested_title, '')
+        self.assertEqual(first.title, 'Acme Toaster')
+        self.assertEqual(second.title, 'LED Lamp')
 
     def test_preprocessing_queue_includes_manifest_orders_without_finalized_prep(self):
         from apps.core.models import S3File
@@ -454,27 +483,27 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.data['rejected_rows'][0]['reason'], 'unknown_row_id')
         first.refresh_from_db()
         second.refresh_from_db()
-        self.assertEqual(first.ai_suggested_title, '')
-        self.assertEqual(second.ai_suggested_title, '')
+        self.assertEqual(first.title, 'Acme Toaster')
+        self.assertEqual(second.title, 'LED Lamp')
 
     def test_upload_cleanup_csv_rejects_invalid_category_or_condition(self):
         first, second = self._create_manifest_rows()
         csv_text = (
             'row_id,ai_title,ai_brand,ai_model,category,condition,proposed_price\n'
             f'{first.id},Acme Two Slice Toaster,Acme,T2,Not A Category,good,19.99\n'
-            f'{second.id},BrightCo LED Desk Lamp,BrightCo,,Home décor & lighting,used_good,12.50\n'
+            f'{second.id},BrightCo LED Desk Lamp,BrightCo,,Home décor & lighting,bogus_condition_xyz,12.50\n'
         )
 
         response = self._upload_cleanup_csv(csv_text)
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data['code'], 'validation_failed')
-        reasons = {row['reason'] for row in response.data['rejected_rows']}
-        self.assertEqual(reasons, {'invalid_category', 'invalid_condition'})
+        reasons = {row.get('rule') or row.get('reason') for row in response.data['rejected_rows']}
+        self.assertEqual(reasons, {'HARD_CATEGORY_VALID', 'HARD_CONDITION_VALID'})
         first.refresh_from_db()
         second.refresh_from_db()
-        self.assertEqual(first.ai_suggested_title, '')
-        self.assertEqual(second.ai_suggested_title, '')
+        self.assertEqual(first.title, 'Acme Toaster')
+        self.assertEqual(second.title, 'LED Lamp')
 
     def test_upload_cleanup_csv_writes_staging_rows_without_manifest_rows(self):
         prep = PreprocessingOrder.objects.create(
@@ -487,14 +516,14 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='Acme Toaster 2 Slice',
-            title='Acme Toaster',
-            brand='Acme',
-            category='Kitchen & dining',
-            condition='unknown',
-            retail_value=Decimal('50.00'),
-            notes='keep this note',
-            search_tags='keep-tag',
+            standard_description='Acme Toaster 2 Slice',
+            ai_title='Acme Toaster',
+            standard_brand='Acme',
+            standard_taxonomy={'category': 'Kitchen & dining'},
+            standard_condition='unknown',
+            unit_retail=Decimal('50.00'),
+            standard_notes='keep this note',
+            standard_search_tags=['keep-tag'],
             pricing_stage='unpriced',
         )
         sr2 = PreprocessingRow.objects.create(
@@ -502,12 +531,12 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=2,
             quantity=1,
-            description='Bright LED Lamp',
-            title='LED Lamp',
-            brand='BrightCo',
-            category='Home décor & lighting',
-            condition='unknown',
-            retail_value=Decimal('25.00'),
+            standard_description='Bright LED Lamp',
+            ai_title='LED Lamp',
+            standard_brand='BrightCo',
+            standard_taxonomy={'category': 'Home décor & lighting'},
+            standard_condition='unknown',
+            unit_retail=Decimal('25.00'),
             pricing_stage='unpriced',
         )
         csv_text = (
@@ -522,14 +551,89 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.data['rows_updated'], 2)
         sr1.refresh_from_db()
         sr2.refresh_from_db()
-        self.assertEqual(sr1.ai_suggested_title, 'Acme Two Slice Toaster')
-        self.assertEqual(sr2.ai_suggested_title, 'BrightCo LED Desk Lamp')
+        self.assertEqual(sr1.ai_title, 'Acme Two Slice Toaster')
+        self.assertEqual(sr2.ai_title, 'BrightCo LED Desk Lamp')
+        self.assertEqual(sr1.ai_category, 'Kitchen & dining')
+        self.assertEqual(sr2.ai_category, 'Home décor & lighting')
+        self.assertEqual(sr1.ai_taxonomy, sr1.standard_taxonomy)
+        self.assertEqual(sr2.ai_taxonomy, sr2.standard_taxonomy)
+
+    def test_upload_cleanup_csv_staging_ignores_spoofed_locked_json_cells(self):
+        prep = PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='standardized',
+            row_count=1,
+        )
+        sr = PreprocessingRow.objects.create(
+            preprocessing_order=prep,
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            standard_description='Thing',
+            ai_title='Thing',
+            standard_brand='B',
+            standard_identifiers={'sku': 'REAL-SKU', 'upc': '111'},
+            standard_taxonomy={'category': 'VENDOR_CAT', 'subcategory': 'sub'},
+            standard_tracking={'lot_id': 'LOT-A'},
+            standard_condition='good',
+            unit_retail=Decimal('10.00'),
+            pricing_stage='unpriced',
+        )
+        spoof_ids = json.dumps({'sku': 'FAKE', 'upc': '999'})
+        spoof_tx = json.dumps({'category': 'Electronics', 'subcategory': 'tampered'})
+        spoof_tr = json.dumps({'lot_id': 'OTHER'})
+        spec_cell = json.dumps({'finish': 'matte'})
+        tags_cell = json.dumps(['clearance'])
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow([
+            'row_id',
+            'ai_title',
+            'ai_brand',
+            'ai_model',
+            'category',
+            'condition',
+            'proposed_price',
+            'description',
+            'identifiers_json',
+            'taxonomy_json',
+            'tracking_json',
+            'specifications_json',
+            'search_tags_json',
+        ])
+        w.writerow([
+            sr.id,
+            'Brand New Title Here',
+            'B',
+            'M',
+            'Kitchen & dining',
+            'good',
+            '5.00',
+            'Short vendor note.',
+            spoof_ids,
+            spoof_tx,
+            spoof_tr,
+            spec_cell,
+            tags_cell,
+        ])
+        csv_text = out.getvalue()
+        response = self._upload_cleanup_csv(csv_text)
+        self.assertEqual(response.status_code, 200)
+        sr.refresh_from_db()
+        self.assertEqual(sr.ai_title, 'Brand New Title Here')
+        self.assertEqual(sr.ai_specifications, {'finish': 'matte'})
+        self.assertEqual(sr.ai_search_tags, ['clearance'])
+        self.assertEqual(sr.ai_category, 'Kitchen & dining')
+        self.assertEqual(sr.ai_identifiers, {'sku': 'REAL-SKU', 'upc': '111'})
+        self.assertEqual(sr.ai_taxonomy, {'category': 'VENDOR_CAT', 'subcategory': 'sub'})
+        self.assertEqual(sr.ai_tracking, {'lot_id': 'LOT-A'})
 
     def test_download_cleanup_csv_staging_lean_schema_and_row_order(self):
         _, first, second = self._create_preprocessing_rows_for_review()
         expected_header = (
-            'row_id,row_number,description,title,brand,model,category,condition,sku,upc,quantity,'
-            'retail_value,notes,base_cost,ideal_price'
+            'row_id,row_number,quantity,unit_retail,base_cost,ideal_price,description,brand,model,'
+            'condition,notes,identifiers_json,taxonomy_json,specifications_json,tracking_json,'
+            'search_tags_json'
         )
 
         response = self._download_cleanup_csv()
@@ -546,14 +650,30 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(rows[0]['row_number'], '1')
         self.assertEqual(rows[1]['row_id'], str(second.id))
         self.assertEqual(rows[1]['row_number'], '2')
-        self.assertEqual(rows[0]['title'], 'Acme Toaster')
+        self.assertEqual(rows[0]['description'], 'Acme Toaster 2 Slice')
+        self.assertEqual(rows[0]['brand'], 'Acme')
         self.assertEqual(rows[0]['notes'], 'low confidence')
-        self.assertEqual(rows[0]['sku'], '')
+        self.assertEqual(json.loads(rows[0]['taxonomy_json']), {'category': 'Kitchen & dining'})
+        self.assertEqual(json.loads(rows[0]['identifiers_json']), {'sku': 'SKU-AAA', 'upc': '100'})
+        self.assertEqual(json.loads(rows[0]['specifications_json']), {'origin': 'US'})
+        self.assertEqual(json.loads(rows[0]['tracking_json']), {'lot_id': 'L42'})
+        self.assertEqual(json.loads(rows[0]['search_tags_json']), ['x', 'y'])
         hdr = lines[0]
-        for legacy in ('item_id', 'current_title', 'ai_title', 'proposed_price'):
-            self.assertNotIn(legacy, hdr)
+        for omit in (
+            'item_id',
+            'current_title',
+            'ai_title',
+            'title',
+            'category',
+            'sku',
+            'upc',
+            'proposed_price',
+            'final_price',
+            'pricing_stage',
+        ):
+            self.assertNotIn(omit, hdr)
         bc = Decimal(rows[0]['base_cost'])
-        self.assertEqual(bc, self.order.compute_item_cost(Decimal('50.00')))
+        self.assertEqual(bc, self.order.compute_item_cost(Decimal(rows[0]['unit_retail'])))
         ideal = Decimal(rows[0]['ideal_price'])
         self.assertEqual(ideal, (bc * Decimal('2')).quantize(Decimal('0.01')))
 
@@ -606,9 +726,9 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.data['rows_updated'], 1)
         first.refresh_from_db()
         prep.refresh_from_db()
-        self.assertEqual(first.title, 'Acme Two Slice Toaster')
-        self.assertEqual(first.brand, 'Acme Co')
-        self.assertEqual(first.condition, 'good')
+        self.assertEqual(first.ai_title, 'Acme Two Slice Toaster')
+        self.assertEqual(first.ai_brand, 'Acme Co')
+        self.assertEqual(first.ai_condition, 'good')
         self.assertEqual(first.final_price, Decimal('19.99'))
         self.assertIsNone(first.proposed_price)
         self.assertEqual(first.pricing_stage, 'final')
@@ -626,12 +746,12 @@ class PreprocessingRedesignTests(TestCase):
         prep.save(update_fields=['finalized_at', 'workflow_status', 'updated_at'])
 
         response = self._preprocessing_review_patch([
-            {'id': first.id, 'title': 'Should Not Save'},
+            {'id': first.id, 'patch': {'title': 'Should Not Save'}},
         ])
 
         self.assertEqual(response.status_code, 409)
         first.refresh_from_db()
-        self.assertEqual(first.title, 'Acme Toaster')
+        self.assertEqual(first.ai_title, 'Acme Toaster')
 
     def test_finalize_preprocessing_promotes_staging_to_manifest_and_items(self):
         prep = PreprocessingOrder.objects.create(
@@ -644,12 +764,14 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=2,
-            description='Widget A',
-            title='Widget A',
-            brand='BrandA',
-            category='Kitchen & dining',
-            condition='good',
-            retail_value=Decimal('40.00'),
+            standard_description='Widget A',
+            ai_title='Widget A',
+            standard_brand='BrandA',
+            standard_taxonomy={'category': 'Kitchen & dining'},
+            ai_category='Kitchen & dining',
+            ai_condition='good',
+            standard_condition='good',
+            unit_retail=Decimal('40.00'),
             proposed_price=Decimal('15.00'),
             final_price=Decimal('15.00'),
             pricing_stage='final',
@@ -659,12 +781,14 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=2,
             quantity=1,
-            description='Gadget B',
-            title='Gadget B',
-            brand='BrandB',
-            category='Home décor & lighting',
-            condition='good',
-            retail_value=Decimal('30.00'),
+            standard_description='Gadget B',
+            ai_title='Gadget B',
+            standard_brand='BrandB',
+            standard_taxonomy={'category': 'Home décor & lighting'},
+            ai_category='Home décor & lighting',
+            ai_condition='good',
+            standard_condition='good',
+            unit_retail=Decimal('30.00'),
             proposed_price=Decimal('12.00'),
             final_price=Decimal('12.00'),
             pricing_stage='final',
@@ -681,6 +805,9 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 2)
         self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 3)
+        mrows = list(ManifestRow.objects.filter(purchase_order=self.order).order_by('row_number'))
+        self.assertEqual(mrows[0].category, 'Kitchen & dining')
+        self.assertEqual(mrows[1].category, 'Home décor & lighting')
         prep.refresh_from_db()
         self.assertIsNotNone(prep.finalized_at)
         self.assertEqual(prep.workflow_status, 'finalized')
@@ -703,16 +830,19 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='Widget',
-            title='',
-            brand='',
-            category='Kitchen & dining',
-            condition='good',
-            retail_value=Decimal('40.00'),
+            standard_description='Widget',
+            ai_title='AI Widget Title',
+            standard_brand='',
+            ai_brand='',
+            standard_model='',
+            ai_model='',
+            standard_taxonomy={'category': 'Kitchen & dining'},
+            ai_condition='good',
+            standard_condition='good',
+            unit_retail=Decimal('40.00'),
             proposed_price=None,
             final_price=None,
             pricing_stage='unpriced',
-            ai_suggested_title='AI Widget Title',
         )
 
         view = PurchaseOrderViewSet.as_view({'post': 'finalize_preprocessing'})
@@ -806,3 +936,45 @@ class PreprocessingRedesignTests(TestCase):
         created = CSVTemplate.objects.get(vendor=self.vendor, name='Derived From Original')
         self.assertEqual(created.header_signature, sig)
 
+    def test_validate_mapping_target_tracking_custom_subkey(self):
+        self.assertIsNone(validate_mapping_target('tracking.warehouse_zone'))
+
+    def test_validate_mapping_target_rejects_unknown_bucket_prefix(self):
+        self.assertIsNotNone(validate_mapping_target('bogus.foo'))
+
+    def test_validate_mapping_target_subkey_regex(self):
+        self.assertIsNotNone(validate_mapping_target('identifiers.UPC'))
+        self.assertIsNone(validate_mapping_target('identifiers.upc'))
+
+    def test_normalize_row_prunes_empty_bucket_values(self):
+        raw = {'UPC': '  ', 'Category': ''}
+        mappings = [
+            {'target': 'identifiers.upc', 'formula': 'TRIM([UPC])'},
+            {'target': 'taxonomy.category', 'formula': 'TRIM([Category])'},
+        ]
+        out = normalize_row(raw, 1, mappings)
+        self.assertEqual(out['identifiers'], {})
+        self.assertEqual(out['taxonomy'], {})
+
+    def test_normalize_row_costco_description_title_formula(self):
+        raw = {'Item Description': 'BRIO 740 BOTTOM LOAD'}
+        mappings = [{'target': 'description', 'formula': 'TITLE(TRIM([Item Description]))'}]
+        out = normalize_row(raw, 1, mappings)
+        self.assertEqual(out['description'], 'Brio 740 Bottom Load')
+
+    def test_normalize_row_target_department_title_formula(self):
+        raw = {'Department': 'KITCHEN'}
+        mappings = [{'target': 'taxonomy.department', 'formula': 'TITLE(TRIM([Department]))'}]
+        out = normalize_row(raw, 1, mappings)
+        self.assertEqual(out['taxonomy']['department'], 'Kitchen')
+
+    def test_seed_basic_bucket_templates_exist(self):
+        names = ['Target Basic', 'Costco Basic', 'Amazon Basic']
+        templates = list(CSVTemplate.objects.filter(name__in=names))
+        self.assertEqual(len(templates), 3)
+        for tpl in templates:
+            mappings = tpl.column_mappings or []
+            self.assertTrue(
+                any((m.get('target') or '').startswith('tracking.') for m in mappings),
+                msg=f'Template {tpl.name!r} missing tracking.* mapping',
+            )

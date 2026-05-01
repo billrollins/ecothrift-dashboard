@@ -22,9 +22,9 @@ export function buildAiBaselinePatch(row: PreprocessingReviewRow): Preprocessing
         ? String(row.proposed_price)
         : '';
   return {
-    title: row.ai_suggested_title || row.title,
-    brand: row.ai_suggested_brand || row.brand,
-    model: row.ai_suggested_model || row.model,
+    title: row.ai_title?.trim() ? row.ai_title : row.title,
+    brand: row.ai_brand?.trim() ? row.ai_brand : row.brand,
+    model: row.ai_model?.trim() ? row.ai_model : row.model,
     category: row.category,
     condition: row.condition,
     proposed_price: row.proposed_price ?? '',

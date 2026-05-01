@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-01 (offline clean-grok adjunct: strict schema + batch API flag) -->
+<!-- Last updated: 2026-05-01 (Final Review + finalize coalesce; cleanup CSV contract link) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -24,18 +24,25 @@ Alternative approaches (including lot-ledger/deferred unitization) were archived
 ## Pipeline Overview
 
 ```
-Vendor → PurchaseOrder → CSV upload (S3) → Standardize (expression formulas + preview) → Preprocessing staging rows → offline cleanup CSV round-trip (download → edit → apply-cleanup-csv) → Manual Review/Pricing → finalize → Processing → Check-in + print tags
+Vendor → PurchaseOrder → CSV upload (S3) → Standardize (expression formulas + preview) → Preprocessing staging rows → offline cleanup CSV round-trip (download → edit → apply-cleanup-csv) → Final Review (staging) → finalize-preprocessing → Processing → Check-in + print tags
 ```
 
 1. **Vendor** — Source of purchased inventory (liquidation, retail, direct, other).
 2. **PurchaseOrder** — Order placed with a vendor; tracks status from ordered through completion.
 3. **CSV manifest upload** — Staff uploads a vendor CSV via `POST /inventory/orders/{id}/upload-manifest/`. File is saved to S3, preview persisted in `manifest_preview` JSON field. (Done on OrderDetailPage.)
 4. **Standardize** (Step 1 of PreprocessingPage) — Uses persisted **`manifest_preview`** on the PO for headers/sample rows until **`POST .../process-manifest/`** commits (pulls full CSV from S3). Expression formulas map vendor columns to standard fields (preview-standardize / Formula Preview). Commit seeds **`PreprocessingOrder`** / **`PreprocessingRow`** staging and prepares deterministic **`Product`** links plus early **`Item`** records per current **`process_manifest`** behavior.
-5. **Clean** (Step 2 of PreprocessingPage) — Primary path: **`GET .../download-cleanup-csv/`** exports a lean standardized CSV: **`row_id`**, **`row_number`**, **`description`**, **`title`**, **`brand`**, **`model`**, **`category`**, **`condition`**, **`sku`**, **`upc`**, **`quantity`**, **`retail_value`**, **`notes`**, **`base_cost`**, **`ideal_price`** (vendor codes common in `category`/`condition`). Staff edit offline (e.g. Excel) or run an optional **local** adjunct **`workspace/ai-cleanup-grok/clean-grok.mjs`** (xAI Grok: strict **`response_format`** JSON Schema with taxonomy/condition enums, vendor-code pre-normalization, retail vs **`proposed_price`** sanity check, **`x-grok-conv-id`** for prompt cache, optional **`--batch-api`** / **`use_batch_api`** for async batch pricing — tree is **gitignored** unless explicitly whitelisted). Then **`POST .../apply-cleanup-csv/`** with JSON **`rows`** or **`POST .../upload-cleanup-csv/`** with a narrow CSV (**`row_id`, `ai_title`, `ai_brand`, `ai_model`, `category`, `condition`, `proposed_price`**) to merge cleanup into staging rows by **`row_id`**. Legacy alternate still on the API: **`POST .../ai-cleanup-rows/`** (in-app Claude batches) — not wired as the main Step 2 UI today.
-6. **Manual Review / Pricing** (Step 3) — Preprocessing review (`GET/PATCH .../preprocessing-review/`) over staged rows; pricing summaries and finalize handoff to processing (`POST .../finalize-preprocessing/` per shipped routes).
+5. **Clean** (Step 2 of PreprocessingPage) — Primary path: **`GET .../download-cleanup-csv/`** exports **`row_id`**, **`row_number`**, **`quantity`**, **`unit_retail`**, **`base_cost`**, **`ideal_price`**, then **`description`**, **`brand`**, **`model`**, **`condition`**, **`notes`**, **`identifiers_json`**, **`taxonomy_json`**, **`specifications_json`**, **`tracking_json`**, **`search_tags_json`** (no flat **`title`** / **`sku`** / **`upc`** / staging pricing columns). Staff edit offline (e.g. Excel) or run an optional **local** adjunct **`workspace/ai-cleanup-grok/helpers/clean-grok.mjs`** (xAI Grok: strict **`response_format`** JSON Schema with taxonomy/condition enums, vendor-code pre-normalization, **`unit_retail`** vs **`proposed_price`** sanity check, **`x-grok-conv-id`** for prompt cache, optional **`--batch-api`** / **`use_batch_api`** for async batch pricing — tree is **gitignored** unless explicitly whitelisted). Then **`POST .../apply-cleanup-csv/`** with JSON **`rows`** or **`POST .../upload-cleanup-csv/`** with a narrow CSV (**`row_id`, `ai_title`, `ai_brand`, `ai_model`, `category`, `condition`, `proposed_price`**) to merge cleanup into staging **`ai_*`** / **`ai_title`** by **`row_id`**. Legacy alternate still on the API: **`POST .../ai-cleanup-rows/`** (in-app Claude batches) — not wired as the main Step 2 UI today. **Contract:** hard/soft validation and rule IDs — **[`cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)**.
+6. **Final Review** (Step 3 of PreprocessingPage; stepper label **Final Review**) — Staging-only review: **`GET/PATCH .../preprocessing-review/`** over **`PreprocessingRow`**. Staff edits **`ai_*`** fields (e.g. **`description` → `ai_description`**, **`title` → `ai_title`**); **`proposed_price`** / **`final_price`** live on the staging row until finalize. **`final_*`** stay **`NULL`** until **`POST .../finalize-preprocessing/`**, which runs **`snapshot_finalize_from_ai_and_standard`** (coalesce **`final_*`** from **`ai_*`** + **`standard_*`**; **`final_title`** from **`ai_title`**), validates price + title/description, then **replaces** **`ManifestRow`** rows from **`final_*`**. After finalize, staging review returns **409**; use canonical **`GET/PATCH .../manual-review/`** (manifest **`ManifestRow`**) for post-finalize line edits.
 7. **Eco-Thrift Receiving** — `GET /api/inventory/orders/for-receiving/` prioritizes POs by **expected_delivery** tiers for next-PO UX (**v2.20.0**). Staff open **`/inventory/receiving/:id`** from sidebar **Receiving** or the orders **Receive** control.
 8. **Processing handoff** — `POST /inventory/orders/{id}/create-items/` no longer duplicates Items. It ensures Products/Items still exist, creates/open `ProcessingBatch`, creates needed `BatchGroup` rows, and moves delivered orders to processing.
 9. **Arrival check-in** — Items/batches are checked in and marked shelf-ready via dedicated check-in actions, then labels are printed.
+
+### Review surfaces (pre- vs post-finalize)
+
+| Phase | HTTP | Rows |
+|-------|------|------|
+| Pre-finalize | `GET/PATCH …/preprocessing-review/` | **`PreprocessingRow`** staging (`standard_*` / `ai_*`; **`final_*`** written inside **`finalize-preprocessing`**) |
+| Post-finalize | `GET/PATCH …/manual-review/` | Canonical **`ManifestRow`** (linked **`Item`** fields sync on save) |
 
 ---
 
@@ -128,25 +135,22 @@ Vendor → PurchaseOrder → CSV upload (S3) → Standardize (expression formula
 
 ## ManifestRow
 
-Standardized row data extracted from vendor CSVs.
+Canonical manifest line items for a PO **after** preprocessing (and whenever staging is not in use). When **`finalize-preprocessing`** runs, rows are **replaced** from staged **`final_*`** fields.
 
 - **`purchase_order`** — FK
 - **`row_number`** — 1-based row index
 - **`quantity`** — Number of items (default 1)
 - **`description`**, **`title`**, **`brand`**, **`model`**, **`category`**, **`condition`**
-- **`retail_value`** — Used as item cost
-- **`proposed_price`**, **`final_price`**, **`pricing_stage`**, **`pricing_notes`** — pre-arrival pricing workspace fields
-- **`upc`**, **`vendor_item_number`**, **`notes`**
-- **`batch_flag`** — Boolean for batch-tier marking
-- **`search_tags`** — Text for search optimization
-- **`specifications`** — JSONField for structured specs (key-value pairs)
+- **`unit_retail`**, **`proposed_price`**, **`final_price`**, **`pricing_stage`**, **`pricing_notes`** — pricing workspace
+- **`identifiers`**, **`taxonomy`**, **`tracking`** — JSON buckets (UPC/SKU live under **`identifiers`**)
+- **`notes`**, **`batch_flag`**
+- **`search_tags`**, **`specifications`**
 - **`matched_product`** — FK to Product after matching
-- **`matched_product_title`**, **`matched_product_number`** — Denormalized for display
 - **`match_status`** — `pending`, `matched`, `new`
 - **`match_candidates`** — JSONField storing fuzzy match results with scores
-- **`ai_match_decision`** — AI's recommendation: `use_existing`, `create_new`, `uncertain`
-- **`ai_reasoning`** — Text explanation from AI about the match decision
-- **`ai_suggested_title`**, **`ai_suggested_brand`**, **`ai_suggested_model`** — AI-cleaned values
+- **`ai_match_decision`**, **`ai_reasoning`** — Product-matching AI assist (separate from preprocessing **`ai_*`** on **`PreprocessingRow`**)
+
+**Legacy:** older docs referred to **`ai_suggested_title`** / **`ai_suggested_brand`** / **`ai_suggested_model`** on **`ManifestRow`**; current schema uses **`title`** / **`brand`** / **`model`** as canonical listing fields.
 
 **Process-manifest** behavior:
 - can accept explicit normalized `rows` OR parse the full uploaded manifest file
@@ -166,35 +170,25 @@ Standardized row data extracted from vendor CSVs.
 
 ---
 
-## AI Row Cleanup Pipeline (v1.6.0)
+## AI Row Cleanup (in-app Claude batch) — legacy path
+
+**Primary path today:** offline / Grok cleanup CSV → **`apply-cleanup-csv`** → **`PreprocessingRow`** **`ai_*`**.
+
+**`POST /api/inventory/orders/{id}/ai-cleanup-rows/`** still exists: it batches over existing **`ManifestRow`** rows (when present), calls Anthropic, and writes **`title`**, **`brand`**, **`model`**, **`taxonomy.category`**, **`condition`**, **`proposed_price`**, **`search_tags`**, **`specifications`**, **`ai_reasoning`**, etc. — **not** separate **`ai_suggested_*`** columns.
 
 ### Backend Flow
-1. **`POST /api/inventory/orders/{id}/ai-cleanup-rows/`** — Accepts `model`, `batch_size`, `offset`.
-   - Fetches `batch_size` rows starting at `offset` (ordered by `row_number`).
-   - Constructs a Claude prompt with row data asking for cleaned title, brand, model, search tags, specifications, and reasoning.
-   - Parses JSON response and saves `ai_suggested_title`, `ai_suggested_brand`, `ai_suggested_model`, `search_tags`, `specifications`, `ai_reasoning` to each row.
-   - Returns `{ rows_processed, total_rows, offset, suggestions, model_used, has_more }`.
-2. **`GET .../ai-cleanup-status/`** — Returns `{ total_rows, cleaned_rows, remaining_rows }` based on presence of `ai_suggested_title`.
-3. **`POST .../cancel-ai-cleanup/`** — Clears all AI-generated fields across all manifest rows for the order.
+1. **`POST .../ai-cleanup-rows/`** — `model`, `batch_size`, `offset`; returns **`has_more`** for worker loops.
+2. **`GET .../ai-cleanup-status/`** — Counts rows with non-empty **`ai_reasoning`** (staging **`PreprocessingRow`** when active, else **`ManifestRow`**).
+3. **`POST .../cancel-ai-cleanup/`** — Clears AI-populated fields on **`ManifestRow`** rows for the order (legacy behavior).
 
 ### Frontend Flow
-- `RowProcessingPanel` drives the batch loop from the frontend.
-- User selects model (via `ModelSelector`), batch size (5/10/25/50), and thread count (1/4/8/16).
-- On "Run AI Cleanup", launches `concurrency` workers via `Promise.allSettled`.
-- Each worker grabs the next offset from shared `nextOffsetRef`, sends the API request, and loops until `has_more` is false or paused/cancelled.
-- **Pause**: Sets `pauseRef` flag; workers complete current request then stop. Offset persisted to localStorage for cross-session resume.
-- **Cancel**: Calls `cancel-ai-cleanup` endpoint to clear all AI data, resets state.
-- Progress shows: "X of Y rows cleaned" with spinner and active thread count.
+- May still be wired for canonical-row experiments; **PreprocessingPage** Step 2 centers on CSV download/apply.
 
 ### Expandable Row Details
-- Each row in the cleanup table can be expanded (chevron toggle, multi-expand supported).
-- Expanded view shows two side-by-side Paper cards:
-  - **Original Manifest Data**: description, brand, model, category, condition, retail_value, UPC, vendor_item_number, quantity
-  - **AI Suggestions**: ai_suggested_title, ai_suggested_brand, ai_suggested_model, search_tags, specifications (key-value grid), ai_reasoning (quote block)
-- Changed fields are highlighted with bold text and warning color.
+- If surfaced, compare **original manifest** cells vs **cleaned `title` / `brand` / `model`** and reasoning — naming matches saved **`ManifestRow`** fields.
 
 ### Known Issues (Pending Fix)
-- User reported "there's a lot wrong" after concurrent batching was added. Likely issues: race conditions in shared offset, duplicate processing, error handling gaps, progress counter drift. **Next session should test and fix.**
+- Concurrent batching for **`ai-cleanup-rows`** may still have race/progress edge cases if re-enabled at scale.
 
 ---
 

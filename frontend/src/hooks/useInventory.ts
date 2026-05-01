@@ -88,6 +88,7 @@ import {
   updatePreprocessingReview,
   getManualReview,
   updateManualReview,
+  getManifestFieldMetadata,
 } from '../api/inventory.api';
 import { prepS1 } from '../utils/preprocessingStep1Diag';
 import { devLog } from '../utils/logger';
@@ -826,6 +827,23 @@ export function useUploadCleanupCsvRows() {
       queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', variables.orderId] });
       queryClient.invalidateQueries({ queryKey: ['preprocessingReview', variables.orderId] });
     },
+  });
+}
+
+export const manifestFieldsQueryKey = ['inventory', 'manifest-fields'] as const;
+
+export function useManifestFields(enabled = true) {
+  return useQuery({
+    queryKey: manifestFieldsQueryKey,
+    queryFn: async () => {
+      const { data } = await getManifestFieldMetadata();
+      return data;
+    },
+    enabled,
+    staleTime: Infinity,
+    gcTime: 1000 * 60 * 60 * 24 * 30,
+    retry: 1,
+    placeholderData: keepPreviousData,
   });
 }
 

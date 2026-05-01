@@ -10,6 +10,7 @@ interface CleanupStepProps {
   cleanedRowCount: number;
   completedStep: number;
   expectedRowIds: Set<number>;
+  rowNumberById: Record<number, number>;
   validatedPayload: CleanupCsvApplyRowPayload[] | null;
   onValidatedPayloadChange: (rows: CleanupCsvApplyRowPayload[] | null) => void;
 }
@@ -21,6 +22,7 @@ export function CleanupStep({
   cleanedRowCount,
   completedStep,
   expectedRowIds,
+  rowNumberById,
   validatedPayload,
   onValidatedPayloadChange,
 }: CleanupStepProps) {
@@ -43,6 +45,7 @@ export function CleanupStep({
         orderNumber={orderNumber}
         rowCount={standardizedRowCount}
         expectedRowIds={expectedRowIds}
+        rowNumberById={rowNumberById}
         validatedPayload={validatedPayload}
         onValidatedPayloadChange={onValidatedPayloadChange}
       />

@@ -127,9 +127,6 @@ export interface ManifestRow {
   match_candidates: MatchCandidate[];
   ai_match_decision: AIMatchDecision;
   ai_reasoning: string;
-  ai_suggested_title: string;
-  ai_suggested_brand: string;
-  ai_suggested_model: string;
   notes: string;
   item_ids?: number[];
   first_item_id?: number | null;

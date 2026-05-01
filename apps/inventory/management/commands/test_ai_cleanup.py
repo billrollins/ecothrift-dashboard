@@ -182,9 +182,9 @@ class Command(BaseCommand):
             for r in batch:
                 suggestion = suggestions_by_id.get(r.id, {})
                 if suggestion:
-                    r.ai_suggested_title = (suggestion.get('title') or '')[:300]
-                    r.ai_suggested_brand = (suggestion.get('brand') or '')[:200]
-                    r.ai_suggested_model = (suggestion.get('model') or '')[:200]
+                    r.title = (suggestion.get('title') or '')[:300]
+                    r.brand = (suggestion.get('brand') or '')[:200]
+                    r.model = (suggestion.get('model') or '')[:200]
                     r.ai_reasoning = suggestion.get('reasoning') or ''
                     if suggestion.get('search_tags'):
                         r.search_tags = suggestion['search_tags']
@@ -194,8 +194,8 @@ class Command(BaseCommand):
 
             if save and rows_to_update:
                 ManifestRow.objects.bulk_update(rows_to_update, [
-                    'ai_suggested_title', 'ai_suggested_brand',
-                    'ai_suggested_model', 'ai_reasoning',
+                    'title', 'brand',
+                    'model', 'ai_reasoning',
                     'search_tags', 'specifications',
                 ])
             rows_updated = len(rows_to_update)

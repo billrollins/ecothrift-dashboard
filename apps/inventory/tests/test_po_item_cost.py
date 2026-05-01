@@ -53,7 +53,7 @@ class PoItemCostFormulaTests(TestCase):
             product=p,
             purchase_order=po,
             title="T",
-            retail_value=Decimal("100.00"),
+            unit_retail=Decimal("100.00"),
             cost=po.compute_item_cost(Decimal("100.00")),
         )
         c0 = it.cost
@@ -79,11 +79,11 @@ class PoItemCostFormulaTests(TestCase):
             product=p,
             purchase_order=po,
             title="Line",
-            retail_value=Decimal("100.00"),
+            unit_retail=Decimal("100.00"),
         )
         it.refresh_from_db()
         self.assertEqual(it.cost, po.compute_item_cost(Decimal("100.00")))
-        it.retail_value = Decimal("200.00")
+        it.unit_retail = Decimal("200.00")
         it.save()
         it.refresh_from_db()
         po.refresh_from_db()
@@ -112,7 +112,7 @@ class PoItemCostFormulaTests(TestCase):
             product=p,
             purchase_order=po_a,
             title="Moved",
-            retail_value=Decimal("100.00"),
+            unit_retail=Decimal("100.00"),
         )
         it.refresh_from_db()
         cost_on_a = it.cost

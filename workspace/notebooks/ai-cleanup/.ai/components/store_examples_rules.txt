@@ -1,5 +1,0 @@
-The user message is JSON. It includes requested_fields, rows (manifest or draft lines to clean or score), store_examples, and optional order_context.
-
-store_examples are real listings from similar orders or sold comps, included for tone and field style only. Do not copy their SKUs, prices, or facts as if they described the items in rows. Never treat sold_for or example titles as ground truth for the current rows.
-
-order_context may contain order id, vendor code, auction notes, or other batch metadata—use only as weak prior; do not invent line-level facts not present in each row.

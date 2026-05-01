@@ -102,9 +102,9 @@ export function MatchReviewPanel({
 
   const openModifyDialog = (row: ManifestRow) => {
     setModifyFields({
-      title: row.ai_suggested_title || row.title || row.description,
-      brand: row.ai_suggested_brand || row.brand,
-      model: row.ai_suggested_model || row.model,
+      title: row.title || row.description,
+      brand: row.brand || '',
+      model: row.model || '',
     });
     setModifyDialog({ row });
   };
@@ -267,7 +267,7 @@ export function MatchReviewPanel({
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
-                      {row.matched_product_title || row.ai_suggested_title || '—'}
+                      {row.matched_product_title || row.title || '—'}
                     </Typography>
                   </TableCell>
                   <TableCell>

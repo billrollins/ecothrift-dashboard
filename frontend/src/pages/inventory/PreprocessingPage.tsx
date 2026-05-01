@@ -22,6 +22,7 @@ import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
   useClearManifestRows,
   useFinalizePreprocessing,
+  useManifestFields,
   useProcessManifest,
   usePreprocessingStatus,
   usePreprocessingQueue,
@@ -55,6 +56,7 @@ import { FormulaPreview } from '../../components/inventory/preprocessing/Formula
 import {
   computeFormulaPreviewGrid,
   computeSampleFormulaSnapshot,
+  MANIFEST_BUCKET_ORDER,
 } from '../../components/inventory/preprocessing/formulaPreviewSnapshot';
 import { buildAiBaselinePatch, type PreprocessingAiBaselinePatch } from '../../components/inventory/preprocessing/aiBaseline';
 import { formatCurrency } from '../../utils/format';
@@ -92,6 +94,7 @@ export default function PreprocessingPage() {
   const showResolveSpinner = queueLoading || (orderId === null && queueOrders.length > 0);
 
   const { data: preprocessingStatus, isLoading } = usePreprocessingStatus(orderId);
+  const manifestFieldsQuery = useManifestFields();
   const order = preprocessingStatus?.order ?? null;
   const processManifest = useProcessManifest();
   const suggestFormulasMutation = useSuggestFormulas();
@@ -117,6 +120,7 @@ export default function PreprocessingPage() {
 
   const [cleanupValidatedPayload, setCleanupValidatedPayload] = useState<CleanupCsvApplyRowPayload[] | null>(null);
   const [cleanupExpectedRowIds, setCleanupExpectedRowIds] = useState<Set<number> | null>(null);
+  const [cleanupRowNumberById, setCleanupRowNumberById] = useState<Record<number, number>>({});
   const [reviewDirtyCount, setReviewDirtyCount] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState<null | 'undo_std' | 'restandardize' | 'finalize'>(null);
   const [newTemplateName, setNewTemplateName] = useState('');
@@ -155,11 +159,31 @@ export default function PreprocessingPage() {
     setStepDerived(true);
   }, [orderId, order?.id, completedStep]);
 
+  const manifestFieldMeta = manifestFieldsQuery.data;
+  const manifestFieldsReady = Boolean(manifestFieldMeta?.flat?.length);
+  const manifestFieldsGateLoading = manifestFieldsQuery.isPending && manifestFieldMeta == null;
+
+  const flatColumnsFromMeta = useMemo((): StandardColumnDefinition[] => {
+    const flat = manifestFieldMeta?.flat;
+    if (!flat?.length) return EMPTY_STANDARD_COLUMNS;
+    return flat.map((c) => ({
+      key: c.key,
+      label: c.label,
+      required: c.required,
+      ai_locked: c.ai_locked,
+    }));
+  }, [manifestFieldMeta]);
+
+  const bucketOrderUi = useMemo(() => {
+    const b = manifestFieldMeta?.buckets;
+    if (!b) return [] as string[];
+    return MANIFEST_BUCKET_ORDER.filter((id) => id in b);
+  }, [manifestFieldMeta]);
+
   const manifestPreview = order?.manifest_sample ?? null;
 
   const headers = manifestPreview?.headers ?? EMPTY_HEADERS;
   const headerSignature = manifestPreview?.signature ?? '';
-  const standardColumns = manifestPreview?.standard_columns ?? EMPTY_STANDARD_COLUMNS;
   const templateMappings = (
     manifestPreview?.template_mappings ?? EMPTY_TEMPLATE_MAPPINGS
   ) as ManifestColumnMapping[];
@@ -170,7 +194,8 @@ export default function PreprocessingPage() {
   const manifestSampleRowsForUi = useMemo((): ManifestRawRow[] => {
     const rows = manifestPreview?.rows;
     if (!rows?.length) return [];
-    return rows.map((r) => ({
+    return rows.map(
+      (r: { row_number: number; raw?: Record<string, string | undefined> | null }): ManifestRawRow => ({
       row_number: r.row_number,
       raw: Object.fromEntries(
         Object.entries(r.raw ?? {}).map(([k, v]) => [k, String(v ?? '')]),
@@ -178,13 +203,19 @@ export default function PreprocessingPage() {
     }));
   }, [manifestPreview?.rows]);
 
-  const rawHeaders = headers.length ? headers : Object.keys(manifestSampleRowsForUi[0]?.raw ?? {});
+  const rawHeaders: string[] = headers.length
+    ? [...headers]
+    : (Object.keys(manifestSampleRowsForUi[0]?.raw ?? {}) as string[]);
   const matchingTemplates = manifestPreview?.matching_templates ?? [];
 
   const step1AwaitingStatus = activeStep === 0 && isLoading;
   const step1PreviewMissing =
     activeStep === 0 && !isLoading && Boolean(order?.has_manifest_file) && headers.length === 0;
-  const step1ActionsLocked = step1AwaitingStatus || step1PreviewMissing;
+  const step1ActionsLocked =
+    step1AwaitingStatus ||
+    step1PreviewMissing ||
+    (activeStep === 0 &&
+      (manifestFieldsQuery.isError || manifestFieldsGateLoading || !manifestFieldsReady));
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -239,7 +270,8 @@ export default function PreprocessingPage() {
     prepS1('Formula / column wiring (before snapshots)', {
       headerSignature_len: headerSignature.length,
       headers_len_for_builder: headers.length,
-      standard_columns_len: standardColumns.length,
+      flat_columns_from_manifest_fields_len: flatColumnsFromMeta.length,
+      manifest_fields_bucket_order_len: bucketOrderUi.length,
       templateMappings_len: templateMappings.length,
       matching_templates_len: matchingTemplates.length,
     });
@@ -247,7 +279,8 @@ export default function PreprocessingPage() {
     activeStep,
     headerSignature,
     headers.length,
-    standardColumns.length,
+    flatColumnsFromMeta.length,
+    bucketOrderUi.length,
     templateMappings.length,
     matchingTemplates.length,
   ]);
@@ -255,6 +288,7 @@ export default function PreprocessingPage() {
   useEffect(() => {
     if (!orderId || !hasActivePreprocessingSession || standardizedRowCount <= 0) {
       setCleanupExpectedRowIds(null);
+      setCleanupRowNumberById({});
       return;
     }
     let cancelled = false;
@@ -262,9 +296,15 @@ export default function PreprocessingPage() {
       .then(({ data }) => {
         if (cancelled) return;
         setCleanupExpectedRowIds(new Set(data.rows.map((r) => r.id)));
+        const rn: Record<number, number> = {};
+        for (const r of data.rows) rn[r.id] = r.row_number;
+        setCleanupRowNumberById(rn);
       })
       .catch(() => {
-        if (!cancelled) setCleanupExpectedRowIds(null);
+        if (!cancelled) {
+          setCleanupExpectedRowIds(null);
+          setCleanupRowNumberById({});
+        }
       });
     return () => {
       cancelled = true;
@@ -276,6 +316,7 @@ export default function PreprocessingPage() {
     setReviewBaselineByRowId({});
     setCleanupValidatedPayload(null);
     setCleanupExpectedRowIds(null);
+    setCleanupRowNumberById({});
   }, [orderId]);
 
   useEffect(() => {
@@ -320,11 +361,11 @@ export default function PreprocessingPage() {
     if (term) {
       out = out.filter((row) => {
         const hay = [
-          row.ai_suggested_title,
+          row.ai_title,
           row.title,
           row.description,
           row.brand,
-          row.ai_suggested_brand,
+          row.ai_brand,
         ]
           .map((f) => String(f || '').toLowerCase())
           .join(' ');
@@ -385,17 +426,77 @@ export default function PreprocessingPage() {
     formulas,
     setFormula,
     setAllFormulas,
+    replaceBucketFormulas,
     formulaMappings,
     hasMapping,
   } = useStandardManifest({
     manifestSessionKey: orderId ?? -1,
     signature: headerSignature,
     headers,
-    standardColumns,
+    flatColumns: flatColumnsFromMeta,
     initialMappings: templateMappings,
   });
 
   const formulasFingerprint = useMemo(() => stableFormulasFingerprint(formulas), [formulas]);
+
+  const [bucketDraftByTarget, setBucketDraftByTarget] = useState<Record<string, string>>({});
+
+  const bucketDraftFingerprint = useMemo(
+    () => stableFormulasFingerprint(bucketDraftByTarget),
+    [bucketDraftByTarget],
+  );
+
+  const formulasForEval = useMemo(
+    () => ({ ...formulas, ...bucketDraftByTarget }),
+    [formulas, bucketDraftByTarget],
+  );
+
+  useEffect(() => {
+    setBucketDraftByTarget({});
+  }, [orderId, headerSignature]);
+
+  const applyBucketDraftChange = useCallback(
+    (bucketId: string, pairs: Array<{ target: string; formula: string }>) => {
+      setBucketDraftByTarget((prev) => {
+        const next = { ...prev };
+        const pref = `${bucketId}.`;
+        for (const k of Object.keys(next)) {
+          if (k.startsWith(pref)) delete next[k];
+        }
+        for (const pr of pairs) {
+          const f = (pr.formula ?? '').trim();
+          if (f) next[pr.target] = pr.formula;
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const dismissBucketDraft = useCallback((bucketId: string) => {
+    setBucketDraftByTarget((prev) => {
+      const next = { ...prev };
+      const pref = `${bucketId}.`;
+      let changed = false;
+      for (const k of Object.keys(next)) {
+        if (k.startsWith(pref)) {
+          delete next[k];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
+  const bucketLabelsForPreview = useMemo(() => {
+    const b = manifestFieldMeta?.buckets;
+    if (!b) return null;
+    const out: Record<string, string> = {};
+    for (const id of MANIFEST_BUCKET_ORDER) {
+      if (b[id]) out[id] = b[id]?.label ?? id;
+    }
+    return out;
+  }, [manifestFieldMeta?.buckets]);
 
   const baselineSeedKey = useMemo(
     () =>
@@ -423,10 +524,15 @@ export default function PreprocessingPage() {
 
   const standardizeBlockedByName = needsSaveAsNew && !newTemplateName.trim();
 
-  const formulasRef = useRef(formulas);
-  formulasRef.current = formulas;
+  const formulasForEvalRef = useRef(formulasForEval);
+  formulasForEvalRef.current = formulasForEval;
+
+  const bucketOrderUiRef = useRef(bucketOrderUi);
+  bucketOrderUiRef.current = bucketOrderUi;
+
   const columnsRef = useRef(columns);
   columnsRef.current = columns;
+
 
   const [formulaPreviewGridSnapshot, setFormulaPreviewGridSnapshot] = useState<{
     previewTargets: string[];
@@ -434,7 +540,7 @@ export default function PreprocessingPage() {
   }>(() => ({ previewTargets: [], previewRows: [] }));
 
   const formulaSampleSnapshot = useMemo(() => {
-    const snap = computeSampleFormulaSnapshot(formulas, columns, manifestSampleRowsForUi);
+    const snap = computeSampleFormulaSnapshot(formulasForEval, columns, manifestSampleRowsForUi, bucketOrderUi);
     prepS1('sample snapshot computed (useMemo)', {
       manifestSampleRowsCount: manifestSampleRowsForUi.length,
       columnsCount: columns.length,
@@ -446,10 +552,17 @@ export default function PreprocessingPage() {
       row1RawKeyCount: manifestSampleRowsForUi[0] ? Object.keys(manifestSampleRowsForUi[0].raw ?? {}).length : 0,
     });
     return snap;
-  }, [formulas, columns, manifestSampleRowsForUi]);
+  }, [formulasForEval, columns, manifestSampleRowsForUi, bucketOrderUi]);
+
+  const PREVIEW_DEBOUNCE_MS = 280;
 
   const runFormulaPreviewSnapshot = useCallback(() => {
-    const grid = computeFormulaPreviewGrid(formulasRef.current, columnsRef.current, manifestSampleRowsForUi);
+    const grid = computeFormulaPreviewGrid(
+      formulasForEvalRef.current,
+      columnsRef.current,
+      manifestSampleRowsForUi,
+      bucketOrderUiRef.current,
+    );
     prepS1('Formula Preview grid computed', {
       previewTargetsCount: grid.previewTargets.length,
       previewTargets: grid.previewTargets,
@@ -458,6 +571,9 @@ export default function PreprocessingPage() {
     });
     setFormulaPreviewGridSnapshot(grid);
   }, [manifestSampleRowsForUi]);
+
+  const formulaPreviewOpenRef = useRef(formulaPreviewOpen);
+  formulaPreviewOpenRef.current = formulaPreviewOpen;
 
   const formulaPreviewWasExpandedRef = useRef(false);
   useEffect(() => {
@@ -470,6 +586,24 @@ export default function PreprocessingPage() {
     }
     formulaPreviewWasExpandedRef.current = formulaPreviewOpen;
   }, [formulaPreviewOpen, runFormulaPreviewSnapshot]);
+
+  const columnPreviewSig = useMemo(() => columns.map((c) => c.key).join('\x1f'), [columns]);
+  const bucketOrderSig = useMemo(() => bucketOrderUi.join('\x1f'), [bucketOrderUi]);
+
+  useEffect(() => {
+    const tid = window.setTimeout(() => {
+      if (!formulaPreviewOpenRef.current) return;
+      runFormulaPreviewSnapshot();
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => window.clearTimeout(tid);
+  }, [
+    formulasFingerprint,
+    bucketDraftFingerprint,
+    columnPreviewSig,
+    bucketOrderSig,
+    manifestSampleRowsForUi,
+    runFormulaPreviewSnapshot,
+  ]);
 
   const effectiveManifestTemplateId = selectedManifestTemplateId ?? templateId;
 
@@ -507,7 +641,8 @@ export default function PreprocessingPage() {
       }
       setAllFormulas(newFormulas);
       setAiReasonings(newReasonings);
-      const snap = computeSampleFormulaSnapshot(newFormulas, columns, manifestSampleRowsForUi);
+      setBucketDraftByTarget({});
+      const snap = computeSampleFormulaSnapshot(newFormulas, columns, manifestSampleRowsForUi, bucketOrderUi);
       prepS1('handleSuggestFormulas: applied AI suggestions → immediate sample snapshot', {
         suggestionTargets: Object.keys(newFormulas),
         sampleCellsFilled: Object.keys(snap.samples).length,
@@ -554,7 +689,7 @@ export default function PreprocessingPage() {
       enqueueSnackbar('Set a formula for Description before standardizing', { variant: 'warning' });
       return;
     }
-    if (!hasMapping('retail_value')) {
+    if (!(hasMapping('unit_retail') || hasMapping('retail_value'))) {
       enqueueSnackbar('Set a formula for unit retail (MSRP) before standardizing — required for pricing', { variant: 'warning' });
       return;
     }
@@ -586,8 +721,14 @@ export default function PreprocessingPage() {
   const handleRunCleanupApply = async () => {
     if (!orderId || !cleanupValidatedPayload?.length) return;
     try {
-      await uploadCleanupRowsMutation.mutateAsync({ orderId, rows: cleanupValidatedPayload });
-      enqueueSnackbar(`Applied cleanup to ${cleanupValidatedPayload.length} row(s)`, { variant: 'success' });
+      const result = await uploadCleanupRowsMutation.mutateAsync({ orderId, rows: cleanupValidatedPayload });
+      const sw = result.soft_warnings?.length ?? 0;
+      enqueueSnackbar(
+        sw
+          ? `Applied cleanup to ${cleanupValidatedPayload.length} row(s) — ${sw} soft warning(s) (see upload log).`
+          : `Applied cleanup to ${cleanupValidatedPayload.length} row(s)`,
+        { variant: 'success' },
+      );
       setCleanupValidatedPayload(null);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { detail?: string } } };
@@ -641,7 +782,8 @@ export default function PreprocessingPage() {
 
   const canStandardize = Boolean(order?.has_manifest_file) && !processManifest.isPending;
   const hasManifestFile = Boolean(order?.has_manifest_file);
-  const hasMandatoryMappings = hasMapping('description') && hasMapping('retail_value');
+  const hasMandatoryMappings =
+    hasMapping('description') && (hasMapping('unit_retail') || hasMapping('retail_value'));
 
   type Step1State = 'clear' | 'partial' | 'ready' | 'done' | 'edited' | 'edited_partial';
   const step1State: Step1State = useMemo(() => {
@@ -665,6 +807,7 @@ export default function PreprocessingPage() {
   }, [completedStep, formulas, hasMandatoryMappings]);
 
   const handleCancelFormulaEdits = useCallback(() => {
+    setBucketDraftByTarget({});
     if (standardizedFormulasRef.current) {
       setAllFormulas({ ...standardizedFormulasRef.current });
     }
@@ -675,18 +818,20 @@ export default function PreprocessingPage() {
     for (const key of Object.keys(formulas)) {
       empty[key] = '';
     }
+    setBucketDraftByTarget({});
     setAllFormulas(empty);
   }, [formulas, setAllFormulas]);
 
   const handleManifestTemplateSelect = useCallback(async (pickedId: number) => {
     setSelectedManifestTemplateId(pickedId);
+    setBucketDraftByTarget({});
     try {
       const { data } = await getTemplate(pickedId);
       const mappings = (data.column_mappings ?? []) as ManifestColumnMapping[];
       const nextFormulas = buildFormulas(headers, columns, mappings);
       setAllFormulas(nextFormulas);
       templateBaselineFingerprintRef.current = stableFormulasFingerprint(nextFormulas);
-      const snap = computeSampleFormulaSnapshot(nextFormulas, columns, manifestSampleRowsForUi);
+      const snap = computeSampleFormulaSnapshot(nextFormulas, columns, manifestSampleRowsForUi, bucketOrderUi);
       prepS1('handleManifestTemplateSelect: template loaded → sample snapshot', {
         templateId: pickedId,
         sampleCellsFilled: Object.keys(snap.samples).length,
@@ -694,7 +839,7 @@ export default function PreprocessingPage() {
     } catch {
       enqueueSnackbar('Failed to load template mappings', { variant: 'error' });
     }
-  }, [columns, enqueueSnackbar, headers, manifestSampleRowsForUi, setAllFormulas]);
+  }, [columns, enqueueSnackbar, headers, manifestSampleRowsForUi, bucketOrderUi, setAllFormulas]);
 
   const dropdownOrders: PreprocessingQueueOrder[] = useMemo(() => {
     const rows = [...(queueData?.results ?? [])];
@@ -932,7 +1077,9 @@ export default function PreprocessingPage() {
                       size="small"
                       startIcon={suggestFormulasMutation.isPending ? <CircularProgress size={14} /> : <AutoAwesome />}
                       onClick={() => void handleSuggestFormulas()}
-                      disabled={suggestFormulasMutation.isPending || !headers.length}
+                      disabled={
+                        suggestFormulasMutation.isPending || !headers.length || step1ActionsLocked
+                      }
                       sx={{
                         color: '#2D6A4F',
                         borderColor: '#2D6A4F',
@@ -985,15 +1132,34 @@ export default function PreprocessingPage() {
                   </Typography>
                 </Box>
 
-                <StandardManifestBuilder
-                  headers={headers}
-                  columns={columns}
-                  formulas={formulas}
-                  onFormulaChange={setFormula}
-                  aiReasonings={aiReasonings}
-                  formulaSamples={formulaSampleSnapshot.samples}
-                  formulaSampleErrors={formulaSampleSnapshot.sampleErrors}
-                />
+                {manifestFieldsQuery.isError ? (
+                  <Alert severity="error" sx={{ mt: 2 }}>
+                    Could not load standard field definitions (manifest-fields). Refresh the page or try again later.
+                  </Alert>
+                ) : manifestFieldsGateLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                    <CircularProgress size={28} />
+                  </Box>
+                ) : manifestFieldsReady ? (
+                  <StandardManifestBuilder
+                    headers={headers}
+                    columns={columns}
+                    formulas={formulas}
+                    onFormulaChange={setFormula}
+                    aiReasonings={aiReasonings}
+                    formulaSamples={formulaSampleSnapshot.samples}
+                    formulaSampleErrors={formulaSampleSnapshot.sampleErrors}
+                    buckets={manifestFieldMeta?.buckets ?? null}
+                    bucketOrder={bucketOrderUi}
+                    replaceBucketFormulas={replaceBucketFormulas}
+                    onBucketDraftChange={applyBucketDraftChange}
+                    onBucketDraftDismiss={dismissBucketDraft}
+                  />
+                ) : (
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    Manifest field metadata is unavailable. Cannot edit formulas until it loads.
+                  </Alert>
+                )}
               </Box>
 
               {/* Raw Column Reference card */}
@@ -1026,14 +1192,24 @@ export default function PreprocessingPage() {
                   <Collapse in={rawReferenceOpen}>
                     <TableContainer
                       sx={{
-                        ...preprocessingStep1.tableWrapSx,
+                        ...preprocessingStep1.tableHorizontalScrollSx,
                         maxHeight: 200,
                         mt: 1,
                         border: '1px solid #DDD5C9',
                         borderRadius: 1,
                       }}
                     >
-                      <Table size="small" stickyHeader sx={{ borderCollapse: 'collapse', fontSize: 13 }}>
+                      <Table
+                        size="small"
+                        stickyHeader
+                        sx={{
+                          width: 'max-content',
+                          minWidth: '100%',
+                          borderCollapse: 'collapse',
+                          fontSize: 13,
+                          tableLayout: 'auto',
+                        }}
+                      >
                         <TableHead>
                           <TableRow>
                             <TableCell sx={{ ...preprocessingStep1.tableHeaderSmallSx, width: 40 }}>Row</TableCell>
@@ -1077,6 +1253,7 @@ export default function PreprocessingPage() {
                 previewTargets={formulaPreviewGridSnapshot.previewTargets}
                 previewRows={formulaPreviewGridSnapshot.previewRows}
                 columns={columns}
+                bucketLabels={bucketLabelsForPreview}
               />
             </Box>
           )}
@@ -1092,19 +1269,20 @@ export default function PreprocessingPage() {
               cleanedRowCount={cleanedRowCount}
               completedStep={completedStep}
               expectedRowIds={cleanupExpectedRowIds ?? EMPTY_EXPECTED_ROW_IDS}
+              rowNumberById={cleanupRowNumberById}
               validatedPayload={cleanupValidatedPayload}
               onValidatedPayloadChange={setCleanupValidatedPayload}
             />
           )}
 
           {/* ════════════════════════════════════════════════════════
-              STEP 3: Manual Review
+              STEP 3: Final Review
           ════════════════════════════════════════════════════════ */}
           {activeStep === 2 && (
             <Box>
               {completedStep >= 2 && hasActivePreprocessingSession && (
                 <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 1.5 }}>
-                  Manual review complete — all staged rows are priced.
+                  Final review complete — all staged rows are priced.
                 </Alert>
               )}
               {hasActivePreprocessingSession ? (
@@ -1180,9 +1358,9 @@ export default function PreprocessingPage() {
       <ConfirmModal
         open={confirmDialog === 'restandardize'}
         emoji="⚠️"
-        title="Re-standardize manifest?"
-        message="Re-standardizing rebuilds staged manifest rows and may reset related generated products/items that are not terminal. Continue?"
-        confirmLabel="Re-standardize"
+        title="Re-run standardize?"
+        message="Re-running standardize will clear all AI cleanup output and manual review edits for this order. Continue?"
+        confirmLabel="Confirm"
         isBusy={processManifest.isPending}
         onCancel={() => setConfirmDialog(null)}
         onConfirm={() => {

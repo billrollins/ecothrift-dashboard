@@ -1,6 +1,6 @@
 import type { CleanupCsvApplyRowPayload } from '../../../api/inventory.api';
 
-/** Narrow cleanup CSV columns (must match backend upload_cleanup_csv). */
+/** Narrow cleanup CSV columns (legacy 7-col; must match backend narrow path). */
 export const CLEANUP_CSV_FIELDS = [
   'row_id',
   'ai_title',
@@ -11,8 +11,24 @@ export const CLEANUP_CSV_FIELDS = [
   'proposed_price',
 ] as const;
 
+/** Grok / offline helper 12-column response (see upload-pipeline-handoff.md §5). */
+export const GROK_CLEANUP_CSV_FIELDS = [
+  'row_id',
+  'row_number',
+  'title',
+  'brand',
+  'model',
+  'category',
+  'condition',
+  'proposed_price',
+  'description',
+  'notes',
+  'specifications_json',
+  'search_tags_json',
+] as const;
+
 export type ParseCleanupCsvResult =
-  | { ok: true; rows: CleanupCsvApplyRowPayload[] }
+  | { ok: true; rows: CleanupCsvApplyRowPayload[]; format: 'narrow' | 'grok12' }
   | { ok: false; error: string };
 
 function splitCsvLine(line: string): string[] {
@@ -100,5 +116,80 @@ export function parseNarrowCleanupCsv(text: string): ParseCleanupCsvResult {
     });
   }
 
-  return { ok: true, rows };
+  return { ok: true, rows, format: 'narrow' };
+}
+
+function parseGrok12CleanupCsv(text: string): ParseCleanupCsvResult {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((ln) => ln.trim().length > 0);
+  if (!lines.length) return { ok: false, error: 'CSV is empty.' };
+  const headerCells = splitCsvLine(lines[0]).map((c) => c.trim());
+  if (headerCells.length !== GROK_CLEANUP_CSV_FIELDS.length) {
+    return {
+      ok: false,
+      error: `Expected ${GROK_CLEANUP_CSV_FIELDS.length} columns in header, got ${headerCells.length}.`,
+    };
+  }
+  for (let i = 0; i < GROK_CLEANUP_CSV_FIELDS.length; i += 1) {
+    if (headerCells[i] !== GROK_CLEANUP_CSV_FIELDS[i]) {
+      return {
+        ok: false,
+        error: `Invalid Grok header at column ${i + 1}: expected "${GROK_CLEANUP_CSV_FIELDS[i]}", got "${headerCells[i]}".`,
+      };
+    }
+  }
+
+  const rows: CleanupCsvApplyRowPayload[] = [];
+  for (let li = 1; li < lines.length; li += 1) {
+    const cells = splitCsvLine(lines[li]);
+    if (cells.length !== GROK_CLEANUP_CSV_FIELDS.length) {
+      return {
+        ok: false,
+        error: `Line ${li + 1}: expected ${GROK_CLEANUP_CSV_FIELDS.length} columns, got ${cells.length}.`,
+      };
+    }
+    const rawId = cells[0].trim();
+    const n = Number.parseInt(rawId, 10);
+    if (!Number.isFinite(n)) {
+      return { ok: false, error: `Line ${li + 1}: row_id must be an integer.` };
+    }
+    const rawRn = cells[1].trim();
+    let row_number: number | undefined;
+    if (rawRn) {
+      const rn = Number.parseInt(rawRn, 10);
+      if (Number.isFinite(rn)) row_number = rn;
+    }
+    rows.push({
+      row_id: n,
+      row_number,
+      ai_title: cells[2].trim(),
+      ai_brand: cells[3].trim(),
+      ai_model: cells[4].trim(),
+      category: cells[5].trim(),
+      condition: cells[6].trim(),
+      proposed_price: cells[7].trim(),
+      description: cells[8].trim(),
+      notes: cells[9].trim(),
+      specifications_json: cells[10].trim(),
+      search_tags_json: cells[11].trim(),
+    });
+  }
+
+  return { ok: true, rows, format: 'grok12' };
+}
+
+/** Detect 12-column Grok vs legacy 7-column narrow by header width. */
+export function parseCleanupCsv(text: string): ParseCleanupCsvResult {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((ln) => ln.trim().length > 0);
+  if (!lines.length) return { ok: false, error: 'CSV is empty.' };
+  const headerCells = splitCsvLine(lines[0]).map((c) => c.trim());
+  if (headerCells.length === GROK_CLEANUP_CSV_FIELDS.length) {
+    return parseGrok12CleanupCsv(text);
+  }
+  if (headerCells.length === CLEANUP_CSV_FIELDS.length) {
+    return parseNarrowCleanupCsv(text);
+  }
+  return {
+    ok: false,
+    error: `Unexpected column count ${headerCells.length}. Expected ${GROK_CLEANUP_CSV_FIELDS.length} (Grok response) or ${CLEANUP_CSV_FIELDS.length} (narrow legacy).`,
+  };
 }

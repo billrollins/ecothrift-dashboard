@@ -7,6 +7,12 @@ from .models import (
     PreprocessingOrder, PreprocessingRow,
     Receiving, ReceivingPallet, ReceivingAttachment,
 )
+from .layer_helpers import (
+    effective_preprocessing_title,
+    effective_preprocessing_triple,
+    effective_taxonomy_category_for_row,
+    preprocessing_row_has_final,
+)
 
 
 class VendorSerializer(serializers.ModelSerializer):
@@ -88,13 +94,13 @@ class ManifestRowSerializer(serializers.ModelSerializer):
     def get_base_cost(self, obj):
         if not obj.purchase_order_id:
             return None
-        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        cost = obj.purchase_order.compute_item_cost(obj.unit_retail)
         return str(cost) if cost is not None else None
 
     def get_ideal_price(self, obj):
         if not obj.purchase_order_id:
             return None
-        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        cost = obj.purchase_order.compute_item_cost(obj.unit_retail)
         return str(cost * 2) if cost is not None else None
 
     def get_set_price(self, obj):
@@ -105,7 +111,7 @@ class ManifestRowSerializer(serializers.ModelSerializer):
         price = obj.final_price if obj.final_price is not None else obj.proposed_price
         if price is None or not obj.purchase_order_id:
             return None
-        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        cost = obj.purchase_order.compute_item_cost(obj.unit_retail)
         if cost is None or cost <= 0:
             return None
         ideal = cost * 2
@@ -119,6 +125,7 @@ class ManualReviewRowSerializer(serializers.ModelSerializer):
     ideal_price = serializers.SerializerMethodField()
     set_price = serializers.SerializerMethodField()
     ideal_delta_pct = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
 
     class Meta:
         model = ManifestRow
@@ -131,15 +138,17 @@ class ManualReviewRowSerializer(serializers.ModelSerializer):
             'model',
             'category',
             'condition',
-            'retail_value',
+            'unit_retail',
+            'identifiers',
+            'taxonomy',
+            'specifications',
+            'tracking',
+            'search_tags',
             'proposed_price',
             'final_price',
             'pricing_stage',
             'pricing_notes',
             'ai_reasoning',
-            'ai_suggested_title',
-            'ai_suggested_brand',
-            'ai_suggested_model',
             'notes',
             'first_item_sku',
             'item_count',
@@ -148,6 +157,12 @@ class ManualReviewRowSerializer(serializers.ModelSerializer):
             'set_price',
             'ideal_delta_pct',
         ]
+
+    def get_category(self, obj):
+        flat = str(getattr(obj, 'category', None) or '').strip()
+        if flat:
+            return flat[:200]
+        return str((obj.taxonomy or {}).get('category') or '')[:200]
 
     def _items(self, obj):
         prefetched = getattr(obj, '_prefetched_objects_cache', {}).get('items')
@@ -165,13 +180,13 @@ class ManualReviewRowSerializer(serializers.ModelSerializer):
     def get_base_cost(self, obj):
         if not obj.purchase_order_id:
             return None
-        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        cost = obj.purchase_order.compute_item_cost(obj.unit_retail)
         return str(cost) if cost is not None else None
 
     def get_ideal_price(self, obj):
         if not obj.purchase_order_id:
             return None
-        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        cost = obj.purchase_order.compute_item_cost(obj.unit_retail)
         return str(cost * 2) if cost is not None else None
 
     def get_set_price(self, obj):
@@ -182,7 +197,7 @@ class ManualReviewRowSerializer(serializers.ModelSerializer):
         price = obj.final_price if obj.final_price is not None else obj.proposed_price
         if price is None or not obj.purchase_order_id:
             return None
-        cost = obj.purchase_order.compute_item_cost(obj.retail_value)
+        cost = obj.purchase_order.compute_item_cost(obj.unit_retail)
         if cost is None or cost <= 0:
             return None
         ideal = cost * 2
@@ -217,56 +232,154 @@ class PreprocessingOrderSerializer(serializers.ModelSerializer):
 
 
 class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
-    """Staging-native review row; no Product/Item fields exist before finalization."""
+    """Staging review: exposes standard_/ai_/final_ layers plus effective flat aliases."""
+
     base_cost = serializers.SerializerMethodField()
     ideal_price = serializers.SerializerMethodField()
     set_price = serializers.SerializerMethodField()
     ideal_delta_pct = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+
+    description = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
+    brand = serializers.SerializerMethodField()
+    model = serializers.SerializerMethodField()
+    condition = serializers.SerializerMethodField()
+    notes = serializers.SerializerMethodField()
+    identifiers = serializers.SerializerMethodField()
+    taxonomy = serializers.SerializerMethodField()
+    specifications = serializers.SerializerMethodField()
+    tracking = serializers.SerializerMethodField()
+    search_tags = serializers.SerializerMethodField()
+
+    final_layer_visible = serializers.SerializerMethodField()
 
     class Meta:
         model = PreprocessingRow
         fields = [
             'id',
             'row_number',
+            # Effective (coalesced) aliases for legacy UI paths
             'description',
             'title',
             'brand',
             'model',
-            'category',
             'condition',
-            'retail_value',
+            'notes',
+            'identifiers',
+            'taxonomy',
+            'specifications',
+            'tracking',
+            'search_tags',
+            'category',
+            # Triple layers (explicit)
+            'standard_description',
+            'ai_description',
+            'final_description',
+            'ai_title',
+            'final_title',
+            'ai_category',
+            'final_category',
+            'standard_brand',
+            'ai_brand',
+            'final_brand',
+            'standard_model',
+            'ai_model',
+            'final_model',
+            'standard_condition',
+            'ai_condition',
+            'final_condition',
+            'standard_notes',
+            'ai_notes',
+            'final_notes',
+            'standard_identifiers',
+            'ai_identifiers',
+            'final_identifiers',
+            'standard_taxonomy',
+            'ai_taxonomy',
+            'final_taxonomy',
+            'standard_specifications',
+            'ai_specifications',
+            'final_specifications',
+            'standard_tracking',
+            'ai_tracking',
+            'final_tracking',
+            'standard_search_tags',
+            'ai_search_tags',
+            'final_search_tags',
+            'unit_retail',
+            'quantity',
             'proposed_price',
             'final_price',
             'pricing_stage',
             'pricing_notes',
             'ai_reasoning',
-            'ai_suggested_title',
-            'ai_suggested_brand',
-            'ai_suggested_model',
-            'upc',
-            'vendor_item_number',
             'batch_flag',
-            'search_tags',
-            'specifications',
-            'notes',
+            'final_layer_visible',
             'base_cost',
             'ideal_price',
             'set_price',
             'ideal_delta_pct',
         ]
 
+    def get_description(self, obj):
+        return str(effective_preprocessing_triple(obj, 'description') or '')
+
+    def get_title(self, obj):
+        return effective_preprocessing_title(obj)
+
+    def get_brand(self, obj):
+        return str(effective_preprocessing_triple(obj, 'brand') or '')
+
+    def get_model(self, obj):
+        return str(effective_preprocessing_triple(obj, 'model') or '')
+
+    def get_condition(self, obj):
+        return str(effective_preprocessing_triple(obj, 'condition') or '')
+
+    def get_notes(self, obj):
+        return str(effective_preprocessing_triple(obj, 'notes') or '')
+
+    def get_identifiers(self, obj):
+        v = effective_preprocessing_triple(obj, 'identifiers')
+        return v if isinstance(v, dict) else {}
+
+    def get_taxonomy(self, obj):
+        v = effective_preprocessing_triple(obj, 'taxonomy')
+        return v if isinstance(v, dict) else {}
+
+    def get_specifications(self, obj):
+        v = effective_preprocessing_triple(obj, 'specifications')
+        return v if isinstance(v, dict) else {}
+
+    def get_tracking(self, obj):
+        v = effective_preprocessing_triple(obj, 'tracking')
+        return v if isinstance(v, dict) else {}
+
+    def get_search_tags(self, obj):
+        v = effective_preprocessing_triple(obj, 'search_tags')
+        if isinstance(v, list):
+            return v
+        return []
+
+    def get_category(self, obj):
+        return effective_taxonomy_category_for_row(obj)
+
+    def get_final_layer_visible(self, obj):
+        return preprocessing_row_has_final(obj)
+
     def get_base_cost(self, obj):
         po = obj.purchase_order
         if not po:
             return None
-        cost = po.compute_item_cost(obj.retail_value)
+        cost = po.compute_item_cost(obj.unit_retail)
         return str(cost) if cost is not None else None
 
     def get_ideal_price(self, obj):
         po = obj.purchase_order
         if not po:
             return None
-        cost = po.compute_item_cost(obj.retail_value)
+        cost = po.compute_item_cost(obj.unit_retail)
         return str(cost * 2) if cost is not None else None
 
     def get_set_price(self, obj):
@@ -278,7 +391,7 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
         po = obj.purchase_order
         if price is None or not po:
             return None
-        cost = po.compute_item_cost(obj.retail_value)
+        cost = po.compute_item_cost(obj.unit_retail)
         if cost is None or cost <= 0:
             return None
         ideal = cost * 2
@@ -483,7 +596,7 @@ class ItemSerializer(serializers.ModelSerializer):
             'id', 'sku', 'product', 'product_title', 'purchase_order',
             'manifest_row', 'batch_group', 'batch_group_number', 'batch_group_status',
             'processing_tier', 'product_number',
-            'title', 'brand', 'category', 'price', 'retail_value', 'cost',
+            'title', 'brand', 'price', 'unit_retail', 'cost',
             'source', 'status', 'condition', 'specifications',
             'location', 'listed_at', 'checked_in_at', 'checked_in_by',
             'sold_at', 'sold_for', 'notes', 'created_at', 'updated_at',
@@ -506,16 +619,34 @@ class ItemPublicSerializer(serializers.ModelSerializer):
     estimated_retail_value = serializers.SerializerMethodField()
     savings_pct = serializers.SerializerMethodField()
     processing_notes = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+
+    def get_category(self, obj):
+        mr = getattr(obj, 'manifest_row', None)
+        if mr is not None:
+            flat = str(getattr(mr, 'category', None) or '').strip()
+            if flat:
+                return flat
+            c = str((mr.taxonomy or {}).get('category') or '').strip()
+            if c:
+                return c
+        if obj.product_id:
+            prod = getattr(obj, 'product', None)
+            if prod is not None:
+                return prod.category or ''
+        return ''
 
     def get_estimated_retail_value(self, obj):
-        if obj.manifest_row and obj.manifest_row.retail_value:
-            return str(obj.manifest_row.retail_value)
+        mr = getattr(obj, 'manifest_row', None)
+        if mr is not None and mr.unit_retail is not None:
+            return str(mr.unit_retail)
         return None
 
     def get_savings_pct(self, obj):
         retail = None
-        if obj.manifest_row and obj.manifest_row.retail_value:
-            retail = obj.manifest_row.retail_value
+        mr = getattr(obj, 'manifest_row', None)
+        if mr is not None and mr.unit_retail is not None:
+            retail = mr.unit_retail
         if retail and retail > 0 and obj.price > 0:
             savings = ((retail - obj.price) / retail * 100)
             if savings > 0:

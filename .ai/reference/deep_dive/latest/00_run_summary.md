@@ -1,53 +1,62 @@
 # Deep Dive Run Summary
 
-> **Remediation 2026-04-30:** Steering links (bstock + ui_ux initiatives), `ARCHIVE.md` `_completed` TOC, initiative lifecycle protocol dedupe, and related `CHANGELOG` / `README` updates were applied per [.ai/reference/deep_dive/latest/PLAN.md](PLAN.md). Treat older finding rows below as **historical audit output**.
-
 ## Executive Summary
 
 | Field | Value |
 |---|---|
-| Run date | 2026-04-30 |
-| Auditor | Cursor agent (Composer) |
-| Repo version | v2.20.0 (`2.20.0` in root `package.json`) |
-| Git state | Dirty — many modified/untracked `.ai/`, inventory/preprocessing frontend+backend, `CHANGELOG`, `README`; user-owned WIP |
-| Overall confidence | **High** for version/changelog alignment and archive file-vs-TOC gaps; **Medium** for “all stale links” (spot-checked + ripgrep, not every historical `CHANGELOG` link) |
+| Run date | 2026-05-01 |
+| Auditor | Agent (Composer), protocol `review.9.Deep.md` |
+| Repo version | `v2.20.0` (`.version`) |
+| Git state | **Dirty** — ahead of `origin/main` by 8; large set of modified/untracked inventory + preprocessing + deep_dive files; prior `latest/*.md` deleted in index (recreated by this run); untracked `__pycache__`, `frontend/dist`, Vite deps under `node_modules` present in status |
+| Overall confidence | **Medium** — code paths for upload → review → finalize were traced in `apps/inventory/views.py` and `layer_helpers.py`; steering doc drift is visible without a full `consultant_context.md` line-by-line diff |
+
+## Preprocessing path (post–AI cleanup upload → final review)
+
+This run stressed the wire drawn in code (not the offline Grok runner):
+
+1. **`POST …/apply-cleanup-csv/`** (alias **`upload-cleanup-csv`**) — [`_upload_cleanup_csv_impl`](../../../../apps/inventory/views.py) builds per-row payloads after **`validate_cleanup_row_values`** ([`cleanup_csv_validate.py`](../../../../apps/inventory/cleanup_csv_validate.py)); rejects the whole batch on hard failures; attaches **`soft_warnings`** when allowed. Wide vs narrow rows gate which keys are required; staging writes target **`ai_*`** / **`ai_title`** (and related) on **`PreprocessingRow`**.
+2. **`GET/PATCH …/preprocessing-review/`** — Review listing and paged search; PATCH goes through **`update_preprocessing_review_rows`** ([`views.py`](../../../../apps/inventory/views.py) ~475–560), mapping staff fields (e.g. **`description`**) onto **`ai_description`**, **`title` → `ai_title`**, condition via **`normalize_cleanup_condition`**, plus **`proposed_price`** / **`final_price`** on the staging row.
+3. **`POST …/finalize-preprocessing/`** — Optional last PATCH from **`rows`**; then for each staging row, **`effective_preprocessing_row_price`** and title/description checks; **`snapshot_finalize_from_ai_and_standard`** ([`layer_helpers.py`](../../../../apps/inventory/layer_helpers.py) ~133–153) fills **`final_*`**; bulk update; **`ManifestRow.objects.filter(purchase_order=order).delete()`** and **`bulk_create`** new rows from **`final_*`**; product/item/batch follow-up in the same transaction tail.
+
+UI step 3 label (**Final Review**) lives in [`PREPROCESSING_STEP_LABELS`](../../../../frontend/src/components/inventory/preprocessing/PreprocessingStepper.tsx).
 
 ## Top Findings
 
 | Priority | Finding | Why it matters | Evidence | Recommended action |
 |---|---|---|---|---|
-| P1 | **Broken / misleading initiative path for B-Stock** | Agents and humans follow dead or wrong links for the primary buying narrative | File lives at `.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`; dozens of refs still use `.ai/initiatives/bstock_auction_intelligence.md` or `initiatives/bstock_auction_intelligence.md` (`context.md`, `consultant_context.md`, `README.md`, `frontend.md`, `vpn-socks5.md`, older `CHANGELOG` sections) | Batch-update links to archived path **or** add a short stub at old path that redirects in prose (plan item `CTX-002`) |
-| P1 | **`ARCHIVE.md` `_completed` TOC missing two files** | Archive index is the contract for discoverability; drift erodes trust | On disk: **16** `_completed/*.md`; TOC lists **14** rows — missing **`bstock_auction_intelligence.md`**, **`ui_ux_polish.md`** | Add TOC rows + bump `ARCHIVE.md` timestamp (`SAFE-002`) |
-| P2 | **Duplicate initiative lifecycle protocol trees** | Same six protocols maintained under `.ai/initiatives/_protocols/` and `.ai/initiatives/_archived/_protocols/` | Both trees contain 6 protocol files + README; root README admits canonical wording “under `_archived/_protocols/`” | Pick one canonical location; symlink or delete duplicate after approval (`STRUCT-001`) |
-| P2 | **Untracked reference debris** | Clutters repo and may get committed accidentally | `git status`: `.ai/reference/Mockups/files.zip`; optional mock JSX/MD under Mockups | Classify: gitignore, delete, or track intentionally (`DEL-001`) |
-| P3 | **README “last updated” vs reality** | Onboarding table may undersell current protocols | `README.md` header still says initiatives index “may be empty”; `review.9.Deep` and deep-dive layout exist | Light README touch when doing doc pass (`SAFE-003`) |
+| P1 | **Finalize is the single promotion gate** for staging → canonical manifest | Staff errors in AI layer are coalesced into `final_*` only here; validation blocks finalize without price and without title/description | `finalize_preprocessing` + `snapshot_finalize_from_ai_and_standard` ([`views.py`](../../../../apps/inventory/views.py) ~4162–4230; [`layer_helpers.py`](../../../../apps/inventory/layer_helpers.py) ~133–153) | Keep E2E tests aligned with `missing_price` / `missing_title_or_description`; document in `inventory-pipeline.md` |
+| P1 | **Apply-cleanup-csv** distinguishes **wide** (JSON cells + optional title aliases) vs **narrow** rows and validates before any DB write | Wrong shape yields `validation_failed` with `rejected_rows`; soft warnings (e.g. row_number) do not block | `_upload_cleanup_csv_impl` ([`views.py`](../../../../apps/inventory/views.py) ~3442–3634) + `validate_cleanup_row_values` ([`cleanup_csv_validate.py`](../../../../apps/inventory/cleanup_csv_validate.py)) | Ensure `inventory-pipeline.md` / initiative call out 12-col Grok vs legacy narrow explicitly |
+| P2 | **`order_processing_pipeline_rebuild` rollup still says Preprocessing is “Next” with placeholder Step 3** | Misroutes planning and contractor context; shipped UI uses **Final Review** | Initiative [`order_processing_pipeline_rebuild.md`](../../../initiatives/order_processing_pipeline_rebuild.md) Progress table vs [`PreprocessingStepper.tsx`](../../../../frontend/src/components/inventory/preprocessing/PreprocessingStepper.tsx) |
+| P2 | **`CHANGELOG` [Unreleased] documents `workspace/notebooks/ai-cleanup/…`** | Working tree shows those paths **deleted** (`D` in git status) — changelog may describe files that no longer ship | [`CHANGELOG.md`](../../../../CHANGELOG.md) [Unreleased] Documentation vs `git status` |
+| P3 | **Dual review surfaces**: `preprocessing-review` (staging) vs `manual-review` (canonical `ManifestRow`) | After finalize, staff must use canonical APIs/UIs; pre-finalize editing is `ai_*`/`standard_*` / snapshots | [`views.py`](../../../../apps/inventory/views.py) `preprocessing_review` ~3959; `manual_review` ~4030 |
 
 ## Report Index
 
 | Report | Status | Notes |
 |---|---|---|
-| `01_codebase_inventory.md` | complete | Django 8-app map + 52 page components inventory |
-| `02_context_and_extended_audit.md` | complete | TOC parity OK; stale bstock paths flagged |
-| `03_initiatives_audit.md` | complete | One active initiative; archive TOC mismatch quantified |
-| `04_version_changelog_audit.md` | complete | `.version` / `package.json` / top `CHANGELOG` aligned |
-| `05_cleanup_and_restructure_audit.md` | complete | Debris + duplicate protocols + link debt |
-| `PLAN.md` | complete | Machine-actionable items with ids |
+| `01_codebase_inventory.md` | complete | Backend + FE inventory; preprocessing modules called out |
+| `02_context_and_extended_audit.md` | complete | TOC parity 15↔15; pipeline wording drift |
+| `03_initiatives_audit.md` | complete | Active initiative vs shipped stepper |
+| `04_version_changelog_audit.md` | complete | `.version` / root `package.json` aligned; rich `[Unreleased]` |
+| `05_cleanup_and_restructure_audit.md` | complete | Build artifacts + notebook path churn |
+| `PLAN.md` | complete | Action rows with approval flags |
 
 ## Cross-Cutting Risks
 
-- **Link rot in historical `CHANGELOG` sections** — fixing every old link is high effort; acceptable to fix “entry points” (`README`, `context`, `consultant_context`, active docs) first — confidence: **Medium**
-- **Uncommitted preprocessing / receiving work** — deep dive did not review behavioral correctness; reports describe **documentation and tree** integrity — confidence: **High**
+- **Steering vs product drift** — initiative and extended pipeline prose lag the three-layer model and “Final Review” label; confidence: **Medium**
+- **Changelog vs tree** — documented notebook paths may not exist after local deletes; confidence: **Medium**
+- **Finalize validation** — strict price + title/description rules can block go-live until review patches land; confidence: **Low** (by design)
 
 ## Recommended Next Step
 
-1. Execute **`PLAN.md`** section **Immediate Safe Updates** (`SAFE-001`–`SAFE-003`) in one small PR-style pass with user approval for anything touching archive mechanics beyond TOC rows.
-2. Batch-fix **bstock initiative** links in steering files (`CTX-002`).
-3. Decide canonical location for **initiative lifecycle protocols** (`STRUCT-001`).
+1. Edit **`.ai/initiatives/order_processing_pipeline_rebuild.md`** Progress / Preprocessing section to match shipped Step 3 (**Final Review**) and three-layer staging/Cleanup apply behavior.
+2. Reconcile **`CHANGELOG` [Unreleased]** notebook bullets with whether `workspace/notebooks/ai-cleanup/` is removed, moved, or gitignored-only.
+3. Patch **`.ai/extended/inventory-pipeline.md`** Step 6 naming (“Manual Review” → **Final Review** where it refers to preprocessing Step 3) and add a short **apply → `ai_*` → finalize coalesce** subsection if missing.
 
 ## Evidence Gaps
 
 | Gap | Why unresolved | Follow-up needed |
 |---|---|---|
-| Full test coverage metrics | No centralized coverage report run | `pytest`/CI config + optional coverage job |
-| Whether `files.zip` is intentional | Not opened; could be user artifact | User confirms keep/delete |
-| Parity of `_protocols/*.md` file contents | Files not byte-compared | `fc` / diff if deduplicating trees |
+| Full **`consultant_context.md`** diff vs `context.md` TOC | Time-bounded run | Line-by-line TOC parity check per maintenance rule |
+| Runtime verification (upload CSV against staging PO) | No local DB fixture in this run | Manual QA or integration test with real Grok export |
+| **`ARCHIVE.md` exact row count** vs disk | Spot-checked 16↔16 only | Re-run if files added under `_archived/_completed` |

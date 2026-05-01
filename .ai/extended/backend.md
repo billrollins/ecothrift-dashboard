@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-30 (llm_chat + suggest-formulas Grok path) -->
+<!-- Last updated: 2026-05-01 (ManifestRow fields; PreprocessingRow three-layer) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -6,7 +6,7 @@
 
 **v2.14.0:** Buying — **`CategoryStats.need_score_1to99`** (daily **`compute_daily_category_stats`** / **`category_stats_sql`**); auction **`need_score`** & **`priority`** = weighted mix **1–99** (**`valuation._auction_need_from_mix`**). Inventory — **`PurchaseOrder.est_shrink`** drives **`Item.cost`**; **`recompute_all_item_costs`** for backfill. Details under **inventory** and **Item acquisition cost** sections below.
 
-**2026-04 Inventory preprocessing redesign:** `PurchaseOrderViewSet.process_manifest` standardizes rows and immediately prepares deterministic Product links plus one intake `Item` per manifest unit. Staff-facing Product Matching is bypassed; exact reuse happens by UPC, vendor ref, or normalized `(title, brand, model, category)`. `ai-cleanup-rows` now uses Add Item-style bulk prompts with row/item identity echo and AppSetting-backed cleanup model controls. `manual-review` is the canonical review/pricing endpoint, and `create-items` opens Processing for existing early Items instead of duplicating inventory.
+**2026-04 Inventory preprocessing redesign:** `PurchaseOrderViewSet.process_manifest` seeds **`PreprocessingRow`** staging (`standard_*`). Staff download **lean cleanup CSV**, apply Grok/Excel output via **`apply-cleanup-csv`** into **`ai_*`** / **`ai_title`**; **Final Review** uses **`preprocessing-review`**; **`finalize-preprocessing`** runs **`snapshot_finalize_from_ai_and_standard`** then rebuilds **`ManifestRow`** from **`final_*`**. Legacy **`ai-cleanup-rows`** (Anthropic) can still mutate **`ManifestRow`** when those rows exist. `manual-review` is the canonical **post-finalize** review/pricing surface over **`ManifestRow`**. `create-items` opens Processing for existing early Items instead of duplicating inventory.
 
 ## Project Structure
 
@@ -127,7 +127,8 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 | **Category** | name, slug, parent (self-FK), spec_template (JSON) |
 | **PurchaseOrder** | vendor, order_number, status (ordered→paid→shipped→delivered→processing→complete), ordered_date, paid/shipped/delivered dates, purchase/shipping/fees, **total_cost** (sum of components), **retail_value** (B-Stock listing total — do not overwrite with sum of line retails), **est_shrink** (new POs: **`get_default_po_est_shrink()`** from **`AppSetting`** `po_default_est_shrink`, else model default **0.15**), manifest (FK core.S3File), manifest_preview (JSON); raw CSV upload/replace from staff UI — **Order detail** → Raw Manifest (`POST /api/inventory/orders/{id}/upload-manifest/`) |
 | **CSVTemplate** | vendor, name, header_signature, column_mappings (JSON), is_default |
-| **ManifestRow** | purchase_order, row_number, quantity, description, title, brand, model, category, condition, retail_value, proposed_price, final_price, pricing_stage, pricing_notes, upc, vendor_item_number, batch_flag, search_tags, specifications (JSON), matched_product, matched_product_title, matched_product_number, match_status, match_candidates (JSON), ai_match_decision, ai_reasoning, ai_suggested_title, ai_suggested_brand, ai_suggested_model, notes |
+| **ManifestRow** | purchase_order, row_number, quantity, description, title, brand, model, category, condition, **unit_retail**, proposed_price, final_price, pricing_stage, pricing_notes, batch_flag, identifiers / taxonomy / tracking (JSON), search_tags, specifications (JSON), matched_product, match_status, match_candidates (JSON), ai_match_decision, ai_reasoning, notes — **canonical listing fields** after preprocessing finalize (**no** separate **`ai_suggested_*`** columns) |
+| **PreprocessingOrder** / **PreprocessingRow** | Staging before finalize: **`standard_*`**, **`ai_*`**, **`final_*`**, **`ai_title`** / **`final_title`**; CSV cleanup apply writes **`ai_*`**; **`finalize-preprocessing`** coalesces then rebuilds **`ManifestRow`** |
 | **Product** | product_number, title, brand, model, category, category_ref (FK Category), specifications (JSON), default_price, upc |
 | **VendorProductRef** | vendor, product, vendor_item_number, vendor_description, last_unit_cost, times_seen, last_seen_date |
 | **BatchGroup** | batch_number, product, purchase_order, manifest_row, total_qty, status, unit_price, **unit_cost** (legacy name — stores **manifest/vendor retail per unit**, not acquisition cost; rename to `unit_retail` planned), condition, location, processed_by/at |
@@ -273,7 +274,7 @@ consignment.ConsignmentPayout → User (consignee)
 
 **Preprocessing offline cleanup CSV (inventory PO manifests)** — shipped Step 2 path on [`PreprocessingPage`](../../frontend/src/pages/inventory/PreprocessingPage.tsx):
 
-- **`GET /api/inventory/orders/:id/download-cleanup-csv/`** — Lean standardized export (`row_id`, `row_number`, description/title/brand/model/category/condition/sku/upc/quantity/retail_value/notes, **`base_cost`**, **`ideal_price`**) for external cleanup; **`base_cost`** = **`PurchaseOrder.compute_item_cost`** per line retail; **`ideal_price`** = 2× **`base_cost`** per unit (consistent with preprocessing-status ideal totals).
+- **`GET /api/inventory/orders/:id/download-cleanup-csv/`** — Pre-AI export: **`row_id`**, **`row_number`**, **`quantity`**, **`unit_retail`**, **`base_cost`**, **`ideal_price`**, then **`description`**, **`brand`**, **`model`**, **`condition`**, **`notes`**, **`identifiers_json`**, **`taxonomy_json`**, **`specifications_json`**, **`tracking_json`**, **`search_tags_json`**; **`base_cost`** / **`ideal_price`** per unit as in preprocessing-status totals.
 - **`POST /api/inventory/orders/:id/upload-cleanup-csv/`** — Multipart **`file`**: narrow CSV header **`row_id`, `ai_title`, `ai_brand`, `ai_model`, `category`, `condition`, `proposed_price`** only; validates taxonomy + condition; updates staging **`PreprocessingRow`** or legacy **`ManifestRow`** by **`row_id`** (exact row coverage required).
 - **`POST /api/inventory/orders/:id/apply-cleanup-csv/`** — Same merge semantics as upload; JSON **`{ "rows": [ ... ] }`** with those keys per row (SPA **`apply-cleanup-csv`** path).
 

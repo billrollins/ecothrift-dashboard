@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-30 (bstock initiative example path in table) -->
+<!-- Last updated: 2026-05-01 (Part 1C drift checks: `frontend/package.json` stays 0.0.0) -->
 # Protocol: Review & Bump (docs audit → `.version` → `CHANGELOG` → local commit)
 
 **Scope:** Docs-audit + semver bump + `CHANGELOG` update + **local** `git add` / `git commit` with a **short** message. This is a **slice** of `session.9.Close.md` — use when the user wants those without a full session close. **Optional:** grow **`scripts/deploy/commit_message.txt`** for the eventual push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**). **Bump then push in one flow:** **`code.9.Push.md`** runs this checklist + fills **`commit_message.txt`** + **`2_push_github.bat`** (skip Part 4B there). Otherwise **push** stays separate: frequent local commits protect against lost work; only reviewed work goes to GitHub or production via **`session.9.Close.md`** / deploy scripts.

@@ -1,5 +1,5 @@
 <!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-05-01 -->
-<!-- Last updated: 2026-05-01 (review.0.Bump: cleanup.ipynb + CHANGELOG [Unreleased] adjunct docs) -->
+<!-- Last updated: 2026-05-01 (Progress: preprocessing core shipped; cleanup_csv_contract link) -->
 
 # Initiative: Order / Processing pipeline rebuild
 
@@ -34,7 +34,7 @@ Staff-facing umbrella for **`Orders → Preprocessing → Receiving → Processi
 |-------|--------|
 | **Orders** | **Shipped** — dashboard, create PO, order detail workspace, **`POST …/upload-manifest/`**, [`CHANGELOG [2.20.0]`](../../CHANGELOG.md). |
 | **Receiving** | **Shipped** — **`GET …/orders/for-receiving/`** tiered ED ordering; **`/inventory/receiving`** → next PO; **`OrderListPage`** receive truck; **`ReceivingOrderPage`** + desktop/mobile receiving UI. |
-| **Preprocessing** | **Next** — see [Preprocessing — target UX](#preprocessing--target-ux) (stepper rename, Standardize/Clean/Final Review, template-only Step 1 until apply, CSV round-trip Step 2, placeholder Step 3). |
+| **Preprocessing** | **Shipped (core)** — three-step **`PreprocessingPage`**: Standardize → Clean → **Final Review**; **`download-cleanup-csv`** / **`apply-cleanup-csv`** (wide Grok + narrow legacy); **`preprocessing-review`**; **`finalize-preprocessing`** (three-layer **`PreprocessingRow`** → **`final_*`** → rebuilt **`ManifestRow`**). **Iterative hardening** (UX polish, edge cases): [Preprocessing — target UX](#preprocessing--target-ux), **[`cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)**. |
 | **Processing** | In place; iterative hardening ongoing. **`/inventory/processing`** |
 | **Finalization / Disputes** | Roadmap placeholders. |
 
@@ -107,7 +107,7 @@ TBD per session. Buying auction manifests (`/buying/*`) remain a separate domain
 
 ## Preprocessing — target UX
 
-_Next implementation (tracked here; shipping is Session 6)._
+_Core path is **shipped** (stepper + CSV round-trip + final review + finalize). Remaining items are polish and deeper pricing workflows._ Step 2/3 details and handoff: [`workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`](../../workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md); validation contract: **[`cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)**.
 
 **Route:** keep **`/inventory/preprocessing`** and **`/inventory/preprocessing/:id`** unless we decide a clearer path later (either is fine).
 
@@ -139,25 +139,23 @@ Template matching / creation. This is **not** the old “instant write to DB” 
 
 ---
 
-### Step 2 — Clean
+### Step 2 — Clean (AI Cleanup)
 
 Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 
-- **Download:** export standardized preprocessing rows as **CSV**.
-  - Filename: **order number**, e.g. **`C5TC0-OM1-A8R3.csv`** (**no** `-cleaned` suffix).
-- **Upload:** user uploads the cleaned file back.
-  - **Convention:** **`{order number}-cleaned.csv`** expected.
-  - **Behavior:** **update existing** preprocessing rows — populate **`ai_*`** prefixed columns (and any agreed cleanup fields)—**do not create new rows**; merge by stable row identifiers as defined when implemented.
-- **Export vs apply:** **`GET …/download-cleanup-csv`** delivers a standardized **pre-AI** snapshot (standard row fields plus **`base_cost`** / **`ideal_price`**—no AI-only columns). **`upload-cleanup-csv`** / **`apply-cleanup-csv`** still merge cleanup outputs into **`ai_suggested_*`** (and related fields) on **`PreprocessingRow`** / **`ManifestRow`** by **`row_id`**—that narrow payload is separate from the download schema.
+- **Download:** export standardized preprocessing rows (**16-column** standard CSV: economics + vendor text + `*_json` buckets) from the preprocessing UI. Filename defaults to **`{order_number}.csv`** (sanitized).
+- **Upload:** user uploads the cleaned file (any filename). **Supported wire formats:**
+  - **12-column Grok response:** `row_id`, `row_number`, `title`, `brand`, `model`, `category`, `condition`, `proposed_price`, `description`, `notes`, `specifications_json`, `search_tags_json` (see `workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`).
+  - **Legacy 7-column narrow:** `row_id`, `ai_title`, `ai_brand`, `ai_model`, `category`, `condition`, `proposed_price`.
+- **Behavior:** server validates hard/soft gates (`apps/inventory/cleanup_csv_validate.py`), normalizes condition (`cleanup_condition.py`), then updates existing **PreprocessingRow** `ai_*` fields and **`proposed_price`**. Spoofed locked `identifiers` / `taxonomy` / `tracking` JSON in the CSV must not override standard buckets (copied from `standard_*` on write). **All-or-nothing** per upload when any row fails or counts mismatch. **Soft warnings** returned in API only (`soft_warnings`).
+- **Export vs apply:** **`GET …/download-cleanup-csv`** pre-AI snapshot; **`POST …/upload-cleanup-csv`** / **`POST …/apply-cleanup-csv`** apply AI output to staging rows.
 
 ---
 
 ### Step 3 — Final Review
 
-**Placeholder until spec’d.**
-
-- Page title **Final Review**; body copy along the lines of **Coming soon**.
-- Later: manual walk-through of each row — pricing adjustments and other corrections (full spec **next iteration**).
+- **UI:** Stepper label **Final Review**. Expand a staged row to see **standard | AI | coalesce preview** (locked buckets called out). Edits in the grid / save path write **`ai_*`**; **`final_*`** is populated inside **`POST …/finalize-preprocessing/`** via **`snapshot_finalize_from_ai_and_standard`**, then **`ManifestRow`** is replaced from **`final_*`**.
+- Deeper bulk-pricing UX can still evolve; lifecycle split (**`preprocessing-review`** vs post-finalize **`manual-review`**) is documented in **`.ai/extended/inventory-pipeline.md`**.
 
 ---
 
@@ -173,7 +171,7 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 ### Session 2
 
 - **Goal:** Maintain an **offline** manifest row cleanup harness for liquidation CSVs aligned with preprocessing taxonomy (**before/after** few-shot parity with in-app preprocessing expectations).
-- **Scope (local tooling):** `workspace/ai-cleanup-grok/` — **`clean-grok.mjs`**, **`run.bat`**, `.config`, **`in/`** / **`out/`** / **`batches/active/`**, **`prompts/`** (`system-prompt.txt`, `examples.json`, `amazon-examples.json`), **`helpers/`** (xAI/Grok API key path; **`build-amazon-examples.mjs`** curates diversified few-shot from manifest + cleaned join).
+- **Scope (local tooling):** `workspace/ai-cleanup-grok/` — **`helpers/clean-grok.mjs`**, **`run.bat`**, `.config`, **`data/in/`** / **`data/out/`** / **`data/on deck/`** (optional staging) / **`data/batches/active/`**, **`prompts/`** (`system-prompt.txt`, `examples.json`, `amazon-examples.json`), **`helpers/`** ( **`build-amazon-examples.mjs`**, Grok API key file path in `.config`).
 - **Repo note:** `workspace/*` is **gitignored** (see repo root `.gitignore`); this tree is **not in git commit history**. To track in-repo later, whitelist a path such as **`!workspace/ai-cleanup-grok/`** intentionally.
 - **Start:** 2026-04-29
 
@@ -197,19 +195,20 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 - **Finish line:** Sidebar **Receiving** and orders **Receive** both land staff on dock receive for the right PO by **expected_delivery** priority.
 - **Start:** 2026-04-29
 
-### Session 6 — Preprocessing (**next**)
+### Session 6 — Preprocessing (**core shipped 2026-05**)
 
-- **Goal:** Implement [Preprocessing — target UX](#preprocessing--target-ux) above: stepper **Standardize / Clean / Final Review**, Step 1 semantics (**`manifest_preview` only** until apply), Step 2 CSV **`{order}-cleaned`** upload into **`ai_*`** columns, Step 3 placeholder.
-- **Scope (initial):** `PreprocessingPage.tsx` + preprocessing-related API/views/models as needed; **`Sidebar.tsx`** entry already **Preprocessing**; **`MainLayout`/document title parity** — keep route **`/inventory/preprocessing`** unless we deliberately rename URLs.
-- **Finish line:** Staff can describe the three-step story without contradicting persisted data rules above; changelog + extended docs when shipped.
-- **Start:** when picked up (**TBD**)
+- **Goal (met):** [Preprocessing — target UX](#preprocessing--target-ux): stepper **Standardize / Clean / Final Review**, Step 1 **`manifest_preview` until apply**, Step 2 **12-column Grok + legacy narrow** cleanup apply with server validation, Step 3 **Final Review** + **`finalize-preprocessing`** coalesce to **`ManifestRow`**.
+- **Scope (shipped):** `PreprocessingPage.tsx` + preprocessing API/views/models (**`apps/inventory/views.py`**, **`cleanup_csv_validate.py`**, **`layer_helpers.py`**, three-layer **`PreprocessingRow`**), **`Sidebar`** **Preprocessing** entry, route **`/inventory/preprocessing`**. See **`test_preprocessing_redesign.py`**.
+- **Finish line:** Staff can run export → offline clean → apply → final review → finalize; canonical manifest reflects **`final_*`**.
+- **Remaining:** UX polish, optional advanced pricing; keep **`CHANGELOG`** + extended docs in sync.
+- **Start:** 2026-04-29; **core complete:** 2026-05-01
 
 ### Session 7 — Startup + `ai-cleanup-grok` review
 
 - **Goal:** Run **`code.0.Startup`**: load **`.ai/context.md`**, version (**`v2.20.0`**), **`CHANGELOG`** (`[Unreleased]` + **`[2.20.0]`**), **`.ai/initiatives/_index.md`** + **`ARCHIVE.md`**, terminals check; deliver a concise **code review** of **`workspace/ai-cleanup-grok/`** (offline Grok CSV cleanup harness).
 - **Finish line:** Startup summary + review notes in session chat; this session block recorded.
-- **Scope:** Read-only assessment of **`clean-grok.mjs`**, **`.config`**, **`helpers/build-amazon-examples.mjs`**, **`prompts/`**; no repo product code changes.
-- **Out of scope:** Session 6 preprocessing implementation; committing **`workspace/`** (remains gitignored unless whitelisted).
+- **Scope:** Read-only assessment of **`helpers/clean-grok.mjs`**, **`.config`**, **`helpers/build-amazon-examples.mjs`**, **`prompts/`**; no repo product code changes.
+- **Out of scope:** Core Session 6 preprocessing implementation (**shipped 2026-05**); committing **`workspace/`** (remains gitignored unless whitelisted).
 - **Start:** 2026-04-30
 
 ### Session 8 — Startup + Preprocessing Step 2 (Clean) understanding
@@ -219,11 +218,11 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 - **Scope:** Read-only: **`.ai/context.md`**, **`.version`**, **`CHANGELOG`** top, **`_index.md`**, initiative file, **`PreprocessingPage`**, **`CleanupStep`**, **`RowProcessingPanel`**, inventory views cleanup endpoints.
 - **Start:** 2026-04-30
 
-### Session 9 — `review.0.Bump` (cleanup notebook + unreleased docs)
+### Session 9 — `review.0.Bump` (cleanup docs + unreleased steering)
 
-- **Goal:** Run **`review.0.Bump`**: **[Unreleased]** **`CHANGELOG`** bullets for **`cleanup.ipynb`** + **`inventory-pipeline.md`** adjunct; local **`git commit`** (no semver bump).
-- **Scope:** `CHANGELOG.md`, `.ai/extended/inventory-pipeline.md`, this initiative header; `workspace/notebooks/ai-cleanup/notebooks/cleanup.ipynb` (lean CSV / apply schema intro).
-- **Finish line:** Steering matches shipped notebook narrative; `workspace/ai-cleanup-grok/` remains gitignored.
+- **Goal:** Align **[Unreleased]** **`CHANGELOG`** + **`inventory-pipeline.md`** with the adjunct **Grok** path and three-layer staging; local **`git commit`** (no semver bump).
+- **Scope:** `CHANGELOG.md`, `.ai/extended/inventory-pipeline.md`, this initiative header; **`workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`** (workspace; gitignored unless whitelisted); committed **`workspace/notebooks/ai-cleanup/`** tree **removed** — notebook narrative lives in handoff + **[`cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)** instead.
+- **Finish line:** No steering references to missing notebook paths unless marked historical.
 - **Start:** 2026-05-01
 
 ---
@@ -231,5 +230,6 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 ## See also
 
 - **Supersedes / archaeology:** [`.ai/initiatives/_archived/_abandoned/inventory_intake_pipeline.md`](./_archived/_abandoned/inventory_intake_pipeline.md)
-- Deep reference (may drift until updated): [`.ai/extended/inventory-pipeline.md`](../extended/inventory-pipeline.md)
+- Deep reference: [`.ai/extended/inventory-pipeline.md`](../extended/inventory-pipeline.md)
+- **Cleanup apply contract:** [`.ai/reference/cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)
 - [`.ai/initiatives/_index.md`](_index.md)

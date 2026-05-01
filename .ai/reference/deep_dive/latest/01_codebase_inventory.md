@@ -2,81 +2,59 @@
 
 ## Executive Summary
 
-- **Shipped product shape:** Django 5.2 monolith (`ecothrift/`) with eight domain apps under `apps/`; React 18 + TypeScript + Vite + MUI v7 SPA under `frontend/`; optional `printserver/` (FastAPI); dev scripts in `scripts/dev/`.
-- **Major surfaces:** REST API under `/api/{auth,accounts,core,hr,inventory,pos,consignment,ai,buying}/`; SPA routes via `frontend/src/App.tsx` + production `TemplateView` fallback in `ecothrift/urls.py`.
-- **Highest-risk drift:** Inventory inbound (orders, preprocessing, receiving) is mid-evolution per git status; steering docs have initiative path debt for archived buying initiative.
-- **Confidence:** **High** for tree shape; **Medium** for exhaustive management-command and migration enumeration.
+- **Shipped product shape:** Django 5.2 + DRF backend; React 18 + TS + MUI v7 frontend; PostgreSQL. Inventory preprocessing is a **three-tier staging model** (`standard_*`, `ai_*`, `final_*`) on `PreprocessingRow`, promoted to `ManifestRow` on finalize.
+- **Major code surfaces:** `apps/inventory/` (models, views, serializers, cleanup validation, layer helpers); `frontend/src/pages/inventory/PreprocessingPage.tsx` + preprocessing components; optional offline `workspace/ai-cleanup-grok/` adjunct.
+- **Highest-risk drift areas:** Cleanup CSV schemas (wide vs narrow), finalize coalesce rules, duplicate “review” APIs (`preprocessing-review` vs `manual-review`).
+- **Confidence:** **High** for traced paths; **Medium** for full command/job inventory.
 
 ## Repo Map
 
 | Path | Purpose | Current notes | Risk |
 |---|---|---|---|
-| `ecothrift/` | Settings, root URLs, WSGI | `/db-admin/` for Django admin; SPA fallback non-API routes | low |
-| `apps/accounts/` | Users, JWT auth | `api/auth/`, `api/accounts/` | low |
-| `apps/ai/` | Claude proxy | `api/ai/` | low |
-| `apps/core/` | Locations, settings, S3 | `api/core/` | low |
-| `apps/hr/` | Time clock, sick leave | `api/hr/` | low |
-| `apps/inventory/` | Vendors, POs, items, preprocessing, receiving | Heavy WIP in views/serializers/tests + new migration `0028_*` (git); `api/inventory/` | medium |
-| `apps/pos/` | Registers, carts, receipts | `api/pos/`; has `apps/pos/tests/` | low |
-| `apps/consignment/` | Agreements, payouts, portal | `api/consignment/` | low |
-| `apps/buying/` | B-Stock auctions, manifests, valuation | `api/buying/`; many management commands | medium |
-| `frontend/src/` | SPA | ~52 `pages/**/*.tsx`; domain hooks in `hooks/`, `api/` | medium |
-| `printserver/` | Local printing | Windows-oriented; separate `CHANGELOG` | low |
-| `scripts/` | Dev/deploy automation | `dev/*.bat` Heroku-parity jobs | low |
-| `.ai/` | Steering, initiatives, protocols | Duplicate `_protocols` trees under initiatives | medium |
+| `apps/inventory/` | POs, manifests, preprocessing, processing | Three-layer preprocessing; `cleanup_*` modules; `finalize_preprocessing` rebuilds manifest | medium |
+| `apps/buying/` | Auction intelligence | Separate from inbound preprocessing; CSV-only manifests per CHANGELOG | low |
+| `frontend/src/pages/inventory/` | Order, preprocessing, receiving, processing | Stepper: Standardize → AI Cleanup → **Final Review** | low |
+| `frontend/src/api/inventory.api.ts` | REST client | Extended payloads for review rows, cleanup apply | low |
+| `.ai/` | Steering, protocols, deep dives | This run fills `reference/deep_dive/latest/` | low |
 
 ## Backend Inventory
 
-| App | Models | API surfaces | Management commands | Migrations | Tests | Notes |
+| App | Models | API surfaces | Management commands | Migrations state | Tests | Notes |
 |---|---|---|---|---|---|---|
-| accounts | User, profiles | `auth_urls`, `urls` | (minimal) | present | limited | JWT + roles |
-| ai | (proxy) | `urls` | — | present | — | Lazy `anthropic` |
-| core | Location, AppSetting, S3 | `urls` | `reset_business_data`, etc. | present | — | |
-| hr | Time entries, departments | `urls` | backfill/helpers | present | — | |
-| inventory | Vendor, PO, Item, Product, staging | `urls` → large `views.py` | Many `backfill_*`, pipeline, preprocessing | 0001–0028+ | `tests/test_*` receiving, preprocessing, PO | Active development |
-| pos | Registers, carts, transactions | `urls`, `views` | — | present | `tests/test_cart_*` | |
-| consignment | Agreements, items | `urls` | — | present | — | |
-| buying | Auction, ManifestRow, CategoryStats, … | `urls`, `api_views` | `sweep_auctions`, `scheduled_sweep`, `compute_daily_category_stats`, manifest/AI commands | present | `tests/test_*` | B-Stock guardrails in `.cursor/rules` |
+| `inventory` | `PreprocessingRow` (three layers), `PurchaseOrder`, `ManifestRow`, `Item`, … | Order viewset: `download-cleanup-csv`, `apply-cleanup-csv` / `upload-cleanup-csv`, `preprocessing-review`, `finalize-preprocessing`, `manual-review`, … | Many (see `apps/inventory/management/commands/`) | Multiple recent migrations (`0036` three-layer, seeds, tracking) — branch has added/untracked migrations in git status | `test_preprocessing_redesign.py` and others | **`update_preprocessing_review_rows`** writes **`ai_*`** from PATCH |
 
 ## Frontend Inventory
 
 | Domain | Routes / pages | API hooks | Components | Types | Tests | Notes |
 |---|---|---|---|---|---|---|
-| Auth | `/login`, `/forgot-password` | AuthContext | forms | — | none in repo (`*.test.tsx`) | |
-| HR | `/hr/*` | `useHr*` patterns | pages under `pages/hr/` | types | none | |
-| Inventory | `/inventory/*` (orders, preprocessing, receiving, processing, items, products, vendors, legacy) | `useInventory`, `useStandardManifest`, etc. | Large tree under `components/inventory/` including `preprocessing/` | `inventory.types.ts` | none | 52 page TSX files under `pages/` |
-| POS | `/pos/*`, admin setup | hooks | terminal, drawers | — | none | |
-| Consignment | `/consignment/*`, consignee | hooks | — | — | none | |
-| Admin | `/admin/*` | — | users, settings | — | none | `ManagerRoute` / `AdminRoute` |
-| Buying | `/buying/auctions`, detail, watchlist | buying hooks | list/desktop/mobile split | buying types | none | |
+| Preprocessing | `/inventory/preprocessing/:id` | `useInventory` / `useStandardManifest` / inventory API | `PreprocessingPage`, `CleanupStep`, `PreprocessingReviewTable`, `PreprocessingStepper`, `RowProcessingPanel` | `inventory.types.ts` | Some vitest (e.g. `BucketFieldEditor.test.tsx`, formula snapshot tests) | **Final Review** is step index 2 |
+| Orders | `/inventory/orders`, detail | — | `OrderDetailPage`, manifest upload | — | — | Raw manifest unlocks preprocessing |
 
 ## Scripts / Ops Inventory
 
 | Path | Purpose | Safe to run? | External effects | Notes |
 |---|---|---|---|---|
-| `scripts/dev/start_servers.bat` | Local dev | yes | local ports | |
-| `scripts/dev/daily_scheduled_tasks.bat` | Buying jobs parity | conditional | **DB + optional B-Stock** | Do not run sweep/pull without call-count discipline |
-| `manage.py *` | Django | per command | DB / API | See workspace rules for B-Stock |
+| `workspace/ai-cleanup-grok/helpers/clean-grok.mjs` | Offline Grok cleanup | Conditional (uses API keys) | xAI API calls | Gitignore story per initiative |
+| `scripts/dev/*.bat` | Local dev parity | Yes locally | Local processes | See `extended/development.md` |
 
 ## Shipped Behavior Snapshot
 
 | Capability | Evidence | AI docs that should mention it | Drift? |
 |---|---|---|---|
-| Inventory v2.20 inbound | `CHANGELOG [2.20.0]`, `App.tsx` receiving routes | `context.md`, `order_processing_pipeline_rebuild.md`, `inventory-pipeline.md`, `frontend.md` | **Low** — indexed to v2.20 |
-| Buying CSV-only manifests | `CHANGELOG [2.18.0]` | `bstock.md`, `consultant_context.md` | **Low** |
-| Preprocessing 3-step flow | `CHANGELOG [2.20.0]` Added | initiative + extended docs | **Medium** — WIP code may run ahead of last doc timestamp |
-| Phase 6 buying outcomes | Not shipped | `context.md` Not Yet Implemented | **Aligned** |
+| Cleanup apply → **`ai_*`**, **`ai_title`** | `_upload_cleanup_csv_impl` payloads | `inventory-pipeline.md`, initiative | **yes** (naming / step labels) |
+| Review PATCH → **`ai_*`** fields | `update_preprocessing_review_rows` | Same | partial |
+| Finalize → **`snapshot_finalize_from_ai_and_standard`** then bulk `ManifestRow` create | `finalize_preprocessing` | Same | partial |
+| Condition normalization | `normalize_cleanup_condition` in review + cleanup | Extended + CHANGELOG | check |
+| Hard/soft validation + `rejected_rows` / `soft_warnings` | `validate_cleanup_row_values` + response shape | Handoff / pipeline docs | check |
 
 ## Test Coverage Gaps
 
 | Area | Existing coverage | Missing coverage | Risk |
 |---|---|---|---|
-| POS cart / manual line | `apps/pos/tests/` | broader POS flows | medium |
-| Buying | normalize, taxonomy SQL, etc. | full API matrix | medium |
-| Inventory | receiving API, preprocessing redesign tests | E2E SPA | medium |
-| Frontend | none (no Vitest/Jest files found) | component and route tests | high |
+| Grok wide CSV gates | `test_preprocessing_redesign` | Full round-trip with every `HARD_*` rule id | medium |
+| Finalize with partial `final_*` before snapshot | Likely unit/integration | Explicit test that coalesce matches UI preview (`preprocessingCoalesce.ts`) | low–medium |
+| `manual-review` after finalize | Unknown | Regression that staging endpoints 409 after finalize | low |
 
 ## Open Questions
 
-- **Preprocessing WIP** — Do pending commits require `[Unreleased]` before next release? Evidence: user git diff vs `CHANGELOG` top section dated 2.20.0 only.
-- **Migration `0028_csvtemplate_vendor_signature_index`** — Verify deployed ordering vs other branches before merge.
+- Should **`manual-review`** remain staff-primary post-finalize, or is **`preprocessing-review`** only ever pre-finalize? — evidence: `preprocessing_review` returns **409** when `prep.finalized_at` set ([`views.py`](../../../../apps/inventory/views.py) ~3971–3975).

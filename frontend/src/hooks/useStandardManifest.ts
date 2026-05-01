@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   FormulaMapping,
   ManifestColumnMapping,
@@ -27,31 +27,12 @@ export interface StandardManifestRule {
   functions: StandardFunctionStep[];
 }
 
-const FALLBACK_STANDARD_COLUMNS: StandardColumnDefinition[] = [
-  { key: 'quantity', label: 'Quantity', required: true },
-  { key: 'description', label: 'Description', required: true },
-  { key: 'title', label: 'Title', required: false },
-  { key: 'brand', label: 'Brand', required: false },
-  { key: 'model', label: 'Model', required: false },
-  { key: 'category', label: 'Category', required: false },
-  { key: 'condition', label: 'Condition', required: false },
-  { key: 'retail_value', label: 'Unit retail (MSRP)', required: false },
-  { key: 'upc', label: 'UPC', required: false },
-  { key: 'vendor_item_number', label: 'Vendor Item #', required: false },
-  { key: 'notes', label: 'Notes', required: false },
-];
-
-const SOURCE_ALIASES: Record<string, string[]> = {
+/** lowercase header token → canonical flat formula target key */
+const FLAT_HINT_ALIASES: Record<string, string[]> = {
   quantity: ['quantity', 'qty', 'units', 'count', 'qnty'],
-  description: ['description', 'item description', 'product', 'item'],
-  title: ['title', 'product name', 'item name', 'name'],
-  brand: ['brand', 'manufacturer'],
-  model: ['model', 'model_number', 'model number'],
-  category: ['category', 'department'],
-  condition: ['condition', 'item condition'],
-  // Prefer vendor unit stated retail (e.g. B-Stock "Unit Retail"); extended/total line fallbacks last.
-  retail_value: [
+  unit_retail: [
     'unit retail',
+    'unit_retail',
     'unit retail price',
     'retail price',
     'msrp',
@@ -70,16 +51,21 @@ const SOURCE_ALIASES: Record<string, string[]> = {
     'unit cost',
     'cost',
   ],
-  upc: ['upc', 'upc/ean', 'barcode'],
-  vendor_item_number: ['vendor_item_number', 'vendor item number', 'item #', 'item number', 'tcin', 'sku'],
+  description: ['description', 'item description', 'product', 'item'],
+  brand: ['brand', 'manufacturer', 'vendor'],
+  model: ['model', 'model_number', 'model number'],
+  condition: ['condition', 'item condition', 'current_condition', 'used_fair', 'used_good', 'used_like_new'],
   notes: ['notes', 'comment'],
+  search_tags: ['tags', 'search_tags', 'tag'],
+  title: ['title', 'product name', 'item name', 'name'],
 };
 
-/**
- * Convert a legacy mapping (source + transforms[]) to an expression formula string.
- * E.g. source="Description", transforms=[{type:"trim"},{type:"title_case"}]
- *   => TITLE(TRIM([Description]))
- */
+type MappingLike = ManifestColumnMapping & {
+  target?: string;
+  formula?: string;
+  transforms?: Array<{ type: string; from?: string; to?: string }>;
+};
+
 function legacyMappingToFormula(source: string, transforms: Array<{ type: string; from?: string; to?: string }>): string {
   if (!source) return '';
   let expr = `[${source}]`;
@@ -108,8 +94,24 @@ function legacyMappingToFormula(source: string, transforms: Array<{ type: string
   return expr;
 }
 
-function autoFormulaForField(headers: string[], fieldKey: string): string {
-  const aliases = SOURCE_ALIASES[fieldKey] ?? [];
+function extractFormulaFromMapping(m: MappingLike): string {
+  if (typeof m.formula === 'string' && m.formula.trim()) return m.formula.trim();
+  if (typeof m.source === 'string' && m.source.trim()) {
+    const transforms: Array<{ type: string; from?: string; to?: string }> = [];
+    if (Array.isArray(m.transforms)) {
+      for (const t of m.transforms) {
+        if (typeof t === 'object' && t && 'type' in t) {
+          transforms.push(t as { type: string; from?: string; to?: string });
+        }
+      }
+    }
+    return legacyMappingToFormula(m.source, transforms);
+  }
+  return '';
+}
+
+function autoFormulaForFlatField(headers: string[], fieldKey: string): string {
+  const aliases = FLAT_HINT_ALIASES[fieldKey] ?? [];
   const normalizedHeaders = headers.map((h) => ({
     original: h,
     normalized: h.trim().toLowerCase(),
@@ -121,46 +123,68 @@ function autoFormulaForField(headers: string[], fieldKey: string): string {
   return '';
 }
 
+function mappingsByTarget(mappings: ManifestColumnMapping[]): Map<string, MappingLike> {
+  const out = new Map<string, MappingLike>();
+  for (const raw of mappings) {
+    const m = raw as MappingLike;
+    const t = (m.target ?? '').trim();
+    if (t) out.set(t, m);
+  }
+  return out;
+}
+
 export function buildFormulas(
   headers: string[],
   columns: StandardColumnDefinition[],
   mappings: ManifestColumnMapping[],
 ): Record<string, string> {
   const formulasByTarget: Record<string, string> = {};
-  const mappingByTarget = new Map(mappings.map((m) => [m.target, m]));
+  const byTarget = mappingsByTarget(mappings);
 
   for (const col of columns) {
-    const existing = mappingByTarget.get(col.key);
+    const existing = byTarget.get(col.key);
     if (existing) {
-      const formula = (existing as unknown as Record<string, unknown>).formula;
-      if (typeof formula === 'string' && formula.trim()) {
-        formulasByTarget[col.key] = formula;
-      } else if (existing.source) {
-        const transforms: Array<{ type: string; from?: string; to?: string }> = [];
-        if (Array.isArray(existing.transforms)) {
-          for (const t of existing.transforms) {
-            if (typeof t === 'object' && t && 'type' in t) {
-              transforms.push(t as { type: string; from?: string; to?: string });
-            }
-          }
-        }
-        formulasByTarget[col.key] = legacyMappingToFormula(existing.source, transforms);
-      } else {
-        formulasByTarget[col.key] = autoFormulaForField(headers, col.key);
-      }
+      const f = extractFormulaFromMapping(existing);
+      formulasByTarget[col.key] = f || autoFormulaForFlatField(headers, col.key);
     } else {
-      formulasByTarget[col.key] = autoFormulaForField(headers, col.key);
+      formulasByTarget[col.key] = autoFormulaForFlatField(headers, col.key);
     }
   }
+
+  for (const [t, m] of byTarget.entries()) {
+    if (!t.includes('.')) continue;
+    const f = extractFormulaFromMapping(m);
+    if (f) formulasByTarget[t] = f;
+  }
+
   return formulasByTarget;
 }
 
+export function nonemptyFormulaMappings(
+  columns: StandardColumnDefinition[],
+  formulas: Record<string, string>,
+): FormulaMapping[] {
+  const out: FormulaMapping[] = [];
+  for (const col of columns) {
+    const f = (formulas[col.key] ?? '').trim();
+    if (f) out.push({ target: col.key, formula: formulas[col.key] ?? '' });
+  }
+  const dotted = Object.keys(formulas)
+    .filter((k) => k.includes('.'))
+    .sort((a, b) => a.localeCompare(b));
+  for (const k of dotted) {
+    const f = (formulas[k] ?? '').trim();
+    if (f) out.push({ target: k, formula: formulas[k] ?? '' });
+  }
+  return out;
+}
+
 interface UseStandardManifestArgs {
-  /** Purchase order id (or stable session key) — resets user edits when switching orders. */
   manifestSessionKey: number;
   signature: string;
   headers: string[];
-  standardColumns?: StandardColumnDefinition[];
+  /** From GET /inventory/manifest-fields/ ``flat``; required — parent gates loading */
+  flatColumns: StandardColumnDefinition[];
   initialMappings?: ManifestColumnMapping[];
 }
 
@@ -168,25 +192,19 @@ export function useStandardManifest({
   manifestSessionKey,
   signature,
   headers,
-  standardColumns,
+  flatColumns,
   initialMappings,
 }: UseStandardManifestArgs) {
-  const columns = useMemo(
-    () => (standardColumns?.length ? standardColumns : FALLBACK_STANDARD_COLUMNS),
-    [standardColumns],
-  );
+  const columns = useMemo(() => flatColumns ?? [], [flatColumns]);
 
-  /** Content keys — stable across renders when parents pass `?? []` with the same values (new array refs each render). */
   const headersSignature = headers.join('\x00');
   const mappingsSignature = JSON.stringify(initialMappings ?? []);
 
   const builtFormulas = useMemo(
     () => buildFormulas(headers, columns, initialMappings ?? []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by signatures (stable when content matches)
-    [signature, headersSignature, mappingsSignature, columns],
+    [signature, headersSignature, mappingsSignature, columns, headers],
   );
 
-  /** Switched preprocessing order: ignore stale delta for one render before layout commits anchor. */
   const sessionAnchorRef = useRef(manifestSessionKey);
   const sessionMismatchRender = sessionAnchorRef.current !== manifestSessionKey;
 
@@ -242,23 +260,50 @@ export function useStandardManifest({
     setFormulaDelta((delta) => {
       const current = { ...builtFormulas, ...delta };
       const resolved = typeof next === 'function' ? next(current) : next;
+      const keySet = new Set<string>([
+        ...columns.map((c) => c.key),
+        ...Object.keys(resolved),
+        ...Object.keys(builtFormulas),
+      ]);
       const out: Record<string, string> = {};
-      for (const col of columns) {
-        const k = col.key;
+      for (const k of keySet) {
         const nv = resolved[k] ?? '';
         const bv = builtFormulas[k] ?? '';
-        if (nv.trim() !== bv.trim()) out[k] = nv;
+        if ((nv.trim() !== bv.trim())) {
+          out[k] = nv;
+        }
       }
       return out;
     });
   };
 
+  const replaceBucketFormulas = useCallback(
+    (bucketPrefix: string, pairs: Array<{ target: string; formula: string }>) => {
+      setFormulaDelta((delta) => {
+        const merged = { ...builtFormulas, ...delta };
+        const nextMerged = { ...merged };
+        for (const key of Object.keys(nextMerged)) {
+          if (key.startsWith(`${bucketPrefix}.`)) delete nextMerged[key];
+        }
+        for (const { target, formula } of pairs) {
+          if (!target.startsWith(`${bucketPrefix}.`)) continue;
+          if (formula.trim()) nextMerged[target] = formula.trim();
+        }
+        const out: Record<string, string> = {};
+        const ks = new Set<string>([...Object.keys(nextMerged), ...Object.keys(builtFormulas)]);
+        for (const k of ks) {
+          const a = (nextMerged[k] ?? '').trim();
+          const b = (builtFormulas[k] ?? '').trim();
+          if (a !== b) out[k] = nextMerged[k] ?? '';
+        }
+        return out;
+      });
+    },
+    [builtFormulas],
+  );
+
   const formulaMappings = useMemo<FormulaMapping[]>(
-    () =>
-      columns.map((col) => ({
-        target: col.key,
-        formula: formulas[col.key] ?? '',
-      })),
+    () => nonemptyFormulaMappings(columns, formulas),
     [columns, formulas],
   );
 
@@ -272,10 +317,7 @@ export function useStandardManifest({
     [columns],
   );
 
-  const hasMapping = (field: string): boolean => {
-    const f = formulas[field]?.trim();
-    return !!f;
-  };
+  const hasMapping = (field: string): boolean => !!(formulas[field]?.trim());
 
   return {
     columns,
@@ -283,6 +325,7 @@ export function useStandardManifest({
     setFormula,
     setAllFormulas,
     setFormulas,
+    replaceBucketFormulas,
     formulaMappings,
     standardMappings,
     hasMapping,

@@ -123,9 +123,9 @@ export function FinalizePanel({
       const effectivePrice = row.final_price || row.proposed_price || '';
       state[row.id] = {
         id: row.id,
-        title: row.title || row.ai_suggested_title || row.description,
-        brand: row.brand || row.ai_suggested_brand || '',
-        model: row.model || row.ai_suggested_model || '',
+        title: row.title || row.description,
+        brand: row.brand || '',
+        model: row.model || '',
         category: row.category || '',
         condition: row.condition || '',
         search_tags: row.search_tags || '',
@@ -509,9 +509,9 @@ export function FinalizePanel({
                               <Typography variant="subtitle2" color="text.secondary" gutterBottom>AI Suggestions</Typography>
                               {isCleaned ? (
                                 <>
-                                  <DetailField label="AI Title" value={row.ai_suggested_title} changed={!!row.ai_suggested_title && row.description !== row.ai_suggested_title} />
-                                  <DetailField label="AI Brand" value={row.ai_suggested_brand} changed={!!row.ai_suggested_brand && row.brand !== row.ai_suggested_brand} />
-                                  <DetailField label="AI Model" value={row.ai_suggested_model} changed={!!row.ai_suggested_model && row.model !== row.ai_suggested_model} />
+                                  <DetailField label="Listing title" value={row.title} changed={Boolean(row.title?.trim()) && row.title !== row.description} />
+                                  <DetailField label="Listing brand" value={row.brand} changed={Boolean(row.brand?.trim())} />
+                                  <DetailField label="Listing model" value={row.model} changed={Boolean(row.model?.trim())} />
                                   <DetailField label="Search Tags" value={row.search_tags} />
                                   {row.ai_reasoning && (
                                     <Box sx={{ mt: 0.75, p: 1, borderLeft: 3, borderColor: 'info.main', bgcolor: 'action.hover', borderRadius: '0 4px 4px 0' }}>

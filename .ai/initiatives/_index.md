@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-30 (preprocessing lean CSV note in unreleased CHANGELOG) -->
+<!-- Last updated: 2026-05-01 (preprocessing core shipped; cleanup contract) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | Pipeline **`Orders → Preprocessing → Receiving → …`**: **Orders** + **Receiving** shipped (**`v2.20.0`**). **Next:** preprocessing UX (**lean **`download-cleanup-csv`** + offline apply** in **`CHANGELOG [Unreleased]`**). Ref: **[Preprocessing — target UX](order_processing_pipeline_rebuild.md#preprocessing--target-ux)** (Session 6). Prior: **`46e0996`** manifest CSV (Session 3); offline Grok (Session 2). Ref folder: [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md). |
+| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | **Inbound:** **Orders** + **Receiving** + preprocessing **core** shipped (**Standardize → Clean → Final Review**, three-layer staging, **`cleanup_csv_contract.md`**). **Iterative:** polish. Ref: **[Preprocessing — target UX](order_processing_pipeline_rebuild.md#preprocessing--target-ux)** (Session 6). Offline Grok: Session 2; ref folder: [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md). |
 
 Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
 

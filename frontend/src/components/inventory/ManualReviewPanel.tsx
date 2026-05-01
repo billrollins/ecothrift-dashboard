@@ -94,9 +94,9 @@ export function ManualReviewPanel({
     const next: Record<number, RowState> = {};
     for (const row of rows) {
       next[row.id] = {
-        title: row.title || row.ai_suggested_title || row.description || '',
-        brand: row.brand || row.ai_suggested_brand || '',
-        model: row.model || row.ai_suggested_model || '',
+        title: row.title || row.description || '',
+        brand: row.brand || '',
+        model: row.model || '',
         category: row.category || '',
         condition: row.condition || 'unknown',
         price: row.final_price || row.proposed_price || row.set_price || '',

@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
   Chip,
   CircularProgress,
+  Collapse,
+  IconButton,
   MenuItem,
   Paper,
   Stack,
@@ -19,6 +20,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import type {
   PreprocessingReviewRow,
   PreprocessingReviewRowPatch,
@@ -27,6 +29,18 @@ import type {
 } from '../../api/inventory.api';
 import { formatConditionLabel, ITEM_CONDITIONS } from '../../constants/inventory.constants';
 import { formatCurrency } from '../../utils/format';
+import {
+  previewBrand,
+  previewCategory,
+  previewCondition,
+  previewDescription,
+  previewModel,
+  previewNotes,
+  previewSearchTags,
+  previewSpecifications,
+  previewTitle,
+  truncateStdTitleHint,
+} from '../../utils/preprocessingCoalesce';
 import type { PreprocessingAiBaselinePatch } from './preprocessing/aiBaseline';
 import { baselineToRowPatch } from './preprocessing/aiBaseline';
 
@@ -59,6 +73,90 @@ interface PreprocessingReviewTableProps {
 
 function money(value: string | null | undefined) {
   return value ? formatCurrency(value) : '-';
+}
+
+function fmtSpecs(blob: Record<string, unknown>): string {
+  try {
+    const s = JSON.stringify(blob);
+    return s.length > 200 ? `${s.slice(0, 197)}…` : s;
+  } catch {
+    return '';
+  }
+}
+
+function LayerPreviewTable({ row }: { row: PreprocessingReviewRow }) {
+  const prevSpec = previewSpecifications(row);
+  const prevTags = previewSearchTags(row);
+  const rows: { label: string; std: string; ai: string; preview: string }[] = [
+    { label: 'Title', std: truncateStdTitleHint(row), ai: row.ai_title || '—', preview: previewTitle(row) || '—' },
+    {
+      label: 'Category',
+      std: row.standard_taxonomy && typeof row.standard_taxonomy === 'object'
+        ? String((row.standard_taxonomy as { category?: string }).category ?? '')
+        : '—',
+      ai: row.ai_category || '—',
+      preview: previewCategory(row) || '—',
+    },
+    { label: 'Brand', std: row.standard_brand || '—', ai: row.ai_brand || '—', preview: previewBrand(row) || '—' },
+    { label: 'Model', std: row.standard_model || '—', ai: row.ai_model || '—', preview: previewModel(row) || '—' },
+    {
+      label: 'Condition',
+      std: row.standard_condition || '—',
+      ai: row.ai_condition || '—',
+      preview: formatConditionLabel(previewCondition(row) || 'unknown'),
+    },
+    { label: 'Description', std: (row.standard_description || '—').slice(0, 500), ai: row.ai_description || '—', preview: previewDescription(row) || '—' },
+    { label: 'Notes', std: row.standard_notes || '—', ai: row.ai_notes || '—', preview: previewNotes(row) || '—' },
+    {
+      label: 'Proposed $',
+      std: '—',
+      ai: row.proposed_price != null ? String(row.proposed_price) : '—',
+      preview: row.proposed_price != null ? String(row.proposed_price) : '—',
+    },
+    { label: 'Specifications', std: fmtSpecs((row.standard_specifications ?? {}) as Record<string, unknown>), ai: fmtSpecs((row.ai_specifications ?? {}) as Record<string, unknown>), preview: fmtSpecs(prevSpec) },
+    { label: 'Search tags', std: (row.standard_search_tags ?? []).join(', ') || '—', ai: (row.ai_search_tags ?? []).join(', ') || '—', preview: prevTags.join(', ') || '—' },
+  ];
+  const locked: { label: string; value: string }[] = [
+    { label: 'Identifiers (locked)', value: fmtSpecs((row.standard_identifiers ?? {}) as Record<string, unknown>) },
+    { label: 'Taxonomy blob (locked)', value: fmtSpecs((row.standard_taxonomy ?? {}) as Record<string, unknown>) },
+    { label: 'Tracking (locked)', value: fmtSpecs((row.standard_tracking ?? {}) as Record<string, unknown>) },
+  ];
+  return (
+    <Box sx={{ py: 1.5 }}>
+      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
+        Final Review — standard / AI / coalesce preview (finalize writes final_*)
+      </Typography>
+      <Table size="small" sx={{ backgroundColor: 'background.paper' }}>
+        <TableHead>
+          <TableRow>
+            <TableCell>Field</TableCell>
+            <TableCell>Standard</TableCell>
+            <TableCell>AI</TableCell>
+            <TableCell>Preview</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {rows.map((r) => (
+            <TableRow key={r.label}>
+              <TableCell sx={{ fontWeight: 600 }}>{r.label}</TableCell>
+              <TableCell sx={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', maxWidth: 280 }}>{r.std}</TableCell>
+              <TableCell sx={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', maxWidth: 280 }}>{r.ai}</TableCell>
+              <TableCell sx={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', maxWidth: 280, bgcolor: 'action.hover' }}>{r.preview}</TableCell>
+            </TableRow>
+          ))}
+          {locked.map((r) => (
+            <TableRow key={r.label}>
+              <TableCell sx={{ fontWeight: 600 }}>{r.label}</TableCell>
+              <TableCell colSpan={2} sx={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', maxWidth: 400 }}>
+                {r.value}
+              </TableCell>
+              <TableCell sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Same as standard</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Box>
+  );
 }
 
 function pctDelta(price: string | null | undefined, ideal: string | null | undefined): number | null {
@@ -114,6 +212,7 @@ export function PreprocessingReviewTable({
 }: PreprocessingReviewTableProps) {
   const [draftsById, setDraftsById] = useState<Record<number, PreprocessingReviewRowPatch>>({});
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [expandedLayer, setExpandedLayer] = useState<Set<number>>(new Set());
 
   const visibleIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const dirtyIds = useMemo(
@@ -124,6 +223,7 @@ export function PreprocessingReviewTable({
   const rowIdKey = useMemo(() => rows.map((row) => row.id).join(','), [rows]);
   useEffect(() => {
     setSelected(new Set());
+    setExpandedLayer(new Set());
   }, [rowIdKey]);
 
   useEffect(() => {
@@ -245,9 +345,9 @@ export function PreprocessingReviewTable({
 
   const applySuggestion = (row: PreprocessingReviewRow) => {
     const patch: PreprocessingReviewRowPatch = {};
-    if (row.ai_suggested_title) patch.title = row.ai_suggested_title;
-    if (row.ai_suggested_brand) patch.brand = row.ai_suggested_brand;
-    if (row.ai_suggested_model) patch.model = row.ai_suggested_model;
+    if ((row.ai_title || '').trim()) patch.title = row.ai_title!.trim();
+    if ((row.ai_brand || '').trim()) patch.brand = row.ai_brand!.trim();
+    if ((row.ai_model || '').trim()) patch.model = row.ai_model!.trim();
     if (Object.keys(patch).length) {
       setDraftsById((prev) => ({ ...prev, [row.id]: { ...(prev[row.id] ?? {}), ...patch } }));
     }
@@ -375,9 +475,17 @@ export function PreprocessingReviewTable({
               const draft = draftsById[row.id];
               const price = String(rowValue(row, draft, 'final_price') ?? row.proposed_price ?? '');
               const delta = pctDelta(price, row.ideal_price);
-              const hasSuggestion = Boolean(row.ai_suggested_title || row.ai_suggested_brand || row.ai_suggested_model);
+              const hasSuggestion = Boolean(
+                (row.ai_title || '').trim()
+                  || (row.ai_brand || '').trim()
+                  || (row.ai_model || '').trim(),
+              );
+              const ident = row.identifiers as Record<string, unknown> | undefined;
+              const upcHint = typeof ident?.upc === 'string' ? ident.upc.trim() : '';
+              const layerOpen = expandedLayer.has(row.id);
               return (
-                <TableRow key={row.id} hover selected={selected.has(row.id)}>
+                <Fragment key={row.id}>
+                <TableRow hover selected={selected.has(row.id)}>
                   <TableCell padding="checkbox">
                     <Checkbox
                       checked={selected.has(row.id)}
@@ -391,12 +499,34 @@ export function PreprocessingReviewTable({
                       }}
                     />
                   </TableCell>
-                  <TableCell>{row.row_number}</TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                    <IconButton
+                      size="small"
+                      aria-label={layerOpen ? 'Collapse layers' : 'Expand layers'}
+                      onClick={() => {
+                        setExpandedLayer((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(row.id)) next.delete(row.id);
+                          else next.add(row.id);
+                          return next;
+                        });
+                      }}
+                      sx={{
+                        transform: layerOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                        transition: 'transform 0.15s',
+                        mr: 0.5,
+                        verticalAlign: 'middle',
+                      }}
+                    >
+                      <KeyboardArrowDownIcon fontSize="small" />
+                    </IconButton>
+                    {row.row_number}
+                  </TableCell>
                   <TableCell sx={{ minWidth: 220 }}>
                     <Typography variant="body2">{row.description}</Typography>
-                    {(row.upc || row.vendor_item_number) && (
+                    {upcHint && (
                       <Typography variant="caption" color="text.secondary">
-                        {[row.upc && `UPC ${row.upc}`, row.vendor_item_number && `Vendor # ${row.vendor_item_number}`].filter(Boolean).join(' | ')}
+                        UPC {upcHint}
                       </Typography>
                     )}
                   </TableCell>
@@ -410,7 +540,7 @@ export function PreprocessingReviewTable({
                     {hasSuggestion && (
                       <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5 }}>
                         <Typography variant="caption" color="text.secondary" noWrap>
-                          AI: {row.ai_suggested_title || row.ai_suggested_brand || row.ai_suggested_model}
+                          AI: {[row.ai_title, row.ai_brand, row.ai_model].filter((s) => (s || '').trim()).join(' · ')}
                         </Typography>
                         <Button size="small" onClick={() => applySuggestion(row)}>Apply</Button>
                       </Stack>
@@ -453,7 +583,7 @@ export function PreprocessingReviewTable({
                       ))}
                     </TextField>
                   </TableCell>
-                  <TableCell align="right">{money(row.retail_value)}</TableCell>
+                  <TableCell align="right">{money(row.unit_retail)}</TableCell>
                   <TableCell align="right">{money(row.base_cost)}</TableCell>
                   <TableCell align="right">{money(row.ideal_price)}</TableCell>
                   <TableCell align="right">
@@ -490,6 +620,14 @@ export function PreprocessingReviewTable({
                     />
                   </TableCell>
                 </TableRow>
+                <TableRow>
+                  <TableCell sx={{ py: 0, borderBottom: layerOpen ? undefined : 0 }} colSpan={13}>
+                    <Collapse in={layerOpen} timeout="auto" unmountOnExit>
+                      <LayerPreviewTable row={row} />
+                    </Collapse>
+                  </TableCell>
+                </TableRow>
+                </Fragment>
               );
             })}
           </TableBody>

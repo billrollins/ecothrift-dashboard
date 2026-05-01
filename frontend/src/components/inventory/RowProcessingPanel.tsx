@@ -4,7 +4,7 @@ import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
 import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined';
 import type { CleanupCsvApplyRowPayload } from '../../api/inventory.api';
 import { useDownloadCleanupCsv } from '../../hooks/useInventory';
-import { parseNarrowCleanupCsv } from './preprocessing/cleanupCsv';
+import { parseCleanupCsv } from './preprocessing/cleanupCsv';
 import { preprocessingFonts } from './preprocessing/preprocessingTokens';
 
 interface RowProcessingPanelProps {
@@ -13,6 +13,8 @@ interface RowProcessingPanelProps {
   rowCount: number;
   /** PreprocessingRow ids required in CSV (exactly once each). */
   expectedRowIds: Set<number>;
+  /** Staged row_number by PreprocessingRow id (for Grok CSV sanity check). */
+  rowNumberById: Record<number, number>;
   /** Parent-owned validated payloads ready for JSON POST. */
   validatedPayload: CleanupCsvApplyRowPayload[] | null;
   onValidatedPayloadChange: (rows: CleanupCsvApplyRowPayload[] | null) => void;
@@ -41,6 +43,7 @@ export function RowProcessingPanel({
   orderNumber,
   rowCount,
   expectedRowIds,
+  rowNumberById,
   validatedPayload,
   onValidatedPayloadChange,
 }: RowProcessingPanelProps) {
@@ -91,6 +94,10 @@ export function RowProcessingPanel({
       if (!expectedRowIds.has(r.row_id)) return `Unknown row_id ${r.row_id} — not a preprocessing row for this order.`;
       if (seen.has(r.row_id)) return `Duplicate row_id ${r.row_id}.`;
       seen.add(r.row_id);
+      const expRn = rowNumberById[r.row_id];
+      if (r.row_number != null && expRn != null && r.row_number !== expRn) {
+        return `row_id ${r.row_id}: CSV row_number ${r.row_number} does not match staged row ${expRn}.`;
+      }
     }
     if (seen.size !== expectedRowIds.size) return 'Some preprocessing rows are missing from the CSV.';
     return null;
@@ -103,21 +110,27 @@ export function RowProcessingPanel({
     addLog(`Reading ${file.name}…`);
     try {
       const text = await file.text();
-      const parsed = parseNarrowCleanupCsv(text);
+      const parsed = parseCleanupCsv(text);
       if (!parsed.ok) {
         const msg = parsed.error;
         setErrorMessage(msg);
         addLog(msg, 'error');
         return;
       }
+      addLog(`Detected ${parsed.format === 'grok12' ? '12-column Grok' : '7-column narrow'} CSV.`, 'info');
       const rows: CleanupCsvApplyRowPayload[] = parsed.rows.map((r) => ({
         row_id: typeof r.row_id === 'number' ? r.row_id : Number.parseInt(String(r.row_id), 10),
+        row_number: r.row_number,
         ai_title: String(r.ai_title ?? ''),
         ai_brand: String(r.ai_brand ?? ''),
         ai_model: String(r.ai_model ?? ''),
         category: String(r.category ?? ''),
         condition: String(r.condition ?? ''),
         proposed_price: String(r.proposed_price ?? ''),
+        description: r.description,
+        notes: r.notes,
+        specifications_json: r.specifications_json,
+        search_tags_json: r.search_tags_json,
       }));
       const vErr = validateAgainstExpected(rows);
       if (vErr) {
@@ -144,8 +157,11 @@ export function RowProcessingPanel({
         Offline AI Cleanup
       </Typography>
       <Typography sx={{ fontSize: 13, color: '#666', mb: 2, lineHeight: 1.5 }}>
-        Upload parses <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 12 }}>row_id, ai_title, ai_brand, ai_model, category, condition, proposed_price</Typography>{' '}
-        locally. Run Cleanup in the toolbar sends the validated rows to the server — no second validation round-trip.
+        Upload accepts a <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 12 }}>12-column Grok</Typography> response (
+        <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 11 }}>row_id … search_tags_json</Typography>) or legacy{' '}
+        <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 12 }}>7-column narrow</Typography> (
+        <Typography component="span" sx={{ fontFamily: preprocessingFonts.mono, fontSize: 11 }}>ai_title…</Typography>). Run Cleanup in the toolbar posts JSON to
+        the server for full validation.
       </Typography>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5, mb: 2 }}>
@@ -201,7 +217,7 @@ export function RowProcessingPanel({
           >
             <input ref={fileInputRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => void handleFile(e.target.files?.[0])} />
             <Typography sx={{ pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-              <UploadFileOutlined fontSize="small" /> Choose narrow CSV…
+              <UploadFileOutlined fontSize="small" /> Choose CSV (Grok 12-col or narrow)…
             </Typography>
           </Box>
           {validatedPayload && (

@@ -131,6 +131,23 @@ export interface StandardColumnDefinition {
   key: string;
   label: string;
   required: boolean;
+  ai_locked?: boolean;
+}
+
+export interface ManifestFieldBucketMetadata {
+  label: string;
+  suggested_keys: string[];
+  open: boolean;
+}
+
+export interface ManifestFieldMetadataResponse {
+  flat: Array<{
+    key: string;
+    label: string;
+    required: boolean;
+    ai_locked: boolean;
+  }>;
+  buckets: Record<string, ManifestFieldBucketMetadata>;
 }
 
 export interface ManifestFunctionDefinition {
@@ -326,6 +343,11 @@ export function updateVendor(id: number, data: Record<string, unknown>): Promise
 
 export function deleteVendor(id: number): Promise<{ data: void }> {
   return api.delete(`/inventory/vendors/${id}/`);
+}
+
+/** Static formula-builder field taxonomy (backend source of truth). */
+export function getManifestFieldMetadata(): Promise<{ data: ManifestFieldMetadataResponse }> {
+  return api.get<ManifestFieldMetadataResponse>('/inventory/manifest-fields/');
 }
 
 // Orders CRUD
@@ -700,6 +722,17 @@ export interface UploadCleanupCsvRejectedRow {
   row_ids?: number[];
   reason: string;
   detail?: string;
+  rule?: string;
+  column?: string;
+}
+
+export interface CleanupCsvSoftWarning {
+  line?: number;
+  row_id?: number;
+  rule?: string;
+  column?: string;
+  reason?: string;
+  detail?: string;
 }
 
 export interface UploadCleanupCsvResponse {
@@ -709,6 +742,7 @@ export interface UploadCleanupCsvResponse {
   rejected_rows: UploadCleanupCsvRejectedRow[];
   items_updated: number;
   products_updated: number;
+  soft_warnings?: CleanupCsvSoftWarning[];
 }
 
 export interface ManualReviewSummary {
@@ -803,27 +837,61 @@ export interface PreprocessingReviewRow {
   id: number;
   row_number: number;
   quantity: number;
+  unit_retail: string | null;
+  /** Effective (coalesced) display fields */
   description: string;
   title: string;
   brand: string;
   model: string;
+  identifiers: Record<string, unknown>;
+  taxonomy: Record<string, unknown>;
+  specifications: Record<string, unknown>;
+  tracking: Record<string, unknown>;
+  search_tags: string[];
   category: string;
   condition: import('../types/inventory.types').ItemCondition | '';
-  retail_value: string | null;
   proposed_price: string | null;
   final_price: string | null;
   pricing_stage: import('../types/inventory.types').ManifestPricingStage;
   pricing_notes: string;
   ai_reasoning: string;
-  ai_suggested_title: string;
-  ai_suggested_brand: string;
-  ai_suggested_model: string;
-  upc: string;
-  vendor_item_number: string;
   batch_flag: boolean;
-  search_tags: string;
-  specifications: Record<string, unknown>;
   notes: string;
+  final_layer_visible: boolean;
+  standard_description?: string;
+  ai_description?: string;
+  final_description?: string | null;
+  ai_title?: string;
+  final_title?: string | null;
+  ai_category?: string;
+  final_category?: string | null;
+  standard_brand?: string;
+  ai_brand?: string;
+  final_brand?: string | null;
+  standard_model?: string;
+  ai_model?: string;
+  final_model?: string | null;
+  standard_condition?: string;
+  ai_condition?: string;
+  final_condition?: string | null;
+  standard_notes?: string;
+  ai_notes?: string;
+  final_notes?: string | null;
+  standard_identifiers?: Record<string, unknown>;
+  ai_identifiers?: Record<string, unknown>;
+  final_identifiers?: Record<string, unknown> | null;
+  standard_taxonomy?: Record<string, unknown>;
+  ai_taxonomy?: Record<string, unknown>;
+  final_taxonomy?: Record<string, unknown> | null;
+  standard_specifications?: Record<string, unknown>;
+  ai_specifications?: Record<string, unknown>;
+  final_specifications?: Record<string, unknown> | null;
+  standard_tracking?: Record<string, unknown>;
+  ai_tracking?: Record<string, unknown>;
+  final_tracking?: Record<string, unknown> | null;
+  standard_search_tags?: string[];
+  ai_search_tags?: string[];
+  final_search_tags?: string[] | null;
   base_cost: string | null;
   ideal_price: string | null;
   set_price: string | null;
@@ -839,6 +907,7 @@ export type PreprocessingReviewRowPatch = Partial<Pick<
   | 'model'
   | 'category'
   | 'condition'
+  | 'description'
   | 'final_price'
   | 'proposed_price'
   | 'pricing_notes'
@@ -972,12 +1041,17 @@ export function uploadCleanupCsv(
 
 export interface CleanupCsvApplyRowPayload {
   row_id: number;
+  row_number?: number;
   ai_title: string;
   ai_brand: string;
   ai_model: string;
   category: string;
   condition: string;
   proposed_price: string;
+  description?: string;
+  notes?: string;
+  specifications_json?: string;
+  search_tags_json?: string;
 }
 
 export function uploadCleanupCsvRows(

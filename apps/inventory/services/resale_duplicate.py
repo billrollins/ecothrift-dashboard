@@ -20,7 +20,7 @@ def duplicate_item_for_resale(user, src: Item) -> Item:
     now = timezone.now()
 
     po = src.purchase_order
-    dup_cost = po.compute_item_cost(src.retail_value) if po else None
+    dup_cost = po.compute_item_cost(src.unit_retail) if po else None
 
     with transaction.atomic():
         new_item = Item.objects.create(
@@ -32,9 +32,8 @@ def duplicate_item_for_resale(user, src: Item) -> Item:
             processing_tier=src.processing_tier,
             title=src.title,
             brand=src.brand,
-            category=src.category,
             price=src.price,
-            retail_value=src.retail_value,
+            unit_retail=src.unit_retail,
             cost=dup_cost,
             source=new_source,
             status='on_shelf',

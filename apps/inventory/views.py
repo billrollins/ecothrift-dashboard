@@ -2,6 +2,7 @@ import csv
 import hashlib
 import io
 import json
+from copy import deepcopy
 import re
 import uuid
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -62,6 +63,16 @@ from .models import (
     PreprocessingOrder, PreprocessingRow,
     Receiving, ReceivingAttachment, ReceivingPallet,
 )
+from .layer_helpers import (
+    TRIPLE_LAYER_SPECS,
+    bulk_clear_preprocess_ai_and_final_layers,
+    effective_preprocessing_notes,
+    effective_preprocessing_title,
+    effective_preprocessing_triple,
+    effective_taxonomy_category_for_row,
+    snapshot_finalize_from_ai_and_standard,
+    preprocessing_row_has_final,
+)
 from .serializers import (
     VendorSerializer,
     PurchaseOrderSerializer,
@@ -83,37 +94,29 @@ from apps.inventory.services.receiving import (
     patch_receiving_draft,
     validate_complete,
 )
+from .cleanup_condition import normalize_cleanup_condition
+from .cleanup_csv_validate import validate_cleanup_row_values
 from .prompts import CONDITION_VALUES, FEW_SHOT_ADD_ITEM, LISTING_STANDARDS, OUTPUT_SCHEMA_HINT
 from .services.ai_listing_context import retrieve_listing_examples_for_prompt
-
-
-MANIFEST_TARGET_FIELDS = (
-    'quantity',
-    'description',
-    'title',
-    'brand',
-    'model',
-    'category',
-    'condition',
-    'retail_value',
-    'upc',
-    'vendor_item_number',
-    'notes',
+from apps.inventory.manifest_standard_fields import (
+    AI_LOCKED_FIELDS,
+    IDENTIFIER_LOOKUP_ORDER,
+    OPTIONAL_FLAT_TARGETS,
+    all_source_alias_candidates,
+    coerce_mapping_target,
+    default_formula_mapping_targets_in_order,
+    first_identifier_hit,
+    manifest_field_metadata_payload,
+    prune_empty_bucket_values,
+    slugify_formula_search_tags,
+    validate_mapping_target,
 )
 
-MANIFEST_STANDARD_COLUMNS = (
-    {'key': 'quantity', 'label': 'Quantity', 'required': True},
-    {'key': 'description', 'label': 'Description', 'required': True},
-    {'key': 'title', 'label': 'Title', 'required': False},
-    {'key': 'brand', 'label': 'Brand', 'required': False},
-    {'key': 'model', 'label': 'Model', 'required': False},
-    {'key': 'category', 'label': 'Category', 'required': False},
-    {'key': 'condition', 'label': 'Condition', 'required': False},
-    {'key': 'retail_value', 'label': 'Unit retail (MSRP)', 'required': False},
-    {'key': 'upc', 'label': 'UPC', 'required': False},
-    {'key': 'vendor_item_number', 'label': 'Vendor Item # (CSV "sku" in cleanup export)', 'required': False},
-    {'key': 'notes', 'label': 'Notes', 'required': False},
-)
+
+def manifest_standard_flat_columns():
+    """Pinned flat field metadata for API responses (see GET manifest-fields)."""
+    return manifest_field_metadata_payload()['flat']
+
 
 MANIFEST_FUNCTION_OPTIONS = (
     {'id': 'trim', 'label': 'Trim'},
@@ -123,55 +126,6 @@ MANIFEST_FUNCTION_OPTIONS = (
     {'id': 'remove_special_chars', 'label': 'Remove Special Characters'},
     {'id': 'replace', 'label': 'Replace Text'},
 )
-
-MANIFEST_SOURCE_ALIASES = {
-    'quantity': ['quantity', 'qty', 'units', 'count', 'qnty'],
-    'description': ['description', 'item description', 'title', 'product', 'item'],
-    'title': ['title', 'product name', 'item name', 'name', 'current_title'],
-    'brand': ['brand', 'manufacturer'],
-    'model': ['model', 'model_number', 'model number'],
-    'category': ['category', 'department'],
-    'condition': [
-        'condition',
-        'item condition',
-        'current_condition',
-        'used_fair',
-        'used_good',
-        'used_like_new',
-    ],
-    # Prefer vendor unit stated retail (e.g. B-Stock "Unit Retail"); extended line fallbacks last.
-    'retail_value': [
-        'unit retail',
-        'unit retail price',
-        'retail price',
-        'msrp',
-        'list price',
-        'stated retail',
-        'vendor retail',
-        'original retail',
-        'ext retail',
-        'ext. retail',
-        'extended retail',
-        'total retail',
-        'retail value',
-        'retail_value',
-        'price',
-        'unit_cost',
-        'unit cost',
-        'cost',
-    ],
-    'upc': ['upc', 'upc/ean', 'barcode'],
-    'vendor_item_number': [
-        'vendor_item_number',
-        'vendor item number',
-        'item #',
-        'item number',
-        'tcin',
-        'walmart item id',
-        'sku',
-    ],
-    'notes': ['notes', 'comment'],
-}
 
 
 def header_signature(headers):
@@ -277,9 +231,10 @@ def ensure_preprocessing_raw_rows(order):
 def default_column_mappings(headers):
     normalized_headers = [(h, h.strip().lower()) for h in headers]
     mappings = []
-    for target in MANIFEST_TARGET_FIELDS:
+    candidates = all_source_alias_candidates()
+    for target in default_formula_mapping_targets_in_order():
         source = ''
-        for alias in MANIFEST_SOURCE_ALIASES.get(target, []):
+        for alias in candidates.get(target, ()):
             match = next(
                 (header for header, lowered in normalized_headers if lowered == alias),
                 None,
@@ -326,8 +281,11 @@ def normalize_standard_mappings(mappings):
     for mapping in mappings or []:
         if not isinstance(mapping, dict):
             continue
-        target = mapping.get('target') or mapping.get('standard_column') or mapping.get('standardColumn')
-        if target not in MANIFEST_TARGET_FIELDS:
+        raw_target = mapping.get('target') or mapping.get('standard_column') or mapping.get('standardColumn')
+        if not raw_target:
+            continue
+        target = coerce_mapping_target(str(raw_target).strip())
+        if validate_mapping_target(target) is not None:
             continue
 
         formula = mapping.get('formula', '').strip() if mapping.get('formula') else ''
@@ -415,6 +373,7 @@ PREPROCESSING_REVIEW_EDITABLE_FIELDS = (
     'model',
     'category',
     'condition',
+    'description',
     'search_tags',
     'notes',
     'pricing_notes',
@@ -441,17 +400,27 @@ def build_preprocessing_review_queryset(prep, query_params):
     )
     search_term = str(query_params.get('search') or '').strip().lower()
     if search_term:
+        st = search_term
         rows_qs = rows_qs.filter(
-            Q(description__icontains=search_term)
-            | Q(title__icontains=search_term)
-            | Q(brand__icontains=search_term)
-            | Q(model__icontains=search_term)
-            | Q(category__icontains=search_term)
-            | Q(vendor_item_number__icontains=search_term)
-            | Q(upc__icontains=search_term)
-            | Q(ai_suggested_title__icontains=search_term)
-            | Q(ai_suggested_brand__icontains=search_term)
-            | Q(ai_suggested_model__icontains=search_term)
+            Q(standard_description__icontains=st)
+            | Q(ai_description__icontains=st)
+            | Q(final_description__icontains=st)
+            | Q(standard_brand__icontains=st)
+            | Q(ai_brand__icontains=st)
+            | Q(final_brand__icontains=st)
+            | Q(standard_model__icontains=st)
+            | Q(ai_model__icontains=st)
+            | Q(final_model__icontains=st)
+            | Q(standard_condition__icontains=st)
+            | Q(ai_condition__icontains=st)
+            | Q(final_condition__icontains=st)
+            | Q(standard_notes__icontains=st)
+            | Q(ai_notes__icontains=st)
+            | Q(final_notes__icontains=st)
+            | Q(ai_title__icontains=st)
+            | Q(final_title__icontains=st)
+            | Q(ai_category__icontains=st)
+            | Q(final_category__icontains=st)
         )
     if str(query_params.get('missing_price') or '').lower() in ('1', 'true', 'yes'):
         rows_qs = rows_qs.filter(final_price__isnull=True, proposed_price__isnull=True)
@@ -467,15 +436,18 @@ def summarize_preprocessing_rows(order, rows_qs):
     low_confidence = 0
     for row in rows_qs.only(
         'quantity',
-        'retail_value',
+        'unit_retail',
         'proposed_price',
         'final_price',
-        'notes',
         'purchase_order',
+        'standard_notes',
+        'ai_notes',
+        'final_notes',
+        'final_description',
     ):
         qty = row.quantity if row.quantity and row.quantity > 0 else 1
         total_units += qty
-        base_cost = order.compute_item_cost(row.retail_value)
+        base_cost = order.compute_item_cost(row.unit_retail)
         if base_cost is not None:
             total_ideal += base_cost * Decimal('2') * qty
         row_price = effective_preprocessing_row_price(row)
@@ -483,7 +455,7 @@ def summarize_preprocessing_rows(order, rows_qs):
             missing_price += 1
         else:
             total_set += row_price * qty
-        if 'low confidence' in (row.notes or '').lower():
+        if 'low confidence' in effective_preprocessing_notes(row).lower():
             low_confidence += 1
     delta = None
     if total_ideal > 0:
@@ -522,12 +494,45 @@ def update_preprocessing_review_rows(prep, rows_payload):
             row_data = {**patch, 'id': row_id}
         update_fields = []
         for field in PREPROCESSING_REVIEW_EDITABLE_FIELDS:
-            if field in row_data:
+            if field not in row_data:
+                continue
+            if field == 'search_tags':
+                st = row_data.get('search_tags')
+                if isinstance(st, list):
+                    row.ai_search_tags = [str(x).strip() for x in st if str(x).strip()]
+                else:
+                    row.ai_search_tags = slugify_formula_search_tags(str(st or ''))
+                update_fields.append('ai_search_tags')
+                continue
+            if field == 'title':
+                row.ai_title = str(row_data.get(field) or '')[:300]
+                update_fields.append('ai_title')
+            elif field == 'category':
+                row.ai_category = str(row_data.get(field) or '').strip()[:200]
+                update_fields.append('ai_category')
+            elif field == 'brand':
+                row.ai_brand = str(row_data.get(field) or '')[:200]
+                update_fields.append('ai_brand')
+            elif field == 'model':
+                row.ai_model = str(row_data.get(field) or '')[:200]
+                update_fields.append('ai_model')
+            elif field == 'condition':
+                raw_c = str(row_data.get(field) or '').strip()
+                norm_c = normalize_cleanup_condition(raw_c) or raw_c
+                row.ai_condition = norm_c
+                update_fields.append('ai_condition')
+            elif field == 'description':
+                row.ai_description = str(row_data.get(field) or '')
+                update_fields.append('ai_description')
+            elif field == 'notes':
+                row.ai_notes = str(row_data.get(field) or '')
+                update_fields.append('ai_notes')
+            else:
                 setattr(row, field, str(row_data.get(field) or ''))
                 update_fields.append(field)
         if 'specifications' in row_data and isinstance(row_data.get('specifications'), dict):
-            row.specifications = row_data['specifications']
-            update_fields.append('specifications')
+            row.ai_specifications = row_data['specifications']
+            update_fields.append('ai_specifications')
         if 'batch_flag' in row_data:
             row.batch_flag = bool(row_data.get('batch_flag'))
             update_fields.append('batch_flag')
@@ -560,25 +565,138 @@ def _clean_match_value(value):
 
 
 def _row_listing_title(row):
+    if isinstance(row, PreprocessingRow):
+        t = effective_preprocessing_title(row).strip()
+        if t:
+            return t[:300]
+        desc = effective_preprocessing_triple(row, 'description')
+        if str(desc or '').strip():
+            return str(desc)[:300]
+        return 'Untitled Item'
     return (
-        row.ai_suggested_title
-        or row.title
+        getattr(row, 'title', '')
         or row.description
         or 'Untitled Item'
     )[:300]
 
 
 def _row_listing_brand(row):
-    return (row.ai_suggested_brand or row.brand or '')[:200]
+    if isinstance(row, PreprocessingRow):
+        b = effective_preprocessing_triple(row, 'brand')
+        return str(b or '')[:200]
+    return str(getattr(row, 'brand', '') or '')[:200]
 
 
 def _row_listing_model(row):
-    return (row.ai_suggested_model or row.model or '')[:200]
+    if isinstance(row, PreprocessingRow):
+        m = effective_preprocessing_triple(row, 'model')
+        return str(m or '')[:200]
+    return str(getattr(row, 'model', '') or '')[:200]
 
 
 def _row_listing_category(row):
-    category = row.category or ''
-    return category[:200]
+    return effective_taxonomy_category_for_row(row)
+
+
+def _cleanup_csv_json_cell(val):
+    """Single CSV cell for dict/list payloads (empty aggregates → blank cell)."""
+    if val is None:
+        return ''
+    if isinstance(val, dict) and len(val) == 0:
+        return ''
+    if isinstance(val, list) and len(val) == 0:
+        return ''
+    if isinstance(val, (dict, list)):
+        return json.dumps(val, ensure_ascii=False, separators=(',', ':'))
+    return str(val)
+
+
+def _cleanup_strip_record(row: dict) -> dict:
+    out = {}
+    for k, v in (row or {}).items():
+        if k is None:
+            continue
+        key = str(k).strip()
+        if not key:
+            continue
+        if isinstance(v, str):
+            out[key] = v.strip()
+        elif v is None:
+            out[key] = ''
+        else:
+            out[key] = v
+    return out
+
+
+def _cleanup_apply_header_aliases(norm: dict) -> dict:
+    """Groove-style aliases (unprefixed wire) merged into canonical upload keys."""
+    n = dict(norm)
+    if n.get('title') and not n.get('ai_title'):
+        n['ai_title'] = n['title']
+    if n.get('brand') and not n.get('ai_brand'):
+        n['ai_brand'] = n['brand']
+    if n.get('model') and not n.get('ai_model'):
+        n['ai_model'] = n['model']
+    return n
+
+
+NARROW_AI_CLEANUP_KEYS = frozenset({
+    'row_id', 'ai_title', 'ai_brand', 'ai_model', 'category', 'condition', 'proposed_price',
+})
+WIDE_JSON_CLEANUP_KEYS = frozenset({
+    'identifiers_json', 'taxonomy_json', 'specifications_json', 'tracking_json', 'search_tags_json',
+})
+
+_CLEANUP_STAGING_WIDE_SIGNAL_KEYS = WIDE_JSON_CLEANUP_KEYS.union({'description', 'notes'})
+
+
+def _cleanup_norm_has_non_empty(norm: dict, keys: frozenset | set) -> bool:
+    for k in keys:
+        if k not in norm:
+            continue
+        v = norm.get(k)
+        if v is None:
+            continue
+        if isinstance(v, str) and not str(v).strip():
+            continue
+        return True
+    return False
+
+
+def _cleanup_export_sku(row, use_staging):
+    """Prefer identifiers sub-keys, then canonical Item SKU when not staging."""
+    if use_staging:
+        blob = getattr(row, 'standard_identifiers', None) or {}
+    else:
+        blob = getattr(row, 'identifiers', None) or {}
+    if isinstance(blob, dict):
+        for k in ('sku', 'item_number', 'vendor_item_number', 'tcin', 'asin'):
+            v = blob.get(k)
+            if v is not None and str(v).strip():
+                return str(v).strip()[:500]
+    if use_staging:
+        return ''
+    first_item = row.items.exclude(status__in=TERMINAL_ITEM_STATUSES).order_by('id').first()
+    return str(first_item.sku).strip()[:500] if first_item and first_item.sku else ''
+
+
+def _cleanup_export_upc(row):
+    if getattr(row, 'preprocessing_order_id', None):
+        blob = getattr(row, 'standard_identifiers', None) or {}
+    else:
+        blob = getattr(row, 'identifiers', None) or {}
+    if not isinstance(blob, dict):
+        return ''
+    return str(blob.get('upc') or blob.get('ean') or blob.get('gtin') or '')[:128]
+
+
+def _row_identifiers_blob(row):
+    if getattr(row, 'preprocessing_order_id', None):
+        return getattr(row, 'standard_identifiers', {}) or {}
+    return row.identifiers or {}
+
+def _vendor_lookup_from_manifest_identifiers(row) -> str:
+    return first_identifier_hit(_row_identifiers_blob(row), IDENTIFIER_LOOKUP_ORDER)
 
 
 def _row_listing_condition(row):
@@ -593,12 +711,14 @@ def _row_price(row):
 
 def _find_or_create_manifest_product(order, row):
     """Deterministic reuse only; otherwise create a new Product for this row."""
-    if row.upc:
-        product = Product.objects.filter(upc=row.upc).first()
+    ids = row.identifiers or {}
+    upc_val = str(ids.get('upc') or '').strip()
+    if upc_val:
+        product = Product.objects.filter(upc=upc_val).first()
         if product:
             return product, False
 
-    lookup_key = row.vendor_item_number or row.upc
+    lookup_key = first_identifier_hit(ids, IDENTIFIER_LOOKUP_ORDER)
     if lookup_key:
         ref = VendorProductRef.objects.filter(
             vendor=order.vendor,
@@ -606,8 +726,8 @@ def _find_or_create_manifest_product(order, row):
         ).select_related('product').first()
         if ref:
             ref.times_seen += 1
-            if row.retail_value is not None:
-                ref.last_unit_cost = row.retail_value
+            if row.unit_retail is not None:
+                ref.last_unit_cost = row.unit_retail
             ref.save(update_fields=['times_seen', 'last_unit_cost', 'updated_at'])
             return ref.product, False
 
@@ -620,7 +740,7 @@ def _find_or_create_manifest_product(order, row):
         brand__iexact=brand,
         model__iexact=model,
         category__iexact=category,
-        upc=row.upc or '',
+        upc=upc_val,
     ).first()
     if exact_product:
         return exact_product, False
@@ -636,7 +756,7 @@ def _find_or_create_manifest_product(order, row):
         description=row.description or '',
         specifications=row.specifications or {},
         default_price=_row_price(row),
-        upc=row.upc or '',
+        upc=upc_val,
     )
     if lookup_key:
         VendorProductRef.objects.get_or_create(
@@ -645,7 +765,7 @@ def _find_or_create_manifest_product(order, row):
             defaults={
                 'product': product,
                 'vendor_description': row.description[:500],
-                'last_unit_cost': row.retail_value,
+                'last_unit_cost': row.unit_retail,
             },
         )
     return product, True
@@ -654,7 +774,7 @@ def _find_or_create_manifest_product(order, row):
 def _sync_manifest_items_for_row(order, row, product):
     quantity = row.quantity if row.quantity and row.quantity > 0 else 1
     desired_price = _row_price(row)
-    row_cost = row.retail_value if row.retail_value is not None else None
+    row_cost = row.unit_retail if row.unit_retail is not None else None
     item_cost = order.compute_item_cost(row_cost)
     existing_items = list(
         row.items.exclude(status__in=TERMINAL_ITEM_STATUSES).order_by('id')
@@ -671,9 +791,8 @@ def _sync_manifest_items_for_row(order, row, product):
             'manifest_row': row,
             'title': _row_listing_title(row),
             'brand': _row_listing_brand(row),
-            'category': _row_listing_category(row),
             'price': desired_price,
-            'retail_value': row_cost,
+            'unit_retail': row_cost,
             'cost': item_cost,
             'source': 'purchased',
             'condition': _row_listing_condition(row),
@@ -702,9 +821,8 @@ def _sync_manifest_items_for_row(order, row, product):
             processing_tier='batch' if (quantity >= 6 and desired_price < Decimal('75')) else 'individual',
             title=_row_listing_title(row),
             brand=_row_listing_brand(row),
-            category=_row_listing_category(row),
             price=desired_price,
-            retail_value=row_cost,
+            unit_retail=row_cost,
             cost=item_cost,
             source='purchased',
             status='intake',
@@ -776,6 +894,7 @@ def sync_manifest_row_outputs_to_items(order, rows):
     for row in rows:
         product = row.matched_product
         if product:
+            upc_p = str((row.identifiers or {}).get('upc') or '').strip()
             product_updates = {
                 'title': _row_listing_title(row),
                 'brand': _row_listing_brand(row),
@@ -784,7 +903,7 @@ def sync_manifest_row_outputs_to_items(order, rows):
                 'description': row.description or '',
                 'specifications': row.specifications or {},
                 'default_price': _row_price(row),
-                'upc': row.upc or '',
+                'upc': upc_p,
             }
             changed = []
             for field, value in product_updates.items():
@@ -801,11 +920,10 @@ def sync_manifest_row_outputs_to_items(order, rows):
                 'product': product,
                 'title': _row_listing_title(row),
                 'brand': _row_listing_brand(row),
-                'category': _row_listing_category(row),
                 'condition': _row_listing_condition(row),
                 'price': _row_price(row),
-                'retail_value': row.retail_value,
-                'cost': order.compute_item_cost(row.retail_value),
+                'unit_retail': row.unit_retail,
+                'cost': order.compute_item_cost(row.unit_retail),
                 'specifications': row.specifications or {},
             }
             changed = []
@@ -930,15 +1048,15 @@ def _build_check_in_queue_from_manifest(order, user):
                 title=(row.description or 'Untitled Item')[:300],
                 brand=row.brand or '',
                 model=row.model or '',
-                category=row.category or '',
-                upc=row.upc or '',
+                category=_row_listing_category(row),
+                upc=str((row.identifiers or {}).get('upc') or ''),
             )
             row.matched_product = product
             row.match_status = 'matched'
             row.save(update_fields=['matched_product', 'match_status'])
 
         quantity = row.quantity if row.quantity and row.quantity > 0 else 1
-        row_cost = row.retail_value if row.retail_value is not None else None
+        row_cost = row.unit_retail if row.unit_retail is not None else None
         row_price = effective_manifest_row_price(row)
         is_batch = False
         if row_price is not None:
@@ -976,9 +1094,8 @@ def _build_check_in_queue_from_manifest(order, user):
                 processing_tier=processing_tier,
                 title=(row.title or product.title or row.description or '')[:300],
                 brand=row.brand or product.brand or '',
-                category=row.category or product.category or '',
                 price=item_price,
-                retail_value=row_cost,
+                unit_retail=row_cost,
                 cost=item_cost,
                 source='purchased',
                 status='intake',
@@ -1066,12 +1183,15 @@ def normalized_row_matches_search(row, search_term):
     needle = str(search_term).strip().lower()
     if not needle:
         return True
+    hay_raw = ''
     for key, value in (row or {}).items():
         if key == 'row_number':
             continue
-        if needle in str(value or '').lower():
-            return True
-    return False
+        if isinstance(value, (dict, list)):
+            hay_raw += ' ' + json.dumps(value, sort_keys=True).lower()
+        else:
+            hay_raw += ' ' + str(value or '').lower()
+    return needle in hay_raw
 
 
 def apply_transform(value, transform):
@@ -1202,39 +1322,88 @@ def _suggest_item_parse_suggestions_from_text(
 
 
 def normalize_row(raw, row_number, column_mappings):
-    mapped = {}
-    mappings_by_target = {
-        m.get('target'): m for m in (column_mappings or []) if isinstance(m, dict)
-    }
-    for target in MANIFEST_TARGET_FIELDS:
-        mapping = mappings_by_target.get(target, {})
-        formula = mapping.get('formula', '').strip()
+    flat_out: dict = {}
+    identifiers: dict[str, str] = {}
+    taxonomy: dict[str, str] = {}
+    specifications: dict[str, str] = {}
+    tracking: dict[str, str] = {}
+    mappings_by_target: dict[str, dict] = {}
+    for m in column_mappings or []:
+        if not isinstance(m, dict):
+            continue
+        rt = str(m.get('target') or '').strip()
+        if not rt:
+            continue
+        mappings_by_target[coerce_mapping_target(rt)] = m
+    ordered_keys: list[str] = []
+    seen: set[str] = set()
+    for m in column_mappings or []:
+        if not isinstance(m, dict):
+            continue
+        rt = str(m.get('target') or '').strip()
+        if not rt:
+            continue
+        rt_canon = coerce_mapping_target(rt)
+        if rt_canon not in seen:
+            seen.add(rt_canon)
+            ordered_keys.append(rt_canon)
+
+    for tgt in ordered_keys:
+        mapping = mappings_by_target.get(tgt) or {}
+        if validate_mapping_target(tgt) is not None and tgt not in OPTIONAL_FLAT_TARGETS:
+            continue
+        formula = (mapping.get('formula') or '').strip() if mapping.get('formula') else ''
         if formula:
             try:
-                mapped[target] = evaluate_formula(formula, raw)
+                cell = evaluate_formula(formula, raw)
             except FormulaError:
-                mapped[target] = ''
+                cell = ''
         else:
             source = mapping.get('source', '')
             raw_value = raw.get(source, '') if source else ''
             transforms = mapping.get('transforms')
             if transforms is None and mapping.get('transform'):
                 transforms = [{'type': mapping.get('transform')}]
-            mapped[target] = apply_transforms(raw_value, transforms or [])
+            cell = apply_transforms(raw_value, transforms or [])
+        if '.' in tgt:
+            bucket, sk = tgt.split('.', 1)
+            if bucket == 'identifiers':
+                identifiers[sk] = str(cell or '').strip()
+            elif bucket == 'taxonomy':
+                taxonomy[sk] = str(cell or '').strip()
+            elif bucket == 'specifications':
+                specifications[sk] = str(cell or '').strip()
+            elif bucket == 'tracking':
+                tracking[sk] = str(cell or '').strip()
+        elif tgt == 'search_tags':
+            flat_out[tgt] = slugify_formula_search_tags(str(cell or ''))
+        elif tgt == 'quantity':
+            flat_out[tgt] = parse_int(cell)
+        elif tgt == 'unit_retail':
+            flat_out[tgt] = parse_decimal(cell)
+        else:
+            flat_out[tgt] = str(cell or '').strip()
+
+    qty = flat_out.get('quantity')
+    search_tags_val = flat_out.get('search_tags')
+    if not isinstance(search_tags_val, list):
+        search_tags_val = slugify_formula_search_tags(str(search_tags_val or ''))
 
     return {
         'row_number': row_number,
-        'quantity': parse_int(mapped.get('quantity'), default=1),
-        'description': str(mapped.get('description') or '').strip(),
-        'title': str(mapped.get('title') or '').strip(),
-        'brand': str(mapped.get('brand') or '').strip(),
-        'model': str(mapped.get('model') or '').strip(),
-        'category': str(mapped.get('category') or '').strip(),
-        'condition': str(mapped.get('condition') or '').strip(),
-        'retail_value': parse_decimal(mapped.get('retail_value')),
-        'upc': str(mapped.get('upc') or '').strip(),
-        'vendor_item_number': str(mapped.get('vendor_item_number') or '').strip(),
-        'notes': str(mapped.get('notes') or '').strip(),
+        'quantity': parse_int(qty, default=1),
+        'description': str(flat_out.get('description') or '').strip(),
+        'title': str(flat_out.get('title') or '').strip(),
+        'brand': str(flat_out.get('brand') or '').strip(),
+        'model': str(flat_out.get('model') or '').strip(),
+        'condition': str(flat_out.get('condition') or '').strip(),
+        'unit_retail': flat_out.get('unit_retail'),
+        'notes': str(flat_out.get('notes') or '').strip(),
+        'identifiers': prune_empty_bucket_values(identifiers),
+        'taxonomy': prune_empty_bucket_values(taxonomy),
+        'specifications': prune_empty_bucket_values(specifications),
+        'tracking': prune_empty_bucket_values(tracking),
+        'search_tags': search_tags_val,
     }
 
 
@@ -2223,6 +2392,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             order.items.exclude(status__in=TERMINAL_ITEM_STATUSES).delete()
             order.batch_groups.all().delete()
 
+            bulk_clear_preprocess_ai_and_final_layers(
+                PreprocessingRow.objects.filter(preprocessing_order=prep),
+            )
+
             for row_data in normalized_rows:
                 rn = int(row_data.get('row_number') or 0)
                 sr = staging_by_rn.get(rn)
@@ -2238,7 +2411,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     pricing_stage = 'final'
                 elif proposed_price is not None and pricing_stage == 'unpriced':
                     pricing_stage = 'draft'
-                base_retail = parse_decimal(row_data.get('retail_value'))
+                base_retail = parse_decimal(row_data.get('unit_retail'))
+                if base_retail is None:
+                    base_retail = parse_decimal(row_data.get('retail_value'))
                 base_cost = order.compute_item_cost(base_retail)
                 pricing_notes_val = str(row_data.get('pricing_notes') or '')
                 if proposed_price is None and final_price is None and base_cost is not None:
@@ -2247,20 +2422,29 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     pricing_notes_val = pricing_notes_val or 'Initial ideal price (2x allocated base cost)'
 
                 sr.quantity = row_data.get('quantity', 1)
-                sr.description = row_data.get('description', '')
-                sr.title = row_data.get('title', '')
-                sr.brand = row_data.get('brand', '')
-                sr.model = row_data.get('model', '')
-                sr.category = row_data.get('category', '')
-                sr.condition = row_data.get('condition', '')
-                sr.retail_value = base_retail
+                sr.standard_description = row_data.get('description', '')
+                sr.standard_brand = row_data.get('brand', '')
+                sr.standard_model = row_data.get('model', '')
+                sr.standard_condition = row_data.get('condition', '')
+                sr.unit_retail = base_retail
                 sr.proposed_price = proposed_price
                 sr.final_price = final_price
                 sr.pricing_stage = pricing_stage
                 sr.pricing_notes = pricing_notes_val
-                sr.upc = row_data.get('upc', '')
-                sr.vendor_item_number = row_data.get('vendor_item_number', '')
-                sr.notes = row_data.get('notes', '')
+                if isinstance(row_data.get('identifiers'), dict):
+                    sr.standard_identifiers = row_data['identifiers']
+                if isinstance(row_data.get('taxonomy'), dict):
+                    sr.standard_taxonomy = row_data['taxonomy']
+                if isinstance(row_data.get('specifications'), dict):
+                    sr.standard_specifications = row_data['specifications']
+                if isinstance(row_data.get('tracking'), dict):
+                    sr.standard_tracking = row_data['tracking']
+                stags = row_data.get('search_tags')
+                if isinstance(stags, list):
+                    sr.standard_search_tags = [str(x).strip() for x in stags if str(x).strip()]
+                elif stags is not None:
+                    sr.standard_search_tags = slugify_formula_search_tags(str(stags))
+                sr.standard_notes = row_data.get('notes', '')
                 sr.updated_at = now
                 to_update.append(sr)
 
@@ -2269,20 +2453,21 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     to_update,
                     [
                         'quantity',
-                        'description',
-                        'title',
-                        'brand',
-                        'model',
-                        'category',
-                        'condition',
-                        'retail_value',
+                        'standard_description',
+                        'standard_brand',
+                        'standard_model',
+                        'standard_condition',
+                        'unit_retail',
                         'proposed_price',
                         'final_price',
                         'pricing_stage',
                         'pricing_notes',
-                        'upc',
-                        'vendor_item_number',
-                        'notes',
+                        'standard_identifiers',
+                        'standard_taxonomy',
+                        'standard_specifications',
+                        'standard_tracking',
+                        'standard_search_tags',
+                        'standard_notes',
                         'updated_at',
                     ],
                 )
@@ -2317,7 +2502,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         response_data = {
             'rows_created': len(to_update),
             'order_status': order.status,
-            'standard_columns': MANIFEST_STANDARD_COLUMNS,
+            'standard_columns': manifest_standard_flat_columns(),
             'mappings_used': normalized_mappings,
             'products_created': 0,
             'items_created': 0,
@@ -2394,7 +2579,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'rows_selected': len(normalized_rows),
             'preview_count': min(preview_limit, len(normalized_rows)),
             'normalized_preview': normalized_rows[:preview_limit],
-            'standard_columns': MANIFEST_STANDARD_COLUMNS,
+            'standard_columns': manifest_standard_flat_columns(),
             'available_functions': MANIFEST_FUNCTION_OPTIONS,
             'mappings_used': mappings_used,
             'search_term': search_term,
@@ -2411,7 +2596,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         """Suggest formula mappings for standard manifest fields (Anthropic or xAI Grok per settings)."""
         import json as json_lib
 
-        from apps.core.services.llm_chat import LLMConfigError, llm_chat_completion_text
+        from apps.core.services.llm_chat import (
+            LLMConfigError,
+            anthropic_tools_suggest_mappings,
+            llm_chat_completion_tool_input,
+        )
 
         order = self.get_object()
         template_id = request.data.get('template_id')
@@ -2445,47 +2634,64 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 prior_templates.append({'name': tpl.name, 'mappings': tpl.column_mappings})
 
         standard_fields_desc = []
-        for col in MANIFEST_STANDARD_COLUMNS:
-            standard_fields_desc.append(f"- {col['key']}: {col['label']} ({'required' if col['required'] else 'optional'})")
+        for col in manifest_standard_flat_columns():
+            standard_fields_desc.append(
+                f"- {col['key']}: {col['label']} ({'required' if col['required'] else 'optional'})",
+            )
+        bucket_lines = []
+        for bid, b in manifest_field_metadata_payload()['buckets'].items():
+            sk = ', '.join(b['suggested_keys']) if b['suggested_keys'] else '(none listed — any ^[a-z][a-z0-9_]*$ sub-key)'
+            bucket_lines.append(
+                f'  - {bid}.<subkey>: {b["label"]}; suggested_keys (hints only): {sk}',
+            )
 
         system_prompt = (
-            "You are an assistant for a thrift store that processes liquidation manifests. "
-            "Given CSV column headers and sample rows, suggest formula expressions to map "
-            "raw CSV columns into standardized fields.\n\n"
-            "Formula syntax:\n"
-            "- Column references: [COLUMN_NAME] (exact header name from the CSV)\n"
-            "- Functions: UPPER(expr), LOWER(expr), TITLE(expr), TRIM(expr), "
-            "REPLACE(expr, \"find\", \"replace\"), CONCAT(expr, ...), LEFT(expr, n), RIGHT(expr, n)\n"
-            "- String concatenation: expr + \" \" + expr\n"
-            "- String literals: \"quoted text\"\n\n"
-            "Standard fields:\n" + "\n".join(standard_fields_desc) + "\n\n"
-            "Field-specific hints:\n"
-            "- retail_value (unit retail / MSRP): Prefer a per-unit vendor stated retail column such as "
-            "\"Unit Retail\" or \"MSRP\". Avoid extended line totals (e.g. \"Ext. Retail\" = unit × qty) "
-            "when a unit column exists.\n\n"
-            "Return ONLY valid JSON with this structure:\n"
-            '{"suggestions": [{"target": "field_key", "formula": "expression", "reasoning": "brief explanation"}]}\n'
-            "Only include fields where you can identify a reasonable mapping. "
-            "Use TRIM() liberally. If a column clearly maps to a field, a simple [Column] reference is fine."
+            'You are an assistant for a thrift store that processes liquidation manifests. '
+            'Given CSV column headers and sample rows, suggest formula expressions to map '
+            'raw CSV columns into standardized fields.\n\n'
+            'Targets are either FLAT keys (see list below) or DOTTED `bucket.subkey` JSON buckets.\n'
+            'The four bucket prefixes are fixed: identifiers, taxonomy, specifications, tracking. '
+            'Sub-key strings must match the regex ^[a-z][a-z0-9_]*$. suggested_keys lists are autocomplete '
+            'hints only—not a whitelist; prefer them when the column obviously matches '
+            '(e.g. UPC column → identifiers.upc), otherwise emit a sensible custom sub-key.\n'
+            + '\n'.join(bucket_lines)
+            + '\n\nFlat fields:\n'
+            + '\n'.join(standard_fields_desc)
+            + '\n\nFormula syntax:\n'
+            '- Column references: [COLUMN_NAME] (exact header name from the CSV)\n'
+            '- Functions: UPPER(expr), LOWER(expr), TITLE(expr), TRIM(expr), '
+            'REPLACE(expr, "find", "replace"), CONCAT(expr, ...), LEFT(expr, n), RIGHT(expr, n)\n'
+            '- String concatenation: expr + " " + expr\n'
+            '- String literals: "quoted text"\n\n'
+            'Field-specific hints:\n'
+            '- unit_retail (per-unit MSRP): Prefer a vendor stated **unit** retail column such as '
+            '"Unit Retail" or "MSRP". Avoid extended line totals (e.g. "Ext. Retail") when a unit column exists.\n'
+            '- identifiers.upc: map barcode / UPC columns here, not a separate flat upc.\n'
+            '- taxonomy.category: map department/category text here.\n\n'
+            'Omit targets you cannot infer. Use TRIM() liberally. '
+            'You MUST respond only by calling the suggest_mappings tool with valid JSON input.'
         )
 
-        user_message_parts = [f"CSV Headers: {json_lib.dumps(headers_list)}"]
+        user_message_parts = [f'CSV Headers: {json_lib.dumps(headers_list)}']
         if sample_rows:
-            user_message_parts.append(f"Sample rows (first {len(sample_rows)}):")
+            user_message_parts.append(f'Sample rows (first {len(sample_rows)}):')
             for row in sample_rows:
                 user_message_parts.append(json_lib.dumps(row['raw']))
         if prior_templates:
-            user_message_parts.append(f"Prior templates for this vendor: {json_lib.dumps(prior_templates)}")
+            user_message_parts.append(f'Prior templates for this vendor: {json_lib.dumps(prior_templates)}')
 
         user_content = '\n'.join(user_message_parts)
         model_id = str(request.data.get('model') or '').strip() or DEFAULT_AI_MODEL
 
         try:
-            content_text, model_used = llm_chat_completion_text(
+            tool_inp, model_used = llm_chat_completion_tool_input(
                 system=system_prompt,
                 user=user_content,
                 model_id=model_id,
-                max_tokens=2048,
+                tool_name='suggest_mappings',
+                tools=anthropic_tools_suggest_mappings(),
+                temperature=0.0,
+                max_tokens=4096,
                 log_source='ai_suggest_formulas',
                 log_detail=f'order={order.pk} suggest-formulas',
             )
@@ -2493,6 +2699,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_502_BAD_GATEWAY,
             )
         except Exception as e:
             logger.error('AI error in suggest-formulas: %s', e)
@@ -2510,26 +2721,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        try:
-            json_match = re.search(r'\{[\s\S]*\}', content_text)
-            if not json_match:
-                return Response(
-                    {'error': 'AI returned non-JSON response.', 'raw': content_text},
-                    status=status.HTTP_502_BAD_GATEWAY,
-                )
-
-            parsed = json_lib.loads(json_match.group())
-            suggestions = parsed.get('suggestions', [])
-
-            return Response({
-                'suggestions': suggestions,
-                'model_used': model_used,
-            })
-        except (json_lib.JSONDecodeError, KeyError) as e:
-            return Response(
-                {'error': f'Failed to parse AI response: {e}'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+        suggestions = tool_inp.get('suggestions') or []
+        return Response({
+            'suggestions': suggestions,
+            'model_used': model_used,
+        })
 
     @action(detail=True, methods=['post'], url_path='ai-cleanup-rows')
     def ai_cleanup_rows(self, request, pk=None):
@@ -2612,7 +2808,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     '- Use brand/model/description facts only; do not invent specific model numbers.\n'
                     '- condition must be exactly one of: ' + ', '.join(CONDITION_VALUES) + '.\n'
                     '- category must be exactly one of the allowed categories below; use "Miscellaneous" if uncertain.\n'
-                    '- price should be a number string. Use ideal_price/base_cost/retail_value as pricing context, not a long explanation.\n'
+                    '- price should be a number string. Use ideal_price/base_cost/unit_retail as pricing context, not a long explanation.\n'
                     '- Set low_confidence true when the row is vague, identity is uncertain, or pricing is a guess.\n\n'
                     'Allowed categories:\n'
                     + '\n'.join(f'- {name}' for name in TAXONOMY_V1_CATEGORY_NAMES)
@@ -2637,8 +2833,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             batch_data = []
             for r in batch:
                 first_item = r.items.exclude(status__in=TERMINAL_ITEM_STATUSES).order_by('id').first()
-                base_cost = order.compute_item_cost(r.retail_value)
+                base_cost = order.compute_item_cost(r.unit_retail)
                 ideal_price = (base_cost * Decimal('2')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if base_cost is not None else None
+                ids = r.identifiers or {}
+                tx = r.taxonomy or {}
                 batch_data.append({
                     'row_id': r.id,
                     'row_number': r.row_number,
@@ -2648,10 +2846,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     'title': r.title,
                     'brand': r.brand,
                     'model': r.model,
-                    'category': r.category,
+                    'category': tx.get('category') or '',
                     'condition': r.condition,
-                    'upc': r.upc,
-                    'retail_value': str(r.retail_value) if r.retail_value else '',
+                    'identifiers': ids,
+                    'unit_retail': str(r.unit_retail) if r.unit_retail else '',
                     'base_cost': str(base_cost) if base_cost is not None else '',
                     'ideal_price': str(ideal_price) if ideal_price is not None else '',
                 })
@@ -2774,24 +2972,35 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     row_number_ok = suggestion_row_number == r.row_number
                     item_id_ok = expected_item_id is None or suggestion_item_id == expected_item_id
                     if suggestion and row_number_ok and item_id_ok:
-                        r.ai_suggested_title = (suggestion.get('title') or '')[:300]
-                        r.ai_suggested_brand = (suggestion.get('brand') or '')[:200]
-                        r.ai_suggested_model = (suggestion.get('model') or '')[:200]
+                        r.title = (suggestion.get('title') or '')[:300]
+                        r.brand = (suggestion.get('brand') or '')[:200]
+                        r.model = (suggestion.get('model') or '')[:200]
                         r.ai_reasoning = (
                             suggestion.get('reasoning')
                             or ('Fast cleanup low confidence' if suggestion.get('low_confidence') is True else 'Fast cleanup')
                         )
                         if suggestion.get('category') in taxonomy_set:
-                            r.category = suggestion.get('category')
+                            tx = dict(r.taxonomy or {})
+                            tx['category'] = suggestion.get('category')
+                            r.taxonomy = tx
                         condition = str(suggestion.get('condition') or '').strip()
                         if condition in valid_conditions:
                             r.condition = condition
-                        if not is_fast_mode and suggestion.get('search_tags'):
-                            r.search_tags = suggestion['search_tags']
+                        if not is_fast_mode and suggestion.get('search_tags') is not None:
+                            st = suggestion.get('search_tags')
+                            if isinstance(st, list):
+                                r.search_tags = slugify_formula_search_tags(
+                                    ','.join(str(x) for x in st if str(x).strip()),
+                                )
+                            else:
+                                r.search_tags = slugify_formula_search_tags(str(st))
                         if not is_fast_mode and suggestion.get('notes'):
                             r.notes = str(suggestion.get('notes') or '')
                         if not is_fast_mode and isinstance(suggestion.get('specifications'), dict):
-                            r.specifications = suggestion['specifications']
+                            cur = dict(r.specifications or {})
+                            for k, v in suggestion['specifications'].items():
+                                cur[str(k)] = str(v)
+                            r.specifications = cur
                         price = parse_decimal(suggestion.get('price'))
                         if price is not None:
                             r.proposed_price = price
@@ -2848,10 +3057,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 })
             if rows_to_update:
                 ManifestRow.objects.bulk_update(rows_to_update, [
-                    'ai_suggested_title', 'ai_suggested_brand',
-                    'ai_suggested_model', 'ai_reasoning',
+                    'title', 'brand',
+                    'model', 'ai_reasoning',
                     'search_tags', 'specifications',
-                    'category', 'condition', 'notes',
+                    'taxonomy', 'condition', 'notes',
                     'proposed_price', 'pricing_stage', 'pricing_notes',
                 ])
                 sync_manifest_row_outputs_to_items(order, rows_to_update)
@@ -2948,23 +3157,26 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         )
         if use_staging:
             updated = PreprocessingRow.objects.filter(preprocessing_order=prep).update(
-                ai_suggested_title='',
-                ai_suggested_brand='',
-                ai_suggested_model='',
+                ai_description='',
+                ai_title='',
+                ai_brand='',
+                ai_model='',
+                ai_category='',
+                ai_condition='',
+                ai_notes='',
+                ai_identifiers={},
+                ai_taxonomy={},
+                ai_specifications={},
+                ai_tracking={},
+                ai_search_tags=[],
                 ai_reasoning='',
-                search_tags='',
-                specifications={},
-                notes='',
             )
         else:
             updated = ManifestRow.objects.filter(purchase_order=order).update(
-                ai_suggested_title='',
-                ai_suggested_brand='',
-                ai_suggested_model='',
                 ai_reasoning='',
-                search_tags='',
-                specifications={},
                 notes='',
+                search_tags=[],
+                specifications={},
             )
         return Response({
             'rows_cleared': updated,
@@ -3075,7 +3287,16 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='download-cleanup-csv')
     def download_cleanup_csv(self, request, pk=None):
-        """Lean standardized-row CSV for offline cleanup (pre-AI columns only)."""
+        """Standardized-row CSV for offline AI cleanup.
+
+        Order: correlation + frozen economics (``row_id``, ``row_number``, ``quantity``,
+        ``unit_retail``, ``base_cost``, ``ideal_price``), then flattened text fields (``description`` …
+        ``notes``), then JSON cells (``identifiers_json`` … ``search_tags_json``).
+
+        Omit ``title``, flat ``category`` / ``sku`` / ``upc``, and pricing-stage columns —
+        offline tools infer from ``taxonomy_json`` / ``identifiers_json``; AI submits those via
+        **upload-cleanup-csv** / **apply-cleanup-csv**.
+        """
         order = self.get_object()
         prep = getattr(order, 'preprocessing', None)
         use_staging = bool(prep and prep.row_count > 0 and not prep.finalized_at)
@@ -3094,19 +3315,20 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         columns = [
             'row_id',
             'row_number',
-            'description',
-            'title',
-            'brand',
-            'model',
-            'category',
-            'condition',
-            'sku',
-            'upc',
             'quantity',
-            'retail_value',
-            'notes',
+            'unit_retail',
             'base_cost',
             'ideal_price',
+            'description',
+            'brand',
+            'model',
+            'condition',
+            'notes',
+            'identifiers_json',
+            'taxonomy_json',
+            'specifications_json',
+            'tracking_json',
+            'search_tags_json',
         ]
 
         response = HttpResponse(content_type='text/csv')
@@ -3116,43 +3338,50 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         writer.writeheader()
 
         for row in rows:
+            base_cost, ideal_price = _unit_base_cost_and_ideal_price(order, row.unit_retail)
             if use_staging:
-                sku_val = ''
+                writer.writerow({
+                    'row_id': row.id,
+                    'row_number': row.row_number,
+                    'quantity': row.quantity,
+                    'unit_retail': row.unit_retail or '',
+                    'base_cost': base_cost or '',
+                    'ideal_price': ideal_price or '',
+                    'description': row.standard_description,
+                    'brand': row.standard_brand,
+                    'model': row.standard_model,
+                    'condition': row.standard_condition,
+                    'notes': row.standard_notes,
+                    'identifiers_json': _cleanup_csv_json_cell(row.standard_identifiers),
+                    'taxonomy_json': _cleanup_csv_json_cell(row.standard_taxonomy),
+                    'specifications_json': _cleanup_csv_json_cell(row.standard_specifications),
+                    'tracking_json': _cleanup_csv_json_cell(row.standard_tracking),
+                    'search_tags_json': _cleanup_csv_json_cell(row.standard_search_tags),
+                })
             else:
-                first_item = row.items.exclude(status__in=TERMINAL_ITEM_STATUSES).order_by('id').first()
-                sku_val = first_item.sku if first_item else ''
-            base_cost, ideal_price = _unit_base_cost_and_ideal_price(order, row.retail_value)
-            writer.writerow({
-                'row_id': row.id,
-                'row_number': row.row_number,
-                'description': row.description,
-                'title': row.title,
-                'brand': row.brand,
-                'model': row.model,
-                'category': row.category,
-                'condition': row.condition,
-                'sku': sku_val,
-                'upc': row.upc,
-                'quantity': row.quantity,
-                'retail_value': row.retail_value or '',
-                'notes': row.notes,
-                'base_cost': base_cost or '',
-                'ideal_price': ideal_price or '',
-            })
+                writer.writerow({
+                    'row_id': row.id,
+                    'row_number': row.row_number,
+                    'quantity': row.quantity,
+                    'unit_retail': row.unit_retail or '',
+                    'base_cost': base_cost or '',
+                    'ideal_price': ideal_price or '',
+                    'description': row.description,
+                    'brand': row.brand,
+                    'model': row.model,
+                    'condition': row.condition,
+                    'notes': row.notes,
+                    'identifiers_json': _cleanup_csv_json_cell(getattr(row, 'identifiers', None)),
+                    'taxonomy_json': _cleanup_csv_json_cell(getattr(row, 'taxonomy', None)),
+                    'specifications_json': _cleanup_csv_json_cell(getattr(row, 'specifications', None)),
+                    'tracking_json': _cleanup_csv_json_cell(getattr(row, 'tracking', None)),
+                    'search_tags_json': _cleanup_csv_json_cell(getattr(row, 'search_tags', None)),
+                })
 
         return response
 
     def _parse_cleanup_csv_upload(self, request):
-        """Return (csv_rows, None) or (None, Response) — list of dicts matching narrow cleanup columns."""
-        expected_fields = [
-            'row_id',
-            'ai_title',
-            'ai_brand',
-            'ai_model',
-            'category',
-            'condition',
-            'proposed_price',
-        ]
+        """Return normalized cleanup rows (`list[dict]`) or `(None, Response)`."""
         rows_payload = request.data.get('rows') if isinstance(request.data, dict) else None
         if isinstance(rows_payload, list):
             if not rows_payload:
@@ -3170,16 +3399,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                         },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                missing = [f for f in expected_fields if f not in row]
-                if missing:
-                    return None, Response(
-                        {
-                            'detail': f'rows[{idx}] missing keys: {missing}',
-                            'code': 'invalid_row_keys',
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-                csv_rows.append({k: row[k] for k in expected_fields})
+                csv_rows.append(_cleanup_apply_header_aliases(_cleanup_strip_record(row)))
             return csv_rows, None
 
         upload = request.FILES.get('file')
@@ -3204,18 +3424,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if reader.fieldnames != expected_fields:
-            return None, Response(
-                {
-                    'detail': 'Cleanup CSV must use the exact narrow AI cleanup header.',
-                    'code': 'invalid_header',
-                    'expected_fields': expected_fields,
-                    'received_fields': reader.fieldnames,
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        return list(reader), None
+        csv_rows = []
+        for r in reader:
+            csv_rows.append(_cleanup_apply_header_aliases(_cleanup_strip_record(r)))
+        return csv_rows, None
 
     @action(detail=True, methods=['post'], url_path='upload-cleanup-csv')
     def upload_cleanup_csv(self, request, pk=None):
@@ -3247,12 +3459,27 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 .select_related('matched_product', 'purchase_order')
                 .prefetch_related('items')
             }
-        valid_conditions = set(CONDITION_VALUES)
         taxonomy_set = set(TAXONOMY_V1_CATEGORY_NAMES)
         rejected = []
+        all_soft_warnings: list[dict] = []
         payloads = []
         seen_ids = set()
+        referenced_in_csv = set()
         rows_seen = len(csv_rows)
+
+        def _reject(line: int, **meta):
+            entry = {'line': line, **meta}
+            rejected.append(entry)
+
+        def _loads_json_cell(line_no: int, row_id_hint: int, key: str, raw: str | None):
+            s = str(raw or '').strip()
+            if not s:
+                return None
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError:
+                _reject(line_no, row_id=row_id_hint, reason='invalid_json', detail=key)
+                return object()
 
         if rows_seen != len(rows_by_id):
             return Response(
@@ -3271,75 +3498,124 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        for idx, payload in enumerate(csv_rows, start=2):
+        for idx, norm in enumerate(csv_rows, start=2):
             try:
-                row_id = int(str(payload.get('row_id') or '').strip())
+                row_id = int(str(norm.get('row_id') or '').strip())
             except (TypeError, ValueError):
-                rejected.append({
-                    'line': idx,
-                    'reason': 'invalid_identity',
-                    'detail': 'row_id must be an integer.',
-                })
+                _reject(idx, reason='invalid_identity', detail='row_id must be an integer.')
                 continue
 
             row = rows_by_id.get(row_id)
             if not row:
-                rejected.append({
-                    'line': idx,
-                    'row_id': row_id,
-                    'reason': 'unknown_row_id',
-                })
+                _reject(idx, row_id=row_id, reason='unknown_row_id')
                 continue
             if row_id in seen_ids:
-                rejected.append({
-                    'line': idx,
-                    'row_id': row_id,
-                    'reason': 'duplicate_row_id',
-                })
+                _reject(idx, row_id=row_id, reason='duplicate_row_id')
                 continue
+
+            referenced_in_csv.add(row_id)
+
+            staging_wide = use_staging and _cleanup_norm_has_non_empty(
+                norm, _CLEANUP_STAGING_WIDE_SIGNAL_KEYS,
+            )
+            manifest_forbidden_wide = (
+                not use_staging
+                and _cleanup_norm_has_non_empty(norm, _CLEANUP_STAGING_WIDE_SIGNAL_KEYS)
+            )
+            if manifest_forbidden_wide:
+                _reject(idx, row_id=row_id, reason='unsupported_cleanup_columns_for_manifest_row')
+                continue
+
+            if not staging_wide:
+                missing = sorted(k for k in NARROW_AI_CLEANUP_KEYS if k not in norm)
+                if missing:
+                    _reject(idx, row_id=row_id, reason='missing_row_keys', detail=missing[:20])
+                    continue
+
+            extra_description = ''
+            extra_notes = ''
+            if staging_wide:
+                extra_description = str(norm.get('description') or '').strip()
+                extra_notes = str(norm.get('notes') or '').strip()
+
+            category = str(norm.get('category') or '').strip()
+            if not category and staging_wide:
+                raw_tx = _loads_json_cell(idx, row_id, 'taxonomy_json', norm.get('taxonomy_json'))
+                if raw_tx is object():
+                    continue
+                if isinstance(raw_tx, dict):
+                    category = str(raw_tx.get('category') or '').strip()
+
+            proposed_price_raw = str(norm.get('proposed_price') or '').strip()
+            display_title = str(norm.get('ai_title') or norm.get('title') or '').strip()
+            condition_raw = str(norm.get('condition') or '').strip()
+            brand_soft = str(norm.get('ai_brand') or norm.get('brand') or '').strip()
+            _bc, ideal_row = _unit_base_cost_and_ideal_price(order, row.unit_retail)
+
+            hard_errs, soft_ws, proposed_price, parsed_specs, parsed_search_tags = validate_cleanup_row_values(
+                line=idx,
+                row_id=row_id,
+                staging_wide=staging_wide,
+                norm=norm,
+                category=category,
+                taxonomy_set=frozenset(taxonomy_set),
+                unit_retail=row.unit_retail,
+                ideal_price=ideal_row,
+                display_title=display_title,
+                condition_raw=condition_raw,
+                proposed_price_raw=proposed_price_raw,
+                extra_description=extra_description,
+                brand_for_soft=brand_soft,
+                category_for_soft=category,
+            )
+            if hard_errs:
+                for h in hard_errs:
+                    rejected.append({
+                        'line': h['line'],
+                        'row_id': h['row_id'],
+                        'rule': h['rule'],
+                        'column': h.get('column'),
+                        'reason': h['reason'],
+                        'detail': h['reason'],
+                    })
+                continue
+
+            all_soft_warnings.extend(soft_ws)
+
+            csv_rn = str(norm.get('row_number') or '').strip()
+            if csv_rn:
+                try:
+                    if int(csv_rn) != row.row_number:
+                        all_soft_warnings.append({
+                            'line': idx,
+                            'row_id': row_id,
+                            'rule': 'SOFT_ROW_NUMBER_MISMATCH',
+                            'column': 'row_number',
+                            'reason': f'CSV row_number {csv_rn} does not match staged row_number {row.row_number}',
+                        })
+                except (TypeError, ValueError):
+                    pass
+
             seen_ids.add(row_id)
-
-            category = str(payload.get('category') or '').strip()
-            if category not in taxonomy_set:
-                rejected.append({
-                    'line': idx,
-                    'row_id': row_id,
-                    'reason': 'invalid_category',
-                    'detail': category,
-                })
-                continue
-
-            condition = str(payload.get('condition') or '').strip()
-            if condition not in valid_conditions:
-                rejected.append({
-                    'line': idx,
-                    'row_id': row_id,
-                    'reason': 'invalid_condition',
-                    'detail': condition,
-                })
-                continue
-
-            proposed_price_raw = str(payload.get('proposed_price') or '').strip()
-            proposed_price = parse_decimal(proposed_price_raw) if proposed_price_raw else None
-            if proposed_price_raw and proposed_price is None:
-                rejected.append({
-                    'line': idx,
-                    'row_id': row_id,
-                    'reason': 'invalid_proposed_price',
-                    'detail': proposed_price_raw,
-                })
-                continue
-
-            payloads.append((row, {
-                'ai_title': str(payload.get('ai_title') or '').strip(),
-                'ai_brand': str(payload.get('ai_brand') or '').strip(),
-                'ai_model': str(payload.get('ai_model') or '').strip(),
+            norm_condition = normalize_cleanup_condition(condition_raw) or ''
+            payloads.append({
+                'line': idx,
+                'row': row,
+                'use_staging': use_staging,
+                'staging_wide': staging_wide,
+                'ai_title': display_title[:300],
+                'ai_brand': brand_soft[:200],
+                'ai_model': str(norm.get('ai_model') or norm.get('model') or '').strip()[:200],
                 'category': category,
-                'condition': condition,
+                'condition': norm_condition,
                 'proposed_price': proposed_price,
-            }))
+                'parsed_specs': parsed_specs,
+                'parsed_search_tags': parsed_search_tags,
+                'extra_description': extra_description,
+                'extra_notes': extra_notes,
+            })
 
-        missing_ids = sorted(set(rows_by_id) - seen_ids)
+        missing_ids = sorted(set(rows_by_id) - referenced_in_csv)
         if missing_ids:
             rejected.append({
                 'reason': 'missing_row_ids',
@@ -3362,38 +3638,65 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         changed_rows = []
         with transaction.atomic():
-            for row, payload in payloads:
-                update_fields = []
-                ai_title = payload['ai_title']
-                ai_brand = payload['ai_brand']
-                ai_model = payload['ai_model']
-                category = payload['category']
-                condition = payload['condition']
-                proposed_price = payload['proposed_price']
+            for pl in payloads:
+                row = pl['row']
+                ai_title = pl['ai_title']
+                ai_brand = pl['ai_brand']
+                ai_model = pl['ai_model']
+                category = pl['category']
+                condition = pl['condition']
+                proposed_price = pl['proposed_price']
+                staging_wide = pl['staging_wide']
 
-                row.ai_suggested_title = ai_title[:300]
-                row.ai_suggested_brand = ai_brand[:200]
-                row.ai_suggested_model = ai_model[:200]
-                row.category = category
-                row.condition = condition
+                update_fields_set = set()
+                if pl['use_staging']:
+                    row.ai_title = ai_title[:300]
+                    row.ai_brand = ai_brand[:200]
+                    row.ai_model = ai_model[:200]
+                    row.ai_category = category[:200]
+                    row.ai_identifiers = deepcopy(row.standard_identifiers or {})
+                    row.ai_taxonomy = deepcopy(row.standard_taxonomy or {})
+                    row.ai_tracking = deepcopy(row.standard_tracking or {})
+                    row.ai_condition = condition
+                    update_fields_set.update({
+                        'ai_title', 'ai_brand', 'ai_model', 'ai_category',
+                        'ai_identifiers', 'ai_taxonomy', 'ai_tracking', 'ai_condition',
+                    })
+                    if staging_wide:
+                        desc = pl['extra_description']
+                        if desc:
+                            row.ai_description = desc
+                            update_fields_set.add('ai_description')
+                        nd = pl['extra_notes']
+                        if nd:
+                            row.ai_notes = nd
+                            update_fields_set.add('ai_notes')
+                        ps = pl['parsed_specs']
+                        if isinstance(ps, dict):
+                            row.ai_specifications = ps
+                            update_fields_set.add('ai_specifications')
+                        pst = pl['parsed_search_tags']
+                        if isinstance(pst, list):
+                            row.ai_search_tags = pst
+                            update_fields_set.add('ai_search_tags')
+                else:
+                    row.title = ai_title[:300]
+                    row.brand = ai_brand[:200]
+                    row.model = ai_model[:200]
+                    row.category = category[:200]
+                    row.condition = condition
+                    update_fields_set.update({
+                        'title', 'brand', 'model', 'category', 'condition',
+                    })
+
                 row.proposed_price = proposed_price
                 row.ai_reasoning = 'Imported cleanup CSV'
+                update_fields_set.update({'proposed_price', 'ai_reasoning'})
                 if proposed_price is not None and row.pricing_stage == 'unpriced':
                     row.pricing_stage = 'draft'
                     row.pricing_notes = row.pricing_notes or 'Imported cleanup CSV'
-
-                update_fields.extend([
-                    'ai_suggested_title',
-                    'ai_suggested_brand',
-                    'ai_suggested_model',
-                    'category',
-                    'condition',
-                    'proposed_price',
-                    'ai_reasoning',
-                    'pricing_stage',
-                    'pricing_notes',
-                ])
-                row.save(update_fields=list(dict.fromkeys(update_fields)))
+                    update_fields_set.update({'pricing_stage', 'pricing_notes'})
+                row.save(update_fields=sorted(update_fields_set))
                 changed_rows.append(row)
 
         if use_staging:
@@ -3414,6 +3717,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'rows_updated': len(changed_rows),
                 'rows_rejected': 0,
                 'rejected_rows': [],
+                'soft_warnings': all_soft_warnings[:500],
                 'items_updated': 0,
                 'products_updated': 0,
             })
@@ -3424,6 +3728,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'rows_updated': len(changed_rows),
             'rows_rejected': 0,
             'rejected_rows': [],
+            'soft_warnings': all_soft_warnings[:500],
             **sync_summary,
         })
 
@@ -3533,7 +3838,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if prep and prep.row_count > 0 and not prep.finalized_at:
             rows = list(prep.rows.order_by('row_number'))
             total_rows = len(rows)
-            cleaned_rows = sum(1 for row in rows if row.ai_reasoning)
+            cleaned_rows = sum(1 for row in rows if (getattr(row, 'ai_title', '') or '').strip())
             final_rows = sum(1 for row in rows if row.pricing_stage == 'final')
             missing_price = sum(
                 1 for row in rows if effective_preprocessing_row_price(row) is None
@@ -3541,7 +3846,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         else:
             rows = list(ManifestRow.objects.filter(purchase_order=order).order_by('row_number'))
             total_rows = len(rows)
-            cleaned_rows = sum(1 for row in rows if row.ai_reasoning)
+            cleaned_rows = sum(1 for row in rows if (getattr(row, 'ai_title', '') or '').strip())
             final_rows = sum(1 for row in rows if row.pricing_stage == 'final')
             missing_price = sum(1 for row in rows if effective_manifest_row_price(row) is None)
 
@@ -3552,7 +3857,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         for row in rows:
             qty = row.quantity if row.quantity and row.quantity > 0 else 1
             total_units += qty
-            base_cost = order.compute_item_cost(row.retail_value)
+            base_cost = order.compute_item_cost(row.unit_retail)
             if base_cost is not None:
                 total_ideal += base_cost * Decimal('2') * qty
             if prep and prep.row_count > 0 and not prep.finalized_at:
@@ -3593,7 +3898,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'template_mappings': tm_norm,
                 'vendor_name': str(preview.get('vendor_name') or ''),
                 'matching_templates': matching_templates_payload_for_vendor_signature(vendor, sig),
-                'standard_columns': list(MANIFEST_STANDARD_COLUMNS),
+                'standard_columns': list(manifest_standard_flat_columns()),
             }
 
         payload = {
@@ -3744,12 +4049,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     | Q(title__icontains=search_term)
                     | Q(brand__icontains=search_term)
                     | Q(model__icontains=search_term)
-                    | Q(category__icontains=search_term)
-                    | Q(vendor_item_number__icontains=search_term)
-                    | Q(upc__icontains=search_term)
-                    | Q(ai_suggested_title__icontains=search_term)
-                    | Q(ai_suggested_brand__icontains=search_term)
-                    | Q(ai_suggested_model__icontains=search_term)
+                    | Q(taxonomy__category__icontains=search_term)
+                    | Q(identifiers__upc__icontains=search_term)
+                    | Q(identifiers__sku__icontains=search_term)
                     | Q(items__sku__icontains=search_term)
                 )
                 rows_qs = rows_qs.filter(q).distinct()
@@ -3763,7 +4065,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             row_count = rows_qs.count()
             summary_rows = rows_qs.only(
                 'quantity',
-                'retail_value',
+                'unit_retail',
                 'proposed_price',
                 'final_price',
                 'notes',
@@ -3784,7 +4086,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             for row in summary_rows:
                 qty = row.quantity if row.quantity and row.quantity > 0 else 1
                 total_units += qty
-                base_cost = order.compute_item_cost(row.retail_value)
+                base_cost = order.compute_item_cost(row.unit_retail)
                 if base_cost is not None:
                     total_ideal += base_cost * Decimal('2') * qty
                 row_price = effective_manifest_row_price(row)
@@ -3903,10 +4205,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 for sr in staging_rows:
                     if effective_preprocessing_row_price(sr) is None:
                         validation_errors.append({'row_number': sr.row_number, 'reason': 'missing_price'})
-                    elif not (
-                        str(sr.description or '').strip()
-                        or str(sr.title or '').strip()
-                        or str(sr.ai_suggested_title or '').strip()
+                    elif (
+                        not str(effective_preprocessing_triple(sr, 'description') or '').strip()
+                        and not effective_preprocessing_title(sr).strip()
                     ):
                         validation_errors.append({
                             'row_number': sr.row_number,
@@ -3920,38 +4221,49 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                         'errors': validation_errors[:100],
                     })
 
+                final_field_names = [f'final_{base}' for base in TRIPLE_LAYER_SPECS.keys()] + [
+                    'final_title',
+                    'final_category',
+                ]
+                for sr in staging_rows:
+                    snapshot_finalize_from_ai_and_standard(sr)
+                PreprocessingRow.objects.bulk_update(staging_rows, final_field_names)
+
                 ManifestRow.objects.filter(purchase_order=order).delete()
                 order.items.exclude(status__in=TERMINAL_ITEM_STATUSES).delete()
                 order.batch_groups.all().delete()
 
                 manifest_objs = []
                 for sr in staging_rows:
+                    stags = sr.final_search_tags
+                    if stags is None:
+                        stags = []
+                    elif not isinstance(stags, list):
+                        stags = slugify_formula_search_tags(str(stags or ''))
                     manifest_objs.append(
                         ManifestRow(
                             purchase_order=order,
                             row_number=sr.row_number,
                             quantity=sr.quantity or 1,
-                            description=sr.description or '',
-                            title=sr.title or '',
-                            brand=sr.brand or '',
-                            model=sr.model or '',
-                            category=sr.category or '',
-                            condition=sr.condition or '',
-                            retail_value=sr.retail_value,
+                            description=str(sr.final_description or ''),
+                            title=str(sr.final_title or ''),
+                            brand=str(sr.final_brand or ''),
+                            model=str(sr.final_model or ''),
+                            category=str(sr.final_category or '')[:200],
+                            condition=str(sr.final_condition or ''),
+                            unit_retail=sr.unit_retail,
                             proposed_price=sr.proposed_price,
                             final_price=sr.final_price,
                             pricing_stage=sr.pricing_stage or 'unpriced',
                             pricing_notes=sr.pricing_notes or '',
-                            upc=sr.upc or '',
-                            vendor_item_number=sr.vendor_item_number or '',
                             batch_flag=sr.batch_flag,
-                            search_tags=sr.search_tags or '',
-                            specifications=sr.specifications or {},
+                            identifiers=dict(sr.final_identifiers or {}),
+                            taxonomy=dict(sr.final_taxonomy or {}),
+                            search_tags=stags or [],
+                            specifications=dict(sr.final_specifications or {}),
+                            tracking=dict(sr.final_tracking or {}),
                             ai_reasoning=sr.ai_reasoning or '',
-                            ai_suggested_title=sr.ai_suggested_title or '',
-                            ai_suggested_brand=sr.ai_suggested_brand or '',
-                            ai_suggested_model=sr.ai_suggested_model or '',
-                            notes=sr.notes or '',
+                            notes=str(sr.final_notes or ''),
                             match_status='pending',
                         ),
                     )
@@ -3994,7 +4306,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                             manifest_row=row,
                             total_qty=quantity,
                             unit_price=row_price,
-                            unit_cost=row.retail_value,
+                            unit_cost=row.unit_retail,
                             condition='unknown',
                             status='pending',
                         )
@@ -4052,7 +4364,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         results = {}
         errors = {}
         for target, formula in formulas.items():
-            if target not in MANIFEST_TARGET_FIELDS:
+            canon = coerce_mapping_target(str(target).strip())
+            err = validate_mapping_target(canon)
+            if err is not None and canon not in OPTIONAL_FLAT_TARGETS:
                 errors[target] = 'unknown_target'
                 continue
             if not isinstance(formula, str):
@@ -4132,7 +4446,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'template_name': template.name if template else None,
             'template_mappings': template_mappings,
             'matching_templates': matching_templates,
-            'standard_columns': MANIFEST_STANDARD_COLUMNS,
+            'standard_columns': manifest_standard_flat_columns(),
             'available_functions': MANIFEST_FUNCTION_OPTIONS,
         })
 
@@ -4158,9 +4472,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             candidates = []
             best_product = None
             best_score = 0.0
+            ids_blob = _row_identifiers_blob(row)
+            upc_hit = str(ids_blob.get('upc') or '').strip()
 
-            if row.upc:
-                product = Product.objects.filter(upc=row.upc).first()
+            if upc_hit:
+                product = Product.objects.filter(upc=upc_hit).first()
                 if product:
                     candidates.append({
                         'product_id': product.id,
@@ -4171,7 +4487,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     best_product = product
                     best_score = 1.0
 
-            lookup_key = row.vendor_item_number or row.upc
+            lookup_key = _vendor_lookup_from_manifest_identifiers(row)
             if not best_product and lookup_key:
                 ref = VendorProductRef.objects.filter(
                     vendor=order.vendor,
@@ -4187,14 +4503,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     best_product = ref.product
                     best_score = 0.95
                     ref.times_seen += 1
-                    if row.retail_value is not None:
-                        ref.last_unit_cost = row.retail_value
+                    if row.unit_retail is not None:
+                        ref.last_unit_cost = row.unit_retail
                     ref.save(update_fields=['times_seen', 'last_unit_cost', 'updated_at'])
 
             if best_score < 0.95:
-                desc = row.ai_suggested_title or row.title or row.description or ''
-                match_brand = row.ai_suggested_brand or row.brand or ''
-                match_model = row.ai_suggested_model or row.model or ''
+                desc = row.title or row.description or ''
+                match_brand = row.brand or ''
+                match_model = row.model or ''
                 if desc:
                     text_query = Product.objects.filter(
                         Q(title__icontains=desc[:60]) |
@@ -4261,7 +4577,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                             'title': r.title,
                             'brand': r.brand,
                             'model': r.model,
-                            'category': r.category,
+                            'category': _row_listing_category(r),
                             'candidates': r.match_candidates or [],
                         }
                         batch_data.append(entry)
@@ -4309,9 +4625,15 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                                 if ai_decision in ('confirmed', 'rejected', 'uncertain', 'new_product'):
                                     r.ai_match_decision = ai_decision
                                 r.ai_reasoning = decision_data.get('reasoning', '')
-                                r.ai_suggested_title = decision_data.get('suggested_title', '')
-                                r.ai_suggested_brand = decision_data.get('suggested_brand', '')
-                                r.ai_suggested_model = decision_data.get('suggested_model', '')
+                                stitle = decision_data.get('suggested_title', '')
+                                sbrand = decision_data.get('suggested_brand', '')
+                                smodel = decision_data.get('suggested_model', '')
+                                if stitle is not None:
+                                    r.title = str(stitle)[:300]
+                                if sbrand is not None:
+                                    r.brand = str(sbrand)[:200]
+                                if smodel is not None:
+                                    r.model = str(smodel)[:200]
 
                                 if ai_decision == 'confirmed' and decision_data.get('product_id'):
                                     try:
@@ -4323,7 +4645,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
                                 r.save(update_fields=[
                                     'ai_match_decision', 'ai_reasoning',
-                                    'ai_suggested_title', 'ai_suggested_brand', 'ai_suggested_model',
+                                    'title', 'brand', 'model',
                                     'matched_product', 'match_status',
                                 ])
                         except (json_lib.JSONDecodeError, KeyError):
@@ -4392,13 +4714,15 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     try:
                         product = Product.objects.get(id=product_id)
                         if decision.get('update_product'):
-                            product.title = row.ai_suggested_title or row.title or product.title
-                            product.brand = row.ai_suggested_brand or row.brand or product.brand
-                            product.model = row.ai_suggested_model or row.model or product.model
-                            if row.category:
-                                product.category = row.category
-                            if row.upc:
-                                product.upc = row.upc
+                            product.title = row.title or product.title
+                            product.brand = row.brand or product.brand
+                            product.model = row.model or product.model
+                            cat = _row_listing_category(row)
+                            if cat:
+                                product.category = cat
+                            upcv = str(_row_identifiers_blob(row).get('upc') or '').strip()
+                            if upcv:
+                                product.upc = upcv
                             if row.specifications:
                                 product.specifications = row.specifications
                             product.save()
@@ -4411,12 +4735,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                         continue
                 else:
                     product = Product.objects.create(
-                        title=row.ai_suggested_title or row.title or row.description[:300] or 'Untitled',
-                        brand=row.ai_suggested_brand or row.brand or '',
-                        model=row.ai_suggested_model or row.model or '',
-                        category=row.category or '',
-                        upc=row.upc or '',
-                        default_price=row.retail_value,
+                        title=row.title or row.description[:300] or 'Untitled',
+                        brand=row.brand or '',
+                        model=row.model or '',
+                        category=_row_listing_category(row),
+                        upc=str(_row_identifiers_blob(row).get('upc') or ''),
+                        default_price=row.unit_retail,
                     )
                     row.matched_product = product
                     row.match_status = 'new'
@@ -4427,12 +4751,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
             elif action_type == 'reject':
                 product = Product.objects.create(
-                    title=row.ai_suggested_title or row.title or row.description[:300] or 'Untitled',
-                    brand=row.ai_suggested_brand or row.brand or '',
-                    model=row.ai_suggested_model or row.model or '',
-                    category=row.category or '',
-                    upc=row.upc or '',
-                    default_price=row.retail_value,
+                    title=row.title or row.description[:300] or 'Untitled',
+                    brand=row.brand or '',
+                    model=row.model or '',
+                    category=_row_listing_category(row),
+                    upc=str(_row_identifiers_blob(row).get('upc') or ''),
+                    default_price=row.unit_retail,
                 )
                 row.matched_product = product
                 row.match_status = 'new'
@@ -4459,9 +4783,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                         title=mods.get('title', row.title or row.description[:300] or 'Untitled'),
                         brand=mods.get('brand', row.brand or ''),
                         model=mods.get('model', row.model or ''),
-                        category=mods.get('category', row.category or ''),
-                        upc=row.upc or '',
-                        default_price=row.retail_value,
+                        category=mods.get('category', _row_listing_category(row)),
+                        upc=str(_row_identifiers_blob(row).get('upc') or ''),
+                        default_price=row.unit_retail,
                     )
                     row.matched_product = product
                     row.match_status = 'new'
@@ -4472,7 +4796,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
             row.save(update_fields=['matched_product', 'match_status', 'ai_match_decision'])
 
-            lookup_key = row.vendor_item_number or row.upc
+            lookup_key = _vendor_lookup_from_manifest_identifiers(row)
             if lookup_key and row.matched_product:
                 VendorProductRef.objects.get_or_create(
                     vendor=order.vendor,
@@ -4480,7 +4804,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     defaults={
                         'product': row.matched_product,
                         'vendor_description': (row.description or '')[:500],
-                        'last_unit_cost': row.retail_value,
+                        'last_unit_cost': row.unit_retail,
                         'times_seen': 1,
                     },
                 )
@@ -4521,13 +4845,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         for r in rows:
             rows_data.append({
                 'row_id': r.id,
-                'title': r.title or r.ai_suggested_title or '',
+                'title': r.title or '',
                 'description': r.description,
-                'brand': r.brand or r.ai_suggested_brand or '',
-                'model': r.model or r.ai_suggested_model or '',
-                'category': r.category,
+                'brand': r.brand or '',
+                'model': r.model or '',
+                'category': _row_listing_category(r),
                 'quantity': r.quantity,
-                'retail_value': str(r.retail_value) if r.retail_value else '',
+                'unit_retail': str(r.unit_retail) if r.unit_retail else '',
             })
 
         system_prompt = (
@@ -4624,17 +4948,18 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             category_name = None
             if row.matched_product and row.matched_product.category_ref:
                 category_name = row.matched_product.category_ref.name
-            elif row.category:
-                category_name = row.category
+            else:
+                cat_tx = _row_listing_category(row)
+                category_name = cat_tx if cat_tx else None
 
             result = do_estimate(
-                title=row.ai_suggested_title or row.title or row.description or '',
-                brand=row.ai_suggested_brand or row.brand or None,
-                model_name=row.ai_suggested_model or row.model or None,
+                title=row.title or row.description or '',
+                brand=row.brand or None,
+                model_name=row.model or None,
                 category_name=category_name,
                 condition=row.condition or 'unknown',
                 source='purchased',
-                retail_value=row.retail_value,
+                retail_value=row.unit_retail,
                 include_comparables=False,
             )
 
@@ -4788,7 +5113,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     manifest_row=row,
                     total_qty=quantity,
                     unit_price=row_price,
-                    unit_cost=row.retail_value,
+                    unit_cost=row.unit_retail,
                     condition='unknown',
                     status='pending',
                 )
@@ -4845,9 +5170,15 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             parsed_price = parse_decimal(request.data.get('price'))
             if parsed_price is not None:
                 shared_updates['price'] = parsed_price
-        if 'retail_value' in request.data:
-            shared_updates['retail_value'] = parse_decimal(request.data.get('retail_value'))
-        for field in ['title', 'brand', 'category', 'condition', 'location', 'notes']:
+        if 'unit_retail' in request.data:
+            ur = parse_decimal(request.data.get('unit_retail'))
+            if ur is not None:
+                shared_updates['unit_retail'] = ur
+        elif 'retail_value' in request.data:
+            ur = parse_decimal(request.data.get('retail_value'))
+            if ur is not None:
+                shared_updates['unit_retail'] = ur
+        for field in ['title', 'brand', 'condition', 'location', 'notes']:
             if field in request.data:
                 value = request.data.get(field)
                 if value is not None:
@@ -5264,7 +5595,7 @@ class BatchGroupViewSet(viewsets.ModelViewSet):
                 if batch.unit_price is not None:
                     updates['price'] = batch.unit_price
                 if batch.unit_cost is not None:
-                    updates['retail_value'] = batch.unit_cost
+                    updates['unit_retail'] = batch.unit_cost
                 if batch.condition:
                     updates['condition'] = batch.condition
                 if batch.location:
@@ -5427,13 +5758,15 @@ class ItemViewSet(viewsets.ModelViewSet):
     pagination_class = ItemListPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = [
-        'sku', 'title', 'brand', 'category', 'notes', 'location',
+        'sku', 'title', 'brand', 'notes', 'location',
         'product__title', 'product__product_number', 'product__model', 'product__upc',
-        'manifest_row__description', 'manifest_row__upc',
-        'manifest_row__vendor_item_number', 'manifest_row__search_tags',
+        'manifest_row__description',
+        'manifest_row__identifiers__upc',
+        'manifest_row__identifiers__sku',
+        'manifest_row__identifiers__asin',
     ]
     filterset_fields = [
-        'sku', 'purchase_order', 'category',
+        'sku', 'purchase_order',
         'processing_tier', 'batch_group',
     ]
     ordering_fields = ['created_at', 'price', 'title', 'sku']
@@ -5781,9 +6114,11 @@ class ItemViewSet(viewsets.ModelViewSet):
             parsed_price = parse_decimal(request.data.get('price'))
             if parsed_price is not None:
                 updates['price'] = parsed_price
-        if 'retail_value' in request.data:
-            updates['retail_value'] = parse_decimal(request.data.get('retail_value'))
-        for field in ['title', 'brand', 'category', 'condition', 'location', 'notes']:
+        if 'unit_retail' in request.data:
+            updates['unit_retail'] = parse_decimal(request.data.get('unit_retail'))
+        elif 'retail_value' in request.data:
+            updates['unit_retail'] = parse_decimal(request.data.get('retail_value'))
+        for field in ['title', 'brand', 'condition', 'location', 'notes']:
             if field in request.data:
                 value = request.data.get(field)
                 if value is not None:
@@ -5899,6 +6234,14 @@ class ItemHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['item', 'event_type']
     ordering_fields = ['created_at']
     ordering = ['-created_at']
+
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsStaff])
+def manifest_field_metadata_view(request):
+    """Pinned flat + buckets manifest field definitions (formula UI)."""
+    return Response(manifest_field_metadata_payload())
 
 
 @api_view(['GET'])
@@ -6163,7 +6506,7 @@ def estimate_price_view(request):
     if not title:
         return Response({'detail': 'title is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    retail_raw = request.data.get('retail_value')
+    retail_raw = request.data.get('unit_retail', request.data.get('retail_value'))
     try:
         retail_value = Decimal(str(retail_raw)) if retail_raw else None
     except (InvalidOperation, ValueError):

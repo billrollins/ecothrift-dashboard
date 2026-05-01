@@ -2,50 +2,47 @@
 
 ## Executive Summary
 
-- **Safe cleanup candidates:** Add missing **`ARCHIVE.md`** rows (documentation fix); fix **broken initiative links** in a few steering files (no binary removal).
-- **Needs classification:** `.ai/reference/Mockups/files.zip` (untracked); new mock/spec JSX+MD under `.ai/reference/Mockups/` — likely intentional design refs.
-- **Restructures:** **Duplicate** `.ai/initiatives/_protocols/` vs `.ai/initiatives/_archived/_protocols/` — pick one canonical set to reduce drift.
-- **Confidence:** **High** for identified debris; **Medium** for “all zip/binary artifacts” without listing entire tree.
+- **Safe cleanup candidates:** `__pycache__` trees under `apps/inventory/**`; `frontend/dist/**`; Vite prebundles under `frontend/node_modules/.vite/deps/**` — **do not commit**.
+- **Needs classification:** Deleted **`workspace/notebooks/ai-cleanup/**`** vs CHANGELOG / steering that still reference it; untracked **`.ai/reference/Rich Manifest Templates/`** (reference data).
+- **Restructures worth planning:** None mandatory from this run; prefer **doc alignment** over folder moves.
+- **Confidence:** **Medium**
 
 ## Generated / Disposable Candidates
 
 | Path | Type | Evidence | Safe to remove? | Approval needed | Notes |
 |---|---|---|---:|---:|---|
-| `frontend/dist/` | build output | `.gitignore` line 20 | yes (if present locally) | no | Not tracked |
-| `**/__pycache__` | bytecode | `.gitignore` | yes | no | Standard |
-| `.ai/reference/Mockups/files.zip` | zip artifact | `git status` untracked | **unknown** | **yes** | May be packaging of mockups; confirm with owner |
+| `apps/**/__pycache__/` | bytecode | `git status` `??` entries | yes (local) | no | Add/keep ignore |
+| `frontend/dist/` | build output | untracked in status | yes | no | CI/build regenerates |
+| `frontend/node_modules/.vite/` | dev cache | untracked | yes | no | — |
+| `.pytest_cache/` | test cache | seen in git status (truncated) | yes | no | — |
 
 ## Duplicate / Stale Reference Candidates
 
 | Path / reference | Duplicate of / replaced by | Evidence | Recommendation | Priority |
 |---|---|---|---|---|
-| Initiative link `…/initiatives/bstock_auction_intelligence.md` | Archived file under `_completed/` | ripgrep hits | Update hrefs | P1 |
-| `.ai/initiatives/_protocols/` | Same filenames as `_archived/_protocols/` | both trees list 6 protocols + README | Single source of truth | P2 |
-| Dual path display in glob (`e:\...` vs `e:/...`) | cosmetic / OS | Tool output only | ignore | — |
+| `latest/*.md` removed + `_runs/` archive | Prior deep-dive snapshot | Protocol move + this run recreate | Keep `_runs/`; restore `latest/` | P2 |
+| Notebook-based ai-cleanup | `workspace/ai-cleanup-grok/` adjunct? | `git status` `D workspace/notebooks/...` | Update docs to single canonical path | P2 |
 
 ## Documentation Restructure Candidates
 
 | Area | Current problem | Proposed structure | Why | Risk |
 |---|---|---|---|---|
-| Deep dive reports | Only discoverable via protocol | Optional link in `README` AI table | Faster onboarding | low |
-| Initiative archive TOC | Two files missing from `_completed` table | Add rows | Trust | low |
+| Preprocessing | Facts split across CHANGELOG, initiative, `inventory-pipeline`, handoff md | One **“Cleanup CSV contract”** reference page | Faster onboarding | low (additive) |
 
 ## Code Restructure Candidates
 
 | Area | Current problem | Proposed structure | Evidence | Risk | Suggested timing |
 |---|---|---|---|---|---|
-| Inventory preprocessing components | Growing subtree | None urgent | `frontend/src/components/inventory/preprocessing/` | low | only if import cycles hurt |
-| Duplicate protocol MD | Drift risk | One folder + README pointer | Two identical dirs | medium | next hygiene PR |
+| Review naming (`manual-review` vs `final`) | “Manual” sounds like preprocessing step 3 | Optional alias route or doc rename only | UI step: **Final Review** | low | **only if touched** |
+| `_upload_cleanup_csv_impl` size | Large single method | Extract validators / persistence | readability | medium | later |
 
 ## Removal Safety Notes
 
-- **Secrets / env:** Do not touch `.env` (gitignored).
-- **DB dumps:** None identified in audit scope.
-- **User reference assets:** `.ai/reference/Mockups/**` — treat as product/design unless user says temporary.
-- **Build artifacts:** `frontend/dist/` gitignored — safe to delete locally for clean build.
+- **Secrets / env files:** Do not touch `.env`; `.env.example` is fair game for coordination only.
+- **User reference assets:** `.ai/reference/Rich Manifest Templates/` — treat as curated samples; do not bulk-delete without owner.
+- **Generated build artifacts:** Exclude from VCS via `.gitignore` if not already.
 
 ## Notes For `PLAN.md`
 
-- `DEL-001`: `files.zip` classification
-- `STRUCT-001`: protocol deduplication
-- `CTX-*`: link repairs
+- **DEL-001** — confirm notebook tree intentional deletion; update CHANGELOG docs bullet — source: Duplicate / Stale table
+- **SAFE-001** — ensure `__pycache__`/dist not staged — source: Generated candidates

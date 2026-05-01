@@ -63,6 +63,25 @@ export const preprocessingStep1 = {
     maxWidth: '100%',
     overflowX: 'hidden',
   } satisfies SxProps<Theme>,
+  /** Horizontal scroll strip — thin scrollbar, stable gutter to avoid layout shift. */
+  tableHorizontalScrollSx: {
+    boxSizing: 'border-box',
+    width: '100%',
+    maxWidth: '100%',
+    overflowX: 'auto',
+    scrollbarGutter: 'stable',
+    scrollbarWidth: 'thin',
+    scrollbarColor: '#c9c2b6 #f2efe8',
+    '&::-webkit-scrollbar': { height: 6 },
+    '&::-webkit-scrollbar-track': {
+      backgroundColor: '#f2efe8',
+      borderRadius: 3,
+    },
+    '&::-webkit-scrollbar-thumb': {
+      backgroundColor: '#c9c2b6',
+      borderRadius: 3,
+    },
+  } satisfies SxProps<Theme>,
   /** Mock `st.cardHeader`: title row inside a card. */
   cardHeaderRowSx: {
     display: 'flex',

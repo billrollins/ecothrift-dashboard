@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
+from django.contrib.postgres.indexes import GinIndex
 from django.db import models
 from django.db.models import IntegerField, Max
 from django.db.models.functions import Cast, Substr
@@ -241,7 +242,7 @@ class PurchaseOrder(models.Model):
             return 0
         now = timezone.now()
         for item in items:
-            item.cost = self.compute_item_cost(item.retail_value)
+            item.cost = self.compute_item_cost(item.unit_retail)
             item.updated_at = now
         Item.objects.using(alias).bulk_update(items, ['cost', 'updated_at'])
         return len(items)
@@ -315,14 +316,13 @@ class ManifestRow(models.Model):
     title = models.CharField(max_length=300, blank=True, default='')
     brand = models.CharField(max_length=200, blank=True, default='')
     model = models.CharField(max_length=200, blank=True, default='')
-    category = models.CharField(max_length=200, blank=True, default='')
     condition = models.CharField(
         max_length=20,
         choices=CONDITION_CHOICES,
         blank=True,
         default='',
     )
-    retail_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    unit_retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     proposed_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     final_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     pricing_stage = models.CharField(
@@ -331,11 +331,12 @@ class ManifestRow(models.Model):
         default='unpriced',
     )
     pricing_notes = models.TextField(blank=True, default='')
-    upc = models.CharField(max_length=100, blank=True, default='')
-    vendor_item_number = models.CharField(max_length=100, blank=True, default='')
     batch_flag = models.BooleanField(default=False)
-    search_tags = models.TextField(blank=True, default='')
+    identifiers = models.JSONField(default=dict, blank=True)
+    taxonomy = models.JSONField(default=dict, blank=True)
+    search_tags = models.JSONField(default=list, blank=True)
     specifications = models.JSONField(default=dict, blank=True)
+    tracking = models.JSONField(default=dict, blank=True)
     matched_product = models.ForeignKey(
         'Product',
         on_delete=models.SET_NULL,
@@ -356,13 +357,20 @@ class ManifestRow(models.Model):
         default='',
     )
     ai_reasoning = models.TextField(blank=True, default='')
-    ai_suggested_title = models.CharField(max_length=300, blank=True, default='')
-    ai_suggested_brand = models.CharField(max_length=200, blank=True, default='')
-    ai_suggested_model = models.CharField(max_length=200, blank=True, default='')
     notes = models.TextField(blank=True, default='')
+    category = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text='EcoThrift taxonomy v1 category (from preprocessing final_category).',
+    )
 
     class Meta:
         ordering = ['purchase_order', 'row_number']
+        indexes = [
+            GinIndex(fields=['identifiers'], name='inv_mr_ident_gin'),
+            GinIndex(fields=['taxonomy'], name='inv_mr_taxonomy_gin'),
+        ]
 
     def __str__(self):
         return f'Row {self.row_number}: {self.description[:50]}'
@@ -421,7 +429,7 @@ class PreprocessingOrder(models.Model):
 
 
 class PreprocessingRow(models.Model):
-    """Flat staging row for preprocessing; promoted to ManifestRow on finalize."""
+    """Staging row: layered standard / ai / final values; promoted to ManifestRow on finalize."""
 
     preprocessing_order = models.ForeignKey(
         PreprocessingOrder,
@@ -437,13 +445,7 @@ class PreprocessingRow(models.Model):
     raw_row = models.JSONField(default=dict, blank=True)
 
     quantity = models.IntegerField(default=1)
-    description = models.TextField(blank=True, default='')
-    title = models.CharField(max_length=300, blank=True, default='')
-    brand = models.CharField(max_length=200, blank=True, default='')
-    model = models.CharField(max_length=200, blank=True, default='')
-    category = models.CharField(max_length=200, blank=True, default='')
-    condition = models.CharField(max_length=20, blank=True, default='')
-    retail_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    unit_retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     proposed_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     final_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     pricing_stage = models.CharField(
@@ -452,16 +454,54 @@ class PreprocessingRow(models.Model):
         default='unpriced',
     )
     pricing_notes = models.TextField(blank=True, default='')
-    upc = models.CharField(max_length=100, blank=True, default='')
-    vendor_item_number = models.CharField(max_length=100, blank=True, default='')
     batch_flag = models.BooleanField(default=False)
-    search_tags = models.TextField(blank=True, default='')
-    specifications = models.JSONField(default=dict, blank=True)
     ai_reasoning = models.TextField(blank=True, default='')
-    ai_suggested_title = models.CharField(max_length=300, blank=True, default='')
-    ai_suggested_brand = models.CharField(max_length=200, blank=True, default='')
-    ai_suggested_model = models.CharField(max_length=200, blank=True, default='')
-    notes = models.TextField(blank=True, default='')
+
+    standard_description = models.TextField(blank=True, default='')
+    ai_description = models.TextField(blank=True, default='')
+    final_description = models.TextField(blank=True, null=True)
+
+    ai_title = models.CharField(max_length=300, blank=True, default='')
+    final_title = models.CharField(max_length=300, blank=True, null=True)
+
+    ai_category = models.CharField(max_length=200, blank=True, default='')
+    final_category = models.CharField(max_length=200, blank=True, null=True)
+
+    standard_brand = models.CharField(max_length=200, blank=True, default='')
+    ai_brand = models.CharField(max_length=200, blank=True, default='')
+    final_brand = models.CharField(max_length=200, blank=True, null=True)
+
+    standard_model = models.CharField(max_length=200, blank=True, default='')
+    ai_model = models.CharField(max_length=200, blank=True, default='')
+    final_model = models.CharField(max_length=200, blank=True, null=True)
+
+    standard_condition = models.CharField(max_length=20, blank=True, default='')
+    ai_condition = models.CharField(max_length=20, blank=True, default='')
+    final_condition = models.CharField(max_length=20, blank=True, null=True)
+
+    standard_notes = models.TextField(blank=True, default='')
+    ai_notes = models.TextField(blank=True, default='')
+    final_notes = models.TextField(blank=True, null=True)
+
+    standard_identifiers = models.JSONField(default=dict, blank=True)
+    ai_identifiers = models.JSONField(default=dict, blank=True)
+    final_identifiers = models.JSONField(null=True, blank=True)
+
+    standard_taxonomy = models.JSONField(default=dict, blank=True)
+    ai_taxonomy = models.JSONField(default=dict, blank=True)
+    final_taxonomy = models.JSONField(null=True, blank=True)
+
+    standard_specifications = models.JSONField(default=dict, blank=True)
+    ai_specifications = models.JSONField(default=dict, blank=True)
+    final_specifications = models.JSONField(null=True, blank=True)
+
+    standard_tracking = models.JSONField(default=dict, blank=True)
+    ai_tracking = models.JSONField(default=dict, blank=True)
+    final_tracking = models.JSONField(null=True, blank=True)
+
+    standard_search_tags = models.JSONField(default=list, blank=True)
+    ai_search_tags = models.JSONField(default=list, blank=True)
+    final_search_tags = models.JSONField(null=True, blank=True)
 
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -476,6 +516,8 @@ class PreprocessingRow(models.Model):
         indexes = [
             models.Index(fields=['preprocessing_order', 'row_number']),
             models.Index(fields=['purchase_order', 'row_number']),
+            GinIndex(fields=['standard_identifiers'], name='inv_pr_ident_gin'),
+            GinIndex(fields=['standard_taxonomy'], name='inv_pr_taxonomy_gin'),
         ]
 
     def __str__(self):
@@ -670,7 +712,7 @@ class BatchGroup(models.Model):
         if self.unit_price is not None:
             updates['price'] = self.unit_price
         if self.unit_cost is not None:
-            updates['retail_value'] = self.unit_cost
+            updates['unit_retail'] = self.unit_cost
         if self.condition:
             updates['condition'] = self.condition
         if self.location:
@@ -744,9 +786,8 @@ class Item(models.Model):
     )
     title = models.CharField(max_length=300)
     brand = models.CharField(max_length=200, blank=True, default='')
-    category = models.CharField(max_length=200, blank=True, default='')
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    retail_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    unit_retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='purchased')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='intake')
@@ -773,7 +814,6 @@ class Item(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['status', 'sold_at']),
-            models.Index(fields=['status', 'category']),
         ]
 
     def __str__(self):
@@ -781,11 +821,20 @@ class Item(models.Model):
 
     def rebuild_search_text(self) -> str:
         """Lowercased concatenation of item + product fields for fast icontains search."""
+        cat_parts = ''
+        if self.manifest_row_id:
+            try:
+                mr = self.manifest_row
+                flat_cat = str(getattr(mr, 'category', None) or '').strip()
+                tx = mr.taxonomy or {}
+                cat_parts = flat_cat or str(tx.get('category') or '')
+            except ManifestRow.DoesNotExist:
+                cat_parts = ''
         parts = [
             self.sku or '',
             self.title or '',
             self.brand or '',
-            self.category or '',
+            cat_parts,
             self.notes or '',
             self.location or '',
             self.status or '',
@@ -815,7 +864,7 @@ class Item(models.Model):
             prior = (
                 type(self)
                 .objects.filter(pk=self.pk)
-                .values('retail_value', 'purchase_order_id')
+                .values('unit_retail', 'purchase_order_id')
                 .first()
             )
         if not self.sku:
@@ -832,9 +881,9 @@ class Item(models.Model):
             if self.purchase_order_id:
                 po_ids.add(self.purchase_order_id)
         else:
-            old_r = prior['retail_value']
+            old_r = prior['unit_retail']
             old_po = prior['purchase_order_id']
-            new_r = self.retail_value
+            new_r = self.unit_retail
             new_po = self.purchase_order_id
             if old_r != new_r or old_po != new_po:
                 if old_po:
