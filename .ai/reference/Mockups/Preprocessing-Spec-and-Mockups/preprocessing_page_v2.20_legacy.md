@@ -2,6 +2,8 @@
 
 Reference for staff-facing **`/inventory/preprocessing/:id`** as implemented in `frontend/src/pages/inventory/PreprocessingPage.tsx` and child components (**2026-04-29**; app **`v2.20.0`** area).
 
+**Step 3 label (2026-05):** The live stepper uses **Final Review**; this snapshot keeps the **v2.20.0** wording **Manual Review** where it describes the shipped UI at that release.
+
 ## Scope
 
 **CHANGELOG [2.20.0]** reframed preprocessing as a **3-step wizard**: *Standardize Manifest → AI Cleanup → Manual Review*. The cluster **templates, AI suggest, formulas, preview** lives in **Step 1 (Standardize Manifest)**.

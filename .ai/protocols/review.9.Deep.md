@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-30 (protocol filename: review.9.Deep.md) -->
+<!-- Last updated: 2026-05-01 (protocol filename: review.9.Deep.md) -->
 # Protocol: Deep Research - Update All Context
 
 Exhaustive repo + AI-steering audit. Use when the user asks for **deep research**, **update all context**, **full context refresh**, or a broad documentation / initiative / changelog integrity pass.
@@ -12,6 +12,7 @@ This protocol is **AI-readable**: dense instructions, little narrative. Human-re
 Audit and report on:
 
 - Full codebase structure and shipped behavior
+- **Preprocessing pipeline** (see [Domain focus: preprocessing through Final Review](#domain-focus-preprocessing-through-final-review) below) — treat as first-class: drift here breaks manifest → AI → staging → review.
 - `.ai/context.md`, `.ai/consultant_context.md`
 - `.ai/extended/*.md`
 - `.ai/initiatives/_index.md`, active initiatives, archive buckets
@@ -24,6 +25,62 @@ Deliverables:
 - Fresh human-readable report set in **`.ai/reference/deep_dive/latest/`**
 - Machine-actionable **`.ai/reference/deep_dive/latest/PLAN.md`**
 - No code, docs, initiative moves, version bumps, or deletes unless the user explicitly approves the plan or asks for direct execution
+
+---
+
+## Domain focus: preprocessing through Final Review
+
+When running this protocol, **actively trace** the end-to-end path below in `01_codebase_inventory.md` and cross-check steering docs (`consultant_context`, `extended`, initiatives). Surface mismatches between docs and code (columns, endpoints, validation rules, UI step names).
+
+### Flow (conceptual)
+
+```text
+Purchase order manifest / staging
+  → PreprocessingOrder + PreprocessingRow (standard_* layers, economics)
+  → download-cleanup-csv (Step 2 input for offline tools)
+  → Grok helper (workspace/ai-cleanup-grok): single <stem>.cleaned.csv, per-row ai_status JSON
+  → POST upload-cleanup-csv / apply-cleanup-csv → PreprocessingRow.ai_* + ai_status
+  → Final Review UI (triple-layer fields, finalize to ManifestRow)
+```
+
+### Backend (Django)
+
+| Concern | Where to look |
+|--------|----------------|
+| Models: staging rows, `standard_*` / `ai_*` / `final_*`, `ai_status` | `apps/inventory/models.py` — `PreprocessingOrder`, `PreprocessingRow` |
+| Download CSV for cleanup | `PurchaseOrderViewSet.download_cleanup_csv` — `apps/inventory/views.py` |
+| Upload cleaned CSV / JSON rows | `_upload_cleanup_csv_impl`, `upload_cleanup_csv`, `apply_cleanup_csv` — `apps/inventory/views.py`; helpers `_parse_cleanup_csv_upload`, `parse_ai_cleanup_suggestions` |
+| Row validation (blocking vs quality for wide import) | `apps/inventory/cleanup_csv_validate.py` — `validate_cleanup_row_values` (`block_on_quality` / staging-wide looseness) |
+| Serializers for review API | `PreprocessingReviewRowSerializer` — `apps/inventory/serializers.py` (`ai_status` and layers) |
+| Tests | `apps/inventory/tests/test_preprocessing_redesign.py` |
+
+### Offline Grok cleanup
+
+| Concern | Where to look |
+|--------|----------------|
+| Batch loop, validation, retries, **single output** `.cleaned.csv` | `workspace/ai-cleanup-grok/helpers/clean-grok.mjs` |
+| Deterministic recovery + `ai_status.state` | `workspace/ai-cleanup-grok/helpers/recover-row.mjs` (+ `recover-row.test.mjs`) |
+| Tool schema / examples | `MANIFEST_CLEANUP_JSON_SCHEMA`, `--validate-examples`, `prompts/examples.json`, `prompts/vendors/*.json` |
+| System prompt | `workspace/ai-cleanup-grok/prompts/system-prompt.txt` |
+| Input/output contract | Documented in `clean-grok.mjs` file header + repo `.ai/reference/cleanup_csv_contract.md` if present |
+
+### Frontend
+
+| Concern | Where to look |
+|--------|----------------|
+| Preprocessing / AI Cleanup / review UX | `frontend/src/pages/inventory/PreprocessingPage.tsx` (and related components under `frontend/src/components/inventory/`) |
+| API types | `frontend/src/api/inventory.api.ts` — `PreprocessingReviewRow`, upload cleanup helpers |
+
+### Initiatives / extended docs
+
+- Reconcile with `.ai/extended/inventory-pipeline.md`, `.ai/initiatives/*order_processing*`, and any manifest-standardization notes.
+- Call out when **CHANGELOG** or user-facing copy still mention `failures.csv` / `warnings.csv` if the Grok helper only emits `.cleaned.csv`.
+
+### Report expectations
+
+In **`01_codebase_inventory.md`**: include a **subsection** (or table) that maps the steps above to concrete routes, serializer fields, and CSV columns — especially `ai_status` shape and upload blocking rules.
+
+In **`02_context_and_extended_audit.md`**: flag steering text that omits `ai_status`, Final Review gating (`hard_flagged` vs `soft_flagged`), or the upload path.
 
 ---
 
@@ -84,6 +141,7 @@ Required repo scans:
 
 Optional reads when useful:
 
+- **Preprocessing / cleanup:** `.ai/reference/cleanup_csv_contract.md`, `.ai/extended/inventory-pipeline.md`, `workspace/ai-cleanup-grok/helpers/clean-grok.mjs` (input/CSV contract in header comment), initiative docs on order processing / preprocessing redesign
 - Recent git history for shipped themes
 - Local DB schema inspection only if a doc/code mismatch cannot be settled from files
 - Terminal snapshots only if dev-server state affects audit evidence

@@ -3,9 +3,8 @@
 ## Executive Summary
 
 - **Accurate steering docs:** `.ai/context.md` **Extended docs TOC** lists **15** files and matches on-disk `.ai/extended/*.md` count; version pointer **`v2.20.0`** aligns with `.version`.
-- **Stale / misleading steering:** `.ai/extended/inventory-pipeline.md` still describes Step 3 as **“Manual Review / Pricing”** while the product stepper label is **“Final Review”**; **`order_processing_pipeline_rebuild`** rollup still frames preprocessing as **“Next”** with placeholder step 3.
-- **Extended docs needing updates:** `inventory-pipeline.md` (step names + explicit **finalize coalesce** sentence); initiative file (progress table).
-- **Confidence:** **Medium**
+- **Recent doc pass (2026-05-01):** **`cleanup_csv_contract.md`**, **`inventory-pipeline.md`**, **`order_processing_pipeline_rebuild.md`**, **`frontend.md`**, **`context.md`**, **`consultant_context.md`**, **`backend.md`**, **`CHANGELOG`** [Unreleased] Documentation — aligned with **`ai_status`**, staging-wide relaxed validation, single **`.cleaned.csv`** Grok output, and step 3 **Final Review**.
+- **Confidence:** **Medium** (deep-dive run snapshot below may predate this pass)
 
 ## Primary Context Audit
 
@@ -27,7 +26,7 @@
 | `databases.md` | yes | *assumed yes* | yes | — |
 | `development.md` | yes | *assumed yes* | yes | — |
 | `frontend.md` | yes | *assumed yes* | yes | — |
-| `inventory-pipeline.md` | yes | *assumed yes* | yes | **Drift:** step 3 label vs UI |
+| `inventory-pipeline.md` | yes | *assumed yes* | yes | Step 3 **Final Review** + wide **`ai_status`** (recheck header date) |
 | `pos-system.md` | yes | *assumed yes* | yes | — |
 | `print-server.md` | yes | *assumed yes* | yes | — |
 | `retag-operations.md` | yes | *assumed yes* | yes | — |
@@ -38,7 +37,7 @@
 
 | File | Last updated | Domain still valid? | Drift found | Recommended edit | Priority |
 |---|---|---:|---|---|---|
-| `inventory-pipeline.md` | (header not re-read here) | partial | Step 6 says **Manual Review / Pricing (Step 3)**; code/UI: **Final Review** | Align wording; mention `finalize-preprocessing` coalesce | **P1** |
+| `inventory-pipeline.md` | 2026-05-01 | yes | — | Step 5–6 describe **Final Review** + apply/**`ai_status`** per latest edit | **P3** |
 | `backend.md` | 2026-05-01 (per git) | yes | May omit newest cleanup modules | Cross-link `cleanup_csv_validate.py` / `cleanup_condition.py` when touching preprocessing API | P2 |
 
 ## Protocol Discoverability
@@ -51,10 +50,10 @@
 
 | Reference | Found in | Current reality | Recommendation |
 |---|---|---|---|
-| **Manual Review** as preprocessing step 3 | `inventory-pipeline.md` §5–6 grep | `PREPROCESSING_STEP_LABELS[2] === 'Final Review'` | Rename in doc |
-| `workspace/notebooks/ai-cleanup/…` | `CHANGELOG` [Unreleased] | Git status: paths deleted | Update changelog or restore docs path |
+| **Manual Review** as step-3 label in old mockups / legacy specs | `.ai/reference/Mockups/…`, `v2.20_legacy` | Product stepper: **Final Review** | v2.20/v2.21 specs note the rename (**2026-05-01**) |
+| `workspace/notebooks/ai-cleanup/…` | `CHANGELOG` [Unreleased] | Tree **removed**; changelog states **historical** + points to handoff + contract | None if **`[Unreleased]`** Documentation bullet stays current |
 
 ## Notes For `PLAN.md`
 
-- **CTX-001** — refresh `inventory-pipeline.md` preprocessing step names + finalize one-liner — source: Extended File Audit
-- **INIT-001** — initiative preprocessing rollup — source: Stale References + initiative read
+- ~~**CTX-001**~~ — `inventory-pipeline.md` / **`cleanup_csv_contract.md`** refreshed (**2026-05-01**).
+- ~~**INIT-001**~~ — initiative Progress table shows **Preprocessing** shipped (**Final Review**).

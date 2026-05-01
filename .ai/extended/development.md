@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-30 (xAI Grok env keys for llm_chat-backed paths) -->
+<!-- Last updated: 2026-05-01 (Heroku Procfile release command spelling; deployment block) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -177,7 +177,7 @@ Defined in `.env` (gitignored):
 
 ```bash
 # Procfile handles:
-#   release: python manage.py migrate && python manage.py create_cache_table
+#   release: python manage.py migrate && python manage.py createcachetable
 #   web: gunicorn ecothrift.wsgi --log-file - --timeout 120
 
 # Root package.json heroku-postbuild script builds the frontend

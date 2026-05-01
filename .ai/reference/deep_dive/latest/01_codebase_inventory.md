@@ -45,7 +45,7 @@
 | Review PATCH → **`ai_*`** fields | `update_preprocessing_review_rows` | Same | partial |
 | Finalize → **`snapshot_finalize_from_ai_and_standard`** then bulk `ManifestRow` create | `finalize_preprocessing` | Same | partial |
 | Condition normalization | `normalize_cleanup_condition` in review + cleanup | Extended + CHANGELOG | check |
-| Hard/soft validation + `rejected_rows` / `soft_warnings` | `validate_cleanup_row_values` + response shape | Handoff / pipeline docs | check |
+| Wide **`block_on_quality=False`** + `rejected_rows` / `soft_warnings` (quality folded) | `validate_cleanup_row_values`; optional CSV **`ai_status`** → `PreprocessingRow` | **`cleanup_csv_contract.md`**, pipeline | check |
 
 ## Test Coverage Gaps
 

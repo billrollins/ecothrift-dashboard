@@ -2,22 +2,22 @@
 
 ## Executive Summary
 
-- **Active initiatives health:** **`order_processing_pipeline_rebuild`** is active and recently touched (2026-05-01 header) but its **Progress rollup** under-describes shipped preprocessing UI (stepper shows **Final Review**; file still says Preprocessing **“Next”** with placeholder Step 3).
+- **Active initiatives health:** **`order_processing_pipeline_rebuild`** — Progress table lists **Preprocessing** **Shipped (core)** with Step 3 **Final Review** (**2026-05-01** refresh).
 - **Archive/index consistency:** **`_archived/_completed`** has **16** `.md` files; **`ARCHIVE.md`** TOC lists matching completed entries (spot-check: 16).
-- **Recommended dispositions:** **None** that require moves during this report — update content in place after user approval for initiative edits.
-- **Confidence:** **Medium**
+- **Recommended dispositions:** **None** that require moves — ongoing doc parity via **`cleanup_csv_contract.md`** + pipeline.
+- **Confidence:** **Medium** (report snapshot may predate minor follow-up edits)
 
 ## Active / Root Initiative Index
 
 | Initiative | Listed status | File status | Current phase | Evidence | Finding | Recommendation |
 |---|---|---|---|---|---|---|
-| Order / Processing pipeline rebuild | Active | exists | Narrative “Preprocessing — Next” | [`order_processing_pipeline_rebuild.md`](../../../initiatives/order_processing_pipeline_rebuild.md) Progress table L31–39; [`PreprocessingStepper.tsx`](../../../../frontend/src/components/inventory/preprocessing/PreprocessingStepper.tsx) | Rollup lags **Final Review** + three-layer staging | Edit Progress / Preprocessing sections; no file move |
+| Order / Processing pipeline rebuild | Active | exists | **Preprocessing** core shipped | [`order_processing_pipeline_rebuild.md`](../../../initiatives/order_processing_pipeline_rebuild.md) Progress L31–39; [`PreprocessingStepper.tsx`](../../../../frontend/src/components/inventory/preprocessing/PreprocessingStepper.tsx) | Rollup matches **Final Review** + cleanup apply | Keep **`cleanup_csv_contract`** linked from Step 2 |
 
 ## Initiative File Health
 
 | File | Has session log? | Latest session/result | Acceptance boxes current? | Drift | Priority |
 |---|---|---|---|---|---|
-| `order_processing_pipeline_rebuild.md` | yes (sessions in file) | 2026-05-01 adjunct note | partial | **Step 3 described as placeholder** in rollup | **P1** |
+| `order_processing_pipeline_rebuild.md` | yes (sessions in file) | Session 6 complete | yes (core path) | — | **P3** |
 
 ## Archive Consistency
 

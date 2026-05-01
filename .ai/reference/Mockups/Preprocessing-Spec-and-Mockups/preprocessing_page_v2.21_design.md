@@ -2,7 +2,9 @@
 
 Reference for staff-facing **`/inventory/preprocessing/:id`** targeting **v2.21.0**. Companion mockup: `preprocessing-mockup.jsx`. Companion translation guide: `coder_instructions.md`. This spec replaces `preprocessing_page_v2.20_legacy.md`.
 
-> **Note to coder:** Ignore sidebar/navbar colors in the mockup. We are not changing global nav styling. Focus on the preprocessing content area only. See `coder_instructions.md` for MUI translation rules.
+**Step 3 label:** The shipped app stepper uses **Final Review**; this spec and companion mockups may still say **Manual Review** for the same step.
+
+> **Note to coder:** Ignore sidebar/navbar colors in the mockup. We are not changing global nav styling. Focus on the preprocessing content area only. See `coder_instructions.md` for MUI translation rules. We are not changing global nav styling. Focus on the preprocessing content area only. See `coder_instructions.md` for MUI translation rules.
 
 ---
 

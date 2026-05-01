@@ -2,10 +2,11 @@
 
 ## Executive Summary
 
-- **Objective:** Align steering docs and changelog with **shipped** preprocessing: **cleanup CSV apply → `ai_*`**, **`preprocessing-review` PATCH**, **`finalize_preprocessing`** (`snapshot_finalize_from_ai_and_standard` + `ManifestRow` rebuild), and UI step **Final Review**.
-- **Highest priority work:** Fix initiative + `inventory-pipeline.md` step naming; reconcile CHANGELOG notebook paths; verify `consultant_context.md` extended TOC = `context.md`.
+- **Objective:** Align steering docs and changelog with **shipped** preprocessing: **cleanup CSV apply → `ai_*`** + optional **`ai_status`**, staging-wide relaxed validation, **`preprocessing-review` PATCH**, **`finalize_preprocessing`**, UI step **Final Review**.
+- **Status (2026-05-01):** Steering slice closed for this batch: **`CTX-001`** / **`INIT-001`** / **`REL-001`** / **`STRUCT-001`** / **`CTX-002`** (15↔15 extended TOC) / **`RESEARCH-001`** (review surfaces table in **`inventory-pipeline.md`**). **`SAFE-001`** applied (`.pytest_cache`, `frontend/.vite` ignored). **`INIT-002`** — initiative links **`cleanup_csv_validate.py`**. Remaining gate: **`REL-002`** (semver release) **only when user asks**; **`DEL-001`** needs explicit deletion/restore approval; **`RESEARCH-DEPLOY-001`** at push time.
 - **Requires user approval before execution:** Semver **release** (bump `.version`, tag, changelog section promote); any **`git rm`** of reference trees; initiative **archive/move**.
 - **Suggested execution mode:** **Staged passes** — docs first, then optional release cut.
+- **Deploy note (2026-05-01):** **`origin/main`** and **`heroku/main`** match; local is **10 commits** ahead plus a **dirty** workspace — see **`00_run_summary.md`** §Deployment / prod gap.
 
 ## Immediate Safe Updates
 
@@ -52,13 +53,16 @@
 | id | priority | action | files | reason | source_report | requires_user_approval | acceptance_check |
 |---|---|---|---|---|---|---|---|
 | `RESEARCH-001` | P3 | Document staff-facing when to use `manual-review` vs `preprocessing-review` (lifecycle) | extended + ux | Two review endpoints | `01_codebase_inventory.md` | no | Table: pre-finalize vs post-finalize |
+| `RESEARCH-DEPLOY-001` | P2 | Before next **`code.9.Push`** / Heroku deploy: review the **10** local commits ahead of `origin/main`, decide semver + **`CHANGELOG`**, fill **`scripts/deploy/commit_message.txt`**, run **`review.0.Bump`** checklist | `.ai/protocols/code.9.Push.md`, `scripts/deploy/` | Gap is **unpushed commits + dirty `.ai/` tree**, not drift between GitHub and Heroku | `00_run_summary.md` §Deployment | no | One push bundles intended code + docs; **`git status`** clean or intentionally scoped |
 
 ## Execution Order
 
-1. **`CTX-001`** + **`INIT-001`** (fast, removes most confusion).
-2. **`REL-001`** + **`DEL-001`** decision (avoid phantom paths).
-3. **`CTX-002`** consultant TOC parity.
-4. **`REL-002`** only when user asks for a release.
+1. **`RESEARCH-DEPLOY-001`** when the next step is a real push — audit the **10** local commits, reconcile dirty tree vs intended ship list, **`review.0.Bump`**, then **`code.9.Push`** / **`4_deploy_careful`** as appropriate.
+2. **`CTX-001`** + **`INIT-001`** (fast, removes most confusion).
+3. **`REL-001`** + **`DEL-001`** decision (avoid phantom paths).
+4. **`CTX-002`** consultant TOC parity.
+5. **`REL-002`** only when user asks for a release.
+
 
 ## Do Not Do
 
