@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-02 (Final Review mockup visual pending — `fix_this.md`; `ai_status` / cleanup CSV) -->
+<!-- Last updated: 2026-05-02 (Item Processor read-only `manual-review` audit UI; Final Review mockup visual pending — `fix_this.md`; `ai_status` / cleanup CSV) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -324,9 +324,20 @@ Cross-reference mapping of vendor identifiers to internal `Product`.
 - Actions follow the new flow: Save Pre-Arrival Pricing → Match Products → Build Check-In Queue → Open Processing Workspace
 - Includes order reset modal using reverse-sequence artifact preview + guarded purge deletion
 
-### Processing Page (`ProcessingPage.tsx`) — v1.9.0
+### Processing Page (`ProcessingPage.tsx`) — v1.9.0 — **legacy**
 
-"Command Center + Side Drawer" design. Key features:
+Moved to **`/inventory/processing-legacy`**. The primary staff flow is **Item Processor workspace** (see below).
+
+### Item Processor workspace (`ProcessingWorkspacePage.tsx`) — current
+
+- **Routes**: **`/inventory/processing`** (`ProcessingEntryRedirect` — `?order=` or last-used PO from eligible list), **`/inventory/processing/:id`** (`ProcessingWorkspacePage`), legacy **`/inventory/processing-legacy`** (`ProcessingPage`).
+- **Read**: **`GET /api/inventory/orders/{id}/processing-workspace/`** — nested manifest rows, items, products, progress, duplicate-row hints (UPC).
+- **Pricing audit (read-only, UI)**: expanding **Manifest pricing audit** calls **`GET /api/inventory/orders/{id}/manual-review/`** — same paginated **`ManifestRow`** economics surface as legacy manual review (**`unit_retail`**, allocated base, 2× ideal, set price); edits remain on preprocessing/Final Review or via **`POST …/manual-review/`** when exposed elsewhere.
+- **Check-in**: **`POST /api/inventory/items/{id}/processing-print-and-check-in/`** then browser **`localPrintService`** (persist-first); optional sibling **`applyRetailAll`** / **`applyConditionAll`**.
+- **Print multiple / dispute / merge / swap / bulk disposition**: order-scoped **`POST`** actions (see `inventory.api.ts`); UI wires **`ProcessingBulkActionBar`** + **`MergeModal`** / **`BulkDispositionModal`** / **`SwapModal`** + dispute flows.
+- **Client**: React Query key **`['processing-workspace', orderId]`** (`useProcessingWorkspace.ts`), filters via **`processingWorkspaceFilters.ts`** (**V-07 / V-08 / V-12**).
+
+**Legacy grid (`ProcessingPage` at `/inventory/processing-legacy`):** "Command Center + Side Drawer" design. Key features:
 - **MUI Autocomplete** order selector (search, status chips per option) replaces basic dropdown
 - **Progress ring** (CircularProgress, 52px) with % overlaid; stats chips for pending/on-shelf/batch counts
 - **SKU scanner input** always visible; F2 focuses it; Enter finds item by SKU and opens Drawer
@@ -354,7 +365,7 @@ Cross-reference mapping of vendor identifiers to internal `Product`.
 
 - Orders: `getOrders`, `getOrder`, `createOrder`, `updateOrder`, `deleteOrder`, `getOrderDeletePreview`, `purgeDeleteOrder`
 - Status: `markOrderPaid`, `revertOrderPaid`, `markOrderShipped`, `revertOrderShipped`, `deliverOrder`, `revertOrderDelivered`
-- Manifest/processing: `uploadManifest`, `getManifestRows`, `previewStandardize`, `processManifest`, `updateManifestPricing`, `matchProducts`, `createItems`, `checkInOrderItems`, `markOrderComplete`, `aiCleanupRows`, `getAICleanupStatus`, `cancelAICleanup`
+- Manifest/processing: `uploadManifest`, `getManifestRows`, `previewStandardize`, `processManifest`, `updateManifestPricing`, `matchProducts`, `createItems`, `checkInOrderItems`, `markOrderComplete`, `getProcessingWorkspace`, `processingPrintAndCheckIn`, `processingPrintMultiple`, `processingDispute`, `processingMergeRows`, `processingSwap`, `processingBulkDisposition`, `processingPatchItem`, `aiCleanupRows`, `getAICleanupStatus`, `cancelAICleanup`
 - Batch groups: `getBatchGroups`, `updateBatchGroup`, `processBatchGroup`, `checkInBatchGroup`, `detachBatchItem`
 - Items: `getItems`, `updateItem`, `checkInItem`, `markItemReady`
 - Public: `itemLookup(sku)` — no auth

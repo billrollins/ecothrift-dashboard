@@ -2,67 +2,62 @@
 
 ## Executive Summary
 
-- **Objective:** Align steering docs and changelog with **shipped** preprocessing: **cleanup CSV apply → `ai_*`** + optional **`ai_status`**, staging-wide relaxed validation, **`preprocessing-review` PATCH**, **`finalize_preprocessing`**, UI step **Final Review**.
-- **Status (2026-05-01):** Steering slice closed for this batch: **`CTX-001`** / **`INIT-001`** / **`REL-001`** / **`STRUCT-001`** / **`CTX-002`** (15↔15 extended TOC) / **`RESEARCH-001`** (review surfaces table in **`inventory-pipeline.md`**). **`SAFE-001`** applied (`.pytest_cache`, `frontend/.vite` ignored). **`INIT-002`** — initiative links **`cleanup_csv_validate.py`**. Remaining gate: **`REL-002`** (semver release) **only when user asks**; **`DEL-001`** needs explicit deletion/restore approval; **`RESEARCH-DEPLOY-001`** at push time.
-- **Requires user approval before execution:** Semver **release** (bump `.version`, tag, changelog section promote); any **`git rm`** of reference trees; initiative **archive/move**.
-- **Suggested execution mode:** **Staged passes** — docs first, then optional release cut.
-- **Deploy note (2026-05-01):** **`origin/main`** and **`heroku/main`** match; local is **10 commits** ahead plus a **dirty** workspace — see **`00_run_summary.md`** §Deployment / prod gap.
+- **Objective:** Keep steering artifacts truthful relative to the **large `[Unreleased]`** inventory/processing slice, maintain archive hygiene, and avoid accidental commits of generated files.
+- **Highest priority work:** (1) User-approved **release slice** when ready (`CHANGELOG` + semver); (2) confirm **no stray committed artifacts**; (3) optional **`_index.md`** link to archived initiative protocols for discoverability.
+- **Requires user approval before execution:** Semver bump, deleting/cherry-moving `.ai/reference` blobs, any initiative archive moves.
+- **Suggested execution mode:** **Staged passes** — hygiene first, release second, structural doc cleanup last.
 
 ## Immediate Safe Updates
 
 | id | priority | action | files | reason | source_report | requires_user_approval | acceptance_check |
-|---|---|---|---|---|---|---|---|
-| `SAFE-001` | P3 | Ensure CI/local ignore keeps `__pycache__`, `dist`, `.vite` unstaged | `.gitignore` if gaps | Avoid noisy commits | `05_cleanup_and_restructure_audit.md` §Generated | no | `git status` clean of those paths when committing |
-| `SAFE-002` | P2 | Recreate / keep `deep_dive/latest/` as canonical; retain `_runs/` history | `.ai/reference/deep_dive/` | Protocol expectation | `00_run_summary.md` | no | Seven files present under `latest/` |
+|----|----------|--------|-------|--------|---------------|-------------------------|------------------|
+| SAFE-001 | P1 | Before commit: remove/unstage `__pycache__/`, `frontend/dist/`, `.vite` caches | workspace tree | Prevents noisy PRs | `05_cleanup#Generated` | no | `git status` clean of bytecode/build caches intended for ignore |
+| SAFE-002 | P2 | Optionally run `vitest` + targeted Django tests after inventory edits | `frontend/`, `apps/inventory/tests/` | Regression guard | `01_codebase#Tests` | no | CI/local tests green |
 
 ## Context / Extended Updates
 
 | id | priority | action | files | reason | source_report | requires_user_approval | acceptance_check |
-|---|---|---|---|---|---|---|---|
-| `CTX-001` | P1 | Rename preprocessing Step 3 prose to **Final Review**; add one sentence on finalize coalesce (`final_*` from `ai_*` + `standard_*`, `final_title` from `ai_title`) | `.ai/extended/inventory-pipeline.md` | Matches `PreprocessingStepper.tsx` + `layer_helpers.snapshot_finalize_from_ai_and_standard` | `02_context_and_extended_audit.md` | no | Grep doc for “Manual Review” step 3 → resolved or qualified as post-finalize |
-| `CTX-002` | P2 | Parity pass: extended TOC in `consultant_context.md` vs `context.md` (15 files) | `.ai/consultant_context.md` | Maintenance rule | `02_context_and_extended_audit.md` | no | Both TOCs list same filenames |
+|----|----------|--------|-------|--------|---------------|-------------------------|------------------|
+| CTX-001 | P2 | When cutting a release, refresh extended inventory docs for any **new routes/APIs** named in release notes | `.ai/extended/inventory-pipeline.md`, `frontend.md`, `backend.md` | Steering parity | `02_context#Gaps` | no | Extended TOC unchanged unless files added/removed |
+| CTX-002 | P3 | After Final Review mockup pass completes, shrink duplicated pointers if desired | `.ai/reference/fix_this.md` etc. | Reduce confusion | `02_context#Gaps` | yes | User confirms which docs remain canonical |
 
 ## Initiative Dispositions
 
 | id | priority | action | files | reason | source_report | requires_user_approval | acceptance_check |
-|---|---|---|---|---|---|---|---|
-| `INIT-001` | P1 | Update **Progress (rollup)** — Preprocessing row: shipped sub-steps for Standardize / AI Cleanup / **Final Review**; remove “placeholder Step 3” if inaccurate | `.ai/initiatives/order_processing_pipeline_rebuild.md` | Rollup contradicts UI | `03_initiatives_audit.md` | no | Progress table matches stepper + main APIs |
-| `INIT-002` | P3 | Add pointer to `cleanup_csv_validate.py` rule IDs + `rejected_rows` shape if contractors need it | initiative or `.ai/reference/` | Onboarding | `01_codebase_inventory.md` | no | Link resolves |
+|----|----------|--------|-------|--------|---------------|-------------------------|------------------|
+| INIT-001 | P3 | Optional: add explicit link from `_index.md` to **`_archived/_protocols/`** (stub already points there) | `.ai/initiatives/_index.md` | Reduces “two README” confusion | `03_initiatives#Notes` | no | Readers land on canonical protocol table |
 
 ## Version / Changelog Updates
 
 | id | priority | action | files | reason | source_report | requires_user_approval | acceptance_check |
-|---|---|---|---|---|---|---|---|
-| `REL-001` | P2 | Fix `[Unreleased]` **Documentation** bullets that cite `workspace/notebooks/ai-cleanup/` if that tree is gone; point at `workspace/ai-cleanup-grok/` or “removed” note | `CHANGELOG.md` | Tree vs docs mismatch | `04_version_changelog_audit.md` | no | Paths in changelog exist or are explicitly historical |
-| `REL-002` | P1 | When releasing: promote `[Unreleased]` slice to dated header; bump `.version` + root `package.json` | `CHANGELOG.md`, `.version`, `package.json` | Semver hygiene | `04_version_changelog_audit.md` | **yes** | One release header; version tripartite match |
+|----|----------|--------|-------|--------|---------------|-------------------------|------------------|
+| REL-001 | P1 | Run `review.0.Bump` + `session.9.Close.md` Part 2 when scope frozen: move `[Unreleased]` → `## [x.y.z]` | `.version`, root `package.json`, `CHANGELOG.md` | Large unreleased inventory narrative needs tag | `04_version#Release Traceability` | yes | Version triple aligned; dated section matches shipped behavior |
+| REL-002 | P2 | Confirm Heroku/release migrate ordering for `0038`/`0039` inventory migrations when deploying processor features | deployment checklist | Prod schema parity | `01_codebase#Migrations` | yes | Migrations applied on prod in order |
 
 ## File Removals
 
 | id | priority | action | files | reason | source_report | requires_user_approval | acceptance_check |
-|---|---|---|---|---|---|---|---|
-| `DEL-001` | P2 | Confirm whether `workspace/notebooks/ai-cleanup/` deletion is intentional; if yes, complete doc purge; if no, restore from VCS | `workspace/notebooks/ai-cleanup/`, docs | `git status` shows `D` | `05_cleanup_and_restructure_audit.md` | **yes** | No broken links in CHANGELOG/context |
+|----|----------|--------|-------|--------|---------------|-------------------------|------------------|
+| DEL-001 | P2 | Delete local only: `__pycache__`, `frontend/dist`, caches | generated paths | Noise / binary churn | `05_cleanup#Generated` | no | Not present in `git diff` |
 
 ## Restructures Needed
 
 | id | priority | action | files | reason | source_report | requires_user_approval | acceptance_check |
-|---|---|---|---|---|---|---|---|
-| `STRUCT-001` | P3 | Optional: add `reference/cleanup_csv_contract.md` | `.ai/reference/` | Single source for wide vs narrow | `05_cleanup_and_restructure_audit.md` | no | Linked from initiative + pipeline |
+|----|----------|--------|-------|--------|---------------|-------------------------|------------------|
+| STRUCT-001 | P3 | Defer splitting `PurchaseOrderViewSet` unless initiative owns refactor | `apps/inventory/views.py` | Risk >> reward today | `05_cleanup#Code` | yes | ADR or initiative scope accepted |
 
 ## Follow-Up Research
 
 | id | priority | action | files | reason | source_report | requires_user_approval | acceptance_check |
-|---|---|---|---|---|---|---|---|
-| `RESEARCH-001` | P3 | Document staff-facing when to use `manual-review` vs `preprocessing-review` (lifecycle) | extended + ux | Two review endpoints | `01_codebase_inventory.md` | no | Table: pre-finalize vs post-finalize |
-| `RESEARCH-DEPLOY-001` | P2 | Before next **`code.9.Push`** / Heroku deploy: review the **10** local commits ahead of `origin/main`, decide semver + **`CHANGELOG`**, fill **`scripts/deploy/commit_message.txt`**, run **`review.0.Bump`** checklist | `.ai/protocols/code.9.Push.md`, `scripts/deploy/` | Gap is **unpushed commits + dirty `.ai/` tree**, not drift between GitHub and Heroku | `00_run_summary.md` §Deployment | no | One push bundles intended code + docs; **`git status`** clean or intentionally scoped |
+|----|----------|--------|-------|--------|---------------|-------------------------|------------------|
+| RESEARCH-001 | P3 | Map missing automated tests for auth/core/hr/consignment if those domains become hot | `apps/*/tests` | Coverage holes | `01_codebase#Tests` | no | Written test inventory memo |
 
 ## Execution Order
 
-1. **`RESEARCH-DEPLOY-001`** when the next step is a real push — audit the **10** local commits, reconcile dirty tree vs intended ship list, **`review.0.Bump`**, then **`code.9.Push`** / **`4_deploy_careful`** as appropriate.
-2. **`CTX-001`** + **`INIT-001`** (fast, removes most confusion).
-3. **`REL-001`** + **`DEL-001`** decision (avoid phantom paths).
-4. **`CTX-002`** consultant TOC parity.
-5. **`REL-002`** only when user asks for a release.
-
+1. **SAFE-001** — working tree hygiene (no approvals).
+2. **REL-001** — user-triggered release pass when feature set is frozen.
+3. **CTX-001** — docs refreshed in same merge window as release when APIs changed.
+4. **INIT-001** / **CTX-002** — optional documentation polish (`INIT-001` needs no approval unless user dislikes editing `_index.md`).
 
 ## Do Not Do
 

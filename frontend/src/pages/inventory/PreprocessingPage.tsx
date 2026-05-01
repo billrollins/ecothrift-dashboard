@@ -17,6 +17,7 @@ import {
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
 import AutoAwesome from '@mui/icons-material/AutoAwesome';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
+import ArrowForward from '@mui/icons-material/ArrowForward';
 import { useSnackbar } from 'notistack';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
@@ -28,6 +29,7 @@ import {
   usePreprocessingQueue,
   useSuggestFormulas,
   useUpdatePreprocessingReview,
+  useResetPreprocessingReviewFinal,
   useUploadCleanupCsvRows,
 } from '../../hooks/useInventory';
 import { prepS1 } from '../../utils/preprocessingStep1Diag';
@@ -43,6 +45,7 @@ import type {
   PreprocessingReviewRow,
   PreprocessingReviewRowPatch,
   PreprocessingReviewRowUpdate,
+  PreprocessingReviewSummary,
   StandardColumnDefinition,
 } from '../../api/inventory.api';
 import type { PreprocessingQueueOrder } from '../../types/inventory.types';
@@ -50,7 +53,6 @@ import { preprocessingFonts, preprocessingRootSx, preprocessingStep1 } from '../
 import { PreprocessingStepper, PREPROCESSING_STEP_LABELS } from '../../components/inventory/preprocessing/PreprocessingStepper';
 import { TemplateSelector } from '../../components/inventory/preprocessing/TemplateSelector';
 import { CleanupStep } from '../../components/inventory/preprocessing/CleanupStep';
-import { summarizePreprocessingReviewRows } from '../../components/inventory/preprocessing/reviewSummary';
 import { PreprocessingPageHeader } from '../../components/inventory/preprocessing/PreprocessingPageHeader';
 import { ConfirmModal } from '../../components/inventory/preprocessing/ConfirmModal';
 import { FormulaPreview } from '../../components/inventory/preprocessing/FormulaPreview';
@@ -59,7 +61,6 @@ import {
   computeSampleFormulaSnapshot,
   MANIFEST_BUCKET_ORDER,
 } from '../../components/inventory/preprocessing/formulaPreviewSnapshot';
-import { buildAiBaselinePatch, type PreprocessingAiBaselinePatch } from '../../components/inventory/preprocessing/aiBaseline';
 import { formatCurrency } from '../../utils/format';
 import { stableFormulasFingerprint } from '../../utils/stableFormulasFingerprint';
 
@@ -107,14 +108,18 @@ export default function PreprocessingPage() {
   const [reviewPageSize, setReviewPageSize] = useState(50);
   const [reviewSearchInput, setReviewSearchInput] = useState('');
   const [reviewSearch, setReviewSearch] = useState('');
-  const [reviewMissingOnly, setReviewMissingOnly] = useState(false);
-  const [reviewRowsFull, setReviewRowsFull] = useState<PreprocessingReviewRow[] | null>(null);
-  const [reviewFullLoading, setReviewFullLoading] = useState(false);
-  const [reviewBaselineByRowId, setReviewBaselineByRowId] = useState<Record<number, PreprocessingAiBaselinePatch>>({});
+  const [reviewRows, setReviewRows] = useState<PreprocessingReviewRow[]>([]);
+  const [reviewTotalCount, setReviewTotalCount] = useState(0);
+  const [reviewApiSummary, setReviewApiSummary] = useState<PreprocessingReviewSummary | null>(null);
+  const [reviewRowMap, setReviewRowMap] = useState<Record<number, PreprocessingReviewRow>>({});
+  const [reviewTotalsRowMap, setReviewTotalsRowMap] = useState<Record<number, PreprocessingReviewRow>>({});
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewFetchNonce, setReviewFetchNonce] = useState(0);
   const hasActivePreprocessingSession = Boolean(
     preprocessingStatus?.preprocessing?.row_count && !preprocessingStatus.preprocessing.finalized_at,
   );
   const updatePreprocessingReview = useUpdatePreprocessingReview();
+  const resetPreprocessingReviewFinalMutation = useResetPreprocessingReviewFinal();
   const finalizePreprocessingMutation = useFinalizePreprocessing();
 
   const [selectedManifestTemplateId, setSelectedManifestTemplateId] = useState<number | null>(null);
@@ -124,7 +129,10 @@ export default function PreprocessingPage() {
   const [cleanupExpectedRowIds, setCleanupExpectedRowIds] = useState<Set<number> | null>(null);
   const [cleanupRowNumberById, setCleanupRowNumberById] = useState<Record<number, number>>({});
   const [reviewDirtyCount, setReviewDirtyCount] = useState(0);
-  const [confirmDialog, setConfirmDialog] = useState<null | 'undo_std' | 'restandardize' | 'finalize'>(null);
+  const [reviewTableMountKey, setReviewTableMountKey] = useState(0);
+  const [confirmDialog, setConfirmDialog] = useState<
+    null | 'undo_std' | 'restandardize' | 'finalize' | 'reset_final_ai'
+  >(null);
   const [newTemplateName, setNewTemplateName] = useState('');
 
   // Step 1 (Standardize) state
@@ -294,28 +302,44 @@ export default function PreprocessingPage() {
       return;
     }
     let cancelled = false;
-    void getPreprocessingReview(orderId, { full: true })
-      .then(({ data }) => {
-        if (cancelled) return;
-        setCleanupExpectedRowIds(new Set(data.rows.map((r) => r.id)));
+    void (async () => {
+      try {
+        const ids = new Set<number>();
         const rn: Record<number, number> = {};
-        for (const r of data.rows) rn[r.id] = r.row_number;
-        setCleanupRowNumberById(rn);
-      })
-      .catch(() => {
+        let page = 1;
+        while (!cancelled) {
+          const { data } = await getPreprocessingReview(orderId, { page, page_size: 100, fields: 'minimal' });
+          for (const r of data.rows) {
+            ids.add(r.id);
+            rn[r.id] = r.row_number;
+          }
+          if (!data.has_next) break;
+          page++;
+        }
+        if (!cancelled) {
+          setCleanupExpectedRowIds(ids);
+          setCleanupRowNumberById(rn);
+        }
+      } catch {
         if (!cancelled) {
           setCleanupExpectedRowIds(null);
           setCleanupRowNumberById({});
         }
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
   }, [orderId, hasActivePreprocessingSession, standardizedRowCount]);
 
   useEffect(() => {
-    setReviewRowsFull(null);
-    setReviewBaselineByRowId({});
+    setReviewRows([]);
+    setReviewTotalCount(0);
+    setReviewApiSummary(null);
+    setReviewRowMap({});
+    setReviewTotalsRowMap({});
+    setReviewFetchNonce(0);
+    setReviewTableMountKey(0);
     setCleanupValidatedPayload(null);
     setCleanupExpectedRowIds(null);
     setCleanupRowNumberById({});
@@ -326,115 +350,167 @@ export default function PreprocessingPage() {
   }, [templateId]);
 
   useEffect(() => {
-    if (!hasActivePreprocessingSession) {
-      setReviewRowsFull(null);
-      setReviewBaselineByRowId({});
-    }
-  }, [hasActivePreprocessingSession]);
+    setReviewPage(1);
+  }, [reviewSearch]);
 
   useEffect(() => {
-    if (!orderId || activeStep !== 2 || !hasActivePreprocessingSession) return;
+    setReviewRowMap({});
+  }, [reviewSearch]);
+
+  useEffect(() => {
+    if (!orderId || !hasActivePreprocessingSession) return;
+    // Load review rows whenever Manual Review is visible, and prefetch once the backend marks
+    // step 3 reachable (completed_step >= 2) so stale activeStep / fast navigation still populate data.
+    const wantReviewRows =
+      activeStep === 2 || (completedStep >= 2 && activeStep != null && activeStep < 2);
+    if (!wantReviewRows) return;
     let cancelled = false;
-    setReviewFullLoading(true);
-    void getPreprocessingReview(orderId, { full: true })
+    setReviewLoading(true);
+    void getPreprocessingReview(orderId, {
+      page: reviewPage,
+      page_size: reviewPageSize,
+      search: reviewSearch.trim() || undefined,
+      fields: 'minimal',
+    })
       .then(({ data }) => {
         if (cancelled) return;
-        setReviewRowsFull(data.rows);
-        const snap: Record<number, PreprocessingAiBaselinePatch> = {};
-        for (const r of data.rows) snap[r.id] = buildAiBaselinePatch(r);
-        setReviewBaselineByRowId(snap);
+        setReviewRows(data.rows);
+        setReviewTotalCount(data.count);
+        setReviewApiSummary(data.summary);
+        setReviewRowMap((prev) => {
+          const next = { ...prev };
+          for (const r of data.rows) next[r.id] = r;
+          return next;
+        });
       })
       .catch((err: unknown) => {
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
         enqueueSnackbar(detail || 'Failed to load review rows', { variant: 'error' });
       })
       .finally(() => {
-        if (!cancelled) setReviewFullLoading(false);
+        if (!cancelled) setReviewLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [orderId, activeStep, hasActivePreprocessingSession, enqueueSnackbar, preprocessingStatus?.preprocessing?.row_count]);
+  }, [
+    orderId,
+    activeStep,
+    completedStep,
+    hasActivePreprocessingSession,
+    reviewPage,
+    reviewPageSize,
+    reviewSearch,
+    reviewFetchNonce,
+    enqueueSnackbar,
+    preprocessingStatus?.preprocessing?.row_count,
+  ]);
 
-  const filteredReviewRows = useMemo(() => {
-    if (!reviewRowsFull) return [];
-    const term = reviewSearch.trim().toLowerCase();
-    let out = reviewRowsFull;
-    if (term) {
-      out = out.filter((row) => {
-        const hay = [
-          row.ai_title,
-          row.title,
-          row.description,
-          row.brand,
-          row.ai_brand,
-        ]
-          .map((f) => String(f || '').toLowerCase())
-          .join(' ');
-        return hay.includes(term);
+  useEffect(() => {
+    if (!orderId || activeStep !== 2 || !hasActivePreprocessingSession) return;
+    let cancelled = false;
+    setReviewTotalsRowMap({});
+    void (async () => {
+      try {
+        const merged: Record<number, PreprocessingReviewRow> = {};
+        let page = 1;
+        while (true) {
+          const { data } = await getPreprocessingReview(orderId, {
+            page,
+            page_size: 100,
+            search: reviewSearch.trim() || undefined,
+            fields: 'minimal',
+          });
+          if (cancelled) return;
+          for (const r of data.rows) merged[r.id] = r;
+          if (!data.has_next) break;
+          page++;
+        }
+        if (!cancelled) setReviewTotalsRowMap(merged);
+      } catch {
+        if (!cancelled) setReviewTotalsRowMap({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId, activeStep, hasActivePreprocessingSession, reviewSearch, reviewFetchNonce]);
+
+  const reviewTableSummary = reviewApiSummary;
+
+  const pricingTotalsRows = useMemo(() => Object.values(reviewTotalsRowMap), [reviewTotalsRowMap]);
+  const pricingTotalsComplete =
+    reviewTotalCount === 0 ||
+    (pricingTotalsRows.length > 0 && pricingTotalsRows.length === reviewTotalCount);
+
+  const getStagedRow = useCallback((id: number) => reviewRowMap[id], [reviewRowMap]);
+
+  const prefetchFilteredRowsForBulk = useCallback(async (): Promise<number[]> => {
+    if (!orderId) return [];
+    const merged: Record<number, PreprocessingReviewRow> = {};
+    let page = 1;
+    while (true) {
+      const { data } = await getPreprocessingReview(orderId, {
+        page,
+        page_size: 100,
+        search: reviewSearch.trim() || undefined,
+        fields: 'minimal',
       });
+      for (const r of data.rows) merged[r.id] = r;
+      if (!data.has_next) break;
+      page++;
     }
-    if (reviewMissingOnly) {
-      out = out.filter((row) => {
-        const has = (v: unknown) => v != null && String(v).trim() !== '';
-        return !has(row.final_price) && !has(row.proposed_price);
+    setReviewRowMap(merged);
+    setReviewTotalsRowMap(merged);
+    return Object.keys(merged).map(Number);
+  }, [orderId, reviewSearch]);
+
+  const executeResetFinalToAi = useCallback(async () => {
+    if (!orderId) return;
+    try {
+      const ids = await prefetchFilteredRowsForBulk();
+      if (!ids.length) {
+        enqueueSnackbar('No rows match the current filters.', { variant: 'warning' });
+        return;
+      }
+      const result = await resetPreprocessingReviewFinalMutation.mutateAsync({
+        orderId,
+        payload: { row_ids: ids },
       });
+      setReviewApiSummary(result.summary);
+      setReviewFetchNonce((n) => n + 1);
+      setReviewTableMountKey((k) => k + 1);
+      enqueueSnackbar(`Reset ${result.rows_reset} row(s) to AI + Standard baseline`, { variant: 'success' });
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      enqueueSnackbar(axiosErr?.response?.data?.detail || 'Failed to reset finals', { variant: 'error' });
     }
-    return out;
-  }, [reviewRowsFull, reviewSearch, reviewMissingOnly]);
-
-  const reviewPageSlice = useMemo(() => {
-    const start = (reviewPage - 1) * reviewPageSize;
-    return filteredReviewRows.slice(start, start + reviewPageSize);
-  }, [filteredReviewRows, reviewPage, reviewPageSize]);
-
-  const clientReviewSummary = useMemo(
-    () =>
-      summarizePreprocessingReviewRows(
-        preprocessingStatus?.summary?.total_paid ?? '0',
-        filteredReviewRows,
-      ),
-    [preprocessingStatus?.summary?.total_paid, filteredReviewRows],
-  );
-
-  const stagedRowById = useMemo(() => {
-    const m = new Map<number, PreprocessingReviewRow>();
-    if (reviewRowsFull) for (const r of reviewRowsFull) m.set(r.id, r);
-    return m;
-  }, [reviewRowsFull]);
-
-  const getStagedRow = useCallback((id: number) => stagedRowById.get(id), [stagedRowById]);
+  }, [orderId, prefetchFilteredRowsForBulk, resetPreprocessingReviewFinalMutation, enqueueSnackbar]);
 
   const mergeReviewPatches = useCallback((updates: PreprocessingReviewRowUpdate[]) => {
-    const patchKeysClearingAiStatus: (keyof PreprocessingReviewRowPatch)[] = [
-      'title',
-      'brand',
-      'model',
-      'category',
-      'condition',
-      'description',
-      'notes',
-      'search_tags',
-      'specifications',
-      'proposed_price',
-      'final_price',
-    ];
-    setReviewRowsFull((prev) => {
-      if (!prev) return prev;
-      return prev.map((row) => {
-        const u = updates.find((x) => x.id === row.id);
-        if (!u) return row;
-        const patch = u.patch;
-        if (!patch || typeof patch !== 'object') return row;
-        const clearsAiStatus = patchKeysClearingAiStatus.some((k) => patch[k] !== undefined);
-        const merged = { ...row } as Record<string, unknown>;
-        (Object.keys(patch) as (keyof PreprocessingReviewRowPatch)[]).forEach((k) => {
-          const val = patch[k];
-          if (val !== undefined) merged[k as string] = val as unknown;
-        });
-        if (clearsAiStatus) merged.ai_status = {};
-        return merged as unknown as PreprocessingReviewRow;
+    const applyPatch = (row: PreprocessingReviewRow, u: PreprocessingReviewRowUpdate): PreprocessingReviewRow => {
+      const patch = u.patch;
+      if (!patch || typeof patch !== 'object') return row;
+      const merged = { ...row } as Record<string, unknown>;
+      (Object.keys(patch) as (keyof PreprocessingReviewRowPatch)[]).forEach((k) => {
+        const val = patch[k];
+        if (val !== undefined) merged[k as string] = val as unknown;
       });
+      return merged as unknown as PreprocessingReviewRow;
+    };
+    setReviewRows((prev) =>
+      prev.map((row) => {
+        const u = updates.find((x) => x.id === row.id);
+        return u ? applyPatch(row, u) : row;
+      }),
+    );
+    setReviewRowMap((prev) => {
+      const next = { ...prev };
+      for (const u of updates) {
+        const row = next[u.id];
+        if (row) next[u.id] = applyPatch(row, u);
+      }
+      return next;
     });
   }, []);
 
@@ -758,6 +834,8 @@ export default function PreprocessingPage() {
     if (!orderId) return;
     try {
       const result = await updatePreprocessingReview.mutateAsync({ orderId, rows });
+      setReviewApiSummary(result.summary);
+      setReviewFetchNonce((n) => n + 1);
       enqueueSnackbar(`Saved ${result.rows_updated} staged row(s)`, { variant: 'success' });
     } catch {
       enqueueSnackbar('Failed to save preprocessing review', { variant: 'error' });
@@ -775,7 +853,7 @@ export default function PreprocessingPage() {
         `Finalized ${result.manifest_rows} row(s); ${result.items_created ?? 0} item(s), ${result.batch_groups_created} batch(es).`,
         { variant: 'success' },
       );
-      navigate(`/inventory/processing?order=${order.id}`);
+      navigate(`/inventory/processing/${order.id}`);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { detail?: unknown } } };
       const msg = axiosErr?.response?.data?.detail;
@@ -793,9 +871,14 @@ export default function PreprocessingPage() {
     await handleFinalizeAndOpenProcessing();
   };
 
+  const confirmResetFinalToAi = async () => {
+    setConfirmDialog(null);
+    await executeResetFinalToAi();
+  };
+
   const handleOpenProcessing = () => {
     if (!order) return;
-    navigate(`/inventory/processing?order=${order.id}`);
+    navigate(`/inventory/processing/${order.id}`);
   };
 
   const canStandardize = Boolean(order?.has_manifest_file) && !processManifest.isPending;
@@ -953,19 +1036,15 @@ export default function PreprocessingPage() {
     const finalizeDisabled = missingPriceCount > 0 || reviewDirtyCount > 0 || finalizePreprocessingMutation.isPending;
     stepperActionSlot = (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-        {completedStep >= 2 && missingPriceCount === 0 && (
-          <Typography component="span" sx={{ fontSize: 12, color: '#2D6A4F', fontWeight: 600 }}>
-            ✓ All rows priced
-          </Typography>
-        )}
         <Button
           variant="contained"
           size="small"
           onClick={requestFinalizePreprocessing}
           disabled={finalizeDisabled}
+          endIcon={<ArrowForward />}
           sx={{ bgcolor: '#2D6A4F', fontSize: 14, fontWeight: 600, textTransform: 'none', py: '10px', px: '20px' }}
         >
-          Finalize
+          Finalize and Open Processing
         </Button>
       </Box>
     );
@@ -1024,7 +1103,7 @@ export default function PreprocessingPage() {
       )}
 
       {hasManifestFile && (
-        <Box sx={{ ...preprocessingRootSx, minWidth: 0, maxWidth: '100%', px: 3, pb: 2 }}>
+        <Box sx={{ ...preprocessingRootSx, minWidth: 0, maxWidth: '100%', px: 3, pb: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <PreprocessingStepper
             activeStep={activeStep}
             completedStep={completedStep}
@@ -1299,31 +1378,27 @@ export default function PreprocessingPage() {
               STEP 3: Final Review
           ════════════════════════════════════════════════════════ */}
           {activeStep === 2 && (
-            <Box>
-              {completedStep >= 2 && hasActivePreprocessingSession && (
-                <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 1.5 }}>
-                  Final review complete — all staged rows are priced.
-                </Alert>
-              )}
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
               {hasActivePreprocessingSession ? (
                 <>
-                  {reviewFullLoading && (
+                  {reviewLoading && (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                       Loading {preprocessingStatus?.preprocessing?.row_count ?? ''} staged rows…
                     </Typography>
                   )}
                   <PreprocessingReviewTable
-                    rows={reviewPageSlice}
+                    key={reviewTableMountKey}
+                    rows={reviewRows}
                     getStagedRow={getStagedRow}
-                    filteredRowIds={filteredReviewRows.map((r) => r.id)}
-                    baselineByRowId={reviewBaselineByRowId}
-                    summary={clientReviewSummary}
-                    totalFilteredCount={filteredReviewRows.length}
+                    ensureBulkTargetsLoaded={prefetchFilteredRowsForBulk}
+                    summary={reviewTableSummary}
+                    pricingTotalsRows={pricingTotalsRows}
+                    pricingTotalsComplete={pricingTotalsComplete}
+                    totalFilteredCount={reviewTotalCount}
                     page={reviewPage}
                     pageSize={reviewPageSize}
-                    isLoading={reviewFullLoading && !reviewRowsFull?.length}
+                    isLoading={reviewLoading && reviewRows.length === 0}
                     searchValue={reviewSearchInput}
-                    missingPriceOnly={reviewMissingOnly}
                     onPageChange={setReviewPage}
                     onPageSizeChange={(size) => {
                       setReviewPageSize(size);
@@ -1332,14 +1407,12 @@ export default function PreprocessingPage() {
                     onSearchChange={(search) => {
                       setReviewSearchInput(search);
                     }}
-                    onMissingPriceChange={(missingOnly) => {
-                      setReviewMissingOnly(missingOnly);
-                      setReviewPage(1);
-                    }}
                     onSaveRows={handlePreprocessingReviewSave}
                     onPersistSuccess={mergeReviewPatches}
                     onDirtyCountChange={setReviewDirtyCount}
                     isSaving={updatePreprocessingReview.isPending}
+                    isResettingFinal={resetPreprocessingReviewFinalMutation.isPending}
+                    onResetFinalClick={() => setConfirmDialog('reset_final_ai')}
                   />
                 </>
               ) : hasCanonicalProcessingQueue ? (
@@ -1396,6 +1469,14 @@ export default function PreprocessingPage() {
         isBusy={finalizePreprocessingMutation.isPending}
         onCancel={() => setConfirmDialog(null)}
         onConfirm={() => void confirmFinalizePreprocessing()}
+      />
+      <ConfirmModal
+        open={confirmDialog === 'reset_final_ai'}
+        title="Reset finals to AI?"
+        message="Every filtered row's listing fields will be rebuilt from AI, using Standard only where AI is blank (same as when Final Review starts). Prices you set here are not changed."
+        confirmLabel="Reset to AI"
+        onCancel={() => setConfirmDialog(null)}
+        onConfirm={() => void confirmResetFinalToAi()}
       />
     </Box>
   );

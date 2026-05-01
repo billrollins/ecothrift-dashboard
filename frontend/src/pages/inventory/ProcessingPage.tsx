@@ -1063,6 +1063,21 @@ export default function ProcessingPage() {
             isOptionEqualToValue={(opt, val) => opt.id === val.id}
           />
 
+          {selectedOrderId && order && (
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Chip size="small" variant="outlined" label={`Ordered ${format(new Date(order.ordered_date), 'MMM d, yyyy')}`} />
+              {order.paid_date ? (
+                <Chip size="small" variant="outlined" label={`Paid ${format(new Date(order.paid_date), 'MMM d, yyyy')}`} />
+              ) : null}
+              {order.delivered_date ? (
+                <Chip size="small" variant="outlined" label={`Delivered ${format(new Date(order.delivered_date), 'MMM d, yyyy')}`} />
+              ) : null}
+              {order.expected_delivery ? (
+                <Chip size="small" variant="outlined" color="primary" label={`ETA ${format(new Date(order.expected_delivery), 'MMM d, yyyy')}`} />
+              ) : null}
+            </Box>
+          )}
+
           {selectedOrderId && (
             <TextField
               inputRef={generalSearchRef}

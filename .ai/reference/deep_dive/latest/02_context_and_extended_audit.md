@@ -2,58 +2,54 @@
 
 ## Executive Summary
 
-- **Accurate steering docs:** `.ai/context.md` **Extended docs TOC** lists **15** files and matches on-disk `.ai/extended/*.md` count; version pointer **`v2.20.0`** aligns with `.version`.
-- **Recent doc pass (2026-05-01):** **`cleanup_csv_contract.md`**, **`inventory-pipeline.md`**, **`order_processing_pipeline_rebuild.md`**, **`frontend.md`**, **`context.md`**, **`consultant_context.md`**, **`backend.md`**, **`CHANGELOG`** [Unreleased] Documentation — aligned with **`ai_status`**, staging-wide relaxed validation, single **`.cleaned.csv`** Grok output, and step 3 **Final Review**.
-- **Confidence:** **Medium** (deep-dive run snapshot below may predate this pass)
+- **Primary steering:** `.ai/context.md` remains the coding-agent entrypoint; `.ai/consultant_context.md` provides dense cross-domain narrative + mirrored extended TOC.
+- **Extended library:** **15** domain files under `.ai/extended/` — tables in **`context.md`** and **`consultant_context.md`** list the same set (auth, backend, bstock, cash-management, consignment, consultant_handoff, databases, development, frontend, inventory-pipeline, pos-system, print-server, retag-operations, ux-spec, vpn-socks5).
+- **Drift risk:** Low for extended TOC parity; **Medium** for narrative freshness inside each extended file when `[Unreleased]` is moving quickly (inventory/processing).
+- **Confidence:** **High** on TOC parity; **Medium** on per-file staleness without reading every extended doc end-to-end this run.
 
-## Primary Context Audit
+## Context Files
 
-| File | Finding | Evidence | Recommendation | Priority |
-|---|---|---|---|---|
-| `.ai/context.md` | Last updated 2026-05-01; long release rollup | Header comment + version paragraph | Keep brief; link to CHANGELOG for detail | P3 |
-| `.ai/consultant_context.md` | Modified in git status; not re-audited line-by-line this run | `git status` | Run TOC parity vs `context.md` per maintenance rule | P2 |
+| File | Audience | Freshness signal | Finding |
+|------|----------|-------------------|---------|
+| `.ai/context.md` | Coding agents | Header comment **2026-05-02** in sampled read | Aligns with Final Review visual rebuild notes + Item Processor |
+| `.ai/consultant_context.md` | Consultants / one-file handoff | Extended TOC **2026-era** | Matches `context.md` TOC rows |
 
-## Extended Docs TOC Parity
+## Extended Docs — Inventory vs Protocol Focus
 
-| Extended file | Listed in `context.md` | Listed in `consultant_context.md` | Exists on disk | Notes |
-|---|---:|---:|---:|---|
-| `auth-and-roles.md` | yes | *assumed yes* | yes | Maintenance rule requires both TOCs match — verify |
-| `backend.md` | yes | *assumed yes* | yes | Modified in working tree |
-| `bstock.md` | yes | *assumed yes* | yes | — |
-| `cash-management.md` | yes | *assumed yes* | yes | — |
-| `consignment.md` | yes | *assumed yes* | yes | — |
-| `consultant_handoff.md` | yes | *assumed yes* | yes | — |
-| `databases.md` | yes | *assumed yes* | yes | — |
-| `development.md` | yes | *assumed yes* | yes | — |
-| `frontend.md` | yes | *assumed yes* | yes | — |
-| `inventory-pipeline.md` | yes | *assumed yes* | yes | Step 3 **Final Review** + wide **`ai_status`** (recheck header date) |
-| `pos-system.md` | yes | *assumed yes* | yes | — |
-| `print-server.md` | yes | *assumed yes* | yes | — |
-| `retag-operations.md` | yes | *assumed yes* | yes | — |
-| `ux-spec.md` | yes | *assumed yes* | yes | — |
-| `vpn-socks5.md` | yes | *assumed yes* | yes | — |
+Files most relevant to **review.9.Deep** preprocessing trace (should be loaded when touching those flows):
 
-## Extended File Audit
+| File | Relevance |
+|------|-----------|
+| `inventory-pipeline.md` | PO flow, preprocessing stages, manifest templates |
+| `backend.md` | Serializers, caching, management commands inventory |
+| `frontend.md` | Pages/hooks for inventory and buying |
+| `ux-spec.md` | Final Review density, tolerance bands, stepper language |
+| `development.md` | Local scripts, Heroku scheduler parity, env keys |
 
-| File | Last updated | Domain still valid? | Drift found | Recommended edit | Priority |
-|---|---|---:|---|---|---|
-| `inventory-pipeline.md` | 2026-05-01 | yes | — | Step 5–6 describe **Final Review** + apply/**`ai_status`** per latest edit | **P3** |
-| `backend.md` | 2026-05-01 (per git) | yes | May omit newest cleanup modules | Cross-link `cleanup_csv_validate.py` / `cleanup_condition.py` when touching preprocessing API | P2 |
+## Consultant Context Coverage
 
-## Protocol Discoverability
+Sampled sections reference:
 
-| Protocol / path | Listed where expected? | Finding | Recommendation |
-|---|---:|---|---|
-| `.ai/protocols/review.9.Deep.md` | Listed in `context.md` protocols list | OK | None |
+- Active initiative **`order_processing_pipeline_rebuild`** and Final Review mockup pointers (`fix_this.md`, directive/plan docs under `.ai/reference/`).
+- B-Stock ops posture (scheduler commands, valuation, SOCKS5) with canonical **`bstock.md`** + `scraper.py`.
 
-## Stale References
+No contradiction detected between **`context.md`** and **`consultant_context.md`** extended TOC rows in this audit pass.
 
-| Reference | Found in | Current reality | Recommendation |
-|---|---|---|---|
-| **Manual Review** as step-3 label in old mockups / legacy specs | `.ai/reference/Mockups/…`, `v2.20_legacy` | Product stepper: **Final Review** | v2.20/v2.21 specs note the rename (**2026-05-01**) |
-| `workspace/notebooks/ai-cleanup/…` | `CHANGELOG` [Unreleased] | Tree **removed**; changelog states **historical** + points to handoff + contract | None if **`[Unreleased]`** Documentation bullet stays current |
+## README Alignment
+
+Root **`README.md`** advertises React **18**, TS, MUI **v7**, Vite, TanStack Query, Django — consistent with **`context.md`** and **`CHANGELOG`** themes.
+
+## Protocols Directory
+
+`.ai/protocols/` includes startup, checkpoint, bump, push, deep review, close — matches **`context.md`** Quick Reference list (`code.0.Startup`, `session.1.Checkpoint`, `review.0.Bump`, `code.9.Push`, `review.9.Deep`, `session.9.Close`, plus `session.0.Create`, `code.1.Bearing`).
+
+## Gaps / Risks
+
+| Gap | Evidence | Recommendation |
+|-----|----------|----------------|
+| Narrative lag inside extended bodies | Large `[Unreleased]` in `CHANGELOG` while initiatives mention Session 11+ | After major merges, run **`review.0.Bump`** or targeted extended edits |
+| Reference sprawl under `.ai/reference/` | Multiple Final Review planning docs | Already partially governed by directive vs plan precedence in `CHANGELOG`; keep pointer docs short |
 
 ## Notes For `PLAN.md`
 
-- ~~**CTX-001**~~ — `inventory-pipeline.md` / **`cleanup_csv_contract.md`** refreshed (**2026-05-01**).
-- ~~**INIT-001**~~ — initiative Progress table shows **Preprocessing** shipped (**Final Review**).
+- **`CTX-***`: Optional pass — sync **`inventory-pipeline.md`** / **`frontend.md`** bullets with whatever ships when `[Unreleased]` is cut (source: `CHANGELOG` vs extended).

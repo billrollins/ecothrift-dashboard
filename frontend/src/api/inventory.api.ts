@@ -18,6 +18,7 @@ import type {
   ReceivingDetailDTO,
   ReceivingPatchPayload,
   ReceivingCompleteResponse,
+  ProcessingWorkspaceDTO,
 } from '../types/inventory.types';
 import api, { apiPublic } from './client';
 
@@ -811,6 +812,8 @@ export interface ManualReviewParams {
 export type PreprocessingReviewParams = ManualReviewParams & {
   /** When true, return all staged rows (max 10k) for client-side filter/pagination. */
   full?: boolean;
+  /** `minimal` (default) omits triple-layer columns; `full` matches legacy export shape. */
+  fields?: 'minimal' | 'full';
 };
 
 export interface ManualReviewResponse {
@@ -936,6 +939,7 @@ export interface PreprocessingReviewResponse {
   has_next?: boolean;
   has_previous?: boolean;
   full?: boolean;
+  fields?: 'minimal' | 'full';
 }
 
 export interface PreprocessingReviewUpdateResponse {
@@ -943,6 +947,15 @@ export interface PreprocessingReviewUpdateResponse {
   changed_row_ids: number[];
   items_updated: 0;
   products_updated: 0;
+  summary: PreprocessingReviewSummary;
+}
+
+export interface PreprocessingReviewResetFinalPayload {
+  row_ids: number[];
+}
+
+export interface PreprocessingReviewResetFinalResponse {
+  rows_reset: number;
   summary: PreprocessingReviewSummary;
 }
 
@@ -1100,6 +1113,16 @@ export function updatePreprocessingReview(
   return api.patch<PreprocessingReviewUpdateResponse>(`/inventory/orders/${orderId}/preprocessing-review/`, { rows });
 }
 
+export function resetPreprocessingReviewFinal(
+  orderId: number,
+  payload: PreprocessingReviewResetFinalPayload,
+): Promise<{ data: PreprocessingReviewResetFinalResponse }> {
+  return api.post<PreprocessingReviewResetFinalResponse>(
+    `/inventory/orders/${orderId}/preprocessing-review-reset-final/`,
+    payload,
+  );
+}
+
 export function matchProducts(
   orderId: number,
   data?: MatchProductsPayload,
@@ -1120,6 +1143,92 @@ export function reviewMatches(
 
 export function markOrderComplete(orderId: number): Promise<{ data: Order }> {
   return api.post<Order>(`/inventory/orders/${orderId}/mark-complete/`);
+}
+
+export function getProcessingWorkspace(orderId: number): Promise<{ data: ProcessingWorkspaceDTO }> {
+  return api.get<ProcessingWorkspaceDTO>(`/inventory/orders/${orderId}/processing-workspace/`);
+}
+
+export interface ProcessingPrintAndCheckInResponse {
+  item: Item;
+  workspace: ProcessingWorkspaceDTO;
+  label_print_job_id: string;
+}
+
+export function processingPrintAndCheckIn(
+  itemId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: ProcessingPrintAndCheckInResponse }> {
+  return api.post<ProcessingPrintAndCheckInResponse>(
+    `/inventory/items/${itemId}/processing-print-and-check-in/`,
+    payload,
+  );
+}
+
+export interface ProcessingPrintMultipleResponse {
+  checked_in_item_ids: number[];
+  workspace: ProcessingWorkspaceDTO;
+  label_print_job_id: string;
+}
+
+export function processingPrintMultiple(
+  orderId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: ProcessingPrintMultipleResponse }> {
+  return api.post<ProcessingPrintMultipleResponse>(
+    `/inventory/orders/${orderId}/processing-print-multiple/`,
+    payload,
+  );
+}
+
+export function processingDispute(
+  orderId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: { workspace: ProcessingWorkspaceDTO } }> {
+  return api.post<{ workspace: ProcessingWorkspaceDTO }>(
+    `/inventory/orders/${orderId}/processing-dispute/`,
+    payload,
+  );
+}
+
+export function processingMergeRows(
+  orderId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: { workspace: ProcessingWorkspaceDTO } }> {
+  return api.post<{ workspace: ProcessingWorkspaceDTO }>(
+    `/inventory/orders/${orderId}/processing-merge-rows/`,
+    payload,
+  );
+}
+
+export function processingSwap(
+  orderId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: { workspace: ProcessingWorkspaceDTO } }> {
+  return api.post<{ workspace: ProcessingWorkspaceDTO }>(
+    `/inventory/orders/${orderId}/processing-swap/`,
+    payload,
+  );
+}
+
+export function processingBulkDisposition(
+  orderId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: { workspace: ProcessingWorkspaceDTO } }> {
+  return api.post<{ workspace: ProcessingWorkspaceDTO }>(
+    `/inventory/orders/${orderId}/processing-bulk-disposition/`,
+    payload,
+  );
+}
+
+export function processingPatchItem(
+  itemId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: { item: Item; workspace: ProcessingWorkspaceDTO } }> {
+  return api.patch<{ item: Item; workspace: ProcessingWorkspaceDTO }>(
+    `/inventory/items/${itemId}/processing-patch/`,
+    payload,
+  );
 }
 
 export function checkInOrderItems(

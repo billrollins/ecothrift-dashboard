@@ -4,6 +4,7 @@ import io
 import json
 from copy import deepcopy
 import re
+import time
 import uuid
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
@@ -63,6 +64,11 @@ from .models import (
     PreprocessingOrder, PreprocessingRow,
     Receiving, ReceivingAttachment, ReceivingPallet,
 )
+from .preprocessing_summary import (
+    manifest_status_counts_aggregate,
+    preprocessing_status_counts_aggregate,
+    summarize_preprocessing_rows_aggregate,
+)
 from .layer_helpers import (
     TRIPLE_LAYER_SPECS,
     bulk_clear_preprocess_ai_and_final_layers,
@@ -80,7 +86,9 @@ from .serializers import (
     PreprocessingQueueOrderSerializer,
     PurchaseOrderDetailSerializer,
     CategorySerializer, CSVTemplateSerializer, ManifestRowSerializer, ManualReviewRowSerializer,
-    PreprocessingOrderSerializer, PreprocessingReviewRowSerializer,
+    PreprocessingOrderSerializer,
+    PreprocessingReviewRowMinimalSerializer,
+    PreprocessingReviewRowSerializer,
     VendorProductRefSerializer, BatchGroupSerializer,
     ProductSerializer, ItemSerializer, ItemPublicSerializer,
     ProcessingBatchSerializer, ItemHistorySerializer,
@@ -379,12 +387,78 @@ PREPROCESSING_REVIEW_EDITABLE_FIELDS = (
     'pricing_notes',
 )
 
-# Editing these staging fields clears Grok ai_status flags (staff fixed the row).
+# DB columns touched by manual Final Review edits (used for ai_status pruning).
 _PREPROCESSING_REVIEW_AI_STATUS_CLEAR_FIELDS = frozenset({
-    'ai_title', 'ai_brand', 'ai_model', 'ai_category', 'ai_condition',
-    'ai_description', 'ai_notes', 'ai_search_tags', 'ai_specifications',
-    'proposed_price', 'final_price',
+    'final_title',
+    'final_brand',
+    'final_model',
+    'final_category',
+    'final_condition',
+    'final_description',
+    'final_notes',
+    'final_search_tags',
+    'final_specifications',
+    'final_identifiers',
+    'final_taxonomy',
+    'final_tracking',
+    'proposed_price',
+    'final_price',
 })
+
+
+def _prune_ai_status_for_manual_edit(status: dict, edited_aliases: set[str]) -> dict:
+    """Drop ai_status issues tied to edited logical fields; reset state when no issues remain."""
+    if not edited_aliases:
+        return status or {}
+    tokens = {a.lower() for a in edited_aliases if a}
+    if not tokens:
+        return status or {}
+    out = dict(status or {})
+    issues = out.get('issues')
+    if not isinstance(issues, list):
+        return out
+    has_field_hints = any(
+        isinstance(i, dict) and (i.get('field') or i.get('path')) for i in issues
+    )
+    if not has_field_hints:
+        return {}
+    filtered = []
+    for issue in issues:
+        if not isinstance(issue, dict):
+            filtered.append(issue)
+            continue
+        fld = str(issue.get('field') or issue.get('path') or '').lower()
+        if fld and any(t in fld or fld.endswith(t) for t in tokens):
+            continue
+        filtered.append(issue)
+    out['issues'] = filtered
+    if not out['issues']:
+        out['state'] = 'clean'
+    return out
+
+
+def _logical_aliases_from_final_update_fields(update_fields: list[str]) -> set[str]:
+    alias_by_final = {
+        'final_title': 'title',
+        'final_brand': 'brand',
+        'final_model': 'model',
+        'final_category': 'category',
+        'final_condition': 'condition',
+        'final_description': 'description',
+        'final_notes': 'notes',
+        'final_search_tags': 'search_tags',
+        'final_specifications': 'specifications',
+        'final_identifiers': 'identifiers',
+        'final_taxonomy': 'taxonomy',
+        'final_tracking': 'tracking',
+        'final_price': 'price',
+        'proposed_price': 'price',
+    }
+    out = set()
+    for f in update_fields:
+        if f in alias_by_final:
+            out.add(alias_by_final[f])
+    return out
 
 
 def _preprocessing_review_update_clears_ai_status(update_fields):
@@ -480,48 +554,8 @@ def build_preprocessing_review_queryset(prep, query_params):
 
 
 def summarize_preprocessing_rows(order, rows_qs):
-    total_paid = order.total_cost or Decimal('0.00')
-    total_ideal = Decimal('0.00')
-    total_set = Decimal('0.00')
-    total_units = 0
-    missing_price = 0
-    low_confidence = 0
-    for row in rows_qs.only(
-        'quantity',
-        'unit_retail',
-        'proposed_price',
-        'final_price',
-        'purchase_order',
-        'standard_notes',
-        'ai_notes',
-        'final_notes',
-        'final_description',
-    ):
-        qty = row.quantity if row.quantity and row.quantity > 0 else 1
-        total_units += qty
-        base_cost = order.compute_item_cost(row.unit_retail)
-        if base_cost is not None:
-            total_ideal += base_cost * Decimal('2') * qty
-        row_price = effective_preprocessing_row_price(row)
-        if row_price is None:
-            missing_price += 1
-        else:
-            total_set += row_price * qty
-        if 'low confidence' in effective_preprocessing_notes(row).lower():
-            low_confidence += 1
-    delta = None
-    if total_ideal > 0:
-        delta = round(float((total_set - total_ideal) / total_ideal * 100), 1)
-    return {
-        'total_paid': str(total_paid),
-        'total_ideal_price': str(total_ideal.quantize(Decimal('0.01'))),
-        'total_set_prices': str(total_set.quantize(Decimal('0.01'))),
-        'ideal_delta_pct': delta,
-        'total_rows': rows_qs.count(),
-        'total_units': total_units,
-        'missing_price': missing_price,
-        'low_confidence': low_confidence,
-    }
+    """Aggregate-only summary (no per-row Python iteration)."""
+    return summarize_preprocessing_rows_aggregate(order, rows_qs)
 
 
 def update_preprocessing_review_rows(prep, rows_payload):
@@ -545,46 +579,116 @@ def update_preprocessing_review_rows(prep, rows_payload):
         if isinstance(patch, dict):
             row_data = {**patch, 'id': row_id}
         update_fields = []
+        edited_aliases: set[str] = set()
+
+        # Accept explicit final_* keys from coordinated clients.
+        for fk in (
+            'final_title',
+            'final_brand',
+            'final_model',
+            'final_category',
+            'final_condition',
+            'final_description',
+            'final_notes',
+        ):
+            if fk not in row_data:
+                continue
+            val = row_data.get(fk)
+            if fk == 'final_title':
+                row.final_title = str(val or '')[:300]
+                edited_aliases.add('title')
+            elif fk in ('final_brand', 'final_model'):
+                setattr(row, fk, str(val or '')[:200])
+                edited_aliases.add('brand' if fk == 'final_brand' else 'model')
+            elif fk == 'final_category':
+                row.final_category = str(val or '').strip()[:200]
+                edited_aliases.add('category')
+            elif fk == 'final_condition':
+                raw_c = str(val or '').strip()
+                norm_c = normalize_cleanup_condition(raw_c) or raw_c
+                row.final_condition = norm_c
+                edited_aliases.add('condition')
+            elif fk == 'final_description':
+                row.final_description = str(val or '')
+                edited_aliases.add('description')
+            elif fk == 'final_notes':
+                row.final_notes = str(val or '')
+                edited_aliases.add('notes')
+            update_fields.append(fk)
+
+        skip_legacy_title = 'final_title' in update_fields
+        skip_legacy_category = 'final_category' in update_fields
+        skip_legacy_brand = 'final_brand' in update_fields
+        skip_legacy_model = 'final_model' in update_fields
+        skip_legacy_condition = 'final_condition' in update_fields
+        skip_legacy_description = 'final_description' in update_fields
+        skip_legacy_notes = 'final_notes' in update_fields
+
         for field in PREPROCESSING_REVIEW_EDITABLE_FIELDS:
+            if field not in row_data:
+                continue
+            if field == 'title' and skip_legacy_title:
+                continue
+            if field == 'category' and skip_legacy_category:
+                continue
+            if field == 'brand' and skip_legacy_brand:
+                continue
+            if field == 'model' and skip_legacy_model:
+                continue
+            if field == 'condition' and skip_legacy_condition:
+                continue
+            if field == 'description' and skip_legacy_description:
+                continue
+            if field == 'notes' and skip_legacy_notes:
+                continue
             if field not in row_data:
                 continue
             if field == 'search_tags':
                 st = row_data.get('search_tags')
                 if isinstance(st, list):
-                    row.ai_search_tags = [str(x).strip() for x in st if str(x).strip()]
+                    row.final_search_tags = [str(x).strip() for x in st if str(x).strip()]
                 else:
-                    row.ai_search_tags = slugify_formula_search_tags(str(st or ''))
-                update_fields.append('ai_search_tags')
+                    row.final_search_tags = slugify_formula_search_tags(str(st or ''))
+                update_fields.append('final_search_tags')
+                edited_aliases.add('search_tags')
                 continue
             if field == 'title':
-                row.ai_title = str(row_data.get(field) or '')[:300]
-                update_fields.append('ai_title')
+                row.final_title = str(row_data.get(field) or '')[:300]
+                update_fields.append('final_title')
+                edited_aliases.add('title')
             elif field == 'category':
-                row.ai_category = str(row_data.get(field) or '').strip()[:200]
-                update_fields.append('ai_category')
+                row.final_category = str(row_data.get(field) or '').strip()[:200]
+                update_fields.append('final_category')
+                edited_aliases.add('category')
             elif field == 'brand':
-                row.ai_brand = str(row_data.get(field) or '')[:200]
-                update_fields.append('ai_brand')
+                row.final_brand = str(row_data.get(field) or '')[:200]
+                update_fields.append('final_brand')
+                edited_aliases.add('brand')
             elif field == 'model':
-                row.ai_model = str(row_data.get(field) or '')[:200]
-                update_fields.append('ai_model')
+                row.final_model = str(row_data.get(field) or '')[:200]
+                update_fields.append('final_model')
+                edited_aliases.add('model')
             elif field == 'condition':
                 raw_c = str(row_data.get(field) or '').strip()
                 norm_c = normalize_cleanup_condition(raw_c) or raw_c
-                row.ai_condition = norm_c
-                update_fields.append('ai_condition')
+                row.final_condition = norm_c
+                update_fields.append('final_condition')
+                edited_aliases.add('condition')
             elif field == 'description':
-                row.ai_description = str(row_data.get(field) or '')
-                update_fields.append('ai_description')
+                row.final_description = str(row_data.get(field) or '')
+                update_fields.append('final_description')
+                edited_aliases.add('description')
             elif field == 'notes':
-                row.ai_notes = str(row_data.get(field) or '')
-                update_fields.append('ai_notes')
+                row.final_notes = str(row_data.get(field) or '')
+                update_fields.append('final_notes')
+                edited_aliases.add('notes')
             else:
                 setattr(row, field, str(row_data.get(field) or ''))
                 update_fields.append(field)
         if 'specifications' in row_data and isinstance(row_data.get('specifications'), dict):
-            row.ai_specifications = row_data['specifications']
-            update_fields.append('ai_specifications')
+            row.final_specifications = row_data['specifications']
+            update_fields.append('final_specifications')
+            edited_aliases.add('specifications')
         if 'batch_flag' in row_data:
             row.batch_flag = bool(row_data.get('batch_flag'))
             update_fields.append('batch_flag')
@@ -593,16 +697,19 @@ def update_preprocessing_review_rows(prep, rows_payload):
             row.final_price = parse_decimal(row_data.get(price_field))
             row.pricing_stage = 'final' if row.final_price is not None else 'unpriced'
             update_fields.extend(['final_price', 'pricing_stage'])
+            edited_aliases.add('price')
         elif 'proposed_price' in row_data:
             row.proposed_price = parse_decimal(row_data.get('proposed_price'))
             if row.final_price is None:
                 row.pricing_stage = 'draft' if row.proposed_price is not None else 'unpriced'
                 update_fields.append('pricing_stage')
             update_fields.append('proposed_price')
+            edited_aliases.add('price')
         if update_fields:
             uf = list(dict.fromkeys(update_fields))
+            logical = edited_aliases or _logical_aliases_from_final_update_fields(uf)
             if _preprocessing_review_update_clears_ai_status(uf):
-                row.ai_status = {}
+                row.ai_status = _prune_ai_status_for_manual_edit(row.ai_status or {}, logical)
                 uf.append('ai_status')
             row.save(update_fields=list(dict.fromkeys(uf)))
             changed_rows.append(row)
@@ -765,16 +872,51 @@ def _row_price(row):
     return effective_manifest_row_price(row) or Decimal('0.00')
 
 
-def _find_or_create_manifest_product(order, row):
-    """Deterministic reuse only; otherwise create a new Product for this row."""
+def _cache_resolved_manifest_product(order, row, cache, product):
+    """Reuse Product lookups across rows in a single ``ensure_manifest_products_and_items`` pass."""
+    if cache is None:
+        return
     ids = row.identifiers or {}
     upc_val = str(ids.get('upc') or '').strip()
     if upc_val:
-        product = Product.objects.filter(upc=upc_val).first()
-        if product:
-            return product, False
+        cache['upc'][upc_val] = product
+    lookup_key = first_identifier_hit(ids, IDENTIFIER_LOOKUP_ORDER)
+    if lookup_key:
+        cache['vk'][(order.vendor_id, lookup_key)] = product
+    title = _row_listing_title(row)
+    brand = _row_listing_brand(row)
+    model = _row_listing_model(row)
+    category = _row_listing_category(row)
+    cache['exact'][(title.lower(), brand.lower(), model.lower(), category.lower(), upc_val)] = product
+
+
+def _find_or_create_manifest_product(order, row, cache=None):
+    """Deterministic reuse only; otherwise create a new Product for this row."""
+    ids = row.identifiers or {}
+    upc_val = str(ids.get('upc') or '').strip()
+    if cache is not None and upc_val and upc_val in cache['upc']:
+        return cache['upc'][upc_val], False
 
     lookup_key = first_identifier_hit(ids, IDENTIFIER_LOOKUP_ORDER)
+    if cache is not None and lookup_key:
+        ck = (order.vendor_id, lookup_key)
+        if ck in cache['vk']:
+            return cache['vk'][ck], False
+
+    title = _row_listing_title(row)
+    brand = _row_listing_brand(row)
+    model = _row_listing_model(row)
+    category = _row_listing_category(row)
+    exact_key = (title.lower(), brand.lower(), model.lower(), category.lower(), upc_val)
+    if cache is not None and exact_key in cache['exact']:
+        return cache['exact'][exact_key], False
+
+    if upc_val:
+        product = Product.objects.filter(upc=upc_val).first()
+        if product:
+            _cache_resolved_manifest_product(order, row, cache, product)
+            return product, False
+
     if lookup_key:
         ref = VendorProductRef.objects.filter(
             vendor=order.vendor,
@@ -785,12 +927,9 @@ def _find_or_create_manifest_product(order, row):
             if row.unit_retail is not None:
                 ref.last_unit_cost = row.unit_retail
             ref.save(update_fields=['times_seen', 'last_unit_cost', 'updated_at'])
+            _cache_resolved_manifest_product(order, row, cache, ref.product)
             return ref.product, False
 
-    title = _row_listing_title(row)
-    brand = _row_listing_brand(row)
-    model = _row_listing_model(row)
-    category = _row_listing_category(row)
     exact_product = Product.objects.filter(
         title__iexact=title,
         brand__iexact=brand,
@@ -799,10 +938,13 @@ def _find_or_create_manifest_product(order, row):
         upc=upc_val,
     ).first()
     if exact_product:
+        _cache_resolved_manifest_product(order, row, cache, exact_product)
         return exact_product, False
 
     if row.matched_product_id:
-        return row.matched_product, False
+        prod = row.matched_product
+        _cache_resolved_manifest_product(order, row, cache, prod)
+        return prod, False
 
     product = Product.objects.create(
         title=title,
@@ -824,6 +966,7 @@ def _find_or_create_manifest_product(order, row):
                 'last_unit_cost': row.unit_retail,
             },
         )
+    _cache_resolved_manifest_product(order, row, cache, product)
     return product, True
 
 
@@ -860,7 +1003,10 @@ def _sync_manifest_items_for_row(order, row, product):
                 setattr(item, field, value)
                 changed_fields.append(field)
         if changed_fields:
-            item.save(update_fields=list(dict.fromkeys(changed_fields + ['updated_at'])))
+            item.save(
+                update_fields=list(dict.fromkeys(changed_fields + ['updated_at'])),
+                defer_po_cost_recompute=True,
+            )
             updated += 1
 
     if len(existing_items) > quantity:
@@ -868,13 +1014,13 @@ def _sync_manifest_items_for_row(order, row, product):
         deleted = len(extra_ids)
         Item.objects.filter(id__in=extra_ids).delete()
 
+    tier = 'batch' if (quantity >= 6 and desired_price < Decimal('75')) else 'individual'
     for _ in range(max(0, quantity - len(existing_items))):
-        Item.objects.create(
-            sku=Item.generate_sku(),
+        new_item = Item(
             product=product,
             purchase_order=order,
             manifest_row=row,
-            processing_tier='batch' if (quantity >= 6 and desired_price < Decimal('75')) else 'individual',
+            processing_tier=tier,
             title=_row_listing_title(row),
             brand=_row_listing_brand(row),
             price=desired_price,
@@ -885,6 +1031,7 @@ def _sync_manifest_items_for_row(order, row, product):
             condition=_row_listing_condition(row),
             specifications=row.specifications or {},
         )
+        new_item.save(defer_po_cost_recompute=True)
         created += 1
 
     return created, updated, deleted
@@ -903,17 +1050,24 @@ def ensure_manifest_products_and_items(order, user=None):
     items_updated = 0
     items_deleted = 0
     rows_linked = 0
+    cache = {'upc': {}, 'vk': {}, 'exact': {}}
+    manifest_rows_to_update = []
+    touched_product_ids = []
+    product_last_default = {}
 
     with transaction.atomic():
         for row in rows:
-            product, created_product = _find_or_create_manifest_product(order, row)
+            product, created_product = _find_or_create_manifest_product(order, row, cache=cache)
             if created_product:
                 products_created += 1
+            touched_product_ids.append(product.id)
+            product_last_default[product.id] = _row_price(row)
+
             if row.matched_product_id != product.id or row.match_status != 'matched':
                 row.matched_product = product
                 row.match_status = 'matched'
                 row.ai_match_decision = 'confirmed'
-                row.save(update_fields=['matched_product', 'match_status', 'ai_match_decision'])
+                manifest_rows_to_update.append(row)
                 rows_linked += 1
 
             created, updated, deleted = _sync_manifest_items_for_row(order, row, product)
@@ -921,10 +1075,39 @@ def ensure_manifest_products_and_items(order, user=None):
             items_updated += updated
             items_deleted += deleted
 
-            product.times_ordered = ManifestRow.objects.filter(matched_product=product).count()
-            product.total_units_received = Item.objects.filter(product=product).count()
-            product.default_price = _row_price(row)
-            product.save(update_fields=['times_ordered', 'total_units_received', 'default_price', 'updated_at'])
+        if manifest_rows_to_update:
+            ManifestRow.objects.bulk_update(
+                manifest_rows_to_update,
+                ['matched_product', 'match_status', 'ai_match_decision'],
+            )
+
+        touched_unique = list(dict.fromkeys(touched_product_ids))
+        times_map = {
+            r['matched_product_id']: r['c']
+            for r in ManifestRow.objects.filter(matched_product_id__in=touched_unique)
+            .values('matched_product_id')
+            .annotate(c=Count('id'))
+        }
+        units_map = {
+            r['product_id']: r['c']
+            for r in Item.objects.filter(product_id__in=touched_unique)
+            .values('product_id')
+            .annotate(c=Count('id'))
+        }
+        ts = timezone.now()
+        products_qs = list(Product.objects.filter(id__in=touched_unique))
+        for prod in products_qs:
+            prod.times_ordered = times_map.get(prod.id, 0)
+            prod.total_units_received = units_map.get(prod.id, 0)
+            prod.default_price = product_last_default.get(prod.id)
+            prod.updated_at = ts
+        if products_qs:
+            Product.objects.bulk_update(
+                products_qs,
+                ['times_ordered', 'total_units_received', 'default_price', 'updated_at'],
+            )
+
+        order.recompute_item_costs()
 
         item_count = order.items.count()
         if order.item_count != item_count:
@@ -1718,6 +1901,20 @@ def _annotate_purchase_order_stats(qs):
     )
 
 
+# Workspace + processing mutations load manifest rows via services.processing_workspace; prefetching every
+# manifest_row on get_object() duplicate-loads giant manifests and can wedge SQLite (never finishes → no log line).
+_PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
+    {
+        'processing_workspace',
+        'processing_print_multiple_action',
+        'processing_dispute_action',
+        'processing_merge_rows_action',
+        'processing_swap_action',
+        'processing_bulk_disposition_action',
+    },
+)
+
+
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseOrderSerializer
     permission_classes = [IsAuthenticated, IsStaff]
@@ -1760,6 +1957,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return PurchaseOrder.objects.filter(
                 vendor_name_cache__in=PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES,
             )
+        if getattr(self, 'action', None) in _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS:
+            return PurchaseOrder.objects.select_related('vendor', 'created_by').all()
         base = PurchaseOrder.objects.select_related('vendor', 'created_by').all()
         qs = _annotate_purchase_order_stats(base)
         return qs.prefetch_related('manifest_rows')
@@ -3769,6 +3968,21 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 row.save(update_fields=sorted(update_fields_set))
                 changed_rows.append(row)
 
+            if use_staging and changed_rows:
+                final_field_names = [f'final_{base}' for base in TRIPLE_LAYER_SPECS.keys()] + [
+                    'final_title',
+                    'final_category',
+                ]
+                snapshot_save_fields = list(dict.fromkeys(final_field_names + ['updated_at']))
+                ts = timezone.now()
+                # Partial row.save(update_fields=...) above can leave ORM state that bulk_update
+                # fails to persist reliably for final_* on some DB backends; refresh then save.
+                for sr in changed_rows:
+                    sr.refresh_from_db()
+                    snapshot_finalize_from_ai_and_standard(sr, fill_missing_only=False)
+                    sr.updated_at = ts
+                    sr.save(update_fields=snapshot_save_fields)
+
         if use_staging:
             now = timezone.now()
             prep.last_ai_import_at = now
@@ -3906,39 +4120,31 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         prep = getattr(order, 'preprocessing', None)
         if prep and prep.row_count > 0 and not prep.finalized_at:
-            rows = list(prep.rows.order_by('row_number'))
-            total_rows = len(rows)
-            cleaned_rows = sum(1 for row in rows if (getattr(row, 'ai_title', '') or '').strip())
-            final_rows = sum(1 for row in rows if row.pricing_stage == 'final')
-            missing_price = sum(
-                1 for row in rows if effective_preprocessing_row_price(row) is None
-            )
+            cnt = preprocessing_status_counts_aggregate(order, prep.rows.all())
+            total_rows = cnt['total_rows']
+            cleaned_rows = cnt['cleaned_rows']
+            final_rows = cnt['final_rows']
+            missing_price = cnt['missing_price']
+            total_units = cnt['total_units']
+            total_paid = cnt['total_paid']
+            total_ideal = cnt['total_ideal']
+            total_set = cnt['total_set']
+            delta = cnt['ideal_delta_pct']
         else:
-            rows = list(ManifestRow.objects.filter(purchase_order=order).order_by('row_number'))
-            total_rows = len(rows)
-            cleaned_rows = sum(1 for row in rows if (getattr(row, 'ai_title', '') or '').strip())
-            final_rows = sum(1 for row in rows if row.pricing_stage == 'final')
-            missing_price = sum(1 for row in rows if effective_manifest_row_price(row) is None)
+            cnt = manifest_status_counts_aggregate(
+                order,
+                ManifestRow.objects.filter(purchase_order=order),
+            )
+            total_rows = cnt['total_rows']
+            cleaned_rows = cnt['cleaned_rows']
+            final_rows = cnt['final_rows']
+            missing_price = cnt['missing_price']
+            total_units = cnt['total_units']
+            total_paid = cnt['total_paid']
+            total_ideal = cnt['total_ideal']
+            total_set = cnt['total_set']
+            delta = cnt['ideal_delta_pct']
 
-        total_paid = order.total_cost or Decimal('0.00')
-        total_ideal = Decimal('0.00')
-        total_set = Decimal('0.00')
-        total_units = 0
-        for row in rows:
-            qty = row.quantity if row.quantity and row.quantity > 0 else 1
-            total_units += qty
-            base_cost = order.compute_item_cost(row.unit_retail)
-            if base_cost is not None:
-                total_ideal += base_cost * Decimal('2') * qty
-            if prep and prep.row_count > 0 and not prep.finalized_at:
-                row_price = effective_preprocessing_row_price(row)
-            else:
-                row_price = effective_manifest_row_price(row)
-            if row_price is not None:
-                total_set += row_price * qty
-        delta = None
-        if total_ideal > 0:
-            delta = round(float((total_set - total_ideal) / total_ideal * 100), 1)
         completed_step = -1
         if total_rows > 0:
             completed_step = 0
@@ -4046,6 +4252,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         if request.method == 'GET':
             full_flag = str(request.query_params.get('full') or '').lower() in ('1', 'true', 'yes')
+            fields_raw = str(request.query_params.get('fields') or 'minimal').strip().lower()
+            use_full_rows = full_flag or fields_raw == 'full'
+            row_serializer_cls = (
+                PreprocessingReviewRowSerializer if use_full_rows else PreprocessingReviewRowMinimalSerializer
+            )
             if full_flag:
                 if prep.row_count > 10000:
                     return Response(
@@ -4058,11 +4269,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     .order_by('row_number')
                 )
                 page_rows = list(rows_qs)
-                serializer = PreprocessingReviewRowSerializer(page_rows, many=True)
+                serializer = row_serializer_cls(page_rows, many=True)
                 return Response({
                     'rows': serializer.data,
                     'count': len(page_rows),
                     'full': True,
+                    'fields': 'full',
                     'summary': summarize_preprocessing_rows(order, rows_qs),
                 })
 
@@ -4072,7 +4284,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             end = start + page_size
             row_count = rows_qs.count()
             page_rows = list(rows_qs[start:end])
-            serializer = PreprocessingReviewRowSerializer(page_rows, many=True)
+            serializer = row_serializer_cls(page_rows, many=True)
             return Response({
                 'rows': serializer.data,
                 'count': row_count,
@@ -4080,6 +4292,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'page_size': page_size,
                 'has_next': end < row_count,
                 'has_previous': start > 0,
+                'fields': 'full' if use_full_rows else 'minimal',
                 'summary': summarize_preprocessing_rows(order, rows_qs),
             })
 
@@ -4094,6 +4307,65 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'changed_row_ids': changed_ids,
             'items_updated': 0,
             'products_updated': 0,
+            'summary': summarize_preprocessing_rows(order, rows_qs),
+        })
+
+    @action(detail=True, methods=['post'], url_path='preprocessing-review-reset-final')
+    def preprocessing_review_reset_final(self, request, pk=None):
+        """Rebuild final_* from ai_* + standard_* (same coalesce as cleanup CSV snapshot).
+
+        Pricing fields (proposed_price, final_price, pricing_stage, pricing_notes) are not modified.
+        """
+        order = PurchaseOrder.objects.filter(pk=pk).first()
+        if not order:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        prep = getattr(order, 'preprocessing', None)
+        if not prep or prep.row_count == 0:
+            return Response(
+                {'detail': 'Upload and standardize a manifest before reviewing preprocessing rows.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if prep.finalized_at:
+            return Response(
+                {'detail': 'Preprocessing has already been finalized; edit canonical rows instead.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        raw_ids = request.data.get('row_ids')
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return Response(
+                {'detail': 'row_ids must be a non-empty list of preprocessing row ids.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            row_ids = sorted({int(x) for x in raw_ids})
+        except (TypeError, ValueError):
+            return Response({'detail': 'row_ids must be integers.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        qs = PreprocessingRow.objects.filter(preprocessing_order=prep, pk__in=row_ids).order_by('row_number')
+        found = list(qs)
+        if len(found) != len(row_ids):
+            return Response(
+                {'detail': 'One or more row ids are invalid for this preprocessing session.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        final_field_names = [f'final_{base}' for base in TRIPLE_LAYER_SPECS.keys()] + [
+            'final_title',
+            'final_category',
+        ]
+        save_fields = list(dict.fromkeys(final_field_names + ['updated_at']))
+        ts = timezone.now()
+
+        with transaction.atomic():
+            for sr in found:
+                snapshot_finalize_from_ai_and_standard(sr, fill_missing_only=False)
+                sr.updated_at = ts
+                sr.save(update_fields=save_fields)
+
+        rows_qs = prep.rows.all()
+        return Response({
+            'rows_reset': len(found),
             'summary': summarize_preprocessing_rows(order, rows_qs),
         })
 
@@ -4260,6 +4532,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if rows_payload is not None and not isinstance(rows_payload, list):
             return Response({'detail': 'rows must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        t0 = time.perf_counter()
+        finalization_logger.info(
+            'finalize_preprocessing_start order_id=%s staging_row_count=%s',
+            order.id,
+            prep.rows.count(),
+        )
+
         now = timezone.now()
         ensure_summary = {}
         batch_groups_created = 0
@@ -4296,7 +4575,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     'final_category',
                 ]
                 for sr in staging_rows:
-                    snapshot_finalize_from_ai_and_standard(sr)
+                    snapshot_finalize_from_ai_and_standard(sr, fill_missing_only=True)
                 PreprocessingRow.objects.bulk_update(staging_rows, final_field_names)
 
                 ManifestRow.objects.filter(purchase_order=order).delete()
@@ -4342,7 +4621,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 ensure_summary = ensure_manifest_products_and_items(order, request.user)
 
                 rows = list(
-                    ManifestRow.objects.filter(purchase_order=order).select_related('matched_product'),
+                    ManifestRow.objects.filter(purchase_order=order)
+                    .select_related('matched_product')
+                    .prefetch_related('batch_groups'),
                 )
                 batch = ProcessingBatch.objects.filter(purchase_order=order).order_by('-started_at').first()
                 if not batch:
@@ -4399,6 +4680,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 )
 
         except ValidationError as exc:
+            finalization_logger.warning(
+                'finalize_preprocessing_validation_failed order_id=%s elapsed_ms=%.1f detail=%s',
+                order.id,
+                (time.perf_counter() - t0) * 1000,
+                getattr(exc, 'detail', exc),
+            )
             detail = exc.detail
             if isinstance(detail, dict):
                 return Response(detail, status=status.HTTP_400_BAD_REQUEST)
@@ -4407,6 +4694,17 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return Response({'detail': str(detail)}, status=status.HTTP_400_BAD_REQUEST)
 
         order.refresh_from_db()
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        finalization_logger.info(
+            'finalize_preprocessing_complete order_id=%s manifest_rows=%s elapsed_ms=%.1f '
+            'products_created=%s items_created=%s batch_groups_created=%s',
+            order.id,
+            len(staging_rows),
+            elapsed_ms,
+            ensure_summary.get('products_created'),
+            ensure_summary.get('items_created'),
+            batch_groups_created,
+        )
         return Response({
             'finalized_at': prep.finalized_at.isoformat() if prep.finalized_at else None,
             'manifest_rows': len(staging_rows),
@@ -5391,6 +5689,63 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order.save(update_fields=['status', 'updated_at'])
         return Response(PurchaseOrderSerializer(order).data)
 
+    @action(detail=True, methods=['get'], url_path='processing-workspace')
+    def processing_workspace(self, request, pk=None):
+        from apps.inventory.services.processing_workspace import build_processing_workspace
+
+        order = self.get_object()
+        return Response(build_processing_workspace(order))
+
+    @action(detail=True, methods=['post'], url_path='processing-print-multiple')
+    def processing_print_multiple_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_print_multiple
+
+        order = self.get_object()
+        try:
+            return Response(processing_print_multiple(request.user, order, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-dispute')
+    def processing_dispute_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_dispute
+
+        order = self.get_object()
+        try:
+            return Response(processing_dispute(request.user, order, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-merge-rows')
+    def processing_merge_rows_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_merge_rows
+
+        order = self.get_object()
+        try:
+            return Response(processing_merge_rows(request.user, order, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-swap')
+    def processing_swap_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_swap
+
+        order = self.get_object()
+        try:
+            return Response(processing_swap(request.user, order, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-bulk-disposition')
+    def processing_bulk_disposition_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_bulk_disposition
+
+        order = self.get_object()
+        try:
+            return Response(processing_bulk_disposition(request.user, order, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['get'], url_path='delete-preview')
     def delete_preview(self, request, pk=None):
         """Preview reverse-sequence deletion counts before purging an order."""
@@ -6174,6 +6529,26 @@ class ItemViewSet(viewsets.ModelViewSet):
                 {'error': f'AI suggest failed: {e}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @action(detail=True, methods=['post'], url_path='processing-print-and-check-in')
+    def processing_print_and_check_in(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_print_and_check_in
+
+        item = self.get_object()
+        try:
+            return Response(processing_print_and_check_in(request.user, item, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['patch'], url_path='processing-patch')
+    def processing_patch(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_patch_item
+
+        item = self.get_object()
+        try:
+            return Response(processing_patch_item(request.user, item, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='check-in')
     def check_in(self, request, pk=None):

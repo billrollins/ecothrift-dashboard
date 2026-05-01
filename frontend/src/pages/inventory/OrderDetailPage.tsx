@@ -1117,7 +1117,7 @@ export default function OrderDetailPage() {
             fullWidth={compact}
             variant="outlined"
             disabled={!canGoToProcessing}
-            onClick={() => navigate(`/inventory/processing?order=${order.id}`)}
+            onClick={() => navigate(`/inventory/processing/${order.id}`)}
             sx={{
               flex: compact ? '1 1 100%' : 1,
               py: `${TOKENS.btnPadY}px`,

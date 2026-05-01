@@ -1,11 +1,8 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
-  Checkbox,
-  Chip,
   CircularProgress,
-  Collapse,
   IconButton,
   MenuItem,
   Paper,
@@ -20,7 +17,9 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import type { Theme } from '@mui/material/styles';
+import Add from '@mui/icons-material/Add';
+import Remove from '@mui/icons-material/Remove';
 import type {
   PreprocessingReviewRow,
   PreprocessingReviewRowPatch,
@@ -28,177 +27,37 @@ import type {
   PreprocessingReviewSummary,
 } from '../../api/inventory.api';
 import { formatConditionLabel, ITEM_CONDITIONS } from '../../constants/inventory.constants';
+import { isTaxonomyV1CategoryName, TAXONOMY_V1_CATEGORY_NAMES } from '../../constants/taxonomyV1';
 import { formatCurrency } from '../../utils/format';
-import {
-  previewBrand,
-  previewCategory,
-  previewCondition,
-  previewDescription,
-  previewModel,
-  previewNotes,
-  previewSearchTags,
-  previewSpecifications,
-  previewTitle,
-  truncateStdTitleHint,
-} from '../../utils/preprocessingCoalesce';
-import type { PreprocessingAiBaselinePatch } from './preprocessing/aiBaseline';
-import { baselineToRowPatch } from './preprocessing/aiBaseline';
+import { computeReviewPricingTotals } from '../../utils/preprocessingReviewTotals';
 
 interface PreprocessingReviewTableProps {
-  /** Current page slice only (client-side pagination). */
   rows: PreprocessingReviewRow[];
-  /** Lookup full row by id (bulk actions use filtered ids across pages). */
   getStagedRow: (id: number) => PreprocessingReviewRow | undefined;
-  /** Bulk toolbar applies to this id list (full filtered set). */
-  filteredRowIds: number[];
-  baselineByRowId: Record<number, PreprocessingAiBaselinePatch>;
+  /** Load every row matching current server-side filters; returns ids for bulk toolbar actions. */
+  ensureBulkTargetsLoaded: () => Promise<number[]>;
   summary: PreprocessingReviewSummary | null;
+  /** All rows for current server-side filters (paginated load); used to recompute totals from drafts. */
+  pricingTotalsRows: PreprocessingReviewRow[];
+  pricingTotalsComplete: boolean;
   totalFilteredCount: number;
   page: number;
   pageSize: number;
   isLoading?: boolean;
   isSaving: boolean;
+  isResettingFinal?: boolean;
   searchValue: string;
-  missingPriceOnly: boolean;
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
   onSearchChange?: (search: string) => void;
-  onMissingPriceChange?: (missingOnly: boolean) => void;
   onSaveRows: (rows: PreprocessingReviewRowUpdate[]) => Promise<void>;
-  /** Persist succeeded — parent merges into full-row snapshot. */
   onPersistSuccess?: (rows: PreprocessingReviewRowUpdate[]) => void;
-  /** Dirty rows count for parent chrome (e.g. stepper finalize). */
   onDirtyCountChange?: (count: number) => void;
+  onResetFinalClick?: () => void;
 }
 
 function money(value: string | null | undefined) {
   return value ? formatCurrency(value) : '-';
-}
-
-function fmtSpecs(blob: Record<string, unknown>): string {
-  try {
-    const s = JSON.stringify(blob);
-    return s.length > 200 ? `${s.slice(0, 197)}…` : s;
-  } catch {
-    return '';
-  }
-}
-
-function LayerPreviewTable({ row }: { row: PreprocessingReviewRow }) {
-  const prevSpec = previewSpecifications(row);
-  const prevTags = previewSearchTags(row);
-  const rows: { label: string; std: string; ai: string; preview: string }[] = [
-    { label: 'Title', std: truncateStdTitleHint(row), ai: row.ai_title || '—', preview: previewTitle(row) || '—' },
-    {
-      label: 'Category',
-      std: row.standard_taxonomy && typeof row.standard_taxonomy === 'object'
-        ? String((row.standard_taxonomy as { category?: string }).category ?? '')
-        : '—',
-      ai: row.ai_category || '—',
-      preview: previewCategory(row) || '—',
-    },
-    { label: 'Brand', std: row.standard_brand || '—', ai: row.ai_brand || '—', preview: previewBrand(row) || '—' },
-    { label: 'Model', std: row.standard_model || '—', ai: row.ai_model || '—', preview: previewModel(row) || '—' },
-    {
-      label: 'Condition',
-      std: row.standard_condition || '—',
-      ai: row.ai_condition || '—',
-      preview: formatConditionLabel(previewCondition(row) || 'unknown'),
-    },
-    { label: 'Description', std: (row.standard_description || '—').slice(0, 500), ai: row.ai_description || '—', preview: previewDescription(row) || '—' },
-    { label: 'Notes', std: row.standard_notes || '—', ai: row.ai_notes || '—', preview: previewNotes(row) || '—' },
-    {
-      label: 'Proposed $',
-      std: '—',
-      ai: row.proposed_price != null ? String(row.proposed_price) : '—',
-      preview: row.proposed_price != null ? String(row.proposed_price) : '—',
-    },
-    { label: 'Specifications', std: fmtSpecs((row.standard_specifications ?? {}) as Record<string, unknown>), ai: fmtSpecs((row.ai_specifications ?? {}) as Record<string, unknown>), preview: fmtSpecs(prevSpec) },
-    { label: 'Search tags', std: (row.standard_search_tags ?? []).join(', ') || '—', ai: (row.ai_search_tags ?? []).join(', ') || '—', preview: prevTags.join(', ') || '—' },
-  ];
-  const locked: { label: string; value: string }[] = [
-    { label: 'Identifiers (locked)', value: fmtSpecs((row.standard_identifiers ?? {}) as Record<string, unknown>) },
-    { label: 'Taxonomy blob (locked)', value: fmtSpecs((row.standard_taxonomy ?? {}) as Record<string, unknown>) },
-    { label: 'Tracking (locked)', value: fmtSpecs((row.standard_tracking ?? {}) as Record<string, unknown>) },
-  ];
-  return (
-    <Box sx={{ py: 1.5 }}>
-      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
-        Final Review — standard / AI / coalesce preview (finalize writes final_*)
-      </Typography>
-      <Table size="small" sx={{ backgroundColor: 'background.paper' }}>
-        <TableHead>
-          <TableRow>
-            <TableCell>Field</TableCell>
-            <TableCell>Standard</TableCell>
-            <TableCell>AI</TableCell>
-            <TableCell>Preview</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {rows.map((r) => (
-            <TableRow key={r.label}>
-              <TableCell sx={{ fontWeight: 600 }}>{r.label}</TableCell>
-              <TableCell sx={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', maxWidth: 280 }}>{r.std}</TableCell>
-              <TableCell sx={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', maxWidth: 280 }}>{r.ai}</TableCell>
-              <TableCell sx={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', maxWidth: 280, bgcolor: 'action.hover' }}>{r.preview}</TableCell>
-            </TableRow>
-          ))}
-          {locked.map((r) => (
-            <TableRow key={r.label}>
-              <TableCell sx={{ fontWeight: 600 }}>{r.label}</TableCell>
-              <TableCell colSpan={2} sx={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', maxWidth: 400 }}>
-                {r.value}
-              </TableCell>
-              <TableCell sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Same as standard</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Box>
-  );
-}
-
-function PreprocessingAiStatusBar({ row }: { row: PreprocessingReviewRow }) {
-  const raw = row.ai_status;
-  if (!raw || typeof raw !== 'object') return null;
-  const state = typeof raw.state === 'string' ? raw.state.trim() : '';
-  const issues = Array.isArray(raw.issues) ? raw.issues : [];
-  const meaningfulState = Boolean(state && state !== 'clean');
-  if (!meaningfulState && issues.length === 0) return null;
-
-  const chipColor: 'error' | 'warning' | 'default' =
-    state === 'hard_flagged' ? 'error' : state === 'soft_flagged' || issues.length > 0 ? 'warning' : 'default';
-
-  return (
-    <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" sx={{ mt: 0.75 }}>
-      {meaningfulState && (
-        <Chip
-          size="small"
-          label={state.replace(/_/g, ' ')}
-          color={chipColor === 'default' ? 'default' : chipColor}
-          variant="outlined"
-        />
-      )}
-      {issues.slice(0, 6).map((issue, idx) => {
-        const o = issue as Record<string, unknown>;
-        const rule = typeof o.rule === 'string' ? o.rule : '';
-        const reason = typeof o.reason === 'string' ? o.reason : '';
-        const col = typeof o.column === 'string' ? o.column : '';
-        const parts = [rule, col ? `@${col}` : '', reason].filter((p) => p && String(p).trim());
-        const label = parts.join(' — ');
-        if (!label) return null;
-        return (
-          <Chip
-            key={idx}
-            size="small"
-            label={label.length > 70 ? `${label.slice(0, 68)}…` : label}
-            variant="outlined"
-          />
-        );
-      })}
-    </Stack>
-  );
 }
 
 function pctDelta(price: string | null | undefined, ideal: string | null | undefined): number | null {
@@ -227,46 +86,117 @@ function currentFinalNumeric(row: PreprocessingReviewRow, draft?: PreprocessingR
   return 0;
 }
 
-function baselinePatchFromRow(b: PreprocessingAiBaselinePatch): PreprocessingReviewRowPatch {
-  return baselineToRowPatch(b);
+function idealLineColor(delta: number | null, theme: Theme): string {
+  if (delta != null && delta < -5) return theme.palette.warning.dark;
+  return theme.palette.success.dark;
+}
+
+/** Canonical list + blank + one legacy row value when AI/vendor text is not taxonomy v1. */
+function categoryMenuItems(currentRaw: string) {
+  const current = currentRaw.trim();
+  const items = [
+    <MenuItem key="__empty" value="" dense>
+      <em>—</em>
+    </MenuItem>,
+    ...TAXONOMY_V1_CATEGORY_NAMES.map((name) => (
+      <MenuItem key={name} value={name} dense>
+        {name}
+      </MenuItem>
+    )),
+  ];
+  if (current && !isTaxonomyV1CategoryName(current)) {
+    items.push(
+      <MenuItem key={`__legacy:${current}`} value={current} dense>
+        {current}
+      </MenuItem>,
+    );
+  }
+  return items;
+}
+
+/** Dense single-line inputs + tight vertical rhythm for review grid rows. */
+const compactTableCellSx = { py: 0.5, px: 1 };
+const compactHeadSx = { py: 0.75, px: 1, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' };
+const compactInputSx = {
+  '& .MuiOutlinedInput-root': { fontSize: 13 },
+  '& .MuiOutlinedInput-input': { py: 0.5, px: 1 },
+};
+
+function StatCard({
+  label,
+  value,
+  borderAccent,
+}: {
+  label: string;
+  value: string;
+  borderAccent?: 'success' | 'warning';
+}) {
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 1.25,
+        minWidth: 0,
+        borderRadius: 1,
+        borderWidth: borderAccent ? 2 : 1,
+        borderColor: borderAccent === 'warning' ? 'warning.main' : borderAccent === 'success' ? 'success.main' : 'divider',
+      }}
+    >
+      <Typography variant="caption" color="text.secondary" display="block" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.04 }}>
+        {label}
+      </Typography>
+      <Typography variant="body1" fontWeight={700} sx={{ mt: 0.25 }}>
+        {value}
+      </Typography>
+    </Paper>
+  );
 }
 
 export function PreprocessingReviewTable({
   rows,
   getStagedRow,
-  filteredRowIds,
-  baselineByRowId,
+  ensureBulkTargetsLoaded,
   summary,
+  pricingTotalsRows,
+  pricingTotalsComplete,
   totalFilteredCount,
   page,
   pageSize,
   isLoading = false,
   isSaving,
+  isResettingFinal = false,
   searchValue,
-  missingPriceOnly,
   onPageChange,
   onPageSizeChange,
   onSearchChange,
-  onMissingPriceChange,
   onSaveRows,
   onPersistSuccess,
   onDirtyCountChange,
+  onResetFinalClick,
 }: PreprocessingReviewTableProps) {
   const [draftsById, setDraftsById] = useState<Record<number, PreprocessingReviewRowPatch>>({});
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [expandedLayer, setExpandedLayer] = useState<Set<number>>(new Set());
 
-  const visibleIds = useMemo(() => rows.map((row) => row.id), [rows]);
+  const displaySummary = useMemo(() => {
+    if (!summary) return null;
+    if (
+      !pricingTotalsComplete ||
+      pricingTotalsRows.length === 0 ||
+      totalFilteredCount === 0
+    ) {
+      return summary;
+    }
+    const { totalSet, deltaPct } = computeReviewPricingTotals(pricingTotalsRows, draftsById);
+    return {
+      ...summary,
+      total_set_prices: totalSet.toFixed(2),
+      ideal_delta_pct: deltaPct,
+    };
+  }, [summary, pricingTotalsComplete, pricingTotalsRows, draftsById, totalFilteredCount]);
+
   const dirtyIds = useMemo(
     () => Object.keys(draftsById).map(Number).filter((id) => Object.keys(draftsById[id] ?? {}).length > 0),
     [draftsById],
   );
-
-  const rowIdKey = useMemo(() => rows.map((row) => row.id).join(','), [rows]);
-  useEffect(() => {
-    setSelected(new Set());
-    setExpandedLayer(new Set());
-  }, [rowIdKey]);
 
   useEffect(() => {
     onDirtyCountChange?.(dirtyIds.length);
@@ -275,15 +205,23 @@ export function PreprocessingReviewTable({
   const draftsRef = useRef(draftsById);
   draftsRef.current = draftsById;
 
-  useEffect(() => {
-    if (!dirtyIds.length) return;
-    const t = window.setTimeout(() => {
-      const ids = Object.keys(draftsRef.current).map(Number).filter((id) => Object.keys(draftsRef.current[id] ?? {}).length > 0);
-      if (!ids.length) return;
-      void saveIds(ids);
-    }, 30000);
-    return () => window.clearTimeout(t);
-  }, [draftsById, dirtyIds.length]);
+  async function saveIds(ids: number[]) {
+    const payload = ids
+      .map((id) => {
+        const patch = draftsRef.current[id];
+        if (!patch || Object.keys(patch).length === 0) return null;
+        return { id, patch };
+      })
+      .filter(Boolean) as PreprocessingReviewRowUpdate[];
+    if (!payload.length) return;
+    await onSaveRows(payload);
+    onPersistSuccess?.(payload);
+    setDraftsById((prev) => {
+      const next = { ...prev };
+      for (const id of ids) delete next[id];
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!dirtyIds.length) return;
@@ -305,25 +243,8 @@ export function PreprocessingReviewTable({
     }));
   };
 
-  const saveIds = async (ids: number[]) => {
-    const payload = ids
-      .map((id) => {
-        const patch = draftsRef.current[id];
-        if (!patch || Object.keys(patch).length === 0) return null;
-        return { id, patch };
-      })
-      .filter(Boolean) as PreprocessingReviewRowUpdate[];
-    if (!payload.length) return;
-    await onSaveRows(payload);
-    onPersistSuccess?.(payload);
-    setDraftsById((prev) => {
-      const next = { ...prev };
-      for (const id of ids) delete next[id];
-      return next;
-    });
-  };
-
-  const mergeBulkDrafts = async (updates: Record<number, PreprocessingReviewRowPatch>) => {
+  /** Merge bulk edits into local drafts only; server PATCH runs when user clicks Save. */
+  const mergeIntoDrafts = (updates: Record<number, PreprocessingReviewRowPatch>) => {
     const entries = Object.entries(updates);
     if (!entries.length) return;
     setDraftsById((prev) => {
@@ -334,17 +255,9 @@ export function PreprocessingReviewTable({
       }
       return next;
     });
-    const payload = entries.map(([idStr, patch]) => ({ id: Number(idStr), patch })) as PreprocessingReviewRowUpdate[];
-    await onSaveRows(payload);
-    onPersistSuccess?.(payload);
-    setDraftsById((prev) => {
-      const next = { ...prev };
-      for (const [idStr] of entries) delete next[Number(idStr)];
-      return next;
-    });
   };
 
-  const applyPctCompound = async (ids: number[], factor: number, note: string) => {
+  const applyPctCompound = (ids: number[], factor: number, note: string) => {
     const updates: Record<number, PreprocessingReviewRowPatch> = {};
     for (const id of ids) {
       const row = getStagedRow(id);
@@ -358,131 +271,132 @@ export function PreprocessingReviewTable({
         pricing_notes: note,
       };
     }
-    await mergeBulkDrafts(updates);
+    mergeIntoDrafts(updates);
   };
 
-  const applyVisibleIdeal = async () => {
+  const applyVisibleIdeal = (ids: number[]) => {
     const updates: Record<number, PreprocessingReviewRowPatch> = {};
-    for (const id of filteredRowIds) {
+    for (const id of ids) {
       const row = getStagedRow(id);
       if (!row || row.proposed_price == null || String(row.proposed_price).trim() === '') continue;
       updates[id] = {
         ...(draftsRef.current[id] ?? {}),
         final_price: row.proposed_price,
-        pricing_notes: 'Visible = Ideal',
+        pricing_notes: 'Bulk = Ideal',
       };
     }
-    await mergeBulkDrafts(updates);
+    mergeIntoDrafts(updates);
   };
 
-  const applyResetToAi = async () => {
-    const updates: Record<number, PreprocessingReviewRowPatch> = {};
-    for (const id of filteredRowIds) {
-      const baseline = baselineByRowId[id];
-      if (!baseline) continue;
-      updates[id] = baselinePatchFromRow(baseline);
-    }
-    await mergeBulkDrafts(updates);
+  const runBulk = async (fn: (ids: number[]) => void | Promise<void>) => {
+    const ids = await ensureBulkTargetsLoaded();
+    if (!ids.length) return;
+    await Promise.resolve(fn(ids));
   };
-
-  const applySuggestion = (row: PreprocessingReviewRow) => {
-    const patch: PreprocessingReviewRowPatch = {};
-    if ((row.ai_title || '').trim()) patch.title = row.ai_title!.trim();
-    if ((row.ai_brand || '').trim()) patch.brand = row.ai_brand!.trim();
-    if ((row.ai_model || '').trim()) patch.model = row.ai_model!.trim();
-    if (Object.keys(patch).length) {
-      setDraftsById((prev) => ({ ...prev, [row.id]: { ...(prev[row.id] ?? {}), ...patch } }));
-    }
-  };
-
-  const buildDirtyUpdates = (): PreprocessingReviewRowUpdate[] =>
-    dirtyIds
-      .map((id) => {
-        const patch = draftsById[id];
-        if (!patch || Object.keys(patch).length === 0) return null;
-        return { id, patch };
-      })
-      .filter(Boolean) as PreprocessingReviewRowUpdate[];
 
   if (!rows.length && !isLoading) {
     return <Typography color="text.secondary">No staged rows match the current filters.</Typography>;
   }
 
   return (
-    <Box>
-      <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1.5 }}>
-        <Chip label={`Paid ${money(summary?.total_paid)}`} />
-        <Chip label={`Ideal ${money(summary?.total_ideal_price)}`} />
-        <Chip label={`Set ${money(summary?.total_set_prices)}`} color="primary" />
-        <Chip
-          label={`${summary?.ideal_delta_pct == null ? '-' : `${summary.ideal_delta_pct.toFixed(1)}%`} vs ideal`}
-          color={(summary?.ideal_delta_pct ?? 0) >= 0 ? 'success' : 'warning'}
+    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+          gap: 1,
+          mb: 1.5,
+        }}
+      >
+        <StatCard label="Paid (plan)" value={money(displaySummary?.total_paid)} />
+        <StatCard label="Ideal total" value={money(displaySummary?.total_ideal_price)} />
+        <StatCard label="Set prices" value={money(displaySummary?.total_set_prices)} />
+        <StatCard
+          label="% vs ideal"
+          value={displaySummary?.ideal_delta_pct == null ? '—' : `${displaySummary.ideal_delta_pct.toFixed(1)}%`}
+          borderAccent={
+            displaySummary?.ideal_delta_pct == null
+              ? undefined
+              : displaySummary.ideal_delta_pct >= 0
+                ? 'success'
+                : 'warning'
+          }
         />
-        <Chip label={`${summary?.total_units ?? 0} units`} />
-        <Chip label={`${summary?.missing_price ?? 0} missing price`} color={(summary?.missing_price ?? 0) ? 'warning' : 'success'} />
-        {dirtyIds.length > 0 && <Chip label={`${dirtyIds.length} unsaved row(s)`} color="warning" />}
-      </Stack>
+        <StatCard label="Units" value={`${displaySummary?.total_units ?? 0}`} />
+      </Box>
 
       <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5 }}>
-        <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-          <TextField
-            size="small"
-            label="Search staged rows"
-            value={searchValue}
-            onChange={(event) => onSearchChange?.(event.target.value)}
-            sx={{ minWidth: 280 }}
-          />
-          <Button
-            size="small"
-            variant={missingPriceOnly ? 'contained' : 'outlined'}
-            color="warning"
-            onClick={() => onMissingPriceChange?.(!missingPriceOnly)}
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={1}
+          alignItems={{ xs: 'stretch', md: 'center' }}
+          justifyContent="space-between"
+        >
+          <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center" useFlexGap>
+            <TextField
+              size="small"
+              label="Search staged rows"
+              value={searchValue}
+              onChange={(event) => onSearchChange?.(event.target.value)}
+              sx={{ minWidth: 260 }}
+            />
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={isSaving || isResettingFinal}
+              onClick={() => void runBulk((ids) => {
+                applyPctCompound(ids, 0.9, 'Bulk -10% (compound on final_price)');
+              })}
+            >
+              −10%
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={isSaving || isResettingFinal}
+              onClick={() => void runBulk((ids) => {
+                applyPctCompound(ids, 1.1, 'Bulk +10% (compound on final_price)');
+              })}
+            >
+              +10%
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={isSaving || isResettingFinal}
+              onClick={() => void runBulk((ids) => applyVisibleIdeal(ids))}
+            >
+              All filtered = Ideal
+            </Button>
+          </Stack>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{ alignSelf: { xs: 'flex-start', md: 'center' } }}
           >
-            Missing Price
-          </Button>
-          <Button size="small" onClick={() => setSelected(new Set(visibleIds))}>Select Visible</Button>
-          <Button size="small" onClick={() => setSelected(new Set())}>Clear Select</Button>
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={!filteredRowIds.length || isSaving}
-            onClick={() => void applyPctCompound(filteredRowIds, 0.9, 'Bulk -10% (compound on final_price)')}
-          >
-            -10%
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={!filteredRowIds.length || isSaving}
-            onClick={() => void applyPctCompound(filteredRowIds, 1.1, 'Bulk +10% (compound on final_price)')}
-          >
-            +10%
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={!filteredRowIds.length || isSaving}
-            onClick={() => void applyVisibleIdeal()}
-          >
-            Visible = Ideal
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={!filteredRowIds.length || isSaving}
-            onClick={() => void applyResetToAi()}
-          >
-            Reset to AI
-          </Button>
-          <Button
-            size="small"
-            variant="contained"
-            disabled={isSaving || dirtyIds.length === 0}
-            startIcon={isSaving ? <CircularProgress size={14} /> : undefined}
-            onClick={() => void saveIds(dirtyIds)}
-          >
-            Save Changes
-          </Button>
+            {onResetFinalClick ? (
+              <Button
+                size="small"
+                variant="outlined"
+                color="secondary"
+                disabled={isSaving || isResettingFinal || totalFilteredCount === 0}
+                startIcon={isResettingFinal ? <CircularProgress size={14} /> : undefined}
+                onClick={onResetFinalClick}
+              >
+                Reset to AI
+              </Button>
+            ) : null}
+            <Button
+              size="small"
+              variant="contained"
+              disabled={isSaving || isResettingFinal || dirtyIds.length === 0}
+              startIcon={isSaving ? <CircularProgress size={14} /> : undefined}
+              onClick={() => void saveIds(dirtyIds)}
+            >
+              {dirtyIds.length ? `Save Changes (${dirtyIds.length})` : 'Save Changes'}
+            </Button>
+          </Stack>
         </Stack>
       </Paper>
 
@@ -493,184 +407,204 @@ export function PreprocessingReviewTable({
         </Stack>
       )}
 
-      <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1, maxHeight: 620 }}>
-        <Table size="small" stickyHeader>
+      <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1, flex: 1, minHeight: 0, maxHeight: 'calc(100vh - 320px)' }}>
+        <Table size="small" stickyHeader padding="none" sx={{ tableLayout: 'fixed', width: '100%' }}>
+          <colgroup>
+            <col style={{ width: 40 }} />
+            <col />
+            <col style={{ width: 108 }} />
+            <col style={{ width: 108 }} />
+            <col style={{ width: 36 }} />
+            <col style={{ width: 176 }} />
+            <col style={{ width: 104 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 148 }} />
+          </colgroup>
           <TableHead>
             <TableRow>
-              <TableCell padding="checkbox" />
-              <TableCell>#</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Title / AI</TableCell>
-              <TableCell>Brand</TableCell>
-              <TableCell>Model</TableCell>
-              <TableCell>Category</TableCell>
-              <TableCell>Cond.</TableCell>
-              <TableCell align="right">Retail</TableCell>
-              <TableCell align="right">Base</TableCell>
-              <TableCell align="right">Ideal</TableCell>
-              <TableCell align="right">Price</TableCell>
-              <TableCell align="right">Vs Ideal</TableCell>
+              <TableCell sx={{ ...compactHeadSx, textAlign: 'center' }}>#</TableCell>
+              <TableCell sx={compactHeadSx}>Title</TableCell>
+              <TableCell sx={compactHeadSx}>Brand</TableCell>
+              <TableCell sx={compactHeadSx}>Model</TableCell>
+              <TableCell sx={compactHeadSx} align="right">
+                Qty
+              </TableCell>
+              <TableCell sx={compactHeadSx}>Category</TableCell>
+              <TableCell sx={compactHeadSx}>Cond.</TableCell>
+              <TableCell sx={compactHeadSx} align="right">
+                Retail
+              </TableCell>
+              <TableCell sx={{ ...compactHeadSx, textAlign: 'center' }} align="center">
+                − Price + / Ideal (%)
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {rows.map((row) => {
               const draft = draftsById[row.id];
-              const price = String(rowValue(row, draft, 'final_price') ?? row.proposed_price ?? '');
+              const price = String(rowValue(row, draft, 'final_price') ?? '');
               const delta = pctDelta(price, row.ideal_price);
-              const hasSuggestion = Boolean(
-                (row.ai_title || '').trim()
-                  || (row.ai_brand || '').trim()
-                  || (row.ai_model || '').trim(),
-              );
-              const ident = row.identifiers as Record<string, unknown> | undefined;
-              const upcHint = typeof ident?.upc === 'string' ? ident.upc.trim() : '';
-              const layerOpen = expandedLayer.has(row.id);
+              const descOneLine = (row.description ?? '').trim();
+              const categoryStr = String(rowValue(row, draft, 'category') ?? '');
               return (
-                <Fragment key={row.id}>
-                <TableRow hover selected={selected.has(row.id)}>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      checked={selected.has(row.id)}
-                      onChange={(event) => {
-                        setSelected((prev) => {
-                          const next = new Set(prev);
-                          if (event.target.checked) next.add(row.id);
-                          else next.delete(row.id);
-                          return next;
-                        });
-                      }}
-                    />
+                <TableRow key={row.id} hover sx={{ '& td': compactTableCellSx }}>
+                  <TableCell align="center" sx={{ verticalAlign: 'top', textAlign: 'center' }}>
+                    <Typography variant="caption" fontWeight={700} sx={{ display: 'block', pt: 0.25 }}>
+                      {row.row_number}
+                    </Typography>
                   </TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                    <IconButton
-                      size="small"
-                      aria-label={layerOpen ? 'Collapse layers' : 'Expand layers'}
-                      onClick={() => {
-                        setExpandedLayer((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(row.id)) next.delete(row.id);
-                          else next.add(row.id);
-                          return next;
-                        });
-                      }}
-                      sx={{
-                        transform: layerOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                        transition: 'transform 0.15s',
-                        mr: 0.5,
-                        verticalAlign: 'middle',
-                      }}
-                    >
-                      <KeyboardArrowDownIcon fontSize="small" />
-                    </IconButton>
-                    {row.row_number}
-                  </TableCell>
-                  <TableCell sx={{ minWidth: 220 }}>
-                    <Typography variant="body2">{row.description}</Typography>
-                    <PreprocessingAiStatusBar row={row} />
-                    {upcHint && (
-                      <Typography variant="caption" color="text.secondary">
-                        UPC {upcHint}
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell sx={{ minWidth: 240 }}>
+                  <TableCell sx={{ verticalAlign: 'top', width: '100%', minWidth: 0, overflow: 'hidden' }}>
                     <TextField
                       size="small"
                       fullWidth
+                      variant="outlined"
                       value={String(rowValue(row, draft, 'title') ?? '')}
                       onChange={(event) => setField(row.id, 'title', event.target.value)}
+                      sx={compactInputSx}
                     />
-                    {hasSuggestion && (
-                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5 }}>
-                        <Typography variant="caption" color="text.secondary" noWrap>
-                          AI: {[row.ai_title, row.ai_brand, row.ai_model].filter((s) => (s || '').trim()).join(' · ')}
-                        </Typography>
-                        <Button size="small" onClick={() => applySuggestion(row)}>Apply</Button>
-                      </Stack>
-                    )}
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      component="div"
+                      title={descOneLine || undefined}
+                      sx={{
+                        mt: 0.25,
+                        display: 'block',
+                        lineHeight: 1.25,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {descOneLine || '—'}
+                    </Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
                     <TextField
                       size="small"
+                      variant="outlined"
+                      fullWidth
                       value={String(rowValue(row, draft, 'brand') ?? '')}
                       onChange={(event) => setField(row.id, 'brand', event.target.value)}
-                      sx={{ width: 120 }}
+                      sx={compactInputSx}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
                     <TextField
                       size="small"
+                      variant="outlined"
+                      fullWidth
                       value={String(rowValue(row, draft, 'model') ?? '')}
                       onChange={(event) => setField(row.id, 'model', event.target.value)}
-                      sx={{ width: 120 }}
+                      sx={compactInputSx}
                     />
                   </TableCell>
-                  <TableCell>
-                    <TextField
-                      size="small"
-                      value={String(rowValue(row, draft, 'category') ?? '')}
-                      onChange={(event) => setField(row.id, 'category', event.target.value)}
-                      sx={{ width: 180 }}
-                    />
+                  <TableCell align="right" sx={{ verticalAlign: 'top' }}>
+                    <Typography variant="caption" sx={{ display: 'block', pt: 0.75 }}>
+                      {row.quantity ?? '—'}
+                    </Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ verticalAlign: 'top', overflow: 'hidden' }}>
                     <TextField
                       select
                       size="small"
+                      variant="outlined"
+                      fullWidth
+                      value={categoryStr.trim()}
+                      onChange={(event) => setField(row.id, 'category', event.target.value)}
+                      sx={{
+                        ...compactInputSx,
+                        minWidth: 0,
+                        '& .MuiSelect-select': { overflow: 'hidden', textOverflow: 'ellipsis' },
+                      }}
+                      slotProps={{
+                        select: {
+                          displayEmpty: true,
+                          MenuProps: {
+                            PaperProps: {
+                              sx: { maxHeight: 320 },
+                            },
+                          },
+                        },
+                      }}
+                    >
+                      {categoryMenuItems(categoryStr)}
+                    </TextField>
+                  </TableCell>
+                  <TableCell sx={{ verticalAlign: 'top' }}>
+                    <TextField
+                      select
+                      size="small"
+                      variant="outlined"
+                      fullWidth
                       value={String(rowValue(row, draft, 'condition') ?? 'unknown')}
                       onChange={(event) => setField(row.id, 'condition', event.target.value)}
-                      sx={{ width: 120 }}
+                      sx={compactInputSx}
                     >
                       {ITEM_CONDITIONS.map((condition) => (
-                        <MenuItem key={condition} value={condition}>{formatConditionLabel(condition)}</MenuItem>
+                        <MenuItem key={condition} value={condition} dense>
+                          {formatConditionLabel(condition)}
+                        </MenuItem>
                       ))}
                     </TextField>
                   </TableCell>
-                  <TableCell align="right">{money(row.unit_retail)}</TableCell>
-                  <TableCell align="right">{money(row.base_cost)}</TableCell>
-                  <TableCell align="right">{money(row.ideal_price)}</TableCell>
-                  <TableCell align="right">
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={price}
-                      onChange={(event) => setField(row.id, 'final_price', event.target.value)}
-                      onBlur={() => void saveIds([row.id])}
-                      sx={{ width: 100 }}
-                      slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }}
-                    />
-                    <Stack direction="row" spacing={0.5} justifyContent="flex-end" sx={{ mt: 0.5 }}>
-                      <Button
-                        size="small"
-                        onClick={() => void applyPctCompound([row.id], 0.9, 'Row -10% (compound on final_price)')}
+                  <TableCell align="right" sx={{ verticalAlign: 'top' }}>
+                    <Typography variant="body2" sx={{ fontSize: 13, fontWeight: 500, pt: 0.75, whiteSpace: 'nowrap' }}>
+                      {money(row.unit_retail)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="center" sx={{ verticalAlign: 'top', textAlign: 'center' }}>
+                    <Stack spacing={0.25} alignItems="center" sx={{ width: '100%' }}>
+                      <Stack direction="row" spacing={0.25} alignItems="center" justifyContent="center">
+                        <IconButton
+                          size="small"
+                          sx={{ p: 0.35 }}
+                          aria-label="Decrease price 10%"
+                          onClick={() => applyPctCompound([row.id], 0.9, 'Row −10% (compound on final_price)')}
+                        >
+                          <Remove sx={{ fontSize: 18 }} />
+                        </IconButton>
+                        <TextField
+                          size="small"
+                          type="number"
+                          variant="outlined"
+                          value={price}
+                          onChange={(event) => setField(row.id, 'final_price', event.target.value)}
+                          sx={{ ...compactInputSx, width: 76 }}
+                          slotProps={{ input: { inputProps: { min: 0, step: '0.01' } } }}
+                        />
+                        <IconButton
+                          size="small"
+                          sx={{ p: 0.35 }}
+                          aria-label="Increase price 10%"
+                          onClick={() => applyPctCompound([row.id], 1.1, 'Row +10% (compound on final_price)')}
+                        >
+                          <Add sx={{ fontSize: 18 }} />
+                        </IconButton>
+                      </Stack>
+                      <Typography
+                        variant="caption"
+                        component="div"
+                        sx={(theme) => ({
+                          fontSize: '0.625rem',
+                          fontWeight: 500,
+                          lineHeight: 1.15,
+                          letterSpacing: 0.02,
+                          color: idealLineColor(delta, theme),
+                          whiteSpace: 'nowrap',
+                          maxWidth: '100%',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          textAlign: 'center',
+                          width: '100%',
+                        })}
                       >
-                        -10%
-                      </Button>
-                      <Button
-                        size="small"
-                        onClick={() => void applyPctCompound([row.id], 1.1, 'Row +10% (compound on final_price)')}
-                      >
-                        +10%
-                      </Button>
+                        Ideal {money(row.ideal_price)}
+                        {delta == null ? '' : ` · ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`}
+                      </Typography>
                     </Stack>
                   </TableCell>
-                  <TableCell align="right">
-                    <Chip
-                      size="small"
-                      label={delta == null ? '-' : `${delta.toFixed(1)}%`}
-                      color={delta == null ? 'default' : delta >= 0 ? 'success' : 'warning'}
-                      variant="outlined"
-                    />
-                  </TableCell>
                 </TableRow>
-                <TableRow>
-                  <TableCell sx={{ py: 0, borderBottom: layerOpen ? undefined : 0 }} colSpan={13}>
-                    <Collapse in={layerOpen} timeout="auto" unmountOnExit>
-                      <LayerPreviewTable row={row} />
-                    </Collapse>
-                  </TableCell>
-                </TableRow>
-                </Fragment>
               );
             })}
           </TableBody>

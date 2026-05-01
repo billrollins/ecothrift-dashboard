@@ -21,6 +21,8 @@ import ReceivingEntryRedirect from './pages/inventory/ReceivingEntryRedirect';
 import ReceivingOrderPage from './pages/inventory/ReceivingOrderPage';
 import PreprocessingPage from './pages/inventory/PreprocessingPage';
 import ProcessingPage from './pages/inventory/ProcessingPage';
+import ProcessingEntryRedirect from './pages/inventory/ProcessingEntryRedirect';
+import ProcessingWorkspacePage from './pages/inventory/processing/ProcessingWorkspacePage';
 import ProductListPage from './pages/inventory/ProductListPage';
 import ItemListPage from './pages/inventory/ItemListPage';
 import ItemDetailPage from './pages/inventory/ItemDetailPage';
@@ -117,7 +119,9 @@ export default function App() {
         <Route path="/inventory/preprocessing" element={<PreprocessingPage />} />
         <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
         <Route path="/inventory/orders/:id/preprocess" element={<PreprocessingLegacyRedirect />} />
-        <Route path="/inventory/processing" element={<ProcessingPage />} />
+        <Route path="/inventory/processing" element={<ProcessingEntryRedirect />} />
+        <Route path="/inventory/processing/:id" element={<ProcessingWorkspacePage />} />
+        <Route path="/inventory/processing-legacy" element={<ProcessingPage />} />
         <Route path="/inventory/products" element={<ProductListPage />} />
         <Route path="/inventory/items" element={<ItemListPage />} />
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />

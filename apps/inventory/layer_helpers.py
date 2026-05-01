@@ -33,8 +33,23 @@ TRIPLE_LAYER_SPECS: dict[str, FieldKind] = {
 
 
 def preprocessing_row_has_final(sr) -> bool:
-    """True once finalize persisted any final_* snapshot (final_description non-NULL)."""
-    return getattr(sr, 'final_description', None) is not None
+    """True when any final_* field is populated (cleanup upload or finalize snapshot)."""
+    fd = getattr(sr, 'final_description', None)
+    if is_meaningful(fd, 'str'):
+        return True
+    ft = getattr(sr, 'final_title', None)
+    if is_meaningful(ft, 'str'):
+        return True
+    fc = getattr(sr, 'final_category', None)
+    if is_meaningful(fc, 'str'):
+        return True
+    for base, kind in TRIPLE_LAYER_SPECS.items():
+        if base == 'description':
+            continue
+        v = getattr(sr, f'final_{base}', None)
+        if is_meaningful(v, kind):
+            return True
+    return False
 
 
 def coalesce_final_value(ai_val: Any, standard_val: Any, field_base: str) -> Any:
@@ -44,33 +59,75 @@ def coalesce_final_value(ai_val: Any, standard_val: Any, field_base: str) -> Any
     return standard_val
 
 
-def coalesce_final_title(ai_title: str) -> str:
-    return (ai_title or '')[:300] if is_meaningful(ai_title, 'str') else ''
+def coalesce_final_title_from_row(sr) -> str:
+    """Prefer meaningful ai_title; else first ~300 chars of standard_description."""
+    ai_t = getattr(sr, 'ai_title', '') or ''
+    if is_meaningful(ai_t, 'str'):
+        return ai_t[:300]
+    std_d = getattr(sr, 'standard_description', '') or ''
+    if is_meaningful(std_d, 'str'):
+        return std_d[:300]
+    return ''
 
 
-def coalesce_final_category(ai_category: str) -> str:
-    """Canonical EcoThrift category from AI layer only (no standard_category)."""
-    return str(ai_category or '').strip()[:200] if is_meaningful(ai_category, 'str') else ''
+def coalesce_final_category_from_row(sr) -> str:
+    """Prefer meaningful ai_category; else standard_taxonomy.category."""
+    ai_c = getattr(sr, 'ai_category', '') or ''
+    if is_meaningful(ai_c, 'str'):
+        return str(ai_c).strip()[:200]
+    tax = getattr(sr, 'standard_taxonomy', None) or {}
+    if isinstance(tax, dict):
+        cat = tax.get('category')
+        if is_meaningful(cat, 'str'):
+            return str(cat).strip()[:200]
+    return ''
+
+
+def _normalize_final_layer_value(coerced: Any, kind: FieldKind) -> Any:
+    from copy import deepcopy
+
+    if kind == 'str':
+        if coerced is None:
+            return None
+        s = str(coerced).strip()
+        return s if s else None
+    if kind == 'dict':
+        if isinstance(coerced, dict) and coerced:
+            return deepcopy(coerced)
+        return None
+    if kind == 'list':
+        if isinstance(coerced, list) and coerced:
+            return list(coerced)
+        return None
+    return None
 
 
 def effective_preprocessing_triple(sr, field_base: str) -> Any:
     """Effective value for staging display / listing when row is PreprocessingRow."""
+    final_v = getattr(sr, f'final_{field_base}', None)
+    kind = TRIPLE_LAYER_SPECS[field_base]
     if preprocessing_row_has_final(sr):
-        return getattr(sr, f'final_{field_base}')
+        if is_meaningful(final_v, kind):
+            return final_v
+    elif final_v is not None and is_meaningful(final_v, kind):
+        return final_v
     ai_v = getattr(sr, f'ai_{field_base}', None)
     std_v = getattr(sr, f'standard_{field_base}', None)
-    kind = TRIPLE_LAYER_SPECS[field_base]
     if is_meaningful(ai_v, kind):
         return ai_v
     return std_v
 
 
 def effective_preprocessing_title(sr) -> str:
-    if preprocessing_row_has_final(sr):
-        return str(getattr(sr, 'final_title', '') or '')[:300]
+    ft = getattr(sr, 'final_title', None)
+    if ft is not None:
+        return str(ft or '')[:300]
     ai_t = getattr(sr, 'ai_title', '') or ''
     if is_meaningful(ai_t, 'str'):
         return ai_t[:300]
+    std_d = getattr(sr, 'standard_description', '') or ''
+    if is_meaningful(std_d, 'str'):
+        return std_d[:300]
     return ''
 
 
@@ -87,6 +144,18 @@ def effective_taxonomy_category_for_row(row) -> str:
             fc = getattr(row, 'final_category', None)
             if is_meaningful(fc, 'str'):
                 return str(fc or '').strip()[:200]
+            ac = getattr(row, 'ai_category', None)
+            if is_meaningful(ac, 'str'):
+                return str(ac or '').strip()[:200]
+            tax = getattr(row, 'standard_taxonomy', None) or {}
+            if isinstance(tax, dict):
+                cat = tax.get('category')
+                if is_meaningful(cat, 'str'):
+                    return str(cat).strip()[:200]
+            return ''
+        fc = getattr(row, 'final_category', None)
+        if fc is not None and is_meaningful(fc, 'str'):
+            return str(fc or '').strip()[:200]
         ac = getattr(row, 'ai_category', None)
         if is_meaningful(ac, 'str'):
             return str(ac or '').strip()[:200]
@@ -130,24 +199,25 @@ def bulk_clear_preprocess_ai_and_final_layers(qs):
     )
 
 
-def snapshot_finalize_from_ai_and_standard(sr) -> None:
-    """Populate all final_* from coalesce(ai, standard); title from ai only."""
-    from copy import deepcopy
+def snapshot_finalize_from_ai_and_standard(sr, *, fill_missing_only: bool = False) -> None:
+    """Populate final_* from coalesce(ai, standard) and title/category defaults.
 
+    When fill_missing_only is False (e.g. cleanup CSV upload), overwrite all finals from layers.
+    When True (finalize), only fill finals that are still empty so Final Review edits persist.
+    """
     for base, kind in TRIPLE_LAYER_SPECS.items():
+        if fill_missing_only and is_meaningful(getattr(sr, f'final_{base}'), kind):
+            continue
         ai_v = getattr(sr, f'ai_{base}')
         std_v = getattr(sr, f'standard_{base}')
         coerced = coalesce_final_value(ai_v, std_v, base)
-        if kind == 'dict' and isinstance(coerced, dict):
-            setattr(sr, f'final_{base}', deepcopy(coerced))
-        elif kind == 'list' and isinstance(coerced, list):
-            setattr(sr, f'final_{base}', list(coerced))
-        else:
-            setattr(sr, f'final_{base}', coerced)
+        setattr(sr, f'final_{base}', _normalize_final_layer_value(coerced, kind))
 
-    setattr(sr, 'final_title', coalesce_final_title(getattr(sr, 'ai_title', '') or ''))
-    setattr(
-        sr,
-        'final_category',
-        coalesce_final_category(getattr(sr, 'ai_category', '') or '') or None,
-    )
+    if not (fill_missing_only and is_meaningful(getattr(sr, 'final_title', None), 'str')):
+        ft = coalesce_final_title_from_row(sr)
+        sr.final_title = ft if ft else None
+
+    if not (fill_missing_only and is_meaningful(getattr(sr, 'final_category', None), 'str')):
+        fc = coalesce_final_category_from_row(sr)
+        sr.final_category = fc if fc else None
+

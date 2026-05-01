@@ -2,7 +2,9 @@
 
 **Page:** `/inventory/preprocessing/:orderId` (Step 3 / Final Review panel)
 **Audience:** Coder implementing the rebuild. Design language reference: `.ai/extended/ux-spec.md`.
-**Last updated:** 2026-05-01
+**Last updated:** 2026-05-02
+
+**Page chrome (out of scope for this rebuild):** Stepper, order picker dropdown, Back to Order button, cream background `#F4F1EB`, page header layout. Only the Step 3 Final Review panel is being rebuilt.
 
 ---
 
@@ -25,6 +27,8 @@ When Bill or a manager opens Final Review, the questions in their head, in order
 5. **Can I commit and move on?**
 
 Every layout decision below serves these questions in this order. If a piece of UI does not answer one of them, it should be collapsed, hidden, or removed.
+
+**Terminology:** Reserve **blocker** for what **gates Finalize** (missing price, unsaved edits only). Status bar chips that surface AI-flagged rows are **issue chips** / **attention chips**; they do not block Finalize.
 
 ---
 
@@ -63,23 +67,23 @@ A single full-width row, `Card variant="outlined"`, padded `p: 1.25`. Three regi
 
 | Region | Content | Style |
 |--------|---------|-------|
-| **Left: Headline state** | Either "Ready to finalize" (success) or "N issues blocking finalize" (warning/error) with an icon | `body1`, `fontWeight: 700`, color tied to state |
-| **Center: Blocker chips** | One chip per blocker: missing price count, unsaved edits count, AI flagged count. Each chip is clickable and applies the matching filter | Outlined chips with semantic color, see below |
-| **Right: Finalize button** | `contained`, `primary`, disabled when blockers exist with a tooltip explaining why | Right-aligned, large enough to be the visual anchor |
+| **Left: Headline state** | Either "Ready to finalize" (success) or "N issues blocking finalize" (warning/error) with an icon (count reflects **Finalize blockers** only: missing price + unsaved) | `body1`, `fontWeight: 700`, color tied to state |
+| **Center: Issue chips** | One chip per **attention** issue: missing price count, unsaved edits count, AI flagged count. Each chip is clickable and toggles the matching toolbar filter | Outlined chips with semantic color, see below |
+| **Right: Finalize button** | `contained`, `primary`, disabled when **blockers** exist (missing price or unsaved only) with a tooltip explaining why | Right-aligned, large enough to be the visual anchor |
 
-### 4.3 Blocker chip rules
+### 4.3 Issue chip rules
 
-Each blocker chip follows the same pattern:
+Each issue chip follows the same pattern:
 
 - **Count + label** (for example: "12 missing price", "3 AI flagged", "5 unsaved")
 - **Color by severity:**
   - Missing price: `error.main` border, `error.main` text, faint `error` tint background (`rgba(211, 47, 47, 0.06)`)
   - AI flagged: `warning.main` treatment
-  - Unsaved edits: `info.main` or neutral primary treatment (this is a soft blocker, not an error)
-- **Click behavior:** Sets the corresponding filter on the toolbar. The chip becomes the filter, not just a stat.
+  - Unsaved edits: `info.main` or neutral primary treatment (attention, not a Finalize blocker by itself in isolation; paired with missing price logic as needed)
+- **Click behavior (toggle):** Clicking an issue chip in the status bar when the matching filter is **off** turns the filter **on**. Clicking when the filter is **on** turns it **off**. Clicking the same filter on the toolbar uses the **same** boolean state. Both chips reflect the same selection and identical selected visual styling.
 - **Hidden when zero.** A row of chips that says "0 missing price, 0 AI flagged, 0 unsaved" is noise.
 
-When all blocker counts are zero, the headline switches to "Ready to finalize" with `success.main` and a green check icon, and the Finalize button enables.
+When all **Finalize blockers** are zero (`missingPriceCount === 0 && unsavedCount === 0`), the headline switches to "Ready to finalize" with `success.main` and a green check icon, and the Finalize button enables (AI flagged may still be non-zero).
 
 ### 4.4 What goes away
 
@@ -99,6 +103,8 @@ A collapsible `Accordion` or a small expandable panel directly under the status 
 Pricing  •  Paid $6,691.82  •  Set $0.00  •  Variance from ideal: -100%   [v]
 ```
 
+**Collapsed:** do not add a filter-scope caption (the line is too short).
+
 Expanded state: a horizontal grid of four cells with labels above values, following the typography rules from `ux-spec.md`:
 
 | Cell | Value | Label |
@@ -109,6 +115,8 @@ Expanded state: a horizontal grid of four cells with labels above values, follow
 | Variance | `-100.0%` color coded | "vs ideal" |
 
 Use `tabular-nums`, `body2` `fontWeight: 700` for values, `caption` `text.secondary` for labels. Variance uses the margin/profitability threshold colors from `ux-spec.md`.
+
+**Filter scope caption (expanded only):** When any grid filter or search is active, add a small `caption` line below the four-cell grid: `Totals reflect all N rows in this PO, not the current filter.` Substitute `N` for the total staged row count. When no filter is active, omit this caption.
 
 ### 5.2 Why collapsible
 
@@ -124,21 +132,23 @@ Two clear regions. The current page conflates them, which causes misclicks on a 
 
 | Control | Behavior |
 |---------|----------|
-| Search input | Debounced 300ms (already in code), placeholder "Search title, brand, description, UPC". Width around 320px. |
+| Search input | Debounced 300ms (already in code), placeholder "Search title, brand, description, identifiers." Width around 320px. Search matches against: title, brand, description, model, vendor SKU, UPC, ASIN, and any other values in `identifiers` JSON. Identifier values are flattened to a per-row search string when rows load so the debounced filter does not walk JSON on every keystroke. |
 | Filter chips | Toggleable: "Missing price", "AI flagged", "Unsaved", "No category". Selected state uses filled background with semantic color. Unselected is outlined neutral. Multiple may be active simultaneously (AND combination). |
 | Active filter readout | Small `caption` text to the right of chips: "Showing 12 of 936 rows" when any filter is active. Hidden otherwise. |
 
-Filter chips and the status bar blocker chips are wired to the same state. Clicking "12 missing price" in the status bar toggles the "Missing price" filter chip on. They are two views of the same toggle.
+Toolbar filter chips and the status bar issue chips share the same filter booleans. Toggle behavior is specified in **§4.3**.
 
 ### 6.2 Right region: bulk actions
 
 Visually distinct from filters. Use `Button` (outlined) not chip. Group with a `ButtonGroup` or a divider so the eye sees them as a different class of control.
 
+**Bulk action policy (Option A):** Buttons are **disabled until at least one row is selected.** User checks rows, then runs the bulk action. If QA shows this breaks muscle memory for Bill, **Option B (fallback):** with no selection, clicking a bulk action treats **all rows on the current filtered pagination page** as the implicit target, always with an appropriate confirmation modal (documented in implementation plan).
+
 | Action | Behavior |
 |--------|----------|
-| Select all visible | Checkbox or text button. Selects all rows in the current filtered, paginated view. |
+| Select all visible | Selects **all rows on the current pagination page** (the current page of the filtered set). Not the virtualized DOM viewport. Not the full filtered set. Example: page size 50, page 3 of a 200-row filtered set selects row indices 101 to 150. If the filtered set has 12 rows on one page, selects all 12. |
 | Clear selection | Disabled when nothing is selected. Shows count, for example "Clear (12)". |
-| Apply -10% | Disabled until rows are selected. Shows confirmation: "Apply -10% to N selected rows?" |
+| Apply -10% | Disabled until rows are selected (Option A). Shows confirmation: "Apply -10% to N selected rows?" |
 | Apply +10% | Same pattern. |
 | Set to ideal | Same pattern. |
 | Reset to AI suggestion | Same pattern. Confirmation explains this overwrites manual edits. |
@@ -164,10 +174,10 @@ Aim to fit these in the viewport with no horizontal scroll on a 1280px wide cont
 | 1 | Selection checkbox | 40px | Bulk action targeting |
 | 2 | Expand chevron | 36px | Reveal row detail |
 | 3 | Row number (#) | 56px | Stable reference |
-| 4 | Status indicator | 40px | Tiny icon column showing AI flag, missing price, or unsaved state. See 7.4. |
+| 4 | Status indicator | 40px | Tiny icon column. See **§7.4** (mutually exclusive priority). |
 | 5 | Title | flex, min 240px | Editable inline. The single most important field. |
 | 6 | Brand | 140px | Editable inline. |
-| 7 | Category | 160px | Editable inline (autocomplete on canonical taxonomy). |
+| 7 | Category | 160px | Editable inline (autocomplete on canonical taxonomy; options must match backend PATCH validation). |
 | 8 | Condition | 110px | Chip with dropdown on click. |
 | 9 | Qty | 60px right aligned | Tabular-nums. |
 | 10 | Retail | 90px right aligned | Read-only, tabular-nums. |
@@ -193,12 +203,12 @@ This is "spreadsheet energy with better aesthetics." A processor scrolling throu
 
 ### 7.4 Status indicator column
 
-A 40px column carrying a single icon per row. Mutually exclusive priority order:
+A 40px column carrying **one** icon per row. **Mutually exclusive**; **highest priority wins:**
 
-1. **Unsaved edit** (highest): pencil icon, `info.main` or `primary.main`. Tooltip: "Unsaved changes."
-2. **Missing price**: `AttachMoney` or `MoneyOff` icon, `error.main`. Tooltip: "No price set."
-3. **AI flagged** (`ai_status` is non-null and indicates a flag): warning triangle, `warning.main`. Tooltip shows the ai_status reason.
-4. **Clean and reviewed**: optional faint check, or empty cell. Empty cell preferred to reduce noise.
+1. **Unsaved edit:** pencil icon, `info.main`, tooltip "Unsaved changes."
+2. **Missing price:** `MoneyOff` icon, `error.main`, tooltip "No price set."
+3. **AI flagged** (`ai_status` non-null and indicates a flag): `Warning` icon, `warning.main`, tooltip shows the `ai_status` reason.
+4. **Clean:** empty cell. Do **not** render a checkmark.
 
 This single column replaces a lot of conditional formatting on other cells and gives the eye one place to scan for problems.
 
@@ -206,19 +216,24 @@ This single column replaces a lot of conditional formatting on other cells and g
 
 Follow `ux-spec.md` inline edit pattern, with one adjustment for grid density.
 
+**Persistence:** The only path to the database is **Save Changes** in the grid footer. No `onBlur` auto-save on price or other fields. No background timer auto-save. Navigation away with unsaved edits uses a **Save / Discard / Cancel** guard.
+
 **Default state for editable cells:**
+
 - Cell shows the value as plain text (no input chrome).
 - Cursor changes to text cursor on hover, with a faint background tint (`action.hover`) to signal editability.
 - No visible pencil icon at this density. The hover affordance is enough.
 
 **Active edit state:**
+
 - Click or tab into the cell. The cell becomes a borderless `TextField` that fills the cell, no extra chrome.
-- Enter commits the edit (marks row dirty, value persists in React state, save button enables in footer).
-- Escape reverts to the previous value.
-- Tab moves to the next editable cell in the same row, then the first editable cell of the next row.
+- **Enter** commits the edit to draft (marks row dirty, enables Save in footer).
+- **Escape** reverts to the previous value and blurs.
+- **Tab** moves to the next editable cell in the same row, then the first editable cell of the next row.
 - Edited cells show a faint left border accent (`borderLeft: 2px solid`, `primary.main`) until saved, matching the override pattern in `ux-spec.md`.
 
 **Dirty row highlight:**
+
 - A row with any unsaved edit gets a very faint `primary` tint on its background (`rgba(46, 125, 50, 0.04)`) and the unsaved icon in the status column.
 
 ### 7.6 AI suggestion display
@@ -240,57 +255,68 @@ In the default grid row, when an AI suggestion differs from the current value, r
 
 ### 7.7 Row expand panel
 
-The chevron in column 2 expands a row to show full detail without leaving the grid. Multiple rows may be expanded.
+The chevron in column 2 expands a row to show full detail without leaving the grid. Multiple rows may be expanded. **Lazy-load** panel body only when the row is expanded.
 
-Panel content, in order:
+**Visual treatment:** `action.hover` background, no card chrome, sectioned content with `caption` labels above each section, **dividers between sections**.
 
-1. **Layered values strip** for title, brand, category, model, condition, description. Three columns: Standard, AI (if different), Final (editable). Apply links from AI to Final where applicable.
-2. **Identifiers**: UPC, ASIN, model number, vendor SKU, any other id values.
-3. **Taxonomy detail**: full canonical category path.
-4. **AI metadata** (if present): `ai_status`, AI reasoning text, search tags, specifications JSON rendered as a key-value grid.
-5. **Raw row** (collapsible): the original CSV row, preserved as it came in. Useful for debugging mappings.
+**Section 1: Layered values strip**
 
-Panel uses `action.hover` background to visually attach to the row above it. No card chrome inside the panel, just sectioned content with `caption` labels.
+A three-column grid for: **title, brand, category, model, condition, description.**
 
-### 7.8 Pagination footer
+| Column | Content |
+|--------|---------|
+| Standard | Values from `standard_*` fields |
+| AI | Values from `ai_*` fields; **only render when AI differs from Standard.** Apply link below when applicable. |
+| Final | Current working value; editable inline using the same pattern as the grid row |
 
-Anchored to the bottom of the grid, not floating below it.
+`caption` labels above each column. `body2` for values. Empty cells show "not set".
+
+After Section 1, **Section 2: Identifiers** — horizontal key-value list: UPC, ASIN, model number, vendor SKU, any other id values in `identifiers` JSON. Two columns on desktop (label / value per row).
+
+**Section 3: Taxonomy detail** — Single line, full canonical category path. If `taxonomy` JSON encodes a hierarchy, render as breadcrumbs separated by chevrons (`>`).
+
+**Section 4: AI metadata (conditional)** — Renders only when `ai_status` is non-empty/meaningful or other AI metadata exists.
+
+- `ai_status` as chips with colors aligned with §7.4 rules.
+- AI reasoning: styled quote block (left border, italic, `text.secondary`).
+- Search tags: small chip array.
+- Specifications JSON: key-value grid, two columns.
+
+**Section 5: Raw row** — Collapsible subsection, **default collapsed.** When expanded: key-value table; keys are original CSV header strings, values are raw cell strings.
+
+### 7.8 Grid footer (pagination + Save)
+
+A **single** horizontal row, **full width** of the grid, **sticky** to the bottom of the grid container. **Height ~48px.** Background `grey.50` or `action.hover`.
 
 | Region | Content |
 |--------|---------|
-| Left | "1 to 50 of 936 rows" plus filter context if any: "1 to 12 of 12 filtered" |
-| Center | Rows per page dropdown (25, 50, 100, 200) |
-| Right | Prev / Next arrows, page number input for jump to page |
-
-Bigger touch targets on the prev/next arrows than the current implementation. Add a "Jump to row" input for power users who want to land on a specific row number, since 19 pages of 50 is a lot to click through.
+| **Left** | Row count: "1 to 50 of 936 rows" or, when filtered, "1 to 12 of 12 filtered" (and equivalent). |
+| **Center** | Rows per page dropdown (25, 50, 100, 200); prev/next arrows with large touch targets; page number input; **Jump to row** input (row number in manifest). |
+| **Right** | **Save Changes** button (placement per §8). |
 
 ---
 
 ## 8. Save Changes (the soft commit)
 
-The current Save Changes button sits in the toolbar, grayed out, with no indication of what would enable it. That has to change.
-
 ### 8.1 Placement
 
-Move to the grid footer, right side, next to pagination. Anchored to the work area.
+Grid footer **right** region, anchored to the work area (§7.8).
 
 ### 8.2 States
 
-| State | Visual | Behavior |
-|-------|--------|----------|
-| **No dirty rows** | Disabled, label "Save Changes", muted color | Tooltip on hover: "No unsaved changes." |
-| **Dirty rows present** | Enabled, label "Save N changes", `contained` `primary` | Click triggers `PATCH preprocessing-review` with the dirty patches. Shows a snackbar on success: "Saved 12 rows." |
-| **Saving in progress** | Loading spinner inside button, label "Saving N changes...", disabled | Prevents double-submit. |
-| **Save failed** | Returns to enabled state, snackbar with error message | Dirty rows remain dirty so the user can retry. |
+| State | Label | Tooltip | Disabled |
+|-------|-------|---------|----------|
+| No dirty rows | "Save Changes" | "No unsaved changes." | Yes |
+| N dirty rows | "Save N changes" | "Save N rows to the database." | No |
+| Saving | "Saving N changes..." | (none) | Yes |
+| Save failed | "Save N changes" | "Last save failed. Click to retry." | No |
 
-### 8.3 Auto-save consideration (decision required)
+Snackbar on success: `Saved N rows.`  
+Snackbar on failure: `Save failed: {error message}.`
 
-Today the page batches edits and requires explicit Save. Two paths:
+### 8.3 Navigation guard
 
-- **Keep manual save** (current): the user has full control, but a forgotten save loses work on navigate-away.
-- **Add auto-save with debounce** (3 to 5 seconds after last edit): safer, but introduces silent network traffic and can mask errors.
-
-Recommendation: keep manual save, but add a navigation guard. If the user tries to leave the page with unsaved changes, show a confirmation modal: "You have N unsaved changes. Save before leaving?" with Save / Discard / Cancel buttons.
+**Keep manual save only.** No auto-save debounce. If the user tries to leave the page with unsaved changes, show a confirmation modal: Save / Discard / Cancel (wired via `useBlocker` from `react-router-dom`).
 
 ---
 
@@ -304,17 +330,22 @@ Top right of the status bar, as the visual conclusion of the headline state.
 
 | State | Visual | Behavior |
 |-------|--------|----------|
-| **Blockers present** | Disabled, label "Finalize" | Tooltip lists the blockers: "Cannot finalize: 12 missing price, 5 unsaved edits." |
+| **Blockers present** | Disabled, label "Finalize" | Tooltip: `Cannot finalize: 12 missing price, 5 unsaved edits.` (AI flagged is **not** listed here.) |
 | **Ready** | Enabled, `contained` `primary`, perhaps slightly larger than other primary buttons on the page since this is the page goal | Click triggers confirmation modal. |
 
 ### 9.3 Confirmation modal
 
-Already partially exists. Should clearly state:
+**Title:** `Finalize preprocessing for {orderNumber}?`
 
-- Number of rows being finalized.
-- That this closes the staging session and creates `ManifestRow` records.
-- That this cannot be undone without admin intervention.
-- Confirm / Cancel buttons.
+**Body:**
+
+```
+This will finalize {N} rows and create canonical ManifestRow records for this purchase order. The preprocessing staging session will close.
+
+This cannot be undone without admin intervention.
+```
+
+**Buttons:** **Cancel** `text` neutral. **Finalize** `contained` `primary`.
 
 ---
 
@@ -324,12 +355,12 @@ Already partially exists. Should clearly state:
 
 While the initial `preprocessing-review?full=true` fetch is in flight:
 
-- Status bar shows skeleton text on the headline and chips.
-- Pricing summary shows skeleton values.
-- Toolbar is rendered but disabled.
-- Grid shows a skeleton table with 10 placeholder rows.
+- **Status bar:** skeleton on headline (one line, **240px** wide); **three** skeleton chips at **80px** wide each.
+- **Pricing summary:** collapsed row with **three** skeleton value bars at **80px** each.
+- **Toolbar:** rendered; **all controls disabled**. Search shows normal placeholder.
+- **Grid:** **10** skeleton rows at default row height (40 to 44px). **Column headers render immediately** from static config (no skeleton on headers).
 
-Do not block the entire page with a centered spinner. The chrome can render immediately and skeletons fill in the data zones.
+Do not block the entire page with a centered full-page spinner. The chrome can render immediately and skeletons fill in the data zones.
 
 ### 10.2 Empty (zero staged rows)
 
@@ -346,7 +377,7 @@ If the review fetch fails:
 
 ### 10.4 Saving
 
-Snackbar at the top right (matches existing notistack pattern in the app), max 3 stacked, 4-second auto-hide. "Saved 12 rows" on success, "Save failed: [reason]" on failure.
+Snackbar at the top right (matches existing notistack pattern in the app), max 3 stacked, 4-second auto-hide. Use exact strings from **§8.2** (`Saved N rows.` / `Save failed: {error message}.`).
 
 ---
 
@@ -356,10 +387,16 @@ The page already loads up to 10,000 rows in a single payload. The current DOM st
 
 ### 11.1 Recommendations
 
-- **Virtualize the grid.** Use `@tanstack/react-virtual` or MUI X DataGrid Pro virtualization. Render only rows in the viewport plus a small overscan buffer. This makes 200 rows per page feel as fast as 50.
-- **Memoize row components.** Each row should be a `React.memo` component receiving a stable row object reference. Editing one cell must not rerender all 50 rows. The `buying.md` desktop grid lessons (refs for frequently changing cell state) apply here.
-- **Defer expand panel content.** Render the expand panel only when expanded. Do not render hidden detail upfront for 50 rows.
-- **Server-side pagination as a future option.** The technical doc notes `?page` and `?page_size` are supported but unused. If virtualization plus memoization is not enough on the largest manifests, switch to server pagination with the same UI.
+- **Virtualize the grid** with **`@tanstack/react-virtual`** and `useVirtualizer` on the row list inside a fixed-height flex region (`flex: 1; minHeight: 0`). Add the package if missing. Do not rely on MUI X DataGrid for this grid.
+- **Memoize row components** per the **row memoization contract** below.
+- **Defer expand panel content.** Render the expand panel only when expanded. Do not render hidden detail upfront for collapsed rows.
+- **Server-side pagination** remains a future option if virtualization is insufficient.
+
+**Row memoization contract:**
+
+- Each memoized row receives **`row` (data)** and a **stable callbacks object** from a parent whose handlers are **`useCallback`** with stable deps.
+- Frequently changing data (selection, expansion, draft values) should flow through **refs** inside the row where needed (see `AuctionListDesktop.tsx` patterns) so a single-cell edit does not change row props for every row.
+- **Goal:** Editing one cell must not rerender other rows. Validate with React DevTools Profiler before closing the milestone.
 
 ### 11.2 What not to do
 
@@ -370,7 +407,7 @@ The page already loads up to 10,000 rows in a single payload. The current DOM st
 
 ## 12. Keyboard shortcuts (power user layer)
 
-Bill is reviewing 936 rows. Saving him keyboard time matters.
+**First pass (ship):**
 
 | Shortcut | Action |
 |----------|--------|
@@ -378,13 +415,18 @@ Bill is reviewing 936 rows. Saving him keyboard time matters.
 | `Tab` / `Shift+Tab` | Move between editable cells in the current row |
 | `Enter` (in cell) | Commit edit, move to same column next row |
 | `Escape` (in cell) | Revert edit, blur cell |
-| `j` / `k` | Move row focus down / up (vim-style, optional) |
+| `Ctrl+S` | Save Changes |
+| `Ctrl+Enter` | Trigger Finalize when enabled |
+
+**Deferred (second pass, time permitting):**
+
+| Shortcut | Action |
+|----------|--------|
+| `j` / `k` | Move row focus down / up |
 | `e` | Expand or collapse focused row |
 | `x` | Toggle selection on focused row |
-| `Ctrl+S` | Save Changes |
-| `Ctrl+Enter` | Trigger Finalize (only when enabled) |
 
-Show a discoverable shortcuts cheat sheet behind a `?` icon in the page header.
+Show a shortcuts cheat sheet behind a `?` icon in the page header listing **first-pass** shortcuts only in v1.
 
 ---
 
@@ -425,6 +467,7 @@ To keep scope bounded:
 - `PreprocessingRow` model and serializer are unchanged.
 - Step 1 (Standardize Manifest) and Step 2 (AI Cleanup) panels are out of scope for this design doc. They get their own pass later.
 - Mobile and tablet layouts. This is a desktop-only workflow tool. A 1280px minimum content width is acceptable.
+- **Page chrome unchanged:** stepper, order picker dropdown, Back to Order button, cream background `#F4F1EB`, page header layout. Only the Step 3 Final Review panel is rebuilt.
 
 ---
 
@@ -432,14 +475,14 @@ To keep scope bounded:
 
 The coder should not attempt a single-shot rewrite. Sequence:
 
-1. **Status bar refactor.** Resolve the contradiction. Wire blocker chips to filter state. Move Finalize button into the status bar. Hide pricing chips into a collapsible.
+1. **Status bar refactor.** Resolve the contradiction. Wire issue chips to filter state. Move Finalize button into the status bar. Hide pricing chips into a collapsible.
 2. **Toolbar split.** Separate filters from bulk actions visually. Move Save Changes to the grid footer.
 3. **Grid column refactor.** Cap Description column, push detail into expand panel, add status indicator column, fix horizontal scroll.
 4. **Row density pass.** Tighten padding, single-line cells, hide redundant AI suggestion text.
 5. **Inline edit pattern.** Replace the visible TextField on every row with hover-to-reveal editing.
-6. **Expand panel.** Build the layered values display.
-7. **Virtualization.** Once the layout is stable, optimize render performance.
-8. **Keyboard shortcuts.** Layer on after the visual rebuild lands.
+6. **Expand panel.** Build the layered values display per §7.7.
+7. **Virtualization.** Once the layout is stable, optimize render performance with `@tanstack/react-virtual`.
+8. **Keyboard shortcuts (first pass).** After the visual rebuild lands.
 
 Each step ships independently and improves the page. Do not block any one step on later ones.
 
@@ -456,5 +499,10 @@ This page is done when:
 - Finalize is enabled when and only when zero rows are missing prices and zero rows are dirty.
 - The page does not waste vertical space on data the user is not currently using.
 - A new staff member can sit down at this page and understand the workflow without training.
+- After deleting all draft state and saving, the unsaved icon disappears from all affected rows within one render cycle.
+- Filtering to a 12-row subset, selecting all visible, and applying -10% only changes those 12 rows in `reviewRowsFull`; other rows are untouched.
+- Navigating away with unsaved changes shows the modal; **Discard** navigates immediately; **Save** persists then navigates; **Cancel** stays with edits intact.
 
-When all eight of these are true, ship it.
+When all of these are true, ship it.
+
+**Taxonomy (hard requirement):** Category `Autocomplete` options come from **`TAXONOMY_V1_CATEGORY_NAMES`** in [`frontend/src/constants/taxonomyV1.ts`](frontend/src/constants/taxonomyV1.ts). Before merging the rebuild, **verify** this set matches what the backend accepts on `PATCH …/preprocessing-review/` for `category`. If they have drifted, fix drift before ship. Add a comment on the Autocomplete pointing to the backend validation source so future drift is caught early.

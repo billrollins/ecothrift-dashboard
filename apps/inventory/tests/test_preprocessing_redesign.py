@@ -93,6 +93,16 @@ class PreprocessingRedesignTests(TestCase):
         force_authenticate(request, user=self.user)
         return view(request, pk=self.order.pk)
 
+    def _preprocessing_review_reset_final(self, row_ids):
+        view = PurchaseOrderViewSet.as_view({'post': 'preprocessing_review_reset_final'})
+        request = APIRequestFactory().post(
+            f'/api/inventory/orders/{self.order.pk}/preprocessing-review-reset-final/',
+            {'row_ids': row_ids},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        return view(request, pk=self.order.pk)
+
     def _create_preprocessing_rows_for_review(self):
         prep = PreprocessingOrder.objects.create(
             purchase_order=self.order,
@@ -379,7 +389,8 @@ class PreprocessingRedesignTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         first.refresh_from_db()
-        self.assertEqual(first.ai_title, 'Edited Toaster Title')
+        self.assertEqual(first.final_title, 'Edited Toaster Title')
+        self.assertEqual(first.ai_title, 'Acme Toaster')
         self.assertEqual(first.ai_status, {})
 
     def test_preprocessing_review_patch_keeps_ai_status_when_only_batch_flag(self):
@@ -402,7 +413,7 @@ class PreprocessingRedesignTests(TestCase):
         first.ai_status = {'state': 'hard_flagged', 'issues': [{'rule': 'HARD_X', 'reason': 'check'}]}
         first.save(update_fields=['ai_status'])
 
-        response = self._preprocessing_review_get()
+        response = self._preprocessing_review_get({'fields': 'full'})
 
         self.assertEqual(response.status_code, 200)
         row = next(r for r in response.data['rows'] if r['id'] == first.id)
@@ -695,6 +706,16 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(sr2.ai_category, 'Home décor & lighting')
         self.assertEqual(sr1.ai_taxonomy, sr1.standard_taxonomy)
         self.assertEqual(sr2.ai_taxonomy, sr2.standard_taxonomy)
+        self.assertEqual(sr1.final_title, 'Acme Two Slice Toaster')
+        self.assertEqual(sr2.final_title, 'BrightCo LED Desk Lamp')
+        self.assertEqual(sr1.final_description, 'Acme Toaster 2 Slice')
+        self.assertEqual(sr2.final_description, 'Bright LED Lamp')
+        self.assertEqual(sr1.final_brand, 'Acme')
+        self.assertEqual(sr2.final_brand, 'BrightCo')
+        self.assertEqual(sr1.final_category, 'Kitchen & dining')
+        self.assertEqual(sr2.final_category, 'Home décor & lighting')
+        self.assertEqual(sr1.final_condition, 'good')
+        self.assertEqual(sr2.final_condition, 'good')
 
     def test_upload_cleanup_csv_staging_ignores_spoofed_locked_json_cells(self):
         prep = PreprocessingOrder.objects.create(
@@ -823,7 +844,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['count'], 2)
         self.assertEqual(response.data['summary']['missing_price'], 1)
-        self.assertEqual(response.data['summary']['low_confidence'], 1)
+        self.assertEqual(response.data['summary']['low_confidence'], 0)
         self.assertNotIn('first_item_sku', response.data['rows'][0])
         self.assertNotIn('item_count', response.data['rows'][0])
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 0)
@@ -864,9 +885,11 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.data['rows_updated'], 1)
         first.refresh_from_db()
         prep.refresh_from_db()
-        self.assertEqual(first.ai_title, 'Acme Two Slice Toaster')
-        self.assertEqual(first.ai_brand, 'Acme Co')
-        self.assertEqual(first.ai_condition, 'good')
+        self.assertEqual(first.final_title, 'Acme Two Slice Toaster')
+        self.assertEqual(first.final_brand, 'Acme Co')
+        self.assertEqual(first.final_condition, 'good')
+        self.assertEqual(first.ai_title, 'Acme Toaster')
+        self.assertEqual(first.standard_brand, 'Acme')
         self.assertEqual(first.final_price, Decimal('19.99'))
         self.assertIsNone(first.proposed_price)
         self.assertEqual(first.pricing_stage, 'final')
@@ -890,6 +913,52 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 409)
         first.refresh_from_db()
         self.assertEqual(first.ai_title, 'Acme Toaster')
+
+    def test_preprocessing_review_reset_final_restores_ai_standard_layers_keeps_prices(self):
+        prep, first, _second = self._create_preprocessing_rows_for_review()
+
+        patch_resp = self._preprocessing_review_patch([
+            {
+                'id': first.id,
+                'patch': {
+                    'title': 'Acme Two Slice Toaster',
+                    'brand': 'Acme Co',
+                    'condition': 'good',
+                    'final_price': '19.99',
+                    'pricing_notes': 'Manual review set price',
+                },
+            },
+        ])
+        self.assertEqual(patch_resp.status_code, 200)
+        first.refresh_from_db()
+        self.assertEqual(first.final_brand, 'Acme Co')
+        self.assertEqual(first.final_price, Decimal('19.99'))
+
+        reset_resp = self._preprocessing_review_reset_final([first.id])
+        self.assertEqual(reset_resp.status_code, 200)
+        self.assertEqual(reset_resp.data['rows_reset'], 1)
+
+        first.refresh_from_db()
+        self.assertEqual(first.final_title, 'Acme Toaster')
+        self.assertEqual(first.final_brand, 'Acme')
+        self.assertEqual(first.final_condition, 'unknown')
+        self.assertEqual(first.final_price, Decimal('19.99'))
+        self.assertEqual(first.pricing_stage, 'final')
+        self.assertEqual(first.ai_title, 'Acme Toaster')
+
+    def test_preprocessing_review_reset_final_rejects_unknown_row_id(self):
+        self._create_preprocessing_rows_for_review()
+        response = self._preprocessing_review_reset_final([999999])
+        self.assertEqual(response.status_code, 400)
+
+    def test_preprocessing_review_reset_final_rejects_finalized_session(self):
+        prep, first, _second = self._create_preprocessing_rows_for_review()
+        prep.finalized_at = timezone.now()
+        prep.workflow_status = 'finalized'
+        prep.save(update_fields=['finalized_at', 'workflow_status', 'updated_at'])
+
+        response = self._preprocessing_review_reset_final([first.id])
+        self.assertEqual(response.status_code, 409)
 
     def test_finalize_preprocessing_promotes_staging_to_manifest_and_items(self):
         prep = PreprocessingOrder.objects.create(
@@ -957,6 +1026,20 @@ class PreprocessingRedesignTests(TestCase):
         self.assertTrue(response.data.get('full'))
         self.assertEqual(len(response.data['rows']), 2)
 
+    def test_preprocessing_review_default_uses_minimal_row_shape(self):
+        self._create_preprocessing_rows_for_review()
+        response = self._preprocessing_review_get()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data.get('fields'), 'minimal')
+        row = response.data['rows'][0]
+        self.assertNotIn('standard_description', row)
+        self.assertNotIn('final_title', row)
+        self.assertNotIn('ai_brand', row)
+        self.assertNotIn('ai_status', row)
+        self.assertIn('description', row)
+        self.assertIn('title', row)
+        self.assertNotIn('identifiers', row)
+
     def test_finalize_preprocessing_applies_rows_payload_before_promotion(self):
         prep = PreprocessingOrder.objects.create(
             purchase_order=self.order,
@@ -994,6 +1077,56 @@ class PreprocessingRedesignTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 1)
+
+    def test_finalize_preprocessing_fill_missing_only_preserves_final_review_edits(self):
+        prep = PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='review',
+            row_count=1,
+        )
+        row = PreprocessingRow.objects.create(
+            preprocessing_order=prep,
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            standard_description='Standard widget body copy',
+            ai_title='AI Listing Title',
+            ai_description='',
+            standard_brand='VendorBrand',
+            ai_brand='VendorBrand',
+            standard_taxonomy={'category': 'Kitchen & dining'},
+            ai_category='Kitchen & dining',
+            ai_condition='good',
+            standard_condition='good',
+            unit_retail=Decimal('40.00'),
+            proposed_price=Decimal('15.00'),
+            final_price=Decimal('15.00'),
+            pricing_stage='final',
+            final_title='Staff Final Title',
+            final_category='Kitchen & dining',
+            final_description=None,
+            final_brand=None,
+        )
+
+        view = PurchaseOrderViewSet.as_view({'post': 'finalize_preprocessing'})
+        request = APIRequestFactory().post(
+            f'/api/inventory/orders/{self.order.pk}/finalize-preprocessing/',
+            {},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=self.order.pk)
+
+        self.assertEqual(response.status_code, 200)
+        row.refresh_from_db()
+        self.assertEqual(row.final_title, 'Staff Final Title')
+        self.assertEqual(row.final_category, 'Kitchen & dining')
+        self.assertEqual(row.final_description, 'Standard widget body copy')
+        self.assertEqual(row.final_brand, 'VendorBrand')
+        m = ManifestRow.objects.get(purchase_order=self.order, row_number=1)
+        self.assertEqual(m.title, 'Staff Final Title')
+        self.assertEqual(m.description, 'Standard widget body copy')
+        self.assertEqual(m.brand, 'VendorBrand')
 
     def test_preview_manifest_formulas_requires_manifest_file(self):
         view = PurchaseOrderViewSet.as_view({'post': 'preview_manifest_formulas'})

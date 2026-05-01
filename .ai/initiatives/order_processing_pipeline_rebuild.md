@@ -1,5 +1,5 @@
-<!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-05-01 -->
-<!-- Last updated: 2026-05-01 (Progress: preprocessing core shipped; cleanup_csv_contract link) -->
+<!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-05-02 -->
+<!-- Last updated: 2026-05-02 (Session 12: Item Processor read-only pricing audit + steering bump) -->
 
 # Initiative: Order / Processing pipeline rebuild
 
@@ -22,7 +22,7 @@ Staff-facing umbrella for **`Orders → Preprocessing → Receiving → Processi
 | **Orders** | PO list + detail — manifest upload (**Raw Manifest** CSV to S3), lifecycle, dashboards. |
 | **Preprocessing** | Standardize vendor CSV into internal shape (templates, staged rows, external clean step, review). |
 | **Receiving** | Dock receiving against the PO (pallets, shortages, discrepancy handling). **`/inventory/receiving`** / **`/inventory/receiving/:id`**. |
-| **Processing** | Item-level processing workspace (check-in, labels, batches). **`/inventory/processing`**. |
+| **Processing** | Item-level workspace (manifest queue, check-in, labels, disputes). **`/inventory/processing`** → **`/inventory/processing/:id`**; legacy batch grid **`/inventory/processing-legacy`**. |
 | **Finalization** | Placeholder route until scoped. **`/inventory/inbound/finalization`**. |
 | **Disputes** | Placeholder route until scoped. **`/inventory/inbound/disputes`**. |
 
@@ -35,7 +35,7 @@ Staff-facing umbrella for **`Orders → Preprocessing → Receiving → Processi
 | **Orders** | **Shipped** — dashboard, create PO, order detail workspace, **`POST …/upload-manifest/`**, [`CHANGELOG [2.20.0]`](../../CHANGELOG.md). |
 | **Receiving** | **Shipped** — **`GET …/orders/for-receiving/`** tiered ED ordering; **`/inventory/receiving`** → next PO; **`OrderListPage`** receive truck; **`ReceivingOrderPage`** + desktop/mobile receiving UI. |
 | **Preprocessing** | **Shipped (core)** — three-step **`PreprocessingPage`**: Standardize → Clean → **Final Review**; **`download-cleanup-csv`** / **`apply-cleanup-csv`** (wide Grok + narrow legacy); **`preprocessing-review`**; **`finalize-preprocessing`** (three-layer **`PreprocessingRow`** → **`final_*`** → rebuilt **`ManifestRow`**). **Iterative hardening** (UX polish, edge cases): [Preprocessing — target UX](#preprocessing--target-ux), **[`cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)**. Row validation (**`rule`** ids, **`rejected_rows`** / **`soft_warnings`**) lives in **`apps/inventory/cleanup_csv_validate.py`** (`validate_cleanup_row_values`). |
-| **Processing** | In place; iterative hardening ongoing. **`/inventory/processing`** |
+| **Processing** | Item Processor workspace shipped (**`/inventory/processing`**, **`/inventory/processing/:id`**); legacy batch UI **`/inventory/processing-legacy`**. Backend workspace + mutations (`processing-workspace`, print-and-check-in, dispute, merge, swap, bulk). See **`CHANGELOG [Unreleased]`**, **`inventory-pipeline.md`**. |
 | **Finalization / Disputes** | Roadmap placeholders. |
 
 ---
@@ -49,7 +49,7 @@ Subgroup headers under collapsible **Inventory**:
 | **Inbound fulfillment** | Orders | `/inventory/orders` |
 | | Preprocessing | `/inventory/preprocessing` (**`/inventory/preprocessing/:id`**); **`/inventory/preprocessing`** redirects via last-ID or empty state |
 | | Receiving | `/inventory/receiving` → next eligible PO (`ReceivingEntryRedirect`); work at `/inventory/receiving/:id` |
-| | Processing | `/inventory/processing` |
+| | Processing | **`/inventory/processing`** → **`ProcessingEntryRedirect`**; work at **`/inventory/processing/:id`** (**Item Processor**). Legacy grid: **`/inventory/processing-legacy`** |
 | | Finalization | `/inventory/inbound/finalization` — roadmap placeholder |
 | | Disputes | `/inventory/inbound/disputes` — roadmap placeholder |
 | **Items** | Search items | `/inventory/items` (detail `/inventory/items/:id`) |
@@ -58,7 +58,7 @@ Subgroup headers under collapsible **Inventory**:
 | **Vendors** | Vendors | `/inventory/vendors` |
 | | Manifest templates | `/inventory/templates` — splash pointing at vendors |
 | **Admin** | Categories | `/inventory/admin/categories` — roadmap placeholder |
-| | Processing settings | `/inventory/processing` + **`#settings`** opens settings modal (`?settings=1` still honored) |
+| | Processing settings | **`/inventory/processing-legacy`** + **`#settings`** / **`?settings=1`** opens settings modal (`ProcessingSettingsModal`) |
 | | Legacy inventory pages | `/inventory/legacy` — hub; **`/inventory/legacy/orders`** — legacy manifest/preprocessing/processing entry points ( **`/inventory/admin/legacy`** redirects here ) |
 
 **Label:** Sidebar and **PreprocessingPage** **`PageHeader`** title use **Preprocessing** — not ~~Manifest prep~~.
@@ -232,11 +232,11 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 - **Finish line:** Steering + **[Unreleased]** describe 13-col CSV, **`soft_warnings`**, Final Review chips, and clear-on-edit semantics.
 - **Start:** 2026-05-01
 
-### Session 11 — `review.0.Bump` (visual directive vs `[Unreleased]` plan)
+### Session 12 — `review.0.Bump` (Item Processor pricing audit + `manual-review` Retail)
 
-- **Goal:** Align **`CHANGELOG [Unreleased]`** with **Pass 1 (mockup directive)** vs **Pass 2 (broader UI rebuild plan)**; refresh steering (**`context.md`**, **`consultant_context.md`**, **`extended/frontend.md`**, **`extended/inventory-pipeline.md`**) with **`fix_this.md`** / directive pointers and **`ux-spec`** expectations; record session; local **`git commit`** (no **`.version`** bump).
-- **Scope:** `CHANGELOG.md`, `.ai/context.md`, `.ai/consultant_context.md`, `.ai/extended/frontend.md`, `.ai/extended/inventory-pipeline.md`, this file (session only), `.ai/protocols/review.0.Bump.md` timestamp.
-- **Finish line:** Readers are not misled by older “selection + virtualize first” bullets; **`frontend/package.json`** **`0.0.0`** unchanged.
+- **Goal:** Staff can **see** manifest-line economics (**`GET …/manual-review/`**) during Item Processor without editing; **Retail** column matches API **`unit_retail`**; active card shows manifest MSRP vs shelf when investigating bad prices.
+- **Scope:** `ProcessingWorkspacePage.tsx` (accordion + **`useManualReview`**), `ManualReviewPanel.tsx` (`readOnly`, **`displayRetail`**), `ProcessingActiveCard.tsx`, `inventory.types.ts` **`ManifestRow.unit_retail`**; **`CHANGELOG [Unreleased]`**; `.ai/context.md`, `.ai/consultant_context.md`, `.ai/extended/{frontend,inventory-pipeline}.md`; this session block.
+- **Finish line:** Steering + **[Unreleased]** describe read-only audit + column fix; **no** `.version` bump (`review.0.Bump` Part **2A**).
 - **Start:** 2026-05-02
 
 ---

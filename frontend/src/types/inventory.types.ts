@@ -110,6 +110,8 @@ export interface ManifestRow {
   model: string;
   category: string;
   condition: ItemCondition | '';
+  /** Per-unit vendor / manifest MSRP (`ManifestRow.unit_retail`); authoritative for pricing math on manual-review rows. */
+  unit_retail?: string | null;
   retail_value: string | null;
   proposed_price: string | null;
   final_price: string | null;
@@ -331,6 +333,102 @@ export interface Item {
   notes: string;
   created_at: string;
   updated_at: string;
+  dispute_type?: '' | 'broken' | 'undelivered';
+  dispute_pct_loss?: number | null;
+  dispute_description?: string;
+}
+
+/** Item Processor workspace (`GET …/processing-workspace/`). */
+export interface ProcessingWorkspaceProductDTO {
+  id: number;
+  product_number: string;
+  title: string;
+  brand: string;
+  model: string;
+  description: string;
+  specs: Record<string, unknown>;
+  tags: string;
+  taxonomy: string;
+  category: string;
+  upc: string;
+}
+
+export interface ProcessingWorkspaceItemDTO {
+  id: number;
+  sku: string;
+  condition: string;
+  condition_label: string;
+  price: string;
+  retail: string | null;
+  dispatch: string;
+  disposition: string;
+  notes: string;
+  status: ItemStatus;
+  product: number | null;
+  manifest_row: number | null;
+  checked_in_at: string | null;
+  dispute_type: string | null;
+  dispute_pct_loss: number | null;
+  dispute_description: string;
+}
+
+export interface ProcessingWorkspaceRowDTO {
+  manifest_row_id: number;
+  rowNum: number;
+  productId: number | null;
+  product: ProcessingWorkspaceProductDTO | null;
+  title: string;
+  brand: string;
+  model: string;
+  description: string;
+  specs: Record<string, unknown>;
+  tags: string;
+  taxonomy: string;
+  category: string;
+  qty: number;
+  qtyDispositioned: number;
+  unitRetail: string | null;
+  manifestNotes: string;
+  identifiers: Record<string, unknown>;
+  tracking: Record<string, unknown>;
+  items: ProcessingWorkspaceItemDTO[];
+  status: string;
+  likelyDuplicateOf: number[];
+  condition: string;
+  price: string | null;
+  dispatch: string;
+  sku: string | null;
+}
+
+export interface ProcessingWorkspaceOrderDTO {
+  id: number;
+  number: string;
+  vendor: string;
+  vendor_code: string;
+  load_type: string;
+  expected_delivery: string | null;
+  /** ISO date from purchase order. */
+  ordered_date: string | null;
+  paid_date: string | null;
+  delivered_date: string | null;
+  status: PurchaseOrderStatus;
+  total_manifest_qty: number;
+  total_retail: string | null;
+}
+
+export interface ProcessingWorkspaceDTO {
+  order: ProcessingWorkspaceOrderDTO;
+  rows: ProcessingWorkspaceRowDTO[];
+  session: {
+    items_per_hour: number;
+    elapsed_seconds: number;
+    session_log: unknown[];
+  };
+  progress: {
+    total_units: number;
+    dispositioned_units: number;
+    pending_units: number;
+  };
 }
 
 export interface ProcessingBatch {

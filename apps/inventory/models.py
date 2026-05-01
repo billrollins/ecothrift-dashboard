@@ -812,6 +812,15 @@ class Item(models.Model):
     sold_at = models.DateTimeField(null=True, blank=True)
     sold_for = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True, default='')
+    dispute_type = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        choices=[('broken', 'Broken'), ('undelivered', 'Undelivered')],
+        help_text='Item Processor dispute classification when status is scrapped/lost.',
+    )
+    dispute_pct_loss = models.PositiveSmallIntegerField(null=True, blank=True)
+    dispute_description = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     search_text = models.TextField(blank=True, default='', db_index=True)
@@ -864,6 +873,7 @@ class Item(models.Model):
         return re.sub(r'\s+', ' ', text).strip()
 
     def save(self, *args, **kwargs):
+        defer_po = kwargs.pop('defer_po_cost_recompute', False)
         using = kwargs.get('using')
         prior = None
         if self.pk:
@@ -877,7 +887,8 @@ class Item(models.Model):
             self.sku = Item.generate_sku(using=using)
         self.search_text = self.rebuild_search_text()
         super().save(*args, **kwargs)
-        self._recompute_po_item_costs_after_save(prior, using)
+        if not defer_po:
+            self._recompute_po_item_costs_after_save(prior, using)
 
     def _recompute_po_item_costs_after_save(self, prior, using) -> None:
         """When line retail or PO assignment changes, reallocate Item.cost on affected PO(s)."""
@@ -1141,3 +1152,64 @@ class ReceivingAttachment(models.Model):
 
     def __str__(self):
         return f'{self.kind} {self.receiving_id}'
+
+
+class ProductMergeAudit(models.Model):
+    """Audit trail when manifest rows are merged to one Product (Item Processor)."""
+
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='product_merge_audits',
+    )
+    merged_at = models.DateTimeField(auto_now_add=True)
+    merged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='product_merge_audits',
+    )
+    source_manifest_row_ids = models.JSONField(default=list)
+    target_product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='merge_audits_as_target',
+    )
+    snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-merged_at']
+
+
+class ItemSwapAudit(models.Model):
+    """Audit trail for Item Processor row swaps."""
+
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='item_swap_audits',
+    )
+    swapped_at = models.DateTimeField(auto_now_add=True)
+    swapped_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='item_swap_audits',
+    )
+    source_row = models.ForeignKey(
+        ManifestRow,
+        on_delete=models.CASCADE,
+        related_name='swap_audits_as_source',
+    )
+    target_row = models.ForeignKey(
+        ManifestRow,
+        on_delete=models.CASCADE,
+        related_name='swap_audits_as_target',
+    )
+    mode = models.CharField(max_length=20)
+    snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-swapped_at']

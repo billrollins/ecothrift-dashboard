@@ -399,6 +399,41 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
         return round(float((price - ideal) / ideal * 100), 1)
 
 
+class PreprocessingReviewRowMinimalSerializer(PreprocessingReviewRowSerializer):
+    """Step 3 grid: slim JSON (no standard/ai/final triples or ai_status).
+
+    Listing columns still use the same effective coalesce as the full serializer so the table
+    is populated before finals exist or when only standard/ai layers are filled.
+    """
+
+    class Meta(PreprocessingReviewRowSerializer.Meta):
+        fields = [
+            'id',
+            'row_number',
+            'quantity',
+            'unit_retail',
+            'proposed_price',
+            'final_price',
+            'pricing_stage',
+            'pricing_notes',
+            'batch_flag',
+            'description',
+            'title',
+            'brand',
+            'model',
+            'condition',
+            'notes',
+            'category',
+            'specifications',
+            'search_tags',
+            'base_cost',
+            'ideal_price',
+            'set_price',
+            'ideal_delta_pct',
+            'final_layer_visible',
+        ]
+
+
 class PurchaseOrderSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor.name', read_only=True)
     vendor_code = serializers.CharField(source='vendor.code', read_only=True)
@@ -600,7 +635,9 @@ class ItemSerializer(serializers.ModelSerializer):
             'title', 'brand', 'price', 'unit_retail', 'cost',
             'source', 'status', 'condition', 'specifications',
             'location', 'listed_at', 'checked_in_at', 'checked_in_by',
-            'sold_at', 'sold_for', 'notes', 'created_at', 'updated_at',
+            'sold_at', 'sold_for', 'notes',
+            'dispute_type', 'dispute_pct_loss', 'dispute_description',
+            'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id',
@@ -609,6 +646,9 @@ class ItemSerializer(serializers.ModelSerializer):
             'listed_at',
             'checked_in_at',
             'checked_in_by',
+            'dispute_type',
+            'dispute_pct_loss',
+            'dispute_description',
             'created_at',
             'updated_at',
         ]

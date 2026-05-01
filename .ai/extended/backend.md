@@ -8,6 +8,8 @@
 
 **2026-04 Inventory preprocessing redesign:** `PurchaseOrderViewSet.process_manifest` seeds **`PreprocessingRow`** staging (`standard_*`). Staff download **lean cleanup CSV**, apply Grok/Excel output via **`apply-cleanup-csv`** into **`ai_*`** / **`ai_title`** (optional per-row **`ai_status`** JSON on wide import; empty/malformed → **`{}`**); **Final Review** uses **`preprocessing-review`** (**`PATCH`** clears **`ai_status`** when listing or price fields change, not for **`batch_flag`** / **`pricing_notes`** only); **`finalize-preprocessing`** runs **`snapshot_finalize_from_ai_and_standard`** then rebuilds **`ManifestRow`** from **`final_*`**. Legacy **`ai-cleanup-rows`** (Anthropic) can still mutate **`ManifestRow`** when those rows exist. `manual-review` is the canonical **post-finalize** review/pricing surface over **`ManifestRow`**. `create-items` opens Processing for existing early Items instead of duplicating inventory.
 
+**Timeouts (`finalize-preprocessing`):** Finalize can run tens of seconds on large manifests (staging snapshot, bulk manifest rows, product/item upserts). Keep finalize synchronous unless logs show proxy timeouts. Ops should set reverse-proxy and app-server HTTP timeouts **≥ 120s** (e.g. nginx `proxy_read_timeout`, uvicorn/gunicorn graceful limits) for staff uploading large CSVs; correlate with structured finalize duration logs before adding async jobs.
+
 ## Project Structure
 
 Django project with **8 apps** under `apps/`:

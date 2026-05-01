@@ -171,8 +171,7 @@ const navSections: NavSection[] = [
             icon: <LocalShipping />,
           },
           {
-            path: '/inventory/inbound',
-            navSearch: '?view=processing',
+            path: '/inventory/processing',
             label: 'Processing',
             icon: <Inventory />,
           },

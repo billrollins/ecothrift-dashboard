@@ -2,47 +2,47 @@
 
 ## Executive Summary
 
-- **Active initiatives health:** **`order_processing_pipeline_rebuild`** — Progress table lists **Preprocessing** **Shipped (core)** with Step 3 **Final Review** (**2026-05-01** refresh).
-- **Archive/index consistency:** **`_archived/_completed`** has **16** `.md` files; **`ARCHIVE.md`** TOC lists matching completed entries (spot-check: 16).
-- **Recommended dispositions:** **None** that require moves — ongoing doc parity via **`cleanup_csv_contract.md`** + pipeline.
-- **Confidence:** **Medium** (report snapshot may predate minor follow-up edits)
+- **Active initiatives:** **One** row on `_index.md`: **`order_processing_pipeline_rebuild`** (preprocessing core shipped; Final Review visual rebuild still tracked against mockup/directive docs).
+- **Archive health:** **`ARCHIVE.md`** TOC row counts match **on-disk** archived markdown files per bucket (`_completed` **16**, `_pending` **5**, `_backlog` **4**, `_abandoned` **1**).
+- **Initiatives `_protocols` stub:** `.ai/initiatives/_protocols/README.md` explicitly points canonical lifecycle docs to **`_archived/_protocols/`** (“stub so duplicate copies do not drift”) — **not** an archive mismatch.
+- **Confidence:** **High** for index vs archive consistency; **Medium** for initiative session-log freshness without reading full `order_processing_pipeline_rebuild.md` history end-to-end.
 
 ## Active / Root Initiative Index
 
 | Initiative | Listed status | File status | Current phase | Evidence | Finding | Recommendation |
-|---|---|---|---|---|---|---|
-| Order / Processing pipeline rebuild | Active | exists | **Preprocessing** core shipped | [`order_processing_pipeline_rebuild.md`](../../../initiatives/order_processing_pipeline_rebuild.md) Progress L31–39; [`PreprocessingStepper.tsx`](../../../../frontend/src/components/inventory/preprocessing/PreprocessingStepper.tsx) | Rollup matches **Final Review** + cleanup apply | Keep **`cleanup_csv_contract`** linked from Step 2 |
+|------------|---------------|-------------|---------------|----------|---------|----------------|
+| `order_processing_pipeline_rebuild` | Active (`_index.md`) | Exists at `.ai/initiatives/order_processing_pipeline_rebuild.md` | Iteration / UI polish | `_index.md`, `CHANGELOG [Unreleased]` | Core APIs shipped; Final Review visuals still tied to directive stack | Keep active until user accepts mockup-complete UI + release notes |
 
 ## Initiative File Health
 
 | File | Has session log? | Latest session/result | Acceptance boxes current? | Drift | Priority |
-|---|---|---|---|---|---|
-| `order_processing_pipeline_rebuild.md` | yes (sessions in file) | Session 6 complete | yes (core path) | — | **P3** |
+|------|------------------|------------------------|---------------------------|-------|----------|
+| `order_processing_pipeline_rebuild.md` | yes (`## Sessions`) | Sessions reference preprocessing + processor workspace + Final Review | partial (visual pass pending per `CHANGELOG`) | Docs split across `.ai/reference/*` | **P1** |
 
 ## Archive Consistency
 
 | Bucket | File count | `ARCHIVE.md` rows | Mismatches | Recommendation |
-|---|---:|---:|---|---|
-| `_completed` | 16 | 16 (TOC list) | none spotted | Re-verify on add/remove |
-| `_pending` | not enumerated | — | — | — |
-| `_backlog` | not enumerated | — | — | — |
-| `_abandoned` | not enumerated | — | — | — |
+|--------|------------|-------------------|------------|----------------|
+| `_completed` | 16 | 16 | none observed | Keep current |
+| `_pending` | 5 | 5 | none observed | Keep current |
+| `_backlog` | 4 | 4 | none observed | Keep current |
+| `_abandoned` | 1 | 1 | none observed | Keep current |
 
 ## Recommended Dispositions
 
-Do not move files during reporting. Put approved moves through `.ai/initiatives/_archived/_protocols/`.
+**Do not move files during reporting.**
 
 | Initiative | Recommended disposition | Lifecycle protocol | Reason | Requires user approval |
-|---|---|---|---|---|
-| `order_processing_pipeline_rebuild` | stay **active**; **edit** progress prose only | none | Scope still evolving (standard manifest / buckets) | **no** for text edits; **yes** if archiving |
+|------------|-------------------------|--------------------|--------|------------------------|
+| `order_processing_pipeline_rebuild` | **Active** | none until scope complete | Still driving Final Review visuals + unreleased changelog mass | no |
 
 ## Initiative Gaps
 
 | Gap | Evidence | Recommended new / merged initiative | Priority |
-|---|---|---|---|
-| Single doc for **cleanup CSV contract** (headers, wide vs narrow, error codes) | Spread across code + handoff markdown | Optional short reference under `.ai/reference/` | P3 |
+|-----|----------|-------------------------------------|----------|
+| Buying Phase 6 outcomes | `context.md` Known Issues / roadmap; archived `bstock_auction_intelligence.md` | Reactivate narrow initiative only when scheduling work | **P2** |
+| Cross-cutting AI provider config | `CHANGELOG [Unreleased]` (`AI_PROVIDER`, xAI) | Stay under current initiative until user splits AI infra | **P3** |
 
 ## Notes For `PLAN.md`
 
-- **INIT-001** — update initiative Progress table for preprocessing — source: Active Initiative Index
-- **RESEARCH-001** — whether “Manual Review” route remains for post-finalize only — source: `views.py` `manual_review`
+- Optional **P3**: If the stub folder confuses contributors, add one line to **`_index.md`** linking canonical protocols path — source: stub README under **`initiatives/_protocols/`**.

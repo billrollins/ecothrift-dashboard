@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-17 (v2.18.2 — buying list + detail UX) -->
+<!-- Last updated: 2026-05-02 (count-zero status; variance tolerance bands) -->
 # UI/UX Design Specification
 
 ## Document Purpose
@@ -134,6 +134,12 @@ Title + filter chips, then DataGrid (desktop) or card list (mobile). Filters use
 | Used Fair / Used / Fair | `warning` |
 | Salvage / Damaged | `error` |
 | Other | `default` |
+
+### Count-based status and variance (hard rules)
+
+1. **Status indicators must be hidden at zero.** Any count-based indicator (chips, badges, validation messages, stat rows) must **not render** when the count is **zero**. A green "0 missing price" pill is noise, not good news. Communicate "nothing wrong right now" by **absence**, not by a success-colored chip competing with real alerts. Applies across the dashboard, not only preprocessing.
+
+2. **Variance from a target uses tolerance bands, not severity by sign.** Negative (or non-zero) variance is not automatically bad. For example, ~−23% vs ideal on a thrift PO may be normal; ~−90% would be alarming. **Color and semantic treatment** for variance metrics must follow **tolerance bands defined per metric or context**, not a rule like "any non-zero variance is warning."
 
 ---
 

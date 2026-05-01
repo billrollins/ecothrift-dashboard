@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-02 (Final Review mockup visual rebuild pending — `fix_this.md`; chips + `ai_status` shipped) -->
+<!-- Last updated: 2026-05-02 (Item Processor pricing audit accordion + `manual-review` Retail column; Final Review mockup pending — `fix_this.md`) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -39,12 +39,14 @@
 
 - (**`v2.20.0`**) **`/inventory/receiving`** resolves to the first PO from **`GET /api/inventory/orders/for-receiving/`** (**`ReceivingEntryRedirect`**) or **`/inventory/orders`**; **`/inventory/receiving/:id`** — **`ReceivingOrderPage`**. **`OrderListPage`**: **Receive** column (**`LocalShipping`**) when PO status permits receiving.
 
-- **`OrderDetailPage`** handles order status management, **Raw Manifest** CSV upload/replace (`useUploadManifest` → `POST …/upload-manifest/`; multipart **`FormData`** without forcing boundary), and post-preprocessing actions (Open Item Processor, Mark Complete). **Preprocessing** unlocks when **`manifest_file`** exists. "Start Preprocessing" navigates to `/inventory/preprocessing/:id`.
-- `PreprocessingPage` (`/inventory/preprocessing/:id`) is a standalone 3-step wizard: Standardize Manifest → AI Cleanup → **Final Review** (stepper label; implementation still uses `ManualReviewPanel`). **Mockup-aligned** stepper copy and layout are **pending** — **[`fix_this.md`](../reference/fix_this.md)** / **`final_review_visual_rebuild_directive.md`**. Has own sidebar nav entry "Preprocessing". localStorage persists last order ID. Legacy route `/inventory/orders/:id/preprocess` redirects.
-- **Standardize Manifest** auto-refreshes preview after formula/search changes and has an explicit **Refresh Preview** button; blank formulas render blank standardized fields. Commit creates `ManifestRow` plus early Product/Item records.
-- **AI Cleanup** uses `RowProcessingPanel` with preprocessing-specific model controls (add model id/name, verify, set default), batch size 5/10/25/50, concurrency default **1**, optional 4/8/16 — multi-thread mode is best-effort, expandable rows showing original data vs AI suggestions, optional **13-column** Grok CSV (trailing **`ai_status`**), and post-apply **`soft_warnings`** from the server.
+- **`OrderDetailPage`** handles order status management, **Raw Manifest** CSV upload/replace (`useUploadManifest` → `POST …/upload-manifest/`; multipart **`FormData`** without forcing boundary), and post-preprocessing actions (**Open Item Processor** → **`/inventory/processing/{id}`**, Mark Complete). **Preprocessing** unlocks when **`manifest_file`** exists. **Start Preprocessing** navigates to **`/inventory/preprocessing/:id`**.
+- `PreprocessingPage` (`/inventory/preprocessing/:id`) is a standalone 3-step wizard: Standardize Manifest → AI Cleanup → **Final Review** (stepper labels). Step 3 UI is **`PreprocessingReviewTable`** (staging **`PreprocessingRow`**); **`ManualReviewPanel`** is used for **`GET …/manual-review/`** responses (paginated **`ManifestRow`** pricing grid — also embedded read-only on Item Processor). **Mockup-aligned** stepper copy and layout are **pending** — **[`fix_this.md`](../reference/fix_this.md)** / **`final_review_visual_rebuild_directive.md`**. Has own sidebar nav entry **Preprocessing**. **localStorage** persists last order ID. Legacy route **`/inventory/orders/:id/preprocess`** redirects. **Finalize** / **Open processing** navigates to **`/inventory/processing/{id}`**.
+- **Standardize Manifest** auto-refreshes preview after formula/search changes and has an explicit **Refresh Preview** button; blank formulas render blank standardized fields. Commit creates **`ManifestRow`** plus early **`Product`**/**`Item`** records.
+- **AI Cleanup** uses **`RowProcessingPanel`** with preprocessing-specific model controls (add model id/name, verify, set default), batch size 5/10/25/50, concurrency default **1**, optional 4/8/16 — multi-thread mode is best-effort, expandable rows showing original data vs AI suggestions, optional **13-column** Grok CSV (trailing **`ai_status`**), and post-apply **`soft_warnings`** from the server.
 - **Final Review** uses **`PreprocessingReviewTable`**: searchable staging grid, summary chips, inline edits, bulk ±10% ideal pricing, per-row **`ai_status`** state/issue chips, and client clears local **`ai_status`** when saves touch the same fields the backend clears.
-- `ProcessingPage` is a unified processing workspace for set fields, check-in, and label printing (batch + individual flows)
+- **`ProcessingWorkspacePage`** (**`/inventory/processing`**, **`/inventory/processing/:id`**) — manifest-queue Item Processor: **`ProcessingWorkspaceHeader`** (breadcrumb + scanner-style search + disposition/rate/elapsed + slim progress), **`ProcessingFilterRow`** (segments, hide dispositioned default on, product chip, row counts), sortable **`ProcessingQueueTable`** with bulk checkboxes, **queue OR active card** in the left column, collapsible read-only **Manifest pricing audit** (**`useManualReview`** → **`GET …/manual-review/`**, **`ManualReviewPanel`** `readOnly`), **`ProcessingBulkActionBar`** + **`MergeModal`** / **`BulkDispositionModal`** / **`SwapModal`**, **`ProcessingWorkspaceFooter`** (**Close PO**), **`ProcessingSessionLog`** (server entries + client mutation lines), **print-after-check-in** (`localPrintService`), print-multiple + dispute (single unit or **`manifest_rows`** batch). **`useProcessingWorkspace`** + mutations (**`useProcessingWorkspace.ts`**). Header links to **`/inventory/processing-legacy`** for the legacy batch grid.
+- **`ProcessingEntryRedirect`** (**`/inventory/processing`**) — optional **`?order=`** query or **`lastProcessingOrderId`** + eligible PO list.
+- **`ProcessingPage`** (**legacy**, **`/inventory/processing-legacy`**) — **Command Center** batch **`DataGrid`** + **`ProcessingDrawer`** (individual/bulk check-in, **`processing_sticky_defaults`**).
 - **`ItemListPanel`** / **POS `TransactionListPage`**: inventory item search param **`q`** and receipt **`receipt_number`** filter apply only after **Enter** or **Search** (draft typing does not refetch); orders **DataGrid** uses lean list rows with **`has_manifest`** for preprocess affordance
 - **Quick reprice (v2.2.3+):** `QuickRepricePage` at `/inventory/quick-reprice` — exact SKU filter, default **10%** discount, **This Session** (label unchanged) list **persisted per browser · local calendar day** (`localStorage`, new list after local midnight), expandable with links to item detail, optional **`?sku=`** prefill. `ItemDetailPage` at `/inventory/items/:id` — **Print tag** (local print server), **Reprice** → quick-reprice with `?sku=`, **label reprint** banner after save when price/title/brand change.
 
@@ -77,7 +79,7 @@
 ## Code Organization
 
 - **api/** — one module per backend app: `core.api`, `accounts.api`, `hr.api`, `inventory.api`, `ai.api`, `pos.api`, `consignment.api`, **`buying.api`**, `client.ts`
-- **hooks/** — one per domain: `useAuth`, `usePOS`, `useEmployees`, `useInventory`, `useAI`, `useDashboard`, `useConsignment`, `useCashManagement`, `useSickLeave`, `useTimeClock`, `useTimeEntries`, **`useBuyingAuctions`**, **`useBuyingAuctionsInfinite`**, **`useBuyingAuctionSummary`**, **`useBuyingMarketplaces`**, **`useBuyingAuctionDetail`**, **`useBuyingManifestRows`**, **`useBuyingAuctionSnapshots`**, **`useBuyingWatchlist`**, **`useBuyingWatchlistInfinite`**
+- **hooks/** — one per domain: `useAuth`, `usePOS`, `useEmployees`, `useInventory`, **`useProcessingWorkspace`**, `useAI`, `useDashboard`, `useConsignment`, `useCashManagement`, `useSickLeave`, `useTimeClock`, `useTimeEntries`, **`useBuyingAuctions`**, **`useBuyingAuctionsInfinite`**, **`useBuyingAuctionSummary`**, **`useBuyingMarketplaces`**, **`useBuyingAuctionDetail`**, **`useBuyingManifestRows`**, **`useBuyingAuctionSnapshots`**, **`useBuyingWatchlist`**, **`useBuyingWatchlistInfinite`**
 - **pages/** — by section: `hr/`, `inventory/`, `pos/`, `consignment/`, `consignee/`, `admin/`, **`buying/`**
 - **types/** — one per app: `accounts.types`, `pos.types`, `inventory.types`, `consignment.types`, `hr.types`, **`buying.types`**, `common.types`
 
@@ -195,6 +197,9 @@ Sidebar footer shows `v{appVersion.version}` from `getAppVersion()` → `/api/co
 - `/inventory/preprocessing` — Reads `lastPreprocessOrderId` from localStorage, redirects to `/inventory/preprocessing/:id` or shows message
 - `/inventory/preprocessing/:id` — `PreprocessingPage`
 - `/inventory/orders/:id/preprocess` — Legacy redirect to `/inventory/preprocessing/:id`
+- `/inventory/processing` — `ProcessingEntryRedirect` (`?order=` supported; else eligible PO list + `lastProcessingOrderId`)
+- `/inventory/processing/:id` — `ProcessingWorkspacePage` (Item Processor workspace)
+- `/inventory/processing-legacy` — `ProcessingPage` (legacy batch grid + drawer)
 - Sidebar: "Preprocessing" entry added between "Orders" and "Processing" in Inventory section
 
 ### Render Loop Fix (1.6.0)

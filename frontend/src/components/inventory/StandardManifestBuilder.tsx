@@ -130,6 +130,8 @@ export function StandardManifestBuilder({
               const error = formulaErrors?.[column.key];
               const sampleVal = formulaSamples?.[column.key];
               const sampleErr = formulaSampleErrors?.[column.key];
+              const sampleHasText =
+                sampleVal != null && String(sampleVal).trim() !== '';
               const reasoning = aiReasonings?.[column.key];
 
               return (
@@ -187,7 +189,7 @@ export function StandardManifestBuilder({
                       <Typography sx={{ fontSize: 12, color: 'error.main', wordBreak: 'break-word' }}>
                         {sampleErr}
                       </Typography>
-                    ) : sampleVal ? (
+                    ) : sampleHasText ? (
                       <Typography sx={preprocessingStep1.sampleCellSx}>{sampleVal}</Typography>
                     ) : (
                       <Typography sx={{ fontSize: 12, color: '#ccc', fontStyle: 'italic' }}>--</Typography>
@@ -206,6 +208,8 @@ export function StandardManifestBuilder({
                   const cnt = bucketMappedFieldCount(formulas, bucketId);
                   const sampleVal = formulaSamples?.[sk];
                   const sampleErr = formulaSampleErrors?.[sk];
+                  const bucketSampleHasText =
+                    sampleVal != null && String(sampleVal).trim() !== '';
                   const rowStriped = (columns.length + idx) % 2 === 0;
 
                   return (
@@ -243,7 +247,7 @@ export function StandardManifestBuilder({
                           <Typography sx={{ fontSize: 12, color: 'error.main', wordBreak: 'break-word' }}>
                             {sampleErr}
                           </Typography>
-                        ) : sampleVal ? (
+                        ) : bucketSampleHasText ? (
                           <Tooltip
                             title={
                               <Box

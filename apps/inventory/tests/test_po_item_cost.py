@@ -7,7 +7,8 @@ from decimal import Decimal
 from django.test import TestCase
 
 from apps.core.models import AppSetting
-from apps.inventory.models import Item, Product, PurchaseOrder, Vendor
+from apps.inventory.models import Item, ManifestRow, Product, PurchaseOrder, Vendor
+from apps.inventory.views import ensure_manifest_products_and_items
 from apps.inventory.services.po_defaults import (
     SETTING_KEY_PO_DEFAULT_EST_SHRINK,
     get_default_po_est_shrink,
@@ -133,3 +134,55 @@ class PoItemCostFormulaTests(TestCase):
             defaults={'value': 0.22, 'description': 'test'},
         )
         self.assertEqual(get_default_po_est_shrink(), Decimal('0.22'))
+
+
+class EnsureManifestProductsItemCostsTests(TestCase):
+    """Deferred PO realloc in ensure_manifest_products_and_items yields correct proportional costs."""
+
+    def setUp(self):
+        self.vendor = Vendor.objects.create(name="VendorEM", code="VEM")
+
+    def test_ensure_manifest_sets_item_costs_for_many_new_units(self):
+        po = PurchaseOrder.objects.create(
+            vendor=self.vendor,
+            order_number="PO-ENSURE-COST-1",
+            ordered_date="2024-06-01",
+            purchase_cost=Decimal("100.00"),
+            shipping_cost=Decimal("0.00"),
+            fees=Decimal("0.00"),
+            retail_value=Decimal("800.00"),
+            est_shrink=Decimal("0.10"),
+        )
+        po.refresh_from_db()
+        ManifestRow.objects.create(
+            purchase_order=po,
+            row_number=1,
+            quantity=5,
+            title="Line A",
+            description="Line A desc",
+            condition="good",
+            unit_retail=Decimal("100.00"),
+            final_price=Decimal("25.00"),
+            pricing_stage="final",
+            identifiers={"sku": "ENSURE-SKU-A"},
+        )
+        ManifestRow.objects.create(
+            purchase_order=po,
+            row_number=2,
+            quantity=3,
+            title="Line B",
+            description="Line B desc",
+            condition="good",
+            unit_retail=Decimal("50.00"),
+            final_price=Decimal("10.00"),
+            pricing_stage="final",
+            identifiers={"sku": "ENSURE-SKU-B"},
+        )
+
+        ensure_manifest_products_and_items(po, user=None)
+        po.refresh_from_db()
+
+        items = list(Item.objects.filter(purchase_order=po).order_by("id"))
+        self.assertEqual(len(items), 8)
+        for it in items:
+            self.assertEqual(it.cost, po.compute_item_cost(it.unit_retail))

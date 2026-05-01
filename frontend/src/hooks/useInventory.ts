@@ -86,6 +86,7 @@ import {
   getPreprocessingStatus,
   getPreprocessingReview,
   updatePreprocessingReview,
+  resetPreprocessingReviewFinal,
   getManualReview,
   updateManualReview,
   getManifestFieldMetadata,
@@ -105,6 +106,7 @@ import type {
   ManualReviewRowUpdate,
   PreprocessingReviewParams,
   PreprocessingReviewRowUpdate,
+  PreprocessingReviewResetFinalPayload,
 } from '../api/inventory.api';
 import type { PaginatedResponse } from '../types/common.types';
 import type { Item, PurchaseOrder, PurchaseOrderListRow, PurchaseOrderSummary, PreprocessingQueueResponse } from '../types/inventory.types';
@@ -925,6 +927,27 @@ export function useUpdatePreprocessingReview() {
   return useMutation({
     mutationFn: async ({ orderId, rows }: { orderId: number; rows: PreprocessingReviewRowUpdate[] }) => {
       const { data } = await updatePreprocessingReview(orderId, rows);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['preprocessingReview', variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: ['aiCleanupStatus', variables.orderId] });
+    },
+  });
+}
+
+export function useResetPreprocessingReviewFinal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      payload,
+    }: {
+      orderId: number;
+      payload: PreprocessingReviewResetFinalPayload;
+    }) => {
+      const { data } = await resetPreprocessingReviewFinal(orderId, payload);
       return data;
     },
     onSuccess: (_data, variables) => {
