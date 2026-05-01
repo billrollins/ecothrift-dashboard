@@ -1,1 +1,23 @@
----
+feat(inventory): Item Processor workspace, read-only pricing audit, Final Review refs
+
+Shipped under CHANGELOG [Unreleased] (semver bump deferred per review.0.Bump Part 2A).
+
+Inventory / Item Processor
+- Backend: GET processing-workspace; POST processing-print-multiple, dispute, merge-rows, swap,
+  bulk-disposition; POST processing-print-and-check-in; PATCH processing-patch; migration
+  0039_item_processor_disputes_and_audits; processing_workspace.py, processing_ops.py,
+  tests/test_processing_validation_matrix.py.
+- Frontend: ProcessingWorkspacePage and processing/* components; ProcessingEntryRedirect;
+  useProcessingWorkspace; read-only Manifest pricing audit (GET manual-review via accordion);
+  ManualReviewPanel readOnly + unit_retail Retail column; ProcessingActiveCard MSRP hints.
+
+Preprocessing / Final Review (prior commits in series)
+- Three-layer PreprocessingRow, cleanup CSV contract, PreprocessingReviewTable ai_status,
+  finalize batching improvements — see CHANGELOG.
+
+Documentation / hygiene
+- Tracked .ai/reference Final Review pointers (fix_this, final_review_*, processing_data_lifecycle).
+- .gitignore: exclude reference zip, Processor Mockups/, deep_dive/_runs/ from deploy git add .
+
+Docs: CHANGELOG.md, .ai/context.md, consultant_context.md, extended/frontend.md,
+extended/inventory-pipeline.md, initiatives/order_processing_pipeline_rebuild.md Session 12.

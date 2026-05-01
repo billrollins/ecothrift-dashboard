@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.20.0] — 2026-04-29 (Inventory — orders + receiving) -->
-<!-- Last reviewed: 2026-05-02 (`review.0.Bump` — reference markdown tracked for CHANGELOG links; no semver) -->
+<!-- Last reviewed: 2026-05-02 (`code.9.Push` — `.gitignore` shields reference drops from deploy `git add .`; no semver) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -51,7 +51,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Steering / protocol** — **`review.9.Deep.md`**: preprocessing-through–Final Review trace (models, views, `cleanup_csv_validate`, Grok adjunct, FE) for full audits; output under **`.ai/reference/deep_dive/latest/`** including GitHub / Heroku / prod DB gap (commit vs push vs `release:` migrate).
 - **Reference** — **[`.ai/reference/fix_this.md`](.ai/reference/fix_this.md)** (pointer to Final Review visual rebuild spec); **[`.ai/reference/preprocessing_page_review.md`](.ai/reference/preprocessing_page_review.md)** (API-aligned review checklist); **`consult_design_final_review.md`** (Final Review UX spec); **[`.ai/reference/final_review_ui_rebuild_plan.md`](.ai/reference/final_review_ui_rebuild_plan.md)** (implementation plan, amended 2026-05-02); **[`.ai/reference/final_review_visual_rebuild_directive.md`](.ai/reference/final_review_visual_rebuild_directive.md)** (mockup ground truth, visual pass); **[`.ai/reference/final_review_visual_pass_plan.md`](.ai/reference/final_review_visual_pass_plan.md)** (execution plan for visual pass; includes review gate section 8).
 - **Initiative** — **[`order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)** preprocessing rollup links **`apps/inventory/cleanup_csv_validate.py`** (`validate_cleanup_row_values`, **`rule`** / **`rejected_rows`**).
-- **Dev hygiene** — [`.gitignore`](.gitignore): **`frontend/.vite/`**, **`.pytest_cache/`**.
+- **Dev hygiene** — [`.gitignore`](.gitignore): **`frontend/.vite/`**, **`.pytest_cache/`**; **`scripts/deploy/2_push_github.bat`** uses **`git add .`** — **`.ai/reference/files.zip`**, **`Processor Mockups/`**, **`deep_dive/_runs/`** stay ignored.
 
 
 ---

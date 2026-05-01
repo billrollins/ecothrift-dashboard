@@ -156,3 +156,8 @@ workspace/notebooks/__pycache__/
 
 # Deploy — local production DB dumps (scripts/deploy/1_backup_prod.bat)
 scripts/deploy/backups/
+
+# Reference drops — avoid accidental staging via scripts/deploy/2_push_github.bat (`git add .`)
+.ai/reference/files.zip
+.ai/reference/Processor Mockups/
+.ai/reference/deep_dive/_runs/
