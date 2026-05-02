@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.21.0] — 2026-05-01 (Inventory — Item Processor workspace) -->
-<!-- Last reviewed: 2026-05-02 (`review.0.Bump` — semver bump `.version` / root `package.json`) -->
+<!-- Line 1 release: ## [2.21.1] — 2026-05-02 (Inventory — Processing data hotfix) -->
+<!-- Last reviewed: 2026-05-02 (`review.0.Bump` — v2.21.1 processing data hotfix) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,21 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.21.1] — 2026-05-02
+
+User-facing theme: **Processing data hotfix** — large finalized POs can enter Item Processor without the heavy product-matching build path timing out on Heroku.
+
+### Fixed
+
+- **Inventory / Item Processor** — **`POST /api/inventory/orders/{id}/build-processing-data/`** now uses a fast minimal build from **`ProcessingRow`** bookmarks: bulk creates **`ManifestRow`** + **`Item`** rows, pre-generates SKUs, sets item search text before **`bulk_create`**, preserves the existing response shape, and defers Product matching / Product rollups / BatchGroup creation so large POs avoid router timeouts ([`apps/inventory/services/processing_finalize.py`](apps/inventory/services/processing_finalize.py); [`apps/inventory/tests/test_preprocessing_redesign.py`](apps/inventory/tests/test_preprocessing_redesign.py)).
+- **Inventory / Item Processor workspace** — Removed the full-PO duplicate UPC JSON scan from **`processing-workspace`** list and mutation patch payloads; duplicate hints are intentionally blank during this hotfix so large PO pages and patches stay bounded by visible/touched rows ([`apps/inventory/services/processing_workspace.py`](apps/inventory/services/processing_workspace.py); [`apps/inventory/tests/test_processing_validation_matrix.py`](apps/inventory/tests/test_processing_validation_matrix.py)).
+
+### Tests
+
+- **`python manage.py test apps.inventory.tests.test_preprocessing_redesign apps.inventory.tests.test_processing_validation_matrix --noinput`** — **66 tests OK**.
 
 ---
 

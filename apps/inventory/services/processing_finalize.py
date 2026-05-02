@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from apps.inventory.manifest_standard_fields import slugify_formula_search_tags
 from apps.inventory.models import (
-    BatchGroup,
+    Item,
     ManifestRow,
     PreprocessingOrder,
     PreprocessingRow,
@@ -197,14 +197,49 @@ def bookmarks_exist_for_order(order: PurchaseOrder) -> bool:
     return ProcessingRow.objects.filter(purchase_order=order).exists()
 
 
+def _safe_quantity(raw: Any) -> int:
+    try:
+        return max(1, int(raw or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _safe_condition(raw: Any) -> str:
+    val = str(raw or '').strip()
+    allowed = {choice[0] for choice in Item.CONDITION_CHOICES}
+    return val if val in allowed else 'unknown'
+
+
+def _listing_text_or_placeholder(bk: ProcessingRow) -> tuple[str, str]:
+    title = str(bk.title or '').strip()
+    desc = str(bk.description or '').strip()
+    if title or desc:
+        return title[:300], desc
+    placeholder = f'Review raw manifest row {bk.row_number}'
+    return placeholder[:300], placeholder
+
+
+def _next_sku_batch(count: int) -> list[str]:
+    if count <= 0:
+        return []
+    first = Item.generate_sku()
+    try:
+        start = int(str(first)[3:])
+    except (TypeError, ValueError):
+        start = 1
+    return [f'ITM{n:07d}' for n in range(start, start + count)]
+
+
 def build_manifest_from_processing_rows(order: PurchaseOrder, user) -> dict[str, Any]:
-    """Rebuild canonical ManifestRow + Product + Item (+ batch heuristic) from bookmarks."""
+    """Fast rebuild of canonical ManifestRow + minimal Item rows from bookmarks.
+
+    This hot path intentionally skips Product matching, Product rollups, and BatchGroup creation
+    so large POs can enter Item Processor without a long synchronous request.
+    """
 
     from apps.inventory.models import ProcessingBatch
     from apps.inventory.views import (
         TERMINAL_ITEM_STATUSES,
-        effective_manifest_row_price,
-        ensure_manifest_products_and_items,
     )
 
     if not bookmarks_exist_for_order(order):
@@ -233,18 +268,19 @@ def build_manifest_from_processing_rows(order: PurchaseOrder, user) -> dict[str,
             stags = list(stags)
         else:
             stags = _normalize_manifest_search_tags(stags)
+        title, desc = _listing_text_or_placeholder(bk)
 
         manifest_objs.append(
             ManifestRow(
                 purchase_order=order,
                 row_number=bk.row_number,
-                quantity=bk.quantity or 1,
-                description=str(bk.description or ''),
-                title=str(bk.title or ''),
+                quantity=_safe_quantity(bk.quantity),
+                description=desc,
+                title=title,
                 brand=str(bk.brand or ''),
                 model=str(bk.model or ''),
                 category=str(bk.category or '')[:200],
-                condition=str(bk.condition or '')[:20],
+                condition=_safe_condition(bk.condition),
                 unit_retail=bk.unit_retail,
                 proposed_price=bk.proposed_price,
                 final_price=bk.final_price,
@@ -262,7 +298,6 @@ def build_manifest_from_processing_rows(order: PurchaseOrder, user) -> dict[str,
             ),
         )
 
-    batch_groups_created = 0
     now = timezone.now()
 
     with transaction.atomic():
@@ -272,16 +307,48 @@ def build_manifest_from_processing_rows(order: PurchaseOrder, user) -> dict[str,
 
         ManifestRow.objects.bulk_create(manifest_objs)
 
-        ensure_summary = ensure_manifest_products_and_items(order, user)
-
         link_processing_rows_to_manifest_rows(order)
-        refresh_processing_rows_denorm(order)
 
         rows = list(
-            ManifestRow.objects.filter(purchase_order=order)
-            .select_related('matched_product')
-            .prefetch_related('batch_groups'),
+            ManifestRow.objects.filter(purchase_order=order).order_by('row_number'),
         )
+
+        total_items = sum(_safe_quantity(row.quantity) for row in rows)
+        skus = _next_sku_batch(total_items)
+        item_objs: list[Item] = []
+        sku_idx = 0
+        for row in rows:
+            quantity = _safe_quantity(row.quantity)
+            item_cost = order.compute_item_cost(row.unit_retail)
+            price = row.final_price if row.final_price is not None else row.proposed_price
+            if price is None:
+                price = 0
+            for _ in range(quantity):
+                sku = skus[sku_idx] if sku_idx < len(skus) else Item.generate_sku()
+                sku_idx += 1
+                item = Item(
+                    sku=sku,
+                    product=None,
+                    purchase_order=order,
+                    manifest_row=row,
+                    processing_tier='individual',
+                    title=(row.title or row.description or f'Review raw manifest row {row.row_number}')[:300],
+                    brand=row.brand or '',
+                    price=price,
+                    unit_retail=row.unit_retail,
+                    cost=item_cost,
+                    source='purchased',
+                    status='intake',
+                    condition=_safe_condition(row.condition),
+                    specifications=row.specifications or {},
+                )
+                item.search_text = item.rebuild_search_text()
+                item_objs.append(item)
+
+        if item_objs:
+            Item.objects.bulk_create(item_objs, batch_size=1000)
+
+        refresh_processing_rows_denorm(order)
 
         batch = ProcessingBatch.objects.filter(purchase_order=order).order_by('-started_at').first()
         if not batch:
@@ -290,45 +357,36 @@ def build_manifest_from_processing_rows(order: PurchaseOrder, user) -> dict[str,
                 status='in_progress',
                 total_rows=len(rows),
                 processed_count=len(rows),
-                items_created=order.items.count(),
+                items_created=len(item_objs),
                 started_at=now,
                 completed_at=now,
                 created_by=user,
             )
-
-        for row in rows:
-            quantity = row.quantity if row.quantity and row.quantity > 0 else 1
-            row_price = effective_manifest_row_price(row)
-            is_batch = False
-            if row_price is not None:
-                is_batch = quantity >= 6 and float(row_price) < 75
-            elif quantity >= 10:
-                is_batch = True
-            if not is_batch:
-                continue
-            batch_group = row.batch_groups.first()
-            if not batch_group:
-                batch_group = BatchGroup.objects.create(
-                    batch_number=BatchGroup.generate_batch_number(),
-                    product=row.matched_product,
-                    purchase_order=order,
-                    manifest_row=row,
-                    total_qty=quantity,
-                    unit_price=row_price,
-                    unit_cost=row.unit_retail,
-                    condition='unknown',
-                    status='pending',
-                )
-                batch_groups_created += 1
-            row.items.exclude(status__in=TERMINAL_ITEM_STATUSES).update(
-                batch_group=batch_group,
-                processing_tier='batch',
+        else:
+            batch.total_rows = len(rows)
+            batch.processed_count = len(rows)
+            batch.items_created = len(item_objs)
+            batch.completed_at = now
+            batch.status = 'in_progress'
+            batch.save(
+                update_fields=['total_rows', 'processed_count', 'items_created', 'completed_at', 'status'],
             )
+
+        item_count = order.items.count()
+        if order.item_count != item_count:
+            order.item_count = item_count
+            order.save(update_fields=['item_count', 'updated_at'])
 
         return {
             'manifest_rows': len(rows),
             'processing_row_bookmarks': len(bookmarks),
-            'batch_groups_created': batch_groups_created,
+            'batch_groups_created': 0,
             'processing_batch_id': batch.id if batch else None,
-            **ensure_summary,
+            'rows': len(rows),
+            'rows_linked': 0,
+            'products_created': 0,
+            'items_created': len(item_objs),
+            'items_updated': 0,
+            'items_deleted': 0,
+            'item_count': item_count,
         }

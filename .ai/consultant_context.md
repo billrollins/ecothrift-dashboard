@@ -1,6 +1,6 @@
 # Consultant context — Eco-Thrift Dashboard
 
-<!-- Last updated: 2026-05-01 (**v2.21.0** — paginated Item Processor + `ProcessingRow`; swap removed; Final Review mockup pending — `fix_this.md`) -->
+<!-- Last updated: 2026-05-02 (**v2.21.1** — Processing data hotfix; fast minimal build path for large POs) -->
 
 **Purpose.** Single **information-dense** handoff for **external advisors** on the **full** Eco-Thrift Dashboard—not only liquidation buying. **[`.ai/context.md`](context.md)** is the living **agent** summary (version roll-up, known issues, file map). This file gives **cross-cutting architecture**, a **short recent / near-term** slice, then—below—a **detailed** treatment of **B-Stock**, manifests, valuation, and **legacy data / backfill** archaeology that sourcing-focused engagements still need.
 
@@ -14,7 +14,7 @@
 |--------|------|
 | **Business** | Eco-Thrift — thrift retail (Omaha area). One internal app runs **HR**, **inventory** (vendors, POs, preprocessing, receiving, item processing), **POS**, **consignment** + consignee portal, **admin**, and **B-Stock–driven buying**. |
 | **Stack** | **Django 5.2** + **DRF**, **PostgreSQL**, **React 18.3** + **TypeScript** + **MUI v7** + **Vite**, **TanStack Query**. **Heroku** deployment for always-on access. |
-| **Version** | Repo root **`.version`** + **`CHANGELOG.md`** (e.g. **v2.21.0** at time of this edit). |
+| **Version** | Repo root **`.version`** + **`CHANGELOG.md`** (e.g. **v2.21.1** at time of this edit). |
 
 ### Backend (`apps/`)
 
@@ -41,7 +41,7 @@ One SPA: staff **`MainLayout`** (HR, inventory—including **inbound** **orders 
 
 | Horizon | What to know |
 |---------|----------------|
-| **Recently shipped** | **v2.21.0:** Item Processor — **`ProcessingRow`** + paginated **`processing-workspace`** (default **25** rows), **`processing-row-detail`**, **`workspace_patch`** mutation merges; **`processing-swap` removed** (**`CHANGELOG [2.21.0]`**). **v2.20.0:** inventory **inbound**—PO list/detail, preprocessing + **receiving** (**`CHANGELOG [2.20.0]`**). Step 2 **`download-cleanup-csv`** / **`apply-cleanup-csv`** contract: **[`cleanup_csv_contract.md`](reference/cleanup_csv_contract.md)** + **`CHANGELOG [Unreleased]`**. Buying valuation / thumbs: **v2.19.x**—see **`CHANGELOG`**. |
+| **Recently shipped** | **v2.21.1:** Processing data hotfix — **`build-processing-data`** bulk-creates minimal **`ManifestRow`** + **`Item`** rows from **`ProcessingRow`** bookmarks and defers Product/BatchGroup enrichment to avoid Heroku timeouts on large POs (**`CHANGELOG [2.21.1]`**). **v2.21.0:** Item Processor — **`ProcessingRow`** + paginated **`processing-workspace`** (default **25** rows), **`processing-row-detail`**, **`workspace_patch`** mutation merges; **`processing-swap` removed** (**`CHANGELOG [2.21.0]`**). **v2.20.0:** inventory **inbound**—PO list/detail, preprocessing + **receiving** (**`CHANGELOG [2.20.0]`**). Step 2 **`download-cleanup-csv`** / **`apply-cleanup-csv`** contract: **[`cleanup_csv_contract.md`](reference/cleanup_csv_contract.md)** + **`CHANGELOG [Unreleased]`**. Buying valuation / thumbs: **v2.19.x**—see **`CHANGELOG`**. |
 | **Active initiative** | **[`order_processing_pipeline_rebuild`](initiatives/order_processing_pipeline_rebuild.md)**—umbrella **Orders → Preprocessing → Receiving → Processing → …**; preprocessing **core path shipped**. **Near-term:** Step 3 **Final Review** **mockup-aligned** UI (**[`fix_this.md`](reference/fix_this.md)**, **`final_review_visual_rebuild_directive.md`**); count/tolerance UX per **`extended/ux-spec.md`**. |
 | **Buying roadmap** | Phases **1–5** + **4.1A/B** **shipped**. **Phase 6** (auction **outcomes**) and **auction won → `PurchaseOrder`** link are **not** built—see **`context.md` → Not Yet Implemented** and the appendix below. |
 | **Ongoing risks** | Wrong PO **`retail_value`** poisons **`Item.cost`** and category-need displays until recomputed; **wrong-marketplace** auction manifest **`DELETE`** can leave stale **`CategoryMapping`** (TODO in buying API). Thin automated tests outside pockets (e.g. POS cart). |

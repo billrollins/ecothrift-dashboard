@@ -501,12 +501,9 @@ def build_processing_workspace(
     Pagination defaults to ``limit``=25, ``offset``=0 so large PO payloads stay bounded.
     """
     vendor = order.vendor
-    dup_pairs = list(
-        ProcessingRow.objects.filter(purchase_order=order)
-        .order_by('row_number')
-        .values_list('row_number', 'identifiers'),
-    )
-    dup_map = _build_bookmark_dup_map_from_pairs(dup_pairs)
+    # Hotfix: avoid an O(all PO rows) JSON scan on every page load. Duplicate hints are
+    # noncritical and can be restored later via a cached/slice-scoped implementation.
+    dup_map: dict[int, list[int]] = {}
 
     row_count_total_po = ProcessingRow.objects.filter(purchase_order=order).count()
     qty_agg = ProcessingRow.objects.filter(purchase_order=order).aggregate(
@@ -574,12 +571,8 @@ def build_processing_workspace(
 def build_workspace_patch(order: PurchaseOrder, *, touched_processing_row_ids: Iterable[int]) -> dict[str, Any]:
     """Minimal delta for mutations (progress + touched list rows only)."""
     touched = sorted(set(int(x) for x in touched_processing_row_ids))
-    dup_pairs = list(
-        ProcessingRow.objects.filter(purchase_order=order)
-        .order_by('row_number')
-        .values_list('row_number', 'identifiers'),
-    )
-    dup_map = _build_bookmark_dup_map_from_pairs(dup_pairs)
+    # Hotfix: do not rescan every row for duplicate hints when only a small patch changed.
+    dup_map: dict[int, list[int]] = {}
 
     raw_touched = list(
         ProcessingRow.objects.filter(pk__in=touched, purchase_order=order).values(*PROCESSING_WORKSPACE_ROW_VALUE_FIELDS),

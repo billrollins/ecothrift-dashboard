@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-01 (`ProcessingRow`; paginated **`processing-workspace`** + **`processing-row-detail`**; **`processing-swap` removed** — **`CHANGELOG [2.21.0]`**) -->
+<!-- Last updated: 2026-05-02 (**v2.21.1** — fast minimal `build-processing-data`; Product/BatchGroup enrichment deferred on hot path — **`CHANGELOG [2.21.1]`**) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -10,7 +10,7 @@
 
 **Timeouts (`finalize-preprocessing`):** Finalize can run tens of seconds on large manifests (staging snapshot, bulk manifest rows, product/item upserts). Keep finalize synchronous unless logs show proxy timeouts. Ops should set reverse-proxy and app-server HTTP timeouts **≥ 120s** (e.g. nginx `proxy_read_timeout`, uvicorn/gunicorn graceful limits) for staff uploading large CSVs; correlate with structured finalize duration logs before adding async jobs.
 
-**v2.21.0 Item Processor:** **`ProcessingRow`** persists per-manifest-line queue state (**`ManifestRow`** 1:1 at finalize — migrations **`0040_processing_row_bookmarks`**, **`0041_processing_row_canonical_denorm`**). **`GET /api/inventory/orders/{id}/processing-workspace/`** serves a **`rows`** page (**`limit`/`offset`** + filters); **`GET …/processing-row-detail/`** returns **`items`** + **`product`** for one bookmark. Mutations return **`workspace_patch`** for incremental client cache updates. **`POST …/processing-swap/`** is **not** part of shipping scope (**`CHANGELOG [2.21.0]`** — historical **`ItemSwapAudit`** rows may exist).
+**v2.21.1 Item Processor hotfix:** **`POST /api/inventory/orders/{id}/build-processing-data/`** bulk-creates minimal **`ManifestRow`** + **`Item`** rows from finalized **`ProcessingRow`** bookmarks, pre-generates SKUs, and skips Product matching / Product rollups / `BatchGroup` creation on the synchronous hot path to avoid Heroku timeouts on large POs. **v2.21.0 Item Processor:** **`ProcessingRow`** persists per-manifest-line queue state (**`ManifestRow`** 1:1 at finalize — migrations **`0040_processing_row_bookmarks`**, **`0041_processing_row_canonical_denorm`**). **`GET /api/inventory/orders/{id}/processing-workspace/`** serves a **`rows`** page (**`limit`/`offset`** + filters); **`GET …/processing-row-detail/`** returns **`items`** + **`product`** for one bookmark. Mutations return **`workspace_patch`** for incremental client cache updates. **`POST …/processing-swap/`** is **not** part of shipping scope (**`CHANGELOG [2.21.0]`** — historical **`ItemSwapAudit`** rows may exist).
 
 ## Project Structure
 

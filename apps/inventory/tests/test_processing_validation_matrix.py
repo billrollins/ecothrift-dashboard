@@ -256,6 +256,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertEqual(len(r1['items']), 0)
         self.assertIn('processing_row_id', r1)
         self.assertIn('likelyDuplicateOf', r1)
+        self.assertEqual(r1['likelyDuplicateOf'], [])
 
     def test_workspace_pagination_default_limit(self):
         """List returns at most ``limit`` rows; metadata counts full filtered set."""

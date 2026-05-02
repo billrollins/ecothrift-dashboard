@@ -1038,6 +1038,8 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(build_resp.status_code, 200, build_resp.data)
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 2)
         self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 3)
+        self.assertEqual(Product.objects.count(), 0)
+        self.assertEqual(build_resp.data['products_created'], 0)
         mrows = list(ManifestRow.objects.filter(purchase_order=self.order).order_by('row_number'))
         self.assertEqual(mrows[0].category, 'Kitchen & dining')
         self.assertEqual(mrows[1].category, 'Home décor & lighting')
@@ -1216,6 +1218,99 @@ class PreprocessingRedesignTests(TestCase):
         self.assertFalse(ws2.get('processingBookmarkOnly'))
         self.assertIsNotNone(ws2.get('preprocessing_finalized_at'))
         self.assertIsNotNone(ws2['rows'][0]['manifest_row_id'])
+
+    def test_build_processing_data_fast_path_handles_large_bookmark_set(self):
+        PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='finalized',
+            row_count=200,
+            finalized_at=timezone.now(),
+        )
+        ProcessingRow.objects.bulk_create([
+            ProcessingRow(
+                purchase_order=self.order,
+                preprocessing_row=None,
+                row_number=i,
+                quantity=1,
+                unit_retail=Decimal('10.00'),
+                final_price=Decimal('5.00'),
+                pricing_stage='final',
+                title=f'Fast row {i}',
+                description=f'Fast row body {i}',
+                condition='good',
+            )
+            for i in range(1, 201)
+        ])
+
+        build_resp = self._build_processing_data()
+        self.assertEqual(build_resp.status_code, 200, build_resp.data)
+        self.assertEqual(build_resp.data['manifest_rows'], 200)
+        self.assertEqual(build_resp.data['items_created'], 200)
+        self.assertEqual(build_resp.data['products_created'], 0)
+        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 200)
+        self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 200)
+        self.assertEqual(Product.objects.count(), 0)
+        self.assertEqual(
+            ProcessingRow.objects.filter(purchase_order=self.order, manifest_row__isnull=False).count(),
+            200,
+        )
+
+    def test_build_processing_data_uses_placeholder_for_missing_listing_text(self):
+        PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='finalized',
+            row_count=1,
+            finalized_at=timezone.now(),
+        )
+        ProcessingRow.objects.create(
+            purchase_order=self.order,
+            row_number=5,
+            quantity=1,
+            unit_retail=Decimal('10.00'),
+            final_price=Decimal('5.00'),
+            pricing_stage='final',
+            condition='not-a-real-condition',
+        )
+
+        build_resp = self._build_processing_data()
+        self.assertEqual(build_resp.status_code, 200, build_resp.data)
+        item = Item.objects.get(purchase_order=self.order)
+        self.assertEqual(item.title, 'Review raw manifest row 5')
+        self.assertEqual(item.condition, 'unknown')
+        self.assertIsNone(item.product_id)
+
+    def test_processing_check_in_works_with_fast_path_productless_items(self):
+        from apps.inventory.processing_ops import processing_print_and_check_in
+
+        PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='finalized',
+            row_count=1,
+            finalized_at=timezone.now(),
+        )
+        ProcessingRow.objects.create(
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            unit_retail=Decimal('10.00'),
+            final_price=Decimal('5.00'),
+            pricing_stage='final',
+            title='Productless item',
+            description='Productless item body',
+            condition='good',
+        )
+        self.assertEqual(self._build_processing_data().status_code, 200)
+        item = Item.objects.get(purchase_order=self.order)
+        self.assertIsNone(item.product_id)
+
+        out = processing_print_and_check_in(
+            self.user,
+            item,
+            {'condition': 'Used Good', 'price': '5.00', 'dispatch': 'on_shelf'},
+        )
+        item.refresh_from_db()
+        self.assertTrue(out['item']['checked_in'])
+        self.assertEqual(item.status, 'on_shelf')
 
     def test_preview_manifest_formulas_requires_manifest_file(self):
         view = PurchaseOrderViewSet.as_view({'post': 'preview_manifest_formulas'})

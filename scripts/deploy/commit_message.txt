@@ -1,1 +1,5 @@
----
+fix(inventory): stabilize processing data build for large POs
+
+Replace the heavy synchronous product-matching build path with a minimal bulk ManifestRow/Item build from ProcessingRow bookmarks. This avoids Heroku request timeouts for large purchase orders and removes the full-row duplicate scan from processing workspace loads.
+
+Release: v2.21.1
