@@ -41,22 +41,24 @@ export type BulkDispositionGroupForm = {
 };
 
 function pendingCountForRows(rows: ProcessingWorkspaceRowDTO[]): number {
-  return rows.reduce(
-    (acc, r) => acc + r.items.filter((i) => i.status === 'intake' || i.status === 'processing').length,
-    0,
-  );
+  return rows.reduce((acc, r) => {
+    const fromItems = r.items.filter((i) => i.status === 'intake' || i.status === 'processing').length;
+    if (fromItems > 0) return acc + fromItems;
+    const lazy = r.pendingItemCount ?? 0;
+    return acc + lazy;
+  }, 0);
 }
 
 export interface BulkDispositionModalProps {
   open: boolean;
   onClose: () => void;
-  manifestRowIds: number[];
+  processingRowIds: number[];
   rows: ProcessingWorkspaceRowDTO[];
   loading: boolean;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
 }
 
-export function BulkDispositionModal({ open, onClose, manifestRowIds, rows, loading, onSubmit }: BulkDispositionModalProps) {
+export function BulkDispositionModal({ open, onClose, processingRowIds, rows, loading, onSubmit }: BulkDispositionModalProps) {
   const pending = useMemo(() => pendingCountForRows(rows), [rows]);
   const defaultRetail = rows[0]?.unitRetail ?? '';
   const defaultPrice = rows[0]?.price ?? '';
@@ -124,7 +126,7 @@ export function BulkDispositionModal({ open, onClose, manifestRowIds, rows, load
       <DialogTitle>Bulk disposition</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
         <Typography variant="body2" color="text.secondary">
-          Summary: <strong>{manifestRowIds.length}</strong> manifest row(s), <strong>{pending}</strong> pending unit(s) to assign.
+          Summary: <strong>{processingRowIds.length}</strong> processing line(s), <strong>{pending}</strong> pending unit(s) to assign.
         </Typography>
         <Alert severity="info" variant="outlined" sx={{ py: 0.5 }}>
           {titles.map((t) => (
@@ -235,7 +237,7 @@ export function BulkDispositionModal({ open, onClose, manifestRowIds, rows, load
           disabled={loading || !valid}
           onClick={async () => {
             await onSubmit({
-              manifest_row_ids: manifestRowIds,
+              processing_row_ids: processingRowIds,
               retail: retail.trim() || undefined,
               groups: groups.map((g) => ({
                 count: g.count,

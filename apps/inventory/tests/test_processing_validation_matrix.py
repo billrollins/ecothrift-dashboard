@@ -520,3 +520,138 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertEqual(items[0].condition, 'new')
         self.assertEqual(items[1].condition, 'new')
         self.assertEqual(items[2].condition, 'fair')
+
+    def test_processing_print_multiple_accepts_processing_row_id(self):
+        pr1 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-print-multiple/',
+            {
+                'processing_row_id': pr1.id,
+                'qty': 2,
+                'condition': 'Used Good',
+                'dispatch': 'on_shelf',
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(set(r.data['checked_in_item_ids']), {self.i1.id, self.i2.id})
+
+    def test_processing_print_multiple_rejects_manifest_processing_row_conflict(self):
+        pr2 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr2)
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-print-multiple/',
+            {
+                'processing_row_id': pr2.id,
+                'manifest_row_id': self.mr1.id,
+                'qty': 1,
+                'condition': 'Used Good',
+                'dispatch': 'on_shelf',
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400, r.data)
+        self.assertIn('conflict', str(r.data.get('detail', '')).lower())
+
+    def test_processing_print_multiple_requires_data_for_unlinked_processing_row(self):
+        po_bm = PurchaseOrder.objects.create(
+            vendor=self.vendor,
+            order_number='PO-BOOKMARK-PRINT',
+            ordered_date='2026-05-04',
+            purchase_cost=Decimal('1.00'),
+            retail_value=Decimal('10.00'),
+            status='processing',
+            item_count=0,
+        )
+        bookmark = ProcessingRow.objects.create(purchase_order=po_bm, row_number=1, quantity=2, title='Bookmark line')
+        r = self.client.post(
+            f'/api/inventory/orders/{po_bm.id}/processing-print-multiple/',
+            {
+                'processing_row_id': bookmark.id,
+                'qty': 1,
+                'condition': 'Used Good',
+                'dispatch': 'on_shelf',
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400, r.data)
+        self.assertEqual(r.data.get('code'), 'processing_data_required')
+
+    def test_processing_dispute_processing_rows_scope_by_bookmark_pk(self):
+        pr1 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-dispute/',
+            {
+                'scope': 'processing_rows',
+                'ids': [pr1.id],
+                'type': 'broken',
+                'pct_loss': 40,
+                'description': 'Row-level broken',
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.i1.refresh_from_db()
+        self.i2.refresh_from_db()
+        self.assertEqual(self.i1.status, 'scrapped')
+        self.assertEqual(self.i2.status, 'scrapped')
+
+    def test_processing_merge_rows_accepts_processing_row_ids(self):
+        pr1 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
+        pr2 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr2)
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-merge-rows/',
+            {
+                'processing_row_ids': [pr2.id, pr1.id],
+                'field_values': {
+                    'title': 'Merged via PR ids',
+                    'brand': 'KitchenAid',
+                    'model': 'Y',
+                    'description': '',
+                    'specs': {},
+                    'tags': '',
+                    'taxonomy': '',
+                    'category': 'Small Appliances',
+                },
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.mr1.refresh_from_db()
+        self.mr2.refresh_from_db()
+        self.assertEqual(self.mr1.matched_product_id, self.mr2.matched_product_id)
+        wp = r.data['workspace_patch']
+        self.assertTrue(all('processing_row_id' in row for row in wp['rows']))
+
+    def test_processing_bulk_disposition_accepts_processing_row_ids(self):
+        payload = {
+            'processing_row_ids': [
+                ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1).id,
+                ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr2).id,
+            ],
+            'retail': '30.00',
+            'groups': [
+                {'count': 2, 'condition': 'New', 'dispatch': 'on_shelf', 'disputed': None},
+                {'count': 1, 'condition': 'Used Good', 'dispatch': 'on_shelf', 'disputed': None},
+            ],
+        }
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-bulk-disposition/',
+            payload,
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+
+    def test_processing_merge_rows_rejects_manifest_processing_row_conflict(self):
+        pr1 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
+        pr2 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr2)
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-merge-rows/',
+            {
+                'processing_row_ids': [pr1.id, pr2.id],
+                'manifest_row_ids': [self.mr2.id],
+                'field_values': {'title': 'x', 'brand': 'b', 'model': '', 'category': ''},
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400, r.data)
+        self.assertIn('match', str(r.data.get('detail', '')).lower())

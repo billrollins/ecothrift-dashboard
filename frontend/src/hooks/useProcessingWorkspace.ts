@@ -6,6 +6,8 @@ import type {
 } from '../types/inventory.types';
 import {
   buildProcessingData,
+  clearProcessingData,
+  getProcessingDataBuild,
   getProcessingWorkspace,
   getProcessingRowDetail,
   processingBulkDisposition,
@@ -14,9 +16,11 @@ import {
   processingPatchItem,
   processingPrintAndCheckIn,
   processingPrintMultiple,
+  runProcessingDataBuildChunk,
   type ProcessingPrintAndCheckInResponse,
   type ProcessingPrintMultipleResponse,
   type BuildProcessingDataResponse,
+  type ClearProcessingDataResponse,
   type PrintedItemPreview,
 } from '../api/inventory.api';
 
@@ -236,11 +240,57 @@ export function useProcessingPatchItem(orderId: number) {
   });
 }
 
+export function useProcessingDataBuildStatus(orderId: number | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['processing-data-build', orderId],
+    queryFn: async (): Promise<BuildProcessingDataResponse> => {
+      const { data } = await getProcessingDataBuild(orderId!);
+      return data;
+    },
+    enabled: orderId != null && orderId > 0 && enabled,
+    staleTime: 0,
+    refetchInterval: (q) => {
+      const row = q.state.data;
+      if (!row) return false;
+      if (row.status === 'none' || row.done || row.blocked) return false;
+      return 1800;
+    },
+  });
+}
+
+export function useClearProcessingData(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<ClearProcessingDataResponse> => {
+      const { data } = await clearProcessingData(orderId);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
+      qc.invalidateQueries({ queryKey: ['processing-row-detail', orderId] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+      qc.invalidateQueries({ queryKey: ['batchGroups'] });
+      qc.invalidateQueries({ queryKey: ['processing-data-build', orderId] });
+    },
+  });
+}
+
 export function useBuildProcessingData(orderId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const { data } = await buildProcessingData(orderId);
+    mutationFn: async (opts: { reset?: boolean } = {}) => {
+      const reset = Boolean(opts.reset);
+      let { data } = await buildProcessingData(orderId, { reset });
+      let guard = 0;
+      while (!data.done && !data.blocked && guard < 10_000) {
+        ({ data } = await runProcessingDataBuildChunk(orderId));
+        guard += 1;
+      }
+      if (!data.done && !data.blocked) {
+        throw new Error(`Processing-data build stalled after ${guard} chunk requests.`);
+      }
       return data;
     },
     onSuccess: (_data: BuildProcessingDataResponse) => {
@@ -250,6 +300,7 @@ export function useBuildProcessingData(orderId: number) {
       qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
       qc.invalidateQueries({ queryKey: ['items'] });
       qc.invalidateQueries({ queryKey: ['batchGroups'] });
+      qc.invalidateQueries({ queryKey: ['processing-data-build', orderId] });
     },
   });
 }

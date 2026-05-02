@@ -13,7 +13,7 @@ from typing import Any, Iterable
 
 from django.db.models import Count, Q, Sum
 
-from apps.inventory.models import Item, ManifestRow, PreprocessingOrder, ProcessingRow, PurchaseOrder, Product
+from apps.inventory.models import Item, ManifestRow, PreprocessingOrder, ProcessingDataBuild, ProcessingRow, PurchaseOrder, Product
 
 # UI condition labels (mockup) ↔ Item.condition DB values
 CONDITION_UI_TO_DB = {
@@ -535,9 +535,16 @@ def build_processing_workspace(
         serialize_processing_workspace_row_values(rw, dup_map.get(int(rw['row_number']), [])) for rw in raw_rows
     ]
 
+    incomplete_build = ProcessingDataBuild.objects.filter(purchase_order_id=order.pk).exclude(
+        status=ProcessingDataBuild.STATUS_COMPLETE,
+    ).exists()
+
     bookmark_only = (
         row_count_total_po > 0
-        and not ProcessingRow.objects.filter(purchase_order=order, manifest_row_id__isnull=False).exists()
+        and (
+            not ProcessingRow.objects.filter(purchase_order=order, manifest_row_id__isnull=False).exists()
+            or incomplete_build
+        )
     )
 
     progress = workspace_progress_aggregate(order)

@@ -8,6 +8,10 @@ export interface ProcessingBulkActionBarProps {
   onBulkDisposition: () => void;
   onMarkBroken: () => void;
   onMarkUndelivered: () => void;
+  /** When true, item-level bulk actions are disabled (e.g. preprocessing bookmark rows selected). */
+  itemActionsBlocked?: boolean;
+  /** Shown when ``itemActionsBlocked`` (e.g. under the action row). */
+  itemActionsBlockedHint?: string;
 }
 
 /** Inverse bulk strip — §6.7 mockup. */
@@ -19,6 +23,8 @@ export function ProcessingBulkActionBar({
   onBulkDisposition,
   onMarkBroken,
   onMarkUndelivered,
+  itemActionsBlocked = false,
+  itemActionsBlockedHint,
 }: ProcessingBulkActionBarProps) {
   if (selectedCount < 2) return null;
 
@@ -35,38 +41,63 @@ export function ProcessingBulkActionBar({
         bgcolor: 'grey.900',
         color: 'grey.100',
         display: 'flex',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 2,
+        flexDirection: 'column',
+        gap: 0.75,
         borderRadius: 1,
         zIndex: 10,
       }}
     >
-      <Typography variant="body2" fontWeight={700} sx={{ color: 'common.white' }}>
-        {selectedCount}
-      </Typography>
-      <Typography variant="body2" sx={{ color: 'grey.300' }}>
-        rows selected
-      </Typography>
-      <Button size="small" variant="text" sx={{ color: 'grey.300' }} onClick={onClear}>
-        Clear
-      </Button>
-      <Divider orientation="vertical" flexItem sx={{ borderColor: 'grey.700', mx: 1 }} />
-      {sameProduct ? (
-        <Button size="small" variant="contained" color="primary" onClick={onBulkDisposition}>
-          Bulk disposition
+      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+        <Typography variant="body2" fontWeight={700} sx={{ color: 'common.white' }}>
+          {selectedCount}
+        </Typography>
+        <Typography variant="body2" sx={{ color: 'grey.300' }}>
+          rows selected
+        </Typography>
+        <Button size="small" variant="text" sx={{ color: 'grey.300' }} onClick={onClear}>
+          Clear
         </Button>
-      ) : (
-        <Button size="small" variant="contained" color="inherit" sx={{ bgcolor: 'grey.700', color: 'white' }} onClick={onMerge}>
-          These are the same product
+        <Divider orientation="vertical" flexItem sx={{ borderColor: 'grey.700', mx: 1 }} />
+        {sameProduct ? (
+          <Button
+            size="small"
+            variant="contained"
+            color="primary"
+            onClick={onBulkDisposition}
+            disabled={itemActionsBlocked}
+          >
+            Bulk disposition
+          </Button>
+        ) : (
+          <Button
+            size="small"
+            variant="contained"
+            color="inherit"
+            sx={{ bgcolor: 'grey.700', color: 'white' }}
+            onClick={onMerge}
+            disabled={itemActionsBlocked}
+          >
+            These are the same product
+          </Button>
+        )}
+        <Button
+          size="small"
+          variant="outlined"
+          sx={{ borderColor: 'grey.500', color: 'grey.200' }}
+          onClick={onMarkUndelivered}
+          disabled={itemActionsBlocked}
+        >
+          Mark undelivered
         </Button>
-      )}
-      <Button size="small" variant="outlined" sx={{ borderColor: 'grey.500', color: 'grey.200' }} onClick={onMarkUndelivered}>
-        Mark undelivered
-      </Button>
-      <Button size="small" variant="outlined" color="warning" onClick={onMarkBroken}>
-        Mark broken
-      </Button>
+        <Button size="small" variant="outlined" color="warning" onClick={onMarkBroken} disabled={itemActionsBlocked}>
+          Mark broken
+        </Button>
+      </Box>
+      {itemActionsBlocked && itemActionsBlockedHint ?
+        <Typography variant="caption" sx={{ color: 'warning.light' }}>
+          {itemActionsBlockedHint}
+        </Typography>
+      : null}
     </Box>
   );
 }

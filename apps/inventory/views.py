@@ -1911,6 +1911,9 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'processing_merge_rows_action',
         'processing_bulk_disposition_action',
         'build_processing_data',
+        'processing_data_build',
+        'processing_data_build_chunk',
+        'clear_processing_data',
     },
 )
 
@@ -4596,7 +4599,90 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         from apps.inventory.services.processing_finalize import build_manifest_from_processing_rows
 
         try:
-            payload = build_manifest_from_processing_rows(order, request.user)
+            reset = bool(request.data.get('reset'))
+            payload = build_manifest_from_processing_rows(order, request.user, reset=reset)
+        except ValidationError as exc:
+            detail = exc.detail
+            status_code = status.HTTP_400_BAD_REQUEST
+            if isinstance(detail, dict) and detail.get('code') == 'terminal_items_block':
+                status_code = status.HTTP_409_CONFLICT
+            if isinstance(detail, dict):
+                return Response(detail, status=status_code)
+            if isinstance(detail, list):
+                return Response({'detail': detail}, status=status_code)
+            return Response({'detail': str(detail)}, status=status_code)
+
+        return Response(payload)
+
+    @action(detail=True, methods=['get'], url_path='processing-data-build')
+    def processing_data_build(self, request, pk=None):
+        """Poll chunked processing-data build counters (no destructive work)."""
+        order = self.get_object()
+        prep = getattr(order, 'preprocessing', None)
+        if not prep or not prep.finalized_at:
+            return Response(
+                {'detail': 'Finalize preprocessing before building processing data.', 'code': 'not_finalized'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.inventory.services.processing_finalize import get_processing_data_build_status
+
+        try:
+            payload = get_processing_data_build_status(order)
+        except ValidationError as exc:
+            detail = exc.detail
+            if isinstance(detail, dict):
+                return Response(detail, status=status.HTTP_400_BAD_REQUEST)
+            if isinstance(detail, list):
+                return Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': str(detail)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(payload)
+
+    @action(detail=True, methods=['post'], url_path='processing-data-build/chunk')
+    def processing_data_build_chunk(self, request, pk=None):
+        """Process the next bounded chunk for a processing-data build."""
+        order = self.get_object()
+        prep = getattr(order, 'preprocessing', None)
+        if not prep or not prep.finalized_at:
+            return Response(
+                {'detail': 'Finalize preprocessing before building processing data.', 'code': 'not_finalized'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.inventory.services.processing_finalize import process_processing_data_build_chunk
+
+        try:
+            payload = process_processing_data_build_chunk(order, request.user)
+        except ValidationError as exc:
+            detail = exc.detail
+            status_code = status.HTTP_400_BAD_REQUEST
+            if isinstance(detail, dict) and detail.get('code') == 'terminal_items_block':
+                status_code = status.HTTP_409_CONFLICT
+            if isinstance(detail, dict):
+                return Response(detail, status=status_code)
+            if isinstance(detail, list):
+                return Response({'detail': detail}, status=status_code)
+            return Response({'detail': str(detail)}, status=status_code)
+
+        return Response(payload)
+
+    @action(detail=True, methods=['post'], url_path='clear-processing-data')
+    def clear_processing_data(self, request, pk=None):
+        """Remove manifest/items/batches and return to finalized-preprocessing bookmarks (no rebuild)."""
+
+        order = self.get_object()
+        prep = getattr(order, 'preprocessing', None)
+        if not prep or not prep.finalized_at:
+            return Response(
+                {'detail': 'Finalize preprocessing before clearing processing data.', 'code': 'not_finalized'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.inventory.services.processing_finalize import clear_processing_data_to_bookmarks_phase
+
+        try:
+            payload = clear_processing_data_to_bookmarks_phase(order)
         except ValidationError as exc:
             detail = exc.detail
             status_code = status.HTTP_400_BAD_REQUEST
@@ -5638,41 +5724,61 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='processing-print-multiple')
     def processing_print_multiple_action(self, request, pk=None):
-        from apps.inventory.processing_ops import processing_print_multiple
+        from apps.inventory.processing_ops import ProcessingDataRequired, processing_print_multiple
 
         order = self.get_object()
         try:
             return Response(processing_print_multiple(request.user, order, request.data))
+        except ProcessingDataRequired as e:
+            return Response(
+                {'detail': str(e), 'code': 'processing_data_required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='processing-dispute')
     def processing_dispute_action(self, request, pk=None):
-        from apps.inventory.processing_ops import processing_dispute
+        from apps.inventory.processing_ops import ProcessingDataRequired, processing_dispute
 
         order = self.get_object()
         try:
             return Response(processing_dispute(request.user, order, request.data))
+        except ProcessingDataRequired as e:
+            return Response(
+                {'detail': str(e), 'code': 'processing_data_required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='processing-merge-rows')
     def processing_merge_rows_action(self, request, pk=None):
-        from apps.inventory.processing_ops import processing_merge_rows
+        from apps.inventory.processing_ops import ProcessingDataRequired, processing_merge_rows
 
         order = self.get_object()
         try:
             return Response(processing_merge_rows(request.user, order, request.data))
+        except ProcessingDataRequired as e:
+            return Response(
+                {'detail': str(e), 'code': 'processing_data_required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='processing-bulk-disposition')
     def processing_bulk_disposition_action(self, request, pk=None):
-        from apps.inventory.processing_ops import processing_bulk_disposition
+        from apps.inventory.processing_ops import ProcessingDataRequired, processing_bulk_disposition
 
         order = self.get_object()
         try:
             return Response(processing_bulk_disposition(request.user, order, request.data))
+        except ProcessingDataRequired as e:
+            return Response(
+                {'detail': str(e), 'code': 'processing_data_required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -17,6 +17,8 @@ from apps.inventory.models import (
     ManifestRow,
     PreprocessingOrder,
     PreprocessingRow,
+    ProcessingBatch,
+    ProcessingDataBuild,
     ProcessingRow,
     Product,
     PurchaseOrder,
@@ -104,15 +106,56 @@ class PreprocessingRedesignTests(TestCase):
         force_authenticate(request, user=self.user)
         return view(request, pk=self.order.pk)
 
-    def _build_processing_data(self):
+    def _post_build_processing_data_start(self, *, reset: bool = False):
         view = PurchaseOrderViewSet.as_view({'post': 'build_processing_data'})
+        body = {'reset': True} if reset else {}
         request = APIRequestFactory().post(
             f'/api/inventory/orders/{self.order.pk}/build-processing-data/',
+            body,
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        return view(request, pk=self.order.pk)
+
+    def _post_build_processing_data_chunk(self):
+        view = PurchaseOrderViewSet.as_view({'post': 'processing_data_build_chunk'})
+        request = APIRequestFactory().post(
+            f'/api/inventory/orders/{self.order.pk}/processing-data-build/chunk/',
             {},
             format='json',
         )
         force_authenticate(request, user=self.user)
         return view(request, pk=self.order.pk)
+
+    def _post_clear_processing_data(self):
+        view = PurchaseOrderViewSet.as_view({'post': 'clear_processing_data'})
+        request = APIRequestFactory().post(
+            f'/api/inventory/orders/{self.order.pk}/clear-processing-data/',
+            {},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        return view(request, pk=self.order.pk)
+
+    def _build_processing_data(self, *, until_done: bool = True, reset: bool = False):
+        """POST ``build-processing-data`` then SPA-style chunk POSTs until ``done`` / ``blocked``."""
+        resp = self._post_build_processing_data_start(reset=reset)
+        if not until_done:
+            return resp
+        guard = 0
+        max_guard = 10_000
+        while resp.status_code == 200 and guard < max_guard:
+            data = getattr(resp, 'data', None) or {}
+            if data.get('done') or data.get('blocked'):
+                break
+            resp = self._post_build_processing_data_chunk()
+            guard += 1
+        self.assertLess(
+            guard,
+            max_guard,
+            msg=f'build chunk loop exceeded {max_guard} (last resp={getattr(resp, "data", resp)})',
+        )
+        return resp
 
     def _preprocessing_review_reset_final(self, row_ids):
         view = PurchaseOrderViewSet.as_view({'post': 'preprocessing_review_reset_final'})
@@ -1219,6 +1262,181 @@ class PreprocessingRedesignTests(TestCase):
         self.assertIsNotNone(ws2.get('preprocessing_finalized_at'))
         self.assertIsNotNone(ws2['rows'][0]['manifest_row_id'])
 
+    def test_processing_data_build_three_chunks_counters(self):
+        PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='finalized',
+            row_count=250,
+            finalized_at=timezone.now(),
+        )
+        ProcessingRow.objects.bulk_create([
+            ProcessingRow(
+                purchase_order=self.order,
+                preprocessing_row=None,
+                row_number=i,
+                quantity=1,
+                unit_retail=Decimal('10.00'),
+                final_price=Decimal('5.00'),
+                pricing_stage='final',
+                title=f'Title {i}',
+                description=f'Body {i}',
+                condition='good',
+            )
+            for i in range(1, 251)
+        ])
+
+        resp1 = self._build_processing_data(until_done=False)
+        self.assertEqual(resp1.status_code, 200, resp1.data)
+        self.assertFalse(resp1.data['done'])
+        self.assertEqual(resp1.data['processed_rows'], 100)
+
+        resp2 = self._post_build_processing_data_chunk()
+        self.assertEqual(resp2.status_code, 200)
+        self.assertFalse(resp2.data['done'])
+        self.assertEqual(resp2.data['processed_rows'], 200)
+
+        resp3 = self._post_build_processing_data_chunk()
+        self.assertEqual(resp3.status_code, 200)
+        self.assertTrue(resp3.data['done'])
+        self.assertEqual(resp3.data['processed_rows'], 250)
+
+        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 250)
+        self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 250)
+        self.assertEqual(
+            ProcessingDataBuild.objects.filter(
+                purchase_order=self.order,
+                status=ProcessingDataBuild.STATUS_COMPLETE,
+            ).count(),
+            1,
+        )
+
+    def test_chunk_endpoint_idempotent_when_build_complete(self):
+        PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='finalized',
+            row_count=1,
+            finalized_at=timezone.now(),
+        )
+        ProcessingRow.objects.create(
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            unit_retail=Decimal('10.00'),
+            final_price=Decimal('5.00'),
+            pricing_stage='final',
+            title='T',
+            description='D',
+            condition='good',
+        )
+        done = self._build_processing_data()
+        self.assertTrue(done.data['done'])
+
+        again = self._post_build_processing_data_chunk()
+        self.assertEqual(again.status_code, 200)
+        self.assertTrue(again.data['done'])
+        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 1)
+
+    def test_clear_processing_data_returns_to_bookmarks_only(self):
+        prep = PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='finalized',
+            row_count=2,
+            finalized_at=timezone.now(),
+        )
+        ProcessingRow.objects.create(
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            unit_retail=Decimal('10.00'),
+            final_price=Decimal('5.00'),
+            pricing_stage='final',
+            title='A',
+            description='Aa',
+            condition='good',
+        )
+        ProcessingRow.objects.create(
+            purchase_order=self.order,
+            row_number=2,
+            quantity=1,
+            unit_retail=Decimal('11.00'),
+            final_price=Decimal('6.00'),
+            pricing_stage='final',
+            title='B',
+            description='Bb',
+            condition='good',
+        )
+
+        build = self._build_processing_data()
+        self.assertEqual(build.status_code, 200)
+        self.assertTrue(build.data['done'])
+        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 2)
+        self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 2)
+        self.assertTrue(ProcessingBatch.objects.filter(purchase_order=self.order).exists())
+
+        clear = self._post_clear_processing_data()
+        self.assertEqual(clear.status_code, 200, clear.data)
+        self.assertEqual(clear.data.get('code'), 'processing_data_cleared')
+        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 0)
+        self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 0)
+        self.assertEqual(ProcessingRow.objects.filter(purchase_order=self.order).count(), 2)
+        self.assertFalse(
+            ProcessingRow.objects.filter(purchase_order=self.order, manifest_row_id__isnull=False).exists(),
+        )
+        self.assertFalse(ProcessingDataBuild.objects.filter(purchase_order=self.order).exists())
+        self.assertFalse(ProcessingBatch.objects.filter(purchase_order=self.order).exists())
+
+        prep.refresh_from_db()
+        self.assertIsNotNone(prep.finalized_at)
+
+    def test_get_processing_data_build_status_idle_then_running(self):
+        from apps.inventory.services.processing_workspace import build_processing_workspace
+
+        PreprocessingOrder.objects.create(
+            purchase_order=self.order,
+            workflow_status='finalized',
+            row_count=101,
+            finalized_at=timezone.now(),
+        )
+        ProcessingRow.objects.bulk_create([
+            ProcessingRow(
+                purchase_order=self.order,
+                preprocessing_row=None,
+                row_number=i,
+                quantity=1,
+                unit_retail=Decimal('10.00'),
+                final_price=Decimal('5.00'),
+                pricing_stage='final',
+                title=f'Title {i}',
+                description=f'Desc {i}',
+                condition='good',
+            )
+            for i in range(1, 102)
+        ])
+
+        st_view = PurchaseOrderViewSet.as_view({'get': 'processing_data_build'})
+        rq = APIRequestFactory().get(f'/api/inventory/orders/{self.order.pk}/processing-data-build/')
+        force_authenticate(rq, user=self.user)
+        idle = st_view(rq, pk=self.order.pk)
+        self.assertEqual(idle.status_code, 200)
+        self.assertEqual(idle.data.get('status'), 'none')
+
+        self.assertEqual(self._build_processing_data(until_done=False).status_code, 200)
+        rq2 = APIRequestFactory().get(f'/api/inventory/orders/{self.order.pk}/processing-data-build/')
+        force_authenticate(rq2, user=self.user)
+        running = st_view(rq2, pk=self.order.pk)
+        self.assertEqual(running.status_code, 200)
+        self.assertFalse(running.data['done'])
+        self.assertEqual(running.data['processed_rows'], 100)
+
+        self.assertEqual(self._post_build_processing_data_chunk().status_code, 200)
+        rq3 = APIRequestFactory().get(f'/api/inventory/orders/{self.order.pk}/processing-data-build/')
+        force_authenticate(rq3, user=self.user)
+        complete_st = st_view(rq3, pk=self.order.pk)
+        self.assertTrue(complete_st.data['done'])
+
+        ws = build_processing_workspace(self.order)
+        self.assertFalse(ws.get('processingBookmarkOnly'))
+
     def test_build_processing_data_fast_path_handles_large_bookmark_set(self):
         PreprocessingOrder.objects.create(
             purchase_order=self.order,
@@ -1278,6 +1496,9 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(item.title, 'Review raw manifest row 5')
         self.assertEqual(item.condition, 'unknown')
         self.assertIsNone(item.product_id)
+        rules = {w.get('rule') for w in (build_resp.data.get('warnings') or [])}
+        self.assertIn('missing_listing_text', rules)
+        self.assertIn('invalid_condition', rules)
 
     def test_processing_check_in_works_with_fast_path_productless_items(self):
         from apps.inventory.processing_ops import processing_print_and_check_in

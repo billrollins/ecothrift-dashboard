@@ -1,5 +1,19 @@
-fix(inventory): stabilize processing data build for large POs
+feat(inventory): v2.22.0 Item Processor row-first mutations + processing data build
 
-Replace the heavy synchronous product-matching build path with a minimal bulk ManifestRow/Item build from ProcessingRow bookmarks. This avoids Heroku request timeouts for large purchase orders and removes the full-row duplicate scan from processing workspace loads.
+- API: order mutations accept processing_row_id(s) for print-multiple, dispute
+  (scope processing_rows), merge, and bulk disposition; legacy manifest_row_* kept;
+  conflict validation when both id forms are sent.
+- Responses: HTTP 400 with code processing_data_required for bookmark rows
+  without linked manifest lines (views + processing_ops).
+- Merge path refreshes denorm only for ProcessingRows tied to touched manifest
+  lines (no full-PO scan for that step).
+- Frontend: row-first payloads in modals/bulk bar; restore processingBulkDisposition
+  export; BulkDisposition uses pendingItemCount when list rows omit items[].
+- Data model: migration inventory 0042_processing_data_build (chunked build
+  tracking); related finalize/workspace/model changes on branch.
+- Docs: CHANGELOG, steering context, extended inventory-pipeline + frontend;
+  initiative Session 13; .gitignore .0.learning for safe yolo deploy staging.
 
-Release: v2.21.1
+Tests: python manage.py test apps.inventory.tests.test_processing_validation_matrix
+apps.inventory.tests.test_preprocessing_redesign --noinput
+Build: cd frontend && npm run build

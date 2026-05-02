@@ -1,6 +1,6 @@
 # Consultant context — Eco-Thrift Dashboard
 
-<!-- Last updated: 2026-05-02 (**v2.21.1** — Processing data hotfix; fast minimal build path for large POs) -->
+<!-- Last updated: 2026-05-02 (**v2.22.0** — Item Processor row-first API + UI; `CHANGELOG [2.22.0]`) -->
 
 **Purpose.** Single **information-dense** handoff for **external advisors** on the **full** Eco-Thrift Dashboard—not only liquidation buying. **[`.ai/context.md`](context.md)** is the living **agent** summary (version roll-up, known issues, file map). This file gives **cross-cutting architecture**, a **short recent / near-term** slice, then—below—a **detailed** treatment of **B-Stock**, manifests, valuation, and **legacy data / backfill** archaeology that sourcing-focused engagements still need.
 
@@ -14,7 +14,7 @@
 |--------|------|
 | **Business** | Eco-Thrift — thrift retail (Omaha area). One internal app runs **HR**, **inventory** (vendors, POs, preprocessing, receiving, item processing), **POS**, **consignment** + consignee portal, **admin**, and **B-Stock–driven buying**. |
 | **Stack** | **Django 5.2** + **DRF**, **PostgreSQL**, **React 18.3** + **TypeScript** + **MUI v7** + **Vite**, **TanStack Query**. **Heroku** deployment for always-on access. |
-| **Version** | Repo root **`.version`** + **`CHANGELOG.md`** (e.g. **v2.21.1** at time of this edit). |
+| **Version** | Repo root **`.version`** + **`CHANGELOG.md`** (e.g. **v2.22.0** at time of this edit). |
 
 ### Backend (`apps/`)
 

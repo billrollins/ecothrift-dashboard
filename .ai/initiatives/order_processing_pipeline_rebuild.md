@@ -239,6 +239,14 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 - **Finish line:** Steering + **[Unreleased]** describe read-only audit + column fix; **no** `.version` bump (`review.0.Bump` Part **2A**).
 - **Start:** 2026-05-02
 
+### Session 13 — Item Processor Phase 3 row-first + **`review.0.Bump`** (`v2.22.0`)
+
+- **Evidence:** **`CHANGELOG [2.22.0]`**, **`.version`**, migration **`inventory/0042_processing_data_build`**.
+- **Goal:** Selection identity (**`processing_row_id`**) matches mutation payloads — dispute, merge, bulk disposition, print-multiple accept **`processing_row_ids`** / **`processing_row_id`**; bookmark-only rows yield **`processing_data_required`**; merge denorm refresh scoped.
+- **Scope:** **`apps/inventory/processing_ops.py`**, **`views.py`**, **`processing_workspace.py`**, **`processing_finalize.py`**, **`models.py`**; **`frontend`** processing modals/page/hooks/**`inventory.api.ts`**; **`test_processing_validation_matrix`**, **`test_preprocessing_redesign`**; **`.gitignore`** **`.0.learning/`** (safe **`git add .`** before deploy bats); steering **`context.md`** / **`consultant_context.md`** / **`extended/{inventory-pipeline,frontend}.md`**.
+- **Finish line:** Operators can **`5_deploy_yolo.bat`** without staging stray learning dirs; **`commit_message.txt`** holds full deploy message (**line 1** not **`---`**).
+- **Start:** 2026-05-02
+
 ---
 
 ## See also

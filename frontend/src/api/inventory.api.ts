@@ -989,6 +989,19 @@ export function finalizePreprocessing(orderId: number): Promise<{ data: Finalize
 }
 
 export interface BuildProcessingDataResponse {
+  status?: string;
+  done?: boolean;
+  blocked?: boolean;
+  processed_rows?: number;
+  total_rows?: number;
+  created_items?: number;
+  total_items?: number;
+  percent?: number;
+  warnings?: Array<{ row_number: number; rule: string; message: string }>;
+  error_count?: number;
+  last_error?: string;
+  generation?: number;
+  chunk_size?: number;
   manifest_rows: number;
   processing_row_bookmarks: number;
   batch_groups_created: number;
@@ -1002,8 +1015,34 @@ export interface BuildProcessingDataResponse {
   item_count?: number;
 }
 
-export function buildProcessingData(orderId: number): Promise<{ data: BuildProcessingDataResponse }> {
-  return api.post<BuildProcessingDataResponse>(`/inventory/orders/${orderId}/build-processing-data/`, {});
+export function buildProcessingData(
+  orderId: number,
+  body: { reset?: boolean } = {},
+): Promise<{ data: BuildProcessingDataResponse }> {
+  return api.post<BuildProcessingDataResponse>(`/inventory/orders/${orderId}/build-processing-data/`, body);
+}
+
+export function getProcessingDataBuild(orderId: number): Promise<{ data: BuildProcessingDataResponse }> {
+  return api.get<BuildProcessingDataResponse>(`/inventory/orders/${orderId}/processing-data-build/`);
+}
+
+export function runProcessingDataBuildChunk(orderId: number): Promise<{ data: BuildProcessingDataResponse }> {
+  return api.post<BuildProcessingDataResponse>(
+    `/inventory/orders/${orderId}/processing-data-build/chunk/`,
+    {},
+  );
+}
+
+export type ClearProcessingDataResponse = BuildProcessingDataResponse & {
+  detail: string;
+  code?: string;
+};
+
+export function clearProcessingData(orderId: number): Promise<{ data: ClearProcessingDataResponse }> {
+  return api.post<ClearProcessingDataResponse>(
+    `/inventory/orders/${orderId}/clear-processing-data/`,
+    {},
+  );
 }
 
 export function getCleanupModels(orderId: number): Promise<{ data: CleanupModelsResponse }> {
@@ -1202,6 +1241,20 @@ export function processingPrintAndCheckIn(
   );
 }
 
+export interface ProcessingPrintMultiplePayload {
+  /** Preferred row identity for Item Processor (Phase 3). */
+  processing_row_id?: number;
+  /** Legacy when not using ``processing_row_id``. */
+  manifest_row_id?: number;
+  qty: number;
+  condition?: string;
+  dispatch?: string;
+  retail?: string;
+  price?: string;
+  unit_retail?: string;
+  notes?: string;
+}
+
 export interface ProcessingPrintMultipleResponse {
   checked_in_item_ids: number[];
   workspace_patch: ProcessingWorkspacePatchDTO;
@@ -1211,7 +1264,7 @@ export interface ProcessingPrintMultipleResponse {
 
 export function processingPrintMultiple(
   orderId: number,
-  payload: Record<string, unknown>,
+  payload: ProcessingPrintMultiplePayload | Record<string, unknown>,
 ): Promise<{ data: ProcessingPrintMultipleResponse }> {
   return api.post<ProcessingPrintMultipleResponse>(
     `/inventory/orders/${orderId}/processing-print-multiple/`,
@@ -1219,9 +1272,19 @@ export function processingPrintMultiple(
   );
 }
 
+export interface ProcessingDisputePayload {
+  scope: 'items' | 'manifest_row' | 'manifest_rows' | 'processing_rows';
+  ids?: number[];
+  /** Alias for bulk processing-row disputes (optional if ``ids`` set). */
+  processing_row_ids?: number[];
+  type: 'broken' | 'undelivered';
+  pct_loss?: number;
+  description?: string;
+}
+
 export function processingDispute(
   orderId: number,
-  payload: Record<string, unknown>,
+  payload: ProcessingDisputePayload | Record<string, unknown>,
 ): Promise<{ data: { workspace_patch: ProcessingWorkspacePatchDTO } }> {
   return api.post<{ workspace_patch: ProcessingWorkspacePatchDTO }>(
     `/inventory/orders/${orderId}/processing-dispute/`,
@@ -1229,9 +1292,15 @@ export function processingDispute(
   );
 }
 
+export interface ProcessingMergeRowsPayload {
+  processing_row_ids?: number[];
+  manifest_row_ids?: number[];
+  field_values: Record<string, unknown>;
+}
+
 export function processingMergeRows(
   orderId: number,
-  payload: Record<string, unknown>,
+  payload: ProcessingMergeRowsPayload | Record<string, unknown>,
 ): Promise<{ data: { workspace_patch: ProcessingWorkspacePatchDTO } }> {
   return api.post<{ workspace_patch: ProcessingWorkspacePatchDTO }>(
     `/inventory/orders/${orderId}/processing-merge-rows/`,
@@ -1239,9 +1308,16 @@ export function processingMergeRows(
   );
 }
 
+export interface ProcessingBulkDispositionPayload {
+  processing_row_ids?: number[];
+  manifest_row_ids?: number[];
+  retail?: string;
+  groups: Record<string, unknown>[];
+}
+
 export function processingBulkDisposition(
   orderId: number,
-  payload: Record<string, unknown>,
+  payload: ProcessingBulkDispositionPayload | Record<string, unknown>,
 ): Promise<{ data: { workspace_patch: ProcessingWorkspacePatchDTO } }> {
   return api.post<{ workspace_patch: ProcessingWorkspacePatchDTO }>(
     `/inventory/orders/${orderId}/processing-bulk-disposition/`,

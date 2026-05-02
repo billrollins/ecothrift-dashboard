@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -10,6 +10,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  LinearProgress,
   Stack,
   TablePagination,
   TextField,
@@ -27,6 +28,7 @@ import {
   useProcessingPatchItem,
   useProcessingPrintAndCheckIn,
   useProcessingPrintMultiple,
+  useClearProcessingData,
   useBuildProcessingData,
   useProcessingRowDetail,
   useProcessingWorkspace,
@@ -34,6 +36,7 @@ import {
   type ProcessingWorkspaceListParams,
   prefetchProcessingRowDetail,
   printedPreviewToLabelInputs,
+  useProcessingDataBuildStatus,
 } from '../../../hooks/useProcessingWorkspace';
 import type { ProcessingWorkspaceItemDTO, ProcessingWorkspaceRowDTO } from '../../../types/inventory.types';
 import {
@@ -85,7 +88,8 @@ export default function ProcessingWorkspacePage() {
 
   const [printMultiOpen, setPrintMultiOpen] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
-  const [bulkDisputeManifestIds, setBulkDisputeManifestIds] = useState<number[] | null>(null);
+  /** ``processing_row_id`` values for bulk dispute (selection is row-first). */
+  const [bulkDisputeProcessingRowIds, setBulkDisputeProcessingRowIds] = useState<number[] | null>(null);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [bulkDispOpen, setBulkDispOpen] = useState(false);
@@ -239,8 +243,13 @@ export default function ProcessingWorkspacePage() {
     return bulkRowsSelected.every((r) => r.productId === pid);
   }, [bulkRowsSelected]);
 
-  const bulkManifestRowIdsForModals = useMemo(
-    () => bulkRowsSelected.map((r) => r.manifest_row_id).filter((x): x is number => x != null),
+  const bulkProcessingRowIdsForModals = useMemo(
+    () => bulkRowsSelected.map((r) => r.processing_row_id),
+    [bulkRowsSelected],
+  );
+
+  const bulkSelectionMissingManifestLink = useMemo(
+    () => bulkRowsSelected.some((r) => r.manifest_row_id == null),
     [bulkRowsSelected],
   );
 
@@ -265,6 +274,44 @@ export default function ProcessingWorkspacePage() {
   const mergeMu = useProcessingMergeRows(safeOrderId);
   const bulkDispMu = useProcessingBulkDisposition(safeOrderId);
   const buildProcessingDataMu = useBuildProcessingData(orderId ?? 0);
+  const clearProcessingDataMu = useClearProcessingData(orderId ?? 0);
+  const resetProcessingBusy =
+    buildProcessingDataMu.isPending || clearProcessingDataMu.isPending;
+  const procBuildPoll = useProcessingDataBuildStatus(orderId, Boolean(workspace?.processingBookmarkOnly));
+  const autoDrainBusyRef = useRef(false);
+
+  useEffect(() => {
+    autoDrainBusyRef.current = false;
+  }, [orderId]);
+
+  useEffect(() => {
+    if (orderId == null || !workspace?.processingBookmarkOnly) return;
+    if (
+      !procBuildPoll.isSuccess ||
+      !procBuildPoll.data ||
+      buildProcessingDataMu.isPending ||
+      clearProcessingDataMu.isPending
+    ) {
+      return;
+    }
+    if (autoDrainBusyRef.current) return;
+    const st = procBuildPoll.data;
+    if (st.status === 'none' || st.done || st.blocked) return;
+    autoDrainBusyRef.current = true;
+    void buildProcessingDataMu
+      .mutateAsync({})
+      .catch(() => undefined)
+      .finally(() => {
+        autoDrainBusyRef.current = false;
+      });
+  }, [
+    orderId,
+    workspace?.processingBookmarkOnly,
+    procBuildPoll.isSuccess,
+    procBuildPoll.data,
+    buildProcessingDataMu,
+    clearProcessingDataMu,
+  ]);
   const patchItem = useProcessingPatchItem(safeOrderId);
   const markComplete = useMarkOrderComplete();
 
@@ -281,7 +328,7 @@ export default function ProcessingWorkspacePage() {
   }, [bumpSearchFocus]);
 
   const openBulkDispute = useCallback(() => {
-    setBulkDisputeManifestIds(Array.from(bulkSelectedIds));
+    setBulkDisputeProcessingRowIds(Array.from(bulkSelectedIds));
     setDisputeOpen(true);
   }, [bulkSelectedIds]);
 
@@ -291,11 +338,11 @@ export default function ProcessingWorkspacePage() {
   }, [bumpSearchFocus]);
 
   const closeResetProcessingDataModal = useCallback(() => {
-    if (buildProcessingDataMu.isPending) return;
+    if (resetProcessingBusy) return;
     setResetProcessingDataOpen(false);
     setResetProcessingDataTyped('');
     bumpSearchFocus();
-  }, [buildProcessingDataMu.isPending, bumpSearchFocus]);
+  }, [resetProcessingBusy, bumpSearchFocus]);
 
   const handleSearchEnter = useCallback(async () => {
     const q = search.trim();
@@ -393,7 +440,7 @@ export default function ProcessingWorkspacePage() {
         await disputeMu.mutateAsync(payload);
         enqueueSnackbar('Dispute recorded.', { variant: 'success' });
         setDisputeOpen(false);
-        setBulkDisputeManifestIds(null);
+        setBulkDisputeProcessingRowIds(null);
         setBulkSelectedIds(new Set());
         bumpSearchFocus();
       } catch (e: unknown) {
@@ -502,40 +549,103 @@ export default function ProcessingWorkspacePage() {
       {poLineCount > 0 && workspace.processingBookmarkOnly ?
         <Box sx={{ flexShrink: 0, mt: 1 }}>
           <Alert severity="warning">
-          Manifest and items have not been created yet — review the bookmark rows, then{' '}
-          <Button size="small" variant="contained" sx={{ ml: 1, verticalAlign: 'middle' }}
-            disabled={buildProcessingDataMu.isPending || orderId == null}
-            onClick={async () => {
-              try {
-                const d = await buildProcessingDataMu.mutateAsync();
-                enqueueSnackbar(
-                  `Created ${String(d.manifest_rows ?? 0)} manifest row(s) and ${String(d.items_created ?? 0)} item(s).`,
-                  { variant: 'success' },
-                );
-                void refetch();
-                bumpSearchFocus();
-              } catch (e: unknown) {
-                const detail =
-                  e && typeof e === 'object' && 'response' in e ?
-                    (
-                      (
+            <Typography variant="body2" gutterBottom>
+              Manifest and items have not been fully prepared yet — review the bookmark rows below, then start the build.
+              Large orders are prepared in bounded chunks automatically.
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+              Create Processing Data before checking in, printing, merging, or disputing items.
+            </Typography>
+            {procBuildPoll.data?.blocked && procBuildPoll.data.last_error ?
+              <Typography variant="body2" color="error" sx={{ mb: 1 }}>
+                {procBuildPoll.data.last_error}
+              </Typography>
+            : null}
+            {(buildProcessingDataMu.isPending ||
+              (procBuildPoll.data && procBuildPoll.data.status !== 'none' && !procBuildPoll.data.done)) ?
+              <>
+                <LinearProgress
+                  variant="determinate"
+                  value={
+                    typeof procBuildPoll.data?.percent === 'number' ? Math.min(100, procBuildPoll.data.percent) : 0
+                  }
+                  sx={{ mt: 0.75 }}
+                />
+                <Typography variant="caption" component="div" sx={{ mt: 0.75 }}>
+                  Preparing processing data:{' '}
+                  {typeof procBuildPoll.data?.processed_rows === 'number' ?
+                    procBuildPoll.data.processed_rows
+                  : buildProcessingDataMu.isPending ?
+                    '…'
+                  : 0}{' '}
+                  /{' '}
+                  {typeof procBuildPoll.data?.total_rows === 'number' ?
+                    procBuildPoll.data.total_rows
+                  : buildProcessingDataMu.isPending ?
+                    '…'
+                  : workspace.row_count_total_po}{' '}
+                  rows
+                </Typography>
+                <Typography variant="caption" component="div" color="text.secondary">
+                  You can keep this page open. If interrupted, preparation can resume.
+                </Typography>
+              </>
+            : null}
+            <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1, alignItems: 'center' }}>
+              <Button
+                size="small"
+                variant="contained"
+                disabled={buildProcessingDataMu.isPending || orderId == null}
+                sx={{ verticalAlign: 'middle' }}
+                onClick={async () => {
+                  try {
+                    const d = await buildProcessingDataMu.mutateAsync({});
+                    if (d.blocked) {
+                      enqueueSnackbar(d.last_error?.trim() || 'Processing-data build blocked.', {
+                        variant: 'error',
+                      });
+                      await refetch();
+                      bumpSearchFocus();
+                      return;
+                    }
+                    enqueueSnackbar(
+                      `Prepared ${String(d.total_rows ?? d.processing_row_bookmarks ?? d.manifest_rows ?? 0)} rows and ${String(d.items_created ?? 0)} item(s).`,
+                      { variant: 'success' },
+                    );
+                    const wLen = Array.isArray(d.warnings) ? d.warnings.length : 0;
+                    if (wLen) {
+                      enqueueSnackbar(
+                        `Prepared with ${String(wLen)} row warning(s). Review placeholder rows during processing.`,
+                        { variant: 'warning' },
+                      );
+                    }
+                    void refetch();
+                    bumpSearchFocus();
+                  } catch (e: unknown) {
+                    const detail =
+                      e && typeof e === 'object' && 'response' in e ?
                         (
-                          e as {
-                            response?: { data?: { detail?: unknown } };
-                          }
-                        ).response?.data?.detail
-                      )
-                    )
-                  : undefined;
-                enqueueSnackbar(
-                  typeof detail === 'string' ? detail : detail ? JSON.stringify(detail) : 'Build failed',
-                  { variant: 'error' },
-                );
-              }
-            }}
-          >
-            Create Processing Data
-          </Button>
+                          (
+                            e as {
+                              response?: { data?: { detail?: unknown } };
+                            }
+                          ).response?.data?.detail
+                        )
+                      : undefined;
+                    enqueueSnackbar(
+                      typeof detail === 'string' ? detail : detail ? JSON.stringify(detail) : 'Build failed',
+                      { variant: 'error' },
+                    );
+                  }
+                }}
+              >
+                {procBuildPoll.data?.blocked ?
+                  'Retry / resume preparing'
+                : procBuildPoll.data && procBuildPoll.data.status !== 'none' && !procBuildPoll.data.done ?
+                  'Continue preparing'
+                : `Create Processing Data`}
+              </Button>
+            </Stack>
           </Alert>
         </Box>
       : null}
@@ -593,13 +703,14 @@ export default function ProcessingWorkspacePage() {
               onCheckIn={handleCheckIn}
               checkInLoading={printCheckIn.isPending}
               onOpenDispute={() => {
-                setBulkDisputeManifestIds(null);
+                setBulkDisputeProcessingRowIds(null);
                 setDisputeOpen(true);
               }}
               onPatchCheckedIn={handlePatchCheckedIn}
               patchLoading={patchItem.isPending}
               onPrintMultiple={() => setPrintMultiOpen(true)}
               printMultipleDisabled={
+                selectedRow.manifest_row_id == null ||
                 !(selectedRow.items ?? []).some((i) => i.status === 'intake' || i.status === 'processing')
               }
               productFilterActive={productFilterProductId != null && productFilterProductId === selectedRow.productId}
@@ -675,6 +786,12 @@ export default function ProcessingWorkspacePage() {
               onBulkDisposition={() => setBulkDispOpen(true)}
               onMarkBroken={openBulkDispute}
               onMarkUndelivered={openBulkDispute}
+              itemActionsBlocked={bulkSelectionMissingManifestLink}
+              itemActionsBlockedHint={
+                bulkSelectionMissingManifestLink ?
+                  'Some selected rows are still preprocessing bookmarks with no manifest line yet. Create Processing Data first, or deselect those lines.'
+                : undefined
+              }
             />
           : null}
         </Box>
@@ -688,8 +805,8 @@ export default function ProcessingWorkspacePage() {
           orderComplete={workspace.order.status === 'complete'}
           closeLoading={markComplete.isPending}
           onCloseClick={() => setCompleteOpen(true)}
-          resetProcessingVisible={poLineCount > 0 && !workspace.processingBookmarkOnly}
-          resetProcessingDisabled={buildProcessingDataMu.isPending || orderId == null}
+          resetProcessingVisible={poLineCount > 0 && Boolean(workspace.preprocessing_finalized_at)}
+          resetProcessingDisabled={resetProcessingBusy || orderId == null}
           onResetProcessingClick={() => {
             setResetProcessingDataTyped('');
             setResetProcessingDataOpen(true);
@@ -711,11 +828,11 @@ export default function ProcessingWorkspacePage() {
         open={disputeOpen}
         onClose={() => {
           setDisputeOpen(false);
-          setBulkDisputeManifestIds(null);
+          setBulkDisputeProcessingRowIds(null);
           bumpSearchFocus();
         }}
         item={activeItem}
-        bulkManifestRowIds={bulkDisputeManifestIds ?? undefined}
+        bulkProcessingRowIds={bulkDisputeProcessingRowIds ?? undefined}
         loading={disputeMu.isPending}
         onSubmit={handleDisputeSubmit}
       />
@@ -723,7 +840,7 @@ export default function ProcessingWorkspacePage() {
       <MergeModal
         open={mergeOpen}
         onClose={() => closeModalAndRefocus(setMergeOpen)}
-        manifestRowIds={bulkManifestRowIdsForModals}
+        processingRowIds={bulkProcessingRowIdsForModals}
         rows={bulkRowsSelected}
         loading={mergeMu.isPending}
         onSubmit={async (payload) => {
@@ -746,7 +863,7 @@ export default function ProcessingWorkspacePage() {
       <BulkDispositionModal
         open={bulkDispOpen}
         onClose={() => closeModalAndRefocus(setBulkDispOpen)}
-        manifestRowIds={bulkManifestRowIdsForModals}
+        processingRowIds={bulkProcessingRowIdsForModals}
         rows={bulkRowsSelected}
         loading={bulkDispMu.isPending}
         onSubmit={async (payload) => {
@@ -769,19 +886,19 @@ export default function ProcessingWorkspacePage() {
       <Dialog
         open={resetProcessingDataOpen}
         onClose={() => {
-          if (buildProcessingDataMu.isPending) return;
+          if (resetProcessingBusy) return;
           closeResetProcessingDataModal();
         }}
         maxWidth="sm"
         fullWidth
-        disableEscapeKeyDown={buildProcessingDataMu.isPending}
+        disableEscapeKeyDown={resetProcessingBusy}
         PaperProps={{
           sx: (theme) => ({
             border: `4px solid ${theme.palette.error.main}`,
             boxShadow: theme.shadows[12],
           }),
           onKeyDownCapture: (e: KeyboardEvent<HTMLDivElement>) => {
-            if (buildProcessingDataMu.isPending || e.key !== 'Enter') return;
+            if (resetProcessingBusy || e.key !== 'Enter') return;
             const t = e.target as HTMLElement | null;
             if (t?.closest('[data-reset-proceed-button]')) return;
             e.preventDefault();
@@ -792,24 +909,28 @@ export default function ProcessingWorkspacePage() {
       >
         <DialogTitle sx={{ pt: 3, px: 3, pb: 1 }}>
           <Typography variant="h5" component="span" fontWeight={800} color="error">
-            Reset processing data?
+            Reset to preprocessing bookmarks?
           </Typography>
         </DialogTitle>
         <DialogContent sx={{ px: 3, pt: 0 }}>
           <Alert severity="error" variant="outlined" sx={{ mt: 1, mb: 2, py: 2, px: 2, borderWidth: 2 }}>
             <AlertTitle sx={{ typography: 'h6', fontWeight: 800 }}>This is destructive</AlertTitle>
             <Typography variant="body1" component="div" sx={{ mt: 1.5, fontWeight: 600 }}>
-              You are about to delete all manifest rows and non-terminal inventory items for this order, then recreate them from
-              your finalized preprocessing bookmarks. Check-in progress, batch links, and in-flight processing work tied to those
-              lines can be wiped or rebuilt.
+              This removes canonical manifest rows, intake/processing/on-shelf items tied to those lines,
+              inventory batch groups, and any in-progress chunked-build job — then unlinks bookmarks from
+              manifest data. Finalized preprocessing and your bookmark rows (titles, prices, etc.) stay
+              as they are now; nothing here re-runs the heavy “Create Processing Data” build automatically.
             </Typography>
           </Alert>
           <Typography variant="body2" color="text.secondary" paragraph sx={{ mb: 1 }}>
-            If anything looks wrong here, cancel and fix preprocessing first — this is intentionally hard to confirm.
+            If anything looks wrong here, cancel and fix preprocessing first — this still requires deliberate confirmation.
           </Typography>
           <Box component="ul" sx={{ m: 0, pl: 2.25, typography: 'body2', '& li': { mb: 0.75 } }}>
-            <li>Terminal items (e.g. sold) are preserved by the server; everything else tied to manifest lines may change.</li>
-            <li>Only continue if you deliberately need a full rebuild from bookmarks.</li>
+            <li>
+              Terminal items (e.g. sold) stay in the catalog; deleting manifest rows clears their canonical line linkage.
+              Use this only when you deliberately want bookmarks-only staging again before recreating manifest lines.
+            </li>
+            <li>You will tap <strong>Create Processing Data</strong> afterward when you actually want manifests and items recreated.</li>
           </Box>
           <TextField
             fullWidth
@@ -818,8 +939,8 @@ export default function ProcessingWorkspacePage() {
             value={resetProcessingDataTyped}
             onChange={(ev) => setResetProcessingDataTyped(ev.target.value)}
             autoComplete="off"
-            disabled={buildProcessingDataMu.isPending}
-            helperText="Escape closes the dialog. Enter cancels unless keyboard focus is on the small “reset & rebuild” link (after Tab)."
+            disabled={resetProcessingBusy}
+            helperText="Escape closes the dialog. Enter cancels unless keyboard focus is on the small confirm link (after Tab)."
             sx={{ mt: 2 }}
             inputProps={{ 'aria-label': 'Type RESET to confirm processing data reset' }}
           />
@@ -830,7 +951,7 @@ export default function ProcessingWorkspacePage() {
             size="large"
             color="primary"
             autoFocus
-            disabled={buildProcessingDataMu.isPending}
+            disabled={resetProcessingBusy}
             onClick={closeResetProcessingDataModal}
             sx={{ flex: '1 1 auto', minHeight: 48, px: 3, typography: 'subtitle1', fontWeight: 700 }}
           >
@@ -841,15 +962,17 @@ export default function ProcessingWorkspacePage() {
             size="small"
             variant="text"
             color="error"
-            disabled={!resetPhraseMatches || buildProcessingDataMu.isPending || orderId == null}
+            disabled={!resetPhraseMatches || resetProcessingBusy || orderId == null}
             onClick={() => {
               void (async () => {
-                if (!resetPhraseMatches || orderId == null || buildProcessingDataMu.isPending) return;
+                if (!resetPhraseMatches || orderId == null || resetProcessingBusy) return;
                 try {
-                  const d = await buildProcessingDataMu.mutateAsync();
+                  const d = await clearProcessingDataMu.mutateAsync();
                   closeResetProcessingDataModal();
                   enqueueSnackbar(
-                    `Reset complete: ${String(d.manifest_rows ?? 0)} manifest row(s), ${String(d.items_created ?? 0)} item(s).`,
+                    typeof d.detail === 'string' ?
+                      d.detail
+                    : `Cleared processing data (${String(d.processing_row_bookmarks ?? 0)} bookmark rows kept).`,
                     { variant: 'success' },
                   );
                   await refetch();
@@ -859,10 +982,10 @@ export default function ProcessingWorkspacePage() {
                     e && typeof e === 'object' && 'response' in e ?
                       (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
                     : undefined;
-                  enqueueSnackbar(
-                    typeof detail === 'string' ? detail : detail ? JSON.stringify(detail) : 'Reset failed',
-                    { variant: 'error' },
-                  );
+                    enqueueSnackbar(
+                      typeof detail === 'string' ? detail : detail ? JSON.stringify(detail) : 'Clear failed',
+                      { variant: 'error' },
+                    );
                 }
               })();
             }}
@@ -875,7 +998,7 @@ export default function ProcessingWorkspacePage() {
               alignSelf: 'flex-end',
             }}
           >
-            {buildProcessingDataMu.isPending ? 'Resetting…' : 'I understand — reset & rebuild'}
+            {resetProcessingBusy ? 'Clearing…' : 'I understand — clear processing data'}
           </Button>
         </DialogActions>
       </Dialog>

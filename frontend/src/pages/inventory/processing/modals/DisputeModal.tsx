@@ -6,13 +6,13 @@ export interface DisputeModalProps {
   open: boolean;
   onClose: () => void;
   item: ProcessingWorkspaceItemDTO | null;
-  /** When set, disputes all pending intake/processing units on these manifest rows (batch). */
-  bulkManifestRowIds?: number[] | null;
+  /** When set, disputes pending rows for these ``ProcessingRow`` ids (batch). */
+  bulkProcessingRowIds?: number[] | null;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
   loading: boolean;
 }
 
-export function DisputeModal({ open, onClose, item, bulkManifestRowIds, onSubmit, loading }: DisputeModalProps) {
+export function DisputeModal({ open, onClose, item, bulkProcessingRowIds, onSubmit, loading }: DisputeModalProps) {
   const [dtype, setDtype] = useState<'broken' | 'undelivered'>('broken');
   const [pct, setPct] = useState('50');
   const [desc, setDesc] = useState('');
@@ -22,9 +22,9 @@ export function DisputeModal({ open, onClose, item, bulkManifestRowIds, onSubmit
     setDtype('broken');
     setPct('50');
     setDesc('');
-  }, [open, item?.id, bulkManifestRowIds?.join(',')]);
+  }, [open, item?.id, bulkProcessingRowIds?.join(',')]);
 
-  const bulk = bulkManifestRowIds && bulkManifestRowIds.length > 0;
+  const bulk = bulkProcessingRowIds && bulkProcessingRowIds.length > 0;
   const canBroken = dtype === 'broken';
   const pending =
     item && (item.status === 'intake' || item.status === 'processing');
@@ -34,7 +34,7 @@ export function DisputeModal({ open, onClose, item, bulkManifestRowIds, onSubmit
 
   return (
     <Dialog open={open} onClose={() => !loading && onClose()} maxWidth="xs" fullWidth>
-      <DialogTitle>{bulk ? `Dispute ${bulkManifestRowIds!.length} manifest row(s)` : 'Dispute unit'}</DialogTitle>
+      <DialogTitle>{bulk ? `Dispute ${bulkProcessingRowIds!.length} line(s)` : 'Dispute unit'}</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
         <Typography variant="caption" color="text.secondary">
           Broken requires description & loss %. Undelivered marks matching units terminal without extra fields (V-26 / V-27).
@@ -78,7 +78,7 @@ export function DisputeModal({ open, onClose, item, bulkManifestRowIds, onSubmit
         {bulk ?
           <>
             <Typography variant="body2" color="text.secondary">
-              Applies every intake/processing unit on the chosen manifest rows.
+              Applies every intake/processing unit on the chosen lines.
             </Typography>
             {canBroken ? (
               <>
@@ -132,8 +132,8 @@ export function DisputeModal({ open, onClose, item, bulkManifestRowIds, onSubmit
               type: dtype,
             };
             if (bulk) {
-              payload.scope = 'manifest_rows';
-              payload.ids = bulkManifestRowIds;
+              payload.scope = 'processing_rows';
+              payload.ids = bulkProcessingRowIds;
             } else {
               if (!item) return;
               payload.scope = 'items';

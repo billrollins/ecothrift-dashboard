@@ -1036,6 +1036,66 @@ class Item(models.Model):
         return f'ITM{num:07d}'
 
 
+class ProcessingDataBuild(models.Model):
+    """Chunked progress for ``POST …/build-processing-data/`` on large POs."""
+
+    STATUS_PENDING = 'pending'
+    STATUS_RUNNING = 'running'
+    STATUS_COMPLETE = 'complete'
+    STATUS_FAILED = 'failed'
+    STATUS_BLOCKED = 'blocked'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_RUNNING, 'Running'),
+        (STATUS_COMPLETE, 'Complete'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_BLOCKED, 'Blocked'),
+    ]
+
+    purchase_order = models.OneToOneField(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='processing_data_build',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    generation = models.PositiveIntegerField(default=0)
+    chunk_size = models.PositiveIntegerField(default=100)
+    max_items_per_chunk = models.PositiveIntegerField(default=500)
+
+    total_rows = models.PositiveIntegerField(default=0)
+    processed_rows = models.PositiveIntegerField(default=0)
+    total_items = models.PositiveIntegerField(default=0)
+    created_items = models.PositiveIntegerField(default=0)
+    current_row_number = models.PositiveIntegerField(default=0)
+
+    error_count = models.PositiveIntegerField(default=0)
+    warnings = models.JSONField(default=list, blank=True)
+    last_error = models.TextField(blank=True, default='')
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+
+    class Meta:
+        verbose_name = 'Processing data build'
+        verbose_name_plural = 'Processing data builds'
+
+    def __str__(self):
+        return f'ProcessingDataBuild PO={self.purchase_order_id} {self.status}'
+
+
 class ProcessingBatch(models.Model):
     """Tracks a create-items processing run for a PO."""
     STATUS_CHOICES = [

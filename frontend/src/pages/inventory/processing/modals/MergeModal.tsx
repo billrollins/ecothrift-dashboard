@@ -16,7 +16,7 @@ import type { ProcessingWorkspaceRowDTO } from '../../../../types/inventory.type
 export interface MergeModalProps {
   open: boolean;
   onClose: () => void;
-  manifestRowIds: number[];
+  processingRowIds: number[];
   rows: ProcessingWorkspaceRowDTO[];
   loading: boolean;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
@@ -72,7 +72,7 @@ function pickValue(
   return fieldValue(rs[idx], k);
 }
 
-export function MergeModal({ open, onClose, manifestRowIds, rows, loading, onSubmit }: MergeModalProps) {
+export function MergeModal({ open, onClose, processingRowIds, rows, loading, onSubmit }: MergeModalProps) {
   const [sourceByField, setSourceByField] = useState<Record<FieldKey, number>>({
     title: 0,
     brand: 0,
@@ -95,7 +95,7 @@ export function MergeModal({ open, onClose, manifestRowIds, rows, loading, onSub
     setSourceByField(base);
   }, [open, rows]);
 
-  const canSubmit = manifestRowIds.length >= 2 && rows.length >= 2;
+  const canSubmit = processingRowIds.length >= 2 && rows.length >= 2;
   const titlePreview = useMemo(
     () => (rows.length >= 2 ? pickValue(rows, sourceByField, 'title') : ''),
     [rows, sourceByField],
@@ -105,15 +105,17 @@ export function MergeModal({ open, onClose, manifestRowIds, rows, loading, onSub
 
   return (
     <Dialog open={open} onClose={() => !loading && onClose()} maxWidth="md" fullWidth>
-      <DialogTitle>Merge manifest rows</DialogTitle>
+      <DialogTitle>Merge lines</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
         <Typography variant="body2" color="text.secondary">
-          Pick which manifest row contributes each canonical product field before merge. Rows: <strong>{affectingSummary || '—'}</strong>.
+          Pick which line contributes each canonical product field before merge. Rows:{' '}
+          <strong>{affectingSummary || '—'}</strong>.
           Title is required; canonical product adopts the stitched values below.
         </Typography>
         {rows.length < 2 ?
           <Typography variant="body2" color="warning.main">
-            Select at least two manifest rows (same-product merge) — row data was cleared or did not load. Close this dialog and try again from the queue.
+            Select at least two lines (same-product merge) — row data was cleared or did not load. Close this dialog and try again
+            from the queue.
           </Typography>
         : null}
         {rows.length >= 2 ? FIELDS.map(({ key: fk, label }) => {
@@ -179,7 +181,7 @@ export function MergeModal({ open, onClose, manifestRowIds, rows, loading, onSub
             const specsFrom = rows[titleIx]?.specs;
             if (specsFrom && typeof specsFrom === 'object') fv.specs = specsFrom;
             await onSubmit({
-              manifest_row_ids: manifestRowIds,
+              processing_row_ids: processingRowIds,
               field_values: fv,
             });
           }}

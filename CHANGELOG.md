@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.21.1] — 2026-05-02 (Inventory — Processing data hotfix) -->
-<!-- Last reviewed: 2026-05-02 (`review.0.Bump` — v2.21.1 processing data hotfix) -->
+<!-- Line 1 release: ## [2.22.0] — 2026-05-02 (Inventory — Item Processor row-first) -->
+<!-- Last reviewed: 2026-05-02 (`review.0.Bump` — v2.22.0 row-first mutations + deploy prep) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,30 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.22.0] — 2026-05-02
+
+User-facing theme: **Item Processor row identity** — workspace selection and bulk flows use **`processing_row_id` / `processing_row_ids`** consistently; the server maps to manifest lines and items; unlinked bookmarks get a clear **`processing_data_required`** error.
+
+### Added
+
+- **Inventory / Item Processor** — **`processing_rows`** dispute scope and **`processing_row_ids`** (or **`ids`**) for bulk dispute; **`processing_row_id`** for print-multiple; **`processing_row_ids`** for merge and bulk disposition (**`POST …/processing-dispute/`**, **`processing-print-multiple/`**, **`processing-merge-rows/`**, **`processing-bulk-disposition/`**) — [`apps/inventory/processing_ops.py`](apps/inventory/processing_ops.py); [`apps/inventory/views.py`](apps/inventory/views.py). Legacy **`manifest_row_*`** fields remain accepted during transition; if both forms are sent they must agree or the request is rejected.
+- **Inventory** — **`ProcessingDataBuild`** model and migration **`0042_processing_data_build`** for resumable chunked processing-data creation ([`apps/inventory/models.py`](apps/inventory/models.py); [`apps/inventory/migrations/0042_processing_data_build.py`](apps/inventory/migrations/0042_processing_data_build.py)).
+
+### Changed
+
+- **Inventory / Item Processor** — Merge mutations refresh **`ProcessingRow`** denorm only for manifest lines involved in the merge (not every row on the PO) ([`apps/inventory/processing_ops.py`](apps/inventory/processing_ops.py)).
+- **Inventory / Item Processor (frontend)** — Modals and bulk bar send row-first payloads; bulk actions are disabled when selection includes rows with no linked manifest line, with on-bar copy ([`ProcessingWorkspacePage.tsx`](frontend/src/pages/inventory/processing/ProcessingWorkspacePage.tsx); [`ProcessingBulkActionBar.tsx`](frontend/src/pages/inventory/processing/ProcessingBulkActionBar.tsx); modal files under [`frontend/src/pages/inventory/processing/modals/`](frontend/src/pages/inventory/processing/modals/)). **`BulkDispositionModal`** uses **`pendingItemCount`** when **`items`** is empty on workspace list rows ([`BulkDispositionModal.tsx`](frontend/src/pages/inventory/processing/modals/BulkDispositionModal.tsx)).
+
+### Fixed
+
+- **Frontend** — Restored **`processingBulkDisposition`** export in [`inventory.api.ts`](frontend/src/api/inventory.api.ts) (Vite import error with **`useProcessingWorkspace.ts`**).
+
+### Tests
+
+- **`python manage.py test apps.inventory.tests.test_preprocessing_redesign apps.inventory.tests.test_processing_validation_matrix --noinput`** — extended row-first coverage; **77 tests OK** ([`test_processing_validation_matrix.py`](apps/inventory/tests/test_processing_validation_matrix.py)).
 
 ---
 

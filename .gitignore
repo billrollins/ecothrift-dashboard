@@ -27,6 +27,9 @@ frontend/.vite/
 .vscode/
 .idea/
 .cursor/
+
+# Local agent learning notes (do not ship with `git add .`)
+.0.learning/
 *.swp
 *.swo
 

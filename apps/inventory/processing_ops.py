@@ -33,6 +33,89 @@ from apps.inventory.services.processing_workspace import (
 )
 
 
+class ProcessingDataRequired(ValueError):
+    """Bookmark row has no linked manifest line yet (Create Processing Data not run)."""
+
+    def __init__(self, message: str | None = None) -> None:
+        super().__init__(message or 'Create Processing Data before running this action.')
+
+
+def _as_int_ids(raw: Any) -> list[int]:
+    """Normalize list-ish payload to sorted-unique ints (order preserved after dedupe)."""
+    if raw is None:
+        return []
+    if isinstance(raw, (str, bytes)) or not hasattr(raw, '__iter__'):
+        return []
+    out: list[int] = []
+    seen: set[int] = set()
+    for x in raw:
+        try:
+            i = int(x)
+        except (TypeError, ValueError):
+            continue
+        if i not in seen:
+            seen.add(i)
+            out.append(i)
+    return out
+
+
+def manifest_row_ids_from_processing_rows(
+    order: PurchaseOrder,
+    processing_row_ids: list[int],
+    *,
+    require_linked: bool,
+) -> list[int]:
+    """Map bookmark PKs → manifest PKs; validate PO ownership."""
+
+    if not processing_row_ids:
+        return []
+
+    rows = list(
+        ProcessingRow.objects.filter(
+            purchase_order=order,
+            pk__in=processing_row_ids,
+        ).only('pk', 'manifest_row_id'),
+    )
+    by_id = {r.pk: r for r in rows}
+    missing_pks = [pid for pid in processing_row_ids if pid not in by_id]
+    if missing_pks:
+        raise ValueError('Invalid processing row ids for this order')
+
+    mids: list[int] = []
+    for pid in processing_row_ids:
+        pr = by_id[pid]
+        mid = pr.manifest_row_id
+        if mid is None:
+            if require_linked:
+                raise ProcessingDataRequired()
+            continue
+        mids.append(mid)
+    return mids
+
+
+def _resolve_merge_or_bulk_manifest_ids(order: PurchaseOrder, data: dict) -> tuple[list[int], str]:
+    """
+    Prefer ``processing_row_ids``; legacy ``manifest_row_ids`` still accepted.
+    If both are supplied, derived manifest IDs must match explicit manifest IDs.
+
+    Returns (manifest_row_ids, source) where source is processing_rows|manifest_rows|mixed.
+    """
+
+    pr_ids = _as_int_ids(data.get('processing_row_ids') or data.get('processingRowIds'))
+    mr_ids = _as_int_ids(data.get('manifest_row_ids'))
+
+    if pr_ids and mr_ids:
+        derived = manifest_row_ids_from_processing_rows(order, pr_ids, require_linked=True)
+        if sorted(derived) != sorted(mr_ids):
+            raise ValueError('manifest_row_ids do not match processing_row_ids')
+        return derived, 'mixed'
+
+    if pr_ids:
+        return manifest_row_ids_from_processing_rows(order, pr_ids, require_linked=True), 'processing_rows'
+
+    return mr_ids, 'manifest_rows'
+
+
 def parse_decimal(value):
     if value is None:
         return None
@@ -204,10 +287,49 @@ def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
 
 
 def processing_print_multiple(user, order: PurchaseOrder, data: dict) -> dict:
-    manifest_row_id = data.get('manifest_row_id')
+    pr_raw = data.get('processing_row_id')
+    mf_raw = data.get('manifest_row_id')
     qty = int(data.get('qty') or 0)
-    if not manifest_row_id or qty < 1:
-        raise ValueError('manifest_row_id and positive qty required')
+
+    pr_id = None
+    if pr_raw not in (None, ''):
+        try:
+            pr_id = int(pr_raw)
+        except (TypeError, ValueError):
+            pr_id = None
+
+    mf_id = None
+    if mf_raw not in (None, ''):
+        try:
+            mf_id = int(mf_raw)
+        except (TypeError, ValueError):
+            mf_id = None
+
+    manifest_row_id: int | None = None
+
+    if pr_id is not None and mf_id is not None:
+        pr = ProcessingRow.objects.filter(pk=pr_id, purchase_order=order).first()
+        if not pr:
+            raise ValueError('Processing row not found')
+        if pr.manifest_row_id is None:
+            raise ProcessingDataRequired()
+        if pr.manifest_row_id != mf_id:
+            raise ValueError('processing_row_id and manifest_row_id conflict')
+        manifest_row_id = mf_id
+    elif pr_id is not None:
+        pr = ProcessingRow.objects.filter(pk=pr_id, purchase_order=order).first()
+        if not pr:
+            raise ValueError('Processing row not found')
+        if pr.manifest_row_id is None:
+            raise ProcessingDataRequired()
+        manifest_row_id = pr.manifest_row_id
+    elif mf_id is not None:
+        manifest_row_id = mf_id
+    else:
+        pass
+
+    if manifest_row_id is None or qty < 1:
+        raise ValueError('processing_row_id or manifest_row_id, and positive qty required')
 
     mr = ManifestRow.objects.filter(purchase_order=order, pk=manifest_row_id).first()
     if not mr:
@@ -333,6 +455,18 @@ def processing_dispute(user, order: PurchaseOrder, data: dict) -> dict:
                     status__in=['intake', 'processing'],
                 ),
             )
+        elif scope == 'processing_rows':
+            prow_ids = _as_int_ids(ids or data.get('processing_row_ids'))
+            if not prow_ids:
+                raise ValueError('processing_rows scope requires ids or processing_row_ids')
+            m_ids = manifest_row_ids_from_processing_rows(order, prow_ids, require_linked=True)
+            rows = ManifestRow.objects.filter(purchase_order=order, pk__in=m_ids)
+            target_items = list(
+                Item.objects.select_for_update().filter(
+                    manifest_row__in=rows,
+                    status__in=['intake', 'processing'],
+                ),
+            )
         else:
             raise ValueError('Invalid scope')
 
@@ -395,7 +529,7 @@ def _apply_product_field_values(product: Product, fv: dict) -> None:
 
 
 def processing_merge_rows(user, order: PurchaseOrder, data: dict) -> dict:
-    row_ids = data.get('manifest_row_ids') or []
+    row_ids, _src = _resolve_merge_or_bulk_manifest_ids(order, data)
     fv = data.get('field_values') or {}
     if len(row_ids) < 2:
         raise ValueError('At least two manifest rows required')
@@ -454,17 +588,23 @@ def processing_merge_rows(user, order: PurchaseOrder, data: dict) -> dict:
             snapshot={'rows': snapshots, 'prior_canonical': pre_merge},
         )
 
-    pr_ids = list(ProcessingRow.objects.filter(purchase_order=order).values_list('pk', flat=True))
+    touched_mr_ids = {r.id for r in rows}
+    pr_ids = list(
+        ProcessingRow.objects.filter(
+            purchase_order=order,
+            manifest_row_id__in=touched_mr_ids,
+        ).values_list('pk', flat=True),
+    )
     refresh_processing_rows_denorm(order, processing_row_ids=pr_ids)
     return {'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=pr_ids)}
 
 
 def processing_bulk_disposition(user, order: PurchaseOrder, data: dict) -> dict:
-    row_ids = data.get('manifest_row_ids') or []
+    row_ids, _src = _resolve_merge_or_bulk_manifest_ids(order, data)
     retail = parse_decimal(data.get('retail'))
     groups = data.get('groups') or []
     if not row_ids or not groups:
-        raise ValueError('manifest_row_ids and groups required')
+        raise ValueError('processing_row_ids or manifest_row_ids, and groups required')
 
     rows = list(ManifestRow.objects.filter(purchase_order=order, pk__in=row_ids))
     if len(rows) != len(set(row_ids)):

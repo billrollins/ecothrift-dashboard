@@ -54,7 +54,10 @@ export function PrintMultipleModal({ open, onClose, row, onSubmit, loading }: Pr
     if (qty > max) setQty(Math.max(1, max));
   }, [open, row, pendingCount, qty]);
 
-  const canSubmit = Boolean(row?.manifest_row_id) && pendingCount >= 2 && qty >= 1 && qty <= pendingCount;
+  const canSubmit = Boolean(row?.processing_row_id != null && row.manifest_row_id != null) &&
+    pendingCount >= 2 &&
+    qty >= 1 &&
+    qty <= pendingCount;
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && !loading) {
@@ -69,7 +72,7 @@ export function PrintMultipleModal({ open, onClose, row, onSubmit, loading }: Pr
   };
 
   const submitPayload = () => ({
-    manifest_row_id: row!.manifest_row_id as number,
+    processing_row_id: row!.processing_row_id,
     qty,
     condition: conditionUi,
     dispatch,
@@ -89,6 +92,11 @@ export function PrintMultipleModal({ open, onClose, row, onSubmit, loading }: Pr
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
         {!row ? (
           <Typography color="text.secondary">Select a row first.</Typography>
+        ) : row.manifest_row_id == null ? (
+          <Typography color="text.secondary">
+            This row is still a preprocessing bookmark and has no inventory item yet. Create Processing Data before checking in,
+            printing, merging, or disputing items.
+          </Typography>
         ) : pendingCount < 1 ? (
           <Typography color="text.secondary">No pending units on this row.</Typography>
         ) : pendingCount < 2 ? (
