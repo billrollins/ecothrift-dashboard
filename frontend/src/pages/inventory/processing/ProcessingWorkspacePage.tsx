@@ -16,7 +16,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useMarkOrderComplete, usePurchaseOrders } from '../../../hooks/useInventory';
@@ -34,7 +33,6 @@ import {
   useProcessingWorkspace,
   PROCESSING_WORKSPACE_PAGE_SIZE,
   type ProcessingWorkspaceListParams,
-  prefetchProcessingRowDetail,
   printedPreviewToLabelInputs,
   useProcessingDataBuildStatus,
 } from '../../../hooks/useProcessingWorkspace';
@@ -63,8 +61,6 @@ export default function ProcessingWorkspacePage() {
   const { id: idParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
-  const queryClient = useQueryClient();
-
   const orderId = idParam && /^\d+$/.test(idParam) ? Number.parseInt(idParam, 10) : null;
 
   useEffect(() => {
@@ -188,14 +184,6 @@ export default function ProcessingWorkspacePage() {
     isFetching: detailRowFetching,
     isError: detailRowIsError,
   } = useProcessingRowDetail(orderId ?? null, detailQueryEnabled ? detailProcessingRowId : null);
-
-  const prefetchRowDetailHover = useCallback(
-    (processingRowId: number) => {
-      if (orderId == null || workspace?.processingBookmarkOnly) return;
-      void prefetchProcessingRowDetail(queryClient, orderId, processingRowId);
-    },
-    [orderId, queryClient, workspace?.processingBookmarkOnly],
-  );
 
   const selectedListRow = useMemo((): ProcessingWorkspaceRowDTO | null => {
     if (!workspace || detailProcessingRowId == null) return null;
@@ -754,7 +742,6 @@ export default function ProcessingWorkspacePage() {
                   clearBulk();
                   openDetail(id);
                 }}
-                onPrefetchDetail={prefetchRowDetailHover}
                 bulkSelectedIds={bulkSelectedIds}
                 onToggleBulkOne={toggleBulkOne}
                 onToggleBulkAll={toggleBulkAll}

@@ -1906,6 +1906,7 @@ def _annotate_purchase_order_stats(qs):
 _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
     {
         'processing_workspace',
+        'processing_row_detail',
         'processing_print_multiple_action',
         'processing_dispute_action',
         'processing_merge_rows_action',
@@ -1964,7 +1965,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return PurchaseOrder.objects.select_related('vendor', 'created_by').all()
         base = PurchaseOrder.objects.select_related('vendor', 'created_by').all()
         qs = _annotate_purchase_order_stats(base)
-        return qs.prefetch_related('manifest_rows')
+        # manifest_row_count uses _manifest_row_count annotation; prefetching all manifest rows
+        # loads entire PO manifests on every GET /orders/{id}/ and worsens Heroku timeouts.
+        return qs
 
     def get_serializer_class(self):
         if self.action == 'list':

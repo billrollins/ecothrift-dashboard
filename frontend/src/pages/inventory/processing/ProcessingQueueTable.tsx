@@ -52,8 +52,6 @@ export interface ProcessingQueueTableProps {
   orderStatus: PurchaseOrderStatus;
   detailProcessingRowId: number | null;
   onOpenDetail: (processingRowId: number) => void;
-  /** Hover prefetch row detail so clicks open the card from cache when possible */
-  onPrefetchDetail?: (processingRowId: number) => void;
   bulkSelectedIds: Set<number>;
   onToggleBulkOne: (processingRowId: number, selected: boolean) => void;
   onToggleBulkAll: (selected: boolean) => void;
@@ -70,7 +68,6 @@ export function ProcessingQueueTable({
   orderStatus,
   detailProcessingRowId,
   onOpenDetail,
-  onPrefetchDetail,
   bulkSelectedIds,
   onToggleBulkOne,
   onToggleBulkAll,
@@ -293,7 +290,6 @@ export function ProcessingQueueTable({
                 key={r.processing_row_id}
                 hover
                 selected={selected}
-                onPointerEnter={() => onPrefetchDetail?.(r.processing_row_id)}
                 sx={{
                   cursor: 'pointer',
                   ...(selected ? { bgcolor: 'action.selected' } : {}),

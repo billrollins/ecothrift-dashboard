@@ -298,6 +298,40 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertEqual(len(row['items']), 2)
         self.assertIsNotNone(row.get('product'))
 
+    def test_processing_row_detail_query_count_bounded_no_manifest_bulk_load(self):
+        """Regression: row detail must use slim PO queryset — not prefetched manifest storm."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        pr = ProcessingRow.objects.get(purchase_order=self.po, row_number=1)
+        with CaptureQueriesContext(connection) as ctx:
+            r = self.client.get(
+                f'/api/inventory/orders/{self.po.id}/processing-row-detail/',
+                {'processing_row_id': pr.pk},
+            )
+        self.assertEqual(r.status_code, 200, r.data)
+        row = r.data['row']
+        self.assertIn('processing_row_id', row)
+        self.assertEqual(row['processing_row_id'], pr.pk)
+        self.assertGreater(len(row['items']), 0)
+        # Small PO fixture (~2 manifest rows): stay well below prefetch-all-manifest-rows path.
+        self.assertLessEqual(len(ctx.captured_queries), 20)
+
+    def test_purchase_order_retrieve_bounded_queries_and_has_stats_fields(self):
+        """PO detail must annotate stats/counts without prefetching every manifest row."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as ctx:
+            r = self.client.get(f'/api/inventory/orders/{self.po.id}/')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertIn('manifest_row_count', r.data)
+        self.assertIsNotNone(r.data['manifest_row_count'])
+        self.assertIn('processing_stats', r.data)
+        self.assertLessEqual(len(ctx.captured_queries), 35)
+        joined = '\n'.join(q['sql'].lower() for q in ctx.captured_queries)
+        self.assertNotIn('bulk_load_objects', joined)
+
     def test_processing_print_multiple_runs_select_for_update_inside_atomic(self):
         """select_for_update must run inside transaction.atomic (avoids 500 on strict DBs)."""
         r = self.client.post(

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ProcessingWorkspaceDTO,
   ProcessingWorkspacePatchDTO,
@@ -41,23 +41,7 @@ export interface ProcessingWorkspaceListParams {
 /** List refreshed after mutations; avoid constant refetches on shallow navigation. */
 const PROCESSING_WORKSPACE_STALE_MS = 30_000;
 
-/** Prefetch on hover; warm cache makes row clicks immediate. */
 const PROCESSING_ROW_DETAIL_STALE_MS = 120_000;
-
-export async function prefetchProcessingRowDetail(
-  qc: QueryClient,
-  orderId: number,
-  processingRowId: number,
-): Promise<void> {
-  await qc.prefetchQuery({
-    queryKey: ['processing-row-detail', orderId, processingRowId],
-    queryFn: async (): Promise<ProcessingWorkspaceRowDTO> => {
-      const { data } = await getProcessingRowDetail(orderId, processingRowId);
-      return data.row;
-    },
-    staleTime: PROCESSING_ROW_DETAIL_STALE_MS,
-  });
-}
 
 /** Merge incremental rows + progress returned from processor mutations (current page slice only). */
 export function mergeProcessingWorkspacePatch(
@@ -108,6 +92,8 @@ export function useProcessingRowDetail(orderId: number | null, processingRowId: 
     enabled: orderId != null && processingRowId != null,
     staleTime: PROCESSING_ROW_DETAIL_STALE_MS,
     gcTime: 300_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 }
 

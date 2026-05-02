@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.22.0] — 2026-05-02 (Inventory — Item Processor row-first) -->
-<!-- Last reviewed: 2026-05-02 (`review.0.Bump` — v2.22.0 row-first mutations + deploy prep) -->
+<!-- Line 1 release: ## [2.22.1] — 2026-05-02 (Inventory — Item Processor timeout hotfix) -->
+<!-- Last reviewed: 2026-05-02 (`review.0.Bump` — v2.22.1 Item Processor slim queryset + prefetch hotfix) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,27 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.22.1] — 2026-05-02
+
+User-facing theme: **Item Processor timeout hotfix** — row detail and purchase order loads avoid heavy manifest prefetch storms.
+
+### Fixed
+
+- **Inventory / Item Processor** — **`GET …/processing-row-detail/`** uses the slim **`PurchaseOrderViewSet`** queryset path by including **`processing_row_detail`** in slim actions (**no** annotate-stats + prefetch of all manifest rows on **`get_object`**).
+- **Inventory** — **`GET /api/inventory/orders/{id}/`** retrieval no longer runs **`prefetch_related('manifest_rows')`** while keeping **`processing_stats`** and manifest row count annotations.
+- **Frontend / Item Processor** — Removed **`onPointerEnter`** hover prefetch from **`ProcessingQueueTable`** (**no** **`processing-row-detail`** requests while moving the mouse across rows).
+- **Frontend / Item Processor** — **`useProcessingRowDetail`** uses **`retry: false`** and **`refetchOnWindowFocus: false`** so failed detail loads do not loop.
+
+### Tests
+
+- **`python manage.py test apps.inventory.tests.test_processing_validation_matrix apps.inventory.tests.test_preprocessing_redesign --noinput`** — **79 tests OK**.
+
+### Build
+
+- **`frontend`**: **`npm run build`**.
 
 ---
 

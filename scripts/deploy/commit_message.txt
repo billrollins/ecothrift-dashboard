@@ -1,19 +1,9 @@
-feat(inventory): v2.22.0 Item Processor row-first mutations + processing data build
+fix(inventory): v2.22.1 stop Item Processor row-detail timeouts
 
-- API: order mutations accept processing_row_id(s) for print-multiple, dispute
-  (scope processing_rows), merge, and bulk disposition; legacy manifest_row_* kept;
-  conflict validation when both id forms are sent.
-- Responses: HTTP 400 with code processing_data_required for bookmark rows
-  without linked manifest lines (views + processing_ops).
-- Merge path refreshes denorm only for ProcessingRows tied to touched manifest
-  lines (no full-PO scan for that step).
-- Frontend: row-first payloads in modals/bulk bar; restore processingBulkDisposition
-  export; BulkDisposition uses pendingItemCount when list rows omit items[].
-- Data model: migration inventory 0042_processing_data_build (chunked build
-  tracking); related finalize/workspace/model changes on branch.
-- Docs: CHANGELOG, steering context, extended inventory-pipeline + frontend;
-  initiative Session 13; .gitignore .0.learning for safe yolo deploy staging.
-
-Tests: python manage.py test apps.inventory.tests.test_processing_validation_matrix
-apps.inventory.tests.test_preprocessing_redesign --noinput
-Build: cd frontend && npm run build
+- Route `processing_row_detail` through slim `PurchaseOrderViewSet` queryset; drop
+  `prefetch_related('manifest_rows')` on PO retrieve (stats annotations unchanged).
+- Frontend: remove `ProcessingQueueTable` hover prefetch; row detail query retry and
+  window-focus refetch disabled in `useProcessingRowDetail`; remove
+  `prefetchProcessingRowDetail`.
+- Regression tests in `test_processing_validation_matrix.py`; `.ai` steering aligned
+  with `.version`.

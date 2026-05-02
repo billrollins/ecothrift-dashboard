@@ -1,6 +1,6 @@
 # Consultant context — Eco-Thrift Dashboard
 
-<!-- Last updated: 2026-05-02 (**v2.22.0** — Item Processor row-first API + UI; `CHANGELOG [2.22.0]`) -->
+<!-- Last updated: 2026-05-02 (**v2.22.1** — Item Processor timeout hotfix aligned with `.version`; `CHANGELOG [2.22.1]`) -->
 
 **Purpose.** Single **information-dense** handoff for **external advisors** on the **full** Eco-Thrift Dashboard—not only liquidation buying. **[`.ai/context.md`](context.md)** is the living **agent** summary (version roll-up, known issues, file map). This file gives **cross-cutting architecture**, a **short recent / near-term** slice, then—below—a **detailed** treatment of **B-Stock**, manifests, valuation, and **legacy data / backfill** archaeology that sourcing-focused engagements still need.
 
@@ -14,7 +14,7 @@
 |--------|------|
 | **Business** | Eco-Thrift — thrift retail (Omaha area). One internal app runs **HR**, **inventory** (vendors, POs, preprocessing, receiving, item processing), **POS**, **consignment** + consignee portal, **admin**, and **B-Stock–driven buying**. |
 | **Stack** | **Django 5.2** + **DRF**, **PostgreSQL**, **React 18.3** + **TypeScript** + **MUI v7** + **Vite**, **TanStack Query**. **Heroku** deployment for always-on access. |
-| **Version** | Repo root **`.version`** + **`CHANGELOG.md`** (e.g. **v2.22.0** at time of this edit). |
+| **Version** | Repo root **`.version`** + **`CHANGELOG.md`** (e.g. **v2.22.1** at time of this edit). |
 
 ### Backend (`apps/`)
 
@@ -388,21 +388,21 @@ These are the domain deep-dive files that coding agents load on demand. Consulta
 
 | File | Domain | Description |
 |------|--------|-------------|
-| `auth-and-roles.md` | Auth | JWT flow (httpOnly refresh + in-memory access), roles, permissions, password flows |
-| `backend.md` | Backend | Django apps, models, serializers, API patterns, HR, AI proxy, management commands |
-| `bstock.md` | Buying | B-Stock API surface, scraper (parallel POST sweep, optional SOCKS5), auth; endpoint map (no separate **`reference/`** research file in repo) |
-| `cash-management.md` | POS | Cash drops, pickups, drawer reconciliation, safe counts |
-| `consignment.md` | Consignment | Agreements, consignment items, payouts, consignee portal |
-| `consultant_handoff.md` | AI / ops | Flat **`workspace/to_consultant/files-update/`** bundle; advisor drops |
-| `databases.md` | Data | Three-generation DB overview (V1/V2/V3), `search_path`, Django test DB uses `public`, `.env` keys |
-| `development.md` | Dev ops | Dev setup, scripts (`scripts/dev/daily_scheduled_tasks.bat`, `start_servers`, `kill_servers`), environment, logging, Heroku Scheduler vs local parity |
-| `frontend.md` | Frontend | React 18.3 + TS + MUI v7, pages, components, routing, React Query hooks |
-| `inventory-pipeline.md` | Inventory | PO processing, M3 pipeline, preprocessing, manifest templates, fast-cat |
-| `pos-system.md` | POS | Registers, drawers, carts, transactions, terminal UI, receipt flow |
-| `print-server.md` | Print | Local FastAPI print server — labels, receipts, drawer kick, Windows installer |
-| `retag-operations.md` | Inventory | Retag v2 day-of and post-cutover ops; cleanup instructions for temp models |
-| `ux-spec.md` | UI/UX | Design philosophy, color system, typography, spacing, interaction patterns, component specs — authoritative reference for all pages |
-| `vpn-socks5.md` | Proxy / VPN | PIA SOCKS5 setup, `.env` keys, `socks5://` vs `socks5h://`, diagnostics, IP rotation, troubleshooting |
+| [`auth-and-roles.md`](extended/auth-and-roles.md) | Auth | JWT flow (httpOnly refresh + in-memory access), roles, permissions, password flows |
+| [`backend.md`](extended/backend.md) | Backend | Django apps, models, serializers, API patterns, HR, AI proxy, management commands |
+| [`bstock.md`](extended/bstock.md) | Buying | B-Stock API surface, scraper (parallel POST sweep, optional SOCKS5), auth; endpoint map (no separate **`reference/`** research file in repo) |
+| [`cash-management.md`](extended/cash-management.md) | POS | Cash drops, pickups, drawer reconciliation, safe counts |
+| [`consignment.md`](extended/consignment.md) | Consignment | Agreements, consignment items, payouts, consignee portal |
+| [`consultant_handoff.md`](extended/consultant_handoff.md) | AI / ops | Flat **`workspace/to_consultant/files-update/`** bundle; advisor drops |
+| [`databases.md`](extended/databases.md) | Data | Three-generation DB overview (V1/V2/V3), `search_path`, Django test DB uses `public`, `.env` keys |
+| [`development.md`](extended/development.md) | Dev ops | Dev setup, scripts (`scripts/dev/daily_scheduled_tasks.bat`, `start_servers`, `kill_servers`), environment, logging, Heroku Scheduler vs local parity |
+| [`frontend.md`](extended/frontend.md) | Frontend | React 18.3 + TS + MUI v7, pages, components, routing, React Query hooks |
+| [`inventory-pipeline.md`](extended/inventory-pipeline.md) | Inventory | PO processing, M3 pipeline, preprocessing, manifest templates, fast-cat |
+| [`pos-system.md`](extended/pos-system.md) | POS | Registers, drawers, carts, transactions, terminal UI, receipt flow |
+| [`print-server.md`](extended/print-server.md) | Print | Local FastAPI print server — labels, receipts, drawer kick, Windows installer |
+| [`retag-operations.md`](extended/retag-operations.md) | Inventory | Retag v2 day-of and post-cutover ops; cleanup instructions for temp models |
+| [`ux-spec.md`](extended/ux-spec.md) | UI/UX | Design philosophy, color system, typography, spacing, interaction patterns, component specs — authoritative reference for all pages |
+| [`vpn-socks5.md`](extended/vpn-socks5.md) | Proxy / VPN | PIA SOCKS5 setup, `.env` keys, `socks5://` vs `socks5h://`, diagnostics, IP rotation, troubleshooting |
 
 ---
 
