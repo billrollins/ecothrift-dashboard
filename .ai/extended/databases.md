@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T14:45:00-05:00 -->
+<!-- Last updated: 2026-05-06 -->
 
 # Databases — Three Generations
 
@@ -68,6 +68,7 @@ The management command **`export_category_bins`** uses Django’s **`default`** 
 
 ## Related
 
+- **`.ai/extended/sql/`** — **`schema_columns_ecothrift.sql`** → **`schema.csv`** column snapshot + **[`sql/README.md`](sql/README.md)** (refresh workflow), **[`cli.md`](sql/cli.md)** (`psql`).
 - `.ai/extended/backend.md` — backend / ORM notes when maintained
 - **`workspace/notebooks/_shared/config.example.py`** — copy to **`config_local.py`**; **`db-explorer/db_explorer.ipynb`** — multi-DB exploration
 - Optional deps: `workspace/notebooks/_shared/requirements-notebooks.txt` (Jupyter/DB stack + pandas/SQLAlchemy/psycopg2; also ML libs used by pricing commands)

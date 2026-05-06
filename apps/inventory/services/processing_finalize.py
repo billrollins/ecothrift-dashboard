@@ -175,6 +175,7 @@ def finalize_preprocessing_to_bookmarks(
                 specifications=_safe_json_dict(r.get('final_specifications')),
                 tracking=_safe_json_dict(r.get('final_tracking')),
                 search_tags=_normalize_manifest_search_tags(r.get('final_search_tags')),
+                shelf_price=_effective_unit_price_from_row(r),
             ),
         )
 

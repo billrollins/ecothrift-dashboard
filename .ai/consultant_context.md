@@ -1,6 +1,6 @@
 # Consultant context — Eco-Thrift Dashboard
 
-<!-- Last updated: 2026-05-06 (**v2.23.0** — Processing workspace **`search_string` / `searchString`** — `CHANGELOG [2.23.0]`) -->
+<!-- Last updated: 2026-05-06 (**extended/sql/** `inventory_daily_migration.sql`; `inventory_summary.sql`; `schema_columns_ecothrift.sql` → `schema.csv`; **`ProcessingRow.shelf_price`** workspace **`price`** SSOT — **`CHANGELOG [Unreleased]`**; **`v2.23.0`** **`search_string` / `searchString`** — **`CHANGELOG [2.23.0]`**) -->
 
 **Purpose.** Single **information-dense** handoff for **external advisors** on the **full** Eco-Thrift Dashboard—not only liquidation buying. **[`.ai/context.md`](context.md)** is the living **agent** summary (version roll-up, known issues, file map). This file gives **cross-cutting architecture**, a **short recent / near-term** slice, then—below—a **detailed** treatment of **B-Stock**, manifests, valuation, and **legacy data / backfill** archaeology that sourcing-focused engagements still need.
 
@@ -401,6 +401,7 @@ These are the domain deep-dive files that coding agents load on demand. Consulta
 | [`pos-system.md`](extended/pos-system.md) | POS | Registers, drawers, carts, transactions, terminal UI, receipt flow |
 | [`print-server.md`](extended/print-server.md) | Print | Local FastAPI print server — labels, receipts, drawer kick, Windows installer |
 | [`retag-operations.md`](extended/retag-operations.md) | Inventory | Retag v2 day-of and post-cutover ops; cleanup instructions for temp models |
+| [`sql/README.md`](extended/sql/README.md) | SQL / pgAdmin | **`inventory_daily_migration.sql`** (v4 flat CSV export **`daily_migration.csv`**); **`inventory_summary.sql`**; **`schema_columns_ecothrift.sql`** → **`schema.csv`** + **[`cli.md`](extended/sql/cli.md)** |
 | [`ux-spec.md`](extended/ux-spec.md) | UI/UX | Design philosophy, color system, typography, spacing, interaction patterns, component specs — authoritative reference for all pages |
 | [`vpn-socks5.md`](extended/vpn-socks5.md) | Proxy / VPN | PIA SOCKS5 setup, `.env` keys, `socks5://` vs `socks5h://`, diagnostics, IP rotation, troubleshooting |
 

@@ -581,7 +581,17 @@ class ProcessingRow(models.Model):
     has_on_shelf_unit = models.BooleanField(default=False)
     list_dispatch = models.CharField(max_length=32, blank=True, default='on_shelf')
     list_sku = models.CharField(max_length=120, blank=True, default='')
-    list_unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    shelf_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=(
+            'Workspace-canonical shelf/tag unit price for Item Processor (queue + detail price field); '
+            'seeded from preprocessing/finalize paths; processing mutations align Item.price to match; '
+            'refresh_processing_rows_denorm does not overwrite from Item.price when manifest-linked.'
+        ),
+    )
 
     item_ids = models.JSONField(default=list, blank=True)
 

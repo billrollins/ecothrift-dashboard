@@ -29,6 +29,7 @@ from apps.inventory.services.processing_workspace import (
     dispatch_to_location,
     printed_items_preview,
     processing_row_ids_for_manifest_rows,
+    push_shelf_price_to_bookmark,
     refresh_processing_rows_denorm,
 )
 
@@ -199,6 +200,9 @@ def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
                 .exclude(pk=item.pk)
             )
 
+        if price is not None and item.manifest_row_id:
+            push_shelf_price_to_bookmark(item.purchase_order_id, item.manifest_row_id, price)
+
         if apply_condition_all or apply_retail_all:
             for sib in siblings_qs:
                 ch_updates = {}
@@ -356,6 +360,9 @@ def processing_print_multiple(user, order: PurchaseOrder, data: dict) -> dict:
         )
         if len(pending) < qty:
             raise ValueError(f'Only {len(pending)} pending item(s); requested {qty}')
+
+        if price is not None:
+            push_shelf_price_to_bookmark(order, manifest_row_id, price)
 
         for it in pending:
             updates = {'condition': cond_db, 'location': location, 'notes': notes}
@@ -636,6 +643,11 @@ def processing_bulk_disposition(user, order: PurchaseOrder, data: dict) -> dict:
             else:
                 location = dispatch_to_location(dispatch)
 
+            price_dec = parse_decimal(g.get('price'))
+            if price_dec is not None:
+                for mid in {it.manifest_row_id for it in chunk if it.manifest_row_id}:
+                    push_shelf_price_to_bookmark(order, mid, price_dec)
+
             for it in chunk:
                 if retail is not None:
                     it.unit_retail = retail
@@ -658,9 +670,8 @@ def processing_bulk_disposition(user, order: PurchaseOrder, data: dict) -> dict:
                     it.checked_in_at = None
                     it.checked_in_by = None
                 else:
-                    price = parse_decimal(g.get('price'))
-                    if price is not None:
-                        it.price = price
+                    if price_dec is not None:
+                        it.price = price_dec
                     old = it.status
                     it.status = 'on_shelf'
                     it.listed_at = now
@@ -717,6 +728,8 @@ def processing_patch_item(user, item: Item, data: dict) -> dict:
 
     histories = []
     with transaction.atomic():
+        if updates.get('price') is not None and item.manifest_row_id:
+            push_shelf_price_to_bookmark(item.purchase_order_id, item.manifest_row_id, updates['price'])
         changed = apply_item_updates(item, updates)
         item.save()
         for field, old_value, new_value in changed:

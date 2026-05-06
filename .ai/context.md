@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-06 (**v2.23.0** — Item Processor `ProcessingRow.search_string` workspace search + `searchString` API + manual-review bookmark mirror; `CHANGELOG [2.23.0]`) -->
+<!-- Last updated: 2026-05-06 (**extended/sql/** — `inventory_daily_migration.sql`; `inventory_summary.sql`; `schema_columns_ecothrift.sql` → `schema.csv`; **`ProcessingRow.shelf_price`** Item Processor workspace **`price`** SSOT — **`CHANGELOG [Unreleased]`**; **`v2.23.0`** search blob — **`CHANGELOG [2.23.0]`**) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -40,9 +40,9 @@ ecothrift-dashboard/
 ├── .ai/                    AI steering: context, protocols, initiatives, extended, debug (sample log config)
 │   ├── context.md          Primary agent context (read at session start)
 │   ├── consultant_context.md  Single-file consultant handoff: full product overview + B-Stock/legacy reference (not a substitute for modular docs for coders)
-│   ├── protocols/          code.0.Startup.md, session.0.Create.md, session.1.Checkpoint.md, code.1.Bearing.md, review.0.Bump.md, code.9.Push.md, review.9.Deep.md, session.9.Close.md
+│   ├── protocols/          code.0.Startup.md, sql.0.UpdateSchema.md, session.0.Create.md, session.1.Checkpoint.md, code.1.Bearing.md, review.0.Bump.md, code.9.Push.md, review.9.Deep.md, session.9.Close.md
 │   ├── initiatives/        _index.md (active); _archived/ARCHIVE.md + buckets + _protocols/ (lifecycle how-tos)
-│   ├── extended/           Deep-dive domain docs (load on demand — keeps agent context small)
+│   ├── extended/           Deep-dive domain docs (load on demand — keeps agent context small); **`sql/`** `schema_columns_ecothrift.sql` → `schema.csv` + `cli.md`
 │   └── debug/              Optional hierarchical dev logging config (e.g. `log.config`; log file gitignored)
 ├── workspace/              Temp artifacts, notebooks, side projects (almost all gitignored); consultant flat drops under **`to_consultant/files-update/`** (see **`extended/consultant_handoff.md`**); AI usage **`logs/ai_usage.jsonl`**; manifest dev logs under **`b-manifest-api/`**
 │   └── notebooks/_shared/requirements-notebooks.txt  Optional Jupyter/DB + ML deps (see **`extended/development.md`**)
@@ -75,6 +75,7 @@ Domain deep-dives loaded **on demand** (do not read all at session start). Each 
 | [`pos-system.md`](extended/pos-system.md) | POS | Registers, drawers, carts, transactions, terminal UI, receipt flow |
 | [`print-server.md`](extended/print-server.md) | Print | Local FastAPI print server — labels, receipts, drawer kick, Windows installer |
 | [`retag-operations.md`](extended/retag-operations.md) | Inventory | Retag v2 day-of and post-cutover ops; cleanup instructions for temp models |
+| [`sql/README.md`](extended/sql/README.md) | SQL / pgAdmin | **`inventory_daily_migration.sql`** (v4 → **`daily_migration.csv`** flat cols); **`inventory_summary.sql`**; **`schema_columns_ecothrift.sql`** → **`schema.csv`** + **[`cli.md`](extended/sql/cli.md)** (`psql` / `dbshell`) |
 | [`ux-spec.md`](extended/ux-spec.md) | UI/UX | Design philosophy, color system, typography, spacing, interaction patterns, component specs — authoritative reference for all pages |
 | [`vpn-socks5.md`](extended/vpn-socks5.md) | Proxy / VPN | PIA SOCKS5 setup, `.env` keys, `socks5://` vs `socks5h://`, diagnostics, IP rotation, troubleshooting |
 
@@ -142,7 +143,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 4. **Do NOT amend commits** unless the conditions in the system prompt are met.
 5. **Use timestamps** (ISO 8601, America/Chicago timezone) on all documentation updates.
 6. **Load `.ai/extended/<domain>.md` only when the task touches that domain** — use the **Extended docs TOC** above to pick the right file. Do not read all extended files at once. **`.ai/initiatives/`** and **`.ai/extended/`** are **modular** on purpose so coding sessions do not load irrelevant context. **External consultants** needing a **single narrative** spanning the whole app (plus liquidation detail) should use **`.ai/consultant_context.md`** rather than reading every extended file end-to-end.
-7. **Follow protocols** in `.ai/protocols/` (`code.0.Startup.md`, `session.0.Create.md` placeholder, `session.1.Checkpoint.md`, `code.1.Bearing.md`, `review.0.Bump.md` for docs audit + semver + `CHANGELOG` slice, `code.9.Push.md` when bump + GitHub push via `2_push_github.bat`, `review.9.Deep.md` for full repo/context audits and report generation, `session.9.Close.md` at end of session). **Consultant flat bundle / rotation:** [`.ai/extended/consultant_handoff.md`](extended/consultant_handoff.md). **Cadence:** **`session.1.Checkpoint.md`** several times per session; **`session.9.Close.md`** at the end / before commit. **Initiative lifecycle** (`activate_initiative`, `move_initiative_to_*`) — [`.ai/initiatives/_archived/_protocols/README.md`](initiatives/_archived/_protocols/README.md). **Initiatives** live in `.ai/initiatives/` (`_index.md` for active; `_archived/ARCHIVE.md` for the archive catalog).
+7. **Follow protocols** in `.ai/protocols/` (`code.0.Startup.md`, **`sql.0.UpdateSchema.md`** (refresh **`.ai/extended/sql/schema.csv`**), `session.0.Create.md` placeholder, `session.1.Checkpoint.md`, `code.1.Bearing.md`, `review.0.Bump.md` for docs audit + semver + `CHANGELOG` slice, `code.9.Push.md` when bump + GitHub push via `2_push_github.bat`, `review.9.Deep.md` for full repo/context audits and report generation, `session.9.Close.md` at end of session). **Consultant flat bundle / rotation:** [`.ai/extended/consultant_handoff.md`](extended/consultant_handoff.md). **Cadence:** **`session.1.Checkpoint.md`** several times per session; **`session.9.Close.md`** at the end / before commit. **Initiative lifecycle** (`activate_initiative`, `move_initiative_to_*`) — [`.ai/initiatives/_archived/_protocols/README.md`](initiatives/_archived/_protocols/README.md). **Initiatives** live in `.ai/initiatives/` (`_index.md` for active; `_archived/ARCHIVE.md` for the archive catalog).
 8. **Initiatives vs releases** — Tie substantial work and **version bumps** to **named initiatives** when possible; **patch/minor/major** still follows product semver (see `_index.md`). If initiative scope is **ambiguous**, ask the user or add an initiative — do not guess.
 9. **Initiative archiving** — Do **not** move an initiative to `.ai/initiatives/_archived/` unless the **user explicitly** approves or instructs. **Ask** before archiving.
 10. **Verify before changing** — read files before editing, check lints after editing.
@@ -185,7 +186,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 | Initiatives (active) | `.ai/initiatives/_index.md` |
 | Archived initiatives | `.ai/initiatives/_archived/ARCHIVE.md` |
 | Consultant handoff | `.ai/consultant_context.md` |
-| Protocols | `.ai/protocols/` — `code.0.Startup.md`, `session.0.Create.md`, `session.1.Checkpoint.md`, `code.1.Bearing.md`, `review.0.Bump.md`, `code.9.Push.md`, `review.9.Deep.md`, `session.9.Close.md`; consultant handoff — `.ai/extended/consultant_handoff.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
+| Protocols | `.ai/protocols/` — `code.0.Startup.md`, **`sql.0.UpdateSchema.md`**, `session.0.Create.md`, `session.1.Checkpoint.md`, `code.1.Bearing.md`, `review.0.Bump.md`, `code.9.Push.md`, `review.9.Deep.md`, `session.9.Close.md`; consultant handoff — `.ai/extended/consultant_handoff.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
 | Dev scripts | `scripts/dev/` — **`daily_scheduled_tasks.bat`** (buying jobs), **`start_servers.bat`**, **`kill_servers.bat`** |
 | Scratch / notebooks | `workspace/` (mostly gitignored) |
 | E2E test templates | `workspace/testing/` |

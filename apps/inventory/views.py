@@ -4507,6 +4507,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             )
 
             mirror_manifest_rows_into_processing_bookmarks(order, changed_rows)
+            from apps.inventory.services.processing_workspace import refresh_processing_rows_denorm
+
+            refresh_processing_rows_denorm(order)
         return Response({
             'rows_updated': len(changed_rows),
             **sync_summary,

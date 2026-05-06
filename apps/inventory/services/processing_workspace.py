@@ -1,8 +1,9 @@
 """
 Item Processor workspace payload (design: item-processor_v1_design.md §4.1).
 
-The **list** path is built only from ``ProcessingRow`` (no full ManifestRow/Item/Product graph).
-Canonical rows load on demand via ``build_processing_row_detail``.
+The **list** path is built only from ``ProcessingRow`` ``values()`` for pricing (``shelf_price``),
+without joining Items for queue ``price``. Detail merges Items for units while row-level ``price``
+stays **bookmark** ``shelf_price``. Canonical rows load on demand via ``build_processing_row_detail``.
 """
 
 from __future__ import annotations
@@ -195,17 +196,35 @@ def _build_bookmark_dup_map_from_pairs(row_number_ident_pairs: Iterable[tuple[in
     return dup
 
 
-def _effective_list_price_from_values(r: dict[str, Any]) -> str | None:
-    lu = r.get('list_unit_price')
-    if lu is not None:
-        return _money(lu)
-    fp = r.get('final_price')
+def _workspace_price_from_bookmark_row(rw: dict[str, Any]) -> str | None:
+    """Workspace queue/detail shelf datapoint from bookmark columns only (no Item join).
+
+    Prefer ``shelf_price``. Fall back to ``final_price`` once for legacy rows missing shelf_price.
+    """
+    sp = rw.get('shelf_price')
+    if sp is not None:
+        return _money(sp)
+    fp = rw.get('final_price')
     if fp is not None:
         return _money(fp)
-    pp = r.get('proposed_price')
-    if pp is not None:
-        return _money(pp)
     return None
+
+
+def push_shelf_price_to_bookmark(
+    order: PurchaseOrder | int,
+    manifest_row_id: int | None,
+    price: Decimal | None,
+) -> None:
+    """Persist workspace-canonical shelf price on ``ProcessingRow`` before aligning ``Item.price``."""
+    if manifest_row_id is None or price is None:
+        return
+    oid = order.pk if isinstance(order, PurchaseOrder) else int(order)
+    pr = ProcessingRow.objects.filter(purchase_order_id=oid, manifest_row_id=int(manifest_row_id)).first()
+    if pr is None:
+        return
+    pr.shelf_price = price
+    pr.final_price = price
+    pr.save(update_fields=['shelf_price', 'final_price'])
 
 
 # Narrow columns loaded for GET processing-workspace / workspace_patch rows (heavy JSON omitted).
@@ -288,16 +307,21 @@ PROCESSING_WORKSPACE_ROW_VALUE_FIELDS = (
     'has_on_shelf_unit',
     'list_dispatch',
     'list_sku',
-    'list_unit_price',
+    'shelf_price',
     'item_ids',
 )
 
 
-def serialize_processing_workspace_row_values(rw: dict[str, Any], dup_hint: list[int]) -> dict[str, Any]:
+def serialize_processing_workspace_row_values(
+    rw: dict[str, Any],
+    dup_hint: list[int],
+) -> dict[str, Any]:
     """List-row JSON from a ``values()`` dict (snake_case keys).
 
     Drops fat fields (tracking, specs, notes, taxonomy) present on the model—the detail endpoint
     and mutations provide them when needed. ``identifiers`` is reduced to ``upc`` only for search/size.
+
+    ``price`` comes from bookmark ``shelf_price`` (and legacy ``final_price`` fallback only).
     """
     rn = int(rw['row_number'])
     mid = rw.get('manifest_row_id')
@@ -321,7 +345,7 @@ def serialize_processing_workspace_row_values(rw: dict[str, Any], dup_hint: list
     raw_upc = str((ids or {}).get('upc') or '').strip()
     identifiers_out = {'upc': raw_upc} if raw_upc else {}
 
-    list_price = _effective_list_price_from_values(rw)
+    list_price = _workspace_price_from_bookmark_row(rw)
     cond_ui = condition_db_to_ui(str(rw.get('condition') or ''))
 
     ls_raw = rw.get('list_sku')
@@ -407,7 +431,7 @@ def refresh_processing_rows_denorm(
             pr.item_ids = []
             pr.list_dispatch = 'on_shelf'
             pr.list_sku = ''
-            pr.list_unit_price = None
+            pr.shelf_price = pr.final_price if pr.final_price is not None else pr.proposed_price
             pr.matched_product_id = None
             continue
 
@@ -425,12 +449,11 @@ def refresh_processing_rows_denorm(
         if primary:
             pr.list_dispatch = location_to_dispatch(primary.location)
             pr.list_sku = primary.sku or ''
-            pr.list_unit_price = primary.price
             pr.condition = str(primary.condition or '')[:20]
         else:
             pr.list_dispatch = 'on_shelf'
             pr.list_sku = ''
-            pr.list_unit_price = pr.final_price if pr.final_price is not None else pr.proposed_price
+            pr.shelf_price = pr.final_price if pr.final_price is not None else pr.proposed_price
 
     assign_search_strings_for_instances(prs)
 
@@ -445,7 +468,7 @@ def refresh_processing_rows_denorm(
             'item_ids',
             'list_dispatch',
             'list_sku',
-            'list_unit_price',
+            'shelf_price',
             'condition',
             'search_string',
         ],
@@ -501,7 +524,7 @@ def build_processing_workspace(
     search: str = '',
     hide_checked_in: bool = True,
 ) -> dict[str, Any]:
-    """Assemble list workspace from ``ProcessingRow`` only (no manifest/item graph).
+    """Assemble workspace list from ``ProcessingRow`` rows (bookmark ``shelf_price`` for ``price``).
 
     Pagination defaults to ``limit``=25, ``offset``=0 so large PO payloads stay bounded.
     """
@@ -537,7 +560,8 @@ def build_processing_workspace(
 
     raw_rows = list(slice_qs.values(*PROCESSING_WORKSPACE_ROW_VALUE_FIELDS))
     out_rows = [
-        serialize_processing_workspace_row_values(rw, dup_map.get(int(rw['row_number']), [])) for rw in raw_rows
+        serialize_processing_workspace_row_values(rw, dup_map.get(int(rw['row_number']), []))
+        for rw in raw_rows
     ]
 
     incomplete_build = ProcessingDataBuild.objects.filter(purchase_order_id=order.pk).exclude(
@@ -644,7 +668,8 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
     if bk is None:
         raise LookupError('processing_row_not_found')
 
-    base = serialize_processing_row_list(bk, [])
+    rw_vals = {name: getattr(bk, name) for name in PROCESSING_WORKSPACE_ROW_VALUE_FIELDS}
+    base = serialize_processing_workspace_row_values(rw_vals, [])
 
     if not bk.manifest_row_id:
         out = {
@@ -674,6 +699,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
     qty_target = mr.quantity if mr.quantity and mr.quantity > 0 else max(1, len(items))
 
     primary = _row_primary_item(items)
+    row_price = _workspace_price_from_bookmark_row(rw_vals)
     row_full = {
         **base,
         'manifest_row_id': mr.id,
@@ -699,7 +725,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         'items': [_serialize_item(i) for i in items],
         'status': derive_row_queue_status(items),
         'condition': condition_db_to_ui(primary.condition) if primary else base['condition'],
-        'price': _money(primary.price) if primary else base['price'],
+        'price': row_price,
         'dispatch': location_to_dispatch(primary.location) if primary else base['dispatch'],
         'sku': primary.sku if primary else None,
     }

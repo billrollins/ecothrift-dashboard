@@ -60,6 +60,7 @@ def mirror_manifest_rows_into_processing_bookmarks(
         pr.proposed_price = mr.proposed_price
         pr.pricing_stage = mr.pricing_stage
         pr.unit_retail = mr.unit_retail
+        pr.shelf_price = mr.final_price if mr.final_price is not None else mr.proposed_price
         pr.search_string = build_processing_row_search_string(pr)
         touched.append(pr)
 
@@ -88,6 +89,7 @@ def mirror_manifest_rows_into_processing_bookmarks(
                 'proposed_price',
                 'pricing_stage',
                 'unit_retail',
+                'shelf_price',
                 'search_string',
             ],
         )

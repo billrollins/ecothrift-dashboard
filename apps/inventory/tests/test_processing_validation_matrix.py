@@ -241,6 +241,12 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             identifiers=dict(self.mr2.identifiers or {}),
         )
         refresh_processing_rows_denorm(self.po)
+        ProcessingRow.objects.filter(purchase_order=self.po, manifest_row=self.mr1).update(
+            shelf_price=Decimal('15.00'),
+        )
+        ProcessingRow.objects.filter(purchase_order=self.po, manifest_row=self.mr2).update(
+            shelf_price=Decimal('18.00'),
+        )
 
     def test_v02_workspace_payload_shape(self):
         r = self.client.get(f'/api/inventory/orders/{self.po.id}/processing-workspace/')
@@ -528,6 +534,17 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
                 ),
             )
         items.sort(key=lambda x: x.id)
+        ProcessingRow.objects.create(
+            purchase_order=po,
+            row_number=int(mr.row_number),
+            quantity=int(mr.quantity or 3),
+            manifest_row=mr,
+            matched_product=p,
+            title=str(mr.title or ''),
+            identifiers=dict(mr.identifiers or {}),
+        )
+        refresh_processing_rows_denorm(po)
+        ProcessingRow.objects.filter(purchase_order=po, manifest_row=mr).update(shelf_price=Decimal('20.00'))
         r = self.client.post(
             f'/api/inventory/orders/{po.id}/processing-bulk-disposition/',
             {
@@ -559,6 +576,11 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertEqual(items[0].condition, 'new')
         self.assertEqual(items[1].condition, 'new')
         self.assertEqual(items[2].condition, 'fair')
+        self.assertEqual(items[0].price, Decimal('9.00'))
+        self.assertEqual(items[1].price, Decimal('9.00'))
+        self.assertEqual(items[2].price, Decimal('7.00'))
+        bm = ProcessingRow.objects.get(purchase_order=po, manifest_row=mr)
+        self.assertEqual(bm.shelf_price, Decimal('7.00'))
 
     def test_processing_print_multiple_accepts_processing_row_id(self):
         pr1 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
@@ -749,3 +771,40 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         )
         self.assertEqual(q.status_code, 200, q.data)
         self.assertGreaterEqual(q.data.get('row_count_filtered', 0), 1)
+
+    def test_workspace_queue_price_follows_bookmark_shelf_price_not_item(self):
+        pr1 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
+        Item.objects.filter(pk=self.i1.pk).update(price=Decimal('1.00'))
+        ProcessingRow.objects.filter(pk=pr1.pk).update(shelf_price=Decimal('42.00'))
+        r = self.client.get(f'/api/inventory/orders/{self.po.id}/processing-workspace/')
+        self.assertEqual(r.status_code, 200, r.data)
+        row1 = next(x for x in r.data['rows'] if x['rowNum'] == 1)
+        self.assertEqual(row1['price'], '42.00')
+
+    def test_workspace_price_stays_bookmark_when_item_price_changed_without_bookmark(self):
+        pr1 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
+        ProcessingRow.objects.filter(pk=pr1.pk).update(shelf_price=Decimal('10.00'))
+        Item.objects.filter(pk=self.i1.pk).update(price=Decimal('77.77'))
+        r = self.client.get(f'/api/inventory/orders/{self.po.id}/processing-workspace/')
+        self.assertEqual(r.status_code, 200, r.data)
+        row1 = next(x for x in r.data['rows'] if x['rowNum'] == 1)
+        self.assertEqual(row1['price'], '10.00')
+
+    def test_processing_print_and_check_in_syncs_bookmark_shelf_price_with_item(self):
+        pr1 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
+        ProcessingRow.objects.filter(pk=pr1.pk).update(shelf_price=Decimal('15.00'))
+        r = self.client.post(
+            f'/api/inventory/items/{self.i1.id}/processing-print-and-check-in/',
+            {
+                'condition': 'Used Good',
+                'dispatch': 'on_shelf',
+                'price': '24.99',
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        pr1.refresh_from_db()
+        self.i1.refresh_from_db()
+        self.assertEqual(pr1.shelf_price, Decimal('24.99'))
+        self.assertEqual(pr1.final_price, Decimal('24.99'))
+        self.assertEqual(self.i1.price, Decimal('24.99'))

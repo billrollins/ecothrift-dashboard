@@ -101,11 +101,11 @@ export function ProcessingActiveCard({
     setConditionUi(activeItem.condition_label || CONDITION_OPTIONS[3]);
     setDispatch(activeItem.dispatch || 'on_shelf');
     setRetail(activeItem.retail ?? '');
-    setPrice(activeItem.price ?? '');
+    setPrice(row.price ?? '');
     setNotes(activeItem.notes ?? '');
     setApplyConditionAll(false);
     setApplyRetailAll(true);
-  }, [activeItem.id]);
+  }, [activeItem.id, row.price]);
 
   useEffect(() => {
     if (!product) return;

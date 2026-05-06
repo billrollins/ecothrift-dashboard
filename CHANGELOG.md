@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.23.0] — 2026-05-06 (Inventory — Item Processor workspace search blob) -->
-<!-- Last reviewed: 2026-05-06 (`review.0.Bump` — v2.23.0 ProcessingRow.search_string + manual-review mirror) -->
+<!-- Last reviewed: 2026-05-06 (`review.0.Bump` — `[Unreleased]` Item Processor `shelf_price` workspace SSOT; **no** semver bump — Part 2A) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -126,6 +126,7 @@ User-facing theme: **Processing data hotfix** — large finalized POs can enter 
 - **Inventory / Preprocessing — apply path** — Malformed or empty per-row **`ai_status`** from CSV/JSON normalizes to **`{}`** before save ([`apps/inventory/views.py`](apps/inventory/views.py)).
 - **Inventory / Preprocessing — Final Review** — **`PreprocessingReviewTable`** shows per-row **`ai_status`** state/issue chips; **`PATCH …/preprocessing-review/`** clears **`ai_status`** when staff change listing or price fields (**not** **`batch_flag`** or **`pricing_notes`** alone); client **`mergeReviewPatches`** mirrors that clear for optimistic UI ([`PreprocessingReviewTable.tsx`](frontend/src/components/inventory/PreprocessingReviewTable.tsx); [`PreprocessingPage.tsx`](frontend/src/pages/inventory/PreprocessingPage.tsx); [`apps/inventory/views.py`](apps/inventory/views.py)).
 - **Inventory / routing (frontend)** — **`/inventory/processing`** → **`ProcessingEntryRedirect`**; **`/inventory/processing/:id`** → **`ProcessingWorkspacePage`**; legacy **`/inventory/processing-legacy`** → **`ProcessingPage`**. **Order detail** and **Preprocessing** handoff navigate to **`/inventory/processing/{id}`** ([`App.tsx`](frontend/src/App.tsx); [`OrderDetailPage.tsx`](frontend/src/pages/inventory/OrderDetailPage.tsx); [`PreprocessingPage.tsx`](frontend/src/pages/inventory/PreprocessingPage.tsx)).
+- **Inventory / Item Processor** — **`ProcessingRow.shelf_price`** is the **workspace** single source for list + merged detail **`price`** (**`final_price`** fallback only when **`shelf_price`** is unset); **`refresh_processing_rows_denorm`** no longer copies **`Item.price`** onto **`shelf_price`** for manifest-linked bookmarks (**bookmark-only / no-Items rows** still seed from **`final_price`**/**`proposed_price`**). **`processing-print-and-check-in`**, **`processing-print-multiple`**, **`processing-bulk-disposition`**, and **`PATCH …/processing-patch/`** set **`shelf_price`** + **`final_price`** on the bookmark before **`Item.price`** ([`processing_workspace.py`](apps/inventory/services/processing_workspace.py) **`push_shelf_price_to_bookmark`**, [`processing_ops.py`](apps/inventory/processing_ops.py)). **`ProcessingActiveCard`** initializes shelf **`price`** from **`row.price`**. Migration **`0044_rename_processingrow_list_unit_price_shelf_price`** renames **`list_unit_price`** → **`shelf_price`** and updates field help text.
 
 ### Documentation
 
