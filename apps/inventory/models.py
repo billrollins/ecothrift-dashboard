@@ -611,6 +611,11 @@ class ProcessingRow(models.Model):
     specifications = models.JSONField(default=dict, blank=True)
     tracking = models.JSONField(default=dict, blank=True)
     search_tags = models.JSONField(default=list, blank=True)
+    search_string = models.TextField(
+        blank=True,
+        default='',
+        help_text='Lowercased denormalized blob for substring workspace search; rebuilt on save.',
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -629,6 +634,17 @@ class ProcessingRow(models.Model):
             models.Index(fields=['matched_product']),
             models.Index(fields=['purchase_order', 'queue_status']),
         ]
+
+    def save(self, *args, **kwargs):
+        """Recompute ``search_string`` on every ORM save; include it when ``update_fields`` is used."""
+
+        from apps.inventory.services.processing_search_string import build_processing_row_search_string
+
+        self.search_string = build_processing_row_search_string(self)
+        u = kwargs.get('update_fields')
+        if u is not None:
+            kwargs['update_fields'] = list(dict.fromkeys([*u, 'search_string']))
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f'ProcessingBm {self.row_number} PO={self.purchase_order_id}'

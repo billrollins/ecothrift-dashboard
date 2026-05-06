@@ -4501,6 +4501,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 row.save(update_fields=list(dict.fromkeys(update_fields)))
                 changed_rows.append(row)
         sync_summary = sync_manifest_row_outputs_to_items(order, changed_rows)
+        if changed_rows:
+            from apps.inventory.services.processing_manual_review_mirror import (
+                mirror_manifest_rows_into_processing_bookmarks,
+            )
+
+            mirror_manifest_rows_into_processing_bookmarks(order, changed_rows)
         return Response({
             'rows_updated': len(changed_rows),
             **sync_summary,

@@ -229,6 +229,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             manifest_row=self.mr1,
             matched_product=self.p1,
             title=str(self.mr1.title or ''),
+            identifiers=dict(self.mr1.identifiers or {}),
         )
         ProcessingRow.objects.create(
             purchase_order=self.po,
@@ -237,6 +238,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             manifest_row=self.mr2,
             matched_product=self.p2,
             title=str(self.mr2.title or ''),
+            identifiers=dict(self.mr2.identifiers or {}),
         )
         refresh_processing_rows_denorm(self.po)
 
@@ -257,6 +259,9 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertIn('processing_row_id', r1)
         self.assertIn('likelyDuplicateOf', r1)
         self.assertEqual(r1['likelyDuplicateOf'], [])
+        self.assertIn('searchString', r1)
+        self.assertIsInstance(r1['searchString'], str)
+        self.assertGreater(len(r1['searchString']), 0)
 
     def test_workspace_pagination_default_limit(self):
         """List returns at most ``limit`` rows; metadata counts full filtered set."""
@@ -689,3 +694,58 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         )
         self.assertEqual(r.status_code, 400, r.data)
         self.assertIn('match', str(r.data.get('detail', '')).lower())
+
+    def test_workspace_search_finds_tracking_json_via_search_string(self):
+        pr = ProcessingRow.objects.get(purchase_order=self.po, row_number=1)
+        pr.tracking = {'lot_id': 'unique-lot-marker-aaa'}
+        pr.save(update_fields=['tracking'])
+        r = self.client.get(
+            f'/api/inventory/orders/{self.po.id}/processing-workspace/',
+            {'search': 'unique-lot-marker'},
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data.get('row_count_filtered'), 1)
+        row = r.data['rows'][0]
+        self.assertEqual(row['rowNum'], 1)
+        self.assertIn('unique-lot-marker', row['searchString'])
+
+    def test_workspace_digit_only_token_matches_exact_row_number(self):
+        ProcessingRow.objects.create(
+            purchase_order=self.po,
+            row_number=12,
+            quantity=1,
+            title='Line twelve',
+        )
+        r = self.client.get(
+            f'/api/inventory/orders/{self.po.id}/processing-workspace/',
+            {'search': '1'},
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual({row['rowNum'] for row in r.data['rows']}, {1})
+        self.assertEqual(r.data.get('row_count_filtered'), 1)
+
+        r12 = self.client.get(
+            f'/api/inventory/orders/{self.po.id}/processing-workspace/',
+            {'search': '12'},
+        )
+        self.assertEqual(r12.status_code, 200, r12.data)
+        self.assertEqual({row['rowNum'] for row in r12.data['rows']}, {12})
+        self.assertEqual(r12.data.get('row_count_filtered'), 1)
+
+    def test_manual_review_updates_linked_bookmark_search_string(self):
+        self.mr1.final_price = Decimal('10.00')
+        self.mr1.proposed_price = Decimal('10.00')
+        self.mr1.pricing_stage = 'final'
+        self.mr1.save()
+        resp = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/manual-review/',
+            {'rows': [{'id': self.mr1.id, 'title': 'Zebra manual review title'}]},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        q = self.client.get(
+            f'/api/inventory/orders/{self.po.id}/processing-workspace/',
+            {'search': 'zebra manual'},
+        )
+        self.assertEqual(q.status_code, 200, q.data)
+        self.assertGreaterEqual(q.data.get('row_count_filtered', 0), 1)

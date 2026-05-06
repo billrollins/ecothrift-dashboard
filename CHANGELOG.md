@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.22.1] — 2026-05-02 (Inventory — Item Processor timeout hotfix) -->
-<!-- Last reviewed: 2026-05-02 (`review.0.Bump` — v2.22.1 Item Processor slim queryset + prefetch hotfix) -->
+<!-- Line 1 release: ## [2.23.0] — 2026-05-06 (Inventory — Item Processor workspace search blob) -->
+<!-- Last reviewed: 2026-05-06 (`review.0.Bump` — v2.23.0 ProcessingRow.search_string + manual-review mirror) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,35 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.23.0] — 2026-05-06
+
+User-facing theme: **Item Processor workspace search** — substring search spans listing fields plus flattened **`identifiers`**, **`specifications`**, **`tracking`**, **`taxonomy`**, and **`search_tags`** via a persisted lowercased **`ProcessingRow.search_string`**; **`POST …/manual-review/`** mirrors edited manifest lines onto linked bookmarks so renamed titles stay findable.
+
+### Added
+
+- **Inventory / Item Processor** — **`ProcessingRow.search_string`** (migration **`0043_processingrow_search_string`**) rebuilt on every ORM **`save()`** (`update_fields` automatically includes **`search_string`**) plus explicit **`bulk_update`** paths; **`manage.py rebuild_processing_search_string`** (`--purchase-order-id`, `--dry-run`, `--batch-size`; excludes **`complete`**/**`cancelled`** POs by default).
+- **Inventory / Item Processor (API)** — Workspace list rows expose **`searchString`** (from **`search_string`**); **`POST …/manual-review/`** updates linked **`ProcessingRow`** searchable fields after manifest saves (**`mirror_manifest_rows_into_processing_bookmarks`**).
+- **Frontend / Item Processor** — **`processingWorkspaceSearchBlob`** reads API **`searchString`** (canonical blob); legacy **`buildProcessingSearchBlob`** retained for tests only — [`processingWorkspaceFilters.ts`](frontend/src/pages/inventory/processing/processingWorkspaceFilters.ts); [`inventory.types.ts`](frontend/src/types/inventory.types.ts).
+
+### Changed
+
+- **Inventory / Item Processor** — **`processing-workspace`** **`search`** param matches **`search_string__contains`** (tokens lowercased); pure-digit / **`rowNNN`** tokens still resolve **`row_number`** exactly — [`processing_workspace.py`](apps/inventory/services/processing_workspace.py).
+
+### Documentation
+
+- **`.ai/extended/development.md`** — optional periodic **`rebuild_processing_search_string`** note for bulk/SQL bypass safety net.
+
+### Tests
+
+- **`python manage.py test apps.inventory.tests.test_processing_validation_matrix apps.inventory.tests.test_preprocessing_redesign --noinput`** — **82 tests OK**.
+- **`frontend`**: **`npx vitest run`** — **`processingWorkspaceFilters.test.ts`** (14).
+
+### Build
+
+- **`frontend`**: **`npm run build`**.
 
 ---
 

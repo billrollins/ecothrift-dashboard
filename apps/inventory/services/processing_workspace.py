@@ -14,6 +14,7 @@ from typing import Any, Iterable
 from django.db.models import Count, Q, Sum
 
 from apps.inventory.models import Item, ManifestRow, PreprocessingOrder, ProcessingDataBuild, ProcessingRow, PurchaseOrder, Product
+from apps.inventory.services.processing_search_string import assign_search_strings_for_instances
 
 # UI condition labels (mockup) ↔ Item.condition DB values
 CONDITION_UI_TO_DB = {
@@ -212,29 +213,28 @@ _WORKSPACE_SEGMENTS_F = frozenset({'all', 'pending', 'partial', 'checked_in', 'd
 
 
 def _workspace_tokens_q(words: list[str]) -> Q:
-    """AND-of-ORs aligned with frontend ``matchesProcessingSearch`` token rules (substring)."""
+    """AND-of-ORs aligned with frontend ``matchesProcessingSearch`` token rules.
+
+    Workspace rows store lowercased ``search_string``; tokens are lowercased and matched with
+    ``contains`` (not ``icontains``) per token. Pure-digit / ``rowNNN`` tokens match ``row_number``
+    only to avoid bogus digit substring hits inside JSON blobs.
+    """
     q = Q()
     for raw in words:
         w = (raw or '').strip()
         if not w:
             continue
-        wl = w.lower()
-        sub = (
-            Q(title__icontains=w)
-            | Q(brand__icontains=w)
-            | Q(model__icontains=w)
-            | Q(list_sku__icontains=w)
-            | Q(description__icontains=w)
-            | Q(category__icontains=w)
-            | Q(identifiers__upc__icontains=w)
-        )
-        if wl.startswith('row') and wl[3:].isdigit():
-            sub |= Q(row_number=int(wl[3:]))
-        elif w.isdigit():
+        w_norm = ' '.join(w.lower().split())
+        wl = w_norm
+        if wl.startswith('row') and len(wl) > 3 and wl[3:].isdigit():
+            sub = Q(row_number=int(wl[3:]))
+        elif w_norm.isdigit():
             try:
-                sub |= Q(row_number=int(w))
+                sub = Q(row_number=int(w_norm))
             except ValueError:
-                pass
+                sub = Q(search_string__contains=w_norm)
+        else:
+            sub = Q(search_string__contains=w_norm)
         q &= sub
     return q
 
@@ -281,6 +281,7 @@ PROCESSING_WORKSPACE_ROW_VALUE_FIELDS = (
     'description',
     'identifiers',
     'search_tags',
+    'search_string',
     'queue_status',
     'qty_dispositioned',
     'pending_item_count',
@@ -355,6 +356,7 @@ def serialize_processing_workspace_row_values(rw: dict[str, Any], dup_hint: list
         'price': list_price,
         'dispatch': str(rw.get('list_dispatch') or 'on_shelf') or 'on_shelf',
         'sku': sku_val if sku_val else None,
+        'searchString': str(rw.get('search_string') or ''),
     }
 
 
@@ -430,6 +432,8 @@ def refresh_processing_rows_denorm(
             pr.list_sku = ''
             pr.list_unit_price = pr.final_price if pr.final_price is not None else pr.proposed_price
 
+    assign_search_strings_for_instances(prs)
+
     ProcessingRow.objects.bulk_update(
         prs,
         [
@@ -443,6 +447,7 @@ def refresh_processing_rows_denorm(
             'list_sku',
             'list_unit_price',
             'condition',
+            'search_string',
         ],
     )
 

@@ -5,6 +5,7 @@ import {
   isSingleScanToken,
   matchesProcessingSearch,
   normalizeUpcToken,
+  processingWorkspaceSearchBlob,
   rowMatchesStatusSegment,
   rowsMatchingExactUpc,
 } from './processingWorkspaceFilters';
@@ -25,6 +26,16 @@ describe('processingWorkspaceFilters', () => {
 
     it('empty query matches', () => {
       expect(matchesProcessingSearch('anything', '   ')).toBe(true);
+    });
+  });
+
+  describe('processingWorkspaceSearchBlob (server field)', () => {
+    it('uses searchString from API row (lowercased / normalized)', () => {
+      const blob = processingWorkspaceSearchBlob({
+        searchString: '  Mixer  A  ROW1  ',
+      });
+      expect(blob).toBe('mixer a row1');
+      expect(matchesProcessingSearch(blob, 'mixer row1')).toBe(true);
     });
   });
 

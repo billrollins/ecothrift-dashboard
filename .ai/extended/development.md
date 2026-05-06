@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-01 (Heroku Procfile release command spelling; deployment block) -->
+<!-- Last updated: 2026-05-06 (processing search_string rebuild maintenance note) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -63,6 +63,8 @@ npm run dev
 | Hourly | `python manage.py scheduled_sweep` |
 
 `compute_daily_category_stats` refreshes SQL-backed `CategoryStats` (including `need_score_1to99`), invalidates the category-need cache, and (unless `--skip-recompute-open`) runs a full valuation pass for non-archived open/closing auctions with a future `end_time`. `scheduled_sweep` runs discovery then `recompute_active_auctions_lightweight`. **Removed:** the legacy nightly **`recompute_cost_pipeline`** — item costs use **`PurchaseOrder.est_shrink`** and **`recompute_all_item_costs`** for backfills only.
+
+**Inventory / Item Processor:** optional safety net for `ProcessingRow.search_string` (bulk/SQL paths that bypass ORM `save()`): e.g. weekly `python manage.py rebuild_processing_search_string` (defaults to excluding `complete`/`cancelled` POs; add `--dry-run` to count rows only).
 
 **Also polled in-app (not necessarily the same Heroku clock):** **`watch_auctions`** updates watchlisted auctions via anonymous batch GET (`auction.bstock.com`) when **`WatchlistEntry`** poll intervals allow — run it yourself or wire a scheduler; **`scripts/dev/daily_scheduled_tasks.bat`** includes it after `scheduled_sweep`.
 

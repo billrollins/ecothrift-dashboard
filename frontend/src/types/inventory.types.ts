@@ -404,6 +404,8 @@ export interface ProcessingWorkspaceRowDTO {
   price: string | null;
   dispatch: string;
   sku: string | null;
+  /** Lowercased denormalized substring search blob from backend; source of truth over client-side blobs. */
+  searchString: string;
 }
 
 export interface ProcessingWorkspaceOrderDTO {

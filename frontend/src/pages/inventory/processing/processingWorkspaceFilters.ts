@@ -3,6 +3,11 @@
  * Validation matrix: V-07, V-08, V-12 — see PROCESSING_VALIDATION_MATRIX.md
  */
 
+/** Row shape exposing server-built ``searchString`` (see ProcessingWorkspaceRowDTO). */
+export interface ProcessingSearchBlobRow {
+  searchString?: string;
+}
+
 export interface ProcessingSearchRowParts {
   rowNum: number;
   title: string;
@@ -13,6 +18,28 @@ export interface ProcessingSearchRowParts {
 }
 
 export type ProcessingStatusSegment = 'all' | 'pending' | 'partial' | 'checked_in' | 'disputed';
+
+/**
+ * Canonical workspace row search blob — supplied by GET processing-workspace (`search_string` → `searchString`).
+ * Server lowers and normalizes whitespace; do not reconstruct from listing columns on the client.
+ */
+export function processingWorkspaceSearchBlob(row: Pick<ProcessingSearchBlobRow, 'searchString'>): string {
+  const s = (row.searchString ?? '').trim().toLowerCase();
+  return s.replace(/\s+/g, ' ');
+}
+
+/**
+ * Legacy local blob for tests comparing token rules to documented §8.2 layout.
+ * Production rows should use `processingWorkspaceSearchBlob` + API `searchString`.
+ */
+export function buildProcessingSearchBlob(parts: ProcessingSearchRowParts): string {
+  const upc = parts.identifiers?.upc ?? '';
+  const sku = parts.sku ?? '';
+  return `${parts.title} ${parts.brand} ${parts.model} ${sku} row${parts.rowNum} ${upc}`
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
 
 /** Django Item.status values used on the processing floor before full disposition enums ship. */
 export type ProcessingItemStatus =
@@ -36,16 +63,6 @@ export function mapItemStatusToDisposition(status: string): ProcessingDispositio
   if (status === 'scrapped') return 'broken';
   if (status === 'lost') return 'undelivered';
   return 'pending';
-}
-
-/** Design §8.2 blob: title + brand + model + sku + row + upc */
-export function buildProcessingSearchBlob(parts: ProcessingSearchRowParts): string {
-  const upc = parts.identifiers?.upc ?? '';
-  const sku = parts.sku ?? '';
-  return `${parts.title} ${parts.brand} ${parts.model} ${sku} row${parts.rowNum} ${upc}`
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
 }
 
 /** Design §8.2: every whitespace-separated token must appear (order-independent). */

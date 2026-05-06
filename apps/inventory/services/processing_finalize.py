@@ -25,6 +25,7 @@ from apps.inventory.models import (
     ProcessingRow,
     PurchaseOrder,
 )
+from apps.inventory.services.processing_search_string import assign_search_strings_for_instances, build_processing_row_search_string
 from apps.inventory.services.processing_workspace import refresh_processing_rows_denorm
 
 
@@ -177,6 +178,9 @@ def finalize_preprocessing_to_bookmarks(
             ),
         )
 
+    for obj in objs:
+        obj.search_string = build_processing_row_search_string(obj)
+
     now = timezone.now()
 
     with transaction.atomic():
@@ -245,10 +249,16 @@ def _destructive_manifest_item_reset(order: PurchaseOrder) -> None:
 
 
 def _unlink_processing_bookmarks(order: PurchaseOrder) -> None:
-    ProcessingRow.objects.filter(purchase_order=order).update(
-        manifest_row_id=None,
-        matched_product_id=None,
-    )
+    prs = list(ProcessingRow.objects.filter(purchase_order=order))
+    for pr in prs:
+        pr.manifest_row_id = None
+        pr.matched_product_id = None
+        pr.search_string = build_processing_row_search_string(pr)
+    if prs:
+        ProcessingRow.objects.bulk_update(
+            prs,
+            ['manifest_row_id', 'matched_product_id', 'search_string'],
+        )
 
 
 def _ensure_preprocessing_finalized(order: PurchaseOrder) -> None:
