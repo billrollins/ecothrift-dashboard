@@ -161,7 +161,7 @@ class PreprocessingRedesignTests(TestCase):
         )
         return resp
 
-    def test_raise_if_processing_blocked_when_receiving_not_done(self):
+    def test_processing_gate_allows_receiving_not_done(self):
         order = PurchaseOrder.objects.create(
             vendor=self.vendor,
             order_number='PO-GATE-RECV',
@@ -172,13 +172,9 @@ class PreprocessingRedesignTests(TestCase):
             preprocess_status='finalized',
             receiving_status='not_started',
         )
-        with self.assertRaises(ValidationError) as ctx:
-            raise_if_processing_blocked_by_intake(order)
-        err = ctx.exception
-        codes = err.message_dict.get('code', [])
-        self.assertEqual(codes, ['receiving_not_done'])
+        raise_if_processing_blocked_by_intake(order)
 
-    def test_build_processing_data_returns_400_when_receiving_not_done(self):
+    def test_build_processing_data_allows_receiving_not_done(self):
         self.order.finalized_at = timezone.now()
         self.order.preprocess_status = 'finalized'
         self.order.receiving_status = 'active'
@@ -194,8 +190,7 @@ class PreprocessingRedesignTests(TestCase):
 
         resp = self._post_build_processing_data_start()
 
-        self.assertEqual(resp.status_code, 400, resp.data)
-        self.assertEqual(resp.data.get('code'), 'receiving_not_done')
+        self.assertEqual(resp.status_code, 200, resp.data)
 
     def _preprocessing_review_reset_final(self, row_ids):
         view = PurchaseOrderViewSet.as_view({'post': 'preprocessing_review_reset_final'})
