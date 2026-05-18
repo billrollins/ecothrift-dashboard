@@ -178,6 +178,25 @@ class PreprocessingRedesignTests(TestCase):
         codes = err.message_dict.get('code', [])
         self.assertEqual(codes, ['receiving_not_done'])
 
+    def test_build_processing_data_returns_400_when_receiving_not_done(self):
+        self.order.finalized_at = timezone.now()
+        self.order.preprocess_status = 'finalized'
+        self.order.receiving_status = 'active'
+        self.order.save(update_fields=['finalized_at', 'preprocess_status', 'receiving_status', 'updated_at'])
+        ProcessingRow.objects.create(
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            final_price=Decimal('12.00'),
+            title='Ready after receiving',
+            description='Processing gate regression',
+        )
+
+        resp = self._post_build_processing_data_start()
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertEqual(resp.data.get('code'), 'receiving_not_done')
+
     def _preprocessing_review_reset_final(self, row_ids):
         view = PurchaseOrderViewSet.as_view({'post': 'preprocessing_review_reset_final'})
         request = APIRequestFactory().post(

@@ -9,6 +9,7 @@ import uuid
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.core.cache import cache
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.http import HttpResponse
 from django.db import transaction
@@ -60,6 +61,24 @@ suggest_logger = get_logger(__name__, 'LOG_ADD_ITEM_AI')
 cleanup_logger = get_logger(__name__, 'LOG_INVENTORY_AI_CLEANUP')
 match_logger = get_logger(__name__, 'LOG_INVENTORY_AI_MATCH')
 finalization_logger = get_logger(__name__, 'LOG_INVENTORY_AI_FINALIZATION')
+
+
+def _validation_error_response_detail(exc):
+    detail = getattr(exc, 'detail', None)
+    if detail is not None:
+        return detail
+    if hasattr(exc, 'message_dict'):
+        out = {}
+        for key, value in exc.message_dict.items():
+            if isinstance(value, list) and len(value) == 1:
+                out[key] = value[0]
+            else:
+                out[key] = value
+        return out
+    if hasattr(exc, 'messages'):
+        return exc.messages
+    return str(exc)
+
 from .models import (
     Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
@@ -4773,14 +4792,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         try:
             n = finalize_preprocessing_to_bookmarks(order)
-        except ValidationError as exc:
+        except (ValidationError, DjangoValidationError) as exc:
             finalization_logger.warning(
                 'finalize_preprocessing_validation_failed order_id=%s elapsed_ms=%.1f detail=%s',
                 order.id,
                 (time.perf_counter() - t0) * 1000,
                 getattr(exc, 'detail', exc),
             )
-            detail = exc.detail
+            detail = _validation_error_response_detail(exc)
             if isinstance(detail, dict):
                 return Response(detail, status=status.HTTP_400_BAD_REQUEST)
             if isinstance(detail, list):
@@ -4816,8 +4835,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         try:
             reset = bool(request.data.get('reset'))
             payload = build_manifest_from_processing_rows(order, request.user, reset=reset)
-        except ValidationError as exc:
-            detail = exc.detail
+        except (ValidationError, DjangoValidationError) as exc:
+            detail = _validation_error_response_detail(exc)
             status_code = status.HTTP_400_BAD_REQUEST
             if isinstance(detail, dict) and detail.get('code') == 'terminal_items_block':
                 status_code = status.HTTP_409_CONFLICT
@@ -4843,8 +4862,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         try:
             payload = get_processing_data_build_status(order)
-        except ValidationError as exc:
-            detail = exc.detail
+        except (ValidationError, DjangoValidationError) as exc:
+            detail = _validation_error_response_detail(exc)
             if isinstance(detail, dict):
                 return Response(detail, status=status.HTTP_400_BAD_REQUEST)
             if isinstance(detail, list):
@@ -4867,8 +4886,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         try:
             payload = process_processing_data_build_chunk(order, request.user)
-        except ValidationError as exc:
-            detail = exc.detail
+        except (ValidationError, DjangoValidationError) as exc:
+            detail = _validation_error_response_detail(exc)
             status_code = status.HTTP_400_BAD_REQUEST
             if isinstance(detail, dict) and detail.get('code') == 'terminal_items_block':
                 status_code = status.HTTP_409_CONFLICT
@@ -4895,8 +4914,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         try:
             payload = clear_processing_data_to_bookmarks_phase(order)
-        except ValidationError as exc:
-            detail = exc.detail
+        except (ValidationError, DjangoValidationError) as exc:
+            detail = _validation_error_response_detail(exc)
             status_code = status.HTTP_400_BAD_REQUEST
             if isinstance(detail, dict) and detail.get('code') == 'terminal_items_block':
                 status_code = status.HTTP_409_CONFLICT
