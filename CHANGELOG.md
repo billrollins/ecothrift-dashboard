@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.24.0] — 2026-05-18 (Inventory — inbound intake stabilization) -->
-<!-- Last reviewed: 2026-05-18 (`review.0.Bump` release — inbound intake stabilization; MINOR semver) -->
+<!-- Line 1 release: ## [2.24.1] — 2026-05-18 (Inventory — processing gate hotfix) -->
+<!-- Last reviewed: 2026-05-18 (`review.0.Bump` patch — every production push warrants a semver bump; v2.24.1 records post-v2.24.0 processing hotfixes) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,22 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.24.1] — 2026-05-18
+
+User-facing theme: **Processing gate hotfix** — staff can run **Orders → upload manifest → Preprocessing → Processing** while **Receiving** and **Disputes** remain independent until trained.
+
+### Fixed
+
+- **Inventory / Processing data build** — `build-processing-data`, chunk polling, and clear-processing-data normalize Django validation errors into structured API responses instead of leaking 500s.
+- **Inventory / Processing gate** — Processing now requires finalized preprocessing only; it no longer requires `receiving_status='done'`. This keeps Receiving operationally independent for now while allowing staff to create processing data, print, check in, merge, and dispute from Processing.
+
+### Tests
+
+- **`python -m pytest apps/inventory/tests/test_preprocessing_redesign.py apps/inventory/tests/test_processing_validation_matrix.py apps/inventory/tests/test_receiving_api.py -q --tb=short`** — **98 passed**.
+- **`frontend`**: **`npm run build`**.
 
 ---
 

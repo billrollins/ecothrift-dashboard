@@ -10,7 +10,6 @@ from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.utils import timezone
-from django.core.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.inventory.models import (

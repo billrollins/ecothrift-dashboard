@@ -318,6 +318,7 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 - Scope cleanup: Session 14 closed as discovery; Session 15 owns the ordered stabilization wave. Next: Step 1 — schema + migration baseline.
 - Review: **`review.0.Bump`** + **`review.1.Diff`** + **`review.9.Deep`** — **`CHANGELOG [Unreleased]`** intake bullets + steering sync (**`context`**, **`consultant_context`**, **`extended/inventory-pipeline`**) + persisted diff **`20260518-092215.diff.md`** + refreshed **`.ai/reference/deep_dive/latest/`** (prior run under **`_runs/20260518T092130/previous_latest/`**) — semver bump deferred Part 2A — 2026-05-18
 - Stabilization pass (Business-hours readiness): **`0045`** rollout PO map corrected; **`processing_dispute`** all-in-one **`transaction.atomic()`**; **`OrderDetailPage`** PATCH queue retention + **`ReceivingOrderPage`** desktop missing-PO fallback; targeted pytest (8 modules) **`121`** OK; **`repair_intake_pipeline_pos --verify`** OK; **`npm run build`**. **`0050`** still full-scan on migrate — rehearsal deploy/window timing on prod-sized copy remains a release gate — 2026-05-18
+- Release bookkeeping correction: main release is **`v2.24.0`**; same-day production hotfixes are **`v2.24.1`** (PATCH) for structured processing-data validation and temporary Processing/Receiving decoupling. Going forward, **every production push warrants a semver bump + `CHANGELOG` entry** — 2026-05-18
 
 ---
 

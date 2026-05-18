@@ -1,1 +1,1 @@
-feat(inventory): v2.24.0 inbound intake stabilization
+fix(inventory): v2.24.1 processing gate hotfix
