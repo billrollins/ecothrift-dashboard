@@ -1,44 +1,38 @@
-# Version And Changelog Audit
+# Version / Changelog Audit — 2026-05-18
 
 ## Executive Summary
 
-- **Version alignment:** **Aligned** among `.version`, root `package.json`, and latest dated `CHANGELOG` section **`[2.20.0]`**.
-- **Changelog state:** Large, meaningful **`[Unreleased]`** capturing inventory processor workspace, LLM provider routing, preprocessing CSV contract updates, and documentation pointers — **needs intentional release slicing** before the next tag.
-- **`frontend/package.json`:** **`0.0.0`** — intentional per recent bump notes in `CHANGELOG` / steering (SPA not individually versioned like the repo).
-- **Confidence:** **High** for alignment table; **Medium** for SemVer bump recommendation until user declares release scope.
+- **`HEAD`: `.version`** = **`v2.23.0`**, **`package.json` (root)** = **`2.23.0`**, **`frontend/package.json`** = **`0.0.0`** (guardrail ✅).
+- **Top dated `CHANGELOG`** section (**`## [2.23.0] — 2026-05-06`**) ✅ matches semver line.
+- **Working tree** contains materially **shipping-grade** deltas (inventory migrations **`0045+`**, dashboards, disputes, repair tooling) ⇒ **semver bump warranted on actual release**, likely **`MINOR`** (new persistence + behaviours) absent explicit breaking downgrade — **`MAJOR`** not indicated without API breakage inventory.
+- **Protocol:** **`review.0.Bump` Part 2A** forbids semver bump absent explicit release request ⇒ **stay on `[Unreleased]` bullets only** until user calls release.
+- **Confidence:** **High** on bookkeeping alignment; **Medium** precise semver tier until changelog bullets finalized pre-release.
 
-## Version Alignment
+## Matrix
 
-| Artifact | Value | Expected | Status | Notes |
-|----------|-------|----------|--------|-------|
-| `.version` | `v2.20.0` | `vMAJOR.MINOR.PATCH` | ok | Single-line semver file |
-| Root `package.json` | `2.20.0` | numeric match without `v` | ok | Heroku/node harness |
-| `frontend/package.json` | `0.0.0` | independent | ok | Documented as unchanged in steering |
-| Top dated `CHANGELOG` section | `[2.20.0]` | matches shipped `.version` | ok | `[Unreleased]` sits above it |
+| File | Value (`HEAD`) | Comment |
+|---|---|---|
+| `.version` | `v2.23.0` | Canonical app tag |
+| Root `package.json` | `2.23.0` | Must match `.version` numeric |
+| `frontend/package.json` | `0.0.0` | Do not bump for app releases |
+| **`CHANGELOG`** top dated | `[2.23.0] — 2026-05-06` ✅ |
+| **`[Unreleased]`** block | ✅ exists (`Final Review redesign` backlog + preprocessing AI LLM bullets) |
 
-## Changelog Structure
+## Drift checklist
 
-| Check | Status | Evidence | Recommendation |
-|-------|--------|----------|----------------|
-| Newest release first | ok | `## [Unreleased]` then `## [2.20.0]` | Keep pattern |
-| `[Unreleased]` meaningful | ok | Extensive Added/Changed for inventory | Split into next dated section when releasing |
-| Duplicate release headers | not audited exhaustively | Sample read shows single `[2.20.0]` | Run quick grep before release |
-| Keep a Changelog sections | ok | Added / Changed / Fixed / Documentation | Continue |
+| Check | Pass? |
+|---|---|
+| `.version` == root `package.json` (strip **`v`**) | ✅ |
+| No phantom dated section ahead of **`v2.23.0`** | ✅ |
+| Intake intake wave documented pending release | ⚠ bullets added this session |
 
-## Release Traceability
+## Release recommendation (inform only)
 
-| Release / Unreleased theme | Initiative / hotfix link | Evidence | Gap | Recommendation |
-|----------------------------|---------------------------|----------|-----|------------------|
-| `[Unreleased]` Item Processor + LLM | `order_processing_pipeline_rebuild`, steering refs | `CHANGELOG` lines ~23–52 | Not yet tied to a semver tag | User approves bump + section migration (`session.9.Close.md`) |
-| `[2.20.0]` Receiving + PO dashboard | Same initiative / inbound theme | `CHANGELOG` `[2.20.0]` | none | Already shipped |
+| Aspect | Recommendation |
+|---|---|
+| **When user requests release:** start new **`CHANGELOG [2.xx.0]`** or **`2.23.1`** if strictly patch rollup — default lean **MINOR** for **`0045–0051`** magnitude |
+| **Docs-only follow-up bumps** | **None** |
 
-## SemVer Findings
+## Notes
 
-| Finding | Evidence | Recommended bump? | Reason | Requires user approval |
-|---------|----------|-------------------|--------|------------------------|
-| Large additive API + UI surface in `[Unreleased]` | `processing-workspace`, processor POST actions, migrations `0039` | **minor** (typical) | User-visible inventory capability expansion | **yes** |
-| AI provider env keys | `XAI_API_KEY`, `AI_PROVIDER` | **patch** if treated as ops-only | Could argue minor if staff-facing AI controls expanded | **yes** |
-
-## Notes For `PLAN.md`
-
-- **`REL-001`**: Schedule **`review.0.Bump`** + `session.9.Close.md` Part 2 when user freezes `[Unreleased]` scope — source: § Changelog Structure.
+Prior **`CHANGELOG` line** “Last reviewed 2026-05-06” — updated via header comment tweak during bump pass (applied).

@@ -64,23 +64,13 @@ echo        Production ecothrift dump saved to: %DUMP_FILE%
 echo.
 
 :: -------------------------------------------------------
-:: Step 3: Confirm before dropping local ecothrift only
+:: Step 3: Auto-confirm (interactive prompt removed)
 :: -------------------------------------------------------
 echo ----------------------------------------
-echo   WARNING: This will drop ALL data in local schema
-echo   ecothrift and replace it with production ecothrift.
-echo.
+echo   Dropping local schema ecothrift and replacing with production.
 echo   Local schemas NOT modified: public, darkhorse, heroku_ext, ...
 echo   Local DB: ecothrift_v3 (localhost)
 echo ----------------------------------------
-echo.
-set /p "CONFIRM=Type YES to confirm: "
-if /I not "!CONFIRM!"=="YES" (
-    echo Aborted by user.
-    del "%DUMP_FILE%" 2>nul
-    pause
-    exit /b 1
-)
 echo.
 
 :: -------------------------------------------------------
@@ -137,4 +127,3 @@ echo.
 echo   Local ecothrift_v3: schema ecothrift updated from production.
 echo   Other schemas on this database were left unchanged.
 echo.
-pause

@@ -1,10 +1,1 @@
-feat(inventory): ProcessingRow shelf_price as workspace price SSOT
-
-- Workspace list/detail price from ProcessingRow.shelf_price only (final_price fallback);
-  refresh_processing_rows_denorm stops copying Item.price to shelf_price for manifest rows.
-- push_shelf_price_to_bookmark; processing ops paths sync bookmark before Item.price.
-- ProcessingActiveCard seeds shelf field from row.price.
-- Migration 0044 renames list_unit_price -> shelf_price; model/help text aligned.
-- Docs: CHANGELOG [Unreleased], context/consultant, extended backend + inventory-pipeline + frontend.
-
-semver: deferred — landing under CHANGELOG [Unreleased] per review.0.Bump Part 2A until explicit release.
+feat(inventory): v2.24.0 inbound intake stabilization

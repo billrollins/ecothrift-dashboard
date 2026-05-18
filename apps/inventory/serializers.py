@@ -4,8 +4,10 @@ from .models import (
     Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
     ItemHistory, ItemScanHistory,
-    PreprocessingOrder, PreprocessingRow,
+    PreprocessingRow,
+    ProcessingRow,
     Receiving, ReceivingPallet, ReceivingAttachment,
+    Dispute,
 )
 from .layer_helpers import (
     effective_preprocessing_title,
@@ -202,33 +204,6 @@ class ManualReviewRowSerializer(serializers.ModelSerializer):
             return None
         ideal = cost * 2
         return round(float((price - ideal) / ideal * 100), 1)
-
-
-class PreprocessingOrderSerializer(serializers.ModelSerializer):
-    vendor_name = serializers.CharField(source='purchase_order.vendor.name', read_only=True)
-
-    class Meta:
-        model = PreprocessingOrder
-        fields = [
-            'id',
-            'purchase_order',
-            'workflow_status',
-            'current_step',
-            'manifest_headers',
-            'header_signature',
-            'standardization_formulas',
-            'template',
-            'template_name',
-            'row_count',
-            'standardized_at',
-            'last_ai_import_at',
-            'review_saved_at',
-            'finalized_at',
-            'vendor_name',
-            'created_at',
-            'updated_at',
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
@@ -434,6 +409,16 @@ class PreprocessingReviewRowMinimalSerializer(PreprocessingReviewRowSerializer):
         ]
 
 
+_READONLY_MANIFEST_PATCH_FIELDS = frozenset({
+    'manifest_filename',
+    'manifest_uploaded_at',
+    'manifest_row_count',
+    'manifest_category_count',
+    'manifest_signature',
+    'manifest_headers',
+})
+
+
 class PurchaseOrderSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor.name', read_only=True)
     vendor_code = serializers.CharField(source='vendor.code', read_only=True)
@@ -451,7 +436,17 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'purchase_cost', 'shipping_cost', 'fees',
             'total_cost', 'retail_value', 'est_shrink',
             'condition', 'description',
-            'item_count', 'order_pallet_count', 'notes', 'manifest', 'manifest_file', 'manifest_preview',
+            'item_count', 'pallet_count', 'notes', 'manifest', 'manifest_file', 'manifest_preview',
+            'manifest_filename', 'manifest_uploaded_at', 'manifest_row_count', 'manifest_category_count',
+            'manifest_signature', 'manifest_headers',
+            'template', 'template_name_cache', 'template_header_signature_cache',
+            'template_column_mappings_cache', 'standardization_formulas',
+            'preprocess_status', 'receiving_status', 'receiving_started_at', 'receiving_done_at',
+            'processing_status', 'processing_started_at', 'processing_done_at',
+            'uses_legacy_processing',
+            'closeout_status',
+            'intake_dispute_status', 'processing_dispute_status',
+            'standardized_at', 'ai_cleaned_at', 'review_saved_at', 'finalized_at', 'closed_at',
             'processing_stats',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
@@ -460,11 +455,48 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'total_cost',
             'est_shrink',
             'manifest_preview',
+            'manifest_filename',
+            'manifest_uploaded_at',
+            'manifest_row_count',
+            'manifest_category_count',
+            'manifest_signature',
+            'manifest_headers',
+            'template',
+            'template_name_cache',
+            'template_header_signature_cache',
+            'template_column_mappings_cache',
+            'standardization_formulas',
+            'preprocess_status',
+            'receiving_status',
+            'receiving_started_at',
+            'receiving_done_at',
+            'processing_status',
+            'processing_started_at',
+            'processing_done_at',
+            'uses_legacy_processing',
+            'closeout_status',
+            'intake_dispute_status',
+            'processing_dispute_status',
+            'standardized_at',
+            'ai_cleaned_at',
+            'review_saved_at',
+            'finalized_at',
+            'closed_at',
             'created_at',
             'updated_at',
         ]
 
     manifest_file = S3FileSerializer(source='manifest', read_only=True)
+
+    def validate(self, attrs):
+        data = getattr(self, 'initial_data', None)
+        if isinstance(data, dict):
+            bad = _READONLY_MANIFEST_PATCH_FIELDS.intersection(data.keys())
+            if bad:
+                raise serializers.ValidationError(
+                    {f: ['Manifest metadata fields are read-only.'] for f in sorted(bad)},
+                )
+        return attrs
 
     def get_processing_stats(self, obj):
         # List/detail querysets annotate these to avoid N+1 queries (see PurchaseOrderViewSet).
@@ -523,7 +555,7 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
             'condition',
             'description',
             'item_count',
-            'order_pallet_count',
+            'pallet_count',
             'total_cost',
             'retail_value',
             'has_manifest',
@@ -552,21 +584,113 @@ class PreprocessingQueueOrderSerializer(serializers.ModelSerializer):
         fields = ['id', 'order_number', 'vendor_name', 'preprocessing_row_count']
 
     def get_preprocessing_row_count(self, obj):
-        prep = getattr(obj, 'preprocessing', None)
-        return prep.row_count if prep else 0
+        if getattr(obj, 'manifest_row_count', None) is not None:
+            return obj.manifest_row_count
+        annotated = getattr(obj, '_preprocessing_staging_count', None)
+        if annotated is not None:
+            return annotated
+        return PreprocessingRow.objects.filter(purchase_order=obj).count()
 
 
 class PurchaseOrderDetailSerializer(PurchaseOrderSerializer):
-    manifest_row_count = serializers.SerializerMethodField()
+    """Full PO detail (+ nested manifest / stats); canonical ManifestRow count is ``inventory_manifest_row_count``."""
+
+    inventory_manifest_row_count = serializers.SerializerMethodField()
 
     class Meta(PurchaseOrderSerializer.Meta):
-        fields = PurchaseOrderSerializer.Meta.fields + ['manifest_row_count']
+        fields = PurchaseOrderSerializer.Meta.fields + ['inventory_manifest_row_count']
 
-    def get_manifest_row_count(self, obj):
+    def get_inventory_manifest_row_count(self, obj):
         annotated = getattr(obj, '_manifest_row_count', None)
         if annotated is not None:
             return annotated
         return obj.manifest_rows.count()
+
+
+class PurchaseOrderDetailSurfaceSerializer(serializers.ModelSerializer):
+    """Order Detail GET only: scalar PO fields + denormalized manifest meta — no previews, URLs, stats."""
+
+    vendor_name = serializers.CharField(source='vendor_name_cache', read_only=True)
+    vendor_code = serializers.CharField(source='vendor_code_cache', read_only=True)
+    has_manifest = serializers.SerializerMethodField()
+    manifest_filename = serializers.CharField(allow_null=True, read_only=True)
+    manifest_uploaded_at = serializers.DateTimeField(allow_null=True, read_only=True)
+    manifest_row_count = serializers.IntegerField(allow_null=True, read_only=True)
+    manifest_category_count = serializers.IntegerField(allow_null=True, read_only=True)
+
+    class Meta:
+        model = PurchaseOrder
+        fields = [
+            'id',
+            'vendor',
+            'vendor_name',
+            'vendor_code',
+            'order_number',
+            'status',
+            'ordered_date',
+            'paid_date',
+            'shipped_date',
+            'expected_delivery',
+            'delivered_date',
+            'purchase_cost',
+            'shipping_cost',
+            'fees',
+            'total_cost',
+            'retail_value',
+            'est_shrink',
+            'condition',
+            'description',
+            'item_count',
+            'pallet_count',
+            'notes',
+            'manifest_filename',
+            'manifest_uploaded_at',
+            'manifest_row_count',
+            'manifest_category_count',
+            'manifest_signature',
+            'manifest_headers',
+            'template',
+            'template_name_cache',
+            'template_header_signature_cache',
+            'template_column_mappings_cache',
+            'standardization_formulas',
+            'preprocess_status',
+            'receiving_status',
+            'receiving_started_at',
+            'receiving_done_at',
+            'processing_status',
+            'processing_started_at',
+            'processing_done_at',
+            'uses_legacy_processing',
+            'closeout_status',
+            'intake_dispute_status',
+            'processing_dispute_status',
+            'standardized_at',
+            'ai_cleaned_at',
+            'review_saved_at',
+            'finalized_at',
+            'closed_at',
+            'has_manifest',
+            'created_at',
+            'updated_at',
+        ]
+
+    def get_has_manifest(self, obj):
+        return bool(getattr(obj, 'manifest_id', None))
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        for k in (
+            'manifest_filename',
+            'manifest_uploaded_at',
+            'manifest_row_count',
+            'manifest_category_count',
+            'manifest_signature',
+            'manifest_headers',
+        ):
+            if data.get(k) == '':
+                data[k] = None
+        return data
 
 
 class CSVTemplateSerializer(serializers.ModelSerializer):
@@ -758,14 +882,14 @@ class ReceivingDraftPatchSerializer(serializers.Serializer):
         allow_blank=True,
     )
     issues = serializers.CharField(required=False, allow_blank=True)
-    pallet_count = serializers.IntegerField(required=False, min_value=0, max_value=99)
+    received_pallet_count = serializers.IntegerField(required=False, min_value=0, max_value=99)
     pallets = ReceivingPalletWriteSerializer(many=True, required=False, allow_null=True)
 
 
 class ReceivingPalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReceivingPallet
-        fields = ['pallet_number', 'damaged']
+        fields = ['id', 'pallet_number', 'damaged']
 
 
 class ReceivingAttachmentSerializer(serializers.ModelSerializer):
@@ -799,7 +923,7 @@ class ReceivingDetailSerializer(serializers.ModelSerializer):
             'end_time',
             'condition',
             'issues',
-            'pallet_count',
+            'received_pallet_count',
             'completed_at',
             'draft_version',
             'is_draft',
@@ -821,6 +945,78 @@ class ReceivingDetailSerializer(serializers.ModelSerializer):
         return obj.completed_at is None
 
 
+class DisputeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Dispute
+        fields = [
+            'id',
+            'purchase_order',
+            'kind',
+            'status',
+            'title',
+            'description',
+            'opened_by',
+            'opened_at',
+            'resolved_by',
+            'resolved_at',
+            'subject_receiving',
+            'subject_pallet',
+            'subject_manifest_row',
+            'subject_processing_row',
+            'subject_item',
+            'payload',
+        ]
+        read_only_fields = [
+            'id',
+            'purchase_order',
+            'opened_by',
+            'opened_at',
+            'resolved_by',
+            'resolved_at',
+        ]
+
+
+class DisputeCreateSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=[Dispute.KIND_INTAKE, Dispute.KIND_PROCESSING])
+    title = serializers.CharField(max_length=300)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+    subject_receiving = serializers.PrimaryKeyRelatedField(
+        queryset=Receiving.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    subject_pallet = serializers.PrimaryKeyRelatedField(
+        queryset=ReceivingPallet.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    subject_manifest_row = serializers.PrimaryKeyRelatedField(
+        queryset=ManifestRow.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    subject_processing_row = serializers.PrimaryKeyRelatedField(
+        queryset=ProcessingRow.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    subject_item = serializers.PrimaryKeyRelatedField(
+        queryset=Item.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    payload = serializers.JSONField(required=False, default=dict)
+
+
+class DisputePatchSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=[Dispute.STATUS_OPEN, Dispute.STATUS_RESOLVED, Dispute.STATUS_CANCELLED],
+        required=False,
+    )
+    title = serializers.CharField(max_length=300, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
+
+
 class OrderForReceivingListSerializer(PurchaseOrderListSerializer):
     """Orders eligible for receiving + draft/complete flags."""
 
@@ -829,6 +1025,9 @@ class OrderForReceivingListSerializer(PurchaseOrderListSerializer):
 
     class Meta(PurchaseOrderListSerializer.Meta):
         fields = PurchaseOrderListSerializer.Meta.fields + [
+            'receiving_status',
+            'receiving_started_at',
+            'receiving_done_at',
             'has_receiving_draft',
             'has_receiving_complete',
         ]

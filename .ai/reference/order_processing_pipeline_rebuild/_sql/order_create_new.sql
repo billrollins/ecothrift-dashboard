@@ -1,0 +1,31 @@
+SELECT
+  po.id,
+  po.vendor_id,
+  po.order_number,
+  po.status,
+  po.ordered_date,
+  po.expected_delivery,
+  po.paid_date,
+  po.shipped_date,
+  po.delivered_date,
+  po.description,
+  po.condition,
+  po.item_count,
+  po.order_pallet_count,
+  po.purchase_cost,
+  po.shipping_cost,
+  po.fees,
+  po.total_cost,
+  po.retail_value,
+  po.est_shrink,
+  po.vendor_name_cache,
+  po.vendor_code_cache,
+  po.created_by_id,
+  po.manifest_id,
+  po.notes,
+  po.created_at,
+  v.name AS vendor_name_live,
+  v.code AS vendor_code_live
+FROM ecothrift.inventory_purchaseorder po
+JOIN ecothrift.inventory_vendor v ON v.id = po.vendor_id
+WHERE po.id = :po_id;

@@ -336,8 +336,8 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         with CaptureQueriesContext(connection) as ctx:
             r = self.client.get(f'/api/inventory/orders/{self.po.id}/')
         self.assertEqual(r.status_code, 200, r.data)
-        self.assertIn('manifest_row_count', r.data)
-        self.assertIsNotNone(r.data['manifest_row_count'])
+        self.assertIn('inventory_manifest_row_count', r.data)
+        self.assertIsNotNone(r.data['inventory_manifest_row_count'])
         self.assertIn('processing_stats', r.data)
         self.assertLessEqual(len(ctx.captured_queries), 35)
         joined = '\n'.join(q['sql'].lower() for q in ctx.captured_queries)
@@ -384,6 +384,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             format='json',
         )
         self.assertEqual(r.status_code, 200, r.data)
+        self.assertIn('dispute_id', r.data)
         self.i1.refresh_from_db()
         self.assertEqual(self.i1.status, 'scrapped')
         self.assertEqual(self.i1.dispute_type, 'broken')

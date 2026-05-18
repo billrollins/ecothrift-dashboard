@@ -14,7 +14,7 @@ from typing import Any, Iterable
 
 from django.db.models import Count, Q, Sum
 
-from apps.inventory.models import Item, ManifestRow, PreprocessingOrder, ProcessingDataBuild, ProcessingRow, PurchaseOrder, Product
+from apps.inventory.models import Item, ManifestRow, ProcessingDataBuild, ProcessingRow, PurchaseOrder, Product
 from apps.inventory.services.processing_search_string import assign_search_strings_for_instances
 
 # UI condition labels (mockup) ↔ Item.condition DB values
@@ -120,10 +120,9 @@ def _iso_optional(v) -> str | None:
 
 
 def _preprocessing_finalized_iso(order: PurchaseOrder) -> str | None:
-    prep = PreprocessingOrder.objects.filter(purchase_order_id=order.pk).only('finalized_at').first()
-    if prep is None or prep.finalized_at is None:
+    if order.finalized_at is None:
         return None
-    return prep.finalized_at.isoformat()
+    return order.finalized_at.isoformat()
 
 
 def _serialize_item(it: Item) -> dict[str, Any]:

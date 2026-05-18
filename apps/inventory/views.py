@@ -20,14 +20,17 @@ from django.db.models import (
     Max,
     Prefetch,
     Q,
+    Subquery,
+    OuterRef,
     Sum,
     Value,
     When,
     FloatField,
     IntegerField,
+    DateTimeField,
     ExpressionWrapper,
 )
-from django.db.models.functions import Extract, Cast
+from django.db.models.functions import Extract, Cast, Coalesce
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework import viewsets, status
@@ -61,10 +64,12 @@ from .models import (
     Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
     ItemHistory, ItemScanHistory,
-    PreprocessingOrder, PreprocessingRow,
+    PreprocessingRow,
     Receiving, ReceivingAttachment, ReceivingPallet,
+    Dispute,
 )
 from .preprocessing_summary import (
+    completed_step_from_preprocess_status,
     manifest_status_counts_aggregate,
     preprocessing_status_counts_aggregate,
     summarize_preprocessing_rows_aggregate,
@@ -85,8 +90,8 @@ from .serializers import (
     PurchaseOrderListSerializer,
     PreprocessingQueueOrderSerializer,
     PurchaseOrderDetailSerializer,
+    PurchaseOrderDetailSurfaceSerializer,
     CategorySerializer, CSVTemplateSerializer, ManifestRowSerializer, ManualReviewRowSerializer,
-    PreprocessingOrderSerializer,
     PreprocessingReviewRowMinimalSerializer,
     PreprocessingReviewRowSerializer,
     VendorProductRefSerializer, BatchGroupSerializer,
@@ -96,12 +101,16 @@ from .serializers import (
     ReceivingDetailSerializer,
     OrderForReceivingListSerializer,
     ReceivingDraftPatchSerializer,
+    DisputeSerializer,
+    DisputeCreateSerializer,
+    DisputePatchSerializer,
 )
 from apps.inventory.services.receiving import (
     get_or_create_receiving,
     patch_receiving_draft,
     validate_complete,
 )
+from apps.inventory.services.manifest_meta import compute_category_count
 from .cleanup_condition import normalize_cleanup_condition
 from .cleanup_csv_validate import validate_cleanup_row_values
 from .prompts import CONDITION_VALUES, FEW_SHOT_ADD_ITEM, LISTING_STANDARDS, OUTPUT_SCHEMA_HINT
@@ -170,61 +179,54 @@ def parse_manifest_file(order):
     return headers, rows
 
 
+def raw_rows_from_manifest_preview(order):
+    """Bounded raw rows for preview-only paths (no S3). Uses PO manifest_preview sample + manifest_headers."""
+    preview = order.manifest_preview or {}
+    headers = list(order.manifest_headers or preview.get('headers') or [])
+    sample_rows = preview.get('rows') or []
+    out = []
+    for item in sample_rows:
+        if not isinstance(item, dict):
+            continue
+        rn = item.get('row_number')
+        raw = item.get('raw')
+        if raw is None:
+            raw = {}
+        if rn is None:
+            continue
+        out.append({
+            'row_number': int(rn),
+            'raw': raw if isinstance(raw, dict) else {},
+        })
+    return headers, out
+
+
 def ensure_preprocessing_raw_rows(order):
-    """Create PreprocessingOrder + raw PreprocessingRow staging from S3 manifest when missing."""
+    """Bulk-create raw PreprocessingRow from S3 manifest when none exist (single full-file parse)."""
     if not order.manifest_id:
-        return None
-    preview_meta = order.manifest_preview or {}
-    prep = getattr(order, 'preprocessing', None)
-    if prep is None:
-        vendor = order.vendor
-        sig_hint = str(preview_meta.get('signature') or '')
-        template = None
-        if sig_hint:
-            template = CSVTemplate.objects.filter(
-                vendor=vendor, header_signature=sig_hint,
-            ).first()
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=order,
-            manifest_headers=list(preview_meta.get('headers') or []),
-            header_signature=sig_hint,
-            template=template,
-            template_name=template.name if template else '',
-            row_count=int(preview_meta.get('row_count') or 0),
-            workflow_status='draft',
-            current_step=0,
-        )
-    if prep.rows.exists():
-        return prep
+        return
+    if PreprocessingRow.objects.filter(purchase_order=order).exists():
+        return
 
     headers, rows_data = parse_manifest_file(order)
     if not rows_data:
-        return prep
+        return
 
     sig = header_signature(headers)
-    template = CSVTemplate.objects.filter(
-        vendor=order.vendor, header_signature=sig,
-    ).first()
-    prep.manifest_headers = list(headers)
-    prep.header_signature = sig
-    prep.row_count = len(rows_data)
-    if template:
-        prep.template = template
-        prep.template_name = template.name
-    prep.save(
+    order.manifest_headers = list(headers)
+    order.manifest_signature = sig
+    order.manifest_row_count = len(rows_data)
+    order.save(
         update_fields=[
             'manifest_headers',
-            'header_signature',
-            'row_count',
-            'template',
-            'template_name',
+            'manifest_signature',
+            'manifest_row_count',
             'updated_at',
         ],
     )
     PreprocessingRow.objects.bulk_create(
         [
             PreprocessingRow(
-                preprocessing_order=prep,
                 purchase_order=order,
                 row_number=r['row_number'],
                 raw_row=r['raw'],
@@ -233,7 +235,14 @@ def ensure_preprocessing_raw_rows(order):
         ],
         batch_size=500,
     )
-    return prep
+
+
+def _preprocessing_staging_active(order):
+    """True when staging rows exist and PO is not preprocess-finalized."""
+    return (
+        PreprocessingRow.objects.filter(purchase_order=order).exists()
+        and not order.finalized_at
+    )
 
 
 def default_column_mappings(headers):
@@ -262,11 +271,22 @@ def matching_templates_payload_for_vendor_signature(vendor, sig):
     """Template picker options for a header signature (no S3 / CSV parse)."""
     if vendor is None or not sig:
         return []
+    usage_sq = (
+        PurchaseOrder.objects.filter(template_id=OuterRef('pk'))
+        .values('template_id')
+        .annotate(n=Count('id'))
+        .values('n')
+    )
+    last_sq = (
+        PurchaseOrder.objects.filter(template_id=OuterRef('pk'))
+        .order_by('-updated_at')
+        .values('updated_at')[:1]
+    )
     qs = (
         CSVTemplate.objects.filter(vendor=vendor, header_signature=sig)
         .annotate(
-            use_count=Count('preprocessing_orders', distinct=True),
-            last_used_at=Max('preprocessing_orders__updated_at'),
+            use_count=Coalesce(Subquery(usage_sq, output_field=IntegerField()), Value(0)),
+            last_used_at=Subquery(last_sq, output_field=DateTimeField()),
         )
         .order_by('-is_default', '-id')[:25]
     )
@@ -518,9 +538,9 @@ def _parse_page_params(query_params):
     return max(1, page), max(10, min(page_size, 100))
 
 
-def build_preprocessing_review_queryset(prep, query_params):
+def build_preprocessing_review_queryset(order, query_params):
     rows_qs = (
-        PreprocessingRow.objects.filter(preprocessing_order=prep)
+        PreprocessingRow.objects.filter(purchase_order=order)
         .select_related('purchase_order')
         .order_by('row_number')
     )
@@ -558,10 +578,10 @@ def summarize_preprocessing_rows(order, rows_qs):
     return summarize_preprocessing_rows_aggregate(order, rows_qs)
 
 
-def update_preprocessing_review_rows(prep, rows_payload):
+def update_preprocessing_review_rows(order, rows_payload):
     rows_by_id = {
         row.id: row
-        for row in PreprocessingRow.objects.filter(preprocessing_order=prep)
+        for row in PreprocessingRow.objects.filter(purchase_order=order)
     }
     changed_rows = []
     changed_ids = []
@@ -716,10 +736,14 @@ def update_preprocessing_review_rows(prep, rows_payload):
             changed_ids.append(row.id)
     if changed_rows:
         now = timezone.now()
-        prep.review_saved_at = now
-        prep.current_step = max(prep.current_step, 2)
-        prep.workflow_status = 'review'
-        prep.save(update_fields=['review_saved_at', 'current_step', 'workflow_status', 'updated_at'])
+        with transaction.atomic():
+            order_w = PurchaseOrder.objects.select_for_update().get(pk=order.pk)
+            order_w.preprocess_status = 'reviewing'
+            uf_po = ['preprocess_status', 'updated_at']
+            if order_w.review_saved_at is None:
+                order_w.review_saved_at = now
+                uf_po.insert(1, 'review_saved_at')
+            order_w.save(update_fields=uf_po)
     return changed_rows, changed_ids
 
 
@@ -844,7 +868,7 @@ def _cleanup_export_sku(row, use_staging):
 
 
 def _cleanup_export_upc(row):
-    if getattr(row, 'preprocessing_order_id', None):
+    if hasattr(row, 'raw_row'):
         blob = getattr(row, 'standard_identifiers', None) or {}
     else:
         blob = getattr(row, 'identifiers', None) or {}
@@ -854,7 +878,7 @@ def _cleanup_export_upc(row):
 
 
 def _row_identifiers_blob(row):
-    if getattr(row, 'preprocessing_order_id', None):
+    if hasattr(row, 'raw_row'):
         return getattr(row, 'standard_identifiers', {}) or {}
     return row.identifiers or {}
 
@@ -1371,21 +1395,24 @@ def _build_check_in_queue_from_manifest(order, user):
     return items_created, batch_groups_created
 
 
-def _finalize_purchase_order_deliver(order, user, delivered_date):
-    """Set delivered status and enqueue check-in manifest items when applicable. Returns extras for API."""
+def _finalize_purchase_order_deliver(order, user, delivered_date, *, build_check_in_queue=True):
+    """Set delivered status; optionally enqueue legacy check-in items for legacy POs only."""
     order.status = 'delivered'
     order.delivered_date = delivered_date
-    order.save()
+    order.save(update_fields=['status', 'delivered_date', 'updated_at'])
 
-    items_created, batch_groups_created = None, None
-    if order.manifest_rows.exists() and not order.items.exists():
+    extras: dict = {}
+    legacy = bool(getattr(order, 'uses_legacy_processing', False))
+    if (
+        build_check_in_queue
+        and legacy
+        and order.manifest_rows.exists()
+        and not order.items.exists()
+    ):
         items_created, batch_groups_created = _build_check_in_queue_from_manifest(
             order, user,
         )
         order.refresh_from_db()
-
-    extras = {}
-    if items_created is not None:
         extras['items_created'] = items_created
         extras['batch_groups_created'] = batch_groups_created
     return extras
@@ -1671,8 +1698,17 @@ def resolve_manifest_mappings(order, headers, template_id=None, mappings_payload
     return sig, used_template, normalized_mappings
 
 
-def build_normalized_manifest_rows(order, selected_row_numbers=None, template_id=None, mappings_payload=None):
-    headers, raw_rows = parse_manifest_file(order)
+def build_normalized_manifest_rows_from_raw_rows(
+    order,
+    headers,
+    raw_rows,
+    *,
+    selected_row_numbers=None,
+    template_id=None,
+    mappings_payload=None,
+    row_count_in_file=None,
+):
+    """Normalize manifest rows from in-memory raw data (no S3). ``row_count_in_file`` defaults to len(raw_rows)."""
     if not headers:
         return {
             'error': 'No manifest file uploaded for this order.',
@@ -1699,15 +1735,44 @@ def build_normalized_manifest_rows(order, selected_row_numbers=None, template_id
         for row in filtered_rows
     ]
 
+    rc_file = row_count_in_file if row_count_in_file is not None else len(raw_rows)
+
     return {
         'headers': headers,
         'header_signature': sig,
         'used_template': used_template,
         'mappings': mappings,
-        'row_count_in_file': len(raw_rows),
+        'row_count_in_file': rc_file,
         'rows_selected': len(filtered_rows),
         'normalized_rows': normalized_rows,
     }
+
+
+def build_normalized_manifest_rows_from_staging(
+    order,
+    *,
+    selected_row_numbers=None,
+    template_id=None,
+    mappings_payload=None,
+):
+    """Normalize from DB staging rows after ``ensure_preprocessing_raw_rows`` (single S3 parse)."""
+    headers = list(order.manifest_headers or [])
+    raw_rows = [
+        {'row_number': r.row_number, 'raw': r.raw_row or {}}
+        for r in PreprocessingRow.objects.filter(purchase_order=order).order_by('row_number')
+    ]
+    row_count = order.manifest_row_count
+    if row_count is None:
+        row_count = len(raw_rows)
+    return build_normalized_manifest_rows_from_raw_rows(
+        order,
+        headers,
+        raw_rows,
+        selected_row_numbers=selected_row_numbers,
+        template_id=template_id,
+        mappings_payload=mappings_payload,
+        row_count_in_file=row_count,
+    )
 
 
 def history_event_type_for_field(field_name):
@@ -1957,15 +2022,21 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         return qs
 
     def get_queryset(self):
-        if getattr(self, 'action', None) in ('list', 'summary', 'for_receiving', 'preprocessing_queue'):
+        act = getattr(self, 'action', None)
+        if act == 'detail_surface':
+            return PurchaseOrder.objects.all()
+        if act in ('list', 'summary', 'for_receiving', 'preprocessing_queue'):
+            # Whitelist big-box dashboard vendors. Prefer matching Vendor.name because
+            # vendor_name_cache can be empty or stale (bulk inserts, legacy rows, failed saves).
             return PurchaseOrder.objects.filter(
-                vendor_name_cache__in=PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES,
-            )
+                Q(vendor_name_cache__in=PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES)
+                | Q(vendor__name__in=PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES),
+            ).select_related('vendor')
         if getattr(self, 'action', None) in _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS:
             return PurchaseOrder.objects.select_related('vendor', 'created_by').all()
         base = PurchaseOrder.objects.select_related('vendor', 'created_by').all()
         qs = _annotate_purchase_order_stats(base)
-        # manifest_row_count uses _manifest_row_count annotation; prefetching all manifest rows
+        # inventory_manifest_row_count uses _manifest_row_count annotation; prefetching all manifest rows
         # loads entire PO manifests on every GET /orders/{id}/ and worsens Heroku timeouts.
         return qs
 
@@ -1976,20 +2047,37 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return OrderForReceivingListSerializer
         if self.action == 'preprocessing_queue':
             return PreprocessingQueueOrderSerializer
+        if self.action == 'detail_surface':
+            return PurchaseOrderDetailSurfaceSerializer
         if self.action == 'retrieve':
             return PurchaseOrderDetailSerializer
         return PurchaseOrderSerializer
 
     @action(detail=False, methods=['get'], url_path='preprocessing-queue')
     def preprocessing_queue(self, request):
-        """Orders with a manifest whose preprocessing session is not finalized (or not started)."""
+        """Orders eligible for preprocessing: manifest present, not cancelled, PO not intake-finalized.
+
+        Ordering uses ``PurchaseOrder.preprocess_status`` rank (furthest along first), then ``-updated_at``,
+        then ``-ordered_date``. Row counts use ``manifest_row_count`` when set, else a staging-row count
+        annotation.
+        """
+        _preprocess_queue_rank = Case(
+            When(preprocess_status='finalized', then=Value(5)),
+            When(preprocess_status='reviewing', then=Value(4)),
+            When(preprocess_status='cleaned', then=Value(3)),
+            When(preprocess_status='standardized', then=Value(2)),
+            When(preprocess_status='not_started', then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
         qs = (
             self.filter_queryset(self.get_queryset())
             .filter(manifest_id__isnull=False)
             .exclude(status='cancelled')
-            .filter(Q(preprocessing__isnull=True) | Q(preprocessing__finalized_at__isnull=True))
-            .select_related('preprocessing')
-            .order_by('-preprocessing__current_step', '-preprocessing__updated_at', '-ordered_date')
+            .filter(finalized_at__isnull=True)
+            .annotate(_preprocessing_staging_count=Count('preprocessing_rows'))
+            .annotate(_preprocess_queue_rank=_preprocess_queue_rank)
+            .order_by('-_preprocess_queue_rank', '-updated_at', '-ordered_date')
         )
         serializer = PreprocessingQueueOrderSerializer(qs, many=True)
         return Response({'results': serializer.data})
@@ -2097,6 +2185,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order.save()
         return Response(PurchaseOrderSerializer(order).data)
 
+    @action(detail=True, methods=['get'], url_path='detail-surface')
+    def detail_surface(self, request, pk=None):
+        order = self.get_object()
+        return Response(PurchaseOrderDetailSurfaceSerializer(order).data)
+
     @action(detail=True, methods=['post'], url_path='upload-manifest')
     def upload_manifest(self, request, pk=None):
         """Upload a raw CSV/TSV manifest — S3 storage plus small JSON preview on the order only."""
@@ -2140,9 +2233,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             )
 
         sig = header_signature(headers)
-        template = CSVTemplate.objects.filter(
-            vendor=order.vendor, header_signature=sig,
-        ).first()
 
         rows_data = []
         for i, row in enumerate(reader, start=1):
@@ -2167,19 +2257,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        vendor_name = ''
-        if order.vendor_id:
-            vendor_name = getattr(order.vendor, 'name', '') or ''
-
         preview_data = {
             'headers': headers,
             'delimiter': delimiter,
-            'signature': sig,
-            'vendor_name': vendor_name,
-            'template_id': template.id if template else None,
-            'template_name': template.name if template else None,
-            'template_mappings': template.column_mappings if template else None,
-            'row_count': len(rows_data),
             'rows': rows_data[:10],
         }
 
@@ -2195,11 +2275,26 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 )
                 order.manifest = s3_file
                 order.manifest_preview = preview_data
-                order.save(update_fields=['manifest', 'manifest_preview'])
-                prep = getattr(order, 'preprocessing', None)
-                if prep:
-                    prep.rows.all().delete()
-                    prep.delete()
+                order.manifest_filename = s3_file.filename
+                order.manifest_uploaded_at = s3_file.uploaded_at
+                order.manifest_row_count = len(rows_data)
+                order.manifest_category_count = compute_category_count(headers, rows_data)
+                order.manifest_signature = sig
+                order.manifest_headers = list(headers)
+                order.save(
+                    update_fields=[
+                        'manifest',
+                        'manifest_preview',
+                        'manifest_filename',
+                        'manifest_uploaded_at',
+                        'manifest_row_count',
+                        'manifest_category_count',
+                        'manifest_signature',
+                        'manifest_headers',
+                        'updated_at',
+                    ],
+                )
+                PreprocessingRow.objects.filter(purchase_order=order).delete()
         except Exception as e:
             logger.exception('upload_manifest DB save failed order=%s', order.pk)
             try:
@@ -2223,40 +2318,59 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 pass
 
         order.refresh_from_db()
-        return Response(PurchaseOrderDetailSerializer(order).data)
+        return Response(PurchaseOrderDetailSurfaceSerializer(order).data)
 
     @action(detail=True, methods=['post'], url_path='remove-manifest')
     def remove_manifest(self, request, pk=None):
         """Clear raw manifest file + preview JSON; drops preprocessing staging if present."""
+        from apps.inventory.services.manifest_remove import remove_manifest_database
+
         order = self.get_object()
-        old = order.manifest
-        if not old:
-            return Response(
-                {'detail': 'No manifest file on this order.', 'code': 'no_manifest'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        old_key = old.key
         try:
-            with transaction.atomic():
-                order.manifest = None
-                order.manifest_preview = None
-                order.save(update_fields=['manifest', 'manifest_preview'])
-                prep = getattr(order, 'preprocessing', None)
-                if prep:
-                    prep.delete()
-                old.delete()
+            old_key = remove_manifest_database(order)
         except Exception as e:
             logger.exception('remove_manifest failed order=%s', order.pk)
             return Response(
                 {'detail': str(e), 'code': 'save_error'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+        if old_key is None:
+            return Response(
+                {'detail': 'No manifest file on this order.', 'code': 'no_manifest'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         try:
             default_storage.delete(old_key)
         except Exception:
             logger.warning('remove_manifest failed to delete storage object', exc_info=True)
         order.refresh_from_db()
-        return Response(PurchaseOrderDetailSerializer(order).data)
+        return Response(PurchaseOrderDetailSurfaceSerializer(order).data)
+
+    @action(detail=True, methods=['get'], url_path='undo-preview')
+    def undo_preview(self, request, pk=None):
+        """Non-destructive preview for intake undo (staging-first)."""
+        from apps.inventory.services.intake_undo import compute_undo_preview
+
+        order = self.get_object()
+        stage = str(request.query_params.get('to_stage') or '').strip()
+        return Response(compute_undo_preview(order, stage))
+
+    @action(detail=True, methods=['post'], url_path='undo')
+    def undo(self, request, pk=None):
+        """Apply intake undo rewind; returns detail surface on success."""
+        from apps.inventory.services.intake_undo import UndoNotAllowed, apply_undo
+
+        order = self.get_object()
+        stage = str(request.data.get('to_stage') or '').strip()
+        try:
+            apply_undo(order, stage)
+        except UndoNotAllowed as e:
+            return Response(
+                {'detail': e.message, 'code': 'undo_blocked'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        order.refresh_from_db()
+        return Response(PurchaseOrderDetailSurfaceSerializer(order).data)
 
     @action(detail=False, methods=['get'], url_path='for-receiving')
     def for_receiving(self, request):
@@ -2289,10 +2403,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'condition',
                 'description',
                 'item_count',
-                'order_pallet_count',
+                'pallet_count',
                 'total_cost',
                 'retail_value',
                 'manifest_id',
+                'receiving_status',
+                'receiving_started_at',
+                'receiving_done_at',
                 'created_at',
                 'updated_at',
             )
@@ -2526,19 +2643,108 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         now = timezone.now()
+        delivered_date = rec.received_date or now.date()
         with transaction.atomic():
+            order = PurchaseOrder.objects.select_for_update().get(pk=order.pk)
+            rec = Receiving.objects.select_for_update().get(pk=rec.pk)
             rec.completed_at = now
             if not rec.end_time:
                 rec.end_time = now.time().replace(microsecond=0)
             rec.save(update_fields=['completed_at', 'end_time', 'updated_at'])
-            delivered_date = rec.received_date or now.date()
-            extras = _finalize_purchase_order_deliver(order, request.user, delivered_date)
+            extras = _finalize_purchase_order_deliver(
+                order,
+                request.user,
+                delivered_date,
+                build_check_in_queue=False,
+            )
+            if not order.receiving_started_at:
+                order.receiving_started_at = rec.created_at or now
+            order.receiving_status = 'done'
+            order.receiving_done_at = now
+            order.save(
+                update_fields=[
+                    'receiving_status',
+                    'receiving_done_at',
+                    'receiving_started_at',
+                    'updated_at',
+                ],
+            )
         order.refresh_from_db()
         rec = _receiving_detail_queryset().get(pk=rec.pk)
         data = ReceivingDetailSerializer(rec).data
         data['order'] = PurchaseOrderSerializer(order).data
         data.update(extras)
         return Response(data)
+
+    @action(detail=True, methods=['get', 'post'], url_path='disputes')
+    def order_disputes(self, request, pk=None):
+        from apps.inventory.services.disputes import create_dispute, list_disputes
+
+        order = self.get_object()
+        if request.method == 'GET':
+            kind = request.query_params.get('kind')
+            st = request.query_params.get('status')
+            rows = list_disputes(order, kind=kind or None, status=st or None)
+            return Response(DisputeSerializer(rows, many=True).data)
+        ser = DisputeCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        body = ser.validated_data
+        if body.get('subject_receiving') and body['subject_receiving'].purchase_order_id != order.id:
+            return Response({'detail': 'Receiving subject does not match order.'}, status=400)
+        if body.get('subject_pallet') and body['subject_pallet'].receiving.purchase_order_id != order.id:
+            return Response({'detail': 'Pallet subject does not match order.'}, status=400)
+        if body.get('subject_manifest_row') and body['subject_manifest_row'].purchase_order_id != order.id:
+            return Response({'detail': 'Manifest row subject does not match order.'}, status=400)
+        if body.get('subject_processing_row') and body['subject_processing_row'].purchase_order_id != order.id:
+            return Response({'detail': 'Processing row subject does not match order.'}, status=400)
+        if body.get('subject_item') and body['subject_item'].purchase_order_id != order.id:
+            return Response({'detail': 'Item subject does not match order.'}, status=400)
+        d = create_dispute(
+            order=order,
+            kind=body['kind'],
+            title=body['title'],
+            description=body.get('description') or '',
+            user=request.user,
+            subject_receiving_id=body['subject_receiving'].pk if body.get('subject_receiving') else None,
+            subject_pallet_id=body['subject_pallet'].pk if body.get('subject_pallet') else None,
+            subject_manifest_row_id=body['subject_manifest_row'].pk if body.get('subject_manifest_row') else None,
+            subject_processing_row_id=body['subject_processing_row'].pk if body.get('subject_processing_row') else None,
+            subject_item_id=body['subject_item'].pk if body.get('subject_item') else None,
+            payload=body.get('payload'),
+        )
+        return Response(DisputeSerializer(d).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['patch'], url_path=r'disputes/(?P<dispute_id>[0-9]+)')
+    def order_dispute_detail(self, request, pk=None, dispute_id=None):
+        from apps.inventory.services.disputes import cancel_dispute, resolve_dispute
+
+        order = self.get_object()
+        try:
+            did = int(dispute_id)
+        except (TypeError, ValueError):
+            return Response({'detail': 'Invalid dispute id.'}, status=status.HTTP_400_BAD_REQUEST)
+        dispute = Dispute.objects.filter(purchase_order=order, pk=did).first()
+        if dispute is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        ser = DisputePatchSerializer(data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        new_status = data.get('status')
+
+        if 'title' in data or 'description' in data:
+            if 'title' in data and data['title'] is not None:
+                dispute.title = str(data['title'])[:300]
+            if 'description' in data:
+                dispute.description = str(data['description'] or '')
+            dispute.save(update_fields=['title', 'description'])
+
+        if new_status == Dispute.STATUS_RESOLVED:
+            dispute = resolve_dispute(dispute=dispute, user=request.user)
+        elif new_status == Dispute.STATUS_CANCELLED:
+            dispute = cancel_dispute(dispute=dispute, user=request.user)
+
+        dispute.refresh_from_db()
+        return Response(DisputeSerializer(dispute).data)
 
     @action(detail=True, methods=['post'], url_path='process-manifest')
     def process_manifest(self, request, pk=None):
@@ -2549,15 +2755,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 {'detail': 'Upload a manifest file first.', 'code': 'no_manifest'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        prep = getattr(order, 'preprocessing', None)
-        if prep is None or prep.rows.count() == 0:
-            prep = ensure_preprocessing_raw_rows(order)
-        if prep is None or prep.rows.count() == 0:
+        ensure_preprocessing_raw_rows(order)
+        if not PreprocessingRow.objects.filter(purchase_order=order).exists():
             return Response(
                 {'detail': 'Manifest file has no data rows.', 'code': 'empty_manifest'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if prep.finalized_at:
+        if order.finalized_at:
             return Response(
                 {'detail': 'Preprocessing is finalized. Reset preprocessing to edit standardization.'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -2583,8 +2787,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if rows:
             normalized_rows = rows
         else:
-            prepared = build_normalized_manifest_rows(
-                order=order,
+            prepared = build_normalized_manifest_rows_from_staging(
+                order,
                 selected_row_numbers=selected_row_numbers,
                 template_id=template_id,
                 mappings_payload=mapping_payload,
@@ -2644,7 +2848,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         staging_by_rn = {
             r.row_number: r
-            for r in PreprocessingRow.objects.filter(preprocessing_order=prep)
+            for r in PreprocessingRow.objects.filter(purchase_order=order)
         }
         to_update = []
         now = timezone.now()
@@ -2654,7 +2858,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             order.batch_groups.all().delete()
 
             bulk_clear_preprocess_ai_and_final_layers(
-                PreprocessingRow.objects.filter(preprocessing_order=prep),
+                PreprocessingRow.objects.filter(purchase_order=order),
             )
 
             for row_data in normalized_rows:
@@ -2733,29 +2937,28 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     ],
                 )
 
-            if used_template and order.manifest_preview:
-                preview = dict(order.manifest_preview)
-                preview['template_id'] = used_template.id
-                preview['template_name'] = used_template.name
-                preview['template_mappings'] = normalized_mappings
-                order.manifest_preview = preview
-                order.save(update_fields=['manifest_preview', 'updated_at'])
-
-            prep.standardization_formulas = {'mappings': normalized_mappings}
-            prep.standardized_at = now
-            prep.workflow_status = 'standardized'
-            prep.current_step = max(prep.current_step, 1)
             if used_template:
-                prep.template = used_template
-                prep.template_name = used_template.name
-            prep.save(
+                order.template = used_template
+                order.template_name_cache = used_template.name or ''
+                order.template_header_signature_cache = used_template.header_signature or ''
+                order.template_column_mappings_cache = used_template.column_mappings or []
+            else:
+                order.template = None
+                order.template_name_cache = ''
+                order.template_header_signature_cache = ''
+                order.template_column_mappings_cache = []
+            order.standardization_formulas = {'mappings': normalized_mappings}
+            order.standardized_at = now
+            order.preprocess_status = 'standardized'
+            order.save(
                 update_fields=[
+                    'template',
+                    'template_name_cache',
+                    'template_header_signature_cache',
+                    'template_column_mappings_cache',
                     'standardization_formulas',
                     'standardized_at',
-                    'workflow_status',
-                    'current_step',
-                    'template',
-                    'template_name',
+                    'preprocess_status',
                     'updated_at',
                 ],
             )
@@ -2805,11 +3008,28 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             rows_selected = len(rows)
             mappings_used = normalize_standard_mappings(mapping_payload)
         else:
-            prepared = build_normalized_manifest_rows(
-                order=order,
+            if not order.manifest_id:
+                return Response(
+                    {'detail': 'Upload a manifest file first.', 'code': 'no_manifest'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            hdrs, raw_sample = raw_rows_from_manifest_preview(order)
+            if not hdrs or not raw_sample:
+                return Response(
+                    {'detail': 'manifest_preview sample missing; re-upload the manifest.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            row_count_uf = order.manifest_row_count
+            if row_count_uf is None:
+                row_count_uf = len(raw_sample)
+            prepared = build_normalized_manifest_rows_from_raw_rows(
+                order,
+                hdrs,
+                raw_sample,
                 selected_row_numbers=selected_row_numbers,
                 template_id=template_id,
                 mappings_payload=mapping_payload,
+                row_count_in_file=row_count_uf,
             )
             if prepared.get('error'):
                 return Response(
@@ -3393,10 +3613,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     def ai_cleanup_status(self, request, pk=None):
         """Return progress of AI cleanup for this order's manifest rows."""
         order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        use_staging = bool(prep and prep.row_count > 0 and not prep.finalized_at)
+        use_staging = _preprocessing_staging_active(order)
         if use_staging:
-            qs = prep.rows.all()
+            qs = PreprocessingRow.objects.filter(purchase_order=order)
         else:
             qs = ManifestRow.objects.filter(purchase_order=order)
         total = qs.count()
@@ -3411,13 +3630,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     def cancel_ai_cleanup(self, request, pk=None):
         """Clear AI-generated fields while preserving deterministic product/item links."""
         order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        use_staging = bool(prep and prep.row_count > 0 and not prep.finalized_at)
+        use_staging = _preprocessing_staging_active(order)
         PurchaseOrder.objects.filter(pk=order.pk).update(
             ai_cleanup_generation=F('ai_cleanup_generation') + 1,
         )
         if use_staging:
-            updated = PreprocessingRow.objects.filter(preprocessing_order=prep).update(
+            updated = PreprocessingRow.objects.filter(purchase_order=order).update(
                 ai_description='',
                 ai_title='',
                 ai_brand='',
@@ -3457,9 +3675,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             )
         items_deleted, _ = order.items.all().delete()
         deleted_count, _ = ManifestRow.objects.filter(purchase_order=order).delete()
-        prep = getattr(order, 'preprocessing', None)
-        if prep:
-            prep.delete()
+        PreprocessingRow.objects.filter(purchase_order=order).delete()
         order.item_count = 0
         order.save(update_fields=['item_count', 'updated_at'])
         return Response({'rows_deleted': deleted_count, 'items_deleted': items_deleted})
@@ -3559,11 +3775,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         **upload-cleanup-csv** / **apply-cleanup-csv**.
         """
         order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        use_staging = bool(prep and prep.row_count > 0 and not prep.finalized_at)
+        use_staging = _preprocessing_staging_active(order)
 
         if use_staging:
-            rows = prep.rows.order_by('row_number')
+            rows = PreprocessingRow.objects.filter(purchase_order=order).order_by('row_number')
         else:
             ensure_manifest_products_and_items(order, request.user)
             rows = (
@@ -3702,8 +3917,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     def _upload_cleanup_csv_impl(self, request):
         order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        use_staging = bool(prep and prep.row_count > 0 and not prep.finalized_at)
+        use_staging = _preprocessing_staging_active(order)
         csv_rows, parse_error = self._parse_cleanup_csv_upload(request)
         if parse_error is not None:
             return parse_error
@@ -3711,7 +3925,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if use_staging:
             rows_by_id = {
                 row.id: row
-                for row in PreprocessingRow.objects.filter(preprocessing_order=prep)
+                for row in PreprocessingRow.objects.filter(purchase_order=order)
             }
         else:
             rows_by_id = {
@@ -3991,17 +4205,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         if use_staging:
             now = timezone.now()
-            prep.last_ai_import_at = now
-            prep.workflow_status = 'ai_imported'
-            prep.current_step = max(prep.current_step, 1)
-            prep.save(
-                update_fields=[
-                    'last_ai_import_at',
-                    'workflow_status',
-                    'current_step',
-                    'updated_at',
-                ],
-            )
+            with transaction.atomic():
+                order_w = PurchaseOrder.objects.select_for_update().get(pk=order.pk)
+                order_w.ai_cleaned_at = now
+                order_w.preprocess_status = 'cleaned'
+                order_w.save(
+                    update_fields=['ai_cleaned_at', 'preprocess_status', 'updated_at'],
+                )
             return Response({
                 'rows_seen': rows_seen,
                 'rows_updated': len(changed_rows),
@@ -4124,9 +4334,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     def preprocessing_status(self, request, pk=None):
         """Return lightweight step status and totals for the preprocessing workflow."""
         order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        if prep and prep.row_count > 0 and not prep.finalized_at:
-            cnt = preprocessing_status_counts_aggregate(order, prep.rows.all())
+        staging_qs = PreprocessingRow.objects.filter(purchase_order=order)
+        if staging_qs.exists() and not order.finalized_at:
+            cnt = preprocessing_status_counts_aggregate(order, staging_qs)
             total_rows = cnt['total_rows']
             cleaned_rows = cnt['cleaned_rows']
             final_rows = cnt['final_rows']
@@ -4151,37 +4361,23 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             total_set = cnt['total_set']
             delta = cnt['ideal_delta_pct']
 
-        completed_step = -1
-        if total_rows > 0:
-            completed_step = 0
-        if total_rows > 0 and cleaned_rows == total_rows:
-            completed_step = 1
-        if total_rows > 0 and final_rows == total_rows:
-            completed_step = 2
+        completed_step = completed_step_from_preprocess_status(order.preprocess_status)
 
         preview = order.manifest_preview or {}
         manifest_sample = None
         if preview:
-            # Persisted at manifest upload; `rows` holds up to 10 raw sample rows (see upload_manifest).
-            headers_list = list(preview.get('headers') or [])
-            sig = str(preview.get('signature') or '')
-            tm_norm = normalize_standard_mappings(preview.get('template_mappings'))
-            if not tm_norm:
-                tm_norm = default_column_mappings(headers_list)
-            vendor = order.vendor if order.vendor_id else None
             manifest_sample = {
-                'headers': headers_list,
-                'rows': preview.get('rows') or [],
-                'row_count': preview.get('row_count'),
-                'signature': sig,
+                'headers': list(preview.get('headers') or []),
                 'delimiter': preview.get('delimiter'),
-                'template_id': preview.get('template_id'),
-                'template_name': preview.get('template_name'),
-                'template_mappings': tm_norm,
-                'vendor_name': str(preview.get('vendor_name') or ''),
-                'matching_templates': matching_templates_payload_for_vendor_signature(vendor, sig),
-                'standard_columns': list(manifest_standard_flat_columns()),
+                'rows': preview.get('rows') or [],
             }
+
+        sig = str(order.manifest_signature or '').strip()
+        vendor = order.vendor if order.vendor_id else None
+        matching_templates = (
+            matching_templates_payload_for_vendor_signature(vendor, sig) if sig else []
+        )
+        standard_columns = list(manifest_standard_flat_columns())
 
         payload = {
             'order': {
@@ -4192,7 +4388,22 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'item_count': order.item_count,
                 'has_manifest_file': bool(order.manifest_id),
                 'manifest_sample': manifest_sample,
+                'manifest_row_count': order.manifest_row_count,
+                'manifest_signature': order.manifest_signature or '',
+                'manifest_category_count': order.manifest_category_count,
+                'template_id': order.template_id,
+                'template_name_cache': order.template_name_cache or '',
+                'template_header_signature_cache': order.template_header_signature_cache or '',
+                'template_column_mappings_cache': order.template_column_mappings_cache or [],
+                'standardization_formulas': order.standardization_formulas or {},
+                'preprocess_status': order.preprocess_status,
+                'standardized_at': order.standardized_at.isoformat() if order.standardized_at else None,
+                'ai_cleaned_at': order.ai_cleaned_at.isoformat() if order.ai_cleaned_at else None,
+                'review_saved_at': order.review_saved_at.isoformat() if order.review_saved_at else None,
+                'finalized_at': order.finalized_at.isoformat() if order.finalized_at else None,
             },
+            'matching_templates': matching_templates,
+            'standard_columns': standard_columns,
             'counts': {
                 'standardized_rows': total_rows,
                 'cleaned_rows': cleaned_rows,
@@ -4208,12 +4419,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             },
             'completed_step': completed_step,
         }
-        if prep:
+        if staging_qs.exists():
             payload['preprocessing'] = {
-                'workflow_status': prep.workflow_status,
-                'current_step': prep.current_step,
-                'finalized_at': prep.finalized_at.isoformat() if prep.finalized_at else None,
-                'row_count': prep.row_count,
+                'finalized_at': order.finalized_at.isoformat() if order.finalized_at else None,
+                'row_count': staging_qs.count(),
             }
         else:
             payload['preprocessing'] = None
@@ -4228,12 +4437,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 else {
                     'headers': len(ms.get('headers') or []),
                     'rows': len(ms.get('rows') or []),
-                    'row_count': ms.get('row_count'),
-                    'signature_prefix': (ms.get('signature') or '')[:12],
-                    'template_id': ms.get('template_id'),
-                    'template_mappings': len(ms.get('template_mappings') or []),
-                    'matching_templates': len(ms.get('matching_templates') or []),
-                    'standard_columns': len(ms.get('standard_columns') or []),
+                    'matching_templates': len(payload.get('matching_templates') or []),
+                    'standard_columns': len(payload.get('standard_columns') or []),
                 },
             )
         return Response(payload)
@@ -4244,13 +4449,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order = PurchaseOrder.objects.filter(pk=pk).first()
         if not order:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        prep = getattr(order, 'preprocessing', None)
-        if not prep or prep.row_count == 0:
+        staging_count = PreprocessingRow.objects.filter(purchase_order=order).count()
+        if staging_count == 0:
             return Response(
                 {'detail': 'Upload and standardize a manifest before reviewing preprocessing rows.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if prep.finalized_at:
+        if order.finalized_at:
             return Response(
                 {'detail': 'Preprocessing has already been finalized; edit canonical rows instead.'},
                 status=status.HTTP_409_CONFLICT,
@@ -4264,13 +4469,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 PreprocessingReviewRowSerializer if use_full_rows else PreprocessingReviewRowMinimalSerializer
             )
             if full_flag:
-                if prep.row_count > 10000:
+                if staging_count > 10000:
                     return Response(
                         {'detail': 'Too many staged rows for full export (max 10000).'},
                         status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                     )
                 rows_qs = (
-                    PreprocessingRow.objects.filter(preprocessing_order=prep)
+                    PreprocessingRow.objects.filter(purchase_order=order)
                     .select_related('purchase_order')
                     .order_by('row_number')
                 )
@@ -4284,7 +4489,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     'summary': summarize_preprocessing_rows(order, rows_qs),
                 })
 
-            rows_qs = build_preprocessing_review_queryset(prep, request.query_params)
+            rows_qs = build_preprocessing_review_queryset(order, request.query_params)
             page, page_size = _parse_page_params(request.query_params)
             start = (page - 1) * page_size
             end = start + page_size
@@ -4306,8 +4511,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if not isinstance(rows_payload, list):
             return Response({'detail': 'rows must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        changed_rows, changed_ids = update_preprocessing_review_rows(prep, rows_payload)
-        rows_qs = build_preprocessing_review_queryset(prep, request.query_params)
+        changed_rows, changed_ids = update_preprocessing_review_rows(order, rows_payload)
+        rows_qs = build_preprocessing_review_queryset(order, request.query_params)
         return Response({
             'rows_updated': len(changed_rows),
             'changed_row_ids': changed_ids,
@@ -4325,13 +4530,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order = PurchaseOrder.objects.filter(pk=pk).first()
         if not order:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        prep = getattr(order, 'preprocessing', None)
-        if not prep or prep.row_count == 0:
+        staging = PreprocessingRow.objects.filter(purchase_order=order)
+        if not staging.exists():
             return Response(
                 {'detail': 'Upload and standardize a manifest before reviewing preprocessing rows.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if prep.finalized_at:
+        if order.finalized_at:
             return Response(
                 {'detail': 'Preprocessing has already been finalized; edit canonical rows instead.'},
                 status=status.HTTP_409_CONFLICT,
@@ -4348,7 +4553,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         except (TypeError, ValueError):
             return Response({'detail': 'row_ids must be integers.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        qs = PreprocessingRow.objects.filter(preprocessing_order=prep, pk__in=row_ids).order_by('row_number')
+        qs = PreprocessingRow.objects.filter(purchase_order=order, pk__in=row_ids).order_by('row_number')
         found = list(qs)
         if len(found) != len(row_ids):
             return Response(
@@ -4369,7 +4574,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 sr.updated_at = ts
                 sr.save(update_fields=save_fields)
 
-        rows_qs = prep.rows.all()
+        rows_qs = build_preprocessing_review_queryset(order, {})
         return Response({
             'rows_reset': len(found),
             'summary': summarize_preprocessing_rows(order, rows_qs),
@@ -4523,13 +4728,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         ``POST .../build-processing-data/`` so this stay fast and deterministic.
         """
         order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        if not prep or prep.row_count == 0:
+        pr_qs = PreprocessingRow.objects.filter(purchase_order=order)
+        if not pr_qs.exists():
             return Response(
                 {'detail': 'Upload and standardize a manifest before finalizing.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if prep.finalized_at:
+        if order.finalized_at:
             return Response(
                 {'detail': 'Preprocessing is already finalized.'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -4563,11 +4768,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         finalization_logger.info(
             'finalize_preprocessing_start_fast order_id=%s staging_row_count=%s',
             order.id,
-            prep.rows.count(),
+            pr_qs.count(),
         )
 
         try:
-            n = finalize_preprocessing_to_bookmarks(order, prep)
+            n = finalize_preprocessing_to_bookmarks(order)
         except ValidationError as exc:
             finalization_logger.warning(
                 'finalize_preprocessing_validation_failed order_id=%s elapsed_ms=%.1f detail=%s',
@@ -4583,7 +4788,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return Response({'detail': str(detail)}, status=status.HTTP_400_BAD_REQUEST)
 
         order.refresh_from_db()
-        prep.refresh_from_db()
         elapsed_ms = (time.perf_counter() - t0) * 1000
         finalization_logger.info(
             'finalize_preprocessing_complete_fast order_id=%s processing_bookmarks=%s elapsed_ms=%.1f',
@@ -4592,7 +4796,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             elapsed_ms,
         )
         return Response({
-            'finalized_at': prep.finalized_at.isoformat() if prep.finalized_at else None,
+            'finalized_at': order.finalized_at.isoformat() if order.finalized_at else None,
             'processing_row_count': n,
         })
 
@@ -4601,8 +4805,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         """Rebuild canonical ManifestRow/Product/Item from processing bookmarks."""
 
         order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        if not prep or not prep.finalized_at:
+        if not order.finalized_at:
             return Response(
                 {'detail': 'Finalize preprocessing before building processing data.', 'code': 'not_finalized'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -4630,8 +4833,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     def processing_data_build(self, request, pk=None):
         """Poll chunked processing-data build counters (no destructive work)."""
         order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        if not prep or not prep.finalized_at:
+        if not order.finalized_at:
             return Response(
                 {'detail': 'Finalize preprocessing before building processing data.', 'code': 'not_finalized'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -4655,8 +4857,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     def processing_data_build_chunk(self, request, pk=None):
         """Process the next bounded chunk for a processing-data build."""
         order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        if not prep or not prep.finalized_at:
+        if not order.finalized_at:
             return Response(
                 {'detail': 'Finalize preprocessing before building processing data.', 'code': 'not_finalized'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -4684,8 +4885,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         """Remove manifest/items/batches and return to finalized-preprocessing bookmarks (no rebuild)."""
 
         order = self.get_object()
-        prep = getattr(order, 'preprocessing', None)
-        if not prep or not prep.finalized_at:
+        if not order.finalized_at:
             return Response(
                 {'detail': 'Finalize preprocessing before clearing processing data.', 'code': 'not_finalized'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -4740,78 +4940,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             except FormulaError as exc:
                 errors[target] = str(exc)
         return Response({'results': results, 'errors': errors})
-
-    @action(detail=True, methods=['get'], url_path='manifest-rows')
-    def manifest_rows(self, request, pk=None):
-        """Return parsed rows from uploaded manifest for preprocessing and row selection."""
-        order = self.get_object()
-        headers, rows = parse_manifest_file(order)
-        if not headers:
-            return Response(
-                {'detail': 'No manifest file uploaded for this order.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            limit = int(request.query_params.get('limit', 1000))
-        except (TypeError, ValueError):
-            limit = 1000
-        limit = max(1, min(limit, 5000))
-        search_term = str(request.query_params.get('search') or '').strip()
-
-        filtered_rows = rows
-        if search_term:
-            filtered_rows = [
-                row for row in rows
-                if row_matches_search(row.get('raw', {}), search_term)
-            ]
-
-        sig = header_signature(headers)
-        matching_templates_qs = (
-            CSVTemplate.objects.filter(vendor=order.vendor, header_signature=sig)
-            .annotate(
-                use_count=Count('preprocessing_orders', distinct=True),
-                last_used_at=Max('preprocessing_orders__updated_at'),
-            )
-            .order_by('-is_default', '-id')[:25]
-        )
-        matching_templates = [
-            {
-                'id': tpl.id,
-                'name': tpl.name,
-                'created_at': tpl.created_at.isoformat() if getattr(tpl, 'created_at', None) else None,
-                'is_default': tpl.is_default,
-                'use_count': tpl.use_count,
-                'last_used_at': tpl.last_used_at.isoformat() if tpl.last_used_at else None,
-            }
-            for tpl in matching_templates_qs
-        ]
-        template = matching_templates_qs.first() if matching_templates_qs else None
-        if template is None:
-            template = CSVTemplate.objects.filter(
-                vendor=order.vendor,
-                header_signature=sig,
-            ).order_by('-is_default', '-id').first()
-        template_mappings = normalize_standard_mappings(
-            template.column_mappings if template and template.column_mappings else None,
-        )
-        if not template_mappings:
-            template_mappings = default_column_mappings(headers)
-
-        return Response({
-            'headers': headers,
-            'signature': sig,
-            'row_count': len(rows),
-            'row_count_filtered': len(filtered_rows),
-            'search_term': search_term,
-            'rows': filtered_rows[:limit],
-            'template_id': template.id if template else None,
-            'template_name': template.name if template else None,
-            'template_mappings': template_mappings,
-            'matching_templates': matching_templates,
-            'standard_columns': manifest_standard_flat_columns(),
-            'available_functions': MANIFEST_FUNCTION_OPTIONS,
-        })
 
     @action(detail=True, methods=['post'], url_path='match-products')
     def match_products(self, request, pk=None):

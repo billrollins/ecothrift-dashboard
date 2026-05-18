@@ -139,7 +139,7 @@ def effective_preprocessing_notes(sr) -> str:
 
 def effective_taxonomy_category_for_row(row) -> str:
     """EcoThrift canonical category (flat ai/final), not vendor taxonomy_json.category."""
-    if getattr(row, 'preprocessing_order_id', None):
+    if hasattr(row, 'standard_taxonomy'):
         if preprocessing_row_has_final(row):
             fc = getattr(row, 'final_category', None)
             if is_meaningful(fc, 'str'):
@@ -167,6 +167,22 @@ def effective_taxonomy_category_for_row(row) -> str:
     if isinstance(triple, dict):
         return str(triple.get('category') or '')[:200]
     return ''
+
+
+def bulk_clear_preprocess_standard_layer(qs):
+    """Undo standardize: clear standard_* structured fields (retain raw_row)."""
+    qs.update(
+        standard_description='',
+        standard_brand='',
+        standard_model='',
+        standard_condition='',
+        standard_notes='',
+        standard_identifiers={},
+        standard_taxonomy={},
+        standard_specifications={},
+        standard_tracking={},
+        standard_search_tags=[],
+    )
 
 
 def bulk_clear_preprocess_ai_and_final_layers(qs):

@@ -417,7 +417,7 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
     if (itemCount.trim()) payload.item_count = Number.parseInt(itemCount, 10);
     if (palletCount.trim()) {
       const n = Number.parseInt(palletCount, 10);
-      if (Number.isFinite(n) && n >= 0) payload.order_pallet_count = n;
+      if (Number.isFinite(n) && n >= 0) payload.pallet_count = n;
     }
     if (retailValue.trim()) payload.retail_value = retailValue.trim();
     if (purchaseCost.trim()) payload.purchase_cost = purchaseCost.trim();

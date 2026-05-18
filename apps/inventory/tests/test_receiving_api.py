@@ -11,9 +11,10 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
+from rest_framework import status
 
 from apps.inventory.constants import PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES
-from apps.inventory.models import PurchaseOrder, Vendor
+from apps.inventory.models import PurchaseOrder, Vendor, Item, ManifestRow
 
 MIN_JPEG = base64.b64decode(
     '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof'
@@ -129,7 +130,7 @@ class ReceivingApiTests(TestCase):
         r = self.client.patch(
             f'/api/inventory/orders/{self.po_eligible.id}/receiving/',
             {
-                'pallet_count': 1,
+                'received_pallet_count': 1,
                 'condition': 'good',
                 'issues': '',
                 'pallets': [{'pallet_number': 1, 'damaged': False}],
@@ -138,13 +139,45 @@ class ReceivingApiTests(TestCase):
         )
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.data['is_draft'])
-        self.assertEqual(r.data['pallet_count'], 1)
+        self.assertEqual(r.data['received_pallet_count'], 1)
+        self.po_eligible.refresh_from_db()
+        self.assertEqual(self.po_eligible.receiving_status, 'active')
+        self.assertIsNotNone(self.po_eligible.receiving_started_at)
 
-    def test_complete_rejected_without_side_photos(self):
+    def test_complete_does_not_materialize_items_from_manifest_rows(self):
+        ManifestRow.objects.create(
+            purchase_order=self.po_eligible,
+            row_number=1,
+            quantity=1,
+            title='Legacy row',
+            final_price=Decimal('1.00'),
+        )
         self.client.patch(
             f'/api/inventory/orders/{self.po_eligible.id}/receiving/',
             {
-                'pallet_count': 1,
+                'received_pallet_count': 1,
+                'condition': 'good',
+                'pallets': [{'pallet_number': 1, 'damaged': False}],
+                'received_date': '2026-04-11',
+            },
+            format='json',
+        )
+        for side in ('front', 'right', 'back', 'left'):
+            self.assertEqual(self._upload_photo(1, side).status_code, 201)
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po_eligible.id}/receiving/complete/',
+            {},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.po_eligible.refresh_from_db()
+        self.assertEqual(self.po_eligible.receiving_status, 'done')
+        self.assertIsNotNone(self.po_eligible.receiving_done_at)
+        self.assertEqual(Item.objects.filter(purchase_order=self.po_eligible).count(), 0)
+        self.client.patch(
+            f'/api/inventory/orders/{self.po_eligible.id}/receiving/',
+            {
+                'received_pallet_count': 1,
                 'condition': 'good',
                 'pallets': [{'pallet_number': 1, 'damaged': False}],
                 'received_date': '2026-04-11',
@@ -156,8 +189,8 @@ class ReceivingApiTests(TestCase):
             {},
             format='json',
         )
-        self.assertEqual(r.status_code, 400)
-        self.assertIsInstance(r.data['detail'], list)
+        self.assertEqual(r.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(r.data.get('code'), 'receiving_complete')
 
     def _upload_photo(self, pallet_number, side):
         f = SimpleUploadedFile('t.jpg', MIN_JPEG, content_type='image/jpeg')
@@ -177,7 +210,7 @@ class ReceivingApiTests(TestCase):
         self.client.patch(
             f'/api/inventory/orders/{self.po_eligible.id}/receiving/',
             {
-                'pallet_count': 1,
+                'received_pallet_count': 1,
                 'condition': 'good',
                 'pallets': [{'pallet_number': 1, 'damaged': False}],
                 'received_date': '2026-04-12',
@@ -202,7 +235,7 @@ class ReceivingApiTests(TestCase):
     def test_client_photo_id_dedupes(self):
         self.client.patch(
             f'/api/inventory/orders/{self.po_eligible.id}/receiving/',
-            {'pallet_count': 0, 'condition': 'good'},
+            {'received_pallet_count': 0, 'condition': 'good'},
             format='json',
         )
         cid = str(uuid.uuid4())

@@ -1,48 +1,36 @@
-# Initiatives Audit
+# Initiatives Audit — 2026-05-18
 
 ## Executive Summary
 
-- **Active initiatives:** **One** row on `_index.md`: **`order_processing_pipeline_rebuild`** (preprocessing core shipped; Final Review visual rebuild still tracked against mockup/directive docs).
-- **Archive health:** **`ARCHIVE.md`** TOC row counts match **on-disk** archived markdown files per bucket (`_completed` **16**, `_pending` **5**, `_backlog` **4**, `_abandoned` **1**).
-- **Initiatives `_protocols` stub:** `.ai/initiatives/_protocols/README.md` explicitly points canonical lifecycle docs to **`_archived/_protocols/`** (“stub so duplicate copies do not drift”) — **not** an archive mismatch.
-- **Confidence:** **High** for index vs archive consistency; **Medium** for initiative session-log freshness without reading full `order_processing_pipeline_rebuild.md` history end-to-end.
+- **Single active umbrella:** **`order_processing_pipeline_rebuild`** (`.ai/initiatives/_index.md` row ✅).
+- **Session hygiene:** **`Session 14`** closed out as discovery; **`Session 15 — Intake rebuild stabilization wave`** now owns deterministic execution steps (**`Current Execution Steps`** checklist added earlier).
+- **Archive discipline:** untouched this run per protocol — **human approval** gate on moves.
+- **Confidence:** **High** for `_index.md` row presence; **Medium** whether **Final Review redesign** bullets in **`CHANGELOG [Unreleased]`** still rank equal priority vs intake wave (execution order risk only).
 
-## Active / Root Initiative Index
+## Active Table (`_index.md`)
 
-| Initiative | Listed status | File status | Current phase | Evidence | Finding | Recommendation |
-|------------|---------------|-------------|---------------|----------|---------|----------------|
-| `order_processing_pipeline_rebuild` | Active (`_index.md`) | Exists at `.ai/initiatives/order_processing_pipeline_rebuild.md` | Iteration / UI polish | `_index.md`, `CHANGELOG [Unreleased]` | Core APIs shipped; Final Review visuals still tied to directive stack | Keep active until user accepts mockup-complete UI + release notes |
+| Initiative | Phase | Accuracy vs tree | Recommendation |
+|---|---|---|---|
+| **`order_processing_pipeline_rebuild`** | Active | **`Notes`** cite Session 15 + **`_sql`/`_recon`** links ✅ | Maintain row when shipping release; update phase text when MINOR ships |
 
-## Initiative File Health
+## `order_processing_pipeline_rebuild.md`
 
-| File | Has session log? | Latest session/result | Acceptance boxes current? | Drift | Priority |
-|------|------------------|------------------------|---------------------------|-------|----------|
-| `order_processing_pipeline_rebuild.md` | yes (`## Sessions`) | Sessions reference preprocessing + processor workspace + Final Review | partial (visual pass pending per `CHANGELOG`) | Docs split across `.ai/reference/*` | **P1** |
+| Area | Observation |
+|---|---|
+| **Current Operating Scope** | ✅ Captures orders UI + migrations + preprocessing/receiving/process handoff + disputes/repair |
+| **Current Execution Steps** | ✅ Eight ordered checkpoints map to rehearsal user ran (pull prod → migrate → repair) |
+| **Scope Ledger** | ✅ Groups WT file clusters |
+| **Sessions** | 14 ✅ marked discovery result; **15 ✅ active** |
 
-## Archive Consistency
+## Lifecycle candidates (⚠ approvals required)
 
-| Bucket | File count | `ARCHIVE.md` rows | Mismatches | Recommendation |
-|--------|------------|-------------------|------------|----------------|
-| `_completed` | 16 | 16 | none observed | Keep current |
-| `_pending` | 5 | 5 | none observed | Keep current |
-| `_backlog` | 4 | 4 | none observed | Keep current |
-| `_abandoned` | 1 | 1 | none observed | Keep current |
+| Item | Potential disposition | Blocker |
+|---|---|---|
+| None flagged for immediate archive | — | Initiative still materially open |
 
-## Recommended Dispositions
+## Risks / Gaps
 
-**Do not move files during reporting.**
-
-| Initiative | Recommended disposition | Lifecycle protocol | Reason | Requires user approval |
-|------------|-------------------------|--------------------|--------|------------------------|
-| `order_processing_pipeline_rebuild` | **Active** | none until scope complete | Still driving Final Review visuals + unreleased changelog mass | no |
-
-## Initiative Gaps
-
-| Gap | Evidence | Recommended new / merged initiative | Priority |
-|-----|----------|-------------------------------------|----------|
-| Buying Phase 6 outcomes | `context.md` Known Issues / roadmap; archived `bstock_auction_intelligence.md` | Reactivate narrow initiative only when scheduling work | **P2** |
-| Cross-cutting AI provider config | `CHANGELOG [Unreleased]` (`AI_PROVIDER`, xAI) | Stay under current initiative until user splits AI infra | **P3** |
-
-## Notes For `PLAN.md`
-
-- Optional **P3**: If the stub folder confuses contributors, add one line to **`_index.md`** linking canonical protocols path — source: stub README under **`initiatives/_protocols/`**.
+| Risk | Detail |
+|---|---|
+| **Parallel narrative debt** | Long historical sessions (1–13) remain verbose — acceptable archaeology but increases scroll cost |
+| **Scope creep recurrence** | If new domains (Buying, POS) land in same commit as intake, reviewer fatigue → PLAN suggests split PRs (**user decision**) |

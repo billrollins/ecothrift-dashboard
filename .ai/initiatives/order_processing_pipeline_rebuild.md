@@ -1,9 +1,56 @@
-<!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-05-02 -->
-<!-- Last updated: 2026-05-02 (Hotfix **v2.21.1**: fast minimal `build-processing-data`; duplicate scan removed — `CHANGELOG [2.21.1]`) -->
+<!-- initiative: slug=order-processing-pipeline-rebuild status=active updated=2026-05-18 -->
+<!-- Last updated: 2026-05-18 (**Session 15**: review.0/1/9 — steering + deep-dive **`latest/`**) -->
 
 # Initiative: Order / Processing pipeline rebuild
 
 **Status:** Active
+
+---
+
+## Current Operating Scope
+
+**Active slice:** stabilize the intake rebuild now on disk so the app can move through **Orders → Preprocessing → Receiving → Processing handoff → Disputes / repair** without schema drift, dead ends, or unclear ownership of writes.
+
+**In scope for this wave:**
+
+- Orders list/detail surfaces, manifest metadata, vendor dashboard filtering, and the intake timeline drawer.
+- Purchase order schema/status fields from migrations **0045–0051**, including preprocessing, receiving, processing, dispute, manifest, and timestamp rollups.
+- Preprocessing transition hardening: gates, undo/reset, final snapshots, and manifest rebuild expectations.
+- Receiving transition hardening: status/timestamp rollups, pallet counts, and desktop receiving workspace behavior.
+- Processing handoff compatibility: legacy queue/build paths and row/workspace assumptions touched by intake state.
+- Disputes, intake repair, recon SQL, and deploy/runbook notes needed to safely migrate existing POs.
+
+**Parked unless explicitly pulled forward:** finalization UI, new route/nav expansions beyond existing inbound paths, advanced pricing polish, broad legacy cleanup, and buying auction manifest behavior.
+
+---
+
+## Current Execution Steps
+
+- [ ] **Step 1 — Schema + migration baseline:** migrations **0045–0051**, `schema.csv`, migrate/test DB behavior, and any required pre/post repair notes are coherent.
+- [ ] **Step 2 — Orders list/detail surfaces:** `orders/`, `summary/`, manifest metadata, vendor fallback/dashboard filtering, and order timeline/detail UI behave after migrations.
+- [ ] **Step 3 — Preprocessing transition hardening:** status gates, undo/reset, final snapshot backfills, and final review/preprocessing tests are aligned.
+- [ ] **Step 4 — Receiving transition hardening:** receiving statuses, timestamps, pallet counts, and receiving workspace/API tests are aligned.
+- [ ] **Step 5 — Processing handoff compatibility:** processing workspace/finalize code still handles rebuilt intake state and legacy queue compatibility.
+- [ ] **Step 6 — Disputes and rollups:** dispute model/API/service behavior and PO rollups are covered by focused tests.
+- [ ] **Step 7 — Recon/repair/deploy runbook:** premigrate/postmigrate recon, repair command/service, and deploy scripts explain the operational path.
+- [ ] **Step 8 — Closeout docs/tests/commit message:** update steering docs/changelog as needed, run the targeted suite, and fill the deploy commit message.
+
+**Work loop:** finish one step at a time. Each step ends with targeted tests or a noted blocker, any migration/deploy note captured, and a short Session 15 update before starting the next step.
+
+---
+
+## Scope Ledger
+
+| Area | Status | Current file groups |
+|------|--------|---------------------|
+| Schema / migrations | In scope | `apps/inventory/models.py`, `apps/inventory/migrations/0045_*` through `0051_*`, `.ai/extended/sql/schema.csv` |
+| Orders API / UI | In scope | `apps/inventory/views.py`, `apps/inventory/serializers.py`, `frontend/src/api/inventory.api.ts`, `frontend/src/pages/inventory/OrderDetailPage.tsx`, `frontend/src/types/inventory.types.ts`, `frontend/src/components/inventory/orderDetail/OrderIntakeTimelineDrawer.tsx` |
+| Preprocessing transition | In scope | `apps/inventory/layer_helpers.py`, `apps/inventory/preprocessing_summary.py`, `apps/inventory/services/intake_gates.py`, `apps/inventory/services/intake_undo.py`, `apps/inventory/services/manifest_meta.py`, `apps/inventory/services/manifest_remove.py`, `frontend/src/pages/inventory/PreprocessingPage.tsx` |
+| Receiving transition | In scope | `apps/inventory/services/receiving.py`, `frontend/src/components/inventory/receiving/ReceivingDesktopWorkspace.tsx`, `frontend/src/pages/inventory/ReceivingOrderPage.tsx` |
+| Processing handoff | In scope | `apps/inventory/processing_ops.py`, `apps/inventory/services/processing_finalize.py`, `apps/inventory/services/processing_workspace.py`, `apps/inventory/management/commands/build_legacy_checkin_queue.py` |
+| Disputes / repair | In scope | `apps/inventory/services/disputes.py`, `apps/inventory/services/intake_po_repair.py`, `apps/inventory/management/commands/repair_intake_pipeline_pos.py`, dispute/intake repair tests |
+| Recon / deploy references | Supporting | `.ai/reference/order_processing_pipeline_rebuild/2026.05.08_intake_updates.md`, `data_flow_plan.md`, `intake_field_map.md`, `order_dashboard_surfaces.md`, `_sql/`, `_recon/`, `scripts/deploy/0_pull_prod_to_local.bat`, `scripts/deploy/commit_message.txt` |
+| Scratch / one-off helpers | Parking lot | `_backfill_manifest_denorm.py` until it is either promoted to a command or removed |
 
 ---
 
@@ -76,7 +123,7 @@ Subgroup headers under collapsible **Inventory**:
 
 This initiative **replaces** the approach and shipped direction of **[Inventory intake pipeline (abandoned)](./_archived/_abandoned/inventory_intake_pipeline.md)** (`inventory_intake_pipeline`). That initiative tracked Order → Preprocess → Process hardening and a multi-step preprocessing redesign; **those pages and processes are being torn down** and rebuilt with a clearer scope.
 
-**Supporting docs folder:** [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md).
+**Supporting docs:** [`2026.05.08_intake_updates.md`](../reference/order_processing_pipeline_rebuild/2026.05.08_intake_updates.md), [`data_flow_plan.md`](../reference/order_processing_pipeline_rebuild/data_flow_plan.md), [`intake_field_map.md`](../reference/order_processing_pipeline_rebuild/intake_field_map.md), [`order_dashboard_surfaces.md`](../reference/order_processing_pipeline_rebuild/order_dashboard_surfaces.md), [`_sql/`](../reference/order_processing_pipeline_rebuild/_sql/README.md), and [`_recon/`](../reference/order_processing_pipeline_rebuild/_recon/README.md).
 
 ---
 
@@ -246,6 +293,31 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 - **Scope:** **`apps/inventory/processing_ops.py`**, **`views.py`**, **`processing_workspace.py`**, **`processing_finalize.py`**, **`models.py`**; **`frontend`** processing modals/page/hooks/**`inventory.api.ts`**; **`test_processing_validation_matrix`**, **`test_preprocessing_redesign`**; **`.gitignore`** **`.0.learning/`** (safe **`git add .`** before deploy bats); steering **`context.md`** / **`consultant_context.md`** / **`extended/{inventory-pipeline,frontend}.md`**.
 - **Finish line:** Operators can **`5_deploy_yolo.bat`** without staging stray learning dirs; **`commit_message.txt`** holds full deploy message (**line 1** not **`---`**).
 - **Start:** 2026-05-02
+
+### Session 14 — Intake pipeline data flow (2026-05-08)
+
+- **Goal:** Clarify **how data is created and mutated** across the full intake path (order → preprocess → receiving → processing → disputes) so writes can be cleaned up and SSOT is obvious per stage.
+- **Finish line:** Working notes + per-step object/entry-point map in [`.ai/reference/order_processing_pipeline_rebuild/2026.05.08_intake_updates.md`](../reference/order_processing_pipeline_rebuild/2026.05.08_intake_updates.md); agreed follow-on code scoped to specific pipeline steps.
+- **Scope:** Data-flow documentation and targeted refactors only as needed after mapping; pipeline steps: Create/Edit Order → Standardize Manifest → AI Cleanup → Final Manual Review → Receiving (photos) → Build Data → Check-in/labels → Close PO → Disputes.
+- **Est:** TBD · **Start:** 2026-05-08
+- **Result:** Discovery produced the intake reference docs/recon scaffolding and revealed that the active work is larger than documentation-only mapping. Implementation is now split into the Session 15 stabilization steps above.
+
+#### Session updates
+
+- Bearing: MESSY — ~40% — next: Reconcile Session 14 scope vs working tree (intake migrations 0045–51 + API/FE); update session entry or add Session 15 before committing — 2026-05-09
+
+### Session 15 — Intake rebuild stabilization wave
+
+- **Goal:** Stabilize the intake rebuild currently on disk by working through the **Current Execution Steps** in order.
+- **Finish line:** Local/test can run orders list/detail, preprocessing, receiving, processing handoff, disputes, and repair paths after migrations; targeted tests and deploy notes are aligned; `scripts/deploy/commit_message.txt` is ready for the eventual commit/deploy.
+- **Scope:** The **Current Operating Scope** and **Scope Ledger** above. Do not pull parked finalization UI, broad nav expansion, advanced pricing polish, buying auction behavior, or broad legacy cleanup into this session without an explicit scope update.
+- **Start:** 2026-05-18
+
+#### Session updates
+
+- Scope cleanup: Session 14 closed as discovery; Session 15 owns the ordered stabilization wave. Next: Step 1 — schema + migration baseline.
+- Review: **`review.0.Bump`** + **`review.1.Diff`** + **`review.9.Deep`** — **`CHANGELOG [Unreleased]`** intake bullets + steering sync (**`context`**, **`consultant_context`**, **`extended/inventory-pipeline`**) + persisted diff **`20260518-092215.diff.md`** + refreshed **`.ai/reference/deep_dive/latest/`** (prior run under **`_runs/20260518T092130/previous_latest/`**) — semver bump deferred Part 2A — 2026-05-18
+- Stabilization pass (Business-hours readiness): **`0045`** rollout PO map corrected; **`processing_dispute`** all-in-one **`transaction.atomic()`**; **`OrderDetailPage`** PATCH queue retention + **`ReceivingOrderPage`** desktop missing-PO fallback; targeted pytest (8 modules) **`121`** OK; **`repair_intake_pipeline_pos --verify`** OK; **`npm run build`**. **`0050`** still full-scan on migrate — rehearsal deploy/window timing on prod-sized copy remains a release gate — 2026-05-18
 
 ---
 

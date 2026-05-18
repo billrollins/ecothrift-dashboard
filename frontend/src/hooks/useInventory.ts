@@ -14,6 +14,7 @@ import {
   getOrderSummary,
   getPreprocessingQueue,
   getOrder,
+  getOrderDetailSurface,
   createOrder,
   updateOrder,
   deleteOrder,
@@ -27,7 +28,8 @@ import {
   revertOrderDelivered,
   uploadManifest,
   removeManifest,
-  getManifestRows,
+  getUndoPreview,
+  postIntakeUndo,
   previewStandardize,
   processManifest,
   updateManifestPricing,
@@ -96,6 +98,7 @@ import { devLog } from '../utils/logger';
 import type {
   SuggestFormulasPayload,
   AICleanupRowsPayload,
+  IntakeUndoStage,
   MatchProductsPayload,
   ReviewMatchesPayload,
   SuggestFinalizationPayload,
@@ -243,6 +246,18 @@ export function usePurchaseOrder(id: number | null) {
   });
 }
 
+export function usePurchaseOrderSurface(id: number | null) {
+  return useQuery({
+    queryKey: ['purchaseOrderSurface', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data } = await getOrderDetailSurface(id);
+      return data;
+    },
+    enabled: id != null,
+  });
+}
+
 export function useCreatePurchaseOrder() {
   const queryClient = useQueryClient();
 
@@ -270,6 +285,7 @@ export function useUpdateOrder() {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrderSummary'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrderSurface', variables.id] });
     },
   });
 }
@@ -317,7 +333,6 @@ export function usePurgeDeleteOrder() {
       queryClient.invalidateQueries({ queryKey: ['items'] });
       queryClient.invalidateQueries({ queryKey: ['batchGroups'] });
       queryClient.invalidateQueries({ queryKey: ['itemHistory'] });
-      queryClient.invalidateQueries({ queryKey: ['manifestRowsRaw'] });
     },
   });
 }
@@ -440,9 +455,11 @@ export function useUploadManifest() {
       const { data } = await uploadManifest(orderId, file);
       return data;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(['purchaseOrderSurface', variables.orderId], data);
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', variables.orderId] });
     },
   });
 }
@@ -455,22 +472,47 @@ export function useRemoveManifest() {
       const { data } = await removeManifest(orderId);
       return data;
     },
-    onSuccess: (_data, orderId) => {
+    onSuccess: (data, orderId) => {
+      queryClient.setQueryData(['purchaseOrderSurface', orderId], data);
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', orderId] });
     },
   });
 }
 
-export function useManifestRows(orderId: number | null, params?: Record<string, unknown>, enabled = true) {
+export function useIntakeUndoPreview(orderId: number | null, stage: IntakeUndoStage | null) {
   return useQuery({
-    queryKey: ['manifestRowsRaw', orderId, params],
+    queryKey: ['intakeUndoPreview', orderId, stage],
     queryFn: async () => {
-      if (!orderId) return null;
-      const { data } = await getManifestRows(orderId, params);
+      const { data } = await getUndoPreview(orderId!, stage!);
       return data;
     },
-    enabled: orderId != null && enabled,
+    enabled: orderId != null && stage != null,
+  });
+}
+
+export function useIntakeUndo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      to_stage,
+    }: {
+      orderId: number;
+      to_stage: IntakeUndoStage;
+    }) => {
+      const { data } = await postIntakeUndo(orderId, { to_stage });
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(['purchaseOrderSurface', variables.orderId], data);
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: ['preprocessingQueue'] });
+    },
   });
 }
 
@@ -490,7 +532,6 @@ export function useProcessManifest() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', variables.orderId] });
-      queryClient.invalidateQueries({ queryKey: ['manifestRowsRaw'] });
       queryClient.invalidateQueries({ queryKey: ['preprocessingQueue'] });
     },
   });
@@ -597,7 +638,6 @@ export function useClearManifestRows() {
       queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', orderId] });
       queryClient.invalidateQueries({ queryKey: ['aiCleanupStatus', orderId] });
       queryClient.invalidateQueries({ queryKey: ['manualReview', orderId] });
-      queryClient.invalidateQueries({ queryKey: ['manifestRowsRaw'] });
       queryClient.invalidateQueries({ queryKey: ['preprocessingQueue'] });
     },
   });
@@ -858,8 +898,8 @@ export function usePreprocessingStatus(orderId: number | null | undefined) {
           manifest_sample_null: ms == null,
           headers_len: ms?.headers?.length ?? 0,
           rows_len: ms?.rows?.length ?? 0,
-          template_mappings_len: ms?.template_mappings?.length ?? 0,
-          matching_templates_len: ms?.matching_templates?.length ?? 0,
+          template_mappings_len: (data.order?.template_column_mappings_cache ?? []).length,
+          matching_templates_len: data.matching_templates?.length ?? 0,
           header_sample: (ms?.headers ?? []).slice(0, 8),
         });
       }

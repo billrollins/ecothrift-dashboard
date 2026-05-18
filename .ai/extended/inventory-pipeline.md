@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-06 (`ProcessingRow.shelf_price` workspace **`price`** SSOT — **`CHANGELOG [Unreleased]`**; **`v2.23.0`** search blob — **`CHANGELOG [2.23.0]`**) -->
+<!-- Last updated: 2026-05-18 (intake **`0047`** removes **`PreprocessingOrder`** narrative fix; **`Session 15`** appendix; **`review.9.Deep`**) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -30,7 +30,7 @@ Vendor → PurchaseOrder → CSV upload (S3) → Standardize (expression formula
 1. **Vendor** — Source of purchased inventory (liquidation, retail, direct, other).
 2. **PurchaseOrder** — Order placed with a vendor; tracks status from ordered through completion.
 3. **CSV manifest upload** — Staff uploads a vendor CSV via `POST /inventory/orders/{id}/upload-manifest/`. File is saved to S3, preview persisted in `manifest_preview` JSON field. (Done on OrderDetailPage.)
-4. **Standardize** (Step 1 of PreprocessingPage) — Uses persisted **`manifest_preview`** on the PO for headers/sample rows until **`POST .../process-manifest/`** commits (pulls full CSV from S3). Expression formulas map vendor columns to standard fields (preview-standardize / Formula Preview). Commit seeds **`PreprocessingOrder`** / **`PreprocessingRow`** staging and prepares deterministic **`Product`** links plus early **`Item`** records per current **`process_manifest`** behavior.
+4. **Standardize** (Step 1 of PreprocessingPage) — Uses persisted **`manifest_preview`** on the PO for headers/sample rows until **`POST .../process-manifest/`** commits (pulls full CSV from S3). Expression formulas map vendor columns to standard fields (preview-standardize / Formula Preview). Commit seeds **`PreprocessingRow`** staging rows linked directly on **`PurchaseOrder`** (legacy **`PreprocessingOrder`** intermediary removed in migration **`inventory.0047_drop_preprocessing_order`**) and follows current **`process_manifest`** behavior for deterministic **`Product`** links plus **`Item`** materialization semantics.
 5. **Clean** (Step 2 of PreprocessingPage) — Primary path: **`GET .../download-cleanup-csv/`** exports **`row_id`**, **`row_number`**, **`quantity`**, **`unit_retail`**, **`base_cost`**, **`ideal_price`**, then **`description`**, **`brand`**, **`model`**, **`condition`**, **`notes`**, **`identifiers_json`**, **`taxonomy_json`**, **`specifications_json`**, **`tracking_json`**, **`search_tags_json`** (no flat **`title`** / **`sku`** / **`upc`** / staging pricing columns). Staff edit offline (e.g. Excel) or run an optional **local** adjunct **`workspace/ai-cleanup-grok/helpers/clean-grok.mjs`** (xAI Grok: strict **`response_format`** JSON Schema with taxonomy/condition enums, vendor-code pre-normalization, **`unit_retail`** vs **`proposed_price`** sanity check, **`x-grok-conv-id`** for prompt cache, optional **`--batch-api`** / **`use_batch_api`** for async batch pricing — emits one **`<stem>.cleaned.csv`** including optional per-row **`ai_status`** JSON — tree is **gitignored** unless explicitly whitelisted). Then **`POST .../apply-cleanup-csv/`** with JSON **`rows`** or **`POST .../upload-cleanup-csv/`** with wide staging CSV or a narrow CSV (**`row_id`, `ai_title`, `ai_brand`, `ai_model`, `category`, `condition`, `proposed_price`**) to merge cleanup into staging **`ai_*`** / **`ai_title`** (and **`ai_status`** when present) by **`row_id`**. **Wide** apply relaxes quality blocking—details in **`cleanup_csv_validate`** / contract doc. Legacy alternate still on the API: **`POST .../ai-cleanup-rows/`** (in-app Claude batches) — not wired as the main Step 2 UI today. **Contract:** hard/soft validation and rule IDs — **[`cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)**.
 6. **Final Review** (Step 3 of PreprocessingPage; stepper label **Final Review**) — Staging-only review: **`GET/PATCH .../preprocessing-review/`** over **`PreprocessingRow`**. UI (**`PreprocessingReviewTable`**) shows per-row **`ai_status`** (offline Grok validation metadata) as chips; substantive listing or price **`PATCH`** clears **`ai_status`** server-side ( **`batch_flag`** / **`pricing_notes`** alone do not). Staff edits **`ai_*`** fields (e.g. **`description` → `ai_description`**, **`title` → `ai_title`**); **`proposed_price`** / **`final_price`** live on the staging row until finalize. **`final_*`** stay **`NULL`** until **`POST .../finalize-preprocessing/`**, which runs **`snapshot_finalize_from_ai_and_standard`** (coalesce **`final_*`** from **`ai_*`** + **`standard_*`**; **`final_title`** from **`ai_title`**), validates price + title/description, then **replaces** **`ManifestRow`** rows from **`final_*`**. After finalize, staging review returns **409**; use canonical **`GET/PATCH .../manual-review/`** (manifest **`ManifestRow`**) for post-finalize line edits. **Mockup visual rebuild** of this step (**[`fix_this.md`](../reference/fix_this.md)**) is **not yet** reflected in the SPA.
 7. **Eco-Thrift Receiving** — `GET /api/inventory/orders/for-receiving/` prioritizes POs by **expected_delivery** tiers for next-PO UX (**v2.20.0**). Staff open **`/inventory/receiving/:id`** from sidebar **Receiving** or the orders **Receive** control.
@@ -43,6 +43,23 @@ Vendor → PurchaseOrder → CSV upload (S3) → Standardize (expression formula
 |-------|------|------|
 | Pre-finalize | `GET/PATCH …/preprocessing-review/` | **`PreprocessingRow`** staging (`standard_*` / `ai_*`; **`final_*`** written inside **`finalize-preprocessing`**) |
 | Post-finalize | `GET/PATCH …/manual-review/` | Canonical **`ManifestRow`** (linked **`Item`** fields sync on save) |
+
+### Intake rebuild wave (branch / Initiative Session 15)
+
+Not yet semver-tagged; detail lives under **`CHANGELOG [Unreleased]`** and **[`order_processing_pipeline_rebuild`](../initiatives/order_processing_pipeline_rebuild.md)** (**Current Operating Scope**, **Execution steps**). Schema highlights:
+
+| Migration | User-visible theme |
+|-----------|---------------------|
+| **`0045_purchase_order_manifest_meta`** | PO manifest snapshot columns (`manifest_filename`, `manifest_row_count`, …) plus supporting indexes |
+| **`0046_intake_wave1_po_preprocessing_receiving`** | PO preprocessing/receiving/track fields; renames pallets (`order_pallet_count` → **`pallet_count`**) |
+| **`0047_drop_preprocessing_order`** | **`PreprocessingRow`** uniqueness + drops **`PreprocessingOrder`** |
+| **`0048_receiving_track_timestamps`** | **`PurchaseOrder`** receiving started/done timestamps |
+| **`0049_dispute_model_and_rollups`** | **`Dispute`** model + dispute rollups on PO |
+| **`0050_processing_track_and_legacy_flag`** | **`processing_started_at` / `processing_done_at`**, **`uses_legacy_processing`** |
+
+Operational rehearsal / recon SQL: **[`README`](../reference/order_processing_pipeline_rebuild/_recon/README.md)**. Deterministic rollout repair: **`python manage.py repair_intake_pipeline_pos`** (`apps/inventory/services/intake_po_repair.py`).
+
+Orders dashboard queryset filter widening (stale **`vendor_name_cache`**): **`Q(vendor_name_cache__in=… \| vendor__name__in=…)`** in **`PurchaseOrderViewSet.get_queryset`** (`apps/inventory/views.py`). Unmanifested intake **`Item`** rows ( **`manifest_row` null**, status **`intake`**) are legitimate overage—the repair verifier must not flag them (`intake_po_repair.verify_intake_po`).
 
 ---
 

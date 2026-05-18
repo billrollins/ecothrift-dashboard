@@ -5,7 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.inventory.layer_helpers import TRIPLE_LAYER_SPECS, snapshot_finalize_from_ai_and_standard
-from apps.inventory.models import PreprocessingOrder, PreprocessingRow
+from apps.inventory.models import PreprocessingRow, PurchaseOrder
 
 
 class Command(BaseCommand):
@@ -32,21 +32,21 @@ class Command(BaseCommand):
         po_id = options['purchase_order_id']
         force = options['force']
 
-        prep = PreprocessingOrder.objects.filter(purchase_order_id=po_id).select_related('purchase_order').first()
-        if not prep:
-            self.stderr.write(self.style.ERROR(f'No PreprocessingOrder for purchase_order_id={po_id}'))
+        order = PurchaseOrder.objects.filter(pk=po_id).first()
+        if not order:
+            self.stderr.write(self.style.ERROR(f'No PurchaseOrder for purchase_order_id={po_id}'))
             return
 
-        if prep.finalized_at:
+        if order.finalized_at:
             self.stderr.write(
                 self.style.WARNING(
-                    f'Preprocessing session {prep.id} is finalized; refusing to mutate finals '
+                    f'Order {po_id} preprocessing is finalized; refusing to mutate finals '
                     f'(undo finalize or edit ManifestRow instead).',
                 ),
             )
             return
 
-        qs = PreprocessingRow.objects.filter(preprocessing_order=prep).order_by('row_number')
+        qs = PreprocessingRow.objects.filter(purchase_order_id=po_id).order_by('row_number')
         total = qs.count()
         if total == 0:
             self.stdout.write('No staged rows.')

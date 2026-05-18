@@ -1,99 +1,75 @@
-# Codebase Inventory
+# Codebase Inventory — 2026-05-18
 
 ## Executive Summary
 
-- **Stack:** Django **5.2** + DRF + JWT; React **18.3** + TypeScript + MUI **v7** + Vite **7** + TanStack Query; PostgreSQL (Heroku in prod).
-- **Backend apps (8):** `accounts`, `core`, `hr`, `inventory`, `pos`, `consignment`, `ai`, `buying` — all listed in `ecothrift/settings.py` `INSTALLED_APPS`.
-- **Domain hotspot:** `apps/inventory/` dominates migrations and API surface for **orders → preprocessing → receiving → processing**.
-- **Confidence:** **High** for structure; **Medium** for exact LOC and command counts without a dedicated scan job.
+- **Tagged product shape (`HEAD`):** Django 5.2 + DRF **`/api/`** domains; SPA inventory inbound (**Orders**, **Preprocessing**, **Receiving**, **Item Processor**) + Buying + POS — **semver `v2.23.0`** (**Item Processor search blob**) per **`CHANGELOG`**.
+- **Working tree adds:** inbound **intake** schema wave **`0045–0051`**, **`Dispute`** model/API surface hints, **`intake_*`** + **`manifest_*`** services + repair command targeting rollout PO ids **316–319**, **`OrderIntakeTimelineDrawer`**, order list vendor filter widening, **`0_pull_prod_to_local.bat`** ergonomics — **none committed**.
+- **Major surfaces touched:** **`apps/inventory/`** (`models`, `views`, `serializers`, **`services/`**), **`frontend/src/pages/inventory/*`**, **`frontend/src/api/inventory.api.ts`**, **`.ai/reference/order_processing_pipeline_rebuild/`** operational SQL/recon.
+- **Highest-risk drift:** documentation still describing **`PreprocessingOrder`** where Django removed it (**migration `0047`**); merge conflict risk in giant **`views.py`** if parallel edits.
+- **Confidence:** **High** for file-level inventory; **Medium** on full runtime matrix until full test pass on migrated DB.
 
-## Repository Topology (High Level)
+## Repo Map
 
-| Area | Role |
-|------|------|
-| `ecothrift/` | Django project (`settings`, root `urls`, WSGI/ASGI) |
-| `apps/*/` | Domain Django apps (models where applicable; `apps/ai` is API-only in tree — no `models.py`) |
-| `frontend/` | Vite SPA (`src/pages`, `src/api`, `src/hooks`, Vitest) |
-| `printserver/` | Local FastAPI print stack (see `.ai/extended/print-server.md`) |
-| `scripts/` | Dev/deploy helpers (`scripts/dev/*.bat`, scheduled-task parity) |
-| `.ai/` | Steering: `context.md`, `consultant_context.md`, `protocols/`, `initiatives/`, `extended/`, `reference/` |
-| `workspace/` | Scratch / notebooks / consultant drops (mostly gitignored; whitelisted paths per `.gitignore`) |
+| Path | Purpose | Current notes | Risk |
+|---|---|---|---|
+| `ecothrift/` | Settings, URLs, WSGI/ASGI | Standard multi-app split | none |
+| `apps/inventory/` | Inbound fulfillment core | Largest delta in working tree; new migrations **`0045–0051`** | **high** |
+| `apps/{accounts,buying,consignment,core,hr,pos}/` | Other domains | `HEAD`-stable this audit | none |
+| `frontend/src/` | Staff SPA (*MUI*, *React Query*) | Order detail, preprocessing, receiving, processing workspace churn | medium |
+| `scripts/deploy/` | Heroku/Git automation | **`0_pull_prod_to_local.bat`** restores **`ecothrift`** schema slice only | low |
+| `.ai/` | Steering + audits | Initiative Session 15 steps; deep dives under **`reference/deep_dive`** | none |
 
-## Django Apps
+## Backend Inventory
 
-| App | `models.py` | Notes |
-|-----|:-------------:|-------|
-| `apps.accounts` | yes | Auth-adjacent profiles, permissions |
-| `apps.core` | yes | Locations, settings, S3, shared services |
-| `apps.hr` | yes | Time clock, departments, sick leave |
-| `apps.inventory` | yes | Vendors, POs, manifests, preprocessing, items, receiving |
-| `apps.pos` | yes | Registers, carts, receipts, cash movements |
-| `apps.consignment` | yes | Agreements, payouts, portal |
-| `apps.buying` | yes | B-Stock auctions, manifests (CSV path), valuation |
-| `apps.ai` | no | Claude/Grok proxy endpoints (`views.py`, `urls.py`) |
+| App | Models | API surfaces | Management commands | Migrations (`inventory`) | Tests (high signal) | Notes |
+|---|---|---|---|---|---|---|
+| **inventory** | **`PurchaseOrder`**, **`Receiving`**, **`PreprocessingRow`**, **`ManifestRow`**, **`ProcessingRow`**, **`Dispute`** (WT), **`Item`**, **`Product`**, **`Vendor`** | **`PurchaseOrderViewSet`** dominates: orders CRUD, manifest upload/remove, preprocessing & cleanup CSV, finalize, **`for-receiving`**, processing workspace/detail, disputes hooks (WT), etc. | **`repair_intake_pipeline_pos`** (WT — apply/verify), **`build_legacy_checkin_queue`** (WT), **`backfill_*`** tweaks | **`0045`** manifest_meta; **`0046`** intake wave rename + PO columns; **`0047`** drop **`PreprocessingOrder`**; **`0048`** receiving timestamps; **`0049`** disputes; **`0050`** processing track / legacy flag; **`0051`** index renames | `test_preprocessing_redesign`, `test_processing_validation_matrix`, `test_receiving_api`, `test_intake_po_repair`, `test_disputes_api`, list dashboard filter (WT), manifest meta surface (WT) | Working tree aligns with **Inbound intake rebuild** narrative |
+| *(others unchanged at HEAD)* | — | — | — | — | — | — |
 
-## Migrations (Approximate)
+**WT** = exists in working tree, not necessarily at `HEAD`.
 
-Inventory and buying carry most schema churn.
+### Preprocessing through Final Review (code trace snapshot)
 
-| App | Migration `.py` files (excl. `__init__`) |
-|-----|------------------------------------------|
-| `inventory` | ~39 |
-| `buying` | ~20 |
-| `accounts`, `hr`, `pos`, `consignment`, `core` | Each small (order-of single digits typical) |
+| Step | Django entrypoints | Rows | WT notes |
+|---|---|---|---|
+| Clean export | **`download_cleanup_csv`** — `PurchaseOrderViewSet` in `apps/inventory/views.py` | **`PreprocessingRow.standard_*`** | Still core |
+| Cleanup apply | **`apply_cleanup_csv`**, **`upload_cleanup_csv`**, validation **`cleanup_csv_validate.py`** | **`ai_*`, `ai_title`, `ai_status`** | Contract: **`.ai/reference/cleanup_csv_contract.md`** |
+| Final Review | **`preprocessing_review` GET/PATCH** | staging layers | **`ManifestRow`** post-**`finalize-preprocessing`** |
+| Standardize/commit | **`process_manifest`** (and related) | **`PreprocessingRow`** linked **`Purchase_order`** (**`0047`** drops intermediate **`PreprocessingOrder`**) — update mental model |
 
-Recent inventory themes visible in filenames: preprocessing three-layer (`0036`), AI category flat (`0037`), `ai_status` (`0038`), processor disputes/audits (`0039`).
+## Frontend Inventory
 
-## Automated Tests (Backend)
+| Domain | Routes / pages | API hooks | Components | Types | Tests | Notes |
+|---|---|---|---|---|---|---|
+| Inbound Orders | **`OrderDetailPage.tsx`**, **`OrderListPage.tsx`** | **`useInventory`** / **`inventory.api.ts`** | **`OrderIntakeTimelineDrawer.tsx`** (WT), create PO dialog | **`inventory.types.ts`** | Dashboard filter tests live backend-heavy | Vendor filter widen backend-driven |
+| Preprocessing | **`PreprocessingPage.tsx`** | Same | Row panels / cleanup parsers | Extended `PurchaseOrder*` shapes | **`test_preprocessing_redesign`** (server) | Stepper flows |
+| Receiving | **`ReceivingOrderPage.tsx`**, redirects | Hooks | **`ReceivingDesktopWorkspace.tsx`** | Types | **`test_receiving_api`** | Pallet/track fields WT |
+| Item Processor | **`ProcessingWorkspacePage.tsx`** + modular files | **`useProcessingWorkspace`** etc. | Modals queue | **`inventory.types`** | **`test_processing_validation_matrix`** | Stable at **`HEAD`** |
 
-Glob snapshot under `apps/*/tests/**/*.py`: **~24** modules (inventory-heavy; buying; POS cart flows). **Gap:** no parallel depth for `accounts`, `core`, `hr`, `consignment`, `ai` in this layout.
+## Scripts / Ops Inventory
 
-Representative inventory tests:
+| Path | Purpose | Safe to run? | External effects | Notes |
+|---|---|---|---|---|
+| `scripts/deploy/0_pull_prod_to_local.bat` | Dump prod **`ecothrift`** schema → local restore | Conditional | **Destructive** local **`ecothrift`** schema; needs Heroku auth + **`pg_dump`/`pg_restore`** | Leaves other schemas untouched |
+| `manage.py migrate` | Apply Django migrations | yes | Local/test DB DDL | Requires DB reachability |
+| `manage.py repair_intake_pipeline_pos` | Deterministic fixes PO **316–319** | Conditional | Writes PO + items | **`--verify`** gate |
 
-| File | Focus |
-|------|--------|
-| `test_preprocessing_redesign.py` | Staging rows, cleanup CSV, review PATCH, `ai_status` |
-| `test_processing_validation_matrix.py` | Processing workspace validation IDs |
-| `test_receiving_api.py` | Receiving / `for-receiving` ordering |
-| `test_po_dashboard.py`, `test_po_item_cost.py` | PO list economics / cost allocation |
+## Shipped Behavior Snapshot
 
-Frontend: **`frontend/package.json`** script **`test`** → **`vitest run`** (component/unit tests alongside features such as `processingWorkspaceFilters.test.ts`).
+| Capability | Evidence | AI docs that should mention it | Drift? |
+|---|---|---|---|
+| **`v2.23.0` search blob | `CHANGELOG [2.23.0]`, mig **`0043`** | **`context.md`** | synced |
+| **Intake migrations `0045+` | WT files under `apps/inventory/migrations/` | **`CHANGELOG [Unreleased]`**, **`order_processing_pipeline_rebuild`**, **`inventory-pipeline.md`** | was **yes** → **being fixed** |
 
-## Preprocessing → Final Review → Processing (Representative API Paths)
+## Test Coverage Gaps
 
-Authoritative wiring lives on **`PurchaseOrderViewSet`** in **`apps/inventory/views.py`**. Representative `url_path` actions (non-exhaustive):
+| Area | Existing coverage | Missing coverage | Risk |
+|---|---|---|---|
+| Intake disputes rollups end-to-end | **`test_disputes_api`** (WT) | UI E2E / cross-PO matrices | medium |
+| Repair targeting only 316–319 | **`repair_intake_pipeline_pos`** + unit test | Expansion if more rollout ids | medium |
+| Frontend order timeline drawer | Likely thin | RTL snapshot / integration | medium |
 
-| Step | Method(s) | `url_path` | Role |
-|------|-----------|------------|------|
-| Queue / summary | GET | `preprocessing-queue`, `summary` | List work; KPI-style aggregates |
-| Manifest ingest | POST | `upload-manifest`, `remove-manifest`, `process-manifest` | Raw CSV + staging seed |
-| Standardize | POST | `preview-standardize`, `suggest-formulas` | Step 1 |
-| AI cleanup | POST | `ai-cleanup-rows`, `cancel-ai-cleanup` | Step 2 server-side batch |
-| Cleanup CSV | GET | `download-cleanup-csv` | Lean pre-AI export |
-| Cleanup CSV | POST | `upload-cleanup-csv`, `apply-cleanup-csv` | Merge Grok / offline cleanup |
-| Final Review | GET/PATCH | `preprocessing-review` | Step 3 staging edits |
-| Reset | POST | `preprocessing-review-reset-final` | Targeted reset |
-| Finalize | POST | `finalize-preprocessing` | Coalesce `final_*` → `ManifestRow` / products |
-| Processor workspace | GET | `processing-workspace` | Active processor UI payload |
-| Processor ops | POST | `processing-*` family | Print, dispute, merge, bulk disposition |
+## Open Questions
 
-Validation helpers: **`apps/inventory/cleanup_csv_validate.py`** (contract summarized in `.ai/reference/cleanup_csv_contract.md`).
-
-## Frontend Routing Domains (Pointers)
-
-| Concern | Typical location |
-|---------|------------------|
-| Inventory API wrappers | `frontend/src/api/inventory.api.ts` |
-| Preprocessing UI | `frontend/src/pages/inventory/PreprocessingPage.tsx`, `frontend/src/components/inventory/*` |
-| Processing workspace | `frontend/src/pages/inventory/processing/*` |
-| App router | `frontend/src/App.tsx` |
-
-## Auxiliary Services
-
-- **`printserver/`** — thermal labels / receipts; separate Python env from Django.
-- **`workspace/ai-cleanup-grok/`** — optional offline Grok runner (often gitignored); referenced from `CHANGELOG` `[Unreleased]`.
-
-## Notes For `PLAN.md`
-
-- Add **release hygiene** item: slice `[Unreleased]` when user approves bump (`04_version_changelog_audit.md`).
-- Add **test gap** item: smoke tests for auth/core paths if those domains gain churn (`Top findings` § tests).
+- **Release versioning:** MINOR vs PATCH envelope for **`0045–0051`** bundle — confirm with stakeholder before **`review.0.Bump` Part 2**.
+- **`_backfill_manifest_denorm.py`** at repo root — promote to mgmt cmd or `.gitignore`? — classify before push.

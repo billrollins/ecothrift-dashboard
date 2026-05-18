@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Alert, Box, Button, Typography, LinearProgress } from '@mui/material';
+import { Alert, Box, Button, Chip, Typography, LinearProgress } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ArrowBack from '@mui/icons-material/ArrowBack';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import { format } from 'date-fns';
 
 import {
   PALLET_SIDES,
@@ -17,6 +18,7 @@ import {
 } from '../../services/receiving/receivingClient';
 import {
   completeReceiving,
+  createOrderDispute,
   fetchOrdersForReceiving,
   uploadReceivingPhoto,
 } from '../../api/inventory.api';
@@ -60,7 +62,7 @@ export default function ReceivingOrderPage() {
 
   useEffect(() => {
     if (!m) return;
-    setPalletCountInput(m.pallet_count || 0);
+    setPalletCountInput(m.received_pallet_count || 0);
     setIssuesDraft(m.issues || '');
   }, [m]);
 
@@ -143,25 +145,25 @@ export default function ReceivingOrderPage() {
 
   const onQuickFill = useCallback(() => {
     setPalletCountInput(1);
-    sendPatch({ pallet_count: 1, pallets: [{ pallet_number: 1, damaged: false }] });
+    sendPatch({ received_pallet_count: 1, pallets: [{ pallet_number: 1, damaged: false }] });
   }, [sendPatch]);
 
   const onPalletCountChange = useCallback(
     (n: number) => {
       setPalletCountInput(n);
-      sendPatch({ pallet_count: n, pallets: buildPalletsFromCount(n, m) ?? [] });
+      sendPatch({ received_pallet_count: n, pallets: buildPalletsFromCount(n, m) ?? [] });
     },
     [buildPalletsFromCount, m, sendPatch],
   );
 
   const onDamaged = useCallback(
     (palletNumber: number, damaged: boolean) => {
-      const count = m?.pallet_count ?? palletCountInput ?? 0;
+      const count = m?.received_pallet_count ?? palletCountInput ?? 0;
       const pmap = new Map((m?.pallets ?? []).map((p) => [p.pallet_number, p.damaged]));
       pmap.set(palletNumber, damaged);
       const pallets: Array<{ pallet_number: number; damaged: boolean }> = [];
       for (let n = 1; n <= count; n++) pallets.push({ pallet_number: n, damaged: pmap.get(n) ?? false });
-      sendPatch({ pallet_count: count, pallets });
+      sendPatch({ received_pallet_count: count, pallets });
     },
     [m, palletCountInput, sendPatch],
   );
@@ -232,7 +234,7 @@ export default function ReceivingOrderPage() {
   const onPalletSet = useCallback(
     (count: number) => {
       setPalletCountInput(count);
-      sendPatch({ pallet_count: count, pallets: buildPalletsFromCount(count, m) ?? [] });
+      sendPatch({ received_pallet_count: count, pallets: buildPalletsFromCount(count, m) ?? [] });
     },
     [buildPalletsFromCount, m, sendPatch],
   );
@@ -243,7 +245,7 @@ export default function ReceivingOrderPage() {
       const imgs = [...files];
       const count = (
         queryClient.getQueryData<ReceivingDetailDTO>(receivingDetailQueryKey(oid)) ?? m
-      )?.pallet_count;
+      )?.received_pallet_count;
       if (!count || count < 1 || !m) return;
 
       outer: for (let pn = 1; pn <= count && imgs.length > 0; pn++) {
@@ -268,6 +270,38 @@ export default function ReceivingOrderPage() {
     },
     [oid, queryClient, m, runPhotoPipeline, enqueueSnackbar],
   );
+
+  const intakeDisputeMut = useMutation({
+    mutationFn: async ({
+      palletNumber,
+      subjectPalletId,
+    }: {
+      palletNumber: number;
+      subjectPalletId: number;
+    }) => {
+      if (oid == null) throw new Error('bad_order');
+      const detail = queryClient.getQueryData<ReceivingDetailDTO>(receivingDetailQueryKey(oid));
+      if (!detail) throw new Error('no_receiving');
+      await createOrderDispute(oid, {
+        kind: 'intake',
+        title: `Receiving · pallet ${palletNumber}`,
+        description: '',
+        subject_receiving: detail.id,
+        subject_pallet: subjectPalletId,
+        payload: { pallet_number: palletNumber, source: 'receiving_ui' },
+      });
+    },
+    onSuccess: () => {
+      enqueueSnackbar('Intake dispute opened', { variant: 'success' });
+      if (oid != null) {
+        void queryClient.invalidateQueries({ queryKey: ['purchaseOrders', oid] });
+        void queryClient.invalidateQueries({ queryKey: ['purchaseOrderSurface', oid] });
+      }
+    },
+    onError: () => {
+      enqueueSnackbar('Could not open dispute', { variant: 'error' });
+    },
+  });
 
   const completeMut = useMutation({
     mutationFn: async () => {
@@ -313,8 +347,50 @@ export default function ReceivingOrderPage() {
     return <Alert severity="error">Could not load receiving.</Alert>;
   }
 
+  const poSurface = po.data ?? undefined;
+  if (!mobile && !poSurface) {
+    return (
+      <Box sx={{ p: 2, bgcolor: rcvSurface.page }}>
+        <Alert severity="error">Could not load order details for receiving.</Alert>
+        <Button sx={{ mt: 1 }} variant="text" size="small" onClick={() => navigate('/inventory/orders')}>
+          Back to orders
+        </Button>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ position: 'relative', bgcolor: rcvSurface.page }}>
+      {po.data ? (
+        <Box
+          sx={{
+            px: { xs: 1.5, md: 3 },
+            py: 1,
+            display: 'flex',
+            gap: 1,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            borderBottom: `1px solid ${rcvSurface.panel}`,
+          }}
+        >
+          <Chip
+            size="small"
+            label={`Receiving track: ${po.data.receiving_status ?? 'not_started'}`}
+            color={po.data.receiving_status === 'done' ? 'success' : 'default'}
+            variant={po.data.receiving_status === 'active' ? 'filled' : 'outlined'}
+          />
+          {po.data.receiving_done_at ? (
+            <Typography variant="caption" color="text.secondary">
+              Completed {format(new Date(po.data.receiving_done_at), 'MMM d, yyyy h:mm a')}
+            </Typography>
+          ) : null}
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`Intake disputes: ${po.data.intake_dispute_status ?? 'none'}`}
+          />
+        </Box>
+      ) : null}
       {mobile && (
         <>
           <Button startIcon={<ArrowBack />} size="small" sx={{ mb: 1 }} onClick={() => navigate('/inventory/orders')}>
@@ -371,52 +447,58 @@ export default function ReceivingOrderPage() {
           disabled={patchMut.isPending || completeMut.isPending}
         />
       ) : (
-        <ReceivingDesktopWorkspace
-          receiving={m}
-          orderNumberMono={po.data!.order_number}
-          vendorDisplay={po.data!.vendor_name}
-          descriptionLine={po.data!.description ?? ''}
-          eligibleOrders={pickerOrdersQ.data?.results ?? []}
-          onPickOrder={(nid) => {
-            if (nid !== oid) navigate(`/inventory/receiving/${nid}`);
-          }}
-          onBackToList={() => navigate('/inventory/orders')}
-          issuesDraft={issuesDraft}
-          palletCountDraftSynced={palletCountInput}
-          uploadingKey={uploadingKey}
-          onReceivedDateChange={(iso) => sendPatch({ received_date: iso })}
-          onStartTimeChange={(hh) => sendPatch({ start_time: hh })}
-          onEndTimeChange={(hh) => sendPatch({ end_time: hh })}
-          onPalletSet={onPalletSet}
-          onConditionChange={(v) => sendPatch({ condition: v })}
-          onIssuesDraftChange={setIssuesDraft}
-          onIssuesBlur={() => sendPatch({ issues: issuesDraft })}
-          onBolTruckPick={onBolTruckPick}
-          onBulkPalletPhotos={onBulkPalletPhotos}
-          onPalletPick={onPalletPick}
-          onDamaged={onDamaged}
-          onComplete={() => completeMut.mutate()}
-          loadingBar={
-            patchMut.isPending || completeMut.isPending ? (
-              <LinearProgress color="primary" sx={{ flexShrink: 0 }} />
-            ) : null
-          }
-          banners={
-            <>
-              {pendingUploadsUi > 0 && (
-                <Typography variant="caption" color="text.secondary" sx={{ px: '24px', pt: 0.5 }}>
-                  {pendingUploadsUi} photo(s) pending upload
-                </Typography>
-              )}
-              {!navigator.onLine && (
-                <Typography variant="caption" color="warning.main" sx={{ px: '24px', pt: 0.5 }}>
-                  Offline — edits queue locally; photos sync when you are back online.
-                </Typography>
-              )}
-            </>
-          }
-          disabled={patchMut.isPending || completeMut.isPending}
+        poSurface != null ? (
+          <ReceivingDesktopWorkspace
+            receiving={m}
+            orderNumberMono={poSurface.order_number}
+            vendorDisplay={poSurface.vendor_name}
+            descriptionLine={poSurface.description ?? ''}
+            eligibleOrders={pickerOrdersQ.data?.results ?? []}
+            onPickOrder={(nid) => {
+              if (nid !== oid) navigate(`/inventory/receiving/${nid}`);
+            }}
+            onBackToList={() => navigate('/inventory/orders')}
+            issuesDraft={issuesDraft}
+            palletCountDraftSynced={palletCountInput}
+            uploadingKey={uploadingKey}
+            onReceivedDateChange={(iso) => sendPatch({ received_date: iso })}
+            onStartTimeChange={(hh) => sendPatch({ start_time: hh })}
+            onEndTimeChange={(hh) => sendPatch({ end_time: hh })}
+            onPalletSet={onPalletSet}
+            onConditionChange={(v) => sendPatch({ condition: v })}
+            onIssuesDraftChange={setIssuesDraft}
+            onIssuesBlur={() => sendPatch({ issues: issuesDraft })}
+            onBolTruckPick={onBolTruckPick}
+            onBulkPalletPhotos={onBulkPalletPhotos}
+            onPalletPick={onPalletPick}
+            onDamaged={onDamaged}
+            onOpenIntakeDisputeForPallet={(palletNumber, subjectPalletId) => {
+              if (subjectPalletId == null) return;
+              intakeDisputeMut.mutate({ palletNumber, subjectPalletId });
+            }}
+            onComplete={() => completeMut.mutate()}
+            loadingBar={
+              patchMut.isPending || completeMut.isPending || intakeDisputeMut.isPending ? (
+                <LinearProgress color="primary" sx={{ flexShrink: 0 }} />
+              ) : null
+            }
+            banners={
+              <>
+                {pendingUploadsUi > 0 && (
+                  <Typography variant="caption" color="text.secondary" sx={{ px: '24px', pt: 0.5 }}>
+                    {pendingUploadsUi} photo(s) pending upload
+                  </Typography>
+                )}
+                {!navigator.onLine && (
+                  <Typography variant="caption" color="warning.main" sx={{ px: '24px', pt: 0.5 }}>
+                    Offline — edits queue locally; photos sync when you are back online.
+                  </Typography>
+                )}
+              </>
+            }
+            disabled={patchMut.isPending || completeMut.isPending || intakeDisputeMut.isPending}
         />
+        ) : null
       )}
     </Box>
   );

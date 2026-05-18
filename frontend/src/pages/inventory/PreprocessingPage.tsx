@@ -21,7 +21,6 @@ import ArrowForward from '@mui/icons-material/ArrowForward';
 import { useSnackbar } from 'notistack';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
-  useClearManifestRows,
   useFinalizePreprocessing,
   useManifestFields,
   useProcessManifest,
@@ -29,7 +28,6 @@ import {
   usePreprocessingQueue,
   useSuggestFormulas,
   useUpdatePreprocessingReview,
-  useResetPreprocessingReviewFinal,
   useUploadCleanupCsvRows,
 } from '../../hooks/useInventory';
 import { prepS1 } from '../../utils/preprocessingStep1Diag';
@@ -100,7 +98,6 @@ export default function PreprocessingPage() {
   const order = preprocessingStatus?.order ?? null;
   const processManifest = useProcessManifest();
   const suggestFormulasMutation = useSuggestFormulas();
-  const clearManifestRowsMutation = useClearManifestRows();
   const uploadCleanupRowsMutation = useUploadCleanupCsvRows();
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [stepDerived, setStepDerived] = useState(false);
@@ -119,7 +116,6 @@ export default function PreprocessingPage() {
     preprocessingStatus?.preprocessing?.row_count && !preprocessingStatus.preprocessing.finalized_at,
   );
   const updatePreprocessingReview = useUpdatePreprocessingReview();
-  const resetPreprocessingReviewFinalMutation = useResetPreprocessingReviewFinal();
   const finalizePreprocessingMutation = useFinalizePreprocessing();
 
   const [selectedManifestTemplateId, setSelectedManifestTemplateId] = useState<number | null>(null);
@@ -130,9 +126,7 @@ export default function PreprocessingPage() {
   const [cleanupRowNumberById, setCleanupRowNumberById] = useState<Record<number, number>>({});
   const [reviewDirtyCount, setReviewDirtyCount] = useState(0);
   const [reviewTableMountKey, setReviewTableMountKey] = useState(0);
-  const [confirmDialog, setConfirmDialog] = useState<
-    null | 'undo_std' | 'restandardize' | 'finalize' | 'reset_final_ai'
-  >(null);
+  const [confirmDialog, setConfirmDialog] = useState<null | 'restandardize' | 'finalize'>(null);
   const [newTemplateName, setNewTemplateName] = useState('');
 
   // Step 1 (Standardize) state
@@ -193,13 +187,21 @@ export default function PreprocessingPage() {
   const manifestPreview = order?.manifest_sample ?? null;
 
   const headers = manifestPreview?.headers ?? EMPTY_HEADERS;
-  const headerSignature = manifestPreview?.signature ?? '';
+  const headerSignature = (order?.manifest_signature ?? '').trim();
+  const mappingsFromFormulas =
+    order?.standardization_formulas &&
+    typeof order.standardization_formulas === 'object' &&
+    Array.isArray((order.standardization_formulas as { mappings?: unknown }).mappings)
+      ? ((order.standardization_formulas as { mappings: ManifestColumnMapping[] }).mappings)
+      : null;
   const templateMappings = (
-    manifestPreview?.template_mappings ?? EMPTY_TEMPLATE_MAPPINGS
+    mappingsFromFormulas ??
+    order?.template_column_mappings_cache ??
+    EMPTY_TEMPLATE_MAPPINGS
   ) as ManifestColumnMapping[];
   const templateMappingsKey = useMemo(() => JSON.stringify(templateMappings), [templateMappings]);
-  const templateId = manifestPreview?.template_id ?? undefined;
-  const templateName = manifestPreview?.template_name ?? '';
+  const templateId = order?.template_id ?? undefined;
+  const templateName = order?.template_name_cache ?? '';
 
   const manifestSampleRowsForUi = useMemo((): ManifestRawRow[] => {
     const rows = manifestPreview?.rows;
@@ -216,7 +218,7 @@ export default function PreprocessingPage() {
   const rawHeaders: string[] = headers.length
     ? [...headers]
     : (Object.keys(manifestSampleRowsForUi[0]?.raw ?? {}) as string[]);
-  const matchingTemplates = manifestPreview?.matching_templates ?? [];
+  const matchingTemplates = preprocessingStatus?.matching_templates ?? [];
 
   const step1AwaitingStatus = activeStep === 0 && isLoading;
   const step1PreviewMissing =
@@ -242,10 +244,10 @@ export default function PreprocessingPage() {
       preview_rows_len: ms?.rows?.length ?? 0,
       row0_raw_is_object: r0 != null && typeof r0.raw === 'object' && !Array.isArray(r0.raw),
       row0_raw_key_sample: r0?.raw && typeof r0.raw === 'object' ? Object.keys(r0.raw).slice(0, 10) : [],
-      signature_len: (ms?.signature ?? '').length,
-      standard_columns_len: ms?.standard_columns?.length ?? 0,
-      template_mappings_len: ms?.template_mappings?.length ?? 0,
-      matching_templates_len: ms?.matching_templates?.length ?? 0,
+      signature_len: (order?.manifest_signature ?? '').length,
+      standard_columns_len: preprocessingStatus?.standard_columns?.length ?? 0,
+      template_mappings_len: templateMappings.length,
+      matching_templates_len: preprocessingStatus?.matching_templates?.length ?? 0,
       branch_step1AwaitingStatus: step1AwaitingStatus,
       branch_step1PreviewMissing: step1PreviewMissing,
       branch_step1ActionsLocked: step1ActionsLocked,
@@ -255,6 +257,9 @@ export default function PreprocessingPage() {
     isLoading,
     activeStep,
     order,
+    preprocessingStatus?.standard_columns,
+    preprocessingStatus?.matching_templates,
+    templateMappings,
     step1AwaitingStatus,
     step1PreviewMissing,
     step1ActionsLocked,
@@ -464,28 +469,6 @@ export default function PreprocessingPage() {
     setReviewTotalsRowMap(merged);
     return Object.keys(merged).map(Number);
   }, [orderId, reviewSearch]);
-
-  const executeResetFinalToAi = useCallback(async () => {
-    if (!orderId) return;
-    try {
-      const ids = await prefetchFilteredRowsForBulk();
-      if (!ids.length) {
-        enqueueSnackbar('No rows match the current filters.', { variant: 'warning' });
-        return;
-      }
-      const result = await resetPreprocessingReviewFinalMutation.mutateAsync({
-        orderId,
-        payload: { row_ids: ids },
-      });
-      setReviewApiSummary(result.summary);
-      setReviewFetchNonce((n) => n + 1);
-      setReviewTableMountKey((k) => k + 1);
-      enqueueSnackbar(`Reset ${result.rows_reset} row(s) to AI + Standard baseline`, { variant: 'success' });
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: string } } };
-      enqueueSnackbar(axiosErr?.response?.data?.detail || 'Failed to reset finals', { variant: 'error' });
-    }
-  }, [orderId, prefetchFilteredRowsForBulk, resetPreprocessingReviewFinalMutation, enqueueSnackbar]);
 
   const mergeReviewPatches = useCallback((updates: PreprocessingReviewRowUpdate[]) => {
     const applyPatch = (row: PreprocessingReviewRow, u: PreprocessingReviewRowUpdate): PreprocessingReviewRow => {
@@ -793,23 +776,10 @@ export default function PreprocessingPage() {
     await executeStandardizeManifestCore();
   };
 
-  const executeClearStandardization = async () => {
+  const handleClearStandardizationRequest = () => {
     if (!orderId) return;
-    try {
-      const result = await clearManifestRowsMutation.mutateAsync(orderId);
-      enqueueSnackbar(`Cleared ${result.rows_deleted} manifest rows and ${result.items_deleted ?? 0} item(s)`, { variant: 'info' });
-      setProcessResult(null);
-      standardizedFormulasRef.current = null;
-      setActiveStep(0);
-      setStepDerived(false);
-      setCleanupValidatedPayload(null);
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { detail?: string } } };
-      enqueueSnackbar(axiosErr?.response?.data?.detail || 'Failed to clear standardization', { variant: 'error' });
-    }
+    navigate(`/inventory/orders/${orderId}?drawer=timeline&undo=standardize`);
   };
-
-  const handleClearStandardizationRequest = () => setConfirmDialog('undo_std');
 
   const handleRunCleanupApply = async () => {
     if (!orderId || !cleanupValidatedPayload?.length) return;
@@ -868,11 +838,6 @@ export default function PreprocessingPage() {
   const confirmFinalizePreprocessing = async () => {
     setConfirmDialog(null);
     await handleFinalizeAndOpenProcessing();
-  };
-
-  const confirmResetFinalToAi = async () => {
-    setConfirmDialog(null);
-    await executeResetFinalToAi();
   };
 
   const handleOpenProcessing = () => {
@@ -991,12 +956,11 @@ export default function PreprocessingPage() {
             variant="outlined"
             color="warning"
             size="small"
-            startIcon={clearManifestRowsMutation.isPending ? <CircularProgress size={14} /> : <DeleteOutline />}
+            startIcon={<DeleteOutline />}
             onClick={handleClearStandardizationRequest}
-            disabled={clearManifestRowsMutation.isPending}
             sx={{ fontSize: 13, fontWeight: 600, textTransform: 'none' }}
           >
-            {clearManifestRowsMutation.isPending ? 'Clearing...' : 'Undo'}
+            Undo
           </Button>
           {(step1State === 'edited' || step1State === 'edited_partial' || step1State === 'done') && (
             <Button
@@ -1410,8 +1374,12 @@ export default function PreprocessingPage() {
                     onPersistSuccess={mergeReviewPatches}
                     onDirtyCountChange={setReviewDirtyCount}
                     isSaving={updatePreprocessingReview.isPending}
-                    isResettingFinal={resetPreprocessingReviewFinalMutation.isPending}
-                    onResetFinalClick={() => setConfirmDialog('reset_final_ai')}
+                    isResettingFinal={false}
+                    onResetFinalClick={
+                      orderId
+                        ? () => navigate(`/inventory/orders/${orderId}?drawer=timeline&undo=ai_cleanup`)
+                        : undefined
+                    }
                   />
                 </>
               ) : hasCanonicalProcessingQueue ? (
@@ -1419,9 +1387,18 @@ export default function PreprocessingPage() {
                   <Alert severity="info" sx={{ mb: 1.5 }}>
                     This order already has a canonical processing queue with {standardizedRowCount} row(s). There is no active staged preprocessing session to review.
                   </Alert>
-                  <Button variant="contained" onClick={handleOpenProcessing}>
+                  <Button variant="contained" onClick={handleOpenProcessing} sx={{ mr: 1 }}>
                     Open Processing
                   </Button>
+                  {order ? (
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      onClick={() => navigate(`/inventory/orders/${order.id}?drawer=timeline&undo=finalize`)}
+                    >
+                      Rewind finalize…
+                    </Button>
+                  ) : null}
                 </Box>
               ) : (
                 <Alert severity="info">
@@ -1433,20 +1410,6 @@ export default function PreprocessingPage() {
         </Box>
       )}
 
-      <ConfirmModal
-        open={confirmDialog === 'undo_std'}
-        emoji="⚠️"
-        title="Undo standardization?"
-        message="This permanently deletes standardized rows, cleanup suggestions, manual review edits on staged rows, and non-terminal generated products/items tied to this workflow."
-        confirmLabel="Undo standardization"
-        danger
-        isBusy={clearManifestRowsMutation.isPending}
-        onCancel={() => setConfirmDialog(null)}
-        onConfirm={() => {
-          setConfirmDialog(null);
-          void executeClearStandardization();
-        }}
-      />
       <ConfirmModal
         open={confirmDialog === 'restandardize'}
         emoji="⚠️"
@@ -1468,14 +1431,6 @@ export default function PreprocessingPage() {
         isBusy={finalizePreprocessingMutation.isPending}
         onCancel={() => setConfirmDialog(null)}
         onConfirm={() => void confirmFinalizePreprocessing()}
-      />
-      <ConfirmModal
-        open={confirmDialog === 'reset_final_ai'}
-        title="Reset finals to AI?"
-        message="Every filtered row's listing fields will be rebuilt from AI, using Standard only where AI is blank (same as when Final Review starts). Prices you set here are not changed."
-        confirmLabel="Reset to AI"
-        onCancel={() => setConfirmDialog(null)}
-        onConfirm={() => void confirmResetFinalToAi()}
       />
     </Box>
   );

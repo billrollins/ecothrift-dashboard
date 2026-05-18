@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -9,13 +10,13 @@ from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.inventory.models import (
     CSVTemplate,
     Item,
     ManifestRow,
-    PreprocessingOrder,
     PreprocessingRow,
     ProcessingBatch,
     ProcessingDataBuild,
@@ -25,6 +26,7 @@ from apps.inventory.models import (
     Vendor,
 )
 from apps.inventory.manifest_standard_fields import validate_mapping_target
+from apps.inventory.services.intake_gates import raise_if_processing_blocked_by_intake
 from apps.inventory.views import (
     PurchaseOrderViewSet,
     default_column_mappings,
@@ -45,6 +47,8 @@ class PreprocessingRedesignTests(TestCase):
             purchase_cost=Decimal('100.00'),
             retail_value=Decimal('500.00'),
             est_shrink=Decimal('0.10'),
+            receiving_status='done',
+            receiving_done_at=timezone.now(),
         )
         self.user = get_user_model().objects.create_user(
             email='staff@example.com',
@@ -157,6 +161,23 @@ class PreprocessingRedesignTests(TestCase):
         )
         return resp
 
+    def test_raise_if_processing_blocked_when_receiving_not_done(self):
+        order = PurchaseOrder.objects.create(
+            vendor=self.vendor,
+            order_number='PO-GATE-RECV',
+            ordered_date='2026-04-28',
+            purchase_cost=Decimal('1'),
+            retail_value=Decimal('5'),
+            finalized_at=timezone.now(),
+            preprocess_status='finalized',
+            receiving_status='not_started',
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            raise_if_processing_blocked_by_intake(order)
+        err = ctx.exception
+        codes = err.message_dict.get('code', [])
+        self.assertEqual(codes, ['receiving_not_done'])
+
     def _preprocessing_review_reset_final(self, row_ids):
         view = PurchaseOrderViewSet.as_view({'post': 'preprocessing_review_reset_final'})
         request = APIRequestFactory().post(
@@ -168,13 +189,7 @@ class PreprocessingRedesignTests(TestCase):
         return view(request, pk=self.order.pk)
 
     def _create_preprocessing_rows_for_review(self):
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='ai_imported',
-            row_count=2,
-        )
         first = PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=1,
             quantity=1,
@@ -192,7 +207,6 @@ class PreprocessingRedesignTests(TestCase):
             pricing_stage='unpriced',
         )
         second = PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=2,
             quantity=1,
@@ -205,7 +219,7 @@ class PreprocessingRedesignTests(TestCase):
             proposed_price=Decimal('12.50'),
             pricing_stage='draft',
         )
-        return prep, first, second
+        return first, second
 
     def _create_manifest_rows(self):
         first = ManifestRow.objects.create(
@@ -273,6 +287,38 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(by_target['quantity']['source'], 'quantity')
         self.assertEqual(by_target['notes']['source'], 'notes')
         self.assertEqual(by_target['unit_retail']['source'], 'unit_retail')
+
+    def test_preview_standardize_manifest_preview_does_not_open_storage(self):
+        from apps.core.models import S3File
+
+        s3 = S3File.objects.create(key='manifests/preview-only.csv', filename='p.csv')
+        self.order.manifest = s3
+        self.order.manifest_preview = {
+            'headers': ['Item Desc', 'Qty'],
+            'rows': [
+                {'row_number': 1, 'raw': {'Item Desc': 'Thing', 'Qty': '2'}},
+            ],
+            'delimiter': ',',
+        }
+        self.order.manifest_row_count = 5000
+        self.order.save(
+            update_fields=['manifest', 'manifest_preview', 'manifest_row_count', 'updated_at'],
+        )
+
+        view = PurchaseOrderViewSet.as_view({'post': 'preview_standardize'})
+        request = APIRequestFactory().post(
+            f'/api/inventory/orders/{self.order.pk}/preview-standardize/',
+            {},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+        with patch('django.core.files.storage.default_storage.open') as mock_open:
+            mock_open.side_effect = AssertionError('storage open should not be called')
+            response = view(request, pk=self.order.pk)
+        self.assertEqual(response.status_code, 200, getattr(response, 'data', None))
+        self.assertEqual(response.data['row_count_in_file'], 5000)
+        self.assertGreater(len(response.data['normalized_preview']), 0)
+        mock_open.assert_not_called()
 
     def test_ensure_manifest_products_and_items_is_idempotent(self):
         ManifestRow.objects.create(
@@ -344,13 +390,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(first.category, 'Kitchen & dining')
 
     def test_upload_cleanup_json_rows_accepts_ai_status_dict_staging_wide(self):
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='standardized',
-            row_count=1,
-        )
         sr = PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=1,
             quantity=1,
@@ -399,13 +439,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(len(sr.ai_status.get('issues', [])), 1)
 
     def test_upload_cleanup_csv_malformed_ai_status_defaults_empty_staging_wide(self):
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='standardized',
-            row_count=1,
-        )
         sr = PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=1,
             quantity=1,
@@ -440,7 +474,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(sr.ai_status, {})
 
     def test_preprocessing_review_patch_clears_ai_status_when_title_edited(self):
-        prep, first, _second = self._create_preprocessing_rows_for_review()
+        first, _second = self._create_preprocessing_rows_for_review()
         first.ai_status = {
             'state': 'soft_flagged',
             'issues': [{'rule': 'SOFT_X', 'reason': 'needs fix'}],
@@ -458,7 +492,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(first.ai_status, {})
 
     def test_preprocessing_review_patch_keeps_ai_status_when_only_batch_flag(self):
-        prep, first, _second = self._create_preprocessing_rows_for_review()
+        first, _second = self._create_preprocessing_rows_for_review()
         status = {'state': 'soft_flagged', 'issues': [{'rule': 'R'}]}
         first.ai_status = status
         first.save(update_fields=['ai_status'])
@@ -473,7 +507,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(first.ai_status, status)
 
     def test_preprocessing_review_lists_ai_status_on_row(self):
-        prep, first, _second = self._create_preprocessing_rows_for_review()
+        first, _second = self._create_preprocessing_rows_for_review()
         first.ai_status = {'state': 'hard_flagged', 'issues': [{'rule': 'HARD_X', 'reason': 'check'}]}
         first.save(update_fields=['ai_status'])
 
@@ -485,12 +519,20 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(len(row['ai_status']['issues']), 1)
         self.order.manifest_preview = {
             'headers': ['A', 'B'],
-            'signature': 'abc123',
-            'row_count': 99,
             'rows': [{'row_number': 1, 'raw': {'A': 'x'}}],
             'delimiter': ',',
         }
-        self.order.save(update_fields=['manifest_preview'])
+        self.order.manifest_signature = 'abc123'
+        self.order.manifest_row_count = 99
+        self.order.template_column_mappings_cache = list(default_column_mappings(['A', 'B']))
+        self.order.save(
+            update_fields=[
+                'manifest_preview',
+                'manifest_signature',
+                'manifest_row_count',
+                'template_column_mappings_cache',
+            ],
+        )
         view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_status'})
         request = APIRequestFactory().get(
             f'/api/inventory/orders/{self.order.pk}/preprocessing-status/',
@@ -501,15 +543,17 @@ class PreprocessingRedesignTests(TestCase):
         ms = response.data['order']['manifest_sample']
         self.assertIsNotNone(ms)
         self.assertEqual(ms['headers'], ['A', 'B'])
-        self.assertEqual(ms['signature'], 'abc123')
-        self.assertEqual(ms['row_count'], 99)
+        self.assertEqual(ms['delimiter'], ',')
         self.assertEqual(len(ms['rows']), 1)
-        self.assertIn('matching_templates', ms)
-        self.assertEqual(ms['matching_templates'], [])
-        self.assertIn('standard_columns', ms)
-        self.assertGreater(len(ms['standard_columns']), 0)
-        self.assertIsInstance(ms['template_mappings'], list)
-        self.assertEqual(len(ms['template_mappings']), len(default_column_mappings(ms['headers'])))
+        self.assertNotIn('signature', ms)
+        self.assertNotIn('matching_templates', ms)
+        self.assertEqual(response.data['order']['manifest_row_count'], 99)
+        self.assertEqual(response.data['order']['manifest_signature'], 'abc123')
+        self.assertEqual(response.data['matching_templates'], [])
+        self.assertGreater(len(response.data['standard_columns']), 0)
+        tmc = response.data['order']['template_column_mappings_cache']
+        self.assertIsInstance(tmc, list)
+        self.assertEqual(len(tmc), len(default_column_mappings(['A', 'B'])))
 
     def test_preprocessing_status_manifest_sample_matching_templates_by_signature(self):
         sig = 'abc123'
@@ -521,12 +565,11 @@ class PreprocessingRedesignTests(TestCase):
         )
         self.order.manifest_preview = {
             'headers': ['Item Desc'],
-            'signature': sig,
-            'row_count': 3,
             'rows': [{'row_number': 1, 'raw': {'Item Desc': 'x'}}],
             'delimiter': ',',
         }
-        self.order.save(update_fields=['manifest_preview'])
+        self.order.manifest_signature = sig
+        self.order.save(update_fields=['manifest_preview', 'manifest_signature'])
         view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_status'})
         request = APIRequestFactory().get(
             f'/api/inventory/orders/{self.order.pk}/preprocessing-status/',
@@ -534,20 +577,21 @@ class PreprocessingRedesignTests(TestCase):
         force_authenticate(request, user=self.user)
         response = view(request, pk=self.order.pk)
         self.assertEqual(response.status_code, 200)
-        mt = response.data['order']['manifest_sample']['matching_templates']
+        mt = response.data['matching_templates']
         self.assertEqual(len(mt), 1)
         self.assertEqual(mt[0]['name'], 'Vendor Sig Match')
 
-    def test_preprocessing_status_manifest_sample_uses_default_mappings_when_template_mappings_null(self):
+    def test_preprocessing_status_order_template_mappings_cache_may_be_empty_before_standardize(self):
         self.order.manifest_preview = {
             'headers': ['Qty', 'Unit Retail', 'Item Description'],
-            'signature': 'sig1',
-            'row_count': 1,
             'rows': [{'row_number': 1, 'raw': {}}],
             'delimiter': ',',
-            'template_mappings': None,
         }
-        self.order.save(update_fields=['manifest_preview'])
+        self.order.manifest_signature = 'sig1'
+        self.order.template_column_mappings_cache = []
+        self.order.save(
+            update_fields=['manifest_preview', 'manifest_signature', 'template_column_mappings_cache'],
+        )
         view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_status'})
         request = APIRequestFactory().get(
             f'/api/inventory/orders/{self.order.pk}/preprocessing-status/',
@@ -555,9 +599,8 @@ class PreprocessingRedesignTests(TestCase):
         force_authenticate(request, user=self.user)
         response = view(request, pk=self.order.pk)
         self.assertEqual(response.status_code, 200)
-        tm = response.data['order']['manifest_sample']['template_mappings']
-        by_target = {m['target']: m for m in tm}
-        self.assertEqual(by_target['unit_retail']['source'], 'Unit Retail')
+        self.assertEqual(response.data['order']['template_column_mappings_cache'], [])
+        self.assertGreater(len(response.data['standard_columns']), 0)
 
     def test_suggest_formulas_returns_400_without_manifest_preview_headers(self):
         view = PurchaseOrderViewSet.as_view({'post': 'suggest_formulas'})
@@ -667,12 +710,10 @@ class PreprocessingRedesignTests(TestCase):
             retail_value=Decimal('200.00'),
             manifest=s3,
         )
-        PreprocessingOrder.objects.create(
-            purchase_order=po_dash,
-            workflow_status='finalized',
-            row_count=2,
-            finalized_at=timezone.now(),
-        )
+        now = timezone.now()
+        po_dash.preprocess_status = 'finalized'
+        po_dash.finalized_at = now
+        po_dash.save(update_fields=['preprocess_status', 'finalized_at'])
         view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_queue'})
         request = APIRequestFactory().get('/api/inventory/orders/preprocessing-queue/')
         force_authenticate(request, user=self.user)
@@ -680,6 +721,150 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 200)
         ids = [row['id'] for row in response.data['results']]
         self.assertNotIn(po_dash.pk, ids)
+
+    def test_preprocessing_queue_orders_by_preprocess_status_rank_then_updated_at(self):
+        from apps.core.models import S3File
+        from apps.inventory.constants import PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES
+
+        dash_name = next(iter(PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES))
+        vendor_dash = Vendor.objects.create(name=dash_name, code='PQ3')
+        s3a = S3File.objects.create(key='manifests/preprocessing-queue-3a.csv', filename='a.csv')
+        s3b = S3File.objects.create(key='manifests/preprocessing-queue-3b.csv', filename='b.csv')
+        older = timezone.now() - timedelta(days=2)
+        newer = timezone.now() - timedelta(days=1)
+        po_cleaned = PurchaseOrder.objects.create(
+            vendor=vendor_dash,
+            order_number='PO-PQ-CLEAN',
+            ordered_date='2026-04-27',
+            purchase_cost=Decimal('50.00'),
+            retail_value=Decimal('200.00'),
+            manifest=s3a,
+            preprocess_status='cleaned',
+        )
+        po_std_newer = PurchaseOrder.objects.create(
+            vendor=vendor_dash,
+            order_number='PO-PQ-STD-N',
+            ordered_date='2026-04-26',
+            purchase_cost=Decimal('50.00'),
+            retail_value=Decimal('200.00'),
+            manifest=s3b,
+            preprocess_status='standardized',
+        )
+        PurchaseOrder.objects.filter(pk=po_std_newer.pk).update(updated_at=newer)
+        PurchaseOrder.objects.filter(pk=po_cleaned.pk).update(updated_at=older)
+
+        view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_queue'})
+        request = APIRequestFactory().get('/api/inventory/orders/preprocessing-queue/')
+        force_authenticate(request, user=self.user)
+        response = view(request)
+        self.assertEqual(response.status_code, 200)
+        ids = [row['id'] for row in response.data['results']]
+        self.assertIn(po_cleaned.pk, ids)
+        self.assertIn(po_std_newer.pk, ids)
+        self.assertLess(ids.index(po_cleaned.pk), ids.index(po_std_newer.pk))
+
+        s3c = S3File.objects.create(key='manifests/preprocessing-queue-3c.csv', filename='c.csv')
+        s3d = S3File.objects.create(key='manifests/preprocessing-queue-3d.csv', filename='d.csv')
+        po_std_old = PurchaseOrder.objects.create(
+            vendor=vendor_dash,
+            order_number='PO-PQ-STD-O',
+            ordered_date='2026-04-25',
+            purchase_cost=Decimal('50.00'),
+            retail_value=Decimal('200.00'),
+            manifest=s3c,
+            preprocess_status='standardized',
+        )
+        po_std_mid = PurchaseOrder.objects.create(
+            vendor=vendor_dash,
+            order_number='PO-PQ-STD-M',
+            ordered_date='2026-04-24',
+            purchase_cost=Decimal('50.00'),
+            retail_value=Decimal('200.00'),
+            manifest=s3d,
+            preprocess_status='standardized',
+        )
+        PurchaseOrder.objects.filter(pk=po_std_old.pk).update(updated_at=older)
+        PurchaseOrder.objects.filter(pk=po_std_mid.pk).update(updated_at=newer)
+        response2 = view(request)
+        self.assertEqual(response2.status_code, 200)
+        ids2 = [row['id'] for row in response2.data['results']]
+        self.assertLess(ids2.index(po_std_mid.pk), ids2.index(po_std_old.pk))
+
+    def test_preprocessing_status_staging_payload_matches_po_status(self):
+        PreprocessingRow.objects.create(
+            purchase_order=self.order,
+            row_number=1,
+            quantity=1,
+            standard_description='x',
+            ai_title='y',
+            unit_retail=Decimal('10.00'),
+            proposed_price=Decimal('5.00'),
+            pricing_stage='draft',
+        )
+        self.order.preprocess_status = 'cleaned'
+        self.order.save(update_fields=['preprocess_status'])
+
+        view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_status'})
+        request = APIRequestFactory().get(
+            f'/api/inventory/orders/{self.order.pk}/preprocessing-status/',
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=self.order.pk)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['completed_step'], 1)
+        self.assertEqual(response.data['order']['preprocess_status'], 'cleaned')
+        prepr = response.data['preprocessing']
+        self.assertIsNotNone(prepr)
+        self.assertEqual(prepr['row_count'], 1)
+        self.assertNotIn('workflow_status', prepr)
+        self.assertNotIn('current_step', prepr)
+
+    def test_preprocessing_status_completed_step_table_per_preprocess_status(self):
+        view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_status'})
+        specs = [
+            ('not_started', -1),
+            ('standardized', 0),
+            ('cleaned', 1),
+            ('reviewing', 1),
+            ('finalized', 2),
+        ]
+        for st, exp_step in specs:
+            with self.subTest(status=st):
+                PreprocessingRow.objects.filter(purchase_order=self.order).delete()
+                self.order.preprocess_status = st
+                self.order.finalized_at = timezone.now() if st == 'finalized' else None
+                self.order.save(update_fields=['preprocess_status', 'finalized_at', 'updated_at'])
+                PreprocessingRow.objects.create(
+                    purchase_order=self.order,
+                    row_number=1,
+                    quantity=1,
+                    standard_description='x',
+                )
+                request = APIRequestFactory().get(
+                    f'/api/inventory/orders/{self.order.pk}/preprocessing-status/',
+                )
+                force_authenticate(request, user=self.user)
+                response = view(request, pk=self.order.pk)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data['completed_step'], exp_step)
+                self.assertEqual(response.data['order']['preprocess_status'], st)
+                prepr = response.data['preprocessing']
+                self.assertIsNotNone(prepr)
+                self.assertEqual(set(prepr.keys()), {'finalized_at', 'row_count'})
+                self.assertEqual(prepr['row_count'], 1)
+
+    def test_preprocessing_status_query_count_reasonable_with_staging_rows(self):
+        self._create_preprocessing_rows_for_review()
+        self.order.preprocess_status = 'cleaned'
+        self.order.save(update_fields=['preprocess_status'])
+        view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_status'})
+        request = APIRequestFactory().get(
+            f'/api/inventory/orders/{self.order.pk}/preprocessing-status/',
+        )
+        force_authenticate(request, user=self.user)
+        with self.assertNumQueries(12):
+            response = view(request, pk=self.order.pk)
+        self.assertEqual(response.status_code, 200)
 
     def test_upload_cleanup_csv_rejects_unknown_row_without_partial_changes(self):
         first, second = self._create_manifest_rows()
@@ -719,13 +904,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(second.title, 'LED Lamp')
 
     def test_upload_cleanup_csv_writes_staging_rows_without_manifest_rows(self):
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='standardized',
-            row_count=2,
-        )
         sr1 = PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=1,
             quantity=1,
@@ -740,7 +919,6 @@ class PreprocessingRedesignTests(TestCase):
             pricing_stage='unpriced',
         )
         sr2 = PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=2,
             quantity=1,
@@ -782,13 +960,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(sr2.final_condition, 'good')
 
     def test_upload_cleanup_csv_staging_ignores_spoofed_locked_json_cells(self):
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='standardized',
-            row_count=1,
-        )
         sr = PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=1,
             quantity=1,
@@ -852,7 +1024,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(sr.ai_tracking, {'lot_id': 'LOT-A'})
 
     def test_download_cleanup_csv_staging_lean_schema_and_row_order(self):
-        _, first, second = self._create_preprocessing_rows_for_review()
+        first, second = self._create_preprocessing_rows_for_review()
         expected_header = (
             'row_id,row_number,quantity,unit_retail,base_cost,ideal_price,description,brand,model,'
             'condition,notes,identifiers_json,taxonomy_json,specifications_json,tracking_json,'
@@ -929,7 +1101,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(missing_response.data['rows'][0]['description'], 'Acme Toaster 2 Slice')
 
     def test_preprocessing_review_patch_updates_only_staging_fields_and_status(self):
-        prep, first, _second = self._create_preprocessing_rows_for_review()
+        first, _second = self._create_preprocessing_rows_for_review()
 
         response = self._preprocessing_review_patch([
             {
@@ -948,7 +1120,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['rows_updated'], 1)
         first.refresh_from_db()
-        prep.refresh_from_db()
+        self.order.refresh_from_db()
         self.assertEqual(first.final_title, 'Acme Two Slice Toaster')
         self.assertEqual(first.final_brand, 'Acme Co')
         self.assertEqual(first.final_condition, 'good')
@@ -958,17 +1130,15 @@ class PreprocessingRedesignTests(TestCase):
         self.assertIsNone(first.proposed_price)
         self.assertEqual(first.pricing_stage, 'final')
         self.assertTrue(first.batch_flag)
-        self.assertEqual(prep.workflow_status, 'review')
-        self.assertEqual(prep.current_step, 2)
-        self.assertIsNotNone(prep.review_saved_at)
+        self.assertEqual(self.order.preprocess_status, 'reviewing')
+        self.assertIsNotNone(self.order.review_saved_at)
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 0)
         self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 0)
 
     def test_preprocessing_review_patch_rejects_finalized_session(self):
-        prep, first, _second = self._create_preprocessing_rows_for_review()
-        prep.finalized_at = timezone.now()
-        prep.workflow_status = 'finalized'
-        prep.save(update_fields=['finalized_at', 'workflow_status', 'updated_at'])
+        first, _second = self._create_preprocessing_rows_for_review()
+        self.order.finalized_at = timezone.now()
+        self.order.save(update_fields=['finalized_at', 'updated_at'])
 
         response = self._preprocessing_review_patch([
             {'id': first.id, 'patch': {'title': 'Should Not Save'}},
@@ -979,7 +1149,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(first.ai_title, 'Acme Toaster')
 
     def test_preprocessing_review_reset_final_restores_ai_standard_layers_keeps_prices(self):
-        prep, first, _second = self._create_preprocessing_rows_for_review()
+        first, _second = self._create_preprocessing_rows_for_review()
 
         patch_resp = self._preprocessing_review_patch([
             {
@@ -1016,22 +1186,15 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_preprocessing_review_reset_final_rejects_finalized_session(self):
-        prep, first, _second = self._create_preprocessing_rows_for_review()
-        prep.finalized_at = timezone.now()
-        prep.workflow_status = 'finalized'
-        prep.save(update_fields=['finalized_at', 'workflow_status', 'updated_at'])
+        first, _second = self._create_preprocessing_rows_for_review()
+        self.order.finalized_at = timezone.now()
+        self.order.save(update_fields=['finalized_at', 'updated_at'])
 
         response = self._preprocessing_review_reset_final([first.id])
         self.assertEqual(response.status_code, 409)
 
     def test_finalize_preprocessing_promotes_staging_to_manifest_and_items(self):
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='review',
-            row_count=2,
-        )
         PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=1,
             quantity=2,
@@ -1051,7 +1214,6 @@ class PreprocessingRedesignTests(TestCase):
             pricing_stage='final',
         )
         PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=2,
             quantity=1,
@@ -1086,9 +1248,9 @@ class PreprocessingRedesignTests(TestCase):
         mrows = list(ManifestRow.objects.filter(purchase_order=self.order).order_by('row_number'))
         self.assertEqual(mrows[0].category, 'Kitchen & dining')
         self.assertEqual(mrows[1].category, 'Home décor & lighting')
-        prep.refresh_from_db()
-        self.assertIsNotNone(prep.finalized_at)
-        self.assertEqual(prep.workflow_status, 'finalized')
+        self.order.refresh_from_db()
+        self.assertIsNotNone(self.order.finalized_at)
+        self.assertEqual(self.order.preprocess_status, 'finalized')
 
     def test_preprocessing_review_full_mode_returns_all_rows(self):
         self._create_preprocessing_rows_for_review()
@@ -1112,13 +1274,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertNotIn('identifiers', row)
 
     def test_finalize_preprocessing_rejects_inline_rows_payload(self):
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='review',
-            row_count=1,
-        )
         PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=1,
             quantity=1,
@@ -1139,13 +1295,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_finalize_after_review_patch_then_build_creates_manifest(self):
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='review',
-            row_count=1,
-        )
         row = PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=1,
             quantity=1,
@@ -1178,13 +1328,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 1)
 
     def test_finalize_preprocessing_preserves_staff_final_review_on_bookmarks_then_manifest(self):
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='review',
-            row_count=1,
-        )
         row = PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=1,
             quantity=1,
@@ -1231,13 +1375,7 @@ class PreprocessingRedesignTests(TestCase):
     def test_processing_workspace_shows_bookmarks_before_build(self):
         from apps.inventory.services.processing_workspace import build_processing_workspace
 
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='review',
-            row_count=1,
-        )
         PreprocessingRow.objects.create(
-            preprocessing_order=prep,
             purchase_order=self.order,
             row_number=1,
             quantity=1,
@@ -1249,6 +1387,7 @@ class PreprocessingRedesignTests(TestCase):
             pricing_stage='final',
         )
         self.assertEqual(self._finalize_preprocessing_fast().status_code, 200)
+        self.order.refresh_from_db()
         ws = build_processing_workspace(self.order)
         self.assertTrue(ws.get('processingBookmarkOnly'))
         self.assertIsNotNone(ws.get('preprocessing_finalized_at'))
@@ -1263,12 +1402,9 @@ class PreprocessingRedesignTests(TestCase):
         self.assertIsNotNone(ws2['rows'][0]['manifest_row_id'])
 
     def test_processing_data_build_three_chunks_counters(self):
-        PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='finalized',
-            row_count=250,
-            finalized_at=timezone.now(),
-        )
+        self.order.finalized_at = timezone.now()
+        self.order.preprocess_status = 'finalized'
+        self.order.save(update_fields=['finalized_at', 'preprocess_status', 'updated_at'])
         ProcessingRow.objects.bulk_create([
             ProcessingRow(
                 purchase_order=self.order,
@@ -1311,12 +1447,9 @@ class PreprocessingRedesignTests(TestCase):
         )
 
     def test_chunk_endpoint_idempotent_when_build_complete(self):
-        PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='finalized',
-            row_count=1,
-            finalized_at=timezone.now(),
-        )
+        self.order.finalized_at = timezone.now()
+        self.order.preprocess_status = 'finalized'
+        self.order.save(update_fields=['finalized_at', 'preprocess_status', 'updated_at'])
         ProcessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
@@ -1337,12 +1470,9 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 1)
 
     def test_clear_processing_data_returns_to_bookmarks_only(self):
-        prep = PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='finalized',
-            row_count=2,
-            finalized_at=timezone.now(),
-        )
+        self.order.finalized_at = timezone.now()
+        self.order.preprocess_status = 'finalized'
+        self.order.save(update_fields=['finalized_at', 'preprocess_status', 'updated_at'])
         ProcessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
@@ -1385,18 +1515,15 @@ class PreprocessingRedesignTests(TestCase):
         self.assertFalse(ProcessingDataBuild.objects.filter(purchase_order=self.order).exists())
         self.assertFalse(ProcessingBatch.objects.filter(purchase_order=self.order).exists())
 
-        prep.refresh_from_db()
-        self.assertIsNotNone(prep.finalized_at)
+        self.order.refresh_from_db()
+        self.assertIsNotNone(self.order.finalized_at)
 
     def test_get_processing_data_build_status_idle_then_running(self):
         from apps.inventory.services.processing_workspace import build_processing_workspace
 
-        PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='finalized',
-            row_count=101,
-            finalized_at=timezone.now(),
-        )
+        self.order.finalized_at = timezone.now()
+        self.order.preprocess_status = 'finalized'
+        self.order.save(update_fields=['finalized_at', 'preprocess_status', 'updated_at'])
         ProcessingRow.objects.bulk_create([
             ProcessingRow(
                 purchase_order=self.order,
@@ -1438,12 +1565,9 @@ class PreprocessingRedesignTests(TestCase):
         self.assertFalse(ws.get('processingBookmarkOnly'))
 
     def test_build_processing_data_fast_path_handles_large_bookmark_set(self):
-        PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='finalized',
-            row_count=200,
-            finalized_at=timezone.now(),
-        )
+        self.order.finalized_at = timezone.now()
+        self.order.preprocess_status = 'finalized'
+        self.order.save(update_fields=['finalized_at', 'preprocess_status', 'updated_at'])
         ProcessingRow.objects.bulk_create([
             ProcessingRow(
                 purchase_order=self.order,
@@ -1474,12 +1598,9 @@ class PreprocessingRedesignTests(TestCase):
         )
 
     def test_build_processing_data_uses_placeholder_for_missing_listing_text(self):
-        PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='finalized',
-            row_count=1,
-            finalized_at=timezone.now(),
-        )
+        self.order.finalized_at = timezone.now()
+        self.order.preprocess_status = 'finalized'
+        self.order.save(update_fields=['finalized_at', 'preprocess_status', 'updated_at'])
         ProcessingRow.objects.create(
             purchase_order=self.order,
             row_number=5,
@@ -1503,12 +1624,9 @@ class PreprocessingRedesignTests(TestCase):
     def test_processing_check_in_works_with_fast_path_productless_items(self):
         from apps.inventory.processing_ops import processing_print_and_check_in
 
-        PreprocessingOrder.objects.create(
-            purchase_order=self.order,
-            workflow_status='finalized',
-            row_count=1,
-            finalized_at=timezone.now(),
-        )
+        self.order.finalized_at = timezone.now()
+        self.order.preprocess_status = 'finalized'
+        self.order.save(update_fields=['finalized_at', 'preprocess_status', 'updated_at'])
         ProcessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,

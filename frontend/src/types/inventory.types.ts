@@ -154,7 +154,7 @@ export interface PurchaseOrderListRow {
   condition: PurchaseOrderCondition;
   description: string;
   item_count: number;
-  order_pallet_count: number | null;
+  pallet_count: number | null;
   total_cost: string | null;
   retail_value: string | null;
   has_manifest: boolean;
@@ -208,7 +208,7 @@ export interface PurchaseOrder {
   description: string;
   item_count: number;
   /** Expected pallet count when ordering; null if unknown (distinct from receiving pallet count). */
-  order_pallet_count: number | null;
+  pallet_count: number | null;
   notes: string;
   manifest: number | null;
   manifest_file: {
@@ -222,13 +222,38 @@ export interface PurchaseOrder {
   } | null;
   manifest_preview: {
     headers: string[];
-    signature: string;
-    template_id: number | null;
-    template_name: string | null;
-    template_mappings?: ColumnMapping[] | null;
-    row_count: number;
+    delimiter?: string;
     rows: { row_number: number; raw: Record<string, string> }[];
   } | null;
+  /** Denormalized at manifest upload; cleared on remove. Omitted on list rows. */
+  manifest_filename?: string;
+  manifest_uploaded_at?: string | null;
+  /** Line count from last raw file upload (`len(rows_data)`). */
+  manifest_row_count?: number | null;
+  manifest_category_count?: number | null;
+  manifest_signature?: string;
+  manifest_headers?: string[] | null;
+  template?: number | null;
+  template_name_cache?: string;
+  template_header_signature_cache?: string;
+  template_column_mappings_cache?: ColumnMapping[];
+  standardization_formulas?: Record<string, unknown>;
+  preprocess_status?: string;
+  receiving_status?: string;
+  receiving_started_at?: string | null;
+  receiving_done_at?: string | null;
+  processing_status?: string;
+  processing_started_at?: string | null;
+  processing_done_at?: string | null;
+  uses_legacy_processing?: boolean;
+  closeout_status?: string;
+  intake_dispute_status?: string;
+  processing_dispute_status?: string;
+  standardized_at?: string | null;
+  ai_cleaned_at?: string | null;
+  review_saved_at?: string | null;
+  finalized_at?: string | null;
+  closed_at?: string | null;
   processing_stats?: {
     item_status_counts: {
       intake: number;
@@ -243,11 +268,67 @@ export interface PurchaseOrder {
     batch_groups_pending: number;
     batch_groups_total: number;
   };
-  /** Present on retrieve (`PurchaseOrderDetailSerializer`); not on list rows. */
-  manifest_row_count?: number;
+  /** Canonical `ManifestRow` count on `GET /orders/{id}/` (retrieve); not on detail-surface. */
+  inventory_manifest_row_count?: number;
   manifest_rows?: ManifestRow[];
   created_by: number | null;
   created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /api/inventory/orders/{id}/detail-surface/ — Order Detail page only (no manifest_preview, no processing_stats). */
+export interface PurchaseOrderDetailSurface {
+  id: number;
+  vendor: number;
+  vendor_name: string;
+  vendor_code: string;
+  order_number: string;
+  status: PurchaseOrderStatus;
+  ordered_date: string;
+  paid_date: string | null;
+  shipped_date: string | null;
+  expected_delivery: string | null;
+  delivered_date: string | null;
+  purchase_cost: string | null;
+  shipping_cost: string | null;
+  fees: string | null;
+  total_cost: string | null;
+  retail_value: string | null;
+  est_shrink: string;
+  condition: PurchaseOrderCondition;
+  description: string;
+  item_count: number;
+  pallet_count: number | null;
+  notes: string;
+  manifest_filename: string | null;
+  manifest_uploaded_at: string | null;
+  manifest_row_count: number | null;
+  manifest_category_count: number | null;
+  manifest_signature?: string | null;
+  manifest_headers?: string[] | null;
+  template?: number | null;
+  template_name_cache?: string;
+  template_header_signature_cache?: string;
+  template_column_mappings_cache?: ColumnMapping[];
+  standardization_formulas?: Record<string, unknown>;
+  preprocess_status?: string;
+  receiving_status?: string;
+  receiving_started_at?: string | null;
+  receiving_done_at?: string | null;
+  processing_status?: string;
+  processing_started_at?: string | null;
+  processing_done_at?: string | null;
+  uses_legacy_processing?: boolean;
+  closeout_status?: string;
+  intake_dispute_status?: string;
+  processing_dispute_status?: string;
+  standardized_at?: string | null;
+  ai_cleaned_at?: string | null;
+  review_saved_at?: string | null;
+  finalized_at?: string | null;
+  closed_at?: string | null;
+  has_manifest: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -556,6 +637,9 @@ export type ReceivingLoadCondition = '' | 'good' | 'mixed' | 'damaged';
 
 /** GET /inventory/orders/for-receiving/ extends list row. */
 export interface OrderForReceivingRow extends PurchaseOrderListRow {
+  receiving_status?: string;
+  receiving_started_at?: string | null;
+  receiving_done_at?: string | null;
   has_receiving_draft: boolean;
   has_receiving_complete: boolean;
 }
@@ -584,6 +668,7 @@ export interface ReceivingAttachmentDTO {
 }
 
 export interface ReceivingPalletDTO {
+  id: number;
   pallet_number: number;
   damaged: boolean;
 }
@@ -596,7 +681,7 @@ export interface ReceivingDetailDTO {
   end_time: string | null;
   condition: ReceivingLoadCondition;
   issues: string;
-  pallet_count: number;
+  received_pallet_count: number;
   completed_at: string | null;
   draft_version: number;
   is_draft: boolean;
@@ -620,6 +705,6 @@ export interface ReceivingPatchPayload {
   end_time?: string | null;
   condition?: ReceivingLoadCondition;
   issues?: string;
-  pallet_count?: number;
+  received_pallet_count?: number;
   pallets?: Array<{ pallet_number: number; damaged?: boolean }> | null;
 }

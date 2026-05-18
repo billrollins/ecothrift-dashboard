@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-06 (`review.0.Bump` — **`v2.23.0`**: workspace **`search_string` / `searchString`**) -->
+<!-- Last updated: 2026-05-18 (**review.0/1/9** steering + deep-dive **`latest/`**; initiative Session 15 intake) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | **Inbound:** **Orders** + **Receiving** + preprocessing **core** shipped. **Processing (`v2.23.0`):** persisted **`ProcessingRow.search_string`** + list **`searchString`** + **`rebuild_processing_search_string`**. **`v2.21.1`:** fast minimal **`build-processing-data`** for large POs; **`v2.21.0`:** **`processing-workspace`**, **`processing-row-detail`**; **`processing-swap`** not shipped. **Iterative:** Final Review mockup (**`fix_this.md`**) + chunked/background processing-data build. Ref: **[Preprocessing — target UX](order_processing_pipeline_rebuild.md#preprocessing--target-ux)**. Offline Grok: Session 2; ref: [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md). |
+| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | **Inbound:** **Orders** + **Receiving** + preprocessing **core** shipped. **Processing (`v2.23.0`):** persisted **`ProcessingRow.search_string`** + list **`searchString`** + **`rebuild_processing_search_string`**. **Active now:** Session 15 intake rebuild stabilization steps (schema/migrations, orders surfaces, preprocessing/receiving hardening, processing handoff, disputes/repair, recon/deploy closeout). Ref: **[Current Execution Steps](order_processing_pipeline_rebuild.md#current-execution-steps)** and **[Preprocessing — target UX](order_processing_pipeline_rebuild.md#preprocessing--target-ux)**. Supporting refs: [`_sql`](../reference/order_processing_pipeline_rebuild/_sql/README.md), [`_recon`](../reference/order_processing_pipeline_rebuild/_recon/README.md), [`2026.05.08_intake_updates.md`](../reference/order_processing_pipeline_rebuild/2026.05.08_intake_updates.md). |
 
 Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
 

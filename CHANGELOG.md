@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.23.0] — 2026-05-06 (Inventory — Item Processor workspace search blob) -->
-<!-- Last reviewed: 2026-05-06 (`review.0.Bump` — `[Unreleased]` Item Processor `shelf_price` workspace SSOT; **no** semver bump — Part 2A) -->
+<!-- Line 1 release: ## [2.24.0] — 2026-05-18 (Inventory — inbound intake stabilization) -->
+<!-- Last reviewed: 2026-05-18 (`review.0.Bump` release — inbound intake stabilization; MINOR semver) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,36 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.24.0] — 2026-05-18
+
+User-facing theme: **Inbound intake stabilization** — purchase orders can move more safely through **Orders → Preprocessing → Receiving → Processing handoff → Disputes / repair**, with schema rails, repair tooling, dashboard fallbacks, and frontend guardrails for business-hours release.
+
+### Added
+
+- **Inventory / intake schema wave** — Migrations **`0045_purchase_order_manifest_meta`** … **`0051_rename_inventory_d_purchas_2f1e4c_idx_inventory_d_purchas_c3911a_idx_and_more`** add purchase-order manifest metadata, preprocessing/receiving/processing/dispute status rails, timestamp rollups, **`Dispute`** persistence, and processing track compatibility. **`0047`** removes the legacy **`PreprocessingOrder`** intermediary.
+- **Inventory / intake services** — Added deterministic intake repair / verification (**`repair_intake_pipeline_pos`**, **`intake_po_repair`**), intake gates, undo/reset helpers, manifest metadata/remove helpers, and dispute rollups for operational recovery.
+- **Frontend / order detail** — Added the intake timeline drawer for order lifecycle visibility and undo/purge previews.
+
+### Changed
+
+- **Inventory / Orders dashboard** — Dashboard/list vendor filtering now falls back across **`vendor_name_cache`** and **`vendor__name`** so stale-empty cache rows still appear.
+- **Inventory / Receiving and Processing** — Receiving statuses/timestamps, pallet counts, processing track fields, and legacy-processing flags are aligned for the rebuilt intake path.
+- **Inventory / Preprocessing** — Preprocessing rows link directly to **`PurchaseOrder`** after **`0047`**, with final snapshot/backfill behavior documented for the rebuild wave.
+
+### Fixed
+
+- **Inventory / rollout repair** — Rollout PO identity mapping for ids **316–319** is canonicalized across migration expectations, repair verification, and tests: **`316=AMZ0N-OQL-CCP4`**, **`317=C5TC0-OM1-A8R3`**, **`318=TRGET-O4U-QP68`**, **`319=TRGET-O2R-1K40`**.
+- **Inventory / Item Processor** — **`processing_dispute`** now commits item mutation, denorm refresh, and dispute row creation in one atomic unit so downstream failures roll back disputed item status.
+- **Frontend / Orders** — Debounced order-detail PATCHes no longer silently discard pending edits when the detail cache is absent; failed PATCHes restore the pending snapshot.
+- **Frontend / Receiving** — Desktop receiving renders a clear missing-order-detail fallback instead of crashing on an unsafe **`po.data!`** access.
+
+### Operations
+
+- **Deploy / verification** — Rehearsed **`python manage.py migrate`**, **`repair_intake_pipeline_pos --verify`**, targeted inventory pytest matrix (**121 passed**), and **`frontend npm run build`** before release.
+- **Reference docs** — Intake recon SQL, order API SQL references, deep-dive reports, and Session 15 steering updates are captured under **`.ai/reference/order_processing_pipeline_rebuild/`** and **`.ai/reference/deep_dive/latest/`**.
 
 ---
 
@@ -101,7 +131,24 @@ User-facing theme: **Processing data hotfix** — large finalized POs can enter 
 
 ## [Unreleased]
 
-### Changed (Preprocessing Final Review UI — visual rebuild planned)
+### Added (Inbound intake rebuild — unreleased branch)
+
+- **Inventory / intake schema wave** — Migrations **`0045_purchase_order_manifest_meta`** … **`0051_rename_inventory_d_purchas_2f1e4c_idx_inventory_d_purchas_c3911a_idx_and_more`**: **`PurchaseOrder`** manifest metadata + intake statuses / timestamp rails + **`Dispute`** model; **`0047`** drops **`PreprocessingOrder`**; **`0050`** processing track + **`uses_legacy_processing`**. Services + command: **`intake_po_repair`** / **`repair_intake_pipeline_pos`**, **`intake_undo`**, **`intake_gates`**, **`manifest_meta`**, **`manifest_remove`**, **`disputes`**. Operational recon: **[`.ai/reference/order_processing_pipeline_rebuild/_recon/README.md`](.ai/reference/order_processing_pipeline_rebuild/_recon/README.md)**. Initiative sequencing: **`order_processing_pipeline_rebuild`** **Session 15**.
+- **Reference SQL** — Order API alignment snippets under **[`.ai/reference/order_processing_pipeline_rebuild/_sql/`](.ai/reference/order_processing_pipeline_rebuild/_sql/README.md)** (keep **`.ai/extended/sql/schema.csv`** in sync on release).
+
+### Changed (Inbound intake — unreleased branch)
+
+- **Inventory / Orders dashboard** — **`PurchaseOrderViewSet`** list-style actions match dashboard vendors via **`Q(vendor_name_cache__in=… \| Q(vendor__name__in=…))`** + **`select_related('vendor')`** so stale-empty **`vendor_name_cache`** rows still appear (**`apps/inventory/views.py`**, **`test_purchase_order_list_dashboard_filter`**).
+
+### Fixed (Inbound intake stabilization — unreleased branch)
+
+- **Migration `0045_purchase_order_manifest_meta`** — Rollout **`expected_order_numbers`** (316–319) aligned to canonical **`id→order_number`**: **`316`=AMZ0N-OQL-CCP4**, **`317`=C5TC0-OM1-A8R3**, **`318`=TRGET-O4U-QP68**, **`319`=TRGET-O2R-1K40**. Environments that already applied **`0045`** do not replay **`RunPython`**; **`repair_intake_pipeline_pos`** + operational truth remains the corrective path where needed (`apps/inventory/migrations/0045_purchase_order_manifest_meta.py`, **`EXPECTED_INTAKE_POS`**, **`test_intake_po_repair`**).
+- **Inventory / Item Processor** — **`processing_dispute`** commits item mutation, denorm refresh, and **`record_processing_dispute_for_items`** in one atomic unit so **`refresh_processing_rows_denorm`** / dispute persistence failures roll back disputed item status (**`apps/inventory/processing_ops.py`**; regression **`test_processing_dispute_rolls_back_items_when_denorm_fails`**).
+
+### Frontend (Inbound intake — unreleased branch)
+
+- **Orders / Purchase order detail** — Debounced field PATCH flush no longer clears pending edits when **`purchaseOrderSurface`** cache is absent; PATCH failures restore the pending snapshot (**`OrderDetailPage.tsx`**).
+- **Receiving / desktop** — Order surface missing after receiving payload loads renders an error alert + link back instead of crashing on **`po.data!`** (**`ReceivingOrderPage.tsx`**).
 
 - **Visual authority:** **[`final_review_visual_rebuild_directive.md`](.ai/reference/final_review_visual_rebuild_directive.md)** is mockup ground truth for Pass 1; **[`fix_this.md`](.ai/reference/fix_this.md)** is the short pointer. **[`consult_design_final_review.md`](.ai/reference/consult_design_final_review.md)** and **[`final_review_ui_rebuild_plan.md`](.ai/reference/final_review_ui_rebuild_plan.md)** stay useful for behavior notes; where they **disagree on visuals**, the **directive** wins for the first pass.
 - **Pass 1 (directive):** Stepper labels (**Manual Review** / **Finalize and Open Processing**), six summary stats, toolbar **Save Changes** tied to the active filter, dense table columns without horizontal scroll, bulk pricing on **filtered rows** (not a row-selection gate). **No** `@tanstack/react-virtual` in Pass 1. Count-based indicators **hidden at zero** and variance **tolerance bands** per **[`.ai/extended/ux-spec.md`](.ai/extended/ux-spec.md)**.
@@ -130,6 +177,7 @@ User-facing theme: **Processing data hotfix** — large finalized POs can enter 
 
 ### Documentation
 
+- **AI steering / audits (`review.0` / `review.1` / `review.9`)** — Refreshed **`CHANGELOG [Unreleased]`** intake bullets; synced **`.ai/context.md`**, **`.ai/consultant_context.md`**, **`.ai/extended/inventory-pipeline.md`** (intake appendix + **`0047`** narrative); persisted diff summary **[`.ai/reference/diffs/20260518-092215.diff.md`](.ai/reference/diffs/20260518-092215.diff.md)**; deep dive output set under **[`.ai/reference/deep_dive/latest/`](.ai/reference/deep_dive/latest/)** (prior **`latest/`** archived to **`_runs/20260518T092130/previous_latest/`**).
 - **Docs / reference** — **[`.ai/reference/cleanup_csv_contract.md`](.ai/reference/cleanup_csv_contract.md)** summarizes **`apply-cleanup-csv`** / **`upload-cleanup-csv`**: wide vs narrow rows, optional **`ai_status`**, staging-wide **relaxed** validation (quality **`HARD_*`** folded into **`soft_warnings`**), validation **`rule`** ids, and **`rejected_rows`** / **`soft_warnings`** response shape. **Historical:** a committed Jupyter tree under **`workspace/notebooks/ai-cleanup/`** was removed from the repo (**2026-05**); use **`workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`** (gitignored unless whitelisted) plus the contract doc for CSV semantics.
 - **Inventory pipeline (extended)** — [`.ai/extended/inventory-pipeline.md`](.ai/extended/inventory-pipeline.md): Item Processor workspace (**`processing-workspace`** API, **`ProcessingWorkspacePage`**, legacy grid route); optional adjunct **`workspace/ai-cleanup-grok/helpers/clean-grok.mjs`** for offline xAI cleanup (strict JSON Schema enums, **`.cleaned.csv`** + **`ai_status`**, optional **`--batch-api`**).
 - **Environment template** — xAI Grok (**`XAI_API_KEY`** / **`GROK_API_KEY`**, **`AI_PROVIDER`**, **`XAI_API_BASE`**) aligned with Django settings ([`.env.example`](.env.example); [`.ai/extended/development.md`](.ai/extended/development.md)).

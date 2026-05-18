@@ -166,3 +166,15 @@ def manifest_status_counts_aggregate(order, manifest_qs):
         'total_set': Decimal(agg['total_set_prices']),
         'ideal_delta_pct': agg['ideal_delta_pct'],
     }
+
+
+def completed_step_from_preprocess_status(preprocess_status: str) -> int:
+    """Map ``PurchaseOrder.preprocess_status`` to the preprocessing stepper ``completed_step`` (read path)."""
+    mapping = {
+        'not_started': -1,
+        'standardized': 0,
+        'cleaned': 1,
+        'reviewing': 1,
+        'finalized': 2,
+    }
+    return mapping.get(preprocess_status or '', -1)

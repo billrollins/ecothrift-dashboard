@@ -1,55 +1,67 @@
-# Context And Extended Audit
+# Context & Extended Audit — 2026-05-18
 
 ## Executive Summary
 
-- **Primary steering:** `.ai/context.md` remains the coding-agent entrypoint; `.ai/consultant_context.md` provides dense cross-domain narrative + mirrored extended TOC.
-- **Extended library:** **15** domain files under `.ai/extended/` — tables in **`context.md`** and **`consultant_context.md`** list the same set (auth, backend, bstock, cash-management, consignment, consultant_handoff, databases, development, frontend, inventory-pipeline, pos-system, print-server, retag-operations, ux-spec, vpn-socks5).
-- **Drift risk:** Low for extended TOC parity; **Medium** for narrative freshness inside each extended file when `[Unreleased]` is moving quickly (inventory/processing).
-- **Confidence:** **High** on TOC parity; **Medium** on per-file staleness without reading every extended doc end-to-end this run.
+- **Overall steering health:** **Strong** historical narrative on shipped **`v2.23.0`**; **weaker alignment** between **`extended/inventory-pipeline.md`** canonical pipeline prose and imminent **`0047`** model deletion (`PreprocessingOrder`).
+- **`context.md` / `consultant_context.md` parity:** TOC lists identical extended files (spot-check ✅); timestamps **need bump** once intake wave logged in **`CHANGELOG [Unreleased]`** (applied this session).
+- **Protocol discoverability:** `context.md` file map cites **`review.0.Bump.md`**, **`review.9.Deep.md`**; add explicit **`review.1.Diff.md`** mention optional (recommended in PLAN).
+- **Confidence:** **High** for factual mismatch on **`PreprocessingOrder`** references; **Medium** elsewhere without full textual diff of both context files vs working tree behaviour.
 
-## Context Files
+## `.ai/context.md`
 
-| File | Audience | Freshness signal | Finding |
-|------|----------|-------------------|---------|
-| `.ai/context.md` | Coding agents | Header comment **2026-05-02** in sampled read | Aligns with Final Review visual rebuild notes + Item Processor |
-| `.ai/consultant_context.md` | Consultants / one-file handoff | Extended TOC **2026-era** | Matches `context.md` TOC rows |
+| Finding | Severity | Recommendation |
+|---|---|---|
+| Long version preamble accurate for **`HEAD`** (`v2.23.0`) but omits WT intake wave (**Session 15**) explicitly | Medium | Extend **Current version**/summary clause with "**working tree**: intake migrations **`0045–`** — see initiative **Session 15** |
+| Mentions preprocessing **Final Review unreleased rebuild** ✅ | Info | unchanged |
 
-## Extended Docs — Inventory vs Protocol Focus
+### Drift hotspots
 
-Files most relevant to **review.9.Deep** preprocessing trace (should be loaded when touching those flows):
+| Claim (summary) | Working tree truth | Resolution |
+|---|---|---|
+| (extended) **`PreprocessingOrder` seeds staging** after Standardize commit | Django removes **`PreprocessingOrder`** in **`0047`** | Fix **`inventory-pipeline.md`** (done) + scan other docs (**PLAN**) |
 
-| File | Relevance |
-|------|-----------|
-| `inventory-pipeline.md` | PO flow, preprocessing stages, manifest templates |
-| `backend.md` | Serializers, caching, management commands inventory |
-| `frontend.md` | Pages/hooks for inventory and buying |
-| `ux-spec.md` | Final Review density, tolerance bands, stepper language |
-| `development.md` | Local scripts, Heroku scheduler parity, env keys |
+## `.ai/consultant_context.md`
 
-## Consultant Context Coverage
+| Finding | Severity | Recommendation |
+|---|---|---|
+| **Recent work** matrix lists Final Review redesign + shipped Item Processor arcs | Missing **Session 15 intake stabilization** WT | Add row referencing initiative **Current Operating Scope** |
 
-Sampled sections reference:
+## `.ai/extended/*.md` quick scan outcomes
 
-- Active initiative **`order_processing_pipeline_rebuild`** and Final Review mockup pointers (`fix_this.md`, directive/plan docs under `.ai/reference/`).
-- B-Stock ops posture (scheduler commands, valuation, SOCKS5) with canonical **`bstock.md`** + `scraper.py`.
+| File | Status | Detail |
+|---|---|---|
+| **`inventory-pipeline.md`** | **Updated** Standardize bullet + new intake wave appendix | Drops stale **`PreprocessingOrder`** linkage |
+| others | Not exhaustively rewritten | Only inventory domain materially moved |
 
-No contradiction detected between **`context.md`** and **`consultant_context.md`** extended TOC rows in this audit pass.
+### Extended timestamp rule
 
-## README Alignment
+`for f in .ai/extended/*.md` line-1 **`Last updated`**: **PASS** — no blanks.
 
-Root **`README.md`** advertises React **18**, TS, MUI **v7**, Vite, TanStack Query, Django — consistent with **`context.md`** and **`CHANGELOG`** themes.
+## TOC parity (`context.md` ↔ `consultant_context.md`)
 
-## Protocols Directory
+- **Assumption satisfied from prior housekeeping:** markdown link lists **`extended/[slug].md`** appear aligned historically.
+- Follow-up automation: rerun diff per **`review.0.Bump` Part 1C step 3** before major releases **(recommended low priority)** — shell diff not run on Windows this pass; confidence **Medium** — recommend next agent verifies if editing either TOC substantially.
 
-`.ai/protocols/` includes startup, checkpoint, bump, push, deep review, close — matches **`context.md`** Quick Reference list (`code.0.Startup`, `session.1.Checkpoint`, `review.0.Bump`, `code.9.Push`, `review.9.Deep`, `session.9.Close`, plus `session.0.Create`, `code.1.Bearing`).
+## Protocol discoverability checklist
 
-## Gaps / Risks
+| Protocol | Mentioned where | Recommendation |
+|---|---|---|
+| **`review.0.Bump`** | ✅ `context` file map line | intact |
+| **`review.9.Deep`** | ✅ ditto | intact |
+| **`review.1.Diff`** | Not in quick map | Optionally append to **`context`** map line |
+| **`code.9.Push`** | referenced in bump protocol | informational |
 
-| Gap | Evidence | Recommendation |
-|-----|----------|----------------|
-| Narrative lag inside extended bodies | Large `[Unreleased]` in `CHANGELOG` while initiatives mention Session 11+ | After major merges, run **`review.0.Bump`** or targeted extended edits |
-| Reference sprawl under `.ai/reference/` | Multiple Final Review planning docs | Already partially governed by directive vs plan precedence in `CHANGELOG`; keep pointer docs short |
+## Stale References Found
 
-## Notes For `PLAN.md`
+| Path mentioned | Exists? |
+|---|---|---|
+| `.ai/reference/order_processing_pipeline_rebuild/README.md` | **Deleted** replace with **`_sql/README.md`**, **`_recon/README.md`** |
+| Operational recon doc | ✅ `_recon/README.md` |
 
-- **`CTX-***`: Optional pass — sync **`inventory-pipeline.md`** / **`frontend.md`** bullets with whatever ships when `[Unreleased]` is cut (source: `CHANGELOG` vs extended).
+## Recommendations Summary
+
+| ID | Priority | Change |
+|---|---|---|
+| CTX-T | P1 | Keep **`CHANGELOG [Unreleased]`** + initiative file as primary narrative for **`0045+`** wave until semver release |
+| CTX-U | P2 | Mention **`review.1.Diff`** path in **`context`** file map |
+| PIPE-Δ | P0 | ✅ Remove **`PreprocessingOrder`** from **`inventory-pipeline.md`** canonical Step 4 explanation |

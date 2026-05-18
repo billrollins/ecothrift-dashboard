@@ -23,6 +23,7 @@ from apps.inventory.models import (
     PurchaseOrder,
 )
 from apps.inventory.serializers import ItemSerializer
+from apps.inventory.services.disputes import record_processing_dispute_for_items
 from apps.inventory.services.processing_workspace import (
     build_workspace_patch,
     condition_ui_to_db,
@@ -506,11 +507,16 @@ def processing_dispute(user, order: PurchaseOrder, data: dict) -> dict:
             )
         ItemHistory.objects.bulk_create(histories)
 
-    m_ids = {it.manifest_row_id for it in target_items if it.manifest_row_id}
-    pr_ids = processing_row_ids_for_manifest_rows(order, m_ids)
-    refresh_processing_rows_denorm(order, processing_row_ids=pr_ids)
+        m_ids = {it.manifest_row_id for it in target_items if it.manifest_row_id}
+        pr_ids = processing_row_ids_for_manifest_rows(order, m_ids)
+        refresh_processing_rows_denorm(order, processing_row_ids=pr_ids)
 
-    return {'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=pr_ids)}
+        pct_val = int(pct) if dtype == 'broken' and pct is not None else None
+        d = record_processing_dispute_for_items(user, order, target_items, dtype, pct_val, desc)
+        return {
+            'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=pr_ids),
+            'dispute_id': d.id,
+        }
 
 
 def _apply_product_field_values(product: Product, fv: dict) -> None:

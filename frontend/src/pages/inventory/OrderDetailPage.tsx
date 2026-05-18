@@ -1,20 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
   useMediaQuery,
@@ -29,18 +19,15 @@ import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import InlineEditableValue from '../../components/inventory/orderDetail/InlineEditableValue';
+import OrderIntakeTimelineDrawer from '../../components/inventory/orderDetail/OrderIntakeTimelineDrawer';
 import { PO_CONDITION_OPTIONS } from '../../constants/purchaseOrderCondition';
 import { formatCurrencyWhole, formatNumber } from '../../utils/format';
 import { updateOrder } from '../../api/inventory.api';
 import {
-  useOrderDeletePreview,
-  usePurgeDeleteOrder,
-  usePurchaseOrder,
-  useRemoveManifest,
+  usePurchaseOrderSurface,
   useUploadManifest,
 } from '../../hooks/useInventory';
-import type { OrderDeletePreviewResponse } from '../../api/inventory.api';
-import type { PurchaseOrder } from '../../types/inventory.types';
+import type { PurchaseOrderDetailSurface } from '../../types/inventory.types';
 
 function inventoryUploadDetail(err: unknown): string {
   const ax = err as { response?: { data?: { detail?: unknown } } };
@@ -61,7 +48,7 @@ function focusIsInEditableField(): boolean {
 }
 
 function deriveLifecycleStatus(
-  o: Pick<PurchaseOrder, 'delivered_date' | 'shipped_date' | 'paid_date'>,
+  o: Pick<PurchaseOrderDetailSurface, 'delivered_date' | 'shipped_date' | 'paid_date'>,
 ): 'ordered' | 'paid' | 'shipped' | 'delivered' {
   if (o.delivered_date) return 'delivered';
   if (o.shipped_date) return 'shipped';
@@ -78,22 +65,6 @@ function parseMoney(n: string | null | undefined): number {
 function marginPct(retail: number, totalCost: number): number | null {
   if (!(retail > 0) || !(totalCost >= 0)) return null;
   return ((retail - totalCost) / retail) * 100;
-}
-
-function manifestCategoryDistinctCount(order: PurchaseOrder): string {
-  const preview = order.manifest_preview;
-  if (!preview?.headers?.length || !preview.rows?.length) return '—';
-  const lowered = preview.headers.map((h) => String(h).toLowerCase());
-  const idx = lowered.findIndex((h) => h.includes('category') || h.includes('department') || h.includes('class'));
-  if (idx < 0) return '—';
-  const key = preview.headers[idx];
-  const vals = new Set<string>();
-  for (const r of preview.rows) {
-    const raw = r.raw as Record<string, string>;
-    const v = raw[key];
-    if (v != null && String(v).trim()) vals.add(String(v).trim());
-  }
-  return vals.size ? formatNumber(vals.size) : '—';
 }
 
 const STATUS_STYLE: Record<
@@ -126,7 +97,7 @@ function CircleEmpty() {
   );
 }
 
-function headerBadge(order: PurchaseOrder): { label: string; style: { bg: string; color: string } } {
+function headerBadge(order: PurchaseOrderDetailSurface): { label: string; style: { bg: string; color: string } } {
   if (order.status === 'cancelled') return { label: 'CANCELLED', style: STATUS_STYLE.cancelled };
   if (order.status === 'processing') return { label: 'PROCESSING', style: STATUS_STYLE.processing };
   if (order.status === 'complete') return { label: 'COMPLETE', style: STATUS_STYLE.complete };
@@ -205,22 +176,52 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const orderId = id ? Number.parseInt(id, 10) : null;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
 
-  const { data: order, isLoading } = usePurchaseOrder(orderId);
-  const orderDeletePreview = useOrderDeletePreview();
-  const purgeDeleteOrder = usePurgeDeleteOrder();
+  const { data: order, isLoading } = usePurchaseOrderSurface(orderId);
   const uploadManifestMutation = useUploadManifest();
-  const removeManifestMutation = useRemoveManifest();
+
+  const drawerOpen = searchParams.get('drawer') === 'timeline';
+  const undoParam = searchParams.get('undo');
+  const dangerPurge = searchParams.get('danger') === 'purge';
+
+  const closeIntakeDrawer = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.delete('drawer');
+        n.delete('undo');
+        n.delete('danger');
+        return n;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
+
+  const openIntakeDrawer = useCallback(
+    (opts?: { undo?: string; dangerPurge?: boolean }) => {
+      setSearchParams(
+        (prev) => {
+          const n = new URLSearchParams(prev);
+          n.set('drawer', 'timeline');
+          n.delete('undo');
+          n.delete('danger');
+          if (opts?.undo) n.set('undo', opts.undo);
+          if (opts?.dangerPurge) n.set('danger', 'purge');
+          return n;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const manifestInputRef = useRef<HTMLInputElement>(null);
   const manifestDropDepth = useRef(0);
   const [manifestDropOver, setManifestDropOver] = useState(false);
 
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = useState('');
-  const [deletePreview, setDeletePreview] = useState<OrderDeletePreviewResponse | null>(null);
 
   const pendingRef = useRef<Record<string, unknown>>({});
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -229,9 +230,8 @@ export default function OrderDetailPage() {
 
   const flushPatch = useCallback(async () => {
     if (orderId == null) return;
-    const payload = { ...pendingRef.current };
-    pendingRef.current = {};
-    const keys = Object.keys(payload);
+    const snapshot = { ...pendingRef.current };
+    const keys = Object.keys(snapshot);
     if (keys.length === 0) return;
 
     const lifecycleKeys = [
@@ -242,10 +242,21 @@ export default function OrderDetailPage() {
       'delivered_date',
     ] as const;
 
-    const base = queryClient.getQueryData<PurchaseOrder>(['purchaseOrders', orderId]);
-    if (!base) return;
+    const base = queryClient.getQueryData<PurchaseOrderDetailSurface>(['purchaseOrderSurface', orderId]);
+    if (!base) {
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrderSurface', orderId] });
+      setErrorFlashKey(keys.join(','));
+      window.setTimeout(() => setErrorFlashKey(null), 600);
+      return;
+    }
 
-    const merged: PurchaseOrder = { ...base };
+    for (const k of keys) {
+      delete pendingRef.current[k];
+    }
+    const payload: Record<string, unknown> = { ...snapshot };
+
+    const merged: PurchaseOrderDetailSurface = { ...base };
     let touchesLifecycle = false;
     for (const k of lifecycleKeys) {
       if (Object.prototype.hasOwnProperty.call(payload, k)) {
@@ -264,14 +275,17 @@ export default function OrderDetailPage() {
     }
 
     try {
-      const { data: updated } = await updateOrder(orderId, payload);
-      queryClient.setQueryData(['purchaseOrders', orderId], updated);
+      await updateOrder(orderId, payload);
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrderSurface', orderId] });
       setSuccessFlashKey(keys.join(','));
       window.setTimeout(() => setSuccessFlashKey(null), 600);
     } catch (e) {
       console.error(e);
+      Object.assign(pendingRef.current, snapshot);
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrderSurface', orderId] });
       setErrorFlashKey(keys.join(','));
       window.setTimeout(() => setErrorFlashKey(null), 600);
     }
@@ -322,8 +336,7 @@ export default function OrderDetailPage() {
     const lower = file.name.toLowerCase();
     if (!lower.endsWith('.csv') && !lower.endsWith('.tsv')) return;
     try {
-      const updated = await uploadManifestMutation.mutateAsync({ orderId, file });
-      queryClient.setQueryData(['purchaseOrders', orderId], updated as PurchaseOrder);
+      await uploadManifestMutation.mutateAsync({ orderId, file });
     } catch (err) {
       enqueueSnackbar(inventoryUploadDetail(err), { variant: 'error' });
     }
@@ -365,50 +378,6 @@ export default function OrderDetailPage() {
     setManifestDropOver(false);
     const f = e.dataTransfer.files?.[0];
     void uploadManifestFile(f);
-  };
-
-  const handleOpenDeleteDialog = async () => {
-    if (!orderId) return;
-    setDeleteDialogOpen(true);
-    setDeleteConfirmation('');
-    setDeletePreview(null);
-    try {
-      const preview = await orderDeletePreview.mutateAsync(orderId);
-      setDeletePreview(preview);
-    } catch {
-      enqueueSnackbar('Failed to load order deletion preview', { variant: 'error' });
-      setDeleteDialogOpen(false);
-    }
-  };
-
-  const handlePurgeDeleteOrder = async () => {
-    if (!orderId || !order) return;
-    if (deleteConfirmation.trim() !== order.order_number) {
-      enqueueSnackbar(`Type ${order.order_number} to confirm deletion`, { variant: 'warning' });
-      return;
-    }
-    try {
-      const result = await purgeDeleteOrder.mutateAsync({
-        orderId,
-        data: { confirm_order_number: deleteConfirmation.trim() },
-      });
-      enqueueSnackbar(`Deleted order ${result.order_number} and related artifacts`, { variant: 'success' });
-      navigate('/inventory/orders');
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to delete order artifacts';
-      enqueueSnackbar(message, { variant: 'error' });
-    }
-  };
-
-  const handleRemoveManifest = async () => {
-    if (!orderId) return;
-    if (!window.confirm('Remove manifest?')) return;
-    try {
-      await removeManifestMutation.mutateAsync(orderId);
-    } catch (e) {
-      console.error(e);
-      enqueueSnackbar('Could not remove manifest', { variant: 'error' });
-    }
   };
 
   if (isLoading && !order) {
@@ -467,10 +436,13 @@ export default function OrderDetailPage() {
   const fmtMoney = (n: number) =>
     `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-  const canGoToPreprocessing = Boolean(order.manifest_file);
+  const canGoToPreprocessing = order.has_manifest;
+  const canGoToReceiving = order.status !== 'cancelled';
   const canGoToProcessing = ['delivered', 'processing', 'complete'].includes(order.status);
 
-  const manifestRows = order.manifest_preview?.row_count ?? 0;
+  const manifestRows = order.manifest_row_count ?? 0;
+  const manifestCategoriesDisplay =
+    order.manifest_category_count == null ? '—' : formatNumber(order.manifest_category_count);
 
   const gridTemplateAreas = compact
     ? `"life" "costs" "manifest"`
@@ -560,6 +532,14 @@ export default function OrderDetailPage() {
             >
               {badge.label}
             </Box>
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => openIntakeDrawer()}
+              sx={{ textTransform: 'none', fontSize: 13, color: TOKENS.textMuted, fontWeight: 600 }}
+            >
+              Intake timeline
+            </Button>
           </Box>
           <Box
             sx={{
@@ -651,9 +631,9 @@ export default function OrderDetailPage() {
             <Box>
               <Typography sx={{ ...S.fieldLabel, mb: 0.5 }}># Pallets</Typography>
               <InlineEditableValue
-                fieldId="order_pallet_count"
+                fieldId="pallet_count"
                 value={
-                  order.order_pallet_count != null ? String(order.order_pallet_count) : ''
+                  order.pallet_count != null ? String(order.pallet_count) : ''
                 }
                 type="integer"
                 placeholder="Optional"
@@ -661,12 +641,12 @@ export default function OrderDetailPage() {
                 onCommit={(next) => {
                   const t = next.trim();
                   if (!t) {
-                    queuePatch({ order_pallet_count: null });
+                    queuePatch({ pallet_count: null });
                     return;
                   }
                   const n = Number.parseInt(t, 10);
                   if (!Number.isFinite(n) || n < 0) return;
-                  queuePatch({ order_pallet_count: n });
+                  queuePatch({ pallet_count: n });
                 }}
                 successFlashKey={successFlashKey}
                 errorFlashKey={errorFlashKey}
@@ -964,7 +944,7 @@ export default function OrderDetailPage() {
                 hidden
                 onChange={onPickManifestFile}
               />
-              {order.manifest_file ? (
+              {order.has_manifest ? (
                 <>
                   <Box
                     sx={{
@@ -988,33 +968,32 @@ export default function OrderDetailPage() {
                       wordBreak: 'break-all',
                     }}
                   >
-                        {order.manifest_file.filename}
+                        {order.manifest_filename || 'Manifest'}
                       </Typography>
                       <Typography sx={{ fontSize: 11, color: TOKENS.textSoft }}>
                         Uploaded{' '}
-                        {order.manifest_file.uploaded_at
-                          ? format(new Date(order.manifest_file.uploaded_at), 'MMM d, yyyy')
+                        {order.manifest_uploaded_at
+                          ? format(new Date(order.manifest_uploaded_at), 'MMM d, yyyy')
                           : '—'}
                       </Typography>
                     </Box>
                     <Button
                       size="small"
                       aria-label="Remove manifest"
-                      onClick={() => void handleRemoveManifest()}
-                      disabled={removeManifestMutation.isPending}
+                      onClick={() => openIntakeDrawer({ undo: 'manifest_upload' })}
                       sx={{
                         minWidth: 0,
                         color: TOKENS.textPlaceholder,
                         '&:hover': { color: '#ef4444', bgcolor: 'transparent' },
                       }}
                     >
-                      {removeManifestMutation.isPending ? <CircularProgress size={18} /> : <DeleteOutline fontSize="small" />}
+                      <DeleteOutline fontSize="small" />
                     </Button>
                   </Box>
                   <Box sx={{ display: 'flex', gap: '8px' }}>
                     {[
                       { label: 'Rows', value: formatNumber(manifestRows) },
-                      { label: 'Categories', value: manifestCategoryDistinctCount(order) },
+                      { label: 'Categories', value: manifestCategoriesDisplay },
                       { label: 'Est. Value', value: retail > 0 ? formatCurrencyWhole(String(retail)) : '—', green: true },
                     ].map((s) => (
                       <Box
@@ -1116,6 +1095,35 @@ export default function OrderDetailPage() {
           <Button
             fullWidth={compact}
             variant="outlined"
+            disabled={!canGoToReceiving}
+            onClick={() => navigate(`/inventory/receiving/${order.id}`)}
+            sx={{
+              flex: compact ? '1 1 100%' : 1,
+              py: `${TOKENS.btnPadY}px`,
+              px: `${TOKENS.btnPadXPrimary}px`,
+              borderRadius: `${TOKENS.radiusBtn}px`,
+              borderColor: TOKENS.borderCard,
+              color: TOKENS.textBody,
+              textTransform: 'none',
+              justifyContent: 'space-between',
+              '&:hover': { borderColor: '#475569' },
+              '&.Mui-disabled': {
+                borderColor: '#e2e8f0',
+                color: TOKENS.textSoft,
+              },
+            }}
+          >
+            <Box sx={{ textAlign: 'left' }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 600 }}>Receiving</Typography>
+              <Typography sx={{ fontSize: 11, color: TOKENS.textSoft, mt: '1px' }}>
+                Photos, pallets, delivery logging
+              </Typography>
+            </Box>
+            <ChevronRight sx={{ color: TOKENS.textPlaceholder, fontSize: 16 }} />
+          </Button>
+          <Button
+            fullWidth={compact}
+            variant="outlined"
             disabled={!canGoToProcessing}
             onClick={() => navigate(`/inventory/processing/${order.id}`)}
             sx={{
@@ -1142,8 +1150,7 @@ export default function OrderDetailPage() {
           </Button>
           <Button
             variant="outlined"
-            onClick={handleOpenDeleteDialog}
-            disabled={orderDeletePreview.isPending || purgeDeleteOrder.isPending}
+            onClick={() => openIntakeDrawer({ dangerPurge: true })}
             sx={{
               flex: compact ? '1 1 100%' : 'none',
               py: `${TOKENS.btnPadY}px`,
@@ -1167,93 +1174,16 @@ export default function OrderDetailPage() {
         </Box>
       </Box>
 
-      <Dialog open={deleteDialogOpen} onClose={() => { if (purgeDeleteOrder.isPending) return; setDeleteDialogOpen(false); }} maxWidth="md" fullWidth>
-        <DialogTitle>Delete Order and All Artifacts</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            This action is permanent. Artifacts will be deleted in reverse sequence.
-          </Typography>
-          {orderDeletePreview.isPending && <Typography variant="body2">Loading deletion preview...</Typography>}
-          {!orderDeletePreview.isPending && deletePreview && (
-            <>
-              {deletePreview.warnings.map((warning) => (
-                <Typography key={warning} variant="body2" color="warning.main" sx={{ mb: 1 }}>{warning}</Typography>
-              ))}
-              <Typography variant="subtitle2" sx={{ mt: 1.5, mb: 1 }}>Reverse Deletion Sequence</Typography>
-              <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1, mb: 2 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell width={60}>Step</TableCell>
-                      <TableCell>Action</TableCell>
-                      <TableCell>Description</TableCell>
-                      <TableCell align="right">Count</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {deletePreview.steps.map((step, index) => (
-                      <TableRow key={step.key}>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>{step.label}</TableCell>
-                        <TableCell>{step.description}</TableCell>
-                        <TableCell align="right">{step.count}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Items to Be Deleted ({deletePreview.items.length})</Typography>
-              <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1, maxHeight: 200 }}>
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>SKU</TableCell>
-                      <TableCell>Title</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Tier</TableCell>
-                      <TableCell>Batch</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {deletePreview.items.length === 0 && (
-                      <TableRow><TableCell colSpan={5}>No items linked to this order.</TableCell></TableRow>
-                    )}
-                    {deletePreview.items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.sku}</TableCell>
-                        <TableCell>{item.title}</TableCell>
-                        <TableCell>{item.status}</TableCell>
-                        <TableCell>{item.processing_tier}</TableCell>
-                        <TableCell>{item.batch_number || '—'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </>
-          )}
-          {!orderDeletePreview.isPending && !deletePreview && (
-            <Typography variant="body2" color="error">Could not load deletion preview.</Typography>
-          )}
-          <TextField
-            fullWidth sx={{ mt: 2 }}
-            label={`Type ${order.order_number} to confirm`}
-            value={deleteConfirmation}
-            onChange={(event) => setDeleteConfirmation(event.target.value)}
-            disabled={purgeDeleteOrder.isPending}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={purgeDeleteOrder.isPending}>Cancel</Button>
-          <Button
-            variant="contained" color="error"
-            onClick={handlePurgeDeleteOrder}
-            disabled={purgeDeleteOrder.isPending || orderDeletePreview.isPending || deleteConfirmation.trim() !== order.order_number}
-          >
-            {purgeDeleteOrder.isPending ? 'Deleting...' : 'Delete All in Reverse Order'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {orderId != null ? (
+        <OrderIntakeTimelineDrawer
+          orderId={orderId}
+          order={order}
+          open={drawerOpen}
+          undoParam={undoParam}
+          dangerPurge={dangerPurge}
+          onClose={closeIntakeDrawer}
+        />
+      ) : null}
     </Box>
   );
 }

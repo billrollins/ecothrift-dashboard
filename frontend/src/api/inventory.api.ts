@@ -2,6 +2,7 @@ import type { PaginatedResponse } from '../types/index';
 import type {
   Vendor,
   PurchaseOrder,
+  PurchaseOrderDetailSurface,
   PurchaseOrderListRow,
   PurchaseOrderSummary,
   PreprocessingQueueOrder,
@@ -26,6 +27,7 @@ import api, { apiPublic } from './client';
 export type {
   Vendor,
   PurchaseOrder,
+  PurchaseOrderDetailSurface,
   PurchaseOrderListRow,
   PurchaseOrderSummary,
   PreprocessingQueueOrder,
@@ -223,21 +225,6 @@ export interface ManifestMatchingTemplate {
   last_used_at: string | null;
 }
 
-export interface ManifestRowsResponse {
-  headers: string[];
-  signature: string;
-  row_count: number;
-  row_count_filtered?: number;
-  search_term?: string;
-  rows: ManifestRawRow[];
-  template_id?: number | null;
-  template_name?: string | null;
-  template_mappings?: ManifestColumnMapping[];
-  matching_templates?: ManifestMatchingTemplate[];
-  standard_columns?: StandardColumnDefinition[];
-  available_functions?: ManifestFunctionDefinition[];
-}
-
 export interface ManifestPricingRowUpdate {
   id: number;
   proposed_price?: number | string | null;
@@ -373,6 +360,10 @@ export function getOrder(id: number): Promise<{ data: Order }> {
   return api.get<Order>(`/inventory/orders/${id}/`);
 }
 
+export function getOrderDetailSurface(id: number): Promise<{ data: PurchaseOrderDetailSurface }> {
+  return api.get<PurchaseOrderDetailSurface>(`/inventory/orders/${id}/detail-surface/`);
+}
+
 export function createOrder(data: Record<string, unknown>): Promise<{ data: Order }> {
   return api.post<Order>('/inventory/orders/', data);
 }
@@ -423,10 +414,10 @@ export function revertOrderDelivered(id: number): Promise<{ data: Order }> {
   return api.post<Order>(`/inventory/orders/${id}/revert-delivered/`);
 }
 
-export function uploadManifest(orderId: number, file: File): Promise<{ data: unknown }> {
+export function uploadManifest(orderId: number, file: File): Promise<{ data: PurchaseOrderDetailSurface }> {
   const formData = new FormData();
   formData.append('file', file);
-  return api.post(`/inventory/orders/${orderId}/upload-manifest/`, formData, {
+  return api.post<PurchaseOrderDetailSurface>(`/inventory/orders/${orderId}/upload-manifest/`, formData, {
     // Let the browser set multipart boundary (same pattern as Buying `postBuyingUploadManifest`).
     transformRequest: [
       (body, headers) => {
@@ -439,8 +430,38 @@ export function uploadManifest(orderId: number, file: File): Promise<{ data: unk
   });
 }
 
-export function removeManifest(orderId: number): Promise<{ data: Order }> {
-  return api.post<Order>(`/inventory/orders/${orderId}/remove-manifest/`, {});
+export function removeManifest(orderId: number): Promise<{ data: PurchaseOrderDetailSurface }> {
+  return api.post<PurchaseOrderDetailSurface>(`/inventory/orders/${orderId}/remove-manifest/`, {});
+}
+
+export type IntakeUndoStage = 'manifest_upload' | 'standardize' | 'ai_cleanup' | 'finalize';
+
+export interface IntakeUndoPreview {
+  target_stage: string;
+  fields_to_null: string[];
+  status_resets: Record<string, string>;
+  rows_to_delete: Record<string, number>;
+  rows_to_update: Record<string, number>;
+  files_to_delete: string[];
+  cascade_warnings: string[];
+  safe: boolean;
+  blocked_reason: string | null;
+}
+
+export function getUndoPreview(
+  orderId: number,
+  toStage: IntakeUndoStage,
+): Promise<{ data: IntakeUndoPreview }> {
+  return api.get<IntakeUndoPreview>(`/inventory/orders/${orderId}/undo-preview/`, {
+    params: { to_stage: toStage },
+  });
+}
+
+export function postIntakeUndo(
+  orderId: number,
+  body: { to_stage: IntakeUndoStage },
+): Promise<{ data: PurchaseOrderDetailSurface }> {
+  return api.post<PurchaseOrderDetailSurface>(`/inventory/orders/${orderId}/undo/`, body);
 }
 
 export function processManifest(
@@ -455,13 +476,6 @@ export function previewStandardize(
   data: PreviewStandardizePayload,
 ): Promise<{ data: PreviewStandardizeResponse }> {
   return api.post<PreviewStandardizeResponse>(`/inventory/orders/${orderId}/preview-standardize/`, data);
-}
-
-export function getManifestRows(
-  orderId: number,
-  params?: Record<string, unknown>,
-): Promise<{ data: ManifestRowsResponse }> {
-  return api.get<ManifestRowsResponse>(`/inventory/orders/${orderId}/manifest-rows/`, { params });
 }
 
 export interface PreviewManifestFormulasPayload {
@@ -759,25 +773,15 @@ export interface ManualReviewSummary {
 }
 
 export interface PreprocessingSessionInfo {
-  workflow_status: string;
-  current_step: number;
   finalized_at: string | null;
   row_count: number;
 }
 
+/** Snippet-only manifest data for preprocessing UI (headers + delimiter + sample rows). */
 export interface ManifestSamplePayload {
   headers: string[];
-  rows: { row_number: number; raw: Record<string, string> }[];
-  row_count: number | null;
-  signature: string;
   delimiter?: string;
-  template_id?: number | null;
-  template_name?: string | null;
-  /** Effective mappings (normalized upload snapshot or alias defaults). */
-  template_mappings?: ManifestColumnMapping[];
-  vendor_name?: string;
-  matching_templates?: ManifestMatchingTemplate[];
-  standard_columns?: StandardColumnDefinition[];
+  rows: { row_number: number; raw: Record<string, string> }[];
 }
 
 export interface PreprocessingStatusResponse {
@@ -788,9 +792,23 @@ export interface PreprocessingStatusResponse {
     status: string;
     item_count: number;
     has_manifest_file: boolean;
-    /** Subset of manifest file persisted at upload (max 10 preview rows). */
     manifest_sample: ManifestSamplePayload | null;
+    manifest_row_count: number | null;
+    manifest_signature: string;
+    manifest_category_count?: number | null;
+    template_id: number | null;
+    template_name_cache: string;
+    template_header_signature_cache: string;
+    template_column_mappings_cache: ManifestColumnMapping[];
+    standardization_formulas: Record<string, unknown>;
+    preprocess_status: string;
+    standardized_at: string | null;
+    ai_cleaned_at: string | null;
+    review_saved_at: string | null;
+    finalized_at: string | null;
   };
+  matching_templates: ManifestMatchingTemplate[];
+  standard_columns: StandardColumnDefinition[];
   counts: {
     standardized_rows: number;
     cleaned_rows: number;
@@ -1690,4 +1708,47 @@ export function deleteReceivingPhoto(orderId: number, attachmentId: number): Pro
 
 export function completeReceiving(orderId: number): Promise<{ data: ReceivingCompleteResponse }> {
   return api.post<ReceivingCompleteResponse>(`/inventory/orders/${orderId}/receiving/complete/`, {});
+}
+
+export interface OrderDisputeDTO {
+  id: number;
+  purchase_order: number;
+  kind: string;
+  status: string;
+  title: string;
+  description: string;
+  opened_by: number | null;
+  opened_at: string;
+  resolved_by: number | null;
+  resolved_at: string | null;
+  subject_receiving: number | null;
+  subject_pallet: number | null;
+  subject_manifest_row: number | null;
+  subject_processing_row: number | null;
+  subject_item: number | null;
+  payload: Record<string, unknown>;
+}
+
+export function createOrderDispute(
+  orderId: number,
+  body: {
+    kind: 'intake' | 'processing';
+    title: string;
+    description?: string;
+    subject_receiving?: number | null;
+    subject_pallet?: number | null;
+    subject_manifest_row?: number | null;
+    subject_processing_row?: number | null;
+    subject_item?: number | null;
+    payload?: Record<string, unknown>;
+  },
+): Promise<{ data: OrderDisputeDTO }> {
+  return api.post<OrderDisputeDTO>(`/inventory/orders/${orderId}/disputes/`, body);
+}
+
+export function fetchOrderDisputes(
+  orderId: number,
+  params?: { kind?: string; status?: string },
+): Promise<{ data: OrderDisputeDTO[] }> {
+  return api.get<OrderDisputeDTO[]>(`/inventory/orders/${orderId}/disputes/`, { params });
 }

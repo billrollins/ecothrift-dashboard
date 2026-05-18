@@ -104,7 +104,7 @@ class PurchaseOrder(models.Model):
     condition = models.CharField(max_length=20, choices=CONDITION_CHOICES, blank=True, default='')
     description = models.CharField(max_length=500, blank=True, default='')
     item_count = models.IntegerField(default=0)
-    order_pallet_count = models.PositiveSmallIntegerField(
+    pallet_count = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
         help_text='Expected pallet count when ordering (optional).',
@@ -125,6 +125,102 @@ class PurchaseOrder(models.Model):
         related_name='purchase_orders',
     )
     manifest_preview = models.JSONField(null=True, blank=True)
+    manifest_filename = models.CharField(max_length=255, null=True, blank=True)
+    manifest_uploaded_at = models.DateTimeField(null=True, blank=True)
+    manifest_row_count = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text='Row count snapshot from last manifest upload.',
+    )
+    manifest_category_count = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text='Distinct non-empty category column values snapshot from upload.',
+    )
+    manifest_signature = models.CharField(max_length=255, blank=True, default='')
+    manifest_headers = models.JSONField(null=True, blank=True)
+    template = models.ForeignKey(
+        'CSVTemplate',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='linked_purchase_orders',
+    )
+    template_name_cache = models.CharField(max_length=200, blank=True, default='')
+    template_header_signature_cache = models.CharField(max_length=255, blank=True, default='')
+    template_column_mappings_cache = models.JSONField(default=list, blank=True)
+    standardization_formulas = models.JSONField(default=dict, blank=True)
+    PREPROCESS_STATUS_CHOICES = [
+        ('not_started', 'Not started'),
+        ('standardized', 'Standardized'),
+        ('cleaned', 'Cleaned'),
+        ('reviewing', 'Reviewing'),
+        ('finalized', 'Finalized'),
+    ]
+    RECEIVING_TRACK_STATUS_CHOICES = [
+        ('not_started', 'Not started'),
+        ('active', 'Active'),
+        ('done', 'Done'),
+    ]
+    PROCESSING_TRACK_STATUS_CHOICES = [
+        ('not_started', 'Not started'),
+        ('active', 'Active'),
+        ('done', 'Done'),
+    ]
+    CLOSEOUT_STATUS_CHOICES = [
+        ('open', 'Open'),
+    ]
+    DISPUTE_STATUS_CHOICES = [
+        ('none', 'None'),
+        ('active', 'Active'),
+        ('resolved', 'Resolved'),
+    ]
+    preprocess_status = models.CharField(
+        max_length=20,
+        choices=PREPROCESS_STATUS_CHOICES,
+        default='not_started',
+    )
+    receiving_status = models.CharField(
+        max_length=20,
+        choices=RECEIVING_TRACK_STATUS_CHOICES,
+        default='not_started',
+    )
+    receiving_started_at = models.DateTimeField(null=True, blank=True)
+    receiving_done_at = models.DateTimeField(null=True, blank=True)
+    processing_status = models.CharField(
+        max_length=20,
+        choices=PROCESSING_TRACK_STATUS_CHOICES,
+        default='not_started',
+    )
+    processing_started_at = models.DateTimeField(null=True, blank=True)
+    processing_done_at = models.DateTimeField(null=True, blank=True)
+    uses_legacy_processing = models.BooleanField(
+        default=False,
+        help_text=(
+            'When True, legacy deliver/check-in paths may apply. New intake POs use Processing '
+            'for ManifestRow/Item materialization.'
+        ),
+    )
+    closeout_status = models.CharField(
+        max_length=20,
+        choices=CLOSEOUT_STATUS_CHOICES,
+        default='open',
+    )
+    intake_dispute_status = models.CharField(
+        max_length=20,
+        choices=DISPUTE_STATUS_CHOICES,
+        default='none',
+    )
+    processing_dispute_status = models.CharField(
+        max_length=20,
+        choices=DISPUTE_STATUS_CHOICES,
+        default='none',
+    )
+    standardized_at = models.DateTimeField(null=True, blank=True)
+    ai_cleaned_at = models.DateTimeField(null=True, blank=True)
+    review_saved_at = models.DateTimeField(null=True, blank=True)
+    finalized_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
     est_shrink = models.DecimalField(
         max_digits=5,
         decimal_places=4,
@@ -376,66 +472,9 @@ class ManifestRow(models.Model):
         return f'Row {self.row_number}: {self.description[:50]}'
 
 
-class PreprocessingOrder(models.Model):
-    """Session-scoped preprocessing state for a purchase order (staging before ManifestRow/items)."""
-
-    WORKFLOW_STATUS_CHOICES = [
-        ('draft', 'Draft'),
-        ('standardized', 'Standardized'),
-        ('ai_imported', 'AI Imported'),
-        ('review', 'Manual Review'),
-        ('finalized', 'Finalized'),
-    ]
-
-    purchase_order = models.OneToOneField(
-        PurchaseOrder,
-        on_delete=models.CASCADE,
-        related_name='preprocessing',
-    )
-    workflow_status = models.CharField(
-        max_length=20,
-        choices=WORKFLOW_STATUS_CHOICES,
-        default='draft',
-    )
-    current_step = models.PositiveSmallIntegerField(
-        default=0,
-        help_text='0=standardize, 1=AI cleanup, 2=manual review',
-    )
-    manifest_headers = models.JSONField(default=list, blank=True)
-    header_signature = models.CharField(max_length=255, blank=True, default='')
-    standardization_formulas = models.JSONField(default=dict, blank=True)
-    template = models.ForeignKey(
-        CSVTemplate,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='preprocessing_orders',
-    )
-    template_name = models.CharField(max_length=200, blank=True, default='')
-    row_count = models.PositiveIntegerField(default=0)
-    standardized_at = models.DateTimeField(null=True, blank=True)
-    last_ai_import_at = models.DateTimeField(null=True, blank=True)
-    review_saved_at = models.DateTimeField(null=True, blank=True)
-    finalized_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = 'Preprocessing Order'
-        verbose_name_plural = 'Preprocessing Orders'
-
-    def __str__(self):
-        return f'Preprocessing({self.purchase_order.order_number})'
-
-
 class PreprocessingRow(models.Model):
     """Staging row: layered standard / ai / final values; promoted to ManifestRow on finalize."""
 
-    preprocessing_order = models.ForeignKey(
-        PreprocessingOrder,
-        on_delete=models.CASCADE,
-        related_name='rows',
-    )
     purchase_order = models.ForeignKey(
         PurchaseOrder,
         on_delete=models.CASCADE,
@@ -512,15 +551,14 @@ class PreprocessingRow(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['preprocessing_order', 'row_number']
+        ordering = ['purchase_order', 'row_number']
         constraints = [
             models.UniqueConstraint(
-                fields=['preprocessing_order', 'row_number'],
-                name='inventory_preproc_row_unique_order_rn',
+                fields=['purchase_order', 'row_number'],
+                name='inventory_preproc_row_unique_po_rn',
             ),
         ]
         indexes = [
-            models.Index(fields=['preprocessing_order', 'row_number']),
             models.Index(fields=['purchase_order', 'row_number']),
             GinIndex(fields=['standard_identifiers'], name='inv_pr_ident_gin'),
             GinIndex(fields=['standard_taxonomy'], name='inv_pr_taxonomy_gin'),
@@ -1259,7 +1297,7 @@ class Receiving(models.Model):
         default='',
     )
     issues = models.TextField(blank=True, default='')
-    pallet_count = models.PositiveSmallIntegerField(default=0)
+    received_pallet_count = models.PositiveSmallIntegerField(default=0)
     completed_at = models.DateTimeField(null=True, blank=True)
     draft_version = models.PositiveIntegerField(default=1)
     created_by = models.ForeignKey(
@@ -1342,6 +1380,97 @@ class ReceivingAttachment(models.Model):
 
     def __str__(self):
         return f'{self.kind} {self.receiving_id}'
+
+
+class Dispute(models.Model):
+    """First-class intake or processing dispute tied to a purchase order."""
+
+    KIND_INTAKE = 'intake'
+    KIND_PROCESSING = 'processing'
+    KIND_CHOICES = [
+        (KIND_INTAKE, 'Intake'),
+        (KIND_PROCESSING, 'Processing'),
+    ]
+    STATUS_OPEN = 'open'
+    STATUS_RESOLVED = 'resolved'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_OPEN, 'Open'),
+        (STATUS_RESOLVED, 'Resolved'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='disputes',
+    )
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    title = models.CharField(max_length=300)
+    description = models.TextField(blank=True, default='')
+    opened_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='disputes_opened',
+    )
+    opened_at = models.DateTimeField(auto_now_add=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='disputes_resolved',
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    subject_receiving = models.ForeignKey(
+        Receiving,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='disputes',
+    )
+    subject_pallet = models.ForeignKey(
+        ReceivingPallet,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='disputes',
+    )
+    subject_manifest_row = models.ForeignKey(
+        'ManifestRow',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='disputes',
+    )
+    subject_processing_row = models.ForeignKey(
+        'ProcessingRow',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='disputes',
+    )
+    subject_item = models.ForeignKey(
+        Item,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='disputes',
+    )
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-opened_at']
+        indexes = [
+            models.Index(fields=['purchase_order', 'kind', 'status']),
+            models.Index(fields=['kind', 'status']),
+        ]
+
+    def __str__(self):
+        return f'Dispute {self.id} ({self.kind})'
 
 
 class ProductMergeAudit(models.Model):

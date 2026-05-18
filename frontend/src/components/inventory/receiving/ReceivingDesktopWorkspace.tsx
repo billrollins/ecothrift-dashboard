@@ -12,6 +12,8 @@ import RecyclingOutlined from '@mui/icons-material/RecyclingOutlined';
 
 import type { ChangeEvent } from 'react';
 
+import { useSnackbar } from 'notistack';
+
 import type { OrderForReceivingRow, PalletSideId, ReceivingDetailDTO } from '../../../types/inventory.types';
 import type { PendingPhotoKind } from '../../../services/receiving/receivingClient';
 import { PALLET_SIDES } from '../../../services/receiving/receivingClient';
@@ -50,6 +52,7 @@ interface Props {
   onBulkPalletPhotos: (files: File[]) => void | Promise<void>;
   onPalletPick: (pallet: number, side: PalletSideId, fileList: FileList | null) => void;
   onDamaged: (palletNumber: number, damaged: boolean) => void;
+  onOpenIntakeDisputeForPallet?: (palletNumber: number, subjectPalletId: number | null) => void;
   onComplete: () => void;
   /** Slim offline / pending banners */
   banners?: React.ReactNode;
@@ -396,20 +399,25 @@ function filesToInput(files: File[]): FileList {
 
 function PalletCard({
   palletNumber,
+  palletDbId,
   rec,
   uploadingKey,
   onPhotoAdd,
   onToggleDamage,
+  onOpenIntakeDispute,
   disabled,
 }: {
   palletNumber: number;
+  palletDbId: number | null;
   rec: ReceivingDetailDTO;
   uploadingKey: string | null;
   onPhotoAdd: (side: PalletSideId, files: FileList | null) => void;
   onToggleDamage: () => void;
+  onOpenIntakeDispute?: () => void;
   disabled?: boolean;
 }) {
   const dmg = rec.pallets.find((p) => p.pallet_number === palletNumber)?.damaged ?? false;
+  const { enqueueSnackbar } = useSnackbar();
   const filled = PALLET_SIDES.filter((side) => palletAttachment(rec, palletNumber, side)).length;
   const done = PALLET_SIDES.every((side) => Boolean(palletAttachment(rec, palletNumber, side)));
   const progressTone =
@@ -480,6 +488,33 @@ function PalletCard({
             <CheckCircleOutlineOutlined sx={{ fontSize: 16, color: TOKENS.completeGreen }} />
           ) : null}
         </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Button
+            type="button"
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!palletDbId) {
+                enqueueSnackbar('Save pallet rows first, then open a dispute.', { variant: 'warning' });
+                return;
+              }
+              onOpenIntakeDispute?.();
+            }}
+            disabled={disabled}
+            sx={{
+              borderRadius: '5px',
+              px: '6px',
+              py: '2px',
+              minWidth: 0,
+              fontSize: 9,
+              fontWeight: 600,
+              textTransform: 'none',
+              color: TOKENS.mutedEarth,
+              border: `1px solid ${TOKENS.borderInput}`,
+            }}
+          >
+            Open dispute
+          </Button>
         <Button
           type="button"
           onClick={(e) => {
@@ -505,6 +540,7 @@ function PalletCard({
           <FlagOutlined sx={{ fontSize: 11 }} />
           {dmg ? 'DMG' : 'Flag'}
         </Button>
+        </Box>
       </Box>
       <Box
         sx={{
@@ -607,6 +643,7 @@ export default function ReceivingDesktopWorkspace({
   onBulkPalletPhotos,
   onPalletPick,
   onDamaged,
+  onOpenIntakeDisputeForPallet,
   onComplete,
   banners,
   loadingBar,
@@ -663,9 +700,9 @@ export default function ReceivingDesktopWorkspace({
   }, [startEdit, endEdit]);
   const condTrim = (m.condition || '').trim() as NonNullable<ReceivingDetailDTO['condition']> | '';
 
-  const palletsPlanned = m.pallet_count > 0;
+  const palletsPlanned = m.received_pallet_count > 0;
   let completedPallets = 0;
-  for (let n = 1; n <= m.pallet_count; n++) {
+  for (let n = 1; n <= m.received_pallet_count; n++) {
     const ok = PALLET_SIDES.every((s) => palletAttachment(m, n, s));
     if (ok) completedPallets++;
   }
@@ -676,8 +713,8 @@ export default function ReceivingDesktopWorkspace({
   const damagedCount = (m.pallets ?? []).filter((p) => p.damaged).length;
 
   const allPalletsSidesDone =
-    m.pallet_count > 0 &&
-    Array.from({ length: m.pallet_count }, (_, i) => i + 1).every((n) =>
+    m.received_pallet_count > 0 &&
+    Array.from({ length: m.received_pallet_count }, (_, i) => i + 1).every((n) =>
       PALLET_SIDES.every((side) => palletAttachment(m, n, side)),
     );
 
@@ -1023,7 +1060,7 @@ export default function ReceivingDesktopWorkspace({
                 <Typography component="strong" sx={{ color: TOKENS.text, fontWeight: 700 }}>
                   {completedPallets}
                 </Typography>
-                /{m.pallet_count} pallets
+                /{m.received_pallet_count} pallets
               </Typography>
               <Typography component="span" sx={{ color: '#64748b' }}>
                 <Typography component="strong" sx={{ color: TOKENS.text, fontWeight: 700 }}>
@@ -1506,10 +1543,14 @@ export default function ReceivingDesktopWorkspace({
                   alignContent: 'start',
                 }}
               >
-                {Array.from({ length: m.pallet_count }, (_, i) => i + 1).map((palletNumber) => (
+                {Array.from({ length: m.received_pallet_count }, (_, i) => i + 1).map((palletNumber) => {
+                  const palletDbId =
+                    m.pallets.find((p) => p.pallet_number === palletNumber)?.id ?? null;
+                  return (
                   <PalletCard
                     key={palletNumber}
                     palletNumber={palletNumber}
+                    palletDbId={palletDbId}
                     rec={m}
                     uploadingKey={uploadingKey}
                     disabled={!!m.completed_at || disabled}
@@ -1522,8 +1563,12 @@ export default function ReceivingDesktopWorkspace({
                         !(m.pallets.find((p) => p.pallet_number === palletNumber)?.damaged ?? false),
                       )
                     }
+                    onOpenIntakeDispute={() =>
+                      onOpenIntakeDisputeForPallet?.(palletNumber, palletDbId)
+                    }
                   />
-                ))}
+                );
+                })}
               </Box>
             </>
           )}

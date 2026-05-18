@@ -30,7 +30,25 @@ def get_or_create_receiving(order: PurchaseOrder, user) -> Receiving:
         update_fields.append('start_time')
     if update_fields:
         rec.save(update_fields=list(set(update_fields)))
+    touch_receiving_track_active(order)
     return rec
+
+
+def touch_receiving_track_active(order: PurchaseOrder) -> None:
+    """First touch promotes PO receiving train from not_started → active (+ started_at)."""
+
+    if order.receiving_status == 'done':
+        return
+    now = timezone.now()
+    updates: dict = {}
+    if order.receiving_status == 'not_started':
+        updates['receiving_status'] = 'active'
+    if order.receiving_started_at is None:
+        updates['receiving_started_at'] = now
+    if updates:
+        PurchaseOrder.objects.filter(pk=order.pk).update(**updates)
+        for k, v in updates.items():
+            setattr(order, k, v)
 
 
 def _bump(rec: Receiving):
@@ -53,7 +71,7 @@ def patch_receiving_draft(rec: Receiving, data: dict, _user=None) -> Receiving:
         'end_time',
         'condition',
         'issues',
-        'pallet_count',
+        'received_pallet_count',
     )
 
     touched = []
@@ -66,11 +84,12 @@ def patch_receiving_draft(rec: Receiving, data: dict, _user=None) -> Receiving:
         rec.save(update_fields=list(set(touched + ['updated_at'])))
 
     if 'pallets' in data and data['pallets'] is not None:
-        _sync_pallets(rec, data['pallets'], data.get('pallet_count'))
-    elif 'pallet_count' in data:
-        _ensure_pallet_rows_for_count(rec, rec.pallet_count)
+        _sync_pallets(rec, data['pallets'], data.get('received_pallet_count'))
+    elif 'received_pallet_count' in data:
+        _ensure_pallet_rows_for_count(rec, rec.received_pallet_count)
 
     _bump(rec)
+    touch_receiving_track_active(rec.purchase_order)
     return rec
 
 
@@ -87,8 +106,8 @@ def _sync_pallets(rec: Receiving, pallets: list, pallet_count_hint):
     else:
         count = max_num
     count = max(0, min(99, max(count, max_num)))
-    rec.pallet_count = count
-    rec.save(update_fields=['pallet_count', 'updated_at'])
+    rec.received_pallet_count = count
+    rec.save(update_fields=['received_pallet_count', 'updated_at'])
 
     ReceivingPallet.objects.filter(receiving=rec).delete()
     damaged_by_num = {p['pallet_number']: p['damaged'] for p in normalized}
@@ -102,8 +121,8 @@ def _sync_pallets(rec: Receiving, pallets: list, pallet_count_hint):
 
 def _ensure_pallet_rows_for_count(rec: Receiving, count: int):
     count = max(0, min(99, int(count or 0)))
-    rec.pallet_count = count
-    rec.save(update_fields=['pallet_count', 'updated_at'])
+    rec.received_pallet_count = count
+    rec.save(update_fields=['received_pallet_count', 'updated_at'])
 
     existing = {p.pallet_number: p for p in rec.pallets.all()}
     for n in range(1, count + 1):
@@ -117,7 +136,7 @@ def _ensure_pallet_rows_for_count(rec: Receiving, count: int):
 def validate_complete(rec: Receiving) -> list[str]:
     """Return blocking reasons for complete (empty = ok)."""
     reasons = []
-    if rec.pallet_count < 1:
+    if rec.received_pallet_count < 1:
         reasons.append('Set at least one pallet before completing.')
     if not (rec.condition or '').strip():
         reasons.append('Select load condition (good / mixed / damaged).')
@@ -129,7 +148,7 @@ def validate_complete(rec: Receiving) -> list[str]:
         if att.side in REQUIRED_PALLET_SIDES:
             sides_by_pallet[att.pallet_number].add(att.side)
 
-    for n in range(1, rec.pallet_count + 1):
+    for n in range(1, rec.received_pallet_count + 1):
         have = sides_by_pallet.get(n, set())
         for side in REQUIRED_PALLET_SIDES:
             if side not in have:

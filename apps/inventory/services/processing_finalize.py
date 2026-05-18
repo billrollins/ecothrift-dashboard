@@ -18,13 +18,13 @@ from apps.inventory.manifest_standard_fields import slugify_formula_search_tags
 from apps.inventory.models import (
     Item,
     ManifestRow,
-    PreprocessingOrder,
     PreprocessingRow,
     ProcessingBatch,
     ProcessingDataBuild,
     ProcessingRow,
     PurchaseOrder,
 )
+from apps.inventory.services.intake_gates import raise_if_processing_blocked_by_intake
 from apps.inventory.services.processing_search_string import assign_search_strings_for_instances, build_processing_row_search_string
 from apps.inventory.services.processing_workspace import refresh_processing_rows_denorm
 
@@ -120,18 +120,17 @@ def validate_preprocessing_value_rows_for_finalize(
 
 
 def load_preprocessing_values_for_finalize(
-    prep: PreprocessingOrder,
+    order: PurchaseOrder,
 ) -> Iterable[dict[str, Any]]:
     """Query only columns needed for bookmark copy (no ai/standard select)."""
 
-    return PreprocessingRow.objects.filter(preprocessing_order=prep).order_by('row_number').values(
+    return PreprocessingRow.objects.filter(purchase_order=order).order_by('row_number').values(
         *PREPROCESSING_PROJECT_TO_BOOKMARK_FIELDS,
     )
 
 
 def finalize_preprocessing_to_bookmarks(
     order: PurchaseOrder,
-    prep: PreprocessingOrder,
 ) -> int:
     """
     Validate narrow preprocessing rows OOB, then in one txn:
@@ -141,7 +140,7 @@ def finalize_preprocessing_to_bookmarks(
     Returns ProcessingRow insert count.
     """
 
-    val_rows = list(load_preprocessing_values_for_finalize(prep))
+    val_rows = list(load_preprocessing_values_for_finalize(order))
     validate_preprocessing_value_rows_for_finalize(val_rows)
 
     objs: list[ProcessingRow] = []
@@ -193,12 +192,10 @@ def finalize_preprocessing_to_bookmarks(
 
         ProcessingRow.objects.bulk_create(objs)
 
-        prep.finalized_at = now
-        prep.workflow_status = 'finalized'
-        prep.current_step = max(prep.current_step, 2)
-        prep.save(
-            update_fields=['finalized_at', 'workflow_status', 'current_step', 'updated_at'],
-        )
+        po = PurchaseOrder.objects.select_for_update().get(pk=order.id)
+        po.finalized_at = now
+        po.preprocess_status = 'finalized'
+        po.save(update_fields=['finalized_at', 'preprocess_status', 'updated_at'])
 
     return len(objs)
 
@@ -263,8 +260,7 @@ def _unlink_processing_bookmarks(order: PurchaseOrder) -> None:
 
 
 def _ensure_preprocessing_finalized(order: PurchaseOrder) -> None:
-    prep = getattr(order, 'preprocessing', None)
-    if not prep or not prep.finalized_at:
+    if not order.finalized_at:
         raise ValidationError({
             'detail': 'Finalize preprocessing before building processing data.',
             'code': 'not_finalized',
@@ -493,6 +489,10 @@ def _finalize_completed_processing_build(
     refresh_processing_rows_denorm(order)
     _upsert_workspace_batch_totals(order, user, now)
     ic = _sync_purchase_order_item_count(order)
+    PurchaseOrder.objects.filter(pk=order.pk).update(
+        processing_status='done',
+        processing_done_at=now,
+    )
     build.status = ProcessingDataBuild.STATUS_COMPLETE
     build.completed_at = now
     build.processed_rows = ProcessingRow.objects.filter(
@@ -595,6 +595,8 @@ def processing_data_build_start_session(
     """Create/reset or resume a ``ProcessingDataBuild`` row (destructive only on reset/first run)."""
 
     _ensure_preprocessing_finalized(order)
+    order.refresh_from_db(fields=['receiving_status'])
+    raise_if_processing_blocked_by_intake(order)
     _validate_bookmarks_and_terminal(order)
 
     probe = ProcessingDataBuild.objects.filter(purchase_order_id=order.pk).first()
@@ -638,6 +640,14 @@ def processing_data_build_start_session(
                     'created_by': user,
                 },
             )
+            now_po = timezone.now()
+            po_updates: dict[str, object] = {}
+            if order.processing_status == 'not_started':
+                po_updates['processing_status'] = 'active'
+            if order.processing_started_at is None:
+                po_updates['processing_started_at'] = now_po
+            if po_updates:
+                PurchaseOrder.objects.filter(pk=order.pk).update(**po_updates)
             return build
 
         if locked is None:
@@ -657,6 +667,8 @@ def process_processing_data_build_chunk(order: PurchaseOrder, user) -> dict[str,
     """Process one bounded chunk under row + item caps; idempotent when already complete."""
 
     _ensure_preprocessing_finalized(order)
+    order.refresh_from_db(fields=['receiving_status'])
+    raise_if_processing_blocked_by_intake(order)
     _validate_bookmarks_and_terminal(order)
 
     now = timezone.now()
@@ -830,11 +842,13 @@ def get_processing_data_build_status(order: PurchaseOrder) -> dict[str, Any]:
 def clear_processing_data_to_bookmarks_phase(order: PurchaseOrder) -> dict[str, Any]:
     """Drop manifest/items/batches/build state and return to post-preprocessing bookmarks only.
 
-    Does **not** change ``PreprocessingOrder`` / ``PreprocessingRow``, and does **not**
+    Does **not** change staging ``PreprocessingRow`` rows, and does **not**
     recreate manifest lines or items — the operator uses **Create Processing Data** when ready.
     """
 
     _ensure_preprocessing_finalized(order)
+    order.refresh_from_db(fields=['receiving_status'])
+    raise_if_processing_blocked_by_intake(order)
     _validate_bookmarks_and_terminal(order)
 
     with transaction.atomic():
@@ -845,6 +859,11 @@ def clear_processing_data_to_bookmarks_phase(order: PurchaseOrder) -> dict[str, 
         refresh_processing_rows_denorm(order)
         bookmark_count = ProcessingRow.objects.filter(purchase_order=order).count()
         ic = _sync_purchase_order_item_count(order)
+        PurchaseOrder.objects.filter(pk=order.pk).update(
+            processing_status='not_started',
+            processing_started_at=None,
+            processing_done_at=None,
+        )
 
     return {
         'detail': (
