@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-06 (`ProcessingActiveCard` shelf **`price`** ← **`row.price`** — **`CHANGELOG [Unreleased]`**; **`v2.23.0`** `searchString` — **`CHANGELOG [2.23.0]`**) -->
+<!-- Last updated: 2026-05-18 (v2.24.1 processing gate; shelf price — see CHANGELOG [2.23.0]+) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 

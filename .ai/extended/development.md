@@ -102,7 +102,7 @@ If **POS registers** or **supplemental drawer** rows are missing (e.g. after `re
 
 ## Dev logging (local)
 
-- **`.ai/debug/log.config`** — Hierarchical areas (`LOG_ADD_ITEM` → `LOG_ADD_ITEM_FORM` / `LOG_ADD_ITEM_AI`, etc.). The sample in-repo sets **`LOG_ADD_ITEM = file`** so AI prompt, raw response, and form action lines append to **`.ai/debug/debug.log`** (file is gitignored).
+- **Dev logging** — Django **`LOGGING`** in settings; optional **`VITE_DEV_LOG`** for frontend **`devLog`**. (Legacy **`.ai/debug/`** tree removed; configure locally if you need hierarchical file logs.)
 - **`VITE_DEV_LOG=true`** in root `.env` — Required for Chrome **console** lines from `devLog` when the resolved config includes **`browser`** for that area. Restart **`npm run dev`** after changing.
 - **DEBUG + staff:** `GET /api/core/dev-log/config/` returns resolved targets; `POST /api/core/dev-log/line/` appends a client line when `file` is enabled for the area.
 
@@ -133,7 +133,7 @@ Defined in `.env` (gitignored):
 | `XAI_API_BASE` | OpenAI-compatible base URL for Grok | `https://api.x.ai/v1` |
 | `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI), `anthropic`, or `xai` | `auto` |
 | `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs logged to **`workspace/logs/ai_usage.jsonl`** | — |
-| `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest when `browser` is enabled in `.ai/debug/log.config` | `false` |
+| `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest | `false` |
 | `BSTOCK_AUTH_TOKEN` | Fallback JWT if `workspace/.bstock_token` is missing (from `python manage.py bstock_token` or DevTools) | — |
 | `BUYING_REQUEST_DELAY_SECONDS` | Minimum delay between scraper HTTP requests | `2.0` |
 | `BSTOCK_MAX_RETRIES` | Retries after HTTP 429 | `3` |

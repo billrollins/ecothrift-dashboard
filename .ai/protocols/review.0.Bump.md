@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-06 (Part 1C: Extended TOC parity uses `extended/...md` links in both `context.md` and consultant Extended TOC table) -->
+<!-- Last updated: 2026-05-18 (consultant_context removed; Extended TOC in context.md only) -->
 # Protocol: Review & Bump (docs audit → `.version` → `CHANGELOG` → local commit)
 
 **Scope:** Docs-audit + semver bump + `CHANGELOG` update + **local** `git add` / `git commit` with a **short** message. This is a **slice** of `session.9.Close.md` — use when the user wants those without a full session close. **Optional:** grow **`scripts/deploy/commit_message.txt`** for the eventual push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**). **Bump then push in one flow:** **`code.9.Push.md`** runs this checklist + fills **`commit_message.txt`** + **`2_push_github.bat`** (skip Part 4B there). Otherwise **push** stays separate: frequent local commits protect against lost work; only reviewed work goes to GitHub or production via **`session.9.Close.md`** / deploy scripts.
@@ -18,15 +18,14 @@
 
 | File | Touch when | Minimum edit |
 |---|---|---|
-| `.ai/context.md` | Summary line version stale; Working pointer wrong; new Known Issue; Not Yet Implemented item shipped; Extended TOC file added/renamed/removed | `<!-- Last updated: ... -->` timestamp + the wrong line |
-| `.ai/consultant_context.md` | Phase acceptance box checked; initiative status flipped; Extended TOC diverges from `context.md` | Timestamp + matching section |
+| `.ai/context.md` | Working pointer wrong; new Known Issue; Not Yet Implemented item shipped; Extended TOC file added/renamed/removed; release compass stale | `<!-- Last updated: ... -->` timestamp + the wrong line (do **not** duplicate version history — point to root `.version` / `CHANGELOG.md`) |
 | `.ai/initiatives/_index.md` | Active initiative Phase or Notes actually changed this session | Timestamp + the table row |
 | `.ai/initiatives/<initiative>.md` | Session added an update / checked a phase acceptance | Under `## Sessions` only — do not edit older sessions |
 | `README.md` (repo root) | Onboarding path or protocol path changed | Quick Start / AI steering subsection only |
 
 ### 1B. Extended docs (`.ai/extended/<domain>.md` — load on demand)
 
-Touch the matching file(s) **iff** you changed that domain's models / routes / auth / URLs / behavior this session. Bump the per-file `<!-- Last updated -->`. If you **added, renamed, or removed** an extended file, update the Extended TOC in **both** `context.md` AND `consultant_context.md`.
+Touch the matching file(s) **iff** you changed that domain's models / routes / auth / URLs / behavior this session. Bump the per-file `<!-- Last updated -->`. If you **added, renamed, or removed** an extended file, update the Extended TOC in **`context.md`** only.
 
 | File | Domain trigger (touch only if this changed) |
 |---|---|
@@ -50,17 +49,16 @@ Touch the matching file(s) **iff** you changed that domain's models / routes / a
 Run these before deciding you are done:
 
 ```bash
-# 1. Summary line in context.md names the current version
-grep -E 'v[0-9]+\.[0-9]+\.[0-9]+' .ai/context.md | head -5
+# 1. Repo root version sources agree
+cat .version
+grep '"version"' package.json | head -1
+
+# 2. Top CHANGELOG dated section matches .version (when releasing)
+grep -m1 '^## \[' CHANGELOG.md
 cat .version
 
-# 2. Every .ai/extended/ file has a Last updated timestamp
+# 3. Every .ai/extended/ file has a Last updated timestamp
 for f in .ai/extended/*.md; do head -1 "$f" | grep -q 'Last updated' || echo "MISSING TIMESTAMP: $f"; done
-
-# 3. Extended TOC parity between context.md and consultant_context.md
-grep -oE 'extended/[a-z0-9_\-]+\.md' .ai/context.md | sort -u > /tmp/ctx_toc
-grep -oE 'extended/[a-z0-9_\-]+\.md' .ai/consultant_context.md | sort -u > /tmp/con_toc
-diff /tmp/ctx_toc /tmp/con_toc || echo "TOC drift between context.md and consultant_context.md"
 
 # 4. Active initiatives listed in _index.md match .ai/initiatives/*.md (exclude _archived)
 ls .ai/initiatives/*.md 2>/dev/null | grep -v _archived
@@ -203,7 +201,7 @@ grep -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | sort | uniq -d
 All of:
 
 - [ ] Every touched file listed in Part 1 has a current `<!-- Last updated -->`.
-- [ ] Extended TOC matches between `.ai/context.md` and `.ai/consultant_context.md` (Part 1C check 3).
+- [ ] Extended TOC in `.ai/context.md` lists every file in `.ai/extended/` (Part 1C check 3).
 - [ ] If bumped in Part 2: `.version`, root `package.json` `"version"`, and top of `CHANGELOG.md` all agree.
 - [ ] If NOT bumped: changes live under `## [Unreleased]` in `CHANGELOG.md`.
 - [ ] `frontend/package.json` `"version"` still `0.0.0`.

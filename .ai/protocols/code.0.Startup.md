@@ -1,18 +1,7 @@
-<!-- Last updated: 2026-05-06 (sql.0.UpdateSchema in protocol map) -->
+<!-- Last updated: 2026-05-18 (consultant_context removed; version/changelog at repo root only) -->
 # Protocol: Session Startup
 
-How to begin a new AI session on this project.
-
----
-
-## Audience: coding agent vs consultant
-
-**Modular `.ai/` (default for coding agents)** — **`.ai/initiatives/`**, **`.ai/extended/<domain>.md`**, and deep initiative files exist so an agent can load **only what the task needs**. That keeps sessions focused and avoids burning context on domains that are not in scope.
-
-**Single-file consultant handoff** — **`.ai/consultant_context.md`** is a **single, information-dense** document for **external advisors** (and for sessions whose goal is to **review or edit** that handoff). It opens with **whole-product** stack and domains, then goes deep on **B-Stock**, manifests, and legacy data—so advisors can skim the top or read the full appendix as needed. It does **not** replace initiatives or extended docs for implementers; it **consolidates** what a consultant must see without chasing every file.
-
-- **Coding / implementation sessions:** follow the steps below (read `context.md`, initiatives as needed, **extended only on demand**). Do **not** assume you must read `consultant_context.md` unless the user is steering toward **consultant prep** or a **cross-app / advisor** snapshot.
-- **Consultant-facing or “explain the whole initiative” sessions:** read **`.ai/consultant_context.md`** in full (and still use `context.md` + `_index.md` if the task spans multiple initiatives).
+How to begin a new AI session on this project. See also [`.ai/README.md`](../README.md).
 
 ---
 
@@ -35,7 +24,7 @@ How to begin a new AI session on this project.
    - **Alignment:** Substantial or multi-session work should map to a **named initiative** (file + row in `_index.md`). **Repo version bumps** (major / minor / patch) relate to **what shipped** and should stay traceable to initiatives and user-visible/API semver — see `.ai/protocols/session.9.Close.md` Part 2 (version bump gate). If it is unclear **which initiative** the session continues or which one a release would fulfill, **ask the user** to name it or to **create** a new initiative (add `.md` + row in `_index.md`) before treating scope as settled.
 
 5. **Load extended context only when needed.**
-   - The **Extended docs TOC** in **`.ai/context.md`** lists every file in `.ai/extended/` with a one-line description. Use it to pick the right file for your domain. Do **not** read all extended files at session start. (Consultants needing a **single full picture** should use **`.ai/consultant_context.md`** instead — see **Audience** above.)
+   - The **Extended docs TOC** in **`.ai/context.md`** lists every file in `.ai/extended/` with a one-line description. Use it to pick the right file for your domain. Do **not** read all extended files at session start.
 
 6. **Check for open terminals or running processes.**
    - List the terminals folder to see if Django or Vite are already running.
@@ -67,7 +56,7 @@ How to begin a new AI session on this project.
 
 ## What NOT to do at startup
 
-- Do NOT read every file in `.ai/extended/` at session start — load domain files on demand (step 5). Do **not** treat **all** initiatives as required reading unless the task is cross-cutting or consultant-style (then prefer **`consultant_context.md`** where it applies).
+- Do NOT read every file in `.ai/extended/` at session start — load domain files on demand (step 5). Read only the **active initiative** files relevant to the task.
 - Do NOT run migrations, seeds, or builds unless asked.
 - Do NOT commit, push, or deploy anything.
 - Do NOT create or modify documentation unless asked (exceptions: **step 8** session entry when mapping to an initiative; **`session.1.Checkpoint.md`** / **`session.9.Close.md`** when the user or protocol calls for those passes).

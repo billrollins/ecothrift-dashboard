@@ -58,7 +58,7 @@ Run **several times per session** (for example every **1–2 hours**, after a me
 | **`.ai/extended/<domain>.md`** | Behavior or routes changed in this pulse — bump `<!-- Last updated -->` and minimal factual edits. |
 | **`.ai/initiatives/_index.md`** | Phase or Notes **actually** changed this pulse (not “maybe later”). |
 | **`.ai/context.md`** | Only if a **Working** pointer or **Not Yet Implemented** line is now wrong **because of this pulse**. |
-| **`.ai/consultant_context.md`** | Optional mid-session; **required** when a phase ships or status flips — that is often **`session_close`**, not every checkpoint. |
+| **`.ai/initiatives/<initiative>.md`** + **`_index.md`** | Update when a phase ships or initiative status flips — often at **`session_close`**, not every checkpoint. |
 
 ### 4. Parking lot
 

@@ -1,5 +1,7 @@
-<!-- Last updated: 2026-04-30 (ARCHIVE _completed TOC: bstock + ui_ux) -->
+<!-- Last updated: 2026-05-18 (retired paths: consultant_context, .ai/plans/, .ai/debug/) -->
 # Archive index — initiatives
+
+**Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
 
 ## What this is
 

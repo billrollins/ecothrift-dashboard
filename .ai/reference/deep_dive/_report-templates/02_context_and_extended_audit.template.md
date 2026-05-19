@@ -12,13 +12,13 @@
 | File | Finding | Evidence | Recommendation | Priority |
 |---|---|---|---|---|
 | `.ai/context.md` | `<finding>` | `<code/doc refs>` | `<action>` | `P0/P1/P2/P3` |
-| `.ai/consultant_context.md` | `<finding>` | `<code/doc refs>` | `<action>` | `P0/P1/P2/P3` |
+| `.ai/README.md` | `<finding>` | `<code/doc refs>` | `<action>` | `P0/P1/P2/P3` |
 
-## Extended Docs TOC Parity
+## Extended Docs TOC
 
-| Extended file | Listed in `context.md` | Listed in `consultant_context.md` | Exists on disk | Notes |
-|---|---:|---:|---:|---|
-| `.ai/extended/<file>.md` | `yes/no` | `yes/no` | `yes/no` | `<notes>` |
+| Extended file | Listed in `context.md` TOC | Exists on disk | Notes |
+|---|---:|---:|---|
+| `.ai/extended/<file>.md` | `yes/no` | `yes/no` | `<notes>` |
 
 ## Extended File Audit
 

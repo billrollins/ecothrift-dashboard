@@ -1,9 +1,11 @@
-<!-- intake data flow. design for review. no implementation in this file -->
+<!-- intake data flow. design draft — partial supersession by v2.24.0 shipped code -->
 # Intake pipeline. Data flow plan (review draft v2)
 
-What this is: which tables are source of truth vs transient, when rows appear and disappear, how stage tracking works across parallel pipeline tracks, and what still needs a decision before any code work starts.
+> **Status:** Design archaeology. **Shipped behavior** and runbooks: initiative [`order_processing_pipeline_rebuild`](../../initiatives/order_processing_pipeline_rebuild.md), [`_recon/README.md`](./_recon/README.md), [`extended/inventory-pipeline.md`](../../extended/inventory-pipeline.md). Repo root [`CHANGELOG.md`](../../../CHANGELOG.md) **`[2.24.0]`** / **`[2.24.1]`**.
 
-What this is not: code, migrations, frontend work, or the separate PO manifest meta + slim detail effort already in flight.
+What this is: which tables are source of truth vs transient, when rows appear and disappear, how stage tracking works across parallel pipeline tracks, and open design questions at write time.
+
+What this is not: the live operational runbook (use `_recon/` + repair command).
 
 ---
 
@@ -26,19 +28,19 @@ What this is not: code, migrations, frontend work, or the separate PO manifest m
 | `inventory_preprocessingrow` | Working data for preprocessing. `raw_row` JSONB plus standard / ai / final overlays. See §3. | Deleted X days after intake close. Q4. |
 | `inventory_processingrow` | Working data for processing | Deleted X days after intake close. Q4. |
 
-### Receiving (revisit with the receiving page)
+### Receiving
 
-`inventory_receiving`, `inventory_receivingattachment`, `inventory_receivingpallet`. Schemas TBD when receiving page is designed.
+`inventory_receiving`, `inventory_receivingattachment`, `inventory_receivingpallet` — **shipped** (see **`v2.24.0`**).
 
 ### Disputes
 
-`inventory_dispute` (proposed). Two dispute kinds (intake-time, processing-time) discriminated by a `kind` column. Schema TBD; out of scope here.
+`inventory_dispute` — **shipped** (migration wave **`0045+`**); see services + API in codebase.
 
 ### Dropping (planned)
 
 | Table | Notes |
 |---|---|
-| `inventory_preprocessingorder` | Folding all relevant fields onto `inventory_purchaseorder` (see §2). Collapse, don't preserve. |
+| `inventory_preprocessingorder` | **Dropped** in migration **`0047`**; fields on `inventory_purchaseorder`. |
 | `inventory_processingbatch` | TBD when processing rebuild starts |
 | `inventory_processingdatabuild` | TBD when processing rebuild starts. Currently active in Item Processor materialization. |
 | `inventory_itemswapaudit` | Legacy, no active writes. Drop candidate. |
@@ -350,7 +352,7 @@ Each preprocessing tab has an Undo action. Undo nulls its own column family AND 
 
 ## 9. Reality check vs current code
 
-Findings from `recon.md`. Where today's code diverged from the design at write time.
+Findings from [`_recon/README.md`](./_recon/README.md) and shipped code. Where the design at write time diverged from **`v2.24.0`**.
 
 **Findings reflect the state at design time. Wave 1 has shipped; some items below are now resolved. See §10 for wave-by-wave status.**
 
@@ -390,7 +392,7 @@ Cross-cutting rebuild program: schema and writers first, readers and table drops
 ### Wave 1. Schema + write-side cutover
 
 **Status:** done  
-**Plan file:** `.ai/plans/intake_rebuild_wave_1.plan.md`  
+**Plan:** shipped **`v2.24.0`** — see initiative Session 15 + [`CHANGELOG [2.24.0]`](../../../CHANGELOG.md)  
 **Scope:** New PO columns (`manifest_signature`, `manifest_headers`, `template_id` + caches, `standardization_formulas`, per-stage statuses, per-stage timestamps), `pallet_count` rename on PO, `received_pallet_count` rename on Receiving, `last_ai_import_at` copied to `ai_cleaned_at` then dropped, `manifest_sample` cleanup in `preprocessing_status` response, dual-writes to PO alongside `PreprocessingOrder` on every preprocess action, template-at-upload teardown.  
 **Depends on:** nothing (foundation wave)  
 **Unblocks:** Waves 2 and the timeline drawer detour
@@ -398,7 +400,7 @@ Cross-cutting rebuild program: schema and writers first, readers and table drops
 ### Timeline drawer detour
 
 **Status:** done (UI is functional but legacy data prevents full end-to-end testing until Wave 7)  
-**Plan file:** `.ai/plans/intake_timeline_drawer.plan.md`  
+**Plan:** timeline drawer shipped in intake wave (initiative sessions)  
 **Scope:** Side drawer for Order Detail showing all stages with rich meta and per-stage undo. Universal launcher pattern. Backend `intake_undo` service + `undo-preview` and `undo` endpoints.  
 **Depends on:** Wave 1  
 **Unblocks:** testable UI surface for all later waves; full verification waits for clean data from Wave 7
@@ -472,7 +474,6 @@ Cross-cutting rebuild program: schema and writers first, readers and table drops
 | `2026.05.08_intake_updates.md` | Canonical 10-step pipeline list (reference; the real graph is a DAG) |
 | `order_dashboard_surfaces.md` | Order list/create/detail surfaces; `detail-surface` vs full `retrieve` |
 | `.ai/reference/order_processing_pipeline_rebuild/intake_field_map.md` | Authoritative field-level spec; per-table, per-stage |
-| `recon.md` | Snapshot of current code state at design time. Source for §9. |
-| `.ai/plans/intake_rebuild_wave_1.plan.md` | Wave 1 implementation plan |
-| `.ai/plans/intake_timeline_drawer.plan.md` | Timeline drawer detour plan |
-| PO manifest meta + slim detail plan | Tracked separately (Cursor plans tree) |
+| [`_recon/README.md`](./_recon/README.md) | Operational recon + repair runbook (post-migrate). Source for §9 today. |
+| [`.ai/initiatives/order_processing_pipeline_rebuild.md`](../../initiatives/order_processing_pipeline_rebuild.md) | Active plan + sessions (replaces `.ai/plans/`) |
+| [`README.md`](./README.md) | Reference hub for this folder |

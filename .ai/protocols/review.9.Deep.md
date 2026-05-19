@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-01 (protocol filename: review.9.Deep.md) -->
+<!-- Last updated: 2026-05-18 (no consultant_context; PreprocessingRow on PO) -->
 # Protocol: Deep Research - Update All Context
 
 Exhaustive repo + AI-steering audit. Use when the user asks for **deep research**, **update all context**, **full context refresh**, or a broad documentation / initiative / changelog integrity pass.
@@ -13,7 +13,7 @@ Audit and report on:
 
 - Full codebase structure and shipped behavior
 - **Preprocessing pipeline** (see [Domain focus: preprocessing through Final Review](#domain-focus-preprocessing-through-final-review) below) — treat as first-class: drift here breaks manifest → AI → staging → review.
-- `.ai/context.md`, `.ai/consultant_context.md`
+- `.ai/context.md`, `.ai/README.md`
 - `.ai/extended/*.md`
 - `.ai/initiatives/_index.md`, active initiatives, archive buckets
 - `.version`, root `package.json`, root `CHANGELOG.md`
@@ -30,13 +30,13 @@ Deliverables:
 
 ## Domain focus: preprocessing through Final Review
 
-When running this protocol, **actively trace** the end-to-end path below in `01_codebase_inventory.md` and cross-check steering docs (`consultant_context`, `extended`, initiatives). Surface mismatches between docs and code (columns, endpoints, validation rules, UI step names).
+When running this protocol, **actively trace** the end-to-end path below in `01_codebase_inventory.md` and cross-check steering docs (`context`, `extended`, initiatives). Surface mismatches between docs and code (columns, endpoints, validation rules, UI step names).
 
 ### Flow (conceptual)
 
 ```text
 Purchase order manifest / staging
-  → PreprocessingOrder + PreprocessingRow (standard_* layers, economics)
+  → PreprocessingRow on PurchaseOrder (standard_* / ai_* / final_* layers, economics)
   → download-cleanup-csv (Step 2 input for offline tools)
   → Grok helper (workspace/ai-cleanup-grok): single <stem>.cleaned.csv, per-row ai_status JSON
   → POST upload-cleanup-csv / apply-cleanup-csv → PreprocessingRow.ai_* + ai_status
@@ -47,7 +47,7 @@ Purchase order manifest / staging
 
 | Concern | Where to look |
 |--------|----------------|
-| Models: staging rows, `standard_*` / `ai_*` / `final_*`, `ai_status` | `apps/inventory/models.py` — `PreprocessingOrder`, `PreprocessingRow` |
+| Models: staging rows, `standard_*` / `ai_*` / `final_*`, `ai_status` | `apps/inventory/models.py` — `PreprocessingRow` (linked on `PurchaseOrder`; `PreprocessingOrder` removed in migration `0047`) |
 | Download CSV for cleanup | `PurchaseOrderViewSet.download_cleanup_csv` — `apps/inventory/views.py` |
 | Upload cleaned CSV / JSON rows | `_upload_cleanup_csv_impl`, `upload_cleanup_csv`, `apply_cleanup_csv` — `apps/inventory/views.py`; helpers `_parse_cleanup_csv_upload`, `parse_ai_cleanup_suggestions` |
 | Row validation (blocking vs quality for wide import) | `apps/inventory/cleanup_csv_validate.py` — `validate_cleanup_row_values` (`block_on_quality` / staging-wide looseness) |
@@ -125,7 +125,7 @@ Collect facts before writing conclusions.
 Required reads:
 
 - Root: `.version`, `package.json`, `CHANGELOG.md`, `README.md`, `.gitignore`
-- AI steering: `.ai/context.md`, `.ai/consultant_context.md`, `.ai/protocols/*.md`
+- AI steering: `.ai/context.md`, `.ai/README.md`, `.ai/protocols/*.md`
 - Extended: every `.ai/extended/*.md`
 - Initiatives: `.ai/initiatives/_index.md`, every active `.ai/initiatives/*.md`, `.ai/initiatives/_archived/ARCHIVE.md`, every archived initiative TOC row needed to verify buckets
 - Report templates: `.ai/reference/deep_dive/_report-templates/*.md`
@@ -156,7 +156,7 @@ Create the reports from templates exactly:
 |---|---|---|
 | `00_run_summary.md` | `00_run_summary.template.md` | Executive summary, confidence, top risks, recommended next actions |
 | `01_codebase_inventory.md` | `01_codebase_inventory.template.md` | Current codebase map, domain surfaces, shipped behavior, tests |
-| `02_context_and_extended_audit.md` | `02_context_and_extended_audit.template.md` | Drift in `context`, `consultant_context`, extended docs, protocol discoverability |
+| `02_context_and_extended_audit.md` | `02_context_and_extended_audit.template.md` | Drift in `context`, extended docs, protocol discoverability |
 | `03_initiatives_audit.md` | `03_initiatives_audit.template.md` | Active/archive initiative health and recommended dispositions |
 | `04_version_changelog_audit.md` | `04_version_changelog_audit.template.md` | `.version`, `package.json`, `CHANGELOG`, release traceability |
 | `05_cleanup_and_restructure_audit.md` | `05_cleanup_and_restructure_audit.template.md` | File removals, restructuring, generated debris, duplicate/stale references |

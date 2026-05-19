@@ -25,7 +25,7 @@ Run when you are ready to **finish a work session** and optionally **commit / re
    - `still open` (work continues next session — add note in Session updates)
    - `abandoned — <reason>`
 4. If this session **completed a phase**: check the **Acceptance** box for that phase in the initiative file; update **`.ai/initiatives/_index.md`** row (Phase + one-sentence Notes) if phase status changed.
-5. If a phase **acceptance box was checked** or **initiative status** (Active / On hold / etc.) changed: update **`.ai/consultant_context.md`** per Part 2 (bright-line trigger).
+5. If a phase **acceptance box was checked** or **initiative status** (Active / On hold / etc.) changed: update the **active initiative file** and **`_index.md`** per Part 2.
 
 **Archiving:** Do **not** move an initiative to `_archived/` unless the **user explicitly** approves. Initiative lifecycle steps live under [`.ai/initiatives/_archived/_protocols/README.md`](../initiatives/_archived/_protocols/README.md).
 
@@ -38,9 +38,9 @@ Run when you are ready to **finish a work session** and optionally **commit / re
 | Artifact | When to update |
 |----------|----------------|
 | **`.ai/context.md`** | Known Issue resolved, new capability in the pointer list, **Not Yet Implemented** item shipped, or **Working** section needs a new pointer line. Do **not** rewrite the whole Working section every session. |
-| **`.ai/extended/<domain>.md`** | You changed models, routes, URLs, auth, or domain behavior in that area. Bump the file’s `<!-- Last updated -->` timestamp. If you **added, renamed, or removed** an extended file, update the **Extended docs TOC** in both **context.md** and **consultant_context.md**. |
+| **`.ai/extended/<domain>.md`** | You changed models, routes, URLs, auth, or domain behavior in that area. Bump the file’s `<!-- Last updated -->` timestamp. If you **added, renamed, or removed** an extended file, update the **Extended docs TOC** in **`context.md`**. |
 | **`.ai/initiatives/_index.md`** | Initiative phase or one-sentence Notes changed. |
-| **`.ai/consultant_context.md`** | **Required** when a **phase acceptance box is checked** or **initiative status** changes. Optional for small fixes otherwise. |
+| **`.ai/initiatives/<initiative>.md`** | **Required** when a **phase acceptance box is checked**, execution steps change, or **initiative status** changes. |
 | **Root `CHANGELOG.md`** | Add **`[Unreleased]`** bullets for user-visible or API-relevant work. **Style:** 1–2 sentences per bullet; cite initiative filename; avoid implementation-detail paragraphs. |
 | **Root `README.md`** | Quick Start / AI steering subsection only if onboarding or protocol paths changed. |
 

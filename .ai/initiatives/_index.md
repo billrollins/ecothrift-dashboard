@@ -3,7 +3,7 @@
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
 
-**`CHANGELOG.md`** latest dated **`## [2.24.1]`** (processing gate hotfix: Processing decoupled from Receiving; structured processing-data validation). **`## [2.24.0]`** is the inbound intake stabilization release. **Rule:** every production push warrants a semver bump and changelog entry. Session message drives day-to-day priorities.
+**Version / releases:** repo root [`.version`](../.version) and [`CHANGELOG.md`](../CHANGELOG.md) only — do not duplicate release history in initiative files. **Rule:** every production push warrants a semver bump and changelog entry.
 
 ---
 

@@ -26,14 +26,14 @@
 
 ## Current Execution Steps
 
-- [ ] **Step 1 — Schema + migration baseline:** migrations **0045–0051**, `schema.csv`, migrate/test DB behavior, and any required pre/post repair notes are coherent.
-- [ ] **Step 2 — Orders list/detail surfaces:** `orders/`, `summary/`, manifest metadata, vendor fallback/dashboard filtering, and order timeline/detail UI behave after migrations.
-- [ ] **Step 3 — Preprocessing transition hardening:** status gates, undo/reset, final snapshot backfills, and final review/preprocessing tests are aligned.
-- [ ] **Step 4 — Receiving transition hardening:** receiving statuses, timestamps, pallet counts, and receiving workspace/API tests are aligned.
-- [ ] **Step 5 — Processing handoff compatibility:** processing workspace/finalize code still handles rebuilt intake state and legacy queue compatibility.
-- [ ] **Step 6 — Disputes and rollups:** dispute model/API/service behavior and PO rollups are covered by focused tests.
-- [ ] **Step 7 — Recon/repair/deploy runbook:** premigrate/postmigrate recon, repair command/service, and deploy scripts explain the operational path.
-- [ ] **Step 8 — Closeout docs/tests/commit message:** update steering docs/changelog as needed, run the targeted suite, and fill the deploy commit message.
+- [x] **Step 1 — Schema + migration baseline:** migrations **0045–0051** shipped **`v2.24.0`**; prod migrated; `repair_intake_pipeline_pos --verify` OK after apply.
+- [x] **Step 2 — Orders list/detail surfaces:** dashboard vendor `Q` fallback, timeline drawer, order detail PATCH retention — **`v2.24.0`**.
+- [x] **Step 3 — Preprocessing transition hardening:** gates, undo, **`0047`** PO-linked **`PreprocessingRow`** — **`v2.24.0`**.
+- [x] **Step 4 — Receiving transition hardening:** receiving timestamps/pallets + desktop fallback — **`v2.24.0`**.
+- [x] **Step 5 — Processing handoff compatibility:** Item Processor + build-processing-data; **`v2.24.1`** decoupled Processing from Receiving gate.
+- [x] **Step 6 — Disputes and rollups:** **`Dispute`** model/API + atomic **`processing_dispute`** — **`v2.24.0`**.
+- [x] **Step 7 — Recon/repair/deploy runbook:** [`_recon/README.md`](../reference/order_processing_pipeline_rebuild/_recon/README.md) exercised on prod rollout.
+- [x] **Step 8 — Closeout docs/tests/commit message:** **`v2.24.0`** + **`v2.24.1`** released; steering cleanup in progress.
 
 **Work loop:** finish one step at a time. Each step ends with targeted tests or a noted blocker, any migration/deploy note captured, and a short Session 15 update before starting the next step.
 
@@ -49,8 +49,8 @@
 | Receiving transition | In scope | `apps/inventory/services/receiving.py`, `frontend/src/components/inventory/receiving/ReceivingDesktopWorkspace.tsx`, `frontend/src/pages/inventory/ReceivingOrderPage.tsx` |
 | Processing handoff | In scope | `apps/inventory/processing_ops.py`, `apps/inventory/services/processing_finalize.py`, `apps/inventory/services/processing_workspace.py`, `apps/inventory/management/commands/build_legacy_checkin_queue.py` |
 | Disputes / repair | In scope | `apps/inventory/services/disputes.py`, `apps/inventory/services/intake_po_repair.py`, `apps/inventory/management/commands/repair_intake_pipeline_pos.py`, dispute/intake repair tests |
-| Recon / deploy references | Supporting | `.ai/reference/order_processing_pipeline_rebuild/2026.05.08_intake_updates.md`, `data_flow_plan.md`, `intake_field_map.md`, `order_dashboard_surfaces.md`, `_sql/`, `_recon/`, `scripts/deploy/0_pull_prod_to_local.bat`, `scripts/deploy/commit_message.txt` |
-| Scratch / one-off helpers | Parking lot | `_backfill_manifest_denorm.py` until it is either promoted to a command or removed |
+| Recon / deploy references | Supporting | [`.ai/reference/order_processing_pipeline_rebuild/`](../reference/order_processing_pipeline_rebuild/README.md) (`_sql/`, `_recon/`, field map), `scripts/deploy/` |
+| Final Review visual pass | Active gap | [`.ai/reference/fix_this.md`](../reference/fix_this.md) — mockup rebuild **pending** |
 
 ---
 
@@ -83,7 +83,8 @@ Staff-facing umbrella for **`Orders → Preprocessing → Receiving → Processi
 | **Receiving** | **Shipped** — **`GET …/orders/for-receiving/`** tiered ED ordering; **`/inventory/receiving`** → next PO; **`OrderListPage`** receive truck; **`ReceivingOrderPage`** + desktop/mobile receiving UI. |
 | **Preprocessing** | **Shipped (core)** — three-step **`PreprocessingPage`**: Standardize → Clean → **Final Review**; **`download-cleanup-csv`** / **`apply-cleanup-csv`** (wide Grok + narrow legacy); **`preprocessing-review`**; **`finalize-preprocessing`** (three-layer **`PreprocessingRow`** → **`final_*`** → rebuilt **`ManifestRow`**). **Iterative hardening** (UX polish, edge cases): [Preprocessing — target UX](#preprocessing--target-ux), **[`cleanup_csv_contract.md`](../reference/cleanup_csv_contract.md)**. Row validation (**`rule`** ids, **`rejected_rows`** / **`soft_warnings`**) lives in **`apps/inventory/cleanup_csv_validate.py`** (`validate_cleanup_row_values`). |
 | **Processing** | Item Processor workspace shipped (**`/inventory/processing`**, **`/inventory/processing/:id`**); legacy **`/inventory/processing-legacy`**. **v2.21.1 hotfix:** **`build-processing-data`** bulk-creates minimal **`ManifestRow`** + **`Item`** rows from **`ProcessingRow`** bookmarks, skips Product/BatchGroup enrichment on the synchronous path, and removes duplicate-hint full-PO scans for large-order stability. **v2.21.0:** **`ProcessingRow`** queue rows, **`GET …/processing-workspace/`** pagination (**default 25**), **`GET …/processing-row-detail/`**, **`workspace_patch`** on mutations. **`POST …/processing-swap/`** removed from scope (**`inventory-pipeline.md`**). |
-| **Finalization / Disputes** | Roadmap placeholders. |
+| **Disputes** | **Shipped** (model/API/services) — **`v2.24.0`**; dedicated inbound disputes **route** still placeholder. |
+| **Finalization** | Roadmap placeholder. |
 
 ---
 
@@ -316,9 +317,10 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 #### Session updates
 
 - Scope cleanup: Session 14 closed as discovery; Session 15 owns the ordered stabilization wave. Next: Step 1 — schema + migration baseline.
-- Review: **`review.0.Bump`** + **`review.1.Diff`** + **`review.9.Deep`** — **`CHANGELOG [Unreleased]`** intake bullets + steering sync (**`context`**, **`consultant_context`**, **`extended/inventory-pipeline`**) + persisted diff **`20260518-092215.diff.md`** + refreshed **`.ai/reference/deep_dive/latest/`** (prior run under **`_runs/20260518T092130/previous_latest/`**) — semver bump deferred Part 2A — 2026-05-18
+- Review: **`review.0.Bump`** + **`review.1.Diff`** + **`review.9.Deep`** — shipped **`v2.24.0`** / **`v2.24.1`**; steering sync — 2026-05-18
 - Stabilization pass (Business-hours readiness): **`0045`** rollout PO map corrected; **`processing_dispute`** all-in-one **`transaction.atomic()`**; **`OrderDetailPage`** PATCH queue retention + **`ReceivingOrderPage`** desktop missing-PO fallback; targeted pytest (8 modules) **`121`** OK; **`repair_intake_pipeline_pos --verify`** OK; **`npm run build`**. **`0050`** still full-scan on migrate — rehearsal deploy/window timing on prod-sized copy remains a release gate — 2026-05-18
 - Release bookkeeping correction: main release is **`v2.24.0`**; same-day production hotfixes are **`v2.24.1`** (PATCH) for structured processing-data validation and temporary Processing/Receiving decoupling. Going forward, **every production push warrants a semver bump + `CHANGELOG` entry** — 2026-05-18
+- **Result:** Session 15 stabilization wave **shipped** (**`v2.24.0`**, **`v2.24.1`**). Remaining initiative work: **Final Review visual rebuild** ([`fix_this.md`](../reference/fix_this.md)); optional inbound route placeholders.
 
 ---
 
