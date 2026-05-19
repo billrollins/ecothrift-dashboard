@@ -27,6 +27,7 @@ def _have_rows(*, using: str = 'default') -> list[tuple[str, int, Decimal]]:
                 COALESCE(i.retail_value, i.price, 0)::numeric AS retail_line
             FROM inventory_item i
             LEFT JOIN inventory_product p ON i.product_id = p.id
+            LEFT JOIN inventory_manifestrow mr ON i.manifest_row_id = mr.id
             WHERE i.status = 'on_shelf'
         ) b
         GROUP BY b.bucket
@@ -50,6 +51,7 @@ def _want_rows(since: datetime, *, using: str = 'default') -> list[tuple[str, in
                 COALESCE(i.retail_value, i.price, 0)::numeric AS retail_line
             FROM inventory_item i
             LEFT JOIN inventory_product p ON i.product_id = p.id
+            LEFT JOIN inventory_manifestrow mr ON i.manifest_row_id = mr.id
             WHERE i.status = 'sold'
               AND i.sold_at >= %s
               AND COALESCE(i.sold_for, i.price) >= 0.01
@@ -86,6 +88,7 @@ def _profitability_aggregates(*, using: str = 'default') -> list[tuple[str, Deci
                 i.cost::numeric AS cost_amt
             FROM inventory_item i
             LEFT JOIN inventory_product p ON i.product_id = p.id
+            LEFT JOIN inventory_manifestrow mr ON i.manifest_row_id = mr.id
             WHERE i.status = 'sold'
               AND i.sold_for BETWEEN 0.01 AND 9999
               AND i.retail_value BETWEEN 0.01 AND 9999
