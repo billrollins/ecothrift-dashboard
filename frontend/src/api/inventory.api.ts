@@ -364,12 +364,23 @@ export function getOrderDetailSurface(id: number): Promise<{ data: PurchaseOrder
   return api.get<PurchaseOrderDetailSurface>(`/inventory/orders/${id}/detail-surface/`);
 }
 
+export function getOrderProcessingStats(
+  id: number,
+): Promise<{ data: NonNullable<PurchaseOrder['processing_stats']> }> {
+  return api.get<NonNullable<PurchaseOrder['processing_stats']>>(
+    `/inventory/orders/${id}/processing-stats/`,
+  );
+}
+
 export function createOrder(data: Record<string, unknown>): Promise<{ data: Order }> {
   return api.post<Order>('/inventory/orders/', data);
 }
 
-export function updateOrder(id: number, data: Record<string, unknown>): Promise<{ data: Order }> {
-  return api.patch<Order>(`/inventory/orders/${id}/`, data);
+export function updateOrder(
+  id: number,
+  data: Record<string, unknown>,
+): Promise<{ data: PurchaseOrderDetailSurface }> {
+  return api.patch<PurchaseOrderDetailSurface>(`/inventory/orders/${id}/`, data);
 }
 
 export function deleteOrder(id: number): Promise<{ data: void }> {

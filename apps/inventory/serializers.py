@@ -593,14 +593,20 @@ class PreprocessingQueueOrderSerializer(serializers.ModelSerializer):
 
 
 class PurchaseOrderDetailSerializer(PurchaseOrderSerializer):
-    """Full PO detail (+ nested manifest / stats); canonical ManifestRow count is ``inventory_manifest_row_count``."""
+    """PO retrieve: full manifest fields; no live ``processing_stats`` (use processing-stats action)."""
 
     inventory_manifest_row_count = serializers.SerializerMethodField()
 
     class Meta(PurchaseOrderSerializer.Meta):
-        fields = PurchaseOrderSerializer.Meta.fields + ['inventory_manifest_row_count']
+        fields = [
+            f
+            for f in PurchaseOrderSerializer.Meta.fields
+            if f != 'processing_stats'
+        ] + ['inventory_manifest_row_count']
 
     def get_inventory_manifest_row_count(self, obj):
+        if obj.manifest_row_count is not None:
+            return obj.manifest_row_count
         annotated = getattr(obj, '_manifest_row_count', None)
         if annotated is not None:
             return annotated

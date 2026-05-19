@@ -997,6 +997,7 @@ class Item(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['status', 'sold_at']),
+            models.Index(fields=['purchase_order', 'status']),
         ]
 
     def __str__(self):

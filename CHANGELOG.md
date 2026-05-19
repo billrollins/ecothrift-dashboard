@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.24.1] — 2026-05-18 (Inventory — processing gate hotfix) -->
-<!-- Last reviewed: 2026-05-18 (`review.0.Bump` patch — every production push warrants a semver bump; v2.24.1 records post-v2.24.0 processing hotfixes) -->
+<!-- Line 1 release: ## [2.24.2] — 2026-05-19 (Inventory — PO hot-path / prod hang fix) -->
+<!-- Last reviewed: 2026-05-19 (`review.0.Bump` patch — PO open/PATCH hot path; processing-stats endpoint) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,29 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.24.2] — 2026-05-19
+
+User-facing theme: **Order hot-path fix** — opening and editing purchase orders stays fast on large POs; production no longer wedges when debounced field saves run.
+
+### Fixed
+
+- **Inventory / PO hot path** — `GET` retrieve, `detail-surface`, and `PATCH` use a single-row PO queryset (no multi-`Count` annotations on items). `PATCH` returns the same lean shape as detail-surface.
+- **Inventory / processing stats** — New `GET …/orders/{id}/processing-stats/` runs one grouped count on items plus batch-group aggregates; removed live `processing_stats` from default retrieve.
+- **Inventory / Order Detail** — Debounced PATCHes are serialized (one in-flight per tab) to avoid exhausting Gunicorn workers.
+- **Buying / category stats** — Taxonomy bucket SQL uses `product.category` and `manifest_row.category` (dropped `item.category` column).
+
+### Changed
+
+- **Inventory** — Composite index on `Item (purchase_order, status)` for grouped status counts.
+- **Frontend** — Processing and Receiving pages use detail-surface + processing-stats instead of heavy retrieve.
+
+### Tests
+
+- **`python -m pytest apps/inventory/tests/test_po_manifest_meta_surface.py apps/buying/tests/test_taxonomy_bucket_sql.py apps/buying/tests/test_phase5_category_need.py -q --tb=short`** — **16 passed**.
+- **`frontend`**: **`npm run build`**.
 
 ---
 
@@ -147,24 +170,7 @@ User-facing theme: **Processing data hotfix** — large finalized POs can enter 
 
 ## [Unreleased]
 
-### Added (Inbound intake rebuild — unreleased branch)
-
-- **Inventory / intake schema wave** — Migrations **`0045_purchase_order_manifest_meta`** … **`0051_rename_inventory_d_purchas_2f1e4c_idx_inventory_d_purchas_c3911a_idx_and_more`**: **`PurchaseOrder`** manifest metadata + intake statuses / timestamp rails + **`Dispute`** model; **`0047`** drops **`PreprocessingOrder`**; **`0050`** processing track + **`uses_legacy_processing`**. Services + command: **`intake_po_repair`** / **`repair_intake_pipeline_pos`**, **`intake_undo`**, **`intake_gates`**, **`manifest_meta`**, **`manifest_remove`**, **`disputes`**. Operational recon: **[`.ai/reference/order_processing_pipeline_rebuild/_recon/README.md`](.ai/reference/order_processing_pipeline_rebuild/_recon/README.md)**. Initiative sequencing: **`order_processing_pipeline_rebuild`** **Session 15**.
-- **Reference SQL** — Order API alignment snippets under **[`.ai/reference/order_processing_pipeline_rebuild/_sql/`](.ai/reference/order_processing_pipeline_rebuild/_sql/README.md)** (keep **`.ai/extended/sql/schema.csv`** in sync on release).
-
-### Changed (Inbound intake — unreleased branch)
-
-- **Inventory / Orders dashboard** — **`PurchaseOrderViewSet`** list-style actions match dashboard vendors via **`Q(vendor_name_cache__in=… \| Q(vendor__name__in=…))`** + **`select_related('vendor')`** so stale-empty **`vendor_name_cache`** rows still appear (**`apps/inventory/views.py`**, **`test_purchase_order_list_dashboard_filter`**).
-
-### Fixed (Inbound intake stabilization — unreleased branch)
-
-- **Migration `0045_purchase_order_manifest_meta`** — Rollout **`expected_order_numbers`** (316–319) aligned to canonical **`id→order_number`**: **`316`=AMZ0N-OQL-CCP4**, **`317`=C5TC0-OM1-A8R3**, **`318`=TRGET-O4U-QP68**, **`319`=TRGET-O2R-1K40**. Environments that already applied **`0045`** do not replay **`RunPython`**; **`repair_intake_pipeline_pos`** + operational truth remains the corrective path where needed (`apps/inventory/migrations/0045_purchase_order_manifest_meta.py`, **`EXPECTED_INTAKE_POS`**, **`test_intake_po_repair`**).
-- **Inventory / Item Processor** — **`processing_dispute`** commits item mutation, denorm refresh, and **`record_processing_dispute_for_items`** in one atomic unit so **`refresh_processing_rows_denorm`** / dispute persistence failures roll back disputed item status (**`apps/inventory/processing_ops.py`**; regression **`test_processing_dispute_rolls_back_items_when_denorm_fails`**).
-
-### Frontend (Inbound intake — unreleased branch)
-
-- **Orders / Purchase order detail** — Debounced field PATCH flush no longer clears pending edits when **`purchaseOrderSurface`** cache is absent; PATCH failures restore the pending snapshot (**`OrderDetailPage.tsx`**).
-- **Receiving / desktop** — Order surface missing after receiving payload loads renders an error alert + link back instead of crashing on **`po.data!`** (**`ReceivingOrderPage.tsx`**).
+### Changed
 
 - **Visual authority:** **[`final_review_visual_rebuild_directive.md`](.ai/reference/final_review_visual_rebuild_directive.md)** is mockup ground truth for Pass 1; **[`fix_this.md`](.ai/reference/fix_this.md)** is the short pointer. **[`consult_design_final_review.md`](.ai/reference/consult_design_final_review.md)** and **[`final_review_ui_rebuild_plan.md`](.ai/reference/final_review_ui_rebuild_plan.md)** stay useful for behavior notes; where they **disagree on visuals**, the **directive** wins for the first pass.
 - **Pass 1 (directive):** Stepper labels (**Manual Review** / **Finalize and Open Processing**), six summary stats, toolbar **Save Changes** tied to the active filter, dense table columns without horizontal scroll, bulk pricing on **filtered rows** (not a row-selection gate). **No** `@tanstack/react-virtual` in Pass 1. Count-based indicators **hidden at zero** and variance **tolerance bands** per **[`.ai/extended/ux-spec.md`](.ai/extended/ux-spec.md)**.
@@ -193,11 +199,11 @@ User-facing theme: **Processing data hotfix** — large finalized POs can enter 
 
 ### Documentation
 
-- **AI steering / audits (`review.0` / `review.1` / `review.9`)** — Refreshed **`CHANGELOG [Unreleased]`** intake bullets; synced **`.ai/context.md`**, **`.ai/consultant_context.md`**, **`.ai/extended/inventory-pipeline.md`** (intake appendix + **`0047`** narrative); persisted diff summary **[`.ai/reference/diffs/20260518-092215.diff.md`](.ai/reference/diffs/20260518-092215.diff.md)**; deep dive output set under **[`.ai/reference/deep_dive/latest/`](.ai/reference/deep_dive/latest/)** (prior **`latest/`** archived to **`_runs/20260518T092130/previous_latest/`**).
+- **AI steering / audits (`review.0` / `review.1` / `review.9`)** — Realigned **`.ai/`** tree (initiative = plan; version/changelog at repo root only); **[`.ai/reference/deep_dive/latest/`](.ai/reference/deep_dive/latest/)** refreshed post-**`v2.24.1`**.
 - **Docs / reference** — **[`.ai/reference/cleanup_csv_contract.md`](.ai/reference/cleanup_csv_contract.md)** summarizes **`apply-cleanup-csv`** / **`upload-cleanup-csv`**: wide vs narrow rows, optional **`ai_status`**, staging-wide **relaxed** validation (quality **`HARD_*`** folded into **`soft_warnings`**), validation **`rule`** ids, and **`rejected_rows`** / **`soft_warnings`** response shape. **Historical:** a committed Jupyter tree under **`workspace/notebooks/ai-cleanup/`** was removed from the repo (**2026-05**); use **`workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`** (gitignored unless whitelisted) plus the contract doc for CSV semantics.
 - **Inventory pipeline (extended)** — [`.ai/extended/inventory-pipeline.md`](.ai/extended/inventory-pipeline.md): Item Processor workspace (**`processing-workspace`** API, **`ProcessingWorkspacePage`**, legacy grid route); optional adjunct **`workspace/ai-cleanup-grok/helpers/clean-grok.mjs`** for offline xAI cleanup (strict JSON Schema enums, **`.cleaned.csv`** + **`ai_status`**, optional **`--batch-api`**).
 - **Environment template** — xAI Grok (**`XAI_API_KEY`** / **`GROK_API_KEY`**, **`AI_PROVIDER`**, **`XAI_API_BASE`**) aligned with Django settings ([`.env.example`](.env.example); [`.ai/extended/development.md`](.ai/extended/development.md)).
-- **AI steering** — Preprocessing: Step 2 **`apply-cleanup-csv`** → staging **`ai_*`** / **`ai_title`** / optional **`ai_status`** (13-col client + **`soft_warnings`**); Step 3 **Final Review** — **`ai_status`** chips + clear-on-edit (`preprocessing-review`, **`finalize-preprocessing`**); Step 3 **mockup visual rebuild** (**[`fix_this.md`](.ai/reference/fix_this.md)** et al., **now tracked** under **`.ai/reference/`**) **pending** — **`order_processing_pipeline_rebuild` Sessions 11–12**, **`cleanup_csv_contract.md`**, **`context.md`** / **`consultant_context.md`**, **`extended/backend.md`** / **`inventory-pipeline.md`** / **`frontend.md`** ([`.ai/initiatives/order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)).
+- **AI steering** — Preprocessing: Step 2 **`apply-cleanup-csv`** → staging **`ai_*`** / **`ai_title`** / optional **`ai_status`** (13-col client + **`soft_warnings`**); Step 3 **Final Review** — **`ai_status`** chips + clear-on-edit (`preprocessing-review`, **`finalize-preprocessing`**); Step 3 **mockup visual rebuild** (**[`fix_this.md`](.ai/reference/fix_this.md)** et al.) **pending** — **`order_processing_pipeline_rebuild`** ([`.ai/initiatives/order_processing_pipeline_rebuild.md`](.ai/initiatives/order_processing_pipeline_rebuild.md)).
 - **Steering / process** — **`review.0.Bump`** (**2026-05-02** housekeeping): committed **`.ai/reference/`** Final Review pointers (**`fix_this.md`**, **`final_review_*`**, **`processing_data_lifecycle.md`**) so **`[Unreleased]`** links resolve; **`frontend/package.json`** **`0.0.0`** unchanged (**Part 2A**).
 - **Steering / process** — **`review.0.Bump`** (**2026-05-01** release): semver **`v2.21.0`** (**.version** + root **`package.json`**); **`CHANGELOG [2.21.0]`** + **`extended/`** steering sync for paginated Item Processor (**no swap**).
 - **Steering / protocol** — **`review.9.Deep.md`**: preprocessing-through–Final Review trace (models, views, `cleanup_csv_validate`, Grok adjunct, FE) for full audits; output under **`.ai/reference/deep_dive/latest/`** including GitHub / Heroku / prod DB gap (commit vs push vs `release:` migrate).

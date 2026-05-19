@@ -60,7 +60,8 @@ import {
   useMarkItemBroken,
   useMarkOrderComplete,
   usePreprocessingStatus,
-  usePurchaseOrder,
+  useProcessingStats,
+  usePurchaseOrderSurface,
   usePurchaseOrders,
   useUncheckInItem,
   useUpdateBatchGroup,
@@ -232,7 +233,8 @@ export default function ProcessingPage() {
   // ─── Queries ────────────────────────────────────────────────────────────────
 
   const { data: ordersData } = usePurchaseOrders({ status__in: 'delivered,processing,complete' });
-  const { data: order } = usePurchaseOrder(selectedOrderId);
+  const { data: order } = usePurchaseOrderSurface(selectedOrderId);
+  const { data: stats } = useProcessingStats(selectedOrderId);
   const { data: preprocessingStatus } = usePreprocessingStatus(selectedOrderId);
   const { data: batchGroupsData, isLoading: batchLoading } = useBatchGroups(
     {
@@ -307,7 +309,6 @@ export default function ProcessingPage() {
   const activeBatchItems = activeBatchItemsData?.results ?? [];
   const batchGroups = batchGroupsData?.results ?? [];
 
-  const stats = order?.processing_stats;
   const onShelf = stats?.item_status_counts?.on_shelf ?? 0;
   const pendingCount = stats?.pending_items ?? 0;
   const totalTracked = onShelf + pendingCount;

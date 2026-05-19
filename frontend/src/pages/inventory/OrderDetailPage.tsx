@@ -224,15 +224,18 @@ export default function OrderDetailPage() {
 
 
   const pendingRef = useRef<Record<string, unknown>>({});
+  const patchInFlightRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [successFlashKey, setSuccessFlashKey] = useState<string | null>(null);
   const [errorFlashKey, setErrorFlashKey] = useState<string | null>(null);
 
   const flushPatch = useCallback(async () => {
     if (orderId == null) return;
+    if (patchInFlightRef.current) return;
     const snapshot = { ...pendingRef.current };
     const keys = Object.keys(snapshot);
     if (keys.length === 0) return;
+    patchInFlightRef.current = true;
 
     const lifecycleKeys = [
       'ordered_date',
@@ -288,6 +291,11 @@ export default function OrderDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrderSurface', orderId] });
       setErrorFlashKey(keys.join(','));
       window.setTimeout(() => setErrorFlashKey(null), 600);
+    } finally {
+      patchInFlightRef.current = false;
+      if (Object.keys(pendingRef.current).length > 0) {
+        void flushPatch();
+      }
     }
   }, [orderId, queryClient]);
 

@@ -11,22 +11,24 @@ from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED
 
 
 class TaxonomyBucketTests(SimpleTestCase):
-    def test_item_category_exact(self):
+    def test_product_category_exact(self):
         item = MagicMock()
-        item.category = 'Toys & games'
-        item.product_id = None
+        item.product_id = 1
+        item.product.category = 'Toys & games'
+        item.manifest_row_id = None
         self.assertEqual(taxonomy_bucket_for_item(item), 'Toys & games')
 
-    def test_fallback_product_category(self):
+    def test_fallback_manifest_row_category(self):
         item = MagicMock()
-        item.category = 'Unknown retail string'
-        item.product_id = 1
-        item.product.category = 'Electronics'
+        item.product_id = None
+        item.manifest_row_id = 2
+        item.manifest_row.category = 'Electronics'
         self.assertEqual(taxonomy_bucket_for_item(item), 'Electronics')
 
     def test_mixed_when_unknown(self):
         item = MagicMock()
-        item.category = 'not in taxonomy'
         item.product_id = 1
-        item.product.category = 'also unknown'
+        item.product.category = 'not in taxonomy'
+        item.manifest_row_id = 2
+        item.manifest_row.category = 'also unknown'
         self.assertEqual(taxonomy_bucket_for_item(item), MIXED_LOTS_UNCATEGORIZED)

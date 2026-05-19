@@ -1,1 +1,7 @@
-fix(inventory): v2.24.1 processing gate hotfix
+fix(inventory): v2.24.2 PO hot-path and prod hang fix
+
+- Slim queryset for PO retrieve/PATCH (no multi-Count on items)
+- PATCH returns detail-surface shape; processing-stats on demand endpoint
+- Order Detail serializes debounced PATCHes (one in-flight)
+- Fix category stats SQL after item.category removal; Item (PO, status) index
+- Processing/Receiving use surface + processing-stats hooks

@@ -22,7 +22,7 @@ import {
   fetchOrdersForReceiving,
   uploadReceivingPhoto,
 } from '../../api/inventory.api';
-import { usePurchaseOrder } from '../../hooks/useInventory';
+import { usePurchaseOrderSurface } from '../../hooks/useInventory';
 import { receivingDetailQueryKey, usePatchReceivingMutation, useReceivingDetail } from '../../hooks/useReceiving';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import ReceivingDesktopWorkspace from '../../components/inventory/receiving/ReceivingDesktopWorkspace';
@@ -48,7 +48,7 @@ export default function ReceivingOrderPage() {
   const oid = Number.isFinite(Number(id)) ? Number(id) : null;
   const mobile = useMediaQuery('(max-width:767px)');
 
-  const po = usePurchaseOrder(oid);
+  const po = usePurchaseOrderSurface(oid);
   const receivingQ = useReceivingDetail(oid);
   const patchMut = usePatchReceivingMutation(oid);
 

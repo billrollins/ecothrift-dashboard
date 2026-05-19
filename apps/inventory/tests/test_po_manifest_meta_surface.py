@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.inventory.models import PurchaseOrder, Vendor
+from apps.inventory.models import Item, PurchaseOrder, Vendor
 from apps.inventory.views import header_signature
 
 User = get_user_model()
@@ -41,7 +41,10 @@ class PurchaseOrderManifestMetaSurfaceTests(TestCase):
             item_count=0,
         )
         self.po.refresh_cached_vendor_fields()
-        self.po.save(update_fields=['vendor_name_cache', 'vendor_code_cache', 'search_text'])
+        self.po.manifest_row_count = 0
+        self.po.save(
+            update_fields=['vendor_name_cache', 'vendor_code_cache', 'search_text', 'manifest_row_count'],
+        )
 
     def test_detail_surface_num_queries_are_low(self):
         """GET detail-surface must stay hot-path cheap (typically 2 ORM queries: auth user + PO row).
@@ -55,6 +58,55 @@ class PurchaseOrderManifestMetaSurfaceTests(TestCase):
         self.assertNotIn('processing_stats', r.data)
         self.assertIn('has_manifest', r.data)
         self.assertFalse(r.data['has_manifest'])
+
+    def test_retrieve_num_queries_are_low(self):
+        """GET retrieve must not run multi-Count annotations on items."""
+        with self.assertNumQueries(2):
+            r = self.client.get(f'/api/inventory/orders/{self.po.pk}/')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertNotIn('processing_stats', r.data)
+
+    def test_patch_description_returns_surface_shape(self):
+        r = self.client.patch(
+            f'/api/inventory/orders/{self.po.pk}/',
+            {'description': 'updated desc'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['description'], 'updated desc')
+        self.assertNotIn('processing_stats', r.data)
+        self.assertNotIn('manifest_preview', r.data)
+        self.assertIn('has_manifest', r.data)
+
+    def test_patch_num_queries_bounded_with_many_items(self):
+        """PATCH hot path: one PO row read/write, no item status Count annotations."""
+        for i in range(60):
+            Item.objects.create(
+                sku=f'ITM-PATCH-{i:03d}',
+                title=f'item {i}',
+                purchase_order=self.po,
+                status='intake' if i % 2 == 0 else 'processing',
+            )
+        with self.assertNumQueries(6):
+            r = self.client.patch(
+                f'/api/inventory/orders/{self.po.pk}/',
+                {'notes': 'batch notes'},
+                format='json',
+            )
+        self.assertEqual(r.status_code, 200, r.data)
+
+    def test_processing_stats_endpoint_bounded_queries(self):
+        Item.objects.create(
+            sku='ITM-STAT-01',
+            title='one',
+            purchase_order=self.po,
+            status='on_shelf',
+        )
+        with self.assertNumQueries(4):
+            r = self.client.get(f'/api/inventory/orders/{self.po.pk}/processing-stats/')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertIn('item_status_counts', r.data)
+        self.assertEqual(r.data['item_status_counts']['on_shelf'], 1)
 
     def test_patch_rejects_manifest_meta_fields(self):
         r = self.client.patch(

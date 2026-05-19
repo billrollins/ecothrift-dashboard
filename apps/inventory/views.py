@@ -2002,6 +2002,23 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
     },
 )
 
+# Single-row PO reads/writes: no _annotate_purchase_order_stats (avoids multi-Count on items).
+_PURCHASE_ORDER_HOT_PATH_ACTIONS = frozenset(
+    {
+        'detail_surface',
+        'retrieve',
+        'update',
+        'partial_update',
+        'processing_stats',
+        'upload_manifest',
+        'remove_manifest',
+    },
+)
+
+
+def _purchase_order_hot_path_queryset():
+    return PurchaseOrder.objects.select_related('vendor', 'created_by').all()
+
 
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseOrderSerializer
@@ -2042,8 +2059,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         act = getattr(self, 'action', None)
-        if act == 'detail_surface':
-            return PurchaseOrder.objects.all()
+        if act in _PURCHASE_ORDER_HOT_PATH_ACTIONS:
+            return _purchase_order_hot_path_queryset()
         if act in ('list', 'summary', 'for_receiving', 'preprocessing_queue'):
             # Whitelist big-box dashboard vendors. Prefer matching Vendor.name because
             # vendor_name_cache can be empty or stale (bulk inserts, legacy rows, failed saves).
@@ -2070,7 +2087,22 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return PurchaseOrderDetailSurfaceSerializer
         if self.action == 'retrieve':
             return PurchaseOrderDetailSerializer
+        if self.action in ('update', 'partial_update'):
+            return PurchaseOrderSerializer
         return PurchaseOrderSerializer
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        instance.refresh_from_db()
+        return Response(PurchaseOrderDetailSurfaceSerializer(instance).data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'], url_path='preprocessing-queue')
     def preprocessing_queue(self, request):
@@ -2208,6 +2240,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     def detail_surface(self, request, pk=None):
         order = self.get_object()
         return Response(PurchaseOrderDetailSurfaceSerializer(order).data)
+
+    @action(detail=True, methods=['get'], url_path='processing-stats')
+    def processing_stats(self, request, pk=None):
+        from apps.inventory.services.purchase_order_processing_stats import compute_processing_stats
+
+        order = self.get_object()
+        return Response(compute_processing_stats(order.pk))
 
     @action(detail=True, methods=['post'], url_path='upload-manifest')
     def upload_manifest(self, request, pk=None):

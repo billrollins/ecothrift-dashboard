@@ -15,6 +15,7 @@ import {
   getPreprocessingQueue,
   getOrder,
   getOrderDetailSurface,
+  getOrderProcessingStats,
   createOrder,
   updateOrder,
   deleteOrder,
@@ -258,6 +259,18 @@ export function usePurchaseOrderSurface(id: number | null) {
   });
 }
 
+export function useProcessingStats(orderId: number | null) {
+  return useQuery({
+    queryKey: ['purchaseOrderProcessingStats', orderId],
+    queryFn: async () => {
+      if (!orderId) return null;
+      const { data } = await getOrderProcessingStats(orderId);
+      return data;
+    },
+    enabled: orderId != null,
+  });
+}
+
 export function useCreatePurchaseOrder() {
   const queryClient = useQueryClient();
 
@@ -286,6 +299,7 @@ export function useUpdateOrder() {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrderSummary'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrderSurface', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrderProcessingStats', variables.id] });
     },
   });
 }

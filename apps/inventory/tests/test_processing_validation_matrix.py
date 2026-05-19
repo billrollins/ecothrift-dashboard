@@ -328,8 +328,8 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         # Small PO fixture (~2 manifest rows): stay well below prefetch-all-manifest-rows path.
         self.assertLessEqual(len(ctx.captured_queries), 20)
 
-    def test_purchase_order_retrieve_bounded_queries_and_has_stats_fields(self):
-        """PO detail must annotate stats/counts without prefetching every manifest row."""
+    def test_purchase_order_retrieve_bounded_queries_no_live_stats(self):
+        """PO retrieve is a hot path: one PO row, no multi-Count annotations on items."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -337,11 +337,16 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             r = self.client.get(f'/api/inventory/orders/{self.po.id}/')
         self.assertEqual(r.status_code, 200, r.data)
         self.assertIn('inventory_manifest_row_count', r.data)
-        self.assertIsNotNone(r.data['inventory_manifest_row_count'])
-        self.assertIn('processing_stats', r.data)
-        self.assertLessEqual(len(ctx.captured_queries), 35)
+        self.assertNotIn('processing_stats', r.data)
+        self.assertLessEqual(len(ctx.captured_queries), 5)
         joined = '\n'.join(q['sql'].lower() for q in ctx.captured_queries)
         self.assertNotIn('bulk_load_objects', joined)
+
+    def test_processing_stats_action_returns_counts(self):
+        r = self.client.get(f'/api/inventory/orders/{self.po.id}/processing-stats/')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertIn('item_status_counts', r.data)
+        self.assertIn('pending_items', r.data)
 
     def test_processing_print_multiple_runs_select_for_update_inside_atomic(self):
         """select_for_update must run inside transaction.atomic (avoids 500 on strict DBs)."""

@@ -16,15 +16,23 @@ _MONEY_Q = Decimal('0.01')
 def taxonomy_bucket_for_item(item) -> str:
     """Map an inventory item to a taxonomy_v1 category name (Python path / fixtures)."""
     from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES as NAMES
+    from apps.inventory.models import ManifestRow, Product
 
     _TAXONOMY_SET = frozenset(NAMES)
-    raw = (item.category or '').strip()
-    if raw in _TAXONOMY_SET:
-        return raw
     if item.product_id:
-        pc = (item.product.category or '').strip()
-        if pc in _TAXONOMY_SET:
-            return pc
+        try:
+            pc = (item.product.category or '').strip()
+            if pc in _TAXONOMY_SET:
+                return pc
+        except Product.DoesNotExist:
+            pass
+    if item.manifest_row_id:
+        try:
+            mc = (item.manifest_row.category or '').strip()
+            if mc in _TAXONOMY_SET:
+                return mc
+        except ManifestRow.DoesNotExist:
+            pass
     return MIXED_LOTS_UNCATEGORIZED
 
 
