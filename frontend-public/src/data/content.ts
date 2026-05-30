@@ -7,6 +7,17 @@
 /** Canonical public origin (matches PUBLIC_SITE_CANONICAL_HOST on the server). */
 export const SITE_URL = 'https://ecothrift.us'
 
+/** Files in `frontend-public/public/` — use for `<img src>` (prod base is `/static/site/`). */
+export function publicAssetUrl(path: string): string {
+  const rel = path.replace(/^\//, '')
+  return `${import.meta.env.BASE_URL}${rel}`
+}
+
+export function absolutePublicAssetUrl(path: string): string {
+  const url = publicAssetUrl(path)
+  return url.startsWith('http') ? url : `${SITE_URL}${url.startsWith('/') ? url : `/${url}`}`
+}
+
 export const STORE = {
   tagline: 'Restore, Reuse, Reimagine Our Future',
   metaDescription:

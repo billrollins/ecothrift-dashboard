@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { AUTHOR, POSTS, SITE_URL } from '../data/content'
+import { absolutePublicAssetUrl, AUTHOR, POSTS, publicAssetUrl } from '../data/content'
 import AuthorAvatar from '../components/AuthorAvatar'
 import { useJsonLd, useSeo } from '../useSeo'
 import NotFoundPage from './NotFoundPage'
@@ -13,7 +13,7 @@ export default function BlogPostPage() {
     description: post?.excerpt,
     path: `/blog/${slug ?? ''}`,
     type: 'article',
-    image: post?.img,
+    image: post ? publicAssetUrl(post.img) : undefined,
     noindex: !post,
   })
 
@@ -24,8 +24,8 @@ export default function BlogPostPage() {
           '@type': 'BlogPosting',
           headline: post.title,
           datePublished: post.dateIso,
-          author: { '@type': 'Person', name: AUTHOR.name, image: `${SITE_URL}${AUTHOR.photo}` },
-          image: post.img.startsWith('http') ? post.img : `https://ecothrift.us${post.img}`,
+          author: { '@type': 'Person', name: AUTHOR.name, image: absolutePublicAssetUrl(AUTHOR.photo) },
+          image: absolutePublicAssetUrl(post.img),
         }
       : null,
   )
@@ -49,7 +49,7 @@ export default function BlogPostPage() {
           </div>
         </div>
         <div className="articlehero">
-          <img src={post.img} alt={post.title} />
+          <img src={publicAssetUrl(post.img)} alt={post.title} />
         </div>
         <div className="abody">
           {post.body.map((para, i) => (

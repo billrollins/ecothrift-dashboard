@@ -1,4 +1,4 @@
-import { AUTHOR } from '../data/content'
+import { AUTHOR, publicAssetUrl } from '../data/content'
 
 interface AuthorAvatarProps {
   /** `sm` = blog cards (26px); `lg` = article byline (44px) */
@@ -9,7 +9,7 @@ export default function AuthorAvatar({ size = 'sm' }: AuthorAvatarProps) {
   return (
     <img
       className={`avatar${size === 'lg' ? ' avatar--lg' : ''}`}
-      src={AUTHOR.photo}
+      src={publicAssetUrl(AUTHOR.photo)}
       alt={AUTHOR.name}
       width={size === 'lg' ? 44 : 26}
       height={size === 'lg' ? 44 : 26}
