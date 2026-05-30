@@ -25,6 +25,28 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 ENVIRONMENT = config('ENVIRONMENT', default='production')
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
+# Public storefront hostnames (served by apps.core.middleware.PublicSiteMiddleware).
+# Hosts listed here get the public site instead of the staff dashboard SPA. Empty by
+# default so local dev and the dashboard host are unaffected; production sets these.
+PUBLIC_SITE_HOSTS = config('PUBLIC_SITE_HOSTS', default='', cast=Csv())
+# Canonical public host; other public hosts 301-redirect to it (e.g. www → apex).
+PUBLIC_SITE_CANONICAL_HOST = config('PUBLIC_SITE_CANONICAL_HOST', default='ecothrift.us')
+
+# ── Web store (public storefront commerce) ────────────────────────────────────
+# Payment processor is NOT Stripe (owner decision). The order flow runs end-to-end
+# with a no-op "manual" provider (placed → staff arrange payment) until a real
+# processor (likely Helcim) is wired — then just set this to its key + add creds.
+WEBSTORE_PAYMENT_PROVIDER = config('WEBSTORE_PAYMENT_PROVIDER', default='manual')
+WEBSTORE_SALES_TAX_RATE = config('WEBSTORE_SALES_TAX_RATE', default='0.07')  # Omaha, NE ≈ 7%
+WEBSTORE_SHIP_FLAT = config('WEBSTORE_SHIP_FLAT', default='9.95')
+# Optional staff address that receives a copy of each new web order.
+WEBSTORE_ORDER_NOTIFY_EMAIL = config('WEBSTORE_ORDER_NOTIFY_EMAIL', default='')
+
+# Email — console backend by default so local dev prints messages (and order
+# confirmations never block checkout). Set EMAIL_BACKEND + SMTP/provider creds to send.
+EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Eco-Thrift <sales.ecothrift@outlook.com>')
+
 # ── Application definition ────────────────────────────────────────────────────
 INSTALLED_APPS = [
     # Django built-ins
@@ -50,11 +72,14 @@ INSTALLED_APPS = [
     'apps.consignment',
     'apps.ai',
     'apps.buying',
+    'apps.webstore',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Host-based routing: public storefront on public hosts; dashboard on the dash host.
+    'apps.core.middleware.PublicSiteMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -205,6 +230,20 @@ if (_frontend_dist / 'assets').exists():
     STATICFILES_DIRS.append(_frontend_dist / 'assets')
 if _frontend_dist.exists():
     STATICFILES_DIRS.append(_frontend_dist)
+
+# Public storefront build (separate Vite app in frontend-public/, served on the
+# public hosts). Its assets are collected under STATIC_ROOT/site and served by
+# WhiteNoise at /static/site/* — the public build sets Vite base to match.
+_frontend_public_dist = BASE_DIR / 'frontend-public' / 'dist'
+if _frontend_public_dist.exists():
+    STATICFILES_DIRS.append(('site', _frontend_public_dist))
+# index.html served on the public hosts by PublicSiteMiddleware (falls back to the
+# holding page when the public build is absent, e.g. local dev).
+PUBLIC_SITE_INDEX = (
+    str(_frontend_public_dist / 'index.html')
+    if (_frontend_public_dist / 'index.html').exists()
+    else None
+)
 
 STORAGES = {
     'staticfiles': {

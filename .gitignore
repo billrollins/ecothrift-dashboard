@@ -19,6 +19,9 @@ venv/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend-public/node_modules/
+frontend-public/dist/
+frontend-public/.vite/
 
 # Python test cache
 .pytest_cache/

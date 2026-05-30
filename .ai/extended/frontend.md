@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-30 (v2.25.0 sticky workspace + staff nav release) -->
+<!-- Last updated: 2026-05-30 (v2.26.0 public site frontend-public + staff webstore) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -52,6 +52,18 @@
 **Consignee routes** (ConsigneeLayout): `/consignee`, `/consignee/items`, `/consignee/payouts`
 
 **Redirects:** `/` and `*` → `/dashboard`
+
+## Public site (`frontend-public/`)
+
+Separate Vite + React 18.3 + TypeScript build for shoppers (`ecothrift.us` / `www`). **Not** bundled with the staff dashboard.
+
+- **Dev:** `cd frontend-public && npm run dev` → **http://localhost:5174** (proxies `/api` → Django `:8000`). Also started by `scripts/dev/start_servers.bat`.
+- **Prod:** `npm run build` → `frontend-public/dist`, collected under `STATIC_ROOT/site` (`base: '/static/site/'`). `PublicSiteMiddleware` serves `index.html` on public hosts.
+- **Routes:** `/` Home, `/shop` + `/shop/:slug` catalog, `/checkout`, `/order/:number`, `/blog` + `/blog/:slug`, `/visit`, `/sell`, `/404`.
+- **Stack:** React Router v7, shared design tokens in `styles.css`, `useSeo` + JSON-LD, client cart (`localStorage`), code-split lazy routes.
+- **API:** `AllowAny` `/api/webstore/catalog/*`, `checkout/`, `order-status/<number>/` (see **`.ai/extended/backend.md`** / `apps.webstore`).
+
+Staff catalog + order management: **`WebStorePage`** (`/admin/web-store`), **`WebOrdersPage`** (`/admin/web-orders`) — Admin workspace, Manager/Admin.
 
 ## Layouts
 

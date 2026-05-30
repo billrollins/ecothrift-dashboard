@@ -1,6 +1,8 @@
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 from django.conf import settings
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
@@ -139,5 +141,58 @@ def dev_log_line(request):
     with log_path.open('a', encoding='utf-8') as fh:
         fh.write(line)
     return Response({'ok': True})
+
+
+# ── Public storefront SEO (served on the public host; see PublicSiteMiddleware) ──
+
+# Static marketing routes for the public site. Blog posts are defined in the
+# frontend (`frontend-public/src/data/content.ts`); keep these slugs in sync.
+_SITEMAP_MARKETING_PATHS = ('/', '/shop', '/visit', '/sell', '/blog')
+_SITEMAP_BLOG_SLUGS = ('turns-two', 'navigating-growth', 'our-vision')
+
+
+def _public_base_url() -> str:
+    host = (getattr(settings, 'PUBLIC_SITE_CANONICAL_HOST', '') or '').strip().lower()
+    return f'https://{host}' if host else 'https://ecothrift.us'
+
+
+def sitemap_xml(request):
+    """XML sitemap: marketing pages + blog posts + every published web listing."""
+    from apps.webstore.models import WebListing
+
+    base = _public_base_url()
+    paths = list(_SITEMAP_MARKETING_PATHS)
+    paths += [f'/blog/{slug}' for slug in _SITEMAP_BLOG_SLUGS]
+    paths += [
+        f'/shop/{slug}'
+        for slug in WebListing.objects.filter(status='published')
+        .order_by('slug')
+        .values_list('slug', flat=True)
+    ]
+
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    lines += [f'  <url><loc>{escape(base + p)}</loc></url>' for p in paths]
+    lines.append('</urlset>')
+    return HttpResponse('\n'.join(lines), content_type='application/xml')
+
+
+def robots_txt(request):
+    """robots.txt: index public pages, keep checkout/order/API/admin out, link the sitemap."""
+    base = _public_base_url()
+    body = '\n'.join([
+        'User-agent: *',
+        'Allow: /',
+        'Disallow: /checkout',
+        'Disallow: /order/',
+        'Disallow: /api/',
+        'Disallow: /db-admin/',
+        '',
+        f'Sitemap: {base}/sitemap.xml',
+        '',
+    ])
+    return HttpResponse(body, content_type='text/plain')
 
 

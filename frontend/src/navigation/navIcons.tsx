@@ -14,6 +14,8 @@ import Security from '@mui/icons-material/Security';
 import Settings from '@mui/icons-material/Settings';
 import ShoppingCart from '@mui/icons-material/ShoppingCart';
 import Store from '@mui/icons-material/Store';
+import Storefront from '@mui/icons-material/Storefront';
+import ReceiptLong from '@mui/icons-material/ReceiptLong';
 import Tune from '@mui/icons-material/Tune';
 import FactCheck from '@mui/icons-material/FactCheck';
 import SupervisorAccount from '@mui/icons-material/SupervisorAccount';
@@ -35,6 +37,8 @@ export const NAV_ICON_MAP: Record<NavIconKey, ComponentType<SvgIconProps>> = {
   search: Search,
   localOffer: LocalOffer,
   store: Store,
+  storefront: Storefront,
+  receiptLong: ReceiptLong,
   pointOfSale: PointOfSale,
   accountBalance: AccountBalance,
   gavel: Gavel,

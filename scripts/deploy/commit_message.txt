@@ -1,10 +1,11 @@
-feat(frontend): v2.25.0 staff nav workspace sidebar
+feat: v2.26.0 public website Phases 0–4
 
-- Slot C winner rollout: lifecycle workspaces (Buying → Admin), Alt+1..6, Essentials pinned
-- Sticky workspace: sidebar clicks stay put; URL entry uses lowest lifecycle # (resolveWorkspaceForRoute)
-- TARS placeholder at /restoration/tars
-- web_ui_cleanup: hide HR time + staff consignment from nav; remove legacy/dead-end routes and pages
-- Shared nav module under frontend/src/navigation/; bake-off variants removed
-- Backend APIs unchanged for removed routes; npm run build green
+Public storefront on ecothrift.us/www (hostname split + canonical 301):
+- frontend-public/ marketing site (Home, Visit, Blog, Sell, Shop, 404)
+- apps.webstore curated catalog + S3 image proxy + taxonomy v1 shop categories
+- In-store pickup checkout + Order/OrderLine + staff Web store + Web orders
+- SEO (useSeo, JSON-LD, robots.txt, sitemap.xml), legacy Shopify 301s, code-split
+- Content polish: Canfield address, Google Maps, pickup-only UX, construction banner
 
-Initiatives: staff_nav_redesign archived; web_ui_cleanup active.
+Initiative: public_website.md (Phases 0–4 code-complete).
+Deploy: run `python manage.py seed_shop_categories` on prod after migrate.

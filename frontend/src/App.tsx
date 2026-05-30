@@ -40,6 +40,8 @@ import ConsigneePayoutsPage from './pages/consignee/MyPayoutsPage';
 import ConsigneeSummaryPage from './pages/consignee/SummaryPage';
 import UserListPage from './pages/admin/UserListPage';
 import CustomerListPage from './pages/admin/CustomerListPage';
+import WebStorePage from './pages/admin/WebStorePage';
+import WebOrdersPage from './pages/admin/WebOrdersPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import AssumptionsPage from './pages/admin/AssumptionsPage';
@@ -156,6 +158,14 @@ export default function App() {
         <Route
           path="/admin/customers"
           element={<AdminRoute><CustomerListPage /></AdminRoute>}
+        />
+        <Route
+          path="/admin/web-store"
+          element={<ManagerRoute><WebStorePage /></ManagerRoute>}
+        />
+        <Route
+          path="/admin/web-orders"
+          element={<ManagerRoute><WebOrdersPage /></ManagerRoute>}
         />
         <Route
           path="/admin/permissions"

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.25.0] — 2026-05-30 (Staff nav workspace sidebar) -->
-<!-- Last reviewed: 2026-05-30 (review.0.Bump v2.25.0 — staff nav + sticky workspace + web_ui_cleanup) -->
+<!-- Line 1 release: ## [2.26.0] — 2026-05-30 (Public website Phases 0–4) -->
+<!-- Last reviewed: 2026-05-30 (review.0.Bump v2.26.0 — public_website initiative) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,35 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.26.0] — 2026-05-30
+
+User-facing theme: **Public website — Phases 0–4** (hostname split + marketing site + curated catalog + in-store-pickup checkout + launch hardening). The public domains (`ecothrift.us`, `www.ecothrift.us`) now serve the new public Eco-Thrift storefront — marketing pages, a live hand-curated **Shop** (browse, product detail, cart), and **online checkout** (in-store pickup at Canfield) with staff order management — instead of the staff dashboard login; the staff dashboard stays on `dash.ecothrift.us`. Launch hardening includes SEO metadata, a sitemap, redirects from old Shopify URLs, and code-split loading. (Card charging is stubbed pending a payment processor; orders are placed end-to-end and payment is arranged by staff.)
+
+### Added
+
+- **Backend / public site** — `apps.core.middleware.PublicSiteMiddleware` host-based routing: serves the public site on the public hosts (the built public SPA when present, else a Django-rendered holding page at `apps/core/templates/public/holding.html`), enforces a canonical host with a **301 redirect** (`www` → apex), and passes `/api/`, `/static/`, `/assets/`, `/media/`, `/db-admin/` through untouched. New settings **`PUBLIC_SITE_HOSTS`** / **`PUBLIC_SITE_CANONICAL_HOST`** (production defaults to apex + www; empty in local dev so the dashboard is unaffected). Begins initiative [`public_website.md`](.ai/initiatives/public_website.md).
+- **Frontend / public site** — new **`frontend-public/`** Vite + React + TypeScript app (separate build from the staff dashboard, so shoppers never download the staff bundle). Marketing pages built from real store copy: **Home, Blog list + post**, **Visit, Sell**, and a branded **404**, with the storefront design system (Spectral/Manrope, brand greens), shared header/category-subnav/footer, and per-page titles + meta description for SEO. Built assets are served at `/static/site/*`; the SPA `index.html` is served on the public hosts via `PublicSiteMiddleware`.
+- **Backend / web catalog** — new app **`apps.webstore`** (`/api/webstore/`): models `WebListing` + `WebListingImage` for a hand-curated catalog (optional links to `inventory.Category` / `inventory.Item`; condition, price, compare-at, stock, draft/published/archived, featured). Public `AllowAny` API — catalog list (category/search/sort/featured/on-sale/available filters), detail-by-slug, category counts — plus an **image proxy** (`images/<id>/`) that keeps S3 private (302 → short-lived presigned URL, streams in local dev). Staff `IsStaff` CRUD via `WebListingViewSet` with multipart photo upload / reorder / delete.
+- **Frontend / staff** — new **Web store** admin area (Admin workspace, `storefront` icon, `/admin/web-store`, Manager/Admin): DataGrid list + create/edit dialog (category, condition, price/compare-at, stock, status, featured, SKU, description) with inline photo upload and delete.
+- **Frontend / public shop** — the Shop is now a live catalog: category sidebar with counts, sort + search, sale/sold-out badges, product **detail** pages (`/shop/:slug`) with image gallery and quantity, and a persistent **client-side cart** (drawer + header button, `localStorage`).
+- **Backend / orders + checkout** — `apps.webstore` gains `Order` + `OrderLine` (auto `ETW#####` numbers; statuses pending/paid/fulfilled/cancelled; payment provider/status/reference; pickup/ship + address; money snapshot). Public `AllowAny` **`POST checkout/`** validates the cart, **atomically reserves stock** (409 on oversell), computes flat-rate shipping + Nebraska sales tax, creates the order, and runs a **provider-agnostic payment layer** (`payments.py`) — a `manual` stub records the order awaiting payment now, with a `Helcim` provider ready to wire by config (no Stripe). **`GET order-status/<number>/`** for public lookup. Best-effort **order-confirmation email** (console backend by default). Staff `IsStaff` `OrderViewSet` (list/retrieve, editable payment status/reference + staff note) with a `set-status` action that **restocks** on cancel. New settings `WEBSTORE_PAYMENT_PROVIDER`, `WEBSTORE_SALES_TAX_RATE`, `WEBSTORE_SHIP_FLAT`, `WEBSTORE_ORDER_NOTIFY_EMAIL`, `EMAIL_BACKEND`, `DEFAULT_FROM_EMAIL`.
+- **Frontend / public checkout** — new **`/checkout`** (contact, in-store pickup summary, order summary) and **`/order/:number`** confirmation (status, totals, fulfillment, emailed-to). The cart drawer's primary action is now **Checkout** (replacing reserve-by-email).
+- **Frontend / staff** — new **Web orders** admin area (Admin workspace, `receiptLong` icon, `/admin/web-orders`, Manager/Admin): DataGrid (order/date/customer/status/payment/fulfillment/total with filters + search) and a detail dialog with line items, totals, customer/shipping info, status action buttons (mark paid / fulfilled / cancel), and editable payment status/reference + internal staff note.
+- **Public site / SEO + launch hardening** — per-route metadata via a new `useSeo` hook (title, description, **canonical** URL, **Open Graph** + **Twitter** cards, `robots`) with **JSON-LD** structured data (Store/LocalBusiness on Home + Visit, Product on listing pages); **`/sitemap.xml`** (marketing pages + blog posts + every published listing) and **`/robots.txt`** served on the public host; **301 redirects from old Shopify URLs** (`/products`, `/collections`, `/blogs`, `/pages/*`, `/cart`, `/account`) merged with the canonical-host redirect so legacy links resolve in one hop; an SVG **favicon** + `theme-color`; and **route code-splitting** (smaller initial download). Checkout, order, and 404 pages are `noindex`. Optional privacy-friendly **Plausible analytics**, off unless `VITE_PLAUSIBLE_DOMAIN` is set at build.
+
+### Changed
+
+- **Build / deploy** — root `heroku-postbuild` now also installs and builds `frontend-public/` (`STATICFILES_DIRS` collects it under `STATIC_ROOT/site`); `.gitignore` ignores `frontend-public/{node_modules,dist,.vite}`.
+- **Public site / store facts** — retail location updated to **Eco-Thrift — Canfield** (8425 W Center Rd, Omaha NE 68124; Mon–Sat 9–6, closed Sun; (402) 881-9861); removed the closed **8072 H St** warehouse block from Visit + holding page.
+- **Public site / shop categories** — storefront taxonomy aligned to **`TAXONOMY_V1_CATEGORY_NAMES`** (19 categories); `apps/webstore/shop_categories.py` + `manage.py seed_shop_categories`; legacy Shopify `/collections/*` 301s map to taxonomy slugs.
+- **Public site / checkout UX** — pickup-only on the storefront (removed ship option and nationwide-shipping copy); **Sell** page is a “coming this summer” placeholder; prominent sticky **under construction** banner; high-res header/footer logos; embedded **Google Maps** on Visit; three founder blog posts with photos; dev **`start_servers.bat`** also runs public Vite on **:5174**.
+
+### Documentation
+
+- Initiative **[`public_website.md`](.ai/initiatives/public_website.md)** (Phases 0–4 code-complete); steering in **`.ai/context.md`**, **`.ai/extended/frontend.md`**.
 
 ---
 

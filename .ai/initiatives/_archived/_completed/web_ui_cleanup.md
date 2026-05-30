@@ -1,17 +1,18 @@
-<!-- initiative: slug=web-ui-cleanup status=active updated=2026-05-30 -->
-<!-- Last updated: 2026-05-30 (Session 2 — hide + remove shipped) -->
+<!-- initiative: slug=web-ui-cleanup status=completed updated=2026-05-30 -->
+<!-- Archived 2026-05-30: disposition=completed (staff page audit; nav hides + route/page removals shipped in v2.25.0) -->
+<!-- Last updated: 2026-05-30 (archived → _completed/) -->
 
 # Initiative: Staff web UI cleanup (page audit)
 
-**Status:** Active — **Phase 1–3 shipped** (2026-05-30). Initiative may archive after deploy or if no follow-up polish.
+**Status:** **Completed** (2026-05-30) — shipped in **v2.25.0** (sidebar nav hides + route/page removals). See [`CHANGELOG`](../../../../CHANGELOG.md) `[2.25.0]`.
 
-**Owner pass:** [`.ai/reference/web_ui_cleanup_section_pass.txt`](../reference/web_ui_cleanup_section_pass.txt) · **Hidden / removed** lists in [`.ai/context.md`](../context.md).
+**Owner pass:** [`web_ui_cleanup_section_pass.txt`](../../../reference/web_ui_cleanup_section_pass.txt) · **Hidden / removed** lists in [`.ai/context.md`](../../../context.md).
 
 ---
 
 ## Current execution steps
 
-- [x] **Step 0 — Section pass:** owner marked **HIDE** vs **REMOVE** vs implicit keep ([`web_ui_cleanup_section_pass.txt`](../reference/web_ui_cleanup_section_pass.txt)).
+- [x] **Step 0 — Section pass:** owner marked **HIDE** vs **REMOVE** vs implicit keep ([`web_ui_cleanup_section_pass.txt`](../../../reference/web_ui_cleanup_section_pass.txt)).
 - [x] **Step 1 — Hide from nav:** `Sidebar.tsx` — HR subset, staff Consignment section, Products, Templates, Inventory Admin subgroup.
 - [x] **Step 2 — Removal audit:** inline in plan + execution (no blockers; processing settings were legacy-only).
 - [x] **Step 3 — Execute removals:** routes/pages deleted; `InboundFulfillmentPlaceholderPage` legacy copy removed.
@@ -88,7 +89,7 @@ Store audits under **`.ai/reference/web_ui_cleanup/`** (one file per target when
 
 ## Page inventory
 
-Source of truth for routes: [`frontend/src/App.tsx`](../../frontend/src/App.tsx). Sidebar: [`frontend/src/components/layout/Sidebar.tsx`](../../frontend/src/components/layout/Sidebar.tsx).
+Source of truth for routes: [`frontend/src/App.tsx`](../../../../frontend/src/App.tsx). Sidebar: [`frontend/src/components/layout/Sidebar.tsx`](../../../../frontend/src/components/layout/Sidebar.tsx).
 
 ### Public (no auth)
 
@@ -236,7 +237,7 @@ Source of truth for routes: [`frontend/src/App.tsx`](../../frontend/src/App.tsx)
 - **Scope:** This file + walkthrough in chat; **no code changes** unless owner asks mid-session.
 - **Out of scope:** Deleting pages, API changes, consignee portal redesign.
 - **Est:** 1–2h · **Start:** 2026-05-30
-- **Result:** Section pass in [`web_ui_cleanup_section_pass.txt`](../reference/web_ui_cleanup_section_pass.txt) — **6 hide**, **6 remove (audit first)**, rest **keep**. Hidden list copied to **`context.md`**.
+- **Result:** Section pass in [`web_ui_cleanup_section_pass.txt`](../../../reference/web_ui_cleanup_section_pass.txt) — **6 hide**, **6 remove (audit first)**, rest **keep**. Hidden list copied to **`context.md`**.
 
 ### Session 2 — Hide from nav + execute removals
 
@@ -250,7 +251,7 @@ Source of truth for routes: [`frontend/src/App.tsx`](../../frontend/src/App.tsx)
 
 ## See also
 
-- [`.ai/extended/frontend.md`](../extended/frontend.md) — routing and pages (update after changes)
-- [`.ai/extended/ux-spec.md`](../extended/ux-spec.md) — visual system
-- Archived intake initiative: [order_processing_pipeline_rebuild](./_archived/_completed/order_processing_pipeline_rebuild.md)
-- [`.ai/initiatives/_index.md`](_index.md)
+- [`.ai/extended/frontend.md`](../../../extended/frontend.md) — routing and pages (update after changes)
+- [`.ai/extended/ux-spec.md`](../../../extended/ux-spec.md) — visual system
+- Archived intake initiative: [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md)
+- [`.ai/initiatives/_index.md`](../../_index.md)

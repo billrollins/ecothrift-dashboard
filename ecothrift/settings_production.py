@@ -27,3 +27,9 @@ CORS_ALLOWED_ORIGINS = [
 
 # Hosts
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='dash.ecothrift.us', cast=Csv())  # noqa: F405
+
+# Public storefront hosts — override the empty base default so the public holding
+# page is live on the apex + www in production without needing a new Heroku config var.
+PUBLIC_SITE_HOSTS = config(  # noqa: F405
+    'PUBLIC_SITE_HOSTS', default='ecothrift.us,www.ecothrift.us', cast=Csv()
+)

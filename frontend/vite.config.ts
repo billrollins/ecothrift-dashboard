@@ -6,10 +6,23 @@ import react from '@vitejs/plugin-react'
 
 const frontendDir = fileURLToPath(new URL('.', import.meta.url))
 
+/** After the staff dev server starts, print the public storefront URL too. */
+function publicSiteUrlHint() {
+  return {
+    name: 'public-site-url-hint',
+    configureServer() {
+      return () => {
+        // eslint-disable-next-line no-console -- intentional dev-server banner
+        console.log('  \u279C  Public site:  http://localhost:5174/\n')
+      }
+    },
+  }
+}
+
 // Load `.env` from repo root (same file as Django) so VITE_* vars live alongside the backend.
 export default defineConfig({
   envDir: path.resolve(frontendDir, '..'),
-  plugins: [react()],
+  plugins: [react(), publicSiteUrlHint()],
   server: {
     port: 5173,
     proxy: {

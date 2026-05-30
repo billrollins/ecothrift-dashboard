@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-30 (staff nav v2.25.0 + sticky workspace + web_ui_cleanup) -->
+<!-- Last updated: 2026-05-30 (v2.26.0 public website Phases 0–4 shipped to code) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Plan + sessions:** [`.ai/initiatives/web_ui_cleanup.md`](initiatives/web_ui_cleanup.md) — staff page/route audit ([`_index.md`](initiatives/_index.md)).
+- **Plan + sessions:** [`.ai/initiatives/public_website.md`](initiatives/public_website.md) — **public storefront rebuild** (ex-Shopify) **Phases 0–4 code-complete** (shipped **v2.26.0**); hostname routing (`ecothrift.us`/`www` → public SPA, `dash.*` → staff). Remaining: deploy, secret rotation, payment + email providers. Predecessor [`web_ui_cleanup`](initiatives/_archived/_completed/web_ui_cleanup.md) shipped **v2.25.0**.
 - **Inbound intake (shipped):** archived [order_processing_pipeline_rebuild](initiatives/_archived/_completed/order_processing_pipeline_rebuild.md) (**v2.20.0**–**v2.24.2**); reference [`.ai/reference/order_processing_pipeline_rebuild/`](reference/order_processing_pipeline_rebuild/README.md); behavior in **`.ai/extended/inventory-pipeline.md`**.
 - **Buying / B-Stock:** live API guardrails in workspace rules; detail in [`.ai/extended/bstock.md`](extended/bstock.md).
 

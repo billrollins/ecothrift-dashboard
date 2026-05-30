@@ -14,6 +14,8 @@ export type NavIconKey =
   | 'search'
   | 'localOffer'
   | 'store'
+  | 'storefront'
+  | 'receiptLong'
   | 'pointOfSale'
   | 'accountBalance'
   | 'gavel'

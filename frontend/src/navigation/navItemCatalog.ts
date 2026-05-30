@@ -120,6 +120,20 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'tune',
     roles: ['Manager', 'Admin'],
   },
+  webStore: {
+    id: 'webStore',
+    path: '/admin/web-store',
+    label: 'Web store',
+    icon: 'storefront',
+    roles: ['Manager', 'Admin'],
+  },
+  webOrders: {
+    id: 'webOrders',
+    path: '/admin/web-orders',
+    label: 'Web orders',
+    icon: 'receiptLong',
+    roles: ['Manager', 'Admin'],
+  },
   users: {
     id: 'users',
     path: '/admin/users',
