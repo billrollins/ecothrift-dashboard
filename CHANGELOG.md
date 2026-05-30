@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.24.2] — 2026-05-19 (Inventory — PO hot-path / prod hang fix) -->
-<!-- Last reviewed: 2026-05-30 (`review.0.Bump` docs — archive intake initiative; start web_ui_cleanup) -->
+<!-- Line 1 release: ## [2.25.0] — 2026-05-30 (Staff nav workspace sidebar) -->
+<!-- Last reviewed: 2026-05-30 (review.0.Bump v2.25.0 — staff nav + sticky workspace + web_ui_cleanup) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,38 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.25.0] — 2026-05-30
+
+User-facing theme: **Staff nav workspace sidebar** — lifecycle workspaces replace the accordion nav; shared links stay in the workspace you clicked from; unused staff pages trimmed.
+
+### Added
+
+- **Frontend / staff nav** — **Slot C workspace sidebar** (252px): pinned Essentials (Dashboard, Employees) + lifecycle workspaces **Buying → Processing → Restoration → Floor → Cashier → Admin**; **Alt+1..6** shortcuts; workspace persistence (`ecothrift.navC.workspace.v1`). Shared module: `frontend/src/navigation/`. Bake-off switcher and Classic/Composer/Slot B variants removed. See archived initiative [`staff_nav_redesign.md`](.ai/initiatives/_archived/_completed/staff_nav_redesign.md).
+- **Frontend / restoration** — TARS placeholder at `/restoration/tars` (Test, Assemble, Repair, Salvage workflows coming later).
+
+### Changed
+
+- **Frontend / staff nav** — Sticky workspace: sidebar clicks pass `navFromSidebar` and keep `selectedWorkspaceId`; external URL entry (bookmark, refresh, address bar) resolves the **lowest lifecycle #** workspace via `resolveWorkspaceForRoute` in `slotCNavLayout.ts` (e.g. `/inventory/items` → Floor, not Cashier).
+- **Frontend / staff nav** — Hidden from sidebar: HR Time Clock, Time History, Sick Leave; staff Consignment block (routes remain). Removed Inventory Admin subgroup from nav.
+
+### Removed
+
+- **Frontend / routes** — Deleted pages/routes: `/inventory/admin/categories`, `/inventory/legacy` (+ orders, admin redirect), `/inventory/processing-legacy`, `/inventory/products`, `/inventory/templates`, `/pricing` (public SKU lookup). **`ProcessingPage`**, **`ProcessingSettingsModal`**, legacy hub pages, product list, templates splash, public lookup page files deleted. Backend product/template/lookup APIs unchanged.
+
+### Fixed
+
+- **Frontend / staff nav** — Cashier → Search items no longer auto-switches workspace to Floor when both workspaces list the same catalog link.
+
+### Documentation
+
+- **Initiatives** — Archived **[`staff_nav_redesign.md`](.ai/initiatives/_archived/_completed/staff_nav_redesign.md)**; active **[`web_ui_cleanup.md`](.ai/initiatives/web_ui_cleanup.md)**. Steering in **`.ai/context.md`**, **`.ai/extended/frontend.md`**, **`frontend/src/navigation/README.md`**.
+
+### Tests
+
+- **`frontend`**: **`npm run build`**.
 
 ---
 
@@ -170,10 +202,11 @@ User-facing theme: **Processing data hotfix** — large finalized POs can enter 
 
 ## [Unreleased]
 
-### Documentation
+### Added (bake-off history)
 
-- **Initiatives** — Archived **[`order_processing_pipeline_rebuild`](.ai/initiatives/_archived/_completed/order_processing_pipeline_rebuild.md)** to **`_completed/`** (inbound intake **v2.20.0**–**v2.24.2**); active index cleared. New initiative **[`web_ui_cleanup.md`](.ai/initiatives/web_ui_cleanup.md)** — staff page/route audit (keep vs hide vs remove).
-- **Steering** — **`.ai/context.md`**, **`ARCHIVE.md`**, reference links updated for archived intake paths; retired **`fix_this.md`** / Final Review reference tree removed from compass (polish deferred to future initiatives).
+- **Frontend / staff nav** — Multi-variant sidebar bake-off: shared `frontend/src/navigation/` module (`navItemCatalog`, hooks, registry); **Classic** (extracted baseline) and **Composer** (workflow-grouped, auto-collapse, 248px) variants; Admin-only **Nav Variant** switcher (`ecothrift.navVariant` in `localStorage`); Slot B/C placeholders for additional designs. See archived initiative [`staff_nav_redesign.md`](.ai/initiatives/_archived/_completed/staff_nav_redesign.md).
+- **Frontend / staff nav (Slot B "quick-nav")** — Filter-first sidebar variant (256px): header-less pinned rows (Dashboard, Employees), **single-open accordion** (Inbound, Catalog, Point of sale, Buying) with the active route's section auto-opening (`ecothrift.navB.openSection.v1`), Administration pinned to the bottom, and a **Ctrl/Cmd+K jump-to filter** (arrow/enter/escape keyboard nav) as the fast path. Adds reusable `navResolve.ts` (`resolveNavItem`/`resolveNavGroups`) and a `slotB` `NavItemRow` style (neutral-pill active, no left rail).
+- **Frontend / staff nav (Slot C "workspace")** — Workspace-first sidebar variant (252px): persistent Essentials (Dashboard, Employees), compact domain selector (Inbound, Catalog, Store, Buying, Admin), exactly one active workspace panel, manual workspace persistence (`ecothrift.navC.workspace.v1`), and **Alt+1..5** switching for visible workspaces. Adds `slotCNavLayout.ts` and a `slotC` `NavItemRow` style (compact active pill with right-side green marker).
 
 ### Changed
 

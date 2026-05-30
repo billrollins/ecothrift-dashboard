@@ -1,7 +1,10 @@
-fix(inventory): v2.24.2 PO hot-path and prod hang fix
+feat(frontend): v2.25.0 staff nav workspace sidebar
 
-- Slim queryset for PO retrieve/PATCH (no multi-Count on items)
-- PATCH returns detail-surface shape; processing-stats on demand endpoint
-- Order Detail serializes debounced PATCHes (one in-flight)
-- Fix category stats SQL after item.category removal; Item (PO, status) index
-- Processing/Receiving use surface + processing-stats hooks
+- Slot C winner rollout: lifecycle workspaces (Buying → Admin), Alt+1..6, Essentials pinned
+- Sticky workspace: sidebar clicks stay put; URL entry uses lowest lifecycle # (resolveWorkspaceForRoute)
+- TARS placeholder at /restoration/tars
+- web_ui_cleanup: hide HR time + staff consignment from nav; remove legacy/dead-end routes and pages
+- Shared nav module under frontend/src/navigation/; bake-off variants removed
+- Backend APIs unchanged for removed routes; npm run build green
+
+Initiatives: staff_nav_redesign archived; web_ui_cleanup active.

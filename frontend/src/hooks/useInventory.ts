@@ -64,10 +64,6 @@ import {
   processBatchGroup,
   detachBatchItem,
   getItemHistory,
-  getProducts,
-  getProduct,
-  createProduct,
-  updateProduct,
   suggestFormulas,
   aiCleanupRows,
   getAICleanupStatus,
@@ -1453,63 +1449,6 @@ export function useDeleteCategory() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
-    },
-  });
-}
-
-export function useProducts(params?: Record<string, unknown>) {
-  return useQuery({
-    queryKey: ['products', params],
-    queryFn: async () => {
-      const { data } = await getProducts(params);
-      return data;
-    },
-  });
-}
-
-export function useProduct(id: number | null) {
-  return useQuery({
-    queryKey: ['products', id],
-    queryFn: async () => {
-      if (!id) return null;
-      const { data } = await getProduct(id);
-      return data;
-    },
-    enabled: id != null,
-  });
-}
-
-export function useCreateProduct() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const { data: result } = await createProduct(data);
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-    },
-  });
-}
-
-export function useUpdateProduct() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      id,
-      data,
-    }: {
-      id: number;
-      data: Record<string, unknown>;
-    }) => {
-      const { data: result } = await updateProduct(id, data);
-      return result;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['products', variables.id] });
     },
   });
 }

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { LoadingScreen } from './components/feedback/LoadingScreen';
 import MainLayout from './components/layout/MainLayout';
@@ -20,18 +20,12 @@ import OrderDetailPage from './pages/inventory/OrderDetailPage';
 import ReceivingEntryRedirect from './pages/inventory/ReceivingEntryRedirect';
 import ReceivingOrderPage from './pages/inventory/ReceivingOrderPage';
 import PreprocessingPage from './pages/inventory/PreprocessingPage';
-import ProcessingPage from './pages/inventory/ProcessingPage';
 import ProcessingEntryRedirect from './pages/inventory/ProcessingEntryRedirect';
 import ProcessingWorkspacePage from './pages/inventory/processing/ProcessingWorkspacePage';
-import ProductListPage from './pages/inventory/ProductListPage';
 import ItemListPage from './pages/inventory/ItemListPage';
 import ItemDetailPage from './pages/inventory/ItemDetailPage';
 import QuickRepricePage from './pages/inventory/QuickRepricePage';
-import InventoryRoadmapPage from './pages/inventory/InventoryRoadmapPage';
-import InventoryLegacyHubPage from './pages/inventory/InventoryLegacyHubPage';
-import InventoryLegacyOrdersPage from './pages/inventory/InventoryLegacyOrdersPage';
 import InboundFulfillmentPlaceholderPage from './pages/inventory/InboundFulfillmentPlaceholderPage';
-import ManifestTemplatesSplashPage from './pages/inventory/ManifestTemplatesSplashPage';
 import TerminalPage from './pages/pos/TerminalPage';
 import DrawerListPage from './pages/pos/DrawerListPage';
 import CashManagementPage from './pages/pos/CashManagementPage';
@@ -49,10 +43,10 @@ import CustomerListPage from './pages/admin/CustomerListPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import AssumptionsPage from './pages/admin/AssumptionsPage';
-import PublicItemLookupPage from './pages/PublicItemLookupPage';
 import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
+import TarsPlaceholderPage from './pages/restoration/TarsPlaceholderPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -80,19 +74,12 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function PreprocessingLegacyRedirect() {
-  const { id } = useParams();
-  return <Navigate to={`/inventory/preprocessing/${id}`} replace />;
-}
-
 export default function App() {
   return (
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/pricing/:sku?" element={<PublicItemLookupPage />} />
-      <Route path="/pricing" element={<PublicItemLookupPage />} />
 
       {/* Staff routes */}
       <Route
@@ -118,17 +105,10 @@ export default function App() {
         <Route path="/inventory/receiving/:id" element={<ReceivingOrderPage />} />
         <Route path="/inventory/preprocessing" element={<PreprocessingPage />} />
         <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
-        <Route path="/inventory/orders/:id/preprocess" element={<PreprocessingLegacyRedirect />} />
         <Route path="/inventory/processing" element={<ProcessingEntryRedirect />} />
         <Route path="/inventory/processing/:id" element={<ProcessingWorkspacePage />} />
-        <Route path="/inventory/processing-legacy" element={<ProcessingPage />} />
-        <Route path="/inventory/products" element={<ProductListPage />} />
         <Route path="/inventory/items" element={<ItemListPage />} />
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
-        <Route path="/inventory/templates" element={<ManifestTemplatesSplashPage />} />
-        <Route path="/inventory/legacy/orders" element={<InventoryLegacyOrdersPage />} />
-        <Route path="/inventory/legacy" element={<InventoryLegacyHubPage />} />
-        <Route path="/inventory/admin/legacy" element={<Navigate to="/inventory/legacy" replace />} />
         <Route path="/inventory/inbound" element={<InboundFulfillmentPlaceholderPage />} />
         <Route path="/inventory/quick-reprice" element={<QuickRepricePage />} />
         <Route path="/inventory/inbound/receiving" element={<Navigate to="/inventory/receiving" replace />} />
@@ -137,10 +117,6 @@ export default function App() {
           element={<Navigate to="/inventory/inbound?view=finalization" replace />}
         />
         <Route path="/inventory/inbound/disputes" element={<Navigate to="/inventory/inbound?view=disputes" replace />} />
-        <Route
-          path="/inventory/admin/categories"
-          element={<InventoryRoadmapPage title="Categories" subtitle="Browse and edit taxonomy (planned)." />}
-        />
         <Route path="/pos/terminal" element={<TerminalPage />} />
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         <Route path="/pos/cash" element={<CashManagementPage />} />
@@ -148,6 +124,7 @@ export default function App() {
         <Route path="/buying/auctions" element={<AuctionListPage />} />
         <Route path="/buying/auctions/:id" element={<AuctionDetailPage />} />
         <Route path="/buying/watchlist" element={<WatchlistPage />} />
+        <Route path="/restoration/tars" element={<TarsPlaceholderPage />} />
         <Route
           path="/admin/pos-setup"
           element={

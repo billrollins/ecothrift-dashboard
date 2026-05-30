@@ -11,13 +11,13 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [web_ui_cleanup](./web_ui_cleanup.md) | Active | **Staff UI page audit:** inventory every React route in [`App.tsx`](../frontend/src/App.tsx); agree **keep / hide / remove** per page; hide-from-nav first. Session 1 = disposition pass (no code unless owner asks). |
+| [web_ui_cleanup](./web_ui_cleanup.md) | Active | **Shipped 2026-05-30:** sidebar hides (HR subset, staff Consignment, products/templates/admin); removed legacy/products/templates/categories/processing-legacy/public pricing routes. See **`context.md`** Hidden/Removed UI. |
 
 Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
 
 **Current session details** (goal, finish line, updates) live **only** in each initiative file under **`## Sessions`** — not duplicated here.
 
-**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [order_processing_pipeline_rebuild](./_archived/_completed/order_processing_pipeline_rebuild.md) (2026-05-30; **v2.20.0**–**v2.24.2** inbound intake), [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md) (2026-04-11; v2.10.0), [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10). Recent backlog: [vendor_avatars](./_archived/_backlog/vendor_avatars.md) (2026-04-29).
+**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [staff_nav_redesign](./_archived/_completed/staff_nav_redesign.md) (2026-05-30; workspace sidebar winner), [order_processing_pipeline_rebuild](./_archived/_completed/order_processing_pipeline_rebuild.md) (2026-05-30; **v2.20.0**–**v2.24.2** inbound intake), [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md) (2026-04-11; v2.10.0), [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10). Recent backlog: [vendor_avatars](./_archived/_backlog/vendor_avatars.md) (2026-04-29).
 
 ---
 

@@ -8,5 +8,6 @@ Purpose-organized artifacts that support initiatives and implementation. **Not**
 | Preprocessing CSV / cleanup | [`.ai/extended/inventory-pipeline.md`](../extended/inventory-pipeline.md) | `apply-cleanup-csv` / upload contract (retired standalone `cleanup_csv_contract.md`) |
 | Audits | [`deep_dive/`](deep_dive/latest/) | Ephemeral `latest/` reports + stable [`_report-templates/`](deep_dive/_report-templates/) |
 | Large diffs | [`diffs/`](diffs/) | Optional human summaries of big merges |
+| Shopify site copy | [`shopify-site-copy/`](shopify-site-copy/README.md) | Text scraped from ecothrift.us for public-site rebuild |
 
 **Plans and sessions** live in [`.ai/initiatives/`](../initiatives/). **Releases** live in repo root [`CHANGELOG.md`](../../CHANGELOG.md).

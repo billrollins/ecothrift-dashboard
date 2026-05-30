@@ -1,13 +1,69 @@
 <!-- initiative: slug=web-ui-cleanup status=active updated=2026-05-30 -->
-<!-- Last updated: 2026-05-30 (Session 1 — page inventory seed) -->
+<!-- Last updated: 2026-05-30 (Session 2 — hide + remove shipped) -->
 
 # Initiative: Staff web UI cleanup (page audit)
 
-**Status:** Active
+**Status:** Active — **Phase 1–3 shipped** (2026-05-30). Initiative may archive after deploy or if no follow-up polish.
+
+**Owner pass:** [`.ai/reference/web_ui_cleanup_section_pass.txt`](../reference/web_ui_cleanup_section_pass.txt) · **Hidden / removed** lists in [`.ai/context.md`](../context.md).
 
 ---
 
-## Objectives
+## Current execution steps
+
+- [x] **Step 0 — Section pass:** owner marked **HIDE** vs **REMOVE** vs implicit keep ([`web_ui_cleanup_section_pass.txt`](../reference/web_ui_cleanup_section_pass.txt)).
+- [x] **Step 1 — Hide from nav:** `Sidebar.tsx` — HR subset, staff Consignment section, Products, Templates, Inventory Admin subgroup.
+- [x] **Step 2 — Removal audit:** inline in plan + execution (no blockers; processing settings were legacy-only).
+- [x] **Step 3 — Execute removals:** routes/pages deleted; `InboundFulfillmentPlaceholderPage` legacy copy removed.
+- [x] **Step 4 — Docs:** `frontend.md`, `context.md`, `CHANGELOG [Unreleased]`, this file.
+
+---
+
+## Section pass results (2026-05-30)
+
+### HIDE (nav only — routes remain)
+
+| Label | Route(s) | Sidebar today |
+|-------|----------|---------------|
+| Time Clock | `/hr/time-clock` | HR |
+| Time History | `/hr/time-history` | HR |
+| Sick Leave | `/hr/sick-leave` | HR |
+| Consignment Accounts | `/consignment/accounts`, `…/accounts/:id` | Consignment |
+| Consignment Items | `/consignment/items` | Consignment |
+| Consignment Payouts | `/consignment/payouts` | Consignment |
+| Public pricing lookup | `/pricing`, `/pricing/:sku?` | — | **Removed** | Route + page deleted (owner: unused) |
+
+### REMOVE (full investigation before delete)
+
+| Label | Route(s) | Audit status |
+|-------|----------|--------------|
+| Categories (placeholder) | `/inventory/admin/categories` | **Not started** |
+| Legacy inventory hub | `/inventory/legacy` | **Not started** |
+| Legacy orders | `/inventory/legacy/orders` | **Not started** |
+| processing-legacy | `/inventory/processing-legacy` | **Not started** — also hosts processing **settings** modal (`#settings`) |
+| Products | `/inventory/products` | **Not started** |
+| Manifest templates | `/inventory/templates` | **Not started** |
+
+### Implicit KEEP (everything not listed above)
+
+Dashboard; HR **Employees**; full **Inbound** block; **Search items**, **Quick reprice**, item detail; **Vendors** + vendor detail; **POS** (all four); **Buying** (auctions + watchlist); **App Admin** (assumptions, POS setup, users, customers, permissions, settings); **Consignee portal** (summary, items, payouts); login / forgot-password.
+
+---
+
+## Removal audit template (per REMOVE ALL row)
+
+Before deleting route + page files, capture:
+
+1. **Nav / links** — `Sidebar.tsx`, cross-links from other pages, redirects in `App.tsx`.
+2. **Deep links** — bookmarks, emails, `OrderDetailPage` / intake handoffs pointing here.
+3. **Backend** — API endpoints used only by this page; models still needed elsewhere?
+4. **Shared components** — modals/settings only reachable from this route (e.g. **`processing-legacy`** + `#settings`).
+5. **Tests** — frontend or e2e routes referencing path.
+6. **Recommendation** — hide-only vs delete route vs delete page + dead code; migration/API impact **none / low / high**.
+
+Store audits under **`.ai/reference/web_ui_cleanup/`** (one file per target when investigation starts).
+
+---
 
 1. **Inventory every staff-facing React route** (plus consignee portal and public pages for completeness).
 2. For each page, agree a **disposition**: **Keep (nav)**, **Keep (route only)**, **Hide (nav)**, **Remove (later)**, or **Placeholder**.
@@ -40,23 +96,23 @@ Source of truth for routes: [`frontend/src/App.tsx`](../../frontend/src/App.tsx)
 |-------|-----------|------------|-------------|-------|
 | `/login` | `LoginPage` | — | **Keep (route only)** | Auth entry |
 | `/forgot-password` | `ForgotPasswordPage` | — | **Keep (route only)** | Linked from login |
-| `/pricing`, `/pricing/:sku?` | `PublicItemLookupPage` | — | **TBD** | Customer-facing SKU lookup |
+| `/pricing`, `/pricing/:sku?` | `PublicItemLookupPage` | — | **Hide** | Owner: unused; route may stay until audit |
 
 ### Staff — Dashboard
 
 | Route | Component | Sidebar section | Disposition | Notes |
 |-------|-----------|-----------------|-------------|-------|
-| `/dashboard` | `DashboardPage` | Dashboard | **TBD** | Default landing after `/` |
+| `/dashboard` | `DashboardPage` | Dashboard | **Keep (nav)** | |
 
 ### Staff — HR
 
 | Route | Component | Sidebar | Disposition | Notes |
 |-------|-----------|---------|-------------|-------|
-| `/hr/time-clock` | `TimeClockPage` | HR → Time Clock | **TBD** | |
-| `/hr/time-history` | `TimeHistoryPage` | HR → Time History | **TBD** | |
-| `/hr/employees` | `EmployeeListPage` | HR → Employees | **TBD** | |
-| `/hr/employees/:id` | `EmployeeDetailPage` | — (detail) | **TBD** | |
-| `/hr/sick-leave` | `SickLeavePage` | HR → Sick Leave | **TBD** | |
+| `/hr/time-clock` | `TimeClockPage` | HR → Time Clock | **Hide (nav)** | |
+| `/hr/time-history` | `TimeHistoryPage` | HR → Time History | **Hide (nav)** | |
+| `/hr/employees` | `EmployeeListPage` | HR → Employees | **Keep (nav)** | |
+| `/hr/employees/:id` | `EmployeeDetailPage` | — (detail) | **Keep (route only)** | |
+| `/hr/sick-leave` | `SickLeavePage` | HR → Sick Leave | **Hide (nav)** | |
 
 ### Staff — Inventory → Inbound fulfillment
 
@@ -81,8 +137,8 @@ Source of truth for routes: [`frontend/src/App.tsx`](../../frontend/src/App.tsx)
 |-------|-----------|---------|-------------|-------|
 | `/inventory/items` | `ItemListPage` | Items → Search items | **TBD** | |
 | `/inventory/items/:id` | `ItemDetailPage` | — (detail) | **TBD** | |
-| `/inventory/quick-reprice` | `QuickRepricePage` | Items → Quick reprice | **TBD** | Retag workflow |
-| `/inventory/products` | `ProductListPage` | Items → Products | **TBD** | |
+| `/inventory/quick-reprice` | `QuickRepricePage` | Items → Quick reprice | **Keep (nav)** | Retag workflow |
+| `/inventory/products` | `ProductListPage` | Items → Products | **Remove (audit)** | Section pass REMOVE ALL |
 
 ### Staff — Inventory → Vendors
 
@@ -90,22 +146,22 @@ Source of truth for routes: [`frontend/src/App.tsx`](../../frontend/src/App.tsx)
 |-------|-----------|---------|-------------|-------|
 | `/inventory/vendors` | `VendorListPage` | Vendors → Vendors | **TBD** | |
 | `/inventory/vendors/:id` | `VendorDetailPage` | — (detail) | **TBD** | Manifest templates live on vendor |
-| `/inventory/templates` | `ManifestTemplatesSplashPage` | Vendors → Manifest templates | **TBD** | Splash → points at vendors |
+| `/inventory/templates` | `ManifestTemplatesSplashPage` | Vendors → Manifest templates | **Remove (audit)** | Section pass REMOVE ALL |
 
 ### Staff — Inventory → Admin (inventory subgroup)
 
 | Route | Component | Sidebar | Disposition | Notes |
 |-------|-----------|---------|-------------|-------|
-| `/inventory/admin/categories` | `InventoryRoadmapPage` | Admin → Categories | **Placeholder** | “Planned” taxonomy UI |
-| `/inventory/legacy` | `InventoryLegacyHubPage` | Admin → Legacy inventory pages | **Hide (nav)?** | Escape hatch |
-| `/inventory/legacy/orders` | `InventoryLegacyOrdersPage` | — (linked from hub) | **Hide (nav)?** | Old manifest/preprocess entry |
+| `/inventory/admin/categories` | `InventoryRoadmapPage` | Admin → Categories | **Remove (audit)** | Placeholder |
+| `/inventory/legacy` | `InventoryLegacyHubPage` | Admin → Legacy inventory pages | **Remove (audit)** | |
+| `/inventory/legacy/orders` | `InventoryLegacyOrdersPage` | — (linked from hub) | **Remove (audit)** | |
 | `/inventory/admin/legacy` | redirect → `/inventory/legacy` | — | **Remove (later)?** | |
 
 ### Staff — Inventory (routes **not** in sidebar)
 
 | Route | Component | Disposition | Notes |
 |-------|-----------|-------------|-------|
-| `/inventory/processing-legacy` | `ProcessingPage` | **Hide (nav)?** | Batch grid + `#settings` / `?settings=1` processing settings modal |
+| `/inventory/processing-legacy` | `ProcessingPage` | **Remove (audit)** | Settings modal `#settings` — audit before delete |
 | `/inventory/inbound` | `InboundFulfillmentPlaceholderPage` | **Placeholder** | Base path without `?view=` |
 
 ### Staff — POS
@@ -129,10 +185,10 @@ Source of truth for routes: [`frontend/src/App.tsx`](../../frontend/src/App.tsx)
 
 | Route | Component | Sidebar | Disposition | Notes |
 |-------|-----------|---------|-------------|-------|
-| `/consignment/accounts` | `ConsignmentAccountsPage` | Consignment → Accounts | **TBD** | |
-| `/consignment/accounts/:id` | `ConsigneeDetailPage` | — (detail) | **TBD** | |
-| `/consignment/items` | `ConsignmentItemsPage` | Consignment → Items | **TBD** | |
-| `/consignment/payouts` | `ConsignmentPayoutsPage` | Consignment → Payouts | **TBD** | |
+| `/consignment/accounts` | `ConsignmentAccountsPage` | Consignment → Accounts | **Hide (nav)** | |
+| `/consignment/accounts/:id` | `ConsigneeDetailPage` | — (detail) | **Hide (route only)** | |
+| `/consignment/items` | `ConsignmentItemsPage` | Consignment → Items | **Hide (nav)** | |
+| `/consignment/payouts` | `ConsignmentPayoutsPage` | Consignment → Payouts | **Hide (nav)** | |
 
 ### Staff — Admin (app admin)
 
@@ -180,6 +236,15 @@ Source of truth for routes: [`frontend/src/App.tsx`](../../frontend/src/App.tsx)
 - **Scope:** This file + walkthrough in chat; **no code changes** unless owner asks mid-session.
 - **Out of scope:** Deleting pages, API changes, consignee portal redesign.
 - **Est:** 1–2h · **Start:** 2026-05-30
+- **Result:** Section pass in [`web_ui_cleanup_section_pass.txt`](../reference/web_ui_cleanup_section_pass.txt) — **6 hide**, **6 remove (audit first)**, rest **keep**. Hidden list copied to **`context.md`**.
+
+### Session 2 — Hide from nav + execute removals
+
+- **Goal:** Staff sidebar matches section pass; remove dead routes/pages in one pass.
+- **Finish line:** `Sidebar.tsx` updated; removed routes/pages deleted; `npm run build` green; docs synced.
+- **Scope:** `Sidebar.tsx`, `App.tsx`, placeholder page, deleted page files, `useInventory` hook trim, steering docs.
+- **Start:** 2026-05-30
+- **Result:** **Shipped.** Hidden: HR (3), staff Consignment (section), Products, Templates, Inventory Admin. Removed: categories, legacy hub/orders, processing-legacy (+ settings modal), products page, templates splash, `/pricing`. **`frontend npm run build`** OK.
 
 ---
 

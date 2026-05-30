@@ -22,7 +22,7 @@ import type {
   ProcessingWorkspaceDTO,
   ProcessingWorkspacePatchDTO,
 } from '../types/inventory.types';
-import api, { apiPublic } from './client';
+import api from './client';
 
 export type {
   Vendor,
@@ -1566,11 +1566,6 @@ export function detachBatchItem(
 // Item history
 export function getItemHistory(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<ItemHistory> }> {
   return api.get<PaginatedResponse<ItemHistory>>('/inventory/item-history/', { params });
-}
-
-/** Item lookup by SKU - no auth required */
-export function itemLookup(sku: string) {
-  return apiPublic.get<Item>(`/inventory/items/lookup/${encodeURIComponent(sku)}/`);
 }
 
 // ── Pricing / Estimation ──────────────────────────────────────────────────────

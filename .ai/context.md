@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-30 (active initiative: web_ui_cleanup) -->
+<!-- Last updated: 2026-05-30 (staff nav v2.25.0 + sticky workspace + web_ui_cleanup) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -16,6 +16,32 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 - **Plan + sessions:** [`.ai/initiatives/web_ui_cleanup.md`](initiatives/web_ui_cleanup.md) — staff page/route audit ([`_index.md`](initiatives/_index.md)).
 - **Inbound intake (shipped):** archived [order_processing_pipeline_rebuild](initiatives/_archived/_completed/order_processing_pipeline_rebuild.md) (**v2.20.0**–**v2.24.2**); reference [`.ai/reference/order_processing_pipeline_rebuild/`](reference/order_processing_pipeline_rebuild/README.md); behavior in **`.ai/extended/inventory-pipeline.md`**.
 - **Buying / B-Stock:** live API guardrails in workspace rules; detail in [`.ai/extended/bstock.md`](extended/bstock.md).
+
+### Hidden UI (`web_ui_cleanup` — nav removed, routes remain)
+
+Owner decision **2026-05-30** ([`web_ui_cleanup_section_pass.txt`](reference/web_ui_cleanup_section_pass.txt)). **Sidebar entries removed**; direct URL still works if bookmarked.
+
+| Area | Hidden from nav | Routes |
+|------|-----------------|--------|
+| **HR** | Time Clock, Time History, Sick Leave | `/hr/time-clock`, `/hr/time-history`, `/hr/sick-leave` |
+| **Consignment (staff)** | Accounts, Items, Payouts (+ account detail) | `/consignment/accounts`, `/consignment/accounts/:id`, `/consignment/items`, `/consignment/payouts` |
+
+**HR kept in nav:** Employees (+ employee detail). **Consignee portal** (`/consignee/*`) unchanged.
+
+### Removed UI (`web_ui_cleanup` — routes + pages deleted)
+
+Frontend routes/pages removed **2026-05-30**; **backend APIs retained** (harmless if unused).
+
+| Removed | Was |
+|---------|-----|
+| `/inventory/admin/categories` | Categories roadmap placeholder |
+| `/inventory/legacy`, `/inventory/legacy/orders`, `/inventory/admin/legacy` | Legacy inventory hub |
+| `/inventory/processing-legacy` | Legacy batch processing grid + settings modal |
+| `/inventory/products` | Product list page |
+| `/inventory/templates` | Manifest templates splash |
+| `/pricing`, `/pricing/:sku?` | Public SKU lookup page |
+
+Template and product **APIs** still used by preprocessing / Item Processor — see **`.ai/extended/inventory-pipeline.md`**.
 
 ---
 
