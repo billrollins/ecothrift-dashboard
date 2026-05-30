@@ -8,5 +8,5 @@ Public storefront on ecothrift.us/www (hostname split + canonical 301):
 - Content polish: Canfield address, Google Maps embed, pickup-only UX, construction banner
 - Session 7: no daily-markdown copy; subnav removed (shop sidebar only); directions → place pin; Visit layout
 
-Initiative: public_website.md (Phases 0–4 code-complete).
+Initiative parked: .ai/initiatives/_archived/_pending/public_website.md (resume: deploy, seed_shop_categories, Helcim + email).
 Deploy: run `python manage.py seed_shop_categories` on prod after migrate.
