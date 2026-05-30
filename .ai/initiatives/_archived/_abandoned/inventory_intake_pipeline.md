@@ -3,7 +3,7 @@
 
 # Initiative: Inventory intake pipeline (order → dispute)
 
-**Status:** Abandoned — superseded by **[order_processing_pipeline_rebuild](../../order_processing_pipeline_rebuild.md)**. Sessions below record what shipped before the pivot; do not treat this file as active steering.
+**Status:** Abandoned — superseded by **[order_processing_pipeline_rebuild](../_completed/order_processing_pipeline_rebuild.md)** (completed 2026-05-30). Sessions below record what shipped before the pivot; do not treat this file as active steering.
 
 ---
 

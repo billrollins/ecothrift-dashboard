@@ -46,7 +46,7 @@ Vendor → PurchaseOrder → CSV upload (S3) → Standardize (expression formula
 
 ### Intake rebuild wave (branch / Initiative Session 15)
 
-Semver-tagged in **`CHANGELOG [2.24.0]`** with same-day patch **`[2.24.1]`** for Processing/Receiving decoupling. Detail also lives under **[`order_processing_pipeline_rebuild`](../initiatives/order_processing_pipeline_rebuild.md)** (**Current Operating Scope**, **Execution steps**). Schema highlights:
+Semver-tagged in **`CHANGELOG [2.24.0]`** with same-day patch **`[2.24.1]`** for Processing/Receiving decoupling. Historical plan + sessions: **[`order_processing_pipeline_rebuild`](../initiatives/_archived/_completed/order_processing_pipeline_rebuild.md)** (archived 2026-05-30). Schema highlights:
 
 | Migration | User-visible theme |
 |-----------|---------------------|

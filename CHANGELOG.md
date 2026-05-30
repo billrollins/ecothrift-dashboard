@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.24.2] — 2026-05-19 (Inventory — PO hot-path / prod hang fix) -->
-<!-- Last reviewed: 2026-05-19 (`review.0.Bump` patch — PO open/PATCH hot path; processing-stats endpoint) -->
+<!-- Last reviewed: 2026-05-30 (`review.0.Bump` docs — archive intake initiative; start web_ui_cleanup) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -169,6 +169,11 @@ User-facing theme: **Processing data hotfix** — large finalized POs can enter 
 ---
 
 ## [Unreleased]
+
+### Documentation
+
+- **Initiatives** — Archived **[`order_processing_pipeline_rebuild`](.ai/initiatives/_archived/_completed/order_processing_pipeline_rebuild.md)** to **`_completed/`** (inbound intake **v2.20.0**–**v2.24.2**); active index cleared. New initiative **[`web_ui_cleanup.md`](.ai/initiatives/web_ui_cleanup.md)** — staff page/route audit (keep vs hide vs remove).
+- **Steering** — **`.ai/context.md`**, **`ARCHIVE.md`**, reference links updated for archived intake paths; retired **`fix_this.md`** / Final Review reference tree removed from compass (polish deferred to future initiatives).
 
 ### Changed
 

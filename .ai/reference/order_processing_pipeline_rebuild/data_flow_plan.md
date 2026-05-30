@@ -1,7 +1,7 @@
 <!-- intake data flow. design draft — partial supersession by v2.24.0 shipped code -->
 # Intake pipeline. Data flow plan (review draft v2)
 
-> **Status:** Design archaeology. **Shipped behavior** and runbooks: initiative [`order_processing_pipeline_rebuild`](../../initiatives/order_processing_pipeline_rebuild.md), [`_recon/README.md`](./_recon/README.md), [`extended/inventory-pipeline.md`](../../extended/inventory-pipeline.md). Repo root [`CHANGELOG.md`](../../../CHANGELOG.md) **`[2.24.0]`** / **`[2.24.1]`**.
+> **Status:** Design archaeology. **Shipped behavior** and runbooks: archived initiative [`order_processing_pipeline_rebuild`](../../initiatives/_archived/_completed/order_processing_pipeline_rebuild.md), [`_recon/README.md`](./_recon/README.md), [`extended/inventory-pipeline.md`](../../extended/inventory-pipeline.md). Repo root [`CHANGELOG.md`](../../../CHANGELOG.md) **`[2.24.0]`** / **`[2.24.1]`** / **`[2.24.2]`**.
 
 What this is: which tables are source of truth vs transient, when rows appear and disappear, how stage tracking works across parallel pipeline tracks, and open design questions at write time.
 
@@ -475,5 +475,5 @@ Cross-cutting rebuild program: schema and writers first, readers and table drops
 | `order_dashboard_surfaces.md` | Order list/create/detail surfaces; `detail-surface` vs full `retrieve` |
 | `.ai/reference/order_processing_pipeline_rebuild/intake_field_map.md` | Authoritative field-level spec; per-table, per-stage |
 | [`_recon/README.md`](./_recon/README.md) | Operational recon + repair runbook (post-migrate). Source for §9 today. |
-| [`.ai/initiatives/order_processing_pipeline_rebuild.md`](../../initiatives/order_processing_pipeline_rebuild.md) | Active plan + sessions (replaces `.ai/plans/`) |
+| [`.ai/initiatives/_archived/_completed/order_processing_pipeline_rebuild.md`](../../initiatives/_archived/_completed/order_processing_pipeline_rebuild.md) | Archived plan + sessions (replaces `.ai/plans/`) |
 | [`README.md`](./README.md) | Reference hub for this folder |

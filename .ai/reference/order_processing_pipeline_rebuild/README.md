@@ -1,6 +1,6 @@
 # Order / processing pipeline rebuild — reference
 
-Supporting material for initiative [`order_processing_pipeline_rebuild`](../../initiatives/order_processing_pipeline_rebuild.md). **Scope and execution steps live in the initiative file**, not here.
+Supporting material for archived initiative [`order_processing_pipeline_rebuild`](../../initiatives/_archived/_completed/order_processing_pipeline_rebuild.md). **Scope and session history live in the initiative file**; this folder is reference only.
 
 | Doc | Role |
 |-----|------|

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-18 (**v2.24.1** patch bookkeeping; production pushes require semver bump) -->
+<!-- Last updated: 2026-05-30 (active: web_ui_cleanup) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,13 +11,13 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [order_processing_pipeline_rebuild](./order_processing_pipeline_rebuild.md) | Active | **Inbound:** **Orders** + preprocessing + Processing are usable after **v2.24.1**; Receiving/Disputes remain operationally independent until staff are trained. **v2.24.0:** intake schema/repair/disputes/timeline stabilization. **v2.23.0:** persisted **`ProcessingRow.search_string`** + list **`searchString`** + **`rebuild_processing_search_string`**. Ref: **[Current Execution Steps](order_processing_pipeline_rebuild.md#current-execution-steps)** and **[Preprocessing — target UX](order_processing_pipeline_rebuild.md#preprocessing--target-ux)**. Supporting refs: [`_sql`](../reference/order_processing_pipeline_rebuild/_sql/README.md), [`_recon`](../reference/order_processing_pipeline_rebuild/_recon/README.md), [`2026.05.08_intake_updates.md`](../reference/order_processing_pipeline_rebuild/2026.05.08_intake_updates.md). |
+| [web_ui_cleanup](./web_ui_cleanup.md) | Active | **Staff UI page audit:** inventory every React route in [`App.tsx`](../frontend/src/App.tsx); agree **keep / hide / remove** per page; hide-from-nav first. Session 1 = disposition pass (no code unless owner asks). |
 
 Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
 
 **Current session details** (goal, finish line, updates) live **only** in each initiative file under **`## Sessions`** — not duplicated here.
 
-**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md) (2026-04-11; v2.10.0), [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10). Recent backlog: [vendor_avatars](./_archived/_backlog/vendor_avatars.md) (2026-04-29).
+**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [order_processing_pipeline_rebuild](./_archived/_completed/order_processing_pipeline_rebuild.md) (2026-05-30; **v2.20.0**–**v2.24.2** inbound intake), [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md) (2026-04-11; v2.10.0), [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10). Recent backlog: [vendor_avatars](./_archived/_backlog/vendor_avatars.md) (2026-04-29).
 
 ---
 

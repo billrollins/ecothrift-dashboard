@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-18 (retired paths: consultant_context, .ai/plans/, .ai/debug/) -->
+<!-- Last updated: 2026-05-30 (order_processing_pipeline_rebuild → _completed/) -->
 # Archive index — initiatives
 
 **Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
@@ -67,6 +67,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [data_backfill_initiative.md](./_completed/data_backfill_initiative.md) | Historical V1/V2 → V3 backfill: phased loaders through `backfill_phase5_categories` + `classify_v2_iterate`; taxonomy + `PricingRule` on loaded DB; Phase 6 verification. Shipped **v2.10.0**; portable production CSV export / `import_backfill` still deferred. | 2026-04-11 |
 | [bstock_auction_intelligence.md](./_completed/bstock_auction_intelligence.md) | B-Stock auction intelligence: **`apps/buying/`**, scraper/sweep, manifests (CSV upload **v2.18.0**+), valuation + category need through **v2.9.0**; **Phase 6** (outcomes) next. Session history + phased checklist in file. | 2026-04-16 |
 | [ui_ux_polish.md](./_completed/ui_ux_polish.md) | Buying / auction list + detail UX polish and metric corrections (**v2.12.1**–**v2.15.x**); superseded column notes per file (e.g. Recovery vs Thru). | 2026-04-16 |
+| [order_processing_pipeline_rebuild.md](./_completed/order_processing_pipeline_rebuild.md) | Inbound fulfillment rebuild: Orders → Preprocessing → Receiving → Processing + disputes/repair; migrations **0045–0051**; shipped **v2.20.0**–**v2.24.2**. Polish (Final Review UI, route placeholders) deferred to future initiatives. | 2026-05-30 |
 
 ---
 
