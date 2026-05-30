@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-30 (web_ui_cleanup → _completed/) -->
+<!-- Last updated: 2026-05-30 (public_website → _pending/) -->
 # Archive index — initiatives
 
 **Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
@@ -69,7 +69,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [ui_ux_polish.md](./_completed/ui_ux_polish.md) | Buying / auction list + detail UX polish and metric corrections (**v2.12.1**–**v2.15.x**); superseded column notes per file (e.g. Recovery vs Thru). | 2026-04-16 |
 | [staff_nav_redesign.md](./_completed/staff_nav_redesign.md) | Staff sidebar bake-off; **Slot C workspace nav** winner; lifecycle workspaces (Buying → Processing → Restoration → Floor → Cashier → Admin); TARS placeholder; switcher + losing variants removed. | 2026-05-30 |
 | [order_processing_pipeline_rebuild.md](./_completed/order_processing_pipeline_rebuild.md) | Inbound fulfillment rebuild: Orders → Preprocessing → Receiving → Processing + disputes/repair; migrations **0045–0051**; shipped **v2.20.0**–**v2.24.2**. Polish (Final Review UI, route placeholders) deferred to future initiatives. | 2026-05-30 |
-| [web_ui_cleanup.md](./_completed/web_ui_cleanup.md) | Staff page/route audit: owner section pass → sidebar nav hides (HR subset, staff Consignment) + route/page removals (legacy hub, products, templates, categories, processing-legacy, public `/pricing`); shipped **v2.25.0**. Superseded by **[public_website](../public_website.md)** for the customer-facing site. | 2026-05-30 |
+| [web_ui_cleanup.md](./_completed/web_ui_cleanup.md) | Staff page/route audit: owner section pass → sidebar nav hides (HR subset, staff Consignment) + route/page removals (legacy hub, products, templates, categories, processing-legacy, public `/pricing`); shipped **v2.25.0**. Customer-facing follow-on: **[public_website](./_pending/public_website.md)** (parked pending). | 2026-05-30 |
 
 ---
 
@@ -93,6 +93,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [create_location_label.md](./_pending/create_location_label.md) | **Inventory-scan** thermal location label (3×2, QR + aisle/shelf/category); full layer spec was under **`.ai/reference/ecothrift_label_spec.txt`** (reference tree removed). Workspace render/CLI may exist locally; **product integration** deferred. | 2026-03-28 |
 | [print_server_receipt_format.md](./_pending/print_server_receipt_format.md) | GDI receipt layout, `receipt_data` parity, PNG vs plain-text paths; **paused** off main index pre-production (2026-03-28); `render_scale` + workspace GDI tooling shipped for reference. | 2026-03-28 |
 | [historical_sell_through_analysis.md](./_pending/historical_sell_through_analysis.md) | Historical sell-through rates by category; PO extract shipped (v2.7.1); manual `PricingRule` seeds live (v2.8.0); Phases 1–4 (legacy DB docs, CSV processing, sales join, data-backed rates) deferred until needed. | 2026-04-10 |
+| [public_website.md](./_pending/public_website.md) | Public storefront rebuild (Phases 0–4 + Session 7 polish); shipped **v2.26.0** in repo. **Resume:** Heroku deploy, prod `seed_shop_categories`, Helcim + email after vendor call. | 2026-05-30 |
 
 ---
 

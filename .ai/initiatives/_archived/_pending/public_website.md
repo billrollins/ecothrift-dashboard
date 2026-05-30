@@ -1,23 +1,27 @@
-<!-- initiative: slug=public-website status=active updated=2026-05-30 -->
-<!-- Last updated: 2026-05-30 (Session 6 — content polish; v2.26.0) -->
+<!-- initiative: slug=public-website status=pending updated=2026-05-30 -->
+<!-- Archived 2026-05-30: disposition=pending paused off main index (build shipped v2.26.0; owner launch tasks deferred) -->
+<!-- Last updated: 2026-05-30 (Session 7 closed; parked pending) -->
 
 # Initiative: Public website (storefront rebuild)
 
-**Status:** Active — **all build phases (0–4) code-complete.** Marketing site + curated catalog + online checkout (payments stubbed, Helcim-ready) + staff order management + launch hardening (SEO/meta/JSON-LD, `robots.txt`/`sitemap.xml`, legacy Shopify 301s, route code-splitting, favicon/branding). **Remaining = owner/launch tasks:** deploy, rotate secrets, wire a payment processor + email provider, add a social share image, optional accounts/price-drop engine.
+**Status:** **Pending** (parked off main index, 2026-05-30) — **Phases 0–4 + Session 7 shipped in code** ([`CHANGELOG`](../../../../CHANGELOG.md) **v2.26.0**). Engineering scope for the storefront rebuild is **done** in repo.
+
+**Resume when:** you are ready to **deploy** (`git push` + Heroku, `seed_shop_categories` on prod), and/or after **Helcim + email** conversations (owner target: week of 2026-06-02). Optional later: social share image, customer accounts, real price-drop engine.
+
+**Deferred (not in scope for the parked period):** live card charges, transactional email provider, OG share image.
 
 Rebuild the public Eco-Thrift website (previously Shopify) **inside this repo**, served from the **same Heroku app** (`ecothrift-dashboard`) and split by hostname. The owner pointed `ecothrift.us` and `www.ecothrift.us` at the Heroku app on 2026-05-30 (DNS + TLS done; `ALLOWED_HOSTS` already includes both). The staff dashboard stays on `dash.ecothrift.us`.
 
 - **End goal (owner-confirmed):** **full online checkout** — real payments (Stripe), shipping/tax, and order management (what Shopify did).
 - **Catalog (owner-confirmed):** a **separately hand-curated web catalog** — staff manually pick/list a subset of items with their own photos, descriptions, and prices (not auto-pulled from floor inventory).
-- **Design source of truth:** [`ecothrift-store.html`](../reference/shopify-site-copy/ecothrift-store.html) (full storefront mockup) + real copy in [`site_copy.md`](../reference/shopify-site-copy/site_copy.md). Plan of record: this file (mirrors the approved session plan).
+- **Design source of truth:** [`ecothrift-store.html`](../../../reference/shopify-site-copy/ecothrift-store.html) (full storefront mockup) + real copy in [`site_copy.md`](../../../reference/shopify-site-copy/site_copy.md). Plan of record: this file (mirrors the approved session plan).
 
 ---
 
-## Pre-flight (owner, urgent — independent of this build)
+## Pre-flight (owner — launch)
 
-- **Rotate exposed secrets.** The Anthropic key, AWS key pair, `DATABASE_URL`, Django `SECRET_KEY`, and proxy password were reportedly pasted into chat/screenshots — treat as compromised. Rotate via the AWS/Anthropic consoles + `heroku config:set` + DB credential rotation. Rotating `SECRET_KEY` invalidates existing JWT refresh sessions (everyone re-logs in). Does **not** block website work, but should happen soon.
 - **DNS propagation.** Apex `A` record may still cache the old Shopify IP (`23.227.38.65`) for a few hours; re-check `Resolve-DnsName ecothrift.us -Server 8.8.8.8` until it resolves to Heroku. `ALLOWED_HOSTS` already includes apex + `www` (verified on Heroku).
-- **No CORS work needed.** The frontend uses a **relative** `/api` base URL (no `VITE_API_URL` anywhere), so pages are same-origin with the API — the consultant's cross-origin concern does not apply to this build.
+- **No CORS work needed.** The frontend uses a **relative** `/api` base URL (no `VITE_API_URL` anywhere), so pages are same-origin with the API.
 
 ---
 
@@ -25,10 +29,10 @@ Rebuild the public Eco-Thrift website (previously Shopify) **inside this repo**,
 
 | Area | Today | Implication |
 |------|-------|-------------|
-| Host routing | **None.** [`ecothrift/urls.py`](../../ecothrift/urls.py) has one prod SPA catch-all (`^(?!api/|db-admin/|static/|assets/).*$` → `index.html`). Every host serves the **staff dashboard** SPA (`/` → `/dashboard` → login). | Right now `ecothrift.us` shows the **staff login**. Phase 0 displaces it. |
-| Frontend build | One Vite build → `frontend/dist`, WhiteNoise + `heroku-postbuild` ([`package.json`](../../package.json), [`Procfile`](../../Procfile)). `APP_DIRS=True` so Django templates resolve from apps. | A public site can be a 2nd Vite build or Django-rendered; confirm in Phase 1. |
-| Product data | [`apps/inventory/models.py`](../../apps/inventory/models.py) `Item` has `price`, `unit_retail`, `status` (`on_shelf`/`sold`), `condition`, `sku`; `Category` has slugs. **No image fields anywhere**, no description on `Item`. | Curated catalog + photos are net-new (Phase 2). |
-| Public API | Only `AllowAny` read endpoint is `item_lookup` ([`apps/inventory/views.py`](../../apps/inventory/views.py)) via `ItemPublicSerializer`. S3 serves **presigned/authenticated** URLs ([`apps/core/models.py`](../../apps/core/models.py)). | Public catalog/cart/checkout API + public image URLs are net-new. |
+| Host routing | **None.** [`ecothrift/urls.py`](../../../../ecothrift/urls.py) has one prod SPA catch-all (`^(?!api/|db-admin/|static/|assets/).*$` → `index.html`). Every host serves the **staff dashboard** SPA (`/` → `/dashboard` → login). | Right now `ecothrift.us` shows the **staff login**. Phase 0 displaces it. |
+| Frontend build | One Vite build → `frontend/dist`, WhiteNoise + `heroku-postbuild` ([`package.json`](../../../../package.json), [`Procfile`](../../../../Procfile)). `APP_DIRS=True` so Django templates resolve from apps. | A public site can be a 2nd Vite build or Django-rendered; confirm in Phase 1. |
+| Product data | [`apps/inventory/models.py`](../../../../apps/inventory/models.py) `Item` has `price`, `unit_retail`, `status` (`on_shelf`/`sold`), `condition`, `sku`; `Category` has slugs. **No image fields anywhere**, no description on `Item`. | Curated catalog + photos are net-new (Phase 2). |
+| Public API | Only `AllowAny` read endpoint is `item_lookup` ([`apps/inventory/views.py`](../../../../apps/inventory/views.py)) via `ItemPublicSerializer`. S3 serves **presigned/authenticated** URLs ([`apps/core/models.py`](../../../../apps/core/models.py)). | Public catalog/cart/checkout API + public image URLs are net-new. |
 | Email | **Not wired** (forgot-password tokens returned in responses, not sent). | Order confirmations (Phase 3) need an email backend. |
 | Price drops | No engine — only `Item.listed_at`. FAQ describes 5%/day + L4/A2 codes (business intent, not coded). | Phase 2/4 decision: real schedule vs `compare_at_price` + copy. |
 
@@ -84,7 +88,7 @@ Alternative: single SPA branching on `window.location.hostname` — cheaper to w
 
 ## Non-code dependencies (owner)
 
-- **Payment processor** — *not Stripe* (owner decision 2026-05-30); likely **Helcim**. For now build a provider-agnostic abstraction + no-op stub (no live charges); wire the real processor when the account/keys exist. Email provider (SES/Postmark/SendGrid) for order confirmations; Nebraska sales-tax handling/registration; refund/privacy/terms pages (refund copy exists in [`site_copy.md`](../reference/shopify-site-copy/site_copy.md)).
+- **Payment processor** — *not Stripe* (owner decision 2026-05-30); likely **Helcim**. For now build a provider-agnostic abstraction + no-op stub (no live charges); wire the real processor when the account/keys exist. Email provider (SES/Postmark/SendGrid) for order confirmations; Nebraska sales-tax handling/registration; refund/privacy/terms pages (refund copy exists in [`site_copy.md`](../../../reference/shopify-site-copy/site_copy.md)).
 - **Public image hosting — ✅ resolved (Session 3): keep S3 private**; the public catalog serves photos via an `AllowAny` presigned-redirect endpoint (302 → short-lived presigned URL). No bucket policy change, fully reversible; can swap to a public CDN prefix later if desired.
 
 ## Open decisions to confirm during the work
@@ -103,7 +107,7 @@ Alternative: single SPA branching on `window.location.hostname` — cheaper to w
 - [x] Staff can curate a web catalog (with photos); the public can browse it. *(Phase 2: `apps.webstore` + staff "Web store" CRUD + public shop/detail/cart)*
 - [x] Customers can complete an order (pickup or ship) and receive confirmation; staff can fulfill. *(Phase 3: public `/checkout` + `/order/:number`, `Order`/`OrderLine`, NE tax + flat ship, atomic stock reserve, staff "Web orders" status/payment mgmt. **Live charge stubbed** — `manual` provider records the order awaiting payment; swap to Helcim by config.)*
 - [x] SEO basics + old-URL redirects in place at launch. *(Phase 4: per-route title/description/canonical/OG/Twitter via `useSeo`, Store + Product JSON-LD, `robots.txt` + `sitemap.xml`, legacy Shopify 301s (`/products|/collections|/blogs|/pages|/cart|/account`) merged with the canonical-host redirect, route code-splitting, SVG favicon + theme-color, `noindex` on checkout/order/404. Optional Plausible analytics gated by `VITE_PLAUSIBLE_DOMAIN`.)*
-- [x] [`.ai/extended/frontend.md`](../extended/frontend.md) and [`.ai/context.md`](../context.md) updated as routes/architecture change; releases bumped per [`session.9.Close.md`](../protocols/session.9.Close.md). *(v2.26.0)*
+- [x] [`.ai/extended/frontend.md`](../../../extended/frontend.md) and [`.ai/context.md`](../../../context.md) updated as routes/architecture change; releases bumped per [`session.9.Close.md`](../../../protocols/session.9.Close.md). *(v2.26.0)*
 
 ---
 
@@ -180,12 +184,24 @@ Alternative: single SPA branching on `window.location.hostname` — cheaper to w
   - **Dev:** `start_servers.bat` / `kill_servers.bat` include public Vite on `:5174`.
 - **Result (2026-05-30):** Content polish complete. Released **v2.26.0**. **Next:** deploy to Heroku, run `seed_shop_categories` on prod, rotate secrets, wire payment + email.
 
+### Session 7 — Pre-deploy UX + copy fixes (post-release polish)
+
+- **Goal:** Fix customer-facing issues before deploy — wrong Maps pin, misleading pricing copy, cramped Visit info, horizontal category scroll in header.
+- **Finish line:** No daily-markdown claims on the public site; Get directions opens the Canfield place pin; Visit address block reads cleanly; category links only on Shop (no global subnav scroll).
+- **Scope:** `frontend-public` (Layout, Visit/Home/Shop/Sell, `content.ts`, `styles.css`); `apps/core/templates/public/holding.html`. **Out of scope:** payment/email wiring, new features.
+- **Est:** ~1h · **Start:** 2026-05-30
+- **Session updates:**
+  - `2026-05-30T15:45:00-05:00` — Removed outdated “prices drop daily / 5%” copy across marketing pages, How it works, blog *Turns Two*, testimonial, Sell step, holding page.
+  - `2026-05-30T15:50:00-05:00` — Visit retail block: stacked label/value rows; removed “Near S 84th…” line; maps use place pin `41.2336219,-96.0442073` via `retailMapsDirectionsUrl()`.
+  - `2026-05-30T15:55:00-05:00` — Removed global category **subnav** from `Layout` (categories remain on Shop sidebar only).
+- **Result:** `committed as v2.26.0 at eb3abc8` (bundled in the same release commit as Phases 0–4). **Session closed 2026-05-30** — initiative **parked** in `_archived/_pending/`; owner deploy + Helcim/email deferred (not this weekend).
+
 ---
 
 ## See also
 
 - Plan of record (approved): mirrors this file's phases.
-- [`.ai/reference/shopify-site-copy/`](../reference/shopify-site-copy/README.md) — mockup HTML + scraped copy.
-- [`.ai/extended/frontend.md`](../extended/frontend.md) — routing/pages (update as the public site lands).
-- Predecessor: [`web_ui_cleanup`](./_archived/_completed/web_ui_cleanup.md) (staff nav/page audit, shipped v2.25.0).
-- [`.ai/initiatives/_index.md`](_index.md).
+- [`.ai/reference/shopify-site-copy/`](../../../reference/shopify-site-copy/README.md) — mockup HTML + scraped copy.
+- [`.ai/extended/frontend.md`](../../../extended/frontend.md) — routing/pages (update as the public site lands).
+- Predecessor: [`web_ui_cleanup`](../_completed/web_ui_cleanup.md) (staff nav/page audit, shipped v2.25.0).
+- [`.ai/initiatives/_index.md`](../../_index.md).

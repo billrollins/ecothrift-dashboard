@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-30 (public_website Phases 0–4 code-complete; v2.26.0) -->
+<!-- Last updated: 2026-05-30 (public_website → _pending/; no active initiatives) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,13 +11,15 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [public_website](./public_website.md) | Active — code complete | Public storefront Phases 0–4 shipped **v2.26.0**; deploy + payment/email providers remain. |
+| *(none)* | — | **Clean slate** for the next initiative. Add a new `descriptive_name.md` here when you start. |
+
+**Parked (off this index):** [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.
 
 Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
 
 **Current session details** (goal, finish line, updates) live **only** in each initiative file under **`## Sessions`** — not duplicated here.
 
-**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [web_ui_cleanup](./_archived/_completed/web_ui_cleanup.md) (2026-05-30; staff page audit, shipped **v2.25.0**), [staff_nav_redesign](./_archived/_completed/staff_nav_redesign.md) (2026-05-30; workspace sidebar winner), [order_processing_pipeline_rebuild](./_archived/_completed/order_processing_pipeline_rebuild.md) (2026-05-30; **v2.20.0**–**v2.24.2** inbound intake), [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md) (2026-04-11; v2.10.0), [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10). Recent backlog: [vendor_avatars](./_archived/_backlog/vendor_avatars.md) (2026-04-29).
+**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [web_ui_cleanup](./_archived/_completed/web_ui_cleanup.md) (2026-05-30; staff page audit, shipped **v2.25.0**), [staff_nav_redesign](./_archived/_completed/staff_nav_redesign.md) (2026-05-30; workspace sidebar winner), [order_processing_pipeline_rebuild](./_archived/_completed/order_processing_pipeline_rebuild.md) (2026-05-30; **v2.20.0**–**v2.24.2** inbound intake), [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md) (2026-04-11; v2.10.0), [docs_restructure](./_archived/_completed/docs_restructure.md) (2026-04-10), [category intelligence / taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md) (2026-04-06). Recent pending: [public_website](./_archived/_pending/public_website.md) (2026-05-30; v2.26.0 code shipped), [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10). Recent backlog: [vendor_avatars](./_archived/_backlog/vendor_avatars.md) (2026-04-29).
 
 ---
 

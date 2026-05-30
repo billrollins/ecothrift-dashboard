@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-30 (v2.26.0 public website Phases 0–4 shipped to code) -->
+<!-- Last updated: 2026-05-30 (public_website parked pending; no active initiative) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,9 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Plan + sessions:** [`.ai/initiatives/public_website.md`](initiatives/public_website.md) — **public storefront rebuild** (ex-Shopify) **Phases 0–4 code-complete** (shipped **v2.26.0**); hostname routing (`ecothrift.us`/`www` → public SPA, `dash.*` → staff). Remaining: deploy, secret rotation, payment + email providers. Predecessor [`web_ui_cleanup`](initiatives/_archived/_completed/web_ui_cleanup.md) shipped **v2.25.0**.
+- **Active initiative:** *(none — clean slate)*. Next session: add a new initiative under [`.ai/initiatives/`](initiatives/_index.md) when scope is clear.
+- **Parked — public site launch:** [`.ai/initiatives/_archived/_pending/public_website.md`](initiatives/_archived/_pending/public_website.md) — storefront **Phases 0–4 shipped** (**v2.26.0**, `frontend-public/` + `apps.webstore`). **Resume when:** deploy to Heroku + prod `seed_shop_categories`; wire **Helcim + email** after vendor conversations. Hostname routing: `ecothrift.us`/`www` → public SPA, `dash.*` → staff.
+- **Staff UI (shipped):** [`web_ui_cleanup`](initiatives/_archived/_completed/web_ui_cleanup.md) **v2.25.0**.
 - **Inbound intake (shipped):** archived [order_processing_pipeline_rebuild](initiatives/_archived/_completed/order_processing_pipeline_rebuild.md) (**v2.20.0**–**v2.24.2**); reference [`.ai/reference/order_processing_pipeline_rebuild/`](reference/order_processing_pipeline_rebuild/README.md); behavior in **`.ai/extended/inventory-pipeline.md`**.
 - **Buying / B-Stock:** live API guardrails in workspace rules; detail in [`.ai/extended/bstock.md`](extended/bstock.md).
 

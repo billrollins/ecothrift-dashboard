@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.26.0] — 2026-05-30 (Public website Phases 0–4) -->
-<!-- Last reviewed: 2026-05-30 (review.0.Bump v2.26.0 — public_website initiative) -->
+<!-- Last reviewed: 2026-05-30 (session.9.Close Session 7 — public_website pre-deploy polish) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,14 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+### Documentation
+
+- **`public_website`** initiative parked in [`.ai/initiatives/_archived/_pending/public_website.md`](.ai/initiatives/_archived/_pending/public_website.md) (Session 7 closed; no active initiative on index). Resume notes: deploy, prod `seed_shop_categories`, Helcim + email.
 
 ---
 
@@ -32,6 +40,7 @@ User-facing theme: **Public website — Phases 0–4** (hostname split + marketi
 - **Public site / store facts** — retail location updated to **Eco-Thrift — Canfield** (8425 W Center Rd, Omaha NE 68124; Mon–Sat 9–6, closed Sun; (402) 881-9861); removed the closed **8072 H St** warehouse block from Visit + holding page.
 - **Public site / shop categories** — storefront taxonomy aligned to **`TAXONOMY_V1_CATEGORY_NAMES`** (19 categories); `apps/webstore/shop_categories.py` + `manage.py seed_shop_categories`; legacy Shopify `/collections/*` 301s map to taxonomy slugs.
 - **Public site / checkout UX** — pickup-only on the storefront (removed ship option and nationwide-shipping copy); **Sell** page is a “coming this summer” placeholder; prominent sticky **under construction** banner; high-res header/footer logos; embedded **Google Maps** on Visit; three founder blog posts with photos; dev **`start_servers.bat`** also runs public Vite on **:5174**.
+- **Public site / pre-deploy polish** — removed global category **subnav** (shop categories only on `/shop` sidebar — fixes horizontal scroll); removed outdated **daily markdown / 5%** pricing copy sitewide; **Get directions** uses the Google **place pin** (`retailMapsDirectionsUrl`, not street-address search); Visit address block uses stacked labels; dropped “Near S 84th…” line; holding page aligned (see [`public_website.md`](.ai/initiatives/public_website.md) Session 7).
 
 ### Documentation
 

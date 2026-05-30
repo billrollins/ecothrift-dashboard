@@ -5,7 +5,8 @@ Public storefront on ecothrift.us/www (hostname split + canonical 301):
 - apps.webstore curated catalog + S3 image proxy + taxonomy v1 shop categories
 - In-store pickup checkout + Order/OrderLine + staff Web store + Web orders
 - SEO (useSeo, JSON-LD, robots.txt, sitemap.xml), legacy Shopify 301s, code-split
-- Content polish: Canfield address, Google Maps, pickup-only UX, construction banner
+- Content polish: Canfield address, Google Maps embed, pickup-only UX, construction banner
+- Session 7: no daily-markdown copy; subnav removed (shop sidebar only); directions → place pin; Visit layout
 
 Initiative: public_website.md (Phases 0–4 code-complete).
 Deploy: run `python manage.py seed_shop_categories` on prod after migrate.
