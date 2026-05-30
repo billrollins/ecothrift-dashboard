@@ -185,7 +185,7 @@ export interface BlogPost {
 export const POSTS: BlogPost[] = [
   {
     slug: 'navigating-growth',
-    series: 'Past, Present & Future',
+    series: 'Early days',
     title: 'Navigating the Challenges and Opportunities of Growth',
     excerpt:
       'On building departments, reaching customers honestly, and laying the groundwork for consignment.',
@@ -204,7 +204,7 @@ export const POSTS: BlogPost[] = [
   },
   {
     slug: 'turns-two',
-    series: 'Past, Present & Future',
+    series: 'Early days',
     title: 'Eco-Thrift Turns Two: A Look Back at Where It All Began',
     excerpt:
       'How Carrie and I went from an empty room on 96th & Q to a store Omaha has welcomed as its own.',
@@ -223,7 +223,7 @@ export const POSTS: BlogPost[] = [
   },
   {
     slug: 'our-vision',
-    series: 'Past, Present & Future',
+    series: 'Early days',
     title: "Envisioning a Sustainable Future: Eco-Thrift's Ambitious Plans",
     excerpt:
       'Immersive shopping centers, an expanded online presence, and a commitment to community impact.',
