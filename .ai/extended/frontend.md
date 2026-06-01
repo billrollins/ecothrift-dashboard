@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-01 (blog_studio v2.27.1 — series rename + studio sage chrome) -->
+<!-- Last updated: 2026-06-01 (blog_studio v2.27.2 — draft slug preview) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -52,7 +52,7 @@
 
 **Consignee routes** (ConsigneeLayout): `/consignee`, `/consignee/items`, `/consignee/payouts`
 
-**Standalone (outside MainLayout):** **`/blog-studio`** — **Blog Studio** (`ProtectedRoute` + **SuperAdminRoute**), **`React.lazy`**-loaded so the net-new **TipTap** editor builds as its own chunk and stays out of the main staff bundle. Full-screen three-pane studio scoped to its own fonts/CSS (`frontend/src/pages/blog/BlogStudioPage.tsx`, `StudioEditor.tsx`, `blogStudio.css`); opened in a **new window** from a superuser-only Admin nav item. Staff data via `api/blog.api.ts` + `hooks/useBlogStudio.ts` (`/api/blog/`, see `apps.blog`). Autosave is a debounced PATCH; the slug tracks the title until first publish then locks. Series: assign via dropdown, **rename inline** (`updateBlogSeries` / `useUpdateBlogSeries`) when a series is selected, or create via prompt. Editor tools include preview, rich paste cleanup, word/character/selection counts, shortcut hints, image controls, callouts, tables, code/pull-quote/drop-cap/columns blocks, and safe no-iframe link cards with selected-card removal. Blog Studio and public blog rendering use the **Bold Modern** typography group (DM Serif Display + DM Sans, sage accents).
+**Standalone (outside MainLayout):** **`/blog-studio`** — **Blog Studio** (`ProtectedRoute` + **SuperAdminRoute**), **`React.lazy`**-loaded so the net-new **TipTap** editor builds as its own chunk and stays out of the main staff bundle. Full-screen three-pane studio scoped to its own fonts/CSS (`frontend/src/pages/blog/BlogStudioPage.tsx`, `StudioEditor.tsx`, `blogStudio.css`); opened in a **new window** from a superuser-only Admin nav item. Staff data via `api/blog.api.ts` + `hooks/useBlogStudio.ts` (`/api/blog/`, see `apps.blog`). Autosave is a debounced PATCH; draft/scheduled URL previews use the current title-derived slug and saved slugs keep tracking title until first publish, then lock. Series: assign via dropdown, **rename inline** (`updateBlogSeries` / `useUpdateBlogSeries`) when a series is selected, or create via prompt. Editor tools include preview, rich paste cleanup, word/character/selection counts, shortcut hints, image controls, callouts, tables, code/pull-quote/drop-cap/columns blocks, and safe no-iframe link cards with selected-card removal. Blog Studio and public blog rendering use the **Bold Modern** typography group (DM Serif Display + DM Sans, sage accents).
 
 **Redirects:** `/` and `*` → `/dashboard`
 

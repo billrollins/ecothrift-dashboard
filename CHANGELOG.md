@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.27.1] — 2026-06-01 (Blog Studio polish) -->
-<!-- Last reviewed: 2026-06-01 (code.9.Push — series rename + studio accent) -->
+<!-- Line 1 release: ## [2.27.2] — 2026-06-01 (Blog polish) -->
+<!-- Last reviewed: 2026-06-01 (pre-deploy — blog copy + draft slug preview) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,20 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.27.2] — 2026-06-01
+
+User-facing theme: **Blog polish** — tighten the blog landing copy and keep draft URLs from showing `untitled-post` after a title change.
+
+### Changed
+
+- **Frontend / public blog** — `/blog` hero copy now reads **Founder Notes**, **The Eco-Thrift Journal**, and the shorter transparency-focused description; SEO description matches the visible page copy.
+
+### Fixed
+
+- **Frontend / Blog Studio** — draft/scheduled post URL previews now use the current title-derived slug until first publish, and autosave continues sending `slug: ''` for unpublished posts so the backend regenerates from the title instead of retaining `untitled-post`.
 
 ---
 

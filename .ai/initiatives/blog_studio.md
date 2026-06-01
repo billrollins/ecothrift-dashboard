@@ -1,5 +1,5 @@
 <!-- initiative: slug=blog-studio status=active updated=2026-06-01 -->
-<!-- Last updated: 2026-06-01 (Session 3 — series rename + studio sage chrome; v2.27.1) -->
+<!-- Last updated: 2026-06-01 (Session 4 — blog copy + draft slug preview; v2.27.2) -->
 
 # Initiative: Blog Studio (luxury authoring + database-backed public blog)
 
@@ -77,6 +77,12 @@ drafted, scheduled, and published without a code change.
 - **Goal:** let owners rename an existing series without Django admin; align Blog Studio shell accents with Bold Modern sage.
 - **Delivered:** inline series rename field beside the Publish-panel Series dropdown (`PATCH /api/blog/series/<id>/`, blur/Enter save); `updateBlogSeries` + `useUpdateBlogSeries`; studio chrome uses `--blog-accent` for links, buttons, kickers, and focus states.
 - **Shipped:** **v2.27.1**.
+
+### Session 4 — 2026-06-01 (blog copy + draft slug preview)
+
+- **Goal:** tighten the public blog landing copy and stop new drafts from showing `/blog/untitled-post` after the title changes.
+- **Delivered:** `/blog` hero copy changed to **Founder Notes / The Eco-Thrift Journal** with a transparency-focused description; Blog Studio draft/scheduled URL preview now derives from the current title until publish, and autosave continues clearing unpublished slugs so the backend regenerates them from title.
+- **Shipped:** **v2.27.2**.
 
 ---
 

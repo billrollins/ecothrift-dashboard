@@ -98,9 +98,9 @@ function buildPayload(v: {
     body_html: v.bodyHtml,
     body_json: v.bodyJson,
   };
-  // While a post is still a draft we keep the slug tracking the title; once published the
+  // Until first publish we keep the slug tracking the title; once published the
   // backend locks it, so we stop sending slug.
-  if (v.status === 'draft') payload.slug = '';
+  if (v.status !== 'published') payload.slug = '';
   return payload;
 }
 
@@ -594,7 +594,7 @@ export default function BlogStudioPage() {
       .filter((p) => !q || p.title.toLowerCase().includes(q));
   }, [posts, segment, search]);
 
-  const slug = serverPost?.slug || clientSlug(form.title);
+  const slug = serverPost?.status === 'published' ? serverPost.slug : clientSlug(form.title);
   const seriesName = selectedSeries?.name || serverPost?.series_name || null;
   const readMinutes = Math.max(words > 0 ? 1 : 0, Math.round(words / 200));
   const busy =

@@ -93,6 +93,17 @@ class BlogSlugLockTests(APITestCase):
         )
         self.assertEqual(patched.json()['slug'], 'custom-slug')
 
+    def test_cleared_draft_slug_regenerates_from_title(self):
+        resp = self._create('Untitled post')
+        pid = resp.json()['id']
+        self.assertEqual(resp.json()['slug'], 'untitled-post')
+        patched = self.client.patch(
+            f'/api/blog/posts/{pid}/',
+            {'title': 'A Better Title', 'slug': ''},
+            format='json',
+        )
+        self.assertEqual(patched.json()['slug'], 'a-better-title')
+
     def test_slug_locked_after_publish(self):
         resp = self._create('Hello World')
         pid = resp.json()['id']

@@ -1,6 +1,8 @@
-fix: v2.27.1 blog studio series rename and sage chrome
+fix: v2.27.2 blog copy and draft slug preview
 
-- Inline series rename beside the Series dropdown (PATCH /api/blog/series/<id>/)
-- updateBlogSeries API + useUpdateBlogSeries hook; invalidate posts/series on save
-- Blog Studio shell accents aligned to Bold Modern sage (--blog-accent)
-- Docs: CHANGELOG, blog_studio initiative Session 3, frontend.md
+- Update the public blog hero to "Founder Notes" and "The Eco-Thrift Journal"
+- Tighten the blog description around transparency, vision, challenges, transitions, and decisions
+- Keep SEO description aligned with the visible blog page copy
+- Show title-derived draft/scheduled URLs in Blog Studio instead of stale untitled-post slugs
+- Continue clearing unpublished slugs on autosave so the backend regenerates from title
+- Add a slug regeneration regression test
