@@ -174,3 +174,55 @@ export async function checkout(input: CheckoutInput): Promise<OrderSummary> {
 export function fetchOrder(orderNumber: string): Promise<OrderSummary> {
   return getJSON<OrderSummary>(`${BASE}/order-status/${encodeURIComponent(orderNumber)}/`)
 }
+
+// ── Blog (database-backed; `live()` posts only) ───────────────────────────────
+const BLOG_BASE = '/api/blog/public'
+
+export interface BlogHero {
+  id: number
+  url: string
+  alt: string
+}
+
+export interface BlogPostSummary {
+  slug: string
+  title: string
+  series: string
+  series_slug: string
+  excerpt: string
+  /** Display date, e.g. "June 10, 2024". */
+  date: string
+  /** ISO date (YYYY-MM-DD) for sorting / structured data. */
+  date_iso: string
+  hero: BlogHero | null
+  tags: string[]
+  author_name: string
+  reading_minutes: number
+}
+
+export interface BlogPostDetail extends BlogPostSummary {
+  body_html: string
+  author_role: string
+  meta_title: string
+  meta_description: string
+}
+
+export interface BlogSeries {
+  name: string
+  slug: string
+  description: string
+  post_count: number
+}
+
+export function fetchBlogPosts(series?: string): Promise<BlogPostSummary[]> {
+  const query = series ? `?series=${encodeURIComponent(series)}` : ''
+  return getJSON<BlogPostSummary[]>(`${BLOG_BASE}/posts/${query}`)
+}
+
+export function fetchBlogPost(slug: string): Promise<BlogPostDetail> {
+  return getJSON<BlogPostDetail>(`${BLOG_BASE}/posts/${encodeURIComponent(slug)}/`)
+}
+
+export function fetchBlogSeries(): Promise<BlogSeries[]> {
+  return getJSON<BlogSeries[]>(`${BLOG_BASE}/series/`)
+}

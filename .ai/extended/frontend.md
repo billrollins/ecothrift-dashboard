@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-30 (v2.26.0 public site frontend-public + staff webstore) -->
+<!-- Last updated: 2026-06-01 (blog_studio v2.27.0 — editor tools + Bold Modern typography) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -28,6 +28,7 @@
 - **StaffRoute** — redirects Consignees to `/consignee`
 - **ManagerRoute** — requires Admin or Manager; redirects to `/dashboard` otherwise
 - **AdminRoute** — requires Admin; redirects to `/dashboard` otherwise
+- **SuperAdminRoute** — requires Django `is_superuser`; redirects to `/dashboard` otherwise (gates the Blog Studio)
 
 **Public routes:** `/login`, `/forgot-password`
 
@@ -51,13 +52,15 @@
 
 **Consignee routes** (ConsigneeLayout): `/consignee`, `/consignee/items`, `/consignee/payouts`
 
+**Standalone (outside MainLayout):** **`/blog-studio`** — **Blog Studio** (`ProtectedRoute` + **SuperAdminRoute**), **`React.lazy`**-loaded so the net-new **TipTap** editor builds as its own chunk and stays out of the main staff bundle. Full-screen three-pane studio scoped to its own fonts/CSS (`frontend/src/pages/blog/BlogStudioPage.tsx`, `StudioEditor.tsx`, `blogStudio.css`); opened in a **new window** from a superuser-only Admin nav item. Staff data via `api/blog.api.ts` + `hooks/useBlogStudio.ts` (`/api/blog/`, see `apps.blog`). Autosave is a debounced PATCH; the slug tracks the title until first publish then locks. Editor tools include preview, rich paste cleanup, word/character/selection counts, shortcut hints, image controls, callouts, tables, code/pull-quote/drop-cap/columns blocks, and safe no-iframe link cards with selected-card removal. Blog Studio and public blog rendering use the **Bold Modern** typography group (DM Serif Display + DM Sans, sage accents).
+
 **Redirects:** `/` and `*` → `/dashboard`
 
 ## Public site (`frontend-public/`)
 
 Separate Vite + React 18.3 + TypeScript build for shoppers (`ecothrift.us` / `www`). **Not** bundled with the staff dashboard.
 
-- **Dev:** `cd frontend-public && npm run dev` → **http://localhost:5174** (proxies `/api` → Django `:8000`). Also started by `scripts/dev/start_servers.bat`.
+- **Dev:** `cd frontend-public && npm run dev` → **http://localhost:5174** (proxies `/api` → Django `:8000`). Also started by `scripts/dev/start_website.bat`.
 - **Prod:** `npm run build` → `frontend-public/dist`, collected under `STATIC_ROOT/site` (`base: '/static/site/'`). `PublicSiteMiddleware` serves `index.html` on public hosts.
 - **Routes:** `/` Home, `/shop` + `/shop/:slug` catalog, `/checkout`, `/order/:number`, `/blog` + `/blog/:slug`, `/visit`, `/sell`, `/404`.
 - **Stack:** React Router v7, shared design tokens in `styles.css`, `useSeo` + JSON-LD, client cart (`localStorage`), code-split lazy routes.
@@ -89,7 +92,7 @@ Shared module: **`frontend/src/navigation/`**
 
 Shell: **`frontend/src/components/layout/Sidebar.tsx`** — one workspace panel visible; sidebar clicks keep the current workspace (shared links like Search items); external URL entry picks lowest lifecycle # workspace via **`resolveWorkspaceForRoute`**; manual choice in `ecothrift.navC.workspace.v1`; **Alt+1..6** switches workspaces.
 
-Adding a staff nav link: one object in `navItemCatalog.ts` + assign its id to a workspace in `slotCNavLayout.ts`. See **`frontend/src/navigation/README.md`**.
+Adding a staff nav link: one object in `navItemCatalog.ts` + assign its id to a workspace in `slotCNavLayout.ts`. See **`frontend/src/navigation/README.md`**. Item flags: **`superuserOnly`** (dropped for non-`is_superuser` in `navResolve`) and **`openInNewWindow`** (`navUtils.navigateForNavItem` → `window.open(path, '_blank', 'noopener')`) — both used by **`blogStudio`** (bottom of the Admin group).
 
 ### ConsigneeLayout
 

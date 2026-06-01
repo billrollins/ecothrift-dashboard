@@ -1,22 +1,24 @@
 import { Link } from 'react-router-dom'
-import { AUTHOR, publicAssetUrl, type BlogPost } from '../data/content'
+import type { BlogPostSummary } from '../api'
 import AuthorAvatar from './AuthorAvatar'
 
-export default function PostCard({ post }: { post: BlogPost }) {
+export default function PostCard({ post }: { post: BlogPostSummary }) {
   return (
     <Link className="post" to={`/blog/${post.slug}`}>
       <div className="postthumb">
-        <img src={publicAssetUrl(post.img)} alt="" loading="lazy" />
+        {post.hero ? <img src={post.hero.url} alt={post.hero.alt || ''} loading="lazy" /> : null}
       </div>
       <div className="pb">
         <div className="meta">
-          {post.series} · {post.date}
+          {post.series}
+          {post.series && post.date ? ' · ' : ''}
+          {post.date}
         </div>
         <h3>{post.title}</h3>
         <p>{post.excerpt}</p>
         <div className="by">
           <AuthorAvatar />
-          {AUTHOR.name}
+          {post.author_name}
         </div>
       </div>
     </Link>

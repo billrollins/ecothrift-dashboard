@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'apps.ai',
     'apps.buying',
     'apps.webstore',
+    'apps.blog',
 ]
 
 MIDDLEWARE = [

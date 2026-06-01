@@ -1,12 +1,34 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { fetchBlogPosts, type BlogPostSummary } from '../api'
 import PostCard from '../components/PostCard'
 import StoreMap from '../components/StoreMap'
-import { HOW_IT_WORKS, POSTS, STORE, STORE_JSONLD, TESTIMONIALS } from '../data/content'
+import { HOW_IT_WORKS, STORE, STORE_JSONLD, TESTIMONIALS } from '../data/content'
 import { useJsonLd, useSeo } from '../useSeo'
 
 export default function HomePage() {
   useSeo({ description: STORE.metaDescription, path: '/' })
   useJsonLd(STORE_JSONLD)
+
+  const [posts, setPosts] = useState<BlogPostSummary[]>([])
+  const [postsLoading, setPostsLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    fetchBlogPosts()
+      .then((data) => {
+        if (active) setPosts(data.slice(0, 3))
+      })
+      .catch(() => {
+        if (active) setPosts([])
+      })
+      .finally(() => {
+        if (active) setPostsLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
   return (
     <>
       <section className="hero">
@@ -76,24 +98,34 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section tight">
-        <div className="wrap">
-          <div className="head">
-            <div>
-              <span className="eyebrow">From the founder</span>
-              <h2 className="h2">Notes from Bill</h2>
+      {(postsLoading || posts.length > 0) && (
+        <section className="section tight">
+          <div className="wrap">
+            <div className="head">
+              <div>
+                <span className="eyebrow">From the founder</span>
+                <h2 className="h2">Notes from Bill</h2>
+              </div>
+              <Link className="link" to="/blog">
+                Read the blog →
+              </Link>
             </div>
-        <Link className="link" to="/blog/navigating-growth">
-          Read the blog →
-        </Link>
+            <div className="bgrid">
+              {postsLoading
+                ? Array.from({ length: 3 }).map((_, i) => (
+                    <div className="post" key={i}>
+                      <div className="postthumb ph g3" />
+                      <div className="pb">
+                        <span className="skline short" />
+                        <span className="skline" />
+                      </div>
+                    </div>
+                  ))
+                : posts.map((p) => <PostCard key={p.slug} post={p} />)}
+            </div>
           </div>
-          <div className="bgrid">
-            {POSTS.slice(0, 3).map((p) => (
-              <PostCard key={p.slug} post={p} />
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="section tight">
         <div className="wrap">

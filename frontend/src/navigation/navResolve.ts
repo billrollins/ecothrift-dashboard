@@ -17,7 +17,12 @@ export function resolveNavItem(itemId: string): ResolvedNavItem | null {
 export function resolveNavItems(user: NavAccessUser, itemIds: string[]): ResolvedNavItem[] {
   return itemIds
     .map(resolveNavItem)
-    .filter((item): item is ResolvedNavItem => item != null && canAccessNav(user, item.roles));
+    .filter(
+      (item): item is ResolvedNavItem =>
+        item != null
+        && canAccessNav(user, item.roles)
+        && (!item.superuserOnly || Boolean(user?.is_superuser)),
+    );
 }
 
 /**

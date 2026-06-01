@@ -20,7 +20,7 @@ export function effectiveRoleRank(user: { role: UserRole | null; roles?: UserRol
 }
 
 export function canAccessNav(
-  user: { role: UserRole | null; roles?: UserRole[] } | null,
+  user: { role: UserRole | null; roles?: UserRole[]; is_superuser?: boolean } | null,
   itemRoles?: UserRole[],
 ): boolean {
   if (!itemRoles || itemRoles.length === 0) return true;
@@ -62,6 +62,13 @@ export function navigateForNavItem(
   item: NavItemDef,
   options?: { fromSidebar?: boolean },
 ) {
+  // Standalone full-screen destinations (e.g. the Blog Studio) open in a new window
+  // outside the dashboard chrome; cookie-based auth carries over automatically.
+  if (item.openInNewWindow) {
+    window.open(item.path, '_blank', 'noopener');
+    return;
+  }
+
   const navOptions = options?.fromSidebar ? { state: { navFromSidebar: true } } : undefined;
 
   if (item.navSearch != null && item.navSearch !== '') {

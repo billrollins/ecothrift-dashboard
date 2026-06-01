@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blog Studio · Refined Minimal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAF9F6;
+    --panel:#FFFFFF;
+    --wash:#F3F1EC;
+    --line:#E8E5DD;
+    --line2:#F0EEE8;
+    --ink:#181712;
+    --ink2:#3a382f;
+    --muted:#918C80;
+    --clay:#A55D38;
+    --clay-soft:#F2E5DC;
+    --green:#3F5D43;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Hanken Grotesk',system-ui,sans-serif;color:var(--ink);line-height:1.6;background:var(--bg);-webkit-font-smoothing:antialiased}
+  .serif{font-family:'Instrument Serif',serif}
+  .app{height:100vh;display:grid;grid-template-rows:auto 1fr}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:20px 40px;border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:14px}
+  .mark{width:38px;height:38px;border-radius:11px;background:var(--ink);color:#fff;display:grid;place-items:center;font-family:'Instrument Serif';font-size:22px}
+  .brand h1{font-family:'Instrument Serif';font-size:26px;line-height:1;letter-spacing:.2px}
+  .brand .sub{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+  .summary{display:flex;align-items:center;gap:26px}
+  .stat{text-align:right}
+  .stat b{font-family:'Instrument Serif';font-size:24px;line-height:1;color:var(--ink)}
+  .stat span{display:block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+  .stat.clay b{color:var(--clay)}
+  .divv{width:1px;height:34px;background:var(--line)}
+
+  .studio{display:grid;grid-template-columns:280px 1fr 308px;height:100%;overflow:hidden}
+  .col{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .bl{border-right:1px solid var(--line)}
+
+  .ch{padding:24px 26px 16px;display:flex;align-items:center;justify-content:space-between}
+  .ch h2{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .ch .n{font-size:12px;color:var(--muted)}
+
+  /* Left */
+  .seek{margin:0 22px 18px;display:flex;align-items:center;gap:9px;padding:10px 13px;background:var(--wash);border-radius:11px}
+  .seek input{border:0;outline:0;background:transparent;font-family:'Hanken Grotesk';font-size:13.5px;width:100%;color:var(--ink)}
+  .seek svg{opacity:.4}
+  .seg{margin:0 22px 16px;display:flex;background:var(--wash);border-radius:11px;padding:3px}
+  .sg{flex:1;text-align:center;font-size:11.5px;font-weight:500;padding:7px 0;border-radius:8px;color:var(--muted);cursor:pointer;transition:.16s}
+  .sg.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .list{overflow-y:auto;flex:1;padding:0 14px 18px}
+  .list::-webkit-scrollbar{width:7px}.list::-webkit-scrollbar-thumb{background:var(--line);border-radius:7px}
+  .item{padding:14px 12px;border-radius:13px;cursor:pointer;transition:.16s;border:1px solid transparent}
+  .item:hover{background:var(--wash)}
+  .item.on{background:#fff;border-color:var(--line);box-shadow:0 4px 14px rgba(24,23,18,.05)}
+  .item h3{font-size:14.5px;font-weight:600;line-height:1.3;margin-bottom:9px;letter-spacing:-.1px}
+  .row{display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--muted)}
+  .st{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;letter-spacing:.04em}
+  .sdot{width:6px;height:6px;border-radius:50%}
+  .sdot.p{background:var(--green)}.sdot.s{background:var(--clay)}.sdot.d{background:#c4bfb2}
+
+  /* Center */
+  .desk{align-items:center}
+  .desk-wrap{width:100%;max-width:680px;display:flex;flex-direction:column;height:100%;overflow:hidden}
+  .desk-top{padding:34px 12px 0}
+  .kick{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--clay);font-weight:600;margin-bottom:16px}
+  .title{width:100%;border:0;outline:0;background:transparent;font-family:'Instrument Serif';font-size:46px;line-height:1.06;letter-spacing:.2px;color:var(--ink)}
+  .slug{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;color:var(--muted)}
+  .slug code{font-family:'Hanken Grotesk';font-weight:500;color:var(--clay)}
+  .tools{display:flex;gap:2px;margin:22px 0 0;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;width:fit-content}
+  .t{width:33px;height:30px;display:grid;place-items:center;border-radius:8px;cursor:pointer;color:var(--muted);transition:.14s;font-size:14px;font-weight:500}
+  .t .sf{font-family:'Instrument Serif';font-size:17px}
+  .t:hover{background:var(--wash);color:var(--ink)}
+  .t.b{font-weight:700}.t.i{font-style:italic;font-family:'Instrument Serif';font-size:17px}
+  .v{width:1px;height:18px;background:var(--line);margin:0 5px;align-self:center}
+  .write{flex:1;overflow-y:auto;padding:28px 12px 50px;margin-top:18px}
+  .write::-webkit-scrollbar{width:8px}.write::-webkit-scrollbar-thumb{background:var(--line);border-radius:7px}
+  .write p{font-size:17px;line-height:1.85;margin-bottom:18px;color:var(--ink2)}
+  .write .lead{font-size:20px;color:var(--ink)}
+  .write h2{font-family:'Instrument Serif';font-size:28px;margin:30px 0 14px;letter-spacing:.2px}
+  .write blockquote{border-left:2px solid var(--clay);padding-left:20px;margin:22px 0;font-family:'Instrument Serif';font-style:italic;font-size:23px;color:var(--ink);line-height:1.4}
+  .foot{padding:14px 26px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+  .ok{display:flex;align-items:center;gap:8px}
+  .ok .d{width:6px;height:6px;border-radius:50%;background:var(--green)}
+
+  /* Right */
+  .cab{border-left:1px solid var(--line);overflow-y:auto}
+  .cab::-webkit-scrollbar{width:7px}.cab::-webkit-scrollbar-thumb{background:var(--line);border-radius:7px}
+  .hero{margin:0 22px 18px;aspect-ratio:16/9;border-radius:13px;overflow:hidden;cursor:pointer;position:relative;border:1px solid var(--line);
+    background-image:linear-gradient(rgba(24,23,18,.05),rgba(24,23,18,.4)),url('https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&q=80');background-size:cover;background-position:center;display:flex;align-items:flex-end;padding:11px}
+  .hero .b{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:rgba(24,23,18,.45);backdrop-filter:blur(4px);padding:5px 10px;border-radius:7px;font-weight:500}
+  .f{padding:0 22px;margin-bottom:16px}
+  .f label{display:block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:7px}
+  .f input,.f textarea,.f select{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-family:'Hanken Grotesk';font-size:13.5px;color:var(--ink);outline:0;resize:none}
+  .f input:focus,.f textarea:focus{border-color:var(--clay)}
+  .preview{margin:2px 22px 18px;padding:0;border-top:1px solid var(--line2)}
+  .preview .lbl{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:16px 0 10px}
+  .preview .gt{font-family:'Instrument Serif';font-size:18px;color:var(--ink);line-height:1.2}
+  .preview .gu{font-size:11.5px;color:var(--green);margin-top:3px}
+  .preview .gd{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .two{display:flex;gap:11px;padding:0 22px;margin-bottom:16px}
+  .two .f{padding:0;flex:1;margin:0}
+  .acts{padding:6px 22px 24px;display:flex;flex-direction:column;gap:9px}
+  .btn{border:0;border-radius:11px;padding:12px;font-family:'Hanken Grotesk';font-size:14px;font-weight:600;cursor:pointer;transition:.16s}
+  .btn.go{background:var(--ink);color:#fff}
+  .btn.go:hover{background:#000}
+  .btn.out{background:var(--panel);border:1px solid var(--line);color:var(--ink)}
+  .btn.out:hover{background:var(--wash)}
+  .btn.lnk{background:transparent;color:var(--clay);font-size:12.5px;padding:4px;font-weight:500}
+  .btn.lnk.m{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="mark">E</div>
+      <div><h1>Blog Studio</h1><div class="sub">EcoThrift · Notes from Bill</div></div>
+    </div>
+    <div class="summary">
+      <div class="stat"><b>2</b><span>Drafts</span></div>
+      <div class="stat clay"><b>1</b><span>Scheduled</span></div>
+      <div class="stat"><b>3</b><span>Published</span></div>
+      <div class="divv"></div>
+      <button class="btn go" style="padding:10px 20px">New post</button>
+    </div>
+  </header>
+
+  <div class="studio">
+    <!-- LEFT -->
+    <div class="col bl">
+      <div class="ch"><h2>Library</h2><span class="n">6 posts</span></div>
+      <div class="seek">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input placeholder="Search posts">
+      </div>
+      <div class="seg"><span class="sg on">Drafts</span><span class="sg">Scheduled</span><span class="sg">Published</span></div>
+      <div class="list">
+        <div class="item on">
+          <h3>Navigating growth without losing the soul of the shop</h3>
+          <div class="row"><span class="st"><span class="sdot d"></span>Draft</span> · edited 2h ago</div>
+        </div>
+        <div class="item">
+          <h3>What two years on the floor taught me</h3>
+          <div class="row"><span class="st"><span class="sdot s"></span>Scheduled</span> · Jun 3, 9:00am</div>
+        </div>
+        <div class="item">
+          <h3>Our vision for a kinder kind of retail</h3>
+          <div class="row"><span class="st"><span class="sdot p"></span>Published</span> · Apr 12</div>
+        </div>
+        <div class="item">
+          <h3>Buying better: quality over quantity</h3>
+          <div class="row"><span class="st"><span class="sdot p"></span>Published</span> · Mar 1</div>
+        </div>
+        <div class="item">
+          <h3>The day we opened the doors</h3>
+          <div class="row"><span class="st"><span class="sdot p"></span>Published</span> · Jan 18</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="col desk">
+      <div class="desk-wrap">
+        <div class="desk-top">
+          <div class="kick">Early days · draft</div>
+          <input class="title" value="Navigating growth without losing the soul of the shop">
+          <div class="slug">ecothrift.us/blog/ <code>navigating-growth</code></div>
+          <div class="tools">
+            <span class="t"><span class="sf">H</span></span><span class="t b">B</span><span class="t i">I</span>
+            <span class="v"></span>
+            <span class="t"><span class="sf">&ldquo;</span></span><span class="t">&bull;</span><span class="t">&mdash;</span>
+            <span class="v"></span>
+            <span class="t">&#128279;</span><span class="t">&#9634;</span>
+            <span class="v"></span>
+            <span class="t">&#8630;</span><span class="t">&#8631;</span>
+          </div>
+        </div>
+        <div class="write">
+          <p class="lead">When we opened, the whole shop fit on three folding tables. Two years on, we have a back room, a steam press, and a wall of regulars who know our names.</p>
+          <p>Growth is a strange thing for a thrift store. The instinct is to add more, faster, louder. But the soul of this place was always in the slowness, in the hunt, in the conversation at the counter about where a coat had been before it found you.</p>
+          <h2>Keeping the hunt human</h2>
+          <p>So we made a rule early on. Every decision about scaling had to pass one test: does it keep the floor feeling like a discovery, or does it turn us into a warehouse with good lighting?</p>
+          <blockquote>The best retail moment isn't the sale. It's the gasp when someone finds the thing they didn't know they were looking for.</blockquote>
+          <p>That principle has cost us money more than once, and I would make the same choice every time.</p>
+        </div>
+        <div class="foot">
+          <div class="ok"><span class="d"></span> Saved · just now</div>
+          <div>412 words · ~2 min read · rev 6</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="col cab">
+      <div class="ch"><h2>Publish</h2><span class="n">Early days</span></div>
+      <div class="hero"><span class="b">Replace hero</span></div>
+      <div class="f"><label>Hero alt text</label><input value="Sunlight across a rack of vintage coats"></div>
+      <div class="f"><label>Excerpt</label><textarea rows="3">Two years in, a note on growing a thrift store without losing what made it worth opening.</textarea></div>
+      <div class="f"><label>Series</label><select><option>Early days</option><option>From the floor</option><option>Buying better</option><option>+ Create new series…</option></select></div>
+      <div class="preview">
+        <div class="lbl">Social preview</div>
+        <div class="gt">Navigating growth without losing the soul…</div>
+        <div class="gu">ecothrift.us › blog › navigating-growth</div>
+        <div class="gd">Two years in, a note on growing a thrift store without losing what made it worth opening.</div>
+      </div>
+      <div class="two">
+        <div class="f"><label>Schedule</label><input type="date" value="2026-06-03"></div>
+        <div class="f"><label>Time</label><input type="time" value="09:00"></div>
+      </div>
+      <div class="acts">
+        <button class="btn go">Publish now</button>
+        <button class="btn out">Schedule for Jun 3</button>
+        <button class="btn out">Save draft</button>
+        <button class="btn lnk">Revision history · 6 saved</button>
+        <button class="btn lnk m">Archive this post</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  document.querySelectorAll('.sg').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.sg').forEach(x=>x.classList.remove('on'));t.classList.add('on')}));
+  document.querySelectorAll('.item').forEach(p=>p.addEventListener('click',()=>{document.querySelectorAll('.item').forEach(x=>x.classList.remove('on'));p.classList.add('on')}));
+</script>
+</body>
+</html>

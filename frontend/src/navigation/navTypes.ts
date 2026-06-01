@@ -37,6 +37,10 @@ export interface NavItemDef {
   navigateHash?: string;
   inactiveWhenHash?: string;
   legacy?: boolean;
+  /** Open this destination in a new browser window/tab instead of in-app navigation. */
+  openInNewWindow?: boolean;
+  /** Only visible to Django superusers (the Super Admin); the `roles` ranking can't express this. */
+  superuserOnly?: boolean;
 }
 
 export interface NavGroupDef {

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-30 (public_website parked pending; no active initiative) -->
+<!-- Last updated: 2026-06-01 (blog_studio v2.27.0 push prep — built + verified; seed on deploy) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active initiative:** *(none — clean slate)*. Next session: add a new initiative under [`.ai/initiatives/`](initiatives/_index.md) when scope is clear.
+- **Active initiative:** [`blog_studio`](initiatives/blog_studio.md) — Super Admin **Blog Studio** (`/blog-studio`, lazy TipTap, opens in a new window) + DB-backed public blog (`apps.blog` at `/api/blog/`). **Built + verified locally for v2.27.0** (22 blog tests, staff/public builds green), including the Phase 4/5 editor tools and Bold Modern typography pass. **Next:** deploy, then run `python manage.py seed_initial_blog_posts` **once on prod** (idempotent) to import the three founder posts.
 - **Parked — public site launch:** [`.ai/initiatives/_archived/_pending/public_website.md`](initiatives/_archived/_pending/public_website.md) — storefront **Phases 0–4 shipped** (**v2.26.0**, `frontend-public/` + `apps.webstore`). **Resume when:** deploy to Heroku + prod `seed_shop_categories`; wire **Helcim + email** after vendor conversations. Hostname routing: `ecothrift.us`/`www` → public SPA, `dash.*` → staff.
 - **Staff UI (shipped):** [`web_ui_cleanup`](initiatives/_archived/_completed/web_ui_cleanup.md) **v2.25.0**.
 - **Inbound intake (shipped):** archived [order_processing_pipeline_rebuild](initiatives/_archived/_completed/order_processing_pipeline_rebuild.md) (**v2.20.0**–**v2.24.2**); reference [`.ai/reference/order_processing_pipeline_rebuild/`](reference/order_processing_pipeline_rebuild/README.md); behavior in **`.ai/extended/inventory-pipeline.md`**.
@@ -60,7 +60,9 @@ ecothrift-dashboard/
 │   ├── inventory/          Vendors, POs, products, items, processing
 │   ├── pos/                Registers, drawers, carts, receipts, cash mgmt
 │   ├── consignment/        Agreements, consignment items, payouts
-│   └── buying/             B-Stock auction intelligence (models, scraper, staff REST + React /buying/*)
+│   ├── buying/             B-Stock auction intelligence (models, scraper, staff REST + React /buying/*)
+│   ├── webstore/           Public storefront catalog + orders/checkout (/api/webstore/)
+│   └── blog/               Blog Studio + DB-backed public blog (/api/blog/, Super Admin)
 ├── frontend/src/
 │   ├── api/                Axios service functions (one per backend app)
 │   ├── components/         Layout, common, feedback, forms
@@ -73,7 +75,7 @@ ecothrift-dashboard/
 │   ├── App.tsx             Router + route guards
 │   └── main.tsx            Entry point + providers
 ├── printserver/            Local print server (FastAPI, Python, Windows installer)
-├── scripts/                Committed dev/deploy automation — **`dev/start_servers.bat`**, **`dev/kill_servers.bat`**, **`dev/daily_scheduled_tasks.bat`** (Heroku-parity buying jobs; see `.ai/extended/development.md`)
+├── scripts/                Committed dev/deploy automation — **`dev/start_dashboard.bat`**, **`dev/start_website.bat`**, **`dev/kill_servers.bat`**, **`dev/daily_scheduled_tasks.bat`** (Heroku-parity buying jobs; see `.ai/extended/development.md`)
 ├── efforts/                Optional per-effort handoffs (`<slug>/CONTEXT.md`) — read after startup when continuing that thread; see `efforts/README.md`
 ├── .ai/                    AI steering — see `.ai/README.md`
 │   ├── README.md           Load order and folder roles
@@ -107,7 +109,7 @@ Domain deep-dives loaded **on demand** (do not read all at session start). Each 
 | [`consignment.md`](extended/consignment.md) | Consignment | Agreements, consignment items, payouts, consignee portal |
 | [`consultant_handoff.md`](extended/consultant_handoff.md) | AI / ops | Flat **`workspace/to_consultant/files-update/`** bundle; mid-session advisor snapshot |
 | [`databases.md`](extended/databases.md) | Data | Three-generation DB overview (V1/V2/V3), `search_path`, Django test DB uses `public`, `.env` keys |
-| [`development.md`](extended/development.md) | Dev ops | Dev setup, **`scripts/dev/`** (e.g. **`daily_scheduled_tasks.bat`**, `start_servers`, `kill_servers`), environment, logging, Heroku Scheduler |
+| [`development.md`](extended/development.md) | Dev ops | Dev setup, **`scripts/dev/`** (e.g. **`daily_scheduled_tasks.bat`**, `start_dashboard`, `start_website`, `kill_servers`), environment, logging, Heroku Scheduler |
 | [`frontend.md`](extended/frontend.md) | Frontend | React 18.3 + TS + MUI v7, pages, components, routing, React Query hooks |
 | [`inventory-pipeline.md`](extended/inventory-pipeline.md) | Inventory | PO processing, M3 pipeline, preprocessing, manifest templates, fast-cat |
 | [`pos-system.md`](extended/pos-system.md) | POS | Registers, drawers, carts, transactions, terminal UI, receipt flow |
@@ -225,6 +227,6 @@ Capability summary — detail lives in the extended docs above and initiative fi
 | `.ai/` layout | `.ai/README.md` |
 | Reference artifacts | `.ai/reference/README.md` |
 | Protocols | `.ai/protocols/` — `code.0.Startup.md`, **`sql.0.UpdateSchema.md`**, `session.1.Checkpoint.md`, `code.1.Bearing.md`, `review.0.Bump.md`, `code.9.Push.md`, `review.9.Deep.md`, `session.9.Close.md`; optional advisor bundle — `.ai/extended/consultant_handoff.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
-| Dev scripts | `scripts/dev/` — **`daily_scheduled_tasks.bat`** (buying jobs), **`start_servers.bat`**, **`kill_servers.bat`** |
+| Dev scripts | `scripts/dev/` — **`daily_scheduled_tasks.bat`** (buying jobs), **`start_dashboard.bat`**, **`start_website.bat`**, **`kill_servers.bat`** |
 | Scratch / notebooks | `workspace/` (mostly gitignored) |
 | E2E test templates | `workspace/testing/` |

@@ -1,4 +1,5 @@
-import { POSTS } from '../data/content'
+import { useEffect, useState } from 'react'
+import { fetchBlogPosts, type BlogPostSummary } from '../api'
 import PostCard from '../components/PostCard'
 import { useSeo } from '../useSeo'
 
@@ -9,6 +10,28 @@ export default function BlogPage() {
       'Stories from Eco-Thrift’s founders on building a circular economy in Omaha — where we started, how we’re growing, and where we’re headed.',
     path: '/blog',
   })
+
+  const [posts, setPosts] = useState<BlogPostSummary[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    fetchBlogPosts()
+      .then((data) => {
+        if (active) setPosts(data)
+      })
+      .catch(() => {
+        if (active) setPosts([])
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   return (
     <>
       <div className="blog-hero">
@@ -25,11 +48,27 @@ export default function BlogPage() {
       </div>
       <div className="section">
         <div className="wrap">
-          <div className="bgrid">
-            {POSTS.map((p) => (
-              <PostCard key={p.slug} post={p} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="bgrid">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div className="post" key={i}>
+                  <div className="postthumb ph g3" />
+                  <div className="pb">
+                    <span className="skline short" />
+                    <span className="skline" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : posts.length === 0 ? (
+            <p className="lead">No posts yet — check back soon.</p>
+          ) : (
+            <div className="bgrid">
+              {posts.map((p) => (
+                <PostCard key={p.slug} post={p} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>

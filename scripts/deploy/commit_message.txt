@@ -1,12 +1,17 @@
-feat: v2.26.0 public website Phases 0–4
+feat: v2.27.0 blog studio
 
-Public storefront on ecothrift.us/www (hostname split + canonical 301):
-- frontend-public/ marketing site (Home, Visit, Blog, Sell, Shop, 404)
-- apps.webstore curated catalog + S3 image proxy + taxonomy v1 shop categories
-- In-store pickup checkout + Order/OrderLine + staff Web store + Web orders
-- SEO (useSeo, JSON-LD, robots.txt, sitemap.xml), legacy Shopify 301s, code-split
-- Content polish: Canfield address, Google Maps embed, pickup-only UX, construction banner
-- Session 7: no daily-markdown copy; subnav removed (shop sidebar only); directions → place pin; Visit layout
+Ship the Super Admin Blog Studio and database-backed public blog:
+- Add apps.blog with series/posts/revisions/images, server-side bleach sanitization, public live endpoints, private-image proxy, and seed_initial_blog_posts.
+- Gate staff blog APIs and the /blog-studio route to Django superusers.
+- Convert the public blog, Home notes, SEO/JSON-LD, sitemap, and legacy Shopify blog redirects to DB-backed posts.
+- Add the standalone lazy-loaded Blog Studio with autosave, publish/schedule/archive/duplicate, hero/inline images, series creation, preview, and revision snapshots.
+- Finish rich authoring tools: paste cleanup, counts, shortcut hints, callouts, tables, safe removable link cards, code/pull-quote/drop-cap/columns blocks, and portal-safe color/highlight swatches.
+- Apply the Bold Modern typography group (DM Serif Display + DM Sans) to Blog Studio and public blog rendering.
 
-Initiative parked: .ai/initiatives/_archived/_pending/public_website.md (resume: deploy, seed_shop_categories, Helcim + email).
-Deploy: run `python manage.py seed_shop_categories` on prod after migrate.
+Verification:
+- python manage.py test apps.blog --verbosity 2 (22 tests OK)
+- frontend npm run build
+- frontend-public npm run build
+
+Deploy after push:
+- Run `python manage.py seed_initial_blog_posts` once on production after migrate (idempotent).

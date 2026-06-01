@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.26.0] — 2026-05-30 (Public website Phases 0–4) -->
-<!-- Last reviewed: 2026-05-30 (session.9.Close Session 7 — public_website pre-deploy polish) -->
+<!-- Line 1 release: ## [2.27.0] — 2026-06-01 (Blog Studio) -->
+<!-- Last reviewed: 2026-06-01 (review.0.Bump — Blog Studio push prep) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,7 +10,34 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.27.0] — 2026-06-01
+
+User-facing theme: **Blog Studio** — a Super Admin-only writing room in the staff dashboard, plus a database-backed public blog so posts can be drafted, scheduled, and published without a code change. Begins initiative [`blog_studio.md`](.ai/initiatives/blog_studio.md).
+
+### Added
+
+- **Backend / blog** — new app **`apps.blog`** (`/api/blog/`): models `BlogSeries`, `BlogPost`, `BlogPostRevision`, and `BlogImage` (backed by `core.S3File`). A single **`BlogPost.objects.live()`** manager (published, or scheduled with a past time) is the one visibility source shared by the public list, detail, Home, and sitemap, so **scheduling works at request time with no worker/cron**. Slugs auto-generate from the title and **lock once a post is first published** (protects live URLs). `body_html` is **sanitized server-side at save time with `bleach`** (explicit tag/attribute allow-list) before it is ever rendered with `dangerouslySetInnerHTML`; TipTap `body_json` stays the editable source of truth and `body_text` is derived for word/read counts. Public `AllowAny` read endpoints (live list, detail-by-slug, active series) + a host-agnostic **image proxy** (`images/<id>/`, keeps S3 private). Each staff save snapshots a **revision**.
+- **Backend / auth** — new permission **`IsSuperAdmin`** (Django `is_superuser`) and `is_superuser` now exposed (read-only) on `GET /api/auth/me/`, gating owner-only tooling.
+- **Backend / seeding** — `python manage.py seed_initial_blog_posts` (idempotent) imports the three founder posts (`navigating-growth`, `turns-two`, `our-vision`) under an **Early days** series, uploading their hero art to storage.
+- **Frontend / staff** — **Blog Studio** at a standalone full-screen route **`/blog-studio`** (outside `MainLayout`; `ProtectedRoute` + new `SuperAdminRoute`), **lazy-loaded so the net-new TipTap editor ships as its own chunk and never enters the main staff bundle**. A superuser-only **`Blog studio`** item sits at the bottom of the Admin workspace and **opens in a new window** (`openInNewWindow`; `superuserOnly` nav filtering). The three-pane studio (Library · writing desk · Publish cabinet) follows the refined Blog Studio layout with the **Bold Modern** typography group (DM Serif Display + DM Sans): WYSIWYG TipTap editor with formatting toolbar + inline image upload, debounced **autosave** (slug tracks the title until first publish), hero image replace, excerpt, series **create/continue**, native date+time **scheduling**, social/SEO preview, and **publish / schedule / save draft / duplicate / archive** actions.
+- **Frontend / staff authoring tools** — Blog Studio now has reader preview, rich paste cleanup, selection-aware word/character counts, shortcut hints, callouts, tables, safe no-iframe link cards with removable selected-card controls, image alignment/size controls, code/pull-quote/drop-cap/columns blocks, and portal-safe color/highlight swatches.
+- **Frontend / public blog** — the blog is now **database-backed**: `frontend-public` fetches via `fetchBlogPosts` / `fetchBlogPost` / `fetchBlogSeries`; `BlogPage`, `BlogPostPage`, `HomePage` ("Notes from Bill"), and `PostCard` read the API with loading/empty states. Post bodies render the sanitized `body_html` with extended `.abody` article CSS (h2/h3, blockquote, lists, links, images), and SEO/JSON-LD use API data.
+
+### Changed
+
+- **Backend / sitemap** — `/sitemap.xml` blog URLs are now generated from `BlogPost.objects.live()` (the hardcoded `_SITEMAP_BLOG_SLUGS` list is gone).
+- **Backend / redirects** — `apps.core.middleware.rewrite_legacy_path` maps the known legacy Shopify blog article handles (e.g. `…/what-we-have-accomplished-so-far` → `/blog/navigating-growth`) to their new slugs instead of the generic `/blog` list.
+- **Frontend / public** — static `BlogPost`/`POSTS` content removed from `frontend-public/src/data/content.ts` (now DB-backed).
+- **Frontend / blog typography** — public blog list/article rendering and Blog Studio preview/editor styling now use the **Bold Modern** group (DM Serif Display + DM Sans, sage accent/drop cap, soft green highlight wash), updating old published blog posts through CSS without rewriting their stored HTML.
+- **Dependencies** — added `bleach` (Python, server-side HTML sanitization) and TipTap packages to the staff app (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `extension-link`, `extension-image`, `extension-placeholder`, `extension-underline`, `extension-table`, `extension-table-row`, `extension-table-header`, `extension-table-cell`).
+
+### Fixed
+
+- **Frontend / Blog Studio** — color/highlight picker chips now render inside MUI popovers (portal-safe swatches), and selected link cards no longer navigate in edit mode before the owner can remove them.
+
+### Deploy
+
+- After deploy, run **`python manage.py seed_initial_blog_posts` once on production** to import the three existing posts (idempotent; skips slugs that already exist). Until then the public blog will be empty.
 
 ### Documentation
 

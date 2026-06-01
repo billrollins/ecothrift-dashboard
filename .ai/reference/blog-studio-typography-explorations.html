@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Blog Studio · Typography & Color Explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Manrope:wght@400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@400;600&family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@300;400;500;600&family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --bg: #faf9f6;
+    --panel: #ffffff;
+    --wash: #f3f1ec;
+    --line: #e8e5dd;
+    --line2: #f0eee8;
+    --ink: #181712;
+    --ink2: #3a382f;
+    --muted: #918c80;
+    --clay: #a55d38;
+    --green: #3f5d43;
+    --brand: #18452d;
+    --rust: #8b4a32;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    padding: 48px 24px 96px;
+  }
+
+  /* ── Page intro ─────────────────────────────────────────────── */
+  .page-head { max-width: 760px; margin: 0 auto 44px; }
+  .page-head .kick {
+    font-size: 11.5px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--clay); font-weight: 700;
+  }
+  .page-head h1 {
+    font-family: 'Instrument Serif', serif; font-weight: 400;
+    font-size: 40px; line-height: 1.08; margin: 10px 0 14px; letter-spacing: .2px;
+  }
+  .page-head p { color: var(--ink2); font-size: 15.5px; max-width: 64ch; }
+  .page-head .hint {
+    margin-top: 16px; font-size: 13px; color: var(--muted);
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 16px;
+  }
+
+  /* ── Variation grid ─────────────────────────────────────────── */
+  .variations { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; }
+
+  .variation {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(24, 23, 18, .04);
+  }
+  .vhead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 26px; border-bottom: 1px solid var(--line2);
+    background: linear-gradient(0deg, var(--wash), var(--panel));
+  }
+  .vhead .left { display: flex; align-items: baseline; gap: 12px; }
+  .vnum {
+    font-family: 'Instrument Serif', serif; font-size: 26px; color: var(--accent);
+    line-height: 1;
+  }
+  .vname { font-weight: 600; font-size: 15px; letter-spacing: .01em; }
+  .vfonts { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+  .vfonts b { color: var(--ink2); font-weight: 600; }
+
+  /* ── Article mockup (uses per-variation custom props) ───────── */
+  .mock { padding: 34px 40px 40px; font-family: var(--body); }
+  .mock .eyebrow {
+    font-family: var(--body); font-size: 11px; letter-spacing: .2em;
+    text-transform: uppercase; color: var(--accent); font-weight: 700;
+  }
+  .mock .title {
+    font-family: var(--disp); color: var(--ink);
+    font-size: 44px; line-height: 1.04; letter-spacing: -.01em;
+    margin: 10px 0 12px; font-weight: var(--disp-weight, 600);
+  }
+  .mock .byline {
+    font-family: var(--body); font-size: 13.5px; color: var(--muted);
+    margin-bottom: 26px; padding-bottom: 22px; border-bottom: 1px solid var(--line2);
+  }
+  .mock .lead { font-size: 17.5px; line-height: 1.8; color: var(--ink2); margin-bottom: 18px; }
+  .mock .lead.dropcap::first-letter {
+    float: left; font-family: var(--disp); font-weight: var(--disp-weight, 600);
+    font-size: 4.6em; line-height: .76; padding: 4px 12px 0 0; color: var(--dropcap);
+  }
+  .mock h2 {
+    font-family: var(--head); color: var(--ink);
+    font-size: 27px; line-height: 1.18; margin: 30px 0 12px; font-weight: var(--head-weight, 600);
+    letter-spacing: -.005em;
+  }
+  .mock p { font-size: 16.5px; line-height: 1.78; color: var(--ink2); margin-bottom: 16px; }
+  .mock .accent { color: var(--accent); font-weight: 600; }
+  .mock mark { background: var(--hl); color: var(--ink); padding: 0 3px; border-radius: 3px; }
+  .mock a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  .mock .pull {
+    font-family: var(--disp); font-style: italic; font-size: 25px; line-height: 1.4;
+    color: var(--ink); text-align: center; margin: 30px 0; padding: 16px 24px;
+    position: relative;
+  }
+  .mock .pull::before {
+    content: ''; display: block; width: 46px; height: 2px; background: var(--accent);
+    margin: 0 auto 16px;
+  }
+
+  /* ── Swatch legend ──────────────────────────────────────────── */
+  .swatches {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 18px;
+    margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--line2);
+  }
+  .sw-group { display: flex; align-items: center; gap: 8px; }
+  .sw-label { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .dot { width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgba(24,23,18,.14); }
+  .chip {
+    height: 24px; padding: 0 10px; border-radius: 6px; border: 1px solid rgba(24,23,18,.12);
+    display: inline-flex; align-items: center; font-size: 12px; color: var(--ink2);
+    font-family: var(--body);
+  }
+  .accent-pill {
+    height: 24px; padding: 0 12px; border-radius: 20px; background: var(--accent); color: #fff;
+    display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600; letter-spacing: .03em;
+  }
+
+  @media (max-width: 620px) {
+    .mock { padding: 26px 22px 30px; }
+    .mock .title { font-size: 34px; }
+  }
+</style>
+</head>
+<body>
+  <div class="page-head">
+    <div class="kick">Blog Studio</div>
+    <h1>Pick a typography &amp; color group</h1>
+    <p>
+      Five cohesive systems for the blog's display type (the post title and drop cap),
+      headings, body text, accent / link color, and the highlight wash. Each one swaps
+      2&ndash;3 fonts plus a color direction so the &ldquo;big letter at the front&rdquo;
+      and the headers all feel like one family.
+    </p>
+    <div class="hint">
+      Tell me the number you want (e.g. &ldquo;go with 02&rdquo;) and I'll wire it into the
+      editor and the public post page. Colors are easy to nudge afterward &mdash; these are
+      starting points, not locked in.
+    </div>
+  </div>
+
+  <div class="variations">
+
+    <!-- 01 — Bookish Calm (matches the public site fonts) -->
+    <section
+      class="variation"
+      style="--disp:'Spectral', Georgia, serif; --head:'Spectral', Georgia, serif; --body:'Manrope', system-ui, sans-serif; --accent:#18452d; --dropcap:#18452d; --hl:#e7eee9; --disp-weight:600; --head-weight:600;"
+    >
+      <div class="vhead">
+        <div class="left"><span class="vnum">01</span><span class="vname">Bookish Calm</span></div>
+        <div class="vfonts"><b>Spectral</b> display &middot; <b>Manrope</b> body</div>
+      </div>
+      <article class="mock">
+        <div class="eyebrow">Field Notes</div>
+        <h1 class="title">The quiet economics of buying things twice</h1>
+        <div class="byline">By Bill Rollins &middot; 6 min read &middot; Sustainability</div>
+        <p class="lead dropcap">
+          Every pallet that crosses our dock started life somewhere else &mdash; a return, an
+          overstock, a closeout no one had time to sort. The work is deciding what still has a
+          second life in it.
+        </p>
+        <h2>What the manifest doesn't say</h2>
+        <p>
+          Some weeks the numbers look thin until you actually open the boxes. The real
+          <span class="accent">resale value</span> hides in the details a spreadsheet flattens:
+          condition, brand, and the small things that make something <mark>worth keeping</mark>.
+          You can read more in <a href="#">last month's recap</a>.
+        </p>
+        <blockquote class="pull">Reuse isn't nostalgia &mdash; it's the most efficient supply chain we have.</blockquote>
+        <p>
+          So we sort by hand, photograph the good stuff, and let the rest tell us where the
+          margins really are.
+        </p>
+        <div class="swatches">
+          <div class="sw-group"><span class="sw-label">Text</span>
+            <span class="dot" style="background:#181712" title="Ink"></span>
+            <span class="dot" style="background:#918c80" title="Muted"></span>
+            <span class="dot" style="background:#a55d38" title="Clay"></span>
+            <span class="dot" style="background:#3f5d43" title="Green"></span>
+            <span class="dot" style="background:#8b4a32" title="Rust"></span>
+          </div>
+          <div class="sw-group"><span class="sw-label">Highlight</span>
+            <span class="chip" style="background:#e7eee9">Ab</span>
+            <span class="chip" style="background:#f2e5dc">Ab</span>
+            <span class="chip" style="background:#f3f1ec">Ab</span>
+          </div>
+          <div class="sw-group"><span class="sw-label">Accent</span><span class="accent-pill">Forest green</span></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 02 — Characterful Editorial -->
+    <section
+      class="variation"
+      style="--disp:'Fraunces', Georgia, serif; --head:'Fraunces', Georgia, serif; --body:'Inter', system-ui, sans-serif; --accent:#a55d38; --dropcap:#a55d38; --hl:#f2e5dc; --disp-weight:600; --head-weight:600;"
+    >
+      <div class="vhead">
+        <div class="left"><span class="vnum">02</span><span class="vname">Characterful Editorial</span></div>
+        <div class="vfonts"><b>Fraunces</b> display &middot; <b>Inter</b> body</div>
+      </div>
+      <article class="mock">
+        <div class="eyebrow">Field Notes</div>
+        <h1 class="title">The quiet economics of buying things twice</h1>
+        <div class="byline">By Bill Rollins &middot; 6 min read &middot; Sustainability</div>
+        <p class="lead dropcap">
+          Every pallet that crosses our dock started life somewhere else &mdash; a return, an
+          overstock, a closeout no one had time to sort. The work is deciding what still has a
+          second life in it.
+        </p>
+        <h2>What the manifest doesn't say</h2>
+        <p>
+          Some weeks the numbers look thin until you actually open the boxes. The real
+          <span class="accent">resale value</span> hides in the details a spreadsheet flattens:
+          condition, brand, and the small things that make something <mark>worth keeping</mark>.
+          You can read more in <a href="#">last month's recap</a>.
+        </p>
+        <blockquote class="pull">Reuse isn't nostalgia &mdash; it's the most efficient supply chain we have.</blockquote>
+        <p>
+          So we sort by hand, photograph the good stuff, and let the rest tell us where the
+          margins really are.
+        </p>
+        <div class="swatches">
+          <div class="sw-group"><span class="sw-label">Text</span>
+            <span class="dot" style="background:#181712" title="Ink"></span>
+            <span class="dot" style="background:#918c80" title="Muted"></span>
+            <span class="dot" style="background:#a55d38" title="Clay"></span>
+            <span class="dot" style="background:#3f5d43" title="Green"></span>
+            <span class="dot" style="background:#8b4a32" title="Rust"></span>
+          </div>
+          <div class="sw-group"><span class="sw-label">Highlight</span>
+            <span class="chip" style="background:#f2e5dc">Ab</span>
+            <span class="chip" style="background:#edd9cc">Ab</span>
+            <span class="chip" style="background:#f3f1ec">Ab</span>
+          </div>
+          <div class="sw-group"><span class="sw-label">Accent</span><span class="accent-pill">Clay</span></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 03 — Elegant Contrast -->
+    <section
+      class="variation"
+      style="--disp:'Playfair Display', Georgia, serif; --head:'Playfair Display', Georgia, serif; --body:'Source Sans 3', system-ui, sans-serif; --accent:#18452d; --dropcap:#181712; --hl:#f2e5dc; --disp-weight:700; --head-weight:600;"
+    >
+      <div class="vhead">
+        <div class="left"><span class="vnum">03</span><span class="vname">Elegant Contrast</span></div>
+        <div class="vfonts"><b>Playfair Display</b> display &middot; <b>Source Sans 3</b> body</div>
+      </div>
+      <article class="mock">
+        <div class="eyebrow">Field Notes</div>
+        <h1 class="title">The quiet economics of buying things twice</h1>
+        <div class="byline">By Bill Rollins &middot; 6 min read &middot; Sustainability</div>
+        <p class="lead dropcap">
+          Every pallet that crosses our dock started life somewhere else &mdash; a return, an
+          overstock, a closeout no one had time to sort. The work is deciding what still has a
+          second life in it.
+        </p>
+        <h2>What the manifest doesn't say</h2>
+        <p>
+          Some weeks the numbers look thin until you actually open the boxes. The real
+          <span class="accent">resale value</span> hides in the details a spreadsheet flattens:
+          condition, brand, and the small things that make something <mark>worth keeping</mark>.
+          You can read more in <a href="#">last month's recap</a>.
+        </p>
+        <blockquote class="pull">Reuse isn't nostalgia &mdash; it's the most efficient supply chain we have.</blockquote>
+        <p>
+          So we sort by hand, photograph the good stuff, and let the rest tell us where the
+          margins really are.
+        </p>
+        <div class="swatches">
+          <div class="sw-group"><span class="sw-label">Text</span>
+            <span class="dot" style="background:#181712" title="Ink"></span>
+            <span class="dot" style="background:#918c80" title="Muted"></span>
+            <span class="dot" style="background:#a55d38" title="Clay"></span>
+            <span class="dot" style="background:#3f5d43" title="Green"></span>
+            <span class="dot" style="background:#8b4a32" title="Rust"></span>
+          </div>
+          <div class="sw-group"><span class="sw-label">Highlight</span>
+            <span class="chip" style="background:#f2e5dc">Ab</span>
+            <span class="chip" style="background:#e7eee9">Ab</span>
+            <span class="chip" style="background:#f3f1ec">Ab</span>
+          </div>
+          <div class="sw-group"><span class="sw-label">Accent</span><span class="accent-pill">Deep green</span></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 04 — Light & Airy (current studio fonts, refined drop-cap color) -->
+    <section
+      class="variation"
+      style="--disp:'Instrument Serif', Georgia, serif; --head:'Instrument Serif', Georgia, serif; --body:'Hanken Grotesk', system-ui, sans-serif; --accent:#8b4a32; --dropcap:#8b4a32; --hl:#f3f1ec; --disp-weight:400; --head-weight:400;"
+    >
+      <div class="vhead">
+        <div class="left"><span class="vnum">04</span><span class="vname">Light &amp; Airy <span style="color:var(--muted);font-weight:400;font-size:12px;">(today, refined)</span></span></div>
+        <div class="vfonts"><b>Instrument Serif</b> display &middot; <b>Hanken Grotesk</b> body</div>
+      </div>
+      <article class="mock">
+        <div class="eyebrow">Field Notes</div>
+        <h1 class="title">The quiet economics of buying things twice</h1>
+        <div class="byline">By Bill Rollins &middot; 6 min read &middot; Sustainability</div>
+        <p class="lead dropcap">
+          Every pallet that crosses our dock started life somewhere else &mdash; a return, an
+          overstock, a closeout no one had time to sort. The work is deciding what still has a
+          second life in it.
+        </p>
+        <h2>What the manifest doesn't say</h2>
+        <p>
+          Some weeks the numbers look thin until you actually open the boxes. The real
+          <span class="accent">resale value</span> hides in the details a spreadsheet flattens:
+          condition, brand, and the small things that make something <mark>worth keeping</mark>.
+          You can read more in <a href="#">last month's recap</a>.
+        </p>
+        <blockquote class="pull">Reuse isn't nostalgia &mdash; it's the most efficient supply chain we have.</blockquote>
+        <p>
+          So we sort by hand, photograph the good stuff, and let the rest tell us where the
+          margins really are.
+        </p>
+        <div class="swatches">
+          <div class="sw-group"><span class="sw-label">Text</span>
+            <span class="dot" style="background:#181712" title="Ink"></span>
+            <span class="dot" style="background:#918c80" title="Muted"></span>
+            <span class="dot" style="background:#a55d38" title="Clay"></span>
+            <span class="dot" style="background:#3f5d43" title="Green"></span>
+            <span class="dot" style="background:#8b4a32" title="Rust"></span>
+          </div>
+          <div class="sw-group"><span class="sw-label">Highlight</span>
+            <span class="chip" style="background:#f3f1ec">Ab</span>
+            <span class="chip" style="background:#f2e5dc">Ab</span>
+            <span class="chip" style="background:#edd9cc">Ab</span>
+          </div>
+          <div class="sw-group"><span class="sw-label">Accent</span><span class="accent-pill">Rust</span></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 05 — Bold Modern -->
+    <section
+      class="variation"
+      style="--disp:'DM Serif Display', Georgia, serif; --head:'DM Serif Display', Georgia, serif; --body:'DM Sans', system-ui, sans-serif; --accent:#3f5d43; --dropcap:#3f5d43; --hl:#e7eee9; --disp-weight:400; --head-weight:400;"
+    >
+      <div class="vhead">
+        <div class="left"><span class="vnum">05</span><span class="vname">Bold Modern</span></div>
+        <div class="vfonts"><b>DM Serif Display</b> display &middot; <b>DM Sans</b> body</div>
+      </div>
+      <article class="mock">
+        <div class="eyebrow">Field Notes</div>
+        <h1 class="title">The quiet economics of buying things twice</h1>
+        <div class="byline">By Bill Rollins &middot; 6 min read &middot; Sustainability</div>
+        <p class="lead dropcap">
+          Every pallet that crosses our dock started life somewhere else &mdash; a return, an
+          overstock, a closeout no one had time to sort. The work is deciding what still has a
+          second life in it.
+        </p>
+        <h2>What the manifest doesn't say</h2>
+        <p>
+          Some weeks the numbers look thin until you actually open the boxes. The real
+          <span class="accent">resale value</span> hides in the details a spreadsheet flattens:
+          condition, brand, and the small things that make something <mark>worth keeping</mark>.
+          You can read more in <a href="#">last month's recap</a>.
+        </p>
+        <blockquote class="pull">Reuse isn't nostalgia &mdash; it's the most efficient supply chain we have.</blockquote>
+        <p>
+          So we sort by hand, photograph the good stuff, and let the rest tell us where the
+          margins really are.
+        </p>
+        <div class="swatches">
+          <div class="sw-group"><span class="sw-label">Text</span>
+            <span class="dot" style="background:#181712" title="Ink"></span>
+            <span class="dot" style="background:#918c80" title="Muted"></span>
+            <span class="dot" style="background:#a55d38" title="Clay"></span>
+            <span class="dot" style="background:#3f5d43" title="Green"></span>
+            <span class="dot" style="background:#8b4a32" title="Rust"></span>
+          </div>
+          <div class="sw-group"><span class="sw-label">Highlight</span>
+            <span class="chip" style="background:#e7eee9">Ab</span>
+            <span class="chip" style="background:#f2e5dc">Ab</span>
+            <span class="chip" style="background:#f3f1ec">Ab</span>
+          </div>
+          <div class="sw-group"><span class="sw-label">Accent</span><span class="accent-pill">Sage green</span></div>
+        </div>
+      </article>
+    </section>
+
+  </div>
+</body>
+</html>

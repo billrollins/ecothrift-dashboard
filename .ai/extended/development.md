@@ -46,7 +46,7 @@ python manage.py setup_initial_data
 cd frontend
 npm install
 
-# 7. Start both servers (or run scripts/dev/start_servers.bat from the repo root)
+# 7. Start dev servers (or run scripts/dev/start_dashboard.bat or start_website.bat from the repo root)
 # Terminal 1:
 python manage.py runserver
 
@@ -85,8 +85,9 @@ If **POS registers** or **supplemental drawer** rows are missing (e.g. after `re
 
 | Script | What it does |
 |--------|-------------|
-| `scripts/dev/start_servers.bat` | Kills listeners on 8000/5173, starts Django + Vite in new windows (uses `venv` if present) |
-| `scripts/dev/kill_servers.bat` | Stops processes using ports 8000 and 5173 |
+| `scripts/dev/start_dashboard.bat` | Kills listeners on 8000/5173, starts Django + staff Vite in new windows (uses `venv` if present) |
+| `scripts/dev/start_website.bat` | Kills listeners on 8000/5174, starts Django + public Vite in new windows (uses `venv` if present) |
+| `scripts/dev/kill_servers.bat` | Stops processes using ports 8000, 5173, and 5174 |
 | `scripts/dev/daily_scheduled_tasks.bat` | **Buying —** local batch mirroring scheduled work: `compute_daily_category_stats`, `scheduled_sweep`, `watch_auctions`. Optional **`SKIP_BSTOCK=1`** for stats-only. See **Heroku Scheduler** + **Local parity** above. |
 | `python scripts/data/extract_po_descriptions.py` (if present locally) | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3**; writes CSV under **`workspace/data/`** (**`CHANGELOG`** **2.7.1**). Requires **`psycopg2`** and root **`.env`** DB vars. |
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |

@@ -168,4 +168,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'TARS',
     icon: 'build',
   },
+  blogStudio: {
+    id: 'blogStudio',
+    path: '/blog-studio',
+    label: 'Blog studio',
+    icon: 'article',
+    superuserOnly: true,
+    openInNewWindow: true,
+  },
 };

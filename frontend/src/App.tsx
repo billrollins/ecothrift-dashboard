@@ -1,8 +1,13 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { LoadingScreen } from './components/feedback/LoadingScreen';
 import MainLayout from './components/layout/MainLayout';
 import { ConsigneeLayout } from './components/layout/ConsigneeLayout';
+
+// Standalone full-screen page (its own window, outside MainLayout). Lazy-loaded so the
+// TipTap editor bundle never lands in the main staff chunk.
+const BlogStudioPage = lazy(() => import('./pages/blog/BlogStudioPage'));
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -73,6 +78,12 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user?.role || !['Admin', 'Manager'].includes(user.role))
     return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user?.is_superuser) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -201,6 +212,21 @@ export default function App() {
         <Route path="/consignee/items" element={<ConsigneeItemsPage />} />
         <Route path="/consignee/payouts" element={<ConsigneePayoutsPage />} />
       </Route>
+
+      {/* Blog Studio — standalone full-screen (Super Admin only), outside MainLayout so it
+          owns the whole window with no dashboard chrome (matches the mockup). */}
+      <Route
+        path="/blog-studio"
+        element={
+          <ProtectedRoute>
+            <SuperAdminRoute>
+              <Suspense fallback={<LoadingScreen message="Loading Blog Studio…" />}>
+                <BlogStudioPage />
+              </Suspense>
+            </SuperAdminRoute>
+          </ProtectedRoute>
+        }
+      />
 
       {/* Redirects */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

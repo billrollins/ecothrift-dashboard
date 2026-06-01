@@ -49,7 +49,16 @@ def rewrite_legacy_path(path: str) -> str | None:
             return f'/shop?category={mapped}'
         return '/shop'
     if path == '/blogs' or path.startswith('/blogs/'):
-        return '/blog'
+        # Known Shopify article handles → their new post slugs (SEO continuity);
+        # anything else under /blogs/ falls back to the blog list.
+        legacy_blog_articles = {
+            'what-we-have-accomplished-so-far': 'navigating-growth',
+            'what-we-are-working-on-now': 'turns-two',
+            'our-vision-for-the-future': 'our-vision',
+        }
+        handle = path.rstrip('/').rsplit('/', 1)[-1].lower()
+        slug = legacy_blog_articles.get(handle)
+        return f'/blog/{slug}' if slug else '/blog'
     if path == '/cart':
         return '/shop'
     if path == '/account' or path.startswith('/account/'):

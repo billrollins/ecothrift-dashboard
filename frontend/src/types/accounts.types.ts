@@ -60,6 +60,8 @@ export interface User {
   phone: string;
   is_active: boolean;
   is_staff: boolean;
+  /** Django superuser ("Super Admin"). Gates owner-only tooling like the Blog Studio. */
+  is_superuser: boolean;
   date_joined: string;
   updated_at: string;
   role: UserRole | null;

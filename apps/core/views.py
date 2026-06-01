@@ -145,10 +145,9 @@ def dev_log_line(request):
 
 # ── Public storefront SEO (served on the public host; see PublicSiteMiddleware) ──
 
-# Static marketing routes for the public site. Blog posts are defined in the
-# frontend (`frontend-public/src/data/content.ts`); keep these slugs in sync.
+# Static marketing routes for the public site. Blog post URLs are pulled from the
+# database (BlogPost.objects.live()) in sitemap_xml below.
 _SITEMAP_MARKETING_PATHS = ('/', '/shop', '/visit', '/sell', '/blog')
-_SITEMAP_BLOG_SLUGS = ('turns-two', 'navigating-growth', 'our-vision')
 
 
 def _public_base_url() -> str:
@@ -157,12 +156,16 @@ def _public_base_url() -> str:
 
 
 def sitemap_xml(request):
-    """XML sitemap: marketing pages + blog posts + every published web listing."""
+    """XML sitemap: marketing pages + live blog posts + every published web listing."""
+    from apps.blog.models import BlogPost
     from apps.webstore.models import WebListing
 
     base = _public_base_url()
     paths = list(_SITEMAP_MARKETING_PATHS)
-    paths += [f'/blog/{slug}' for slug in _SITEMAP_BLOG_SLUGS]
+    paths += [
+        f'/blog/{slug}'
+        for slug in BlogPost.objects.live().order_by('slug').values_list('slug', flat=True)
+    ]
     paths += [
         f'/shop/{slug}'
         for slug in WebListing.objects.filter(status='published')
