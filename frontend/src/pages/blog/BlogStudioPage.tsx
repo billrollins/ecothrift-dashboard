@@ -11,6 +11,7 @@ import {
   useBlogSeriesList,
   useCreateBlogPost,
   useCreateBlogSeries,
+  useUpdateBlogSeries,
   useDuplicateBlogPost,
   usePublishBlogPostNow,
   useScheduleBlogPost,
@@ -162,6 +163,8 @@ export default function BlogStudioPage() {
   const duplicateMutation = useDuplicateBlogPost();
   const uploadMutation = useUploadBlogImage();
   const createSeriesMutation = useCreateBlogSeries();
+  const updateSeriesMutation = useUpdateBlogSeries();
+  const [seriesRenameDraft, setSeriesRenameDraft] = useState('');
 
   const [segment, setSegment] = useState<Segment>('draft');
   const [search, setSearch] = useState('');
@@ -536,6 +539,7 @@ export default function BlogStudioPage() {
       try {
         const created = await createSeriesMutation.mutateAsync({ name: name.trim() });
         setForm((f) => ({ ...f, seriesId: String(created.id) }));
+        setSeriesRenameDraft(created.name);
         enqueueSnackbar(`Series "${created.name}" created.`, { variant: 'success' });
       } catch {
         enqueueSnackbar('Could not create that series.', { variant: 'error' });
@@ -544,6 +548,33 @@ export default function BlogStudioPage() {
     }
     setForm((f) => ({ ...f, seriesId: value }));
   };
+
+  const selectedSeries = useMemo(
+    () => (series ?? []).find((s) => String(s.id) === form.seriesId) ?? null,
+    [series, form.seriesId],
+  );
+
+  useEffect(() => {
+    setSeriesRenameDraft(selectedSeries?.name ?? '');
+  }, [selectedSeries?.id, selectedSeries?.name]);
+
+  const saveSeriesRename = useCallback(async () => {
+    if (!selectedSeries) return;
+    const name = seriesRenameDraft.trim();
+    if (!name) {
+      setSeriesRenameDraft(selectedSeries.name);
+      enqueueSnackbar('Series name cannot be empty.', { variant: 'warning' });
+      return;
+    }
+    if (name === selectedSeries.name) return;
+    try {
+      await updateSeriesMutation.mutateAsync({ id: selectedSeries.id, data: { name } });
+      enqueueSnackbar(`Series renamed to "${name}".`, { variant: 'success' });
+    } catch {
+      setSeriesRenameDraft(selectedSeries.name);
+      enqueueSnackbar('Could not rename that series (name may already exist).', { variant: 'error' });
+    }
+  }, [selectedSeries, seriesRenameDraft, updateSeriesMutation, enqueueSnackbar]);
 
   // ── Derived view data ──────────────────────────────────────────────────────
   const counts = useMemo(() => {
@@ -564,8 +595,7 @@ export default function BlogStudioPage() {
   }, [posts, segment, search]);
 
   const slug = serverPost?.slug || clientSlug(form.title);
-  const seriesName =
-    series?.find((s) => String(s.id) === form.seriesId)?.name || serverPost?.series_name || null;
+  const seriesName = selectedSeries?.name || serverPost?.series_name || null;
   const readMinutes = Math.max(words > 0 ? 1 : 0, Math.round(words / 200));
   const busy =
     publishMutation.isPending ||
@@ -815,19 +845,45 @@ export default function BlogStudioPage() {
 
             <div className="f">
               <label>Series</label>
-              <select
-                value={form.seriesId}
-                disabled={!hasSelection}
-                onChange={(e) => void onSeriesChange(e.target.value)}
-              >
-                <option value="">No series</option>
-                {(series ?? []).map((s) => (
-                  <option key={s.id} value={String(s.id)}>
-                    {s.name}
-                  </option>
-                ))}
-                <option value="__new__">+ Create new series…</option>
-              </select>
+              <div className="series-row">
+                <select
+                  value={form.seriesId}
+                  disabled={!hasSelection}
+                  onChange={(e) => void onSeriesChange(e.target.value)}
+                >
+                  <option value="">No series</option>
+                  {(series ?? []).map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.name}
+                    </option>
+                  ))}
+                  <option value="__new__">+ Create new series…</option>
+                </select>
+                {form.seriesId ? (
+                  <input
+                    className="series-rename"
+                    type="text"
+                    value={seriesRenameDraft}
+                    disabled={!hasSelection || updateSeriesMutation.isPending}
+                    aria-label="Rename series"
+                    placeholder="Series name"
+                    onChange={(e) => setSeriesRenameDraft(e.target.value)}
+                    onBlur={() => void saveSeriesRename()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void saveSeriesRename();
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                      if (e.key === 'Escape' && selectedSeries) {
+                        e.preventDefault();
+                        setSeriesRenameDraft(selectedSeries.name);
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                ) : null}
+              </div>
             </div>
 
             <div className="preview">

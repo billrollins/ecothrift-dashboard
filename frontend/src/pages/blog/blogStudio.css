@@ -16,6 +16,7 @@
   --clay: #a55d38;
   --clay-soft: #f2e5dc;
   --green: #3f5d43;
+  --green-deep: #2f4933;
   --blog-display: 'DM Serif Display', Georgia, serif;
   --blog-body: 'DM Sans', system-ui, sans-serif;
   --blog-accent: #3f5d43;
@@ -64,7 +65,7 @@
   width: 38px;
   height: 38px;
   border-radius: 11px;
-  background: var(--ink);
+  background: var(--blog-accent);
   color: #fff;
   display: grid;
   place-items: center;
@@ -110,7 +111,7 @@
   margin-top: 2px;
 }
 .blog-studio .stat.clay b {
-  color: var(--clay);
+  color: var(--blog-accent);
 }
 .blog-studio .divv {
   width: 1px;
@@ -291,7 +292,7 @@
   font-size: 11px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--clay);
+  color: var(--blog-accent);
   font-weight: 600;
   margin-bottom: 16px;
 }
@@ -320,7 +321,7 @@
 .blog-studio .slug code {
   font-family: var(--blog-body);
   font-weight: 500;
-  color: var(--clay);
+  color: var(--blog-accent);
 }
 .blog-studio .tools {
   display: flex;
@@ -394,8 +395,8 @@
   color: var(--ink);
 }
 .blog-studio .t.on {
-  background: var(--clay-soft);
-  color: var(--clay);
+  background: var(--blog-highlight);
+  color: var(--blog-accent);
 }
 .blog-studio .t.b {
   font-weight: 700;
@@ -492,7 +493,7 @@
   color: var(--ink);
 }
 .blog-studio .write blockquote {
-  border-left: 2px solid var(--clay);
+  border-left: 2px solid var(--blog-accent);
   padding-left: 20px;
   margin: 22px 0;
   font-family: var(--blog-display);
@@ -512,7 +513,7 @@
   margin-bottom: 6px;
 }
 .blog-studio .write a {
-  color: var(--clay);
+  color: var(--blog-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -524,7 +525,7 @@
   display: block;
 }
 .blog-studio .write img.ProseMirror-selectednode {
-  outline: 2px solid var(--clay);
+  outline: 2px solid var(--blog-accent);
   outline-offset: 2px;
 }
 .blog-studio .write hr {
@@ -659,7 +660,7 @@
   border-radius: 12px;
   padding: 14px 18px;
   margin: 22px 0;
-  border-left: 4px solid var(--clay);
+  border-left: 4px solid var(--blog-accent);
   background: var(--wash);
 }
 .blog-studio .write .bt-callout p {
@@ -722,14 +723,14 @@
   top: 0;
   bottom: 0;
   width: 3px;
-  background: var(--clay);
+  background: var(--blog-accent);
   pointer-events: none;
 }
 .blog-studio .write table .selectedCell::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(165, 93, 56, 0.12);
+  background: rgba(63, 93, 67, 0.12);
   pointer-events: none;
 }
 
@@ -785,7 +786,7 @@
 }
 .blog-studio .write .bt-linkcard-host {
   font-size: 11.5px;
-  color: var(--clay);
+  color: var(--blog-accent);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -894,6 +895,34 @@
   font-weight: 600;
   margin-bottom: 7px;
 }
+.blog-studio .series-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.blog-studio .series-row select {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+}
+.blog-studio .series-rename {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: var(--blog-body);
+  font-size: 13.5px;
+  color: var(--ink);
+  outline: 0;
+}
+.blog-studio .series-rename:focus {
+  border-color: var(--blog-accent);
+}
+.blog-studio .series-rename:disabled {
+  opacity: 0.6;
+}
 .blog-studio .f input,
 .blog-studio .f textarea,
 .blog-studio .f select {
@@ -911,7 +940,7 @@
 .blog-studio .f input:focus,
 .blog-studio .f textarea:focus,
 .blog-studio .f select:focus {
-  border-color: var(--clay);
+  border-color: var(--blog-accent);
 }
 .blog-studio .preview {
   margin: 2px 22px 18px;
@@ -976,11 +1005,11 @@
   cursor: not-allowed;
 }
 .blog-studio .btn.go {
-  background: var(--ink);
+  background: var(--blog-accent);
   color: #fff;
 }
 .blog-studio .btn.go:hover:not(:disabled) {
-  background: #000;
+  background: var(--green-deep);
 }
 .blog-studio .btn.out {
   background: var(--panel);
@@ -992,7 +1021,7 @@
 }
 .blog-studio .btn.lnk {
   background: transparent;
-  color: var(--clay);
+  color: var(--blog-accent);
   font-size: 12.5px;
   padding: 4px;
   font-weight: 500;

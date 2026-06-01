@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-01 (blog_studio v2.27.0 push prep) -->
+<!-- Last updated: 2026-06-01 (blog_studio v2.27.1) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [blog_studio](./blog_studio.md) | Session 2 — ready for v2.27.0 push | Super Admin Blog Studio in `dash` (lazy TipTap, new window) + database-backed public blog on `ecothrift.us`; replaces the static `POSTS` array. Phase 4/5 authoring tools + Bold Modern typography pass complete. 22 blog tests + both builds green. **Next:** push/deploy, then `seed_initial_blog_posts` once on prod. |
+| [blog_studio](./blog_studio.md) | Session 3 — v2.27.1 shipped | Super Admin Blog Studio in `dash` (lazy TipTap, new window) + database-backed public blog on `ecothrift.us`. Series rename in Publish panel; studio sage chrome matches Bold Modern. **Next:** prod `seed_initial_blog_posts` if not done yet. |
 
 **Parked (off this index):** [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.
 

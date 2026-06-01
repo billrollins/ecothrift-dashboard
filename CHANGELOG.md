@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.27.0] — 2026-06-01 (Blog Studio) -->
-<!-- Last reviewed: 2026-06-01 (review.0.Bump — Blog Studio push prep) -->
+<!-- Line 1 release: ## [2.27.1] — 2026-06-01 (Blog Studio polish) -->
+<!-- Last reviewed: 2026-06-01 (code.9.Push — series rename + studio accent) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,20 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.27.1] — 2026-06-01
+
+User-facing theme: **Blog Studio polish** — rename series in the Publish panel and align studio chrome with Bold Modern sage accents.
+
+### Added
+
+- **Frontend / Blog Studio** — inline **series rename** next to the Series dropdown (saves on blur or Enter via `PATCH /api/blog/series/<id>/`); create-series still uses the existing prompt.
+
+### Changed
+
+- **Frontend / Blog Studio** — studio chrome accents (mark, kicker, slug, toolbar active state, links, blockquotes, focus rings, primary publish button) now use the sage **Bold Modern** blog accent instead of clay.
 
 ---
 

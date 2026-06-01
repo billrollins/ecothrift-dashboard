@@ -1,5 +1,5 @@
 <!-- initiative: slug=blog-studio status=active updated=2026-06-01 -->
-<!-- Last updated: 2026-06-01 (Session 2 — Phase 4/5 tools + Bold Modern pass; ready for v2.27.0 push) -->
+<!-- Last updated: 2026-06-01 (Session 3 — series rename + studio sage chrome; v2.27.1) -->
 
 # Initiative: Blog Studio (luxury authoring + database-backed public blog)
 
@@ -71,6 +71,12 @@ drafted, scheduled, and published without a code change.
   - **Rendering safety:** sanitizer allow-list and tests expanded for callouts, tables, and link cards; iframe/script remain stripped.
   - **Typography:** selected **05 Bold Modern** from the exploration file and applied it to Blog Studio plus public blog list/article rendering, so existing published posts update through CSS.
 - **Verification:** `python manage.py test apps.blog` → **22 tests OK**; staff `frontend` and `frontend-public` production builds both succeed.
+
+### Session 3 — 2026-06-01 (series rename + studio chrome)
+
+- **Goal:** let owners rename an existing series without Django admin; align Blog Studio shell accents with Bold Modern sage.
+- **Delivered:** inline series rename field beside the Publish-panel Series dropdown (`PATCH /api/blog/series/<id>/`, blur/Enter save); `updateBlogSeries` + `useUpdateBlogSeries`; studio chrome uses `--blog-accent` for links, buttons, kickers, and focus states.
+- **Shipped:** **v2.27.1**.
 
 ---
 

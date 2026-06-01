@@ -135,6 +135,13 @@ export function createBlogSeries(data: { name: string; description?: string }): 
   return api.post('/blog/series/', data);
 }
 
+export function updateBlogSeries(
+  id: number,
+  data: { name?: string; description?: string; position?: number; is_active?: boolean },
+): Promise<{ data: BlogSeries }> {
+  return api.patch(`/blog/series/${id}/`, data);
+}
+
 // ── Images ─────────────────────────────────────────────────────────────────
 
 export function uploadBlogImage(file: File, alt?: string): Promise<{ data: BlogImage }> {

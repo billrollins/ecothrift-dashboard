@@ -3,6 +3,7 @@ import {
   archiveBlogPost,
   createBlogPost,
   createBlogSeries,
+  updateBlogSeries,
   deleteBlogPost,
   duplicateBlogPost,
   getBlogPosts,
@@ -112,7 +113,16 @@ export function useCreateBlogSeries() {
   return useMutation({
     mutationFn: async (data: { name: string; description?: string }) =>
       (await createBlogSeries(data)).data,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [SERIES_KEY] }),
+    onSuccess: () => invalidateBlog(queryClient),
+  });
+}
+
+export function useUpdateBlogSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: { name: string } }) =>
+      (await updateBlogSeries(id, data)).data,
+    onSuccess: () => invalidateBlog(queryClient),
   });
 }
 
