@@ -24,7 +24,7 @@ def _have_rows(*, using: str = 'default') -> list[tuple[str, int, Decimal]]:
         FROM (
             SELECT
                 ({case}) AS bucket,
-                COALESCE(i.retail_value, i.price, 0)::numeric AS retail_line
+                COALESCE(i.unit_retail, i.price, 0)::numeric AS retail_line
             FROM inventory_item i
             LEFT JOIN inventory_product p ON i.product_id = p.id
             LEFT JOIN inventory_manifestrow mr ON i.manifest_row_id = mr.id
@@ -48,7 +48,7 @@ def _want_rows(since: datetime, *, using: str = 'default') -> list[tuple[str, in
         FROM (
             SELECT
                 ({case}) AS bucket,
-                COALESCE(i.retail_value, i.price, 0)::numeric AS retail_line
+                COALESCE(i.unit_retail, i.price, 0)::numeric AS retail_line
             FROM inventory_item i
             LEFT JOIN inventory_product p ON i.product_id = p.id
             LEFT JOIN inventory_manifestrow mr ON i.manifest_row_id = mr.id
@@ -68,9 +68,9 @@ def _want_rows(since: datetime, *, using: str = 'default') -> list[tuple[str, in
 
 def _profitability_aggregates(*, using: str = 'default') -> list[tuple[str, Decimal, Decimal, Decimal, int]]:
     """
-    Per bucket: SUM(sold_for), SUM(retail_value), SUM(cost), COUNT(*) for all-time sold rows.
+    Per bucket: SUM(sold_for), SUM(unit_retail), SUM(cost), COUNT(*) for all-time sold rows.
 
-    Qualifying sold: status sold; sold_for, retail_value, and cost each between 0.01 and 9999.
+    Qualifying sold: status sold; sold_for, unit_retail, and cost each between 0.01 and 9999.
     Recovery rate in Python: sum_sold / sum_retail. Averages: sum / count.
     """
     case = _case()
@@ -84,14 +84,14 @@ def _profitability_aggregates(*, using: str = 'default') -> list[tuple[str, Deci
             SELECT
                 ({case}) AS bucket,
                 i.sold_for::numeric AS sold_amt,
-                i.retail_value::numeric AS retail_amt,
+                i.unit_retail::numeric AS retail_amt,
                 i.cost::numeric AS cost_amt
             FROM inventory_item i
             LEFT JOIN inventory_product p ON i.product_id = p.id
             LEFT JOIN inventory_manifestrow mr ON i.manifest_row_id = mr.id
             WHERE i.status = 'sold'
               AND i.sold_for BETWEEN 0.01 AND 9999
-              AND i.retail_value BETWEEN 0.01 AND 9999
+              AND i.unit_retail BETWEEN 0.01 AND 9999
               AND i.cost BETWEEN 0.01 AND 9999
         ) b
         GROUP BY b.bucket

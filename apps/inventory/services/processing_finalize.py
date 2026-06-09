@@ -1,7 +1,4 @@
-"""
-Fast preprocessing finalize → durable processing bookmarks (`ProcessingRow`).
-Heavy ManifestRow/Item creation is chunked via ``ProcessingDataBuild`` + ``process_processing_data_chunk``.
-"""
+"""Fast preprocessing finalize → durable processing bookmarks (`ProcessingRow`)."""
 
 from __future__ import annotations
 
@@ -24,6 +21,7 @@ from apps.inventory.models import (
     ProcessingRow,
     PurchaseOrder,
 )
+from apps.inventory.layer_helpers import effective_taxonomy_category_for_row
 from apps.inventory.services.intake_gates import raise_if_processing_blocked_by_intake
 from apps.inventory.services.processing_search_string import assign_search_strings_for_instances, build_processing_row_search_string
 from apps.inventory.services.processing_workspace import refresh_processing_rows_denorm
@@ -38,6 +36,7 @@ _TERMINAL_ITEM_STATUSES_FROZEN = frozenset({'sold', 'scrapped', 'lost'})
 # Narrow columns read from preprocessing at finalize-time (avoid SELECT * hydrations).
 PREPROCESSING_PROJECT_TO_BOOKMARK_FIELDS = (
     'id',
+    'manifest_row_id',
     'row_number',
     'purchase_order_id',
     'quantity',
@@ -119,14 +118,92 @@ def validate_preprocessing_value_rows_for_finalize(
         })
 
 
-def load_preprocessing_values_for_finalize(
-    order: PurchaseOrder,
-) -> Iterable[dict[str, Any]]:
-    """Query only columns needed for bookmark copy (no ai/standard select)."""
+def load_preprocessing_values_for_finalize(order: PurchaseOrder) -> Iterable[dict[str, Any]]:
+    """Hydrate rows lightly so linked ManifestRow can provide standard fallbacks."""
 
-    return PreprocessingRow.objects.filter(purchase_order=order).order_by('row_number').values(
-        *PREPROCESSING_PROJECT_TO_BOOKMARK_FIELDS,
+    rows = (
+        PreprocessingRow.objects
+        .filter(purchase_order=order)
+        .select_related('manifest_row')
+        .only(
+            'id',
+            'manifest_row_id',
+            'row_number',
+            'purchase_order_id',
+            'quantity',
+            'unit_retail',
+            'proposed_price',
+            'final_price',
+            'pricing_stage',
+            'pricing_notes',
+            'batch_flag',
+            'ai_reasoning',
+            'final_description',
+            'final_title',
+            'final_brand',
+            'final_model',
+            'final_condition',
+            'final_notes',
+            'final_identifiers',
+            'final_taxonomy',
+            'final_specifications',
+            'final_tracking',
+            'final_search_tags',
+            'final_category',
+            'manifest_row__row_number',
+            'manifest_row__quantity',
+            'manifest_row__unit_retail',
+            'manifest_row__proposed_price',
+            'manifest_row__final_price',
+            'manifest_row__pricing_stage',
+            'manifest_row__pricing_notes',
+            'manifest_row__batch_flag',
+            'manifest_row__ai_reasoning',
+            'manifest_row__description',
+            'manifest_row__title',
+            'manifest_row__brand',
+            'manifest_row__model',
+            'manifest_row__category',
+            'manifest_row__condition',
+            'manifest_row__notes',
+            'manifest_row__identifiers',
+            'manifest_row__taxonomy',
+            'manifest_row__specifications',
+            'manifest_row__tracking',
+            'manifest_row__search_tags',
+        )
+        .order_by('row_number')
     )
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        mr = row.manifest_row
+        out.append({
+            'id': row.id,
+            'manifest_row_id': row.manifest_row_id,
+            'row_number': row.row_number,
+            'purchase_order_id': row.purchase_order_id,
+            'quantity': row.quantity or (mr.quantity if mr is not None else 1),
+            'unit_retail': row.unit_retail if row.unit_retail is not None else (mr.unit_retail if mr is not None else None),
+            'proposed_price': row.proposed_price if row.proposed_price is not None else (mr.proposed_price if mr is not None else None),
+            'final_price': row.final_price,
+            'pricing_stage': row.pricing_stage or (mr.pricing_stage if mr is not None else 'unpriced'),
+            'pricing_notes': row.pricing_notes or (mr.pricing_notes if mr is not None else ''),
+            'batch_flag': row.batch_flag or (bool(mr.batch_flag) if mr is not None else False),
+            'ai_reasoning': row.ai_reasoning or (mr.ai_reasoning if mr is not None else ''),
+            'final_description': row.final_description or (mr.description if mr is not None else ''),
+            'final_title': row.final_title or (mr.title if mr is not None else ''),
+            'final_brand': row.final_brand or (mr.brand if mr is not None else ''),
+            'final_model': row.final_model or (mr.model if mr is not None else ''),
+            'final_category': row.final_category or effective_taxonomy_category_for_row(row),
+            'final_condition': row.final_condition or (mr.condition if mr is not None else ''),
+            'final_notes': row.final_notes or (mr.notes if mr is not None else ''),
+            'final_identifiers': row.final_identifiers if row.final_identifiers is not None else (mr.identifiers if mr is not None else {}),
+            'final_taxonomy': row.final_taxonomy if row.final_taxonomy is not None else (mr.taxonomy if mr is not None else {}),
+            'final_specifications': row.final_specifications if row.final_specifications is not None else (mr.specifications if mr is not None else {}),
+            'final_tracking': row.final_tracking if row.final_tracking is not None else (mr.tracking if mr is not None else {}),
+            'final_search_tags': row.final_search_tags if row.final_search_tags is not None else (mr.search_tags if mr is not None else []),
+        })
+    return out
 
 
 def finalize_preprocessing_to_bookmarks(
@@ -135,7 +212,7 @@ def finalize_preprocessing_to_bookmarks(
     """
     Validate narrow preprocessing rows OOB, then in one txn:
       - replace bookmarks for PO
-      - clear canonical ManifestRow/non-terminal Items/BatchGroups
+      - keep the ManifestRow spine and real Items intact
 
     Returns ProcessingRow insert count.
     """
@@ -153,6 +230,7 @@ def finalize_preprocessing_to_bookmarks(
             ProcessingRow(
                 purchase_order_id=order.id,
                 preprocessing_row_id=r.get('id'),
+                manifest_row_id=r.get('manifest_row_id'),
                 row_number=int(r['row_number']),
                 quantity=qty,
                 unit_retail=r.get('unit_retail'),
@@ -185,10 +263,7 @@ def finalize_preprocessing_to_bookmarks(
 
     with transaction.atomic():
         ProcessingRow.objects.filter(purchase_order=order).delete()
-        ManifestRow.objects.filter(purchase_order=order).delete()
         ProcessingDataBuild.objects.filter(purchase_order_id=order.id).delete()
-        order.items.exclude(status__in=_TERMINAL_ITEM_STATUSES_FROZEN).delete()
-        order.batch_groups.all().delete()
 
         ProcessingRow.objects.bulk_create(objs)
 

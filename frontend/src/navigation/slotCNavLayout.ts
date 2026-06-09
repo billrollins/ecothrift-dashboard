@@ -26,7 +26,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'processing',
     label: 'Processing',
-    itemIds: ['orders', 'preprocessing', 'receiving', 'processing', 'finalization', 'disputes'],
+    itemIds: ['orders', 'preprocessing', 'receiving', 'processing', 'finalization', 'disputes', 'searchItems'],
   },
   {
     id: 'restoration',

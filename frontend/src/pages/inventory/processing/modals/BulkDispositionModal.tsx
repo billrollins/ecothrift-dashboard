@@ -42,7 +42,7 @@ export type BulkDispositionGroupForm = {
 
 function pendingCountForRows(rows: ProcessingWorkspaceRowDTO[]): number {
   return rows.reduce((acc, r) => {
-    const fromItems = r.items.filter((i) => i.status === 'intake' || i.status === 'processing').length;
+    const fromItems = (r.items ?? []).filter((i) => i.status === 'intake' || i.status === 'processing').length;
     if (fromItems > 0) return acc + fromItems;
     const lazy = r.pendingItemCount ?? 0;
     return acc + lazy;

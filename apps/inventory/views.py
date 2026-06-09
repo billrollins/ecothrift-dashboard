@@ -16,6 +16,7 @@ from django.db import transaction
 from django.db.models import (
     Avg,
     Case,
+    CharField,
     Count,
     F,
     Max,
@@ -84,6 +85,7 @@ from .models import (
     Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
     ItemHistory, ItemScanHistory,
     PreprocessingRow,
+    ProcessingRow,
     Receiving, ReceivingAttachment, ReceivingPallet,
     Dispute,
 )
@@ -560,7 +562,7 @@ def _parse_page_params(query_params):
 def build_preprocessing_review_queryset(order, query_params):
     rows_qs = (
         PreprocessingRow.objects.filter(purchase_order=order)
-        .select_related('purchase_order')
+        .select_related('purchase_order', 'manifest_row')
         .order_by('row_number')
     )
     search_term = str(query_params.get('search') or '').strip().lower()
@@ -568,18 +570,25 @@ def build_preprocessing_review_queryset(order, query_params):
         st = search_term
         rows_qs = rows_qs.filter(
             Q(standard_description__icontains=st)
+            | Q(manifest_row__description__icontains=st)
+            | Q(manifest_row__title__icontains=st)
+            | Q(manifest_row__category__icontains=st)
             | Q(ai_description__icontains=st)
             | Q(final_description__icontains=st)
             | Q(standard_brand__icontains=st)
+            | Q(manifest_row__brand__icontains=st)
             | Q(ai_brand__icontains=st)
             | Q(final_brand__icontains=st)
             | Q(standard_model__icontains=st)
+            | Q(manifest_row__model__icontains=st)
             | Q(ai_model__icontains=st)
             | Q(final_model__icontains=st)
             | Q(standard_condition__icontains=st)
+            | Q(manifest_row__condition__icontains=st)
             | Q(ai_condition__icontains=st)
             | Q(final_condition__icontains=st)
             | Q(standard_notes__icontains=st)
+            | Q(manifest_row__notes__icontains=st)
             | Q(ai_notes__icontains=st)
             | Q(final_notes__icontains=st)
             | Q(ai_title__icontains=st)
@@ -1544,12 +1553,24 @@ def parse_decimal(value):
         return None
 
 
+def _suggest_item_format_money_field(val) -> str | None:
+    pd = parse_decimal(val)
+    if pd is not None and pd >= 0 and pd <= Decimal('999999.99'):
+        q = pd.quantize(Decimal('0.01'))
+        fs = format(q, 'f')
+        if '.' in fs:
+            fs = fs.rstrip('0').rstrip('.')
+        return fs or '0'
+    return None
+
+
 def _suggest_item_parse_suggestions_from_text(
     content_text: str,
     fields: list,
     allowed: set,
 ) -> tuple[dict | None, dict | None]:
     """Parse Add Item AI JSON; returns (suggestions_dict, full_parsed_dict) or (None, None)."""
+    from apps.inventory.services.manual_item import normalize_search_tags
     if not (content_text or '').strip():
         return None, None
     stripped = content_text.strip()
@@ -1591,14 +1612,19 @@ def _suggest_item_parse_suggestions_from_text(
                 clean = {str(k): str(v) for k, v in val.items() if k is not None}
                 out[key] = clean
             continue
-        if key == 'price':
-            pd = parse_decimal(val)
-            if pd is not None and pd >= 0 and pd <= Decimal('999999.99'):
-                q = pd.quantize(Decimal('0.01'))
-                fs = format(q, 'f')
-                if '.' in fs:
-                    fs = fs.rstrip('0').rstrip('.')
-                out[key] = fs or '0'
+        if key in ('price', 'retail_value'):
+            formatted = _suggest_item_format_money_field(val)
+            if formatted is not None:
+                out[key] = formatted
+            continue
+        if key == 'search_tags':
+            out[key] = normalize_search_tags(val)
+            continue
+        if key == 'google_query':
+            out[key] = str(val).strip()[:200] if val is not None else ''
+            continue
+        if key == 'model':
+            out[key] = str(val).strip()[:200] if val is not None else ''
             continue
         if key in ('title', 'brand', 'category', 'notes'):
             out[key] = str(val) if val is not None else ''
@@ -1690,6 +1716,66 @@ def normalize_row(raw, row_number, column_mappings):
         'tracking': prune_empty_bucket_values(tracking),
         'search_tags': search_tags_val,
     }
+
+
+def category_from_normalized_manifest_row(row_data):
+    category = str(row_data.get('category') or '').strip()
+    if category:
+        return category[:200]
+    taxonomy = row_data.get('taxonomy')
+    if isinstance(taxonomy, dict):
+        return str(taxonomy.get('category') or '').strip()[:200]
+    return ''
+
+
+def upsert_manifest_row_from_standardized_data(order, row_data, *, pricing):
+    """Create/update the stable standardized ManifestRow spine for a standardize row."""
+
+    rn = int(row_data.get('row_number') or 0)
+    search_tags = row_data.get('search_tags')
+    if isinstance(search_tags, list):
+        search_tags = [str(x).strip() for x in search_tags if str(x).strip()]
+    elif search_tags is not None:
+        search_tags = slugify_formula_search_tags(str(search_tags))
+    else:
+        search_tags = []
+
+    defaults = {
+        'quantity': row_data.get('quantity', 1),
+        'description': str(row_data.get('description') or ''),
+        'title': str(row_data.get('title') or '')[:300],
+        'brand': str(row_data.get('brand') or '')[:200],
+        'model': str(row_data.get('model') or '')[:200],
+        'condition': str(row_data.get('condition') or ''),
+        'unit_retail': pricing['unit_retail'],
+        'proposed_price': pricing['proposed_price'],
+        'final_price': pricing['final_price'],
+        'pricing_stage': pricing['pricing_stage'],
+        'pricing_notes': pricing['pricing_notes'],
+        'batch_flag': bool(row_data.get('batch_flag')),
+        'identifiers': row_data.get('identifiers') if isinstance(row_data.get('identifiers'), dict) else {},
+        'taxonomy': row_data.get('taxonomy') if isinstance(row_data.get('taxonomy'), dict) else {},
+        'search_tags': search_tags,
+        'specifications': row_data.get('specifications') if isinstance(row_data.get('specifications'), dict) else {},
+        'tracking': row_data.get('tracking') if isinstance(row_data.get('tracking'), dict) else {},
+        'notes': str(row_data.get('notes') or ''),
+        'category': category_from_normalized_manifest_row(row_data),
+        'match_status': 'pending',
+    }
+
+    existing = (
+        ManifestRow.objects
+        .filter(purchase_order=order, row_number=rn)
+        .order_by('id')
+        .first()
+    )
+    if existing is None:
+        return ManifestRow.objects.create(purchase_order=order, row_number=rn, **defaults), True
+
+    for field, value in defaults.items():
+        setattr(existing, field, value)
+    existing.save(update_fields=[*defaults.keys()])
+    return existing, False
 
 
 def resolve_manifest_mappings(order, headers, template_id=None, mappings_payload=None):
@@ -2909,12 +2995,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             for r in PreprocessingRow.objects.filter(purchase_order=order)
         }
         to_update = []
+        manifest_rows_upserted = 0
         now = timezone.now()
         with transaction.atomic():
-            ManifestRow.objects.filter(purchase_order=order).delete()
-            order.items.exclude(status__in=TERMINAL_ITEM_STATUSES).delete()
-            order.batch_groups.all().delete()
-
             bulk_clear_preprocess_ai_and_final_layers(
                 PreprocessingRow.objects.filter(purchase_order=order),
             )
@@ -2944,6 +3027,20 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     pricing_stage = 'draft'
                     pricing_notes_val = pricing_notes_val or 'Initial ideal price (2x allocated base cost)'
 
+                manifest_row, _created = upsert_manifest_row_from_standardized_data(
+                    order,
+                    row_data,
+                    pricing={
+                        'unit_retail': base_retail,
+                        'proposed_price': proposed_price,
+                        'final_price': final_price,
+                        'pricing_stage': pricing_stage,
+                        'pricing_notes': pricing_notes_val,
+                    },
+                )
+                manifest_rows_upserted += 1
+
+                sr.manifest_row = manifest_row
                 sr.quantity = row_data.get('quantity', 1)
                 sr.standard_description = row_data.get('description', '')
                 sr.standard_brand = row_data.get('brand', '')
@@ -2976,6 +3073,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     to_update,
                     [
                         'quantity',
+                        'manifest_row',
                         'standard_description',
                         'standard_brand',
                         'standard_model',
@@ -3030,6 +3128,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'items_created': 0,
             'items_updated': 0,
             'item_count': order.item_count,
+            'manifest_rows_upserted': manifest_rows_upserted,
         }
         if row_count_in_file is not None:
             response_data['row_count_in_file'] = row_count_in_file
@@ -3836,7 +3935,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         use_staging = _preprocessing_staging_active(order)
 
         if use_staging:
-            rows = PreprocessingRow.objects.filter(purchase_order=order).order_by('row_number')
+            rows = (
+                PreprocessingRow.objects.filter(purchase_order=order)
+                .select_related('manifest_row')
+                .order_by('row_number')
+            )
         else:
             ensure_manifest_products_and_items(order, request.user)
             rows = (
@@ -3872,27 +3975,29 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         writer.writeheader()
 
         for row in rows:
-            base_cost, ideal_price = _unit_base_cost_and_ideal_price(order, row.unit_retail)
             if use_staging:
+                source = row.manifest_row or row
+                base_cost, ideal_price = _unit_base_cost_and_ideal_price(order, source.unit_retail)
                 writer.writerow({
-                    'row_id': row.id,
-                    'row_number': row.row_number,
-                    'quantity': row.quantity,
-                    'unit_retail': row.unit_retail or '',
+                    'row_id': source.id,
+                    'row_number': source.row_number,
+                    'quantity': source.quantity,
+                    'unit_retail': source.unit_retail or '',
                     'base_cost': base_cost or '',
                     'ideal_price': ideal_price or '',
-                    'description': row.standard_description,
-                    'brand': row.standard_brand,
-                    'model': row.standard_model,
-                    'condition': row.standard_condition,
-                    'notes': row.standard_notes,
-                    'identifiers_json': _cleanup_csv_json_cell(row.standard_identifiers),
-                    'taxonomy_json': _cleanup_csv_json_cell(row.standard_taxonomy),
-                    'specifications_json': _cleanup_csv_json_cell(row.standard_specifications),
-                    'tracking_json': _cleanup_csv_json_cell(row.standard_tracking),
-                    'search_tags_json': _cleanup_csv_json_cell(row.standard_search_tags),
+                    'description': getattr(source, 'description', row.standard_description),
+                    'brand': getattr(source, 'brand', row.standard_brand),
+                    'model': getattr(source, 'model', row.standard_model),
+                    'condition': getattr(source, 'condition', row.standard_condition),
+                    'notes': getattr(source, 'notes', row.standard_notes),
+                    'identifiers_json': _cleanup_csv_json_cell(getattr(source, 'identifiers', row.standard_identifiers)),
+                    'taxonomy_json': _cleanup_csv_json_cell(getattr(source, 'taxonomy', row.standard_taxonomy)),
+                    'specifications_json': _cleanup_csv_json_cell(getattr(source, 'specifications', row.standard_specifications)),
+                    'tracking_json': _cleanup_csv_json_cell(getattr(source, 'tracking', row.standard_tracking)),
+                    'search_tags_json': _cleanup_csv_json_cell(getattr(source, 'search_tags', row.standard_search_tags)),
                 })
             else:
+                base_cost, ideal_price = _unit_base_cost_and_ideal_price(order, row.unit_retail)
                 writer.writerow({
                     'row_id': row.id,
                     'row_number': row.row_number,
@@ -3981,17 +4086,29 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return parse_error
 
         if use_staging:
-            rows_by_id = {
-                row.id: row
-                for row in PreprocessingRow.objects.filter(purchase_order=order)
+            source_rows = list(
+                PreprocessingRow.objects.filter(purchase_order=order)
+                .select_related('manifest_row')
+            )
+            rows_by_id = {}
+            for row in source_rows:
+                if row.manifest_row_id:
+                    rows_by_id[row.manifest_row_id] = row
+                rows_by_id.setdefault(row.id, row)
+            expected_rows = len(source_rows)
+            expected_row_ids = {
+                row.manifest_row_id if row.manifest_row_id else row.id
+                for row in source_rows
             }
         else:
-            rows_by_id = {
-                row.id: row
-                for row in ManifestRow.objects.filter(purchase_order=order)
+            source_rows = list(
+                ManifestRow.objects.filter(purchase_order=order)
                 .select_related('matched_product', 'purchase_order')
                 .prefetch_related('items')
-            }
+            )
+            rows_by_id = {row.id: row for row in source_rows}
+            expected_rows = len(source_rows)
+            expected_row_ids = {row.id for row in source_rows}
         taxonomy_set = set(TAXONOMY_V1_CATEGORY_NAMES)
         rejected = []
         all_soft_warnings: list[dict] = []
@@ -4014,18 +4131,18 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 _reject(line_no, row_id=row_id_hint, reason='invalid_json', detail=key)
                 return object()
 
-        if rows_seen != len(rows_by_id):
+        if rows_seen != expected_rows:
             return Response(
                 {
                     'detail': 'Cleanup CSV must include exactly one row for every manifest row.',
                     'code': 'row_count_mismatch',
                     'rows_seen': rows_seen,
-                    'expected_rows': len(rows_by_id),
+                    'expected_rows': expected_rows,
                     'rows_updated': 0,
                     'rows_rejected': rows_seen,
                     'rejected_rows': [{
                         'reason': 'row_count_mismatch',
-                        'detail': f'Expected {len(rows_by_id)} row(s), received {rows_seen}.',
+                        'detail': f'Expected {expected_rows} row(s), received {rows_seen}.',
                     }],
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -4160,7 +4277,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'ai_status': ai_status_obj,
             })
 
-        missing_ids = sorted(set(rows_by_id) - referenced_in_csv)
+        missing_ids = sorted(expected_row_ids - referenced_in_csv)
         if missing_ids:
             rejected.append({
                 'reason': 'missing_row_ids',
@@ -4195,13 +4312,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
                 update_fields_set = set()
                 if pl['use_staging']:
+                    source = row.manifest_row or row
                     row.ai_title = ai_title[:300]
                     row.ai_brand = ai_brand[:200]
                     row.ai_model = ai_model[:200]
                     row.ai_category = category[:200]
-                    row.ai_identifiers = deepcopy(row.standard_identifiers or {})
-                    row.ai_taxonomy = deepcopy(row.standard_taxonomy or {})
-                    row.ai_tracking = deepcopy(row.standard_tracking or {})
+                    row.ai_identifiers = deepcopy(getattr(source, 'identifiers', row.standard_identifiers) or {})
+                    row.ai_taxonomy = deepcopy(getattr(source, 'taxonomy', row.standard_taxonomy) or {})
+                    row.ai_tracking = deepcopy(getattr(source, 'tracking', row.standard_tracking) or {})
                     row.ai_condition = condition
                     row.ai_status = deepcopy(pl.get('ai_status') or {})
                     update_fields_set.update({
@@ -5920,6 +6038,51 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Processing row not found for this order.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(payload)
 
+    @action(detail=True, methods=['post'], url_path='processing-row-check-in')
+    def processing_row_check_in_action(self, request, pk=None):
+        from apps.inventory.processing_ops import ProcessingDataRequired, processing_row_check_in
+
+        order = self.get_object()
+        raw = request.data.get('processing_row_id') or request.data.get('processingRowId')
+        if raw is None or not str(raw).strip().isdigit():
+            return Response({'detail': 'processing_row_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(processing_row_check_in(request.user, order, int(str(raw).strip()), request.data))
+        except ProcessingRow.DoesNotExist:
+            return Response({'detail': 'Processing row not found for this order.'}, status=status.HTTP_404_NOT_FOUND)
+        except ProcessingDataRequired as e:
+            return Response(
+                {'detail': str(e), 'code': 'processing_data_required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['patch'], url_path='processing-row-patch')
+    def processing_row_patch_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_row_patch
+
+        order = self.get_object()
+        raw = request.data.get('processing_row_id') or request.data.get('processingRowId')
+        if raw is None or not str(raw).strip().isdigit():
+            return Response({'detail': 'processing_row_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(processing_row_patch(request.user, order, int(str(raw).strip()), request.data))
+        except ProcessingRow.DoesNotExist:
+            return Response({'detail': 'Processing row not found for this order.'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-add-item')
+    def processing_add_item_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_add_item
+
+        order = self.get_object()
+        try:
+            return Response(processing_add_item(request.user, order, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['post'], url_path='processing-print-multiple')
     def processing_print_multiple_action(self, request, pk=None):
         from apps.inventory.processing_ops import ProcessingDataRequired, processing_print_multiple
@@ -6492,7 +6655,9 @@ class ItemViewSet(viewsets.ModelViewSet):
         category_block = None
         if category_raw:
             category_block = _item_stats_payload(
-                Item.objects.filter(category=category_raw),
+                Item.objects.filter(
+                    Q(product__category=category_raw) | Q(manifest_row__category=category_raw),
+                ),
                 category_raw,
             )
 
@@ -6548,6 +6713,7 @@ class ItemViewSet(viewsets.ModelViewSet):
             allowed = {
                 'title', 'brand', 'category', 'condition',
                 'specifications', 'notes', 'price',
+                'model', 'retail_value', 'search_tags', 'google_query',
             }
             fields = [f for f in fields if f in allowed]
             if not fields:
@@ -6555,11 +6721,14 @@ class ItemViewSet(viewsets.ModelViewSet):
                     {'error': 'No valid fields requested.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            mandatory_fields = ('model', 'retail_value', 'search_tags', 'google_query')
+            fields = list(dict.fromkeys([*fields, *mandatory_fields]))
 
             title = (context.get('title') or '')[:500]
             brand = (context.get('brand') or '')[:200]
             category = (context.get('category') or '')[:200]
             cond = (context.get('condition') or '')[:40]
+            model_ctx = (context.get('model') or '')[:200]
 
             t0 = _time.perf_counter()
             store_examples, examples_used = retrieve_listing_examples_for_prompt(
@@ -6641,6 +6810,20 @@ class ItemViewSet(viewsets.ModelViewSet):
                 )
 
             out, parsed = _suggest_item_parse_suggestions_from_text(content_text, fields, allowed)
+            if out is not None:
+                from apps.inventory.services.manual_item import build_google_query
+
+                if 'search_tags' in fields and 'search_tags' not in out:
+                    out['search_tags'] = []
+                if 'google_query' in fields:
+                    gq = str(out.get('google_query', '')).strip()
+                    if not gq:
+                        out['google_query'] = build_google_query(
+                            title=str(out.get('title', title) or ''),
+                            brand=str(out.get('brand', brand) or ''),
+                            model=str(out.get('model', model_ctx) or ''),
+                            search_tags=out.get('search_tags') or [],
+                        )
             if not isinstance(parsed, dict) or out is None:
                 suggest_logger.warning(
                     'suggest_item could not parse suggestions JSON; model=%s content_len=%s preview=%s',
@@ -7255,7 +7438,17 @@ def store_report_view(request):
     stale_days = int(request.query_params.get('stale_days', 60))
     location_filter = request.query_params.get('location', '')
 
-    on_shelf_qs = Item.objects.filter(status='on_shelf')
+    listing_category = Case(
+        When(manifest_row__category__gt='', then=F('manifest_row__category')),
+        When(product__category__gt='', then=F('product__category')),
+        default=Value(''),
+        output_field=CharField(),
+    )
+    on_shelf_qs = (
+        Item.objects.filter(status='on_shelf')
+        .select_related('manifest_row', 'product')
+        .annotate(listing_category=listing_category)
+    )
     if location_filter:
         on_shelf_qs = on_shelf_qs.filter(location__icontains=location_filter)
 
@@ -7273,7 +7466,14 @@ def store_report_view(request):
     stale_items = on_shelf_qs.filter(
         listed_at__lt=stale_cutoff,
     ).order_by('listed_at').values(
-        'id', 'sku', 'title', 'brand', 'price', 'listed_at', 'location', 'category',
+        'id',
+        'sku',
+        'title',
+        'brand',
+        'price',
+        'listed_at',
+        'location',
+        category=F('listing_category'),
     )[:100]
 
     unpriced_items = on_shelf_qs.filter(price=0).values(
@@ -7284,7 +7484,7 @@ def store_report_view(request):
         'id', 'sku', 'title', 'brand', 'price', 'location',
     )[:50]
 
-    category_breakdown = on_shelf_qs.values('category').annotate(
+    category_breakdown = on_shelf_qs.values(category=F('listing_category')).annotate(
         count=Count('id'),
         total_value=Sum('price'),
     ).order_by('-total_value')[:30]

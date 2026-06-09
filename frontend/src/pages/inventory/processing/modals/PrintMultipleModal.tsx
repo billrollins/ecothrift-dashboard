@@ -31,7 +31,7 @@ export interface PrintMultipleModalProps {
 
 export function PrintMultipleModal({ open, onClose, row, onSubmit, loading }: PrintMultipleModalProps) {
   const pendingCount =
-    row ? row.items.filter((i) => i.status === 'intake' || i.status === 'processing').length : 0;
+    row ? (row.items ?? []).filter((i) => i.status === 'intake' || i.status === 'processing').length : 0;
 
   const [qty, setQty] = useState(1);
   const [conditionUi, setConditionUi] = useState(CONDITION_OPTIONS[3]);

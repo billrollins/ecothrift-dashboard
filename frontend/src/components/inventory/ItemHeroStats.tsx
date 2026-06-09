@@ -1,9 +1,10 @@
-import { Box, Grid, Stack, Typography } from '@mui/material';
+import { Box, Grid, Link, Stack, Typography } from '@mui/material';
 import { differenceInCalendarDays, format } from 'date-fns';
+import { Link as RouterLink } from 'react-router-dom';
 import { StatusBadge } from '../common/StatusBadge';
 import type { Item } from '../../types/inventory.types';
 
-function formatCurrency(value: string | null): string {
+function formatCurrency(value: string | null | undefined): string {
   if (value == null) return '—';
   const n = parseFloat(value);
   return Number.isNaN(n) ? '—' : `$${n.toFixed(2)}`;
@@ -79,6 +80,29 @@ export default function ItemHeroStats({ item }: { item: Item }) {
         }}
       >
         <Stack direction="row" flexWrap="wrap" sx={{ gap: { xs: 1.25, sm: 2 }, rowGap: 1.25 }}>
+          {item.purchase_order != null && (
+            <Box sx={{ minWidth: { xs: '42%', sm: 140 } }}>
+              <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                Order
+              </Typography>
+              {item.purchase_order_number ? (
+                <Link
+                  component={RouterLink}
+                  to={`/inventory/orders/${item.purchase_order}`}
+                  underline="hover"
+                  variant="body2"
+                  fontWeight={600}
+                  sx={{ fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {item.purchase_order_number}
+                </Link>
+              ) : (
+                <Typography variant="body2" fontWeight={500}>
+                  —
+                </Typography>
+              )}
+            </Box>
+          )}
           <Box sx={{ minWidth: { xs: '42%', sm: 120 } }}>
             <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
               Retail value

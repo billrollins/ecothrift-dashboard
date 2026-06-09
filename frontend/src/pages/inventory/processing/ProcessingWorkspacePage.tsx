@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
-  AlertTitle,
   Box,
   Button,
   CircularProgress,
@@ -12,8 +11,6 @@ import {
   DialogTitle,
   LinearProgress,
   Stack,
-  TablePagination,
-  TextField,
   Typography,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
@@ -21,17 +18,15 @@ import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useMarkOrderComplete, usePurchaseOrders } from '../../../hooks/useInventory';
 import { getProcessingWorkspace } from '../../../api/inventory.api';
 import {
-  useProcessingBulkDisposition,
-  useProcessingDispute,
-  useProcessingMergeRows,
   useProcessingPatchItem,
-  useProcessingPrintAndCheckIn,
   useProcessingPrintMultiple,
-  useClearProcessingData,
+  useProcessingRowCheckIn,
+  useProcessingRowPatch,
+  useProcessingAddItem,
   useBuildProcessingData,
   useProcessingRowDetail,
   useProcessingWorkspace,
-  PROCESSING_WORKSPACE_PAGE_SIZE,
+  PROCESSING_WORKSPACE_ALL_ROWS_LIMIT,
   type ProcessingWorkspaceListParams,
   printedPreviewToLabelInputs,
   useProcessingDataBuildStatus,
@@ -39,23 +34,17 @@ import {
 import type { ProcessingWorkspaceItemDTO, ProcessingWorkspaceRowDTO } from '../../../types/inventory.types';
 import {
   isSingleScanToken,
-  rowsMatchingExactUpc,
+  rowsMatchingExactScan,
   type ProcessingStatusSegment,
 } from './processingWorkspaceFilters';
+import { AddProcessingItemDialog } from './modals/AddProcessingItemDialog';
 import { ProcessingWorkspaceHeader, type ProcessingWorkspaceOrderPickRow } from './ProcessingWorkspaceHeader';
 import { ProcessingFilterRow } from './ProcessingFilterRow';
 import { ProcessingQueueTable } from './ProcessingQueueTable';
+// import { ProcessingQueuePagination } from './ProcessingQueuePagination';
 import { ProcessingActiveCard } from './ProcessingActiveCard';
-import { ProcessingBulkActionBar } from './ProcessingBulkActionBar';
-import { ProcessingWorkspaceFooter } from './ProcessingWorkspaceFooter';
 import { PrintMultipleModal } from './modals/PrintMultipleModal';
-import { DisputeModal } from './modals/DisputeModal';
-import { MergeModal } from './modals/MergeModal';
-import { BulkDispositionModal } from './modals/BulkDispositionModal';
-import { printProcessingLabel, printProcessingLabelsStaggered } from './printProcessingLabel';
-
-/** Must match exactly (trimmed); makes keyboard confirm intentional (Tab onto the secondary button first). */
-const RESET_PROCESSING_DATA_PHRASE = 'RESET';
+import { printProcessingLabelsStaggered } from './printProcessingLabel';
 
 export default function ProcessingWorkspacePage() {
   const { id: idParam } = useParams<{ id: string }>();
@@ -68,13 +57,11 @@ export default function ProcessingWorkspacePage() {
   }, [orderId, navigate]);
 
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(0);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [segment, setSegment] = useState<ProcessingStatusSegment>('all');
   const [hideDispositioned, setHideDispositioned] = useState(true);
   const [detailProcessingRowId, setDetailProcessingRowId] = useState<number | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
-  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<number>>(() => new Set());
   const [productFilterProductId, setProductFilterProductId] = useState<number | null>(null);
   const [productFilterTitle, setProductFilterTitle] = useState<string | undefined>(undefined);
   const [sessionCheckInCount, setSessionCheckInCount] = useState(0);
@@ -82,48 +69,34 @@ export default function ProcessingWorkspacePage() {
 
   const bumpSearchFocus = useCallback(() => setSearchFocusSignal((s) => s + 1), []);
 
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    if (!value.trim()) setDebouncedSearch('');
+  }, []);
+
   const [printMultiOpen, setPrintMultiOpen] = useState(false);
-  const [disputeOpen, setDisputeOpen] = useState(false);
-  /** ``processing_row_id`` values for bulk dispute (selection is row-first). */
-  const [bulkDisputeProcessingRowIds, setBulkDisputeProcessingRowIds] = useState<number[] | null>(null);
   const [completeOpen, setCompleteOpen] = useState(false);
-  const [mergeOpen, setMergeOpen] = useState(false);
-  const [bulkDispOpen, setBulkDispOpen] = useState(false);
-  const [resetProcessingDataOpen, setResetProcessingDataOpen] = useState(false);
-  const [resetProcessingDataTyped, setResetProcessingDataTyped] = useState('');
+  const [addUnmanifestedOpen, setAddUnmanifestedOpen] = useState(false);
 
   useEffect(() => {
-    setResetProcessingDataOpen(false);
-    setResetProcessingDataTyped('');
-  }, [orderId]);
-
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedSearch(search), 275);
+    const t = window.setTimeout(() => setDebouncedSearch(search), 450);
     return () => window.clearTimeout(t);
   }, [search]);
-
-  useEffect(() => {
-    setPage(0);
-  }, [segment, hideDispositioned, productFilterProductId, debouncedSearch, orderId]);
-
-  useEffect(() => {
-    setBulkSelectedIds(new Set());
-  }, [page, segment, hideDispositioned, productFilterProductId, debouncedSearch, orderId]);
 
   const listParams = useMemo((): ProcessingWorkspaceListParams | null => {
     if (orderId == null) return null;
     const q = debouncedSearch.trim();
     return {
-      limit: PROCESSING_WORKSPACE_PAGE_SIZE,
-      offset: page * PROCESSING_WORKSPACE_PAGE_SIZE,
+      limit: PROCESSING_WORKSPACE_ALL_ROWS_LIMIT,
+      offset: 0,
       segment,
       product_id: productFilterProductId ?? undefined,
       search: debouncedSearch,
       hide_checked_in: q.length > 0 ? false : hideDispositioned,
     };
-  }, [orderId, page, segment, productFilterProductId, debouncedSearch, hideDispositioned]);
+  }, [orderId, segment, productFilterProductId, debouncedSearch, hideDispositioned]);
 
-  const { data: workspace, isLoading, isError, error, refetch } = useProcessingWorkspace(orderId, listParams);
+  const { data: workspace, isLoading, isFetching, isError, error, refetch } = useProcessingWorkspace(orderId, listParams);
 
   const processingOrdersParams = useMemo(
     () => ({ status__in: 'delivered,processing,complete', ordering: '-ordered_date', page_size: 100 }),
@@ -138,6 +111,8 @@ export default function ProcessingWorkspacePage() {
       order_number: r.order_number,
       vendor_name: r.vendor_name,
       item_count: r.item_count,
+      ordered_date: r.ordered_date,
+      delivered_date: r.delivered_date,
     }));
     if (!workspace?.order?.id) return mapped;
     if (mapped.some((o) => o.id === workspace.order.id)) return mapped;
@@ -148,9 +123,19 @@ export default function ProcessingWorkspacePage() {
         order_number: workspace.order.number,
         vendor_name: workspace.order.vendor,
         item_count: workspace.progress.total_units,
+        ordered_date: workspace.order.ordered_date,
+        delivered_date: workspace.order.delivered_date,
       },
     ];
-  }, [processingOrdersPage?.results, workspace?.order?.id, workspace?.order.number, workspace?.order.vendor, workspace?.progress.total_units]);
+  }, [
+    processingOrdersPage?.results,
+    workspace?.order?.id,
+    workspace?.order.number,
+    workspace?.order.vendor,
+    workspace?.order.ordered_date,
+    workspace?.order.delivered_date,
+    workspace?.progress.total_units,
+  ]);
 
   useEffect(() => {
     if (workspace?.order?.id) localStorage.setItem('lastProcessingOrderId', String(workspace.order.id));
@@ -159,19 +144,8 @@ export default function ProcessingWorkspacePage() {
   const manifestTotalQty = workspace?.order?.total_manifest_qty ?? 0;
   const manifestDispositioned = workspace?.manifest_qty_dispositioned_total ?? 0;
 
-  const filteredTotal = workspace?.row_count_filtered ?? workspace?.rows.length ?? 0;
   const poLineCount = workspace?.row_count_total_po ?? workspace?.rows.length ?? 0;
-  const paginationFrom = workspace?.rows.length ? (workspace.workspace_offset ?? 0) + 1 : 0;
-  const paginationTo = workspace?.rows.length ? (workspace.workspace_offset ?? 0) + workspace.rows.length : 0;
-
-  useEffect(() => {
-    if (workspace?.row_count_filtered == null) return;
-    const last = Math.max(
-      0,
-      Math.ceil(workspace.row_count_filtered / PROCESSING_WORKSPACE_PAGE_SIZE) - 1,
-    );
-    if (page > last) setPage(last);
-  }, [workspace?.row_count_filtered, page]);
+  const filteredRowCount = workspace?.row_count_filtered ?? workspace?.rows.length ?? 0;
 
   const detailQueryEnabled =
     orderId != null &&
@@ -210,7 +184,7 @@ export default function ProcessingWorkspacePage() {
     const valid = selectedItemId != null && items.some((i) => i.id === selectedItemId);
     if (valid) return;
     const pend = items.find((i) => i.status === 'intake' || i.status === 'processing');
-    setSelectedItemId((pend ?? items[0])?.id ?? null);
+    setSelectedItemId(pend?.id ?? null);
   }, [selectedRow, selectedItemId]);
 
   const activeItem: ProcessingWorkspaceItemDTO | null = useMemo(() => {
@@ -219,52 +193,18 @@ export default function ProcessingWorkspacePage() {
     return items.find((i) => i.id === selectedItemId) ?? null;
   }, [selectedRow, selectedItemId]);
 
-  const bulkRowsSelected = useMemo(() => {
-    if (!workspace) return [];
-    return workspace.rows.filter((r) => bulkSelectedIds.has(r.processing_row_id)).sort((a, b) => a.rowNum - b.rowNum);
-  }, [workspace, bulkSelectedIds]);
-
-  const sameProductBulk = useMemo(() => {
-    if (bulkRowsSelected.length < 2) return false;
-    const pid = bulkRowsSelected[0].productId;
-    if (pid == null) return false;
-    return bulkRowsSelected.every((r) => r.productId === pid);
-  }, [bulkRowsSelected]);
-
-  const bulkProcessingRowIdsForModals = useMemo(
-    () => bulkRowsSelected.map((r) => r.processing_row_id),
-    [bulkRowsSelected],
-  );
-
-  const bulkSelectionMissingManifestLink = useMemo(
-    () => bulkRowsSelected.some((r) => r.manifest_row_id == null),
-    [bulkRowsSelected],
-  );
-
   const showDetailSpinner =
     !workspace?.processingBookmarkOnly &&
     detailProcessingRowId != null &&
     detailRowFetching &&
     fetchedDetailRow == null;
 
-  /** Avoid MergeModal mount with stale open state after selection/refetch drops below 2. */
-  useEffect(() => {
-    if (mergeOpen && bulkRowsSelected.length < 2) {
-      setMergeOpen(false);
-      bumpSearchFocus();
-    }
-  }, [mergeOpen, bulkRowsSelected.length, bumpSearchFocus]);
-
   const safeOrderId = orderId ?? 0;
-  const printCheckIn = useProcessingPrintAndCheckIn(safeOrderId);
+  const rowCheckIn = useProcessingRowCheckIn(safeOrderId);
+  const rowPatch = useProcessingRowPatch(safeOrderId);
+  const addItem = useProcessingAddItem(safeOrderId);
   const printMultiple = useProcessingPrintMultiple(safeOrderId);
-  const disputeMu = useProcessingDispute(safeOrderId);
-  const mergeMu = useProcessingMergeRows(safeOrderId);
-  const bulkDispMu = useProcessingBulkDisposition(safeOrderId);
   const buildProcessingDataMu = useBuildProcessingData(orderId ?? 0);
-  const clearProcessingDataMu = useClearProcessingData(orderId ?? 0);
-  const resetProcessingBusy =
-    buildProcessingDataMu.isPending || clearProcessingDataMu.isPending;
   const procBuildPoll = useProcessingDataBuildStatus(orderId, Boolean(workspace?.processingBookmarkOnly));
   const autoDrainBusyRef = useRef(false);
 
@@ -277,8 +217,7 @@ export default function ProcessingWorkspacePage() {
     if (
       !procBuildPoll.isSuccess ||
       !procBuildPoll.data ||
-      buildProcessingDataMu.isPending ||
-      clearProcessingDataMu.isPending
+      buildProcessingDataMu.isPending
     ) {
       return;
     }
@@ -298,12 +237,9 @@ export default function ProcessingWorkspacePage() {
     procBuildPoll.isSuccess,
     procBuildPoll.data,
     buildProcessingDataMu,
-    clearProcessingDataMu,
   ]);
   const patchItem = useProcessingPatchItem(safeOrderId);
   const markComplete = useMarkOrderComplete();
-
-  const clearBulk = useCallback(() => setBulkSelectedIds(new Set()), []);
 
   const openDetail = useCallback((processingRowId: number) => {
     setDetailProcessingRowId(processingRowId);
@@ -315,32 +251,24 @@ export default function ProcessingWorkspacePage() {
     bumpSearchFocus();
   }, [bumpSearchFocus]);
 
-  const openBulkDispute = useCallback(() => {
-    setBulkDisputeProcessingRowIds(Array.from(bulkSelectedIds));
-    setDisputeOpen(true);
-  }, [bulkSelectedIds]);
-
   const closeModalAndRefocus = useCallback((setter: (v: boolean) => void) => {
     setter(false);
     bumpSearchFocus();
   }, [bumpSearchFocus]);
 
-  const closeResetProcessingDataModal = useCallback(() => {
-    if (resetProcessingBusy) return;
-    setResetProcessingDataOpen(false);
-    setResetProcessingDataTyped('');
-    bumpSearchFocus();
-  }, [resetProcessingBusy, bumpSearchFocus]);
+  const openScanMatch = useCallback((processingRowId: number) => {
+    setDetailProcessingRowId(processingRowId);
+    setSearch('');
+    setDebouncedSearch('');
+  }, []);
 
   const handleSearchEnter = useCallback(async () => {
     const q = search.trim();
     if (!orderId || !q) return;
     if (!isSingleScanToken(q)) return;
-    const onPage = rowsMatchingExactUpc(workspace?.rows ?? [], q);
+    const onPage = rowsMatchingExactScan(workspace?.rows ?? [], q);
     if (onPage.length === 1) {
-      setBulkSelectedIds(new Set());
-      setDetailProcessingRowId(onPage[0].processing_row_id);
-      setSearch('');
+      openScanMatch(onPage[0].processing_row_id);
       return;
     }
     try {
@@ -354,41 +282,68 @@ export default function ProcessingWorkspacePage() {
       });
       if (data.row_count_filtered === 1 && data.rows[0]) {
         const sole = data.rows[0];
-        if (rowsMatchingExactUpc([sole], q).length === 1) {
-          setBulkSelectedIds(new Set());
-          setDetailProcessingRowId(sole.processing_row_id);
-          setSearch('');
-          setDebouncedSearch('');
-          setPage(0);
+        if (rowsMatchingExactScan([sole], q).length === 1) {
+          openScanMatch(sole.processing_row_id);
         }
       }
     } catch {
       /* ignore scan helper failures */
     }
-  }, [search, orderId, workspace?.rows, segment, productFilterProductId]);
+  }, [search, orderId, workspace?.rows, segment, productFilterProductId, openScanMatch]);
 
   const handleCheckIn = useCallback(
-    async (payload: Record<string, unknown>) => {
-      if (!activeItem || orderId == null) return;
+    async (payload: Record<string, unknown>, options?: { printLabels?: boolean }) => {
+      if (!selectedRow || orderId == null) return false;
+      const shouldPrint = options?.printLabels !== false;
       try {
-        const data = await printCheckIn.mutateAsync({ itemId: activeItem.id, payload });
-        const ok = await printProcessingLabel(data.item);
-        setSessionCheckInCount((c) => c + 1);
-        if (!ok) {
-          enqueueSnackbar('Checked in on server, but the local label printer failed.', { variant: 'warning' });
+        const data = await rowCheckIn.mutateAsync({
+          ...payload,
+          processing_row_id: selectedRow.processing_row_id,
+        });
+        const labelItems = printedPreviewToLabelInputs(data.printed_items_preview ?? []);
+        setSessionCheckInCount((c) => c + data.created_count);
+        if (shouldPrint) {
+          const { succeeded, failed } = await printProcessingLabelsStaggered(labelItems);
+          if (failed > 0) {
+            enqueueSnackbar(`Checked in ${data.created_count}; printed ${succeeded}/${labelItems.length}.`, { variant: 'warning' });
+          } else {
+            enqueueSnackbar(`Checked in ${data.created_count} unit(s) and sent labels.`, { variant: 'success' });
+          }
         } else {
-          enqueueSnackbar('Checked in and sent label to printer.', { variant: 'success' });
+          enqueueSnackbar(`Checked in ${data.created_count} unit(s) without printing.`, { variant: 'success' });
         }
         bumpSearchFocus();
+        return true;
       } catch (e: unknown) {
         const detail =
           e && typeof e === 'object' && 'response' in e
             ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
             : undefined;
         enqueueSnackbar(detail || 'Check-in failed', { variant: 'error' });
+        return false;
       }
     },
-    [activeItem, orderId, printCheckIn, enqueueSnackbar, bumpSearchFocus],
+    [selectedRow, orderId, rowCheckIn, enqueueSnackbar, bumpSearchFocus],
+  );
+
+  const handleReprintProcessingItems = useCallback(
+    async (items: ProcessingWorkspaceItemDTO[]) => {
+      if (!items.length) return;
+      const labelItems = items.map((item) => ({
+        sku: item.sku,
+        title: item.product_title || selectedRow?.title || item.sku,
+        price: item.price,
+        brand: item.product_brand || selectedRow?.brand || undefined,
+        product_number: item.product_number ?? undefined,
+      }));
+      const { succeeded, failed } = await printProcessingLabelsStaggered(labelItems);
+      if (failed > 0) {
+        enqueueSnackbar(`Reprinted ${succeeded}/${labelItems.length}; ${failed} failed locally.`, { variant: 'warning' });
+      } else {
+        enqueueSnackbar(`Reprinted ${succeeded} label(s).`, { variant: 'success' });
+      }
+    },
+    [enqueueSnackbar, selectedRow?.brand, selectedRow?.title],
   );
 
   const handlePrintMultipleSubmit = useCallback(
@@ -421,27 +376,6 @@ export default function ProcessingWorkspacePage() {
     [orderId, printMultiple, enqueueSnackbar, bumpSearchFocus],
   );
 
-  const handleDisputeSubmit = useCallback(
-    async (payload: Record<string, unknown>) => {
-      if (orderId == null) return;
-      try {
-        await disputeMu.mutateAsync(payload);
-        enqueueSnackbar('Dispute recorded.', { variant: 'success' });
-        setDisputeOpen(false);
-        setBulkDisputeProcessingRowIds(null);
-        setBulkSelectedIds(new Set());
-        bumpSearchFocus();
-      } catch (e: unknown) {
-        const detail =
-          e && typeof e === 'object' && 'response' in e
-            ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-            : undefined;
-        enqueueSnackbar(detail || 'Dispute failed', { variant: 'error' });
-      }
-    },
-    [orderId, disputeMu, enqueueSnackbar, bumpSearchFocus],
-  );
-
   const handlePatchCheckedIn = useCallback(
     async (payload: Record<string, unknown>) => {
       if (!activeItem) return;
@@ -460,34 +394,9 @@ export default function ProcessingWorkspacePage() {
     [activeItem, patchItem, enqueueSnackbar, bumpSearchFocus],
   );
 
-  const toggleBulkOne = useCallback((processingRowId: number, selected: boolean) => {
-    setBulkSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (selected) next.add(processingRowId);
-      else next.delete(processingRowId);
-      return next;
-    });
-  }, []);
-
-  const toggleBulkAll = useCallback(
-    (selected: boolean) => {
-      if (!selected) {
-        setBulkSelectedIds(new Set());
-        return;
-      }
-      if (!workspace) return;
-      setBulkSelectedIds(new Set(workspace.rows.map((r) => r.processing_row_id)));
-    },
-    [workspace],
-  );
-
   if (orderId == null) return <LoadingScreen message="Redirecting…" />;
 
-  if (isLoading && !workspace) {
-    return <LoadingScreen message="Loading workspace…" />;
-  }
-
-  if (isError || !workspace) {
+  if (isError && !workspace) {
     return (
       <Box sx={{ p: 3 }}>
         <Alert severity="error" action={<Button onClick={() => refetch()}>Retry</Button>}>
@@ -497,52 +406,76 @@ export default function ProcessingWorkspacePage() {
     );
   }
 
-  const progress = workspace.progress;
-  const resetPhraseMatches = resetProcessingDataTyped.trim() === RESET_PROCESSING_DATA_PHRASE;
+  const progress = workspace?.progress;
 
   return (
     <Box
       sx={{
-        p: { xs: 1, md: 1.5 },
-        maxWidth: '100%',
-        mx: 'auto',
-        width: '100%',
-        minWidth: 0,
-        boxSizing: 'border-box',
+        flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        height: { md: 'calc(100dvh - 112px)', xs: 'auto' },
-        maxHeight: { md: 'calc(100dvh - 112px)', xs: 'none' },
-        minHeight: { md: 0, xs: undefined },
+        minHeight: 0,
+        minWidth: 0,
+        alignSelf: 'stretch',
+        m: -3,
+        p: 0,
+        boxSizing: 'border-box',
+        overflow: 'hidden',
       }}
     >
-      <Box sx={{ flexShrink: 0 }}>
-        <ProcessingWorkspaceHeader
-          order={workspace.order}
-          pickerOrders={pickerOrders}
-          onSelectOrderId={(id) => navigate(`/inventory/processing/${id}`)}
-          search={search}
-          onSearchChange={setSearch}
-          onSearchEnter={handleSearchEnter}
-          searchFocusSignal={searchFocusSignal}
-          manifestDispositioned={manifestDispositioned}
-          manifestTotalQty={manifestTotalQty}
-          itemDispositioned={progress.dispositioned_units}
-          itemTotal={progress.total_units}
-          hasManifestRows={poLineCount > 0}
-          sessionCheckInCount={sessionCheckInCount}
-        />
+      <Box
+        sx={{
+          flexShrink: 0,
+          minHeight: 106,
+          bgcolor: 'background.paper',
+        }}
+      >
+        {workspace && progress ?
+          <ProcessingWorkspaceHeader
+            order={workspace.order}
+            pickerOrders={pickerOrders}
+            onSelectOrderId={(id) => navigate(`/inventory/processing/${id}`)}
+            manifestDispositioned={manifestDispositioned}
+            manifestTotalQty={manifestTotalQty}
+            itemDispositioned={progress.dispositioned_units}
+            itemTotal={progress.total_units}
+            hasManifestRows={poLineCount > 0}
+            sessionCheckInCount={sessionCheckInCount}
+            rollups={workspace.rollups}
+            addItemVisible={!workspace.processingBookmarkOnly}
+            onAddItem={() => setAddUnmanifestedOpen(true)}
+            pendingUnits={progress.pending_units}
+            orderComplete={workspace.order.status === 'complete'}
+            closeLoading={markComplete.isPending}
+            onCloseClick={() => setCompleteOpen(true)}
+          />
+        : <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 106 }}>
+            <CircularProgress size={22} />
+          </Box>
+        }
       </Box>
 
-      {poLineCount > 0 && workspace.processingBookmarkOnly ?
-        <Box sx={{ flexShrink: 0, mt: 1 }}>
+      {workspace &&
+      !workspace.processingBookmarkOnly &&
+      (workspace.intake_migration?.unlinked_row_count ?? 0) > 0 ?
+        <Box sx={{ flexShrink: 0 }}>
+          <Alert severity="info" variant="outlined">
+            {workspace.intake_migration!.unlinked_row_count} processing row
+            {workspace.intake_migration!.unlinked_row_count === 1 ? ' is' : 's are'} still bookmark-only (no manifest
+            link). New-flow rows with manifest links can check in normally; legacy build applies only to unlinked rows.
+          </Alert>
+        </Box>
+      : null}
+
+      {workspace && poLineCount > 0 && workspace.processingBookmarkOnly ?
+        <Box sx={{ flexShrink: 0 }}>
           <Alert severity="warning">
             <Typography variant="body2" gutterBottom>
-              Manifest and items have not been fully prepared yet — review the bookmark rows below, then start the build.
-              Large orders are prepared in bounded chunks automatically.
+              This order has preprocessing bookmarks but no manifest-linked processing rows yet. Use Create Processing
+              Data only for these legacy bookmark-only orders.
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-              Create Processing Data before checking in, printing, merging, or disputing items.
+              The legacy build creates placeholder manifest/item data in bounded chunks.
             </Typography>
             {procBuildPoll.data?.blocked && procBuildPoll.data.last_error ?
               <Typography variant="body2" color="error" sx={{ mb: 1 }}>
@@ -638,27 +571,47 @@ export default function ProcessingWorkspacePage() {
         </Box>
       : null}
 
-      <Box sx={{ flexShrink: 0, mt: poLineCount > 0 && workspace.processingBookmarkOnly ? 1 : 0.75 }}>
-        <ProcessingFilterRow
-          segment={segment}
-          onSegmentChange={setSegment}
-          hideDispositioned={hideDispositioned}
-          onHideDispositionedChange={setHideDispositioned}
-          filteredCount={workspace.rows.length}
-          totalCount={filteredTotal}
-          rangeCaption={`Lines ${paginationFrom}–${paginationTo} · ${filteredTotal} match (${poLineCount} on order)`}
-          productFilterProductId={productFilterProductId}
-          productFilterTitle={productFilterTitle}
-          onClearProductFilter={() => {
-            setProductFilterProductId(null);
-            setProductFilterTitle(undefined);
-          }}
-        />
-      </Box>
+      {detailProcessingRowId == null ? (
+        <Box sx={{ flexShrink: 0 }}>
+          <ProcessingFilterRow
+            segment={segment}
+            onSegmentChange={setSegment}
+            hideDispositioned={hideDispositioned}
+            onHideDispositionedChange={setHideDispositioned}
+            productFilterProductId={productFilterProductId}
+            productFilterTitle={productFilterTitle}
+            onClearProductFilter={() => {
+              setProductFilterProductId(null);
+              setProductFilterTitle(undefined);
+            }}
+            search={search}
+            onSearchChange={handleSearchChange}
+            onSearchEnter={handleSearchEnter}
+            searchFocusSignal={searchFocusSignal}
+            totalRowCount={workspace ? poLineCount : undefined}
+            filteredRowCount={workspace ? filteredRowCount : undefined}
+            isFetching={isFetching && !isLoading}
+          />
+        </Box>
+      ) : null}
 
-      <Stack direction="column" spacing={1} sx={{ mt: 1, alignItems: 'stretch', flex: 1, minHeight: 0 }}>
-        <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-          {!workspace.processingBookmarkOnly &&
+      <Stack
+        direction="column"
+        spacing={0}
+        sx={{ alignItems: 'stretch', flex: 1, minHeight: 0, overflow: 'hidden' }}
+      >
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0,
+            overflow: 'hidden',
+          }}
+        >
+          {!workspace?.processingBookmarkOnly &&
           detailProcessingRowId != null &&
           detailRowIsError ?
             <Box sx={{ p: 2 }}>
@@ -677,11 +630,11 @@ export default function ProcessingWorkspacePage() {
             <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
               <CircularProgress />
             </Box>
-          : !workspace.processingBookmarkOnly &&
+          : !workspace?.processingBookmarkOnly &&
             detailProcessingRowId != null &&
             selectedRow &&
-            activeItem ?
-            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+            workspace ?
+            <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <ProcessingActiveCard
               orderId={workspace.order.id}
               row={selectedRow}
@@ -689,18 +642,10 @@ export default function ProcessingWorkspacePage() {
               onSelectItemId={setSelectedItemId}
               onBackToQueue={backToQueue}
               onCheckIn={handleCheckIn}
-              checkInLoading={printCheckIn.isPending}
-              onOpenDispute={() => {
-                setBulkDisputeProcessingRowIds(null);
-                setDisputeOpen(true);
-              }}
+              checkInLoading={rowCheckIn.isPending}
               onPatchCheckedIn={handlePatchCheckedIn}
               patchLoading={patchItem.isPending}
-              onPrintMultiple={() => setPrintMultiOpen(true)}
-              printMultipleDisabled={
-                selectedRow.manifest_row_id == null ||
-                !(selectedRow.items ?? []).some((i) => i.status === 'intake' || i.status === 'processing')
-              }
+              onReprintItems={handleReprintProcessingItems}
               productFilterActive={productFilterProductId != null && productFilterProductId === selectedRow.productId}
               onShowAllThisProduct={
                 selectedRow.productId != null ?
@@ -716,90 +661,62 @@ export default function ProcessingWorkspacePage() {
                   }
                 : undefined
               }
-              onWorkspaceInvalidated={() => {
-                void refetch();
-              }}
-              onPrepareMergeFromCard={() => {
-                if (selectedRow) {
-                  setBulkSelectedIds(new Set([selectedRow.processing_row_id]));
-                  backToQueue();
-                  enqueueSnackbar('Select another row for the same product, then tap Merge.', { variant: 'info' });
+              onPatchRowDefaults={async (payload) => {
+                try {
+                  await rowPatch.mutateAsync(payload);
+                  enqueueSnackbar('Row defaults saved.', { variant: 'success' });
+                } catch (e: unknown) {
+                  const detail =
+                    e && typeof e === 'object' && 'response' in e
+                      ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+                      : undefined;
+                  enqueueSnackbar(detail || 'Could not save row defaults', { variant: 'error' });
                 }
               }}
             />
             </Box>
           : (
-            <>
-              <ProcessingQueueTable
-                rows={workspace.rows}
-                preprocessingFinalizedAt={workspace.preprocessing_finalized_at}
-                preprocessingBookmarkOnly={workspace.processingBookmarkOnly}
-                totalWorkspaceRowCount={poLineCount}
-                orderId={workspace.order.id}
-                orderStatus={workspace.order.status}
-                detailProcessingRowId={detailProcessingRowId}
-                onOpenDetail={(id) => {
-                  clearBulk();
-                  openDetail(id);
-                }}
-                bulkSelectedIds={bulkSelectedIds}
-                onToggleBulkOne={toggleBulkOne}
-                onToggleBulkAll={toggleBulkAll}
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                bgcolor: 'background.paper',
+              }}
+            >
+              {workspace ?
+                <ProcessingQueueTable
+                  rows={workspace.rows}
+                  preprocessingFinalizedAt={workspace.preprocessing_finalized_at}
+                  preprocessingBookmarkOnly={workspace.processingBookmarkOnly}
+                  totalWorkspaceRowCount={poLineCount}
+                  orderId={workspace.order.id}
+                  orderStatus={workspace.order.status}
+                  detailProcessingRowId={detailProcessingRowId}
+                  onOpenDetail={(id) => {
+                    openDetail(id);
+                  }}
+                />
+              : <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CircularProgress size={28} />
+                </Box>
+              }
+              {/* Pagination disabled — full list scrolls inside the table.
+              <ProcessingQueuePagination
+                page={page}
+                totalCount={filteredTotal}
+                pageSize={queuePageSize}
+                onPageChange={setPage}
+                rangeCaption={`Lines ${paginationFrom}–${paginationTo} · ${filteredTotal} match (${poLineCount} on order)`}
               />
-              <TablePagination
-                component="div"
-                rowsPerPageOptions={[PROCESSING_WORKSPACE_PAGE_SIZE]}
-                count={filteredTotal}
-                rowsPerPage={PROCESSING_WORKSPACE_PAGE_SIZE}
-                page={filteredTotal === 0 ? 0 : page}
-                onPageChange={(_, p) => setPage(p)}
-                sx={{
-                  alignSelf: 'stretch',
-                  borderTop: 1,
-                  borderColor: 'divider',
-                  flexShrink: 0,
-                  '& .MuiTablePagination-toolbar': { px: { xs: 1, md: 0 }, minHeight: 48 },
-                }}
-              />
-            </>
+              */}
+            </Box>
             )
           }
-          {!workspace.processingBookmarkOnly && detailProcessingRowId == null ?
-            <ProcessingBulkActionBar
-              selectedCount={bulkSelectedIds.size}
-              onClear={clearBulk}
-              sameProduct={sameProductBulk}
-              onMerge={() => setMergeOpen(true)}
-              onBulkDisposition={() => setBulkDispOpen(true)}
-              onMarkBroken={openBulkDispute}
-              onMarkUndelivered={openBulkDispute}
-              itemActionsBlocked={bulkSelectionMissingManifestLink}
-              itemActionsBlockedHint={
-                bulkSelectionMissingManifestLink ?
-                  'Some selected rows are still preprocessing bookmarks with no manifest line yet. Create Processing Data first, or deselect those lines.'
-                : undefined
-              }
-            />
-          : null}
         </Box>
       </Stack>
-
-      <Box sx={{ flexShrink: 0 }}>
-        <ProcessingWorkspaceFooter
-          pendingUnits={progress.pending_units}
-          dispositionedUnits={progress.dispositioned_units}
-          totalUnits={progress.total_units}
-          orderComplete={workspace.order.status === 'complete'}
-          closeLoading={markComplete.isPending}
-          onCloseClick={() => setCompleteOpen(true)}
-          resetProcessingVisible={poLineCount > 0 && Boolean(workspace.preprocessing_finalized_at)}
-          resetProcessingDisabled={resetProcessingBusy || orderId == null}
-          onResetProcessingClick={() => {
-            setResetProcessingDataTyped('');
-            setResetProcessingDataOpen(true);
-          }}
-        />
-      </Box>
 
       <PrintMultipleModal
         open={printMultiOpen}
@@ -810,185 +727,6 @@ export default function ProcessingWorkspacePage() {
         loading={printMultiple.isPending}
         onSubmit={handlePrintMultipleSubmit}
       />
-
-      <DisputeModal
-        open={disputeOpen}
-        onClose={() => {
-          setDisputeOpen(false);
-          setBulkDisputeProcessingRowIds(null);
-          bumpSearchFocus();
-        }}
-        item={activeItem}
-        bulkProcessingRowIds={bulkDisputeProcessingRowIds ?? undefined}
-        loading={disputeMu.isPending}
-        onSubmit={handleDisputeSubmit}
-      />
-
-      <MergeModal
-        open={mergeOpen}
-        onClose={() => closeModalAndRefocus(setMergeOpen)}
-        processingRowIds={bulkProcessingRowIdsForModals}
-        rows={bulkRowsSelected}
-        loading={mergeMu.isPending}
-        onSubmit={async (payload) => {
-          try {
-            await mergeMu.mutateAsync(payload);
-            enqueueSnackbar('Rows merged.', { variant: 'success' });
-            setMergeOpen(false);
-            clearBulk();
-            bumpSearchFocus();
-          } catch (e: unknown) {
-            const detail =
-              e && typeof e === 'object' && 'response' in e
-                ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-                : undefined;
-            enqueueSnackbar(detail || 'Merge failed', { variant: 'error' });
-          }
-        }}
-      />
-
-      <BulkDispositionModal
-        open={bulkDispOpen}
-        onClose={() => closeModalAndRefocus(setBulkDispOpen)}
-        processingRowIds={bulkProcessingRowIdsForModals}
-        rows={bulkRowsSelected}
-        loading={bulkDispMu.isPending}
-        onSubmit={async (payload) => {
-          try {
-            await bulkDispMu.mutateAsync(payload);
-            enqueueSnackbar('Bulk disposition saved.', { variant: 'success' });
-            setBulkDispOpen(false);
-            clearBulk();
-            bumpSearchFocus();
-          } catch (e: unknown) {
-            const detail =
-              e && typeof e === 'object' && 'response' in e
-                ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-                : undefined;
-            enqueueSnackbar(detail || 'Bulk disposition failed', { variant: 'error' });
-          }
-        }}
-      />
-
-      <Dialog
-        open={resetProcessingDataOpen}
-        onClose={() => {
-          if (resetProcessingBusy) return;
-          closeResetProcessingDataModal();
-        }}
-        maxWidth="sm"
-        fullWidth
-        disableEscapeKeyDown={resetProcessingBusy}
-        PaperProps={{
-          sx: (theme) => ({
-            border: `4px solid ${theme.palette.error.main}`,
-            boxShadow: theme.shadows[12],
-          }),
-          onKeyDownCapture: (e: KeyboardEvent<HTMLDivElement>) => {
-            if (resetProcessingBusy || e.key !== 'Enter') return;
-            const t = e.target as HTMLElement | null;
-            if (t?.closest('[data-reset-proceed-button]')) return;
-            e.preventDefault();
-            e.stopPropagation();
-            closeResetProcessingDataModal();
-          },
-        }}
-      >
-        <DialogTitle sx={{ pt: 3, px: 3, pb: 1 }}>
-          <Typography variant="h5" component="span" fontWeight={800} color="error">
-            Reset to preprocessing bookmarks?
-          </Typography>
-        </DialogTitle>
-        <DialogContent sx={{ px: 3, pt: 0 }}>
-          <Alert severity="error" variant="outlined" sx={{ mt: 1, mb: 2, py: 2, px: 2, borderWidth: 2 }}>
-            <AlertTitle sx={{ typography: 'h6', fontWeight: 800 }}>This is destructive</AlertTitle>
-            <Typography variant="body1" component="div" sx={{ mt: 1.5, fontWeight: 600 }}>
-              This removes canonical manifest rows, intake/processing/on-shelf items tied to those lines,
-              inventory batch groups, and any in-progress chunked-build job — then unlinks bookmarks from
-              manifest data. Finalized preprocessing and your bookmark rows (titles, prices, etc.) stay
-              as they are now; nothing here re-runs the heavy “Create Processing Data” build automatically.
-            </Typography>
-          </Alert>
-          <Typography variant="body2" color="text.secondary" paragraph sx={{ mb: 1 }}>
-            If anything looks wrong here, cancel and fix preprocessing first — this still requires deliberate confirmation.
-          </Typography>
-          <Box component="ul" sx={{ m: 0, pl: 2.25, typography: 'body2', '& li': { mb: 0.75 } }}>
-            <li>
-              Terminal items (e.g. sold) stay in the catalog; deleting manifest rows clears their canonical line linkage.
-              Use this only when you deliberately want bookmarks-only staging again before recreating manifest lines.
-            </li>
-            <li>You will tap <strong>Create Processing Data</strong> afterward when you actually want manifests and items recreated.</li>
-          </Box>
-          <TextField
-            fullWidth
-            margin="normal"
-            label={`Type ${RESET_PROCESSING_DATA_PHRASE} to unlock the destructive action`}
-            value={resetProcessingDataTyped}
-            onChange={(ev) => setResetProcessingDataTyped(ev.target.value)}
-            autoComplete="off"
-            disabled={resetProcessingBusy}
-            helperText="Escape closes the dialog. Enter cancels unless keyboard focus is on the small confirm link (after Tab)."
-            sx={{ mt: 2 }}
-            inputProps={{ 'aria-label': 'Type RESET to confirm processing data reset' }}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2.5, gap: 2, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-          <Button
-            variant="contained"
-            size="large"
-            color="primary"
-            autoFocus
-            disabled={resetProcessingBusy}
-            onClick={closeResetProcessingDataModal}
-            sx={{ flex: '1 1 auto', minHeight: 48, px: 3, typography: 'subtitle1', fontWeight: 700 }}
-          >
-            Cancel — keep existing data (Esc · Enter)
-          </Button>
-          <Button
-            data-reset-proceed-button
-            size="small"
-            variant="text"
-            color="error"
-            disabled={!resetPhraseMatches || resetProcessingBusy || orderId == null}
-            onClick={() => {
-              void (async () => {
-                if (!resetPhraseMatches || orderId == null || resetProcessingBusy) return;
-                try {
-                  const d = await clearProcessingDataMu.mutateAsync();
-                  closeResetProcessingDataModal();
-                  enqueueSnackbar(
-                    typeof d.detail === 'string' ?
-                      d.detail
-                    : `Cleared processing data (${String(d.processing_row_bookmarks ?? 0)} bookmark rows kept).`,
-                    { variant: 'success' },
-                  );
-                  await refetch();
-                  bumpSearchFocus();
-                } catch (e: unknown) {
-                  const detail =
-                    e && typeof e === 'object' && 'response' in e ?
-                      (e as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
-                    : undefined;
-                    enqueueSnackbar(
-                      typeof detail === 'string' ? detail : detail ? JSON.stringify(detail) : 'Clear failed',
-                      { variant: 'error' },
-                    );
-                }
-              })();
-            }}
-            sx={{
-              opacity: resetPhraseMatches ? 1 : 0.55,
-              minWidth: 0,
-              maxWidth: 'min(100%, 240px)',
-              textTransform: 'none',
-              typography: 'caption',
-              alignSelf: 'flex-end',
-            }}
-          >
-            {resetProcessingBusy ? 'Clearing…' : 'I understand — clear processing data'}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <Dialog open={completeOpen} onClose={() => !markComplete.isPending && closeModalAndRefocus(setCompleteOpen)}>
         <DialogTitle>Close this purchase order?</DialogTitle>
@@ -1005,7 +743,7 @@ export default function ProcessingWorkspacePage() {
           <Button
             variant="contained"
             color="success"
-            disabled={markComplete.isPending || progress.pending_units > 0 || workspace.order.status === 'complete'}
+            disabled={markComplete.isPending || (progress?.pending_units ?? 0) > 0 || workspace?.order.status === 'complete'}
             startIcon={markComplete.isPending ? <CircularProgress size={18} color="inherit" /> : undefined}
             onClick={() => {
               markComplete.mutate(orderId, {
@@ -1029,6 +767,34 @@ export default function ProcessingWorkspacePage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <AddProcessingItemDialog
+        open={addUnmanifestedOpen}
+        orderId={orderId ?? 0}
+        loading={addItem.isPending}
+        onClose={() => setAddUnmanifestedOpen(false)}
+        onSubmit={async (payload) => {
+          try {
+            const data = await addItem.mutateAsync(payload);
+            const labelItems = printedPreviewToLabelInputs(data.printed_items_preview ?? []);
+            const { succeeded, failed } = await printProcessingLabelsStaggered(labelItems);
+            setAddUnmanifestedOpen(false);
+            setDetailProcessingRowId(data.row.processing_row_id);
+            bumpSearchFocus();
+            if (failed > 0) {
+              enqueueSnackbar(`Added item; printed ${succeeded}/${labelItems.length}.`, { variant: 'warning' });
+            } else {
+              enqueueSnackbar('Added item and created queue row.', { variant: 'success' });
+            }
+          } catch (e: unknown) {
+            const detail =
+              e && typeof e === 'object' && 'response' in e
+                ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
+                : undefined;
+            enqueueSnackbar(detail || 'Could not add item', { variant: 'error' });
+          }
+        }}
+      />
     </Box>
   );
 }

@@ -80,8 +80,46 @@ def build_processing_row_search_string(row: Any) -> str:
     return _normalize_search_blob(' '.join(parts))
 
 
-def assign_search_strings_for_instances(rows: list[Any]) -> None:
+def augment_processing_row_search_string(
+    base: str,
+    *,
+    product: Any | None = None,
+    items: list[Any] | None = None,
+) -> str:
+    """Append linked Product identity and checked-in Item SKUs for workspace search."""
+
+    parts: list[str] = []
+    if product is not None:
+        for attr in ('product_number', 'upc', 'model', 'title', 'brand'):
+            val = getattr(product, attr, None) if not isinstance(product, Mapping) else product.get(attr)
+            text = str(val or '').strip()
+            if text:
+                parts.append(text)
+    for item in items or []:
+        sku = getattr(item, 'sku', None) if not isinstance(item, Mapping) else item.get('sku')
+        text = str(sku or '').strip()
+        if text:
+            parts.append(text)
+    if not parts:
+        return base
+    return _normalize_search_blob(f'{base} {" ".join(parts)}')
+
+
+def assign_search_strings_for_instances(
+    rows: list[Any],
+    *,
+    products_by_id: dict[int, Any] | None = None,
+    items_by_manifest_row: dict[int, list[Any]] | None = None,
+) -> None:
     """Set ``search_string`` on each in-memory instance from current field values."""
 
+    products_by_id = products_by_id or {}
+    items_by_manifest_row = items_by_manifest_row or {}
     for r in rows:
-        r.search_string = build_processing_row_search_string(r)
+        base = build_processing_row_search_string(r)
+        mr_id = getattr(r, 'manifest_row_id', None) if not isinstance(r, Mapping) else r.get('manifest_row_id')
+        prod = products_by_id.get(getattr(r, 'matched_product_id', None) or 0)
+        if prod is None and getattr(r, 'matched_product_id', None):
+            prod = products_by_id.get(int(r.matched_product_id))
+        items = items_by_manifest_row.get(int(mr_id)) if mr_id else []
+        r.search_string = augment_processing_row_search_string(base, product=prod, items=items)

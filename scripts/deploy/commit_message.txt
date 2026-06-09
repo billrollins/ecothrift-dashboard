@@ -1,8 +1,23 @@
-fix: v2.27.2 blog copy and draft slug preview
+feat(inventory): intake processing — row check-in UX and quick check-in fix
 
-- Update the public blog hero to "Founder Notes" and "The Eco-Thrift Journal"
-- Tighten the blog description around transparency, vision, challenges, transitions, and decisions
-- Keep SEO description aligned with the visible blog page copy
-- Show title-derived draft/scheduled URLs in Blog Studio instead of stale untitled-post slugs
-- Continue clearing unpublished slugs on autosave so the backend regenerates from title
-- Add a slug regeneration regression test
+Intake → Processing improvements (Session 1 checkpoint). Ships the north-star
+row-level check-in path for Item Processor and fixes quick check-in blocking on
+already-checked-in units.
+
+## Backend
+- `POST …/processing-row-check-in/` reuses latest `ProcessingCheckInBatch` product
+- Sync `ManifestRow.matched_product` on check-in; denorm falls back to item product
+- Migrations: manifest spine, row_kind, dispute choices, ProcessingCheckInBatch
+- Add Item / AI Suggest Product-first fixes; manual_item resolver; classifier command
+
+## Frontend — Item Processor
+- Quick check-in always creates via row check-in (not print-and-check-in on old item)
+- Detailed check-in modal: quantity in header, product modes, AI suggest, field density
+- Row defaults toolbar, checked-in history table, queue column layout, pagination
+- Fix queue table Brand header sort-icon bleed
+
+## Docs
+- Initiative: intake_processing_improvements; field matrix reference
+- `.ai/extended/inventory-pipeline.md` check-in path updated
+
+See CHANGELOG [Unreleased] and `.ai/initiatives/intake_processing_improvements.md`.

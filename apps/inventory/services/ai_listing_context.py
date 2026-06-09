@@ -9,7 +9,34 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.db.models import CharField, F, Q, Value
+from django.db.models.functions import Coalesce
+
 from apps.inventory.models import Item
+
+
+def _annotate_listing_category(qs):
+    """``Item`` has no ``category`` column — coalesce manifest row + product."""
+
+    return qs.select_related('product', 'manifest_row').annotate(
+        listing_category=Coalesce(
+            F('manifest_row__category'),
+            F('product__category'),
+            Value(''),
+            output_field=CharField(),
+        )
+    )
+
+
+def _narrow_by_category_name(qs, category_name: str | None):
+    if not category_name:
+        return qs
+    first = (category_name.split() or [''])[0]
+    if not first:
+        return qs
+    return qs.filter(
+        Q(manifest_row__category__icontains=first) | Q(product__category__icontains=first),
+    )
 
 
 def _truncate(s: str, max_len: int) -> str:
@@ -37,10 +64,7 @@ def retrieve_listing_examples_for_prompt(
         .exclude(sold_for=0)
     )
 
-    if category_name:
-        first = (category_name.split() or [''])[0]
-        if first:
-            sold_qs = sold_qs.filter(category__icontains=first)
+    sold_qs = _narrow_by_category_name(sold_qs, category_name)
 
     if brand and brand.strip():
         bq = sold_qs.filter(brand__icontains=brand.strip())
@@ -53,8 +77,19 @@ def retrieve_listing_examples_for_prompt(
             sold_qs = cq
 
     sold_rows = list(
-        sold_qs.order_by('-sold_at').values(
-            'sku', 'title', 'brand', 'category', 'condition', 'sold_for', 'sold_at',
+        _annotate_listing_category(sold_qs)
+        .select_related('product')
+        .order_by('-sold_at')
+        .values(
+            'sku',
+            'title',
+            'brand',
+            'listing_category',
+            'condition',
+            'sold_for',
+            'sold_at',
+            'product__model',
+            'product__upc',
         )[:5]
     )
 
@@ -62,7 +97,18 @@ def retrieve_listing_examples_for_prompt(
         '-created_at',
     )
     recent_rows = list(
-        recent_qs.values('sku', 'title', 'brand', 'category', 'condition', 'created_at')[:3]
+        _annotate_listing_category(recent_qs)
+        .select_related('product')
+        .values(
+            'sku',
+            'title',
+            'brand',
+            'listing_category',
+            'condition',
+            'created_at',
+            'product__model',
+            'product__upc',
+        )[:3]
     )
 
     seen: set[str] = set()
@@ -77,9 +123,15 @@ def retrieve_listing_examples_for_prompt(
             'kind': 'sold' if 'sold_for' in row else 'recent',
             'title': _truncate(row.get('title') or '', title_max),
             'brand': _truncate(str(row.get('brand') or ''), 80),
-            'category': _truncate(str(row.get('category') or ''), 80),
+            'category': _truncate(str(row.get('listing_category') or ''), 80),
             'condition': row.get('condition') or 'unknown',
         }
+        model = _truncate(str(row.get('product__model') or ''), 80)
+        upc = _truncate(str(row.get('product__upc') or ''), 32)
+        if model:
+            ex['model'] = model
+        if upc:
+            ex['upc'] = upc
         if row.get('sold_for') is not None:
             ex['sold_for'] = str(row['sold_for'])
         merged.append(ex)

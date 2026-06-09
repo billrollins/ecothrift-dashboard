@@ -83,7 +83,7 @@ export default function MainLayout() {
   );
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', height: '100dvh', maxHeight: '100dvh', overflow: 'hidden' }}>
       {/* Sidebar */}
       {isMobile ? (
         <MuiDrawer
@@ -121,7 +121,7 @@ export default function MainLayout() {
       )}
 
       {/* Main Content */}
-      <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* AppBar */}
         <AppBar
           position="sticky"
@@ -179,10 +179,14 @@ export default function MainLayout() {
         <Box
           component="main"
           sx={{
-            flexGrow: 1,
+            flex: 1,
             minWidth: 0,
+            minHeight: 0,
             maxWidth: '100%',
+            display: 'flex',
+            flexDirection: 'column',
             overflowX: 'hidden',
+            overflowY: 'auto',
             p: 3,
             bgcolor: 'background.default',
           }}

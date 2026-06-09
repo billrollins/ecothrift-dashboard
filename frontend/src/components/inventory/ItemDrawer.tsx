@@ -6,7 +6,7 @@ import ItemFormWithActions from './ItemFormWithActions';
 import { ITEM_DRAWER_FORM_ID } from './ItemForm';
 import type { Item } from '../../types/inventory.types';
 
-const DRAWER_WIDTH = 520;
+const DRAWER_WIDTH = 760;
 
 export type ItemDrawerMode = 'create' | 'edit' | null;
 

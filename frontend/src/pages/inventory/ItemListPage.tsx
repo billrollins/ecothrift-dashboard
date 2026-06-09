@@ -133,7 +133,7 @@ export default function ItemListPage() {
       >
         <Box
           sx={{
-            flex: isMdUp ? (detailOpen ? '0 0 55%' : '1 1 100%') : '1 1 auto',
+            flex: isMdUp ? (detailOpen ? '0 0 40%' : '1 1 100%') : '1 1 auto',
             minWidth: 0,
             minHeight: 0,
             display: { xs: detailOpen ? 'none' : 'flex', md: 'flex' },
@@ -156,7 +156,7 @@ export default function ItemListPage() {
         {detailOpen && (
           <Box
             sx={{
-              flex: isMdUp ? '0 0 45%' : '1 1 auto',
+              flex: isMdUp ? '0 0 60%' : '1 1 auto',
               minWidth: 0,
               minHeight: 0,
               display: 'flex',

@@ -30,6 +30,7 @@
     "@mui/x-data-grid": "^8.27.0",
     "@mui/x-date-pickers": "^8.27.0",
     "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-virtual": "^3.14.2",
     "@tiptap/extension-color": "^2.27.2",
     "@tiptap/extension-highlight": "^2.27.2",
     "@tiptap/extension-image": "^2.27.2",

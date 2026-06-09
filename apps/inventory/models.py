@@ -473,12 +473,20 @@ class ManifestRow(models.Model):
 
 
 class PreprocessingRow(models.Model):
-    """Staging row: layered standard / ai / final values; promoted to ManifestRow on finalize."""
+    """Staging row: layered standard / ai / final values over a stable ManifestRow spine."""
 
     purchase_order = models.ForeignKey(
         PurchaseOrder,
         on_delete=models.CASCADE,
         related_name='preprocessing_rows',
+    )
+    manifest_row = models.ForeignKey(
+        ManifestRow,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='preprocessing_rows',
+        help_text='Stable standardized manifest line this preprocessing overlay belongs to.',
     )
     row_number = models.PositiveIntegerField()
     raw_row = models.JSONField(default=dict, blank=True)
@@ -557,9 +565,15 @@ class PreprocessingRow(models.Model):
                 fields=['purchase_order', 'row_number'],
                 name='inventory_preproc_row_unique_po_rn',
             ),
+            models.UniqueConstraint(
+                fields=['manifest_row'],
+                condition=models.Q(manifest_row__isnull=False),
+                name='inventory_preproc_unique_manifest_row',
+            ),
         ]
         indexes = [
             models.Index(fields=['purchase_order', 'row_number']),
+            models.Index(fields=['manifest_row'], name='inv_pr_manifest_row_idx'),
             GinIndex(fields=['standard_identifiers'], name='inv_pr_ident_gin'),
             GinIndex(fields=['standard_taxonomy'], name='inv_pr_taxonomy_gin'),
         ]
@@ -589,6 +603,20 @@ class ProcessingRow(models.Model):
         help_text='Source staging row ID at finalize-time (audit only).',
     )
     row_number = models.PositiveIntegerField()
+
+    ROW_KIND_MANIFEST = 'manifest'
+    ROW_KIND_ADDED = 'added'
+    ROW_KIND_CHOICES = [
+        (ROW_KIND_MANIFEST, 'Manifest line'),
+        (ROW_KIND_ADDED, 'Added item (no manifest line)'),
+    ]
+    row_kind = models.CharField(
+        max_length=16,
+        choices=ROW_KIND_CHOICES,
+        default=ROW_KIND_MANIFEST,
+        db_index=True,
+        help_text='manifest = normal manifest-backed row; added = PO item with no manifest line.',
+    )
 
     manifest_row = models.ForeignKey(
         'ManifestRow',
@@ -681,6 +709,7 @@ class ProcessingRow(models.Model):
             models.Index(fields=['manifest_row']),
             models.Index(fields=['matched_product']),
             models.Index(fields=['purchase_order', 'queue_status']),
+            models.Index(fields=['purchase_order', 'row_kind']),
         ]
 
     def save(self, *args, **kwargs):
@@ -696,6 +725,49 @@ class ProcessingRow(models.Model):
 
     def __str__(self):
         return f'ProcessingBm {self.row_number} PO={self.purchase_order_id}'
+
+
+class ProcessingCheckInBatch(models.Model):
+    """Temporary staging group for items created together during Processing check-in."""
+
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='processing_checkin_batches',
+    )
+    processing_row = models.ForeignKey(
+        ProcessingRow,
+        on_delete=models.CASCADE,
+        related_name='checkin_batches',
+    )
+    product = models.ForeignKey(
+        'Product',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    quantity = models.PositiveIntegerField(default=1)
+    item_ids = models.JSONField(default=list, blank=True)
+    defaults_snapshot = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['purchase_order', 'processing_row']),
+            models.Index(fields=['processing_row', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f'ProcessingCheckInBatch {self.pk} row={self.processing_row_id}'
 
 
 class Product(models.Model):
@@ -980,12 +1052,30 @@ class Item(models.Model):
     sold_at = models.DateTimeField(null=True, blank=True)
     sold_for = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True, default='')
+    DISPUTE_TYPE_BROKEN = 'broken'
+    DISPUTE_TYPE_UNDELIVERED = 'undelivered'
+    DISPUTE_TYPE_MISSING_PIECES = 'missing_pieces'
+    DISPUTE_TYPE_COSMETIC_DAMAGE = 'cosmetic_damage'
+    DISPUTE_TYPE_MISSING_CRITICAL_PIECE = 'missing_critical_piece'
+    DISPUTE_TYPE_BAD_CONDITION = 'bad_condition'
+    DISPUTE_TYPE_OTHER = 'other'
+    DISPUTE_TYPE_CHOICES = [
+        ('', 'None'),
+        (DISPUTE_TYPE_BROKEN, 'Broken'),
+        (DISPUTE_TYPE_UNDELIVERED, 'Undelivered'),
+        (DISPUTE_TYPE_MISSING_PIECES, 'Missing pieces'),
+        (DISPUTE_TYPE_COSMETIC_DAMAGE, 'Cosmetic damage'),
+        (DISPUTE_TYPE_MISSING_CRITICAL_PIECE, 'Missing critical piece'),
+        (DISPUTE_TYPE_BAD_CONDITION, 'Bad condition'),
+        (DISPUTE_TYPE_OTHER, 'Other'),
+    ]
+
     dispute_type = models.CharField(
-        max_length=20,
+        max_length=32,
         blank=True,
         default='',
-        choices=[('broken', 'Broken'), ('undelivered', 'Undelivered')],
-        help_text='Item Processor dispute classification when status is scrapped/lost.',
+        choices=DISPUTE_TYPE_CHOICES,
+        help_text='Processor dispute reason; may apply while item remains on shelf.',
     )
     dispute_pct_loss = models.PositiveSmallIntegerField(null=True, blank=True)
     dispute_description = models.TextField(blank=True, default='')

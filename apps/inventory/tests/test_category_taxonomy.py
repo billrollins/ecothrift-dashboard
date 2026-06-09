@@ -8,6 +8,7 @@ from apps.inventory.views import _suggest_item_parse_suggestions_from_text
 
 _SUGGEST_ALLOWED = {
     'title', 'brand', 'category', 'condition', 'specifications', 'notes', 'price',
+    'model', 'retail_value', 'search_tags', 'google_query',
 }
 
 
@@ -35,3 +36,20 @@ class TestCategoryTaxonomy(SimpleTestCase):
         self.assertIsNotNone(parsed)
         self.assertEqual(out['category'], 'Electronics')
         self.assertEqual(out['title'], 'Cam')
+
+    def test_suggest_item_parse_retail_tags_and_google_query(self):
+        raw = (
+            '{"suggestions": {"title": "Old Spice Body Wash", "brand": "Old Spice", '
+            '"model": "Captain 24 oz", "retail_value": "8.99", '
+            '"search_tags": ["24 fl oz", "body wash"], "google_query": "Old Spice Captain body wash 24 fl oz"}}'
+        )
+        out, parsed = _suggest_item_parse_suggestions_from_text(
+            raw,
+            ['title', 'brand', 'model', 'retail_value', 'search_tags', 'google_query'],
+            _SUGGEST_ALLOWED,
+        )
+        self.assertIsNotNone(parsed)
+        self.assertEqual(out['retail_value'], '8.99')
+        self.assertEqual(out['model'], 'Captain 24 oz')
+        self.assertEqual(out['search_tags'], ['24 fl oz', 'body wash'])
+        self.assertEqual(out['google_query'], 'Old Spice Captain body wash 24 fl oz')

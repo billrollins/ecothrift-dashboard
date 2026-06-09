@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.27.2] — 2026-06-01 (Blog polish) -->
-<!-- Last reviewed: 2026-06-01 (pre-deploy — blog copy + draft slug preview) -->
+<!-- Last reviewed: 2026-06-09 (intake processing — quick check-in + detailed modal) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,33 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+### Added
+
+- **Inventory / unified item creation** — `ProcessingRow.row_kind` (`manifest` | `added`) links no-manifest items via `item_ids`; `POST …/processing-add-item/` creates Product+Item+added queue row; check-in supports `product_mode` keep/edit/existing/new and quantity overage; added rows appear in the processing table with an **Added** badge (replaces separate unmanifested list).
+- **Inventory / Item Processor phases 1–6** — row detail shows expected/checked-in/remaining/overage, checked-in unit table with open-item links, Google search assist, and row-defaults inline edit (`PATCH …/processing-row-patch/`); in-workspace **Add unmanifested item** (PO-scoped, no fake `ManifestRow`); search blob now includes Product number/UPC and checked-in Item SKUs with exact SKU scan open; workspace exposes order **rollups** and **unmanifested_items**; **Create Processing Data** hidden for manifest-linked new-flow orders (`intake_migration` flags).
+- **Inventory / intake redesign** — began the north-star intake flow: standardize now creates stable **`ManifestRow`** audit/spine rows and links **`PreprocessingRow.manifest_row_id`**; finalize creates **`ProcessingRow`** bookmarks without deleting ManifestRows or real Items; Item Processor has a new row-level check-in endpoint that creates/matches **`Product`** and creates real **`Item`** rows only when physically checked in.
+- **Inventory / Add Item** — standalone Add Item now routes category/model/UPC through Product-first matching/creation while keeping `Item` as the physical unit; `retail_value` maps to `Item.unit_retail`.
+- **Inventory / Add Item AI** — AI Suggest now returns suggested **retail/MSRP**, optional **search tags**, and a **Google item** query/link; durable tags save conservatively to `Product.specifications.search_tags`, and row-level check-in can reuse the same tag contract from `ProcessingRow.search_tags`.
+- **Inventory / ops** — added `classify_intake_redesign_orders` dry-run command to classify orders into migration safety cohorts before any cleanup.
+- **Inventory / Item Processor — detailed check-in** — `ProcessingCheckInDialog` rebuilt: header quantity stepper, product modes (new/prior/existing/keep/edit), user-triggered AI suggest/apply, compact title/brand/model, emphasized identifiers/tags/notes, hover full-value tooltips.
+- **Inventory / Item Processor — row defaults UX** — manifest toolbar pills for identifiers, tags, and notes with larger type; title/brand/model compact; hover tooltips on truncated values.
+
+### Changed
+
+- **Inventory / reports** — category and retail reporting paths now derive category from Product/ManifestRow and use `Item.unit_retail`, avoiding stale `Item.category` / `Item.retail_value` assumptions.
+- **Inventory / Item Processor** — Create Processing Data is now presented as a legacy compatibility build for bookmark-only orders; new linked ProcessingRows can check in directly from row detail.
+- **Inventory / Item Processor — quick check-in** — always posts `POST …/processing-row-check-in/`; reuses `product_id` from the most recent check-in batch on the row.
+
+### Fixed
+
+- **Inventory / Add Item** — fixed item detail white-screen after creating an item and fixed AI Suggest 500s caused by nonexistent `Item.category` queries.
+- **Inventory / Item Processor — quick check-in** — fixed "Item already dispositioned" when a prior checked-in item was auto-selected (workspace called `processing-print-and-check-in` on an already checked-in unit).
+- **Inventory / Item Processor — queue table** — fixed stray sort-icon dot before the **Brand** column header.
 
 ---
 
@@ -40,7 +67,7 @@ User-facing theme: **Blog Studio polish** — rename series in the Publish panel
 
 ## [2.27.0] — 2026-06-01
 
-User-facing theme: **Blog Studio** — a Super Admin-only writing room in the staff dashboard, plus a database-backed public blog so posts can be drafted, scheduled, and published without a code change. Begins initiative [`blog_studio.md`](.ai/initiatives/blog_studio.md).
+User-facing theme: **Blog Studio** — a Super Admin-only writing room in the staff dashboard, plus a database-backed public blog so posts can be drafted, scheduled, and published without a code change. Begins initiative [`blog_studio.md`](.ai/initiatives/_archived/_completed/blog_studio.md).
 
 ### Added
 

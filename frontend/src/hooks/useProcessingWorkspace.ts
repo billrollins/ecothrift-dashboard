@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ProcessingWorkspaceDTO,
   ProcessingWorkspacePatchDTO,
@@ -16,18 +16,19 @@ import {
   processingPatchItem,
   processingPrintAndCheckIn,
   processingPrintMultiple,
+  processingRowCheckIn,
+  processingRowPatch,
+  processingAddItem,
   runProcessingDataBuildChunk,
   type ProcessingPrintAndCheckInResponse,
   type ProcessingPrintMultipleResponse,
+  type ProcessingRowCheckInResponse,
   type BuildProcessingDataResponse,
   type ClearProcessingDataResponse,
   type PrintedItemPreview,
 } from '../api/inventory.api';
 
-/** Default page size for Item Processor workspace list GET. */
-export const PROCESSING_WORKSPACE_PAGE_SIZE = 25;
-
-/** Params mirrored to ``GET …/processing-workspace`` (server filters + pagination). */
+/** Params mirrored to ``GET …/processing-workspace`` (server filters; list is unpaginated in UI). */
 export interface ProcessingWorkspaceListParams {
   limit: number;
   offset: number;
@@ -37,6 +38,9 @@ export interface ProcessingWorkspaceListParams {
   search: string;
   hide_checked_in: boolean;
 }
+
+/** Request every filtered row in one response (server caps apply). */
+export const PROCESSING_WORKSPACE_ALL_ROWS_LIMIT = 10_000;
 
 /** List refreshed after mutations; avoid constant refetches on shallow navigation. */
 const PROCESSING_WORKSPACE_STALE_MS = 30_000;
@@ -79,6 +83,7 @@ export function useProcessingWorkspace(orderId: number | null, listParams: Proce
     },
     enabled: orderId != null && listParams != null,
     staleTime: PROCESSING_WORKSPACE_STALE_MS,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -139,6 +144,61 @@ export function useProcessingPrintAndCheckIn(orderId: number) {
       qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
+export function useProcessingRowCheckIn(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await processingRowCheckIn(orderId, payload);
+      return data;
+    },
+    onSuccess: (data: ProcessingRowCheckInResponse) => {
+      applyWorkspacePatch(qc, orderId, data.workspace_patch);
+      invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
+export function useProcessingAddItem(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await processingAddItem(orderId, payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      applyWorkspacePatch(qc, orderId, data.workspace_patch);
+      const rowId = data.row?.processing_row_id;
+      if (rowId != null) {
+        qc.setQueryData(['processing-row-detail', orderId, rowId], data.row);
+      }
+      invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
+export function useProcessingRowPatch(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await processingRowPatch(orderId, payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      applyWorkspacePatch(qc, orderId, data.workspace_patch);
+      const rowId = data.row?.processing_row_id;
+      if (rowId != null) {
+        qc.setQueryData(['processing-row-detail', orderId, rowId], data.row);
+      }
     },
   });
 }

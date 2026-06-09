@@ -24,6 +24,7 @@ import {
 } from '@mui/material';
 import { alpha, type Theme } from '@mui/material/styles';
 import AutoAwesome from '@mui/icons-material/AutoAwesome';
+import OpenInNew from '@mui/icons-material/OpenInNew';
 import SwapHoriz from '@mui/icons-material/SwapHoriz';
 import { useSnackbar } from 'notistack';
 import { createConsignmentItem } from '../../api/consignment.api';
@@ -79,6 +80,8 @@ export const ITEM_DRAWER_FORM_ID = 'item-form-drawer';
 
 export type ItemFormProps = {
   mode: 'create' | 'edit';
+  /** Pre-select PO on create (e.g. in-workspace unmanifested add). */
+  defaultPurchaseOrderId?: number;
   /** Required when mode is edit; when null/undefined while loading, form is empty. */
   item?: Item | null;
   /** After create (always). Pass { keepOpen } so parent can leave drawer open. */
@@ -237,6 +240,7 @@ function parseSpecificationsInput(raw: string): Record<string, unknown> {
 function draftToContext(draft: {
   title: string;
   brand: string;
+  model: string;
   category: string;
   condition: ItemCondition;
   price: string;
@@ -246,12 +250,50 @@ function draftToContext(draft: {
   return {
     title: draft.title,
     brand: draft.brand,
+    model: draft.model,
     category: draft.category,
     condition: draft.condition,
     price: draft.price,
     specifications: draft.specifications,
     notes: draft.notes,
   };
+}
+
+function parseSearchTagsInput(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((t) => String(t).trim()).filter(Boolean).slice(0, 8);
+  }
+  if (typeof raw === 'string') {
+    return raw
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .slice(0, 8);
+  }
+  return [];
+}
+
+function buildGoogleQuery(parts: {
+  brand?: string;
+  title?: string;
+  model?: string;
+  searchTags?: string[];
+}): string {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (value: string) => {
+    const text = value.trim();
+    if (!text || text.toLowerCase() === 'generic') return;
+    const key = text.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(text);
+  };
+  add(parts.brand ?? '');
+  add(parts.title ?? '');
+  add(parts.model ?? '');
+  for (const tag of parts.searchTags ?? []) add(tag);
+  return out.join(' ').slice(0, 200);
 }
 
 type DraftState = {
@@ -287,6 +329,7 @@ function displayForField(field: AIFieldName, d: DraftState, aiState: Record<AIFi
 
 export default function ItemForm({
   mode,
+  defaultPurchaseOrderId,
   item,
   onItemCreated,
   onItemUpdated,
@@ -324,6 +367,8 @@ export default function ItemForm({
   const [draft, setDraft] = useState({
     title: '',
     brand: 'Generic',
+    model: '',
+    upc: '',
     category: '',
     condition: 'unknown' as ItemCondition,
     price: '',
@@ -331,12 +376,15 @@ export default function ItemForm({
     source: 'purchased' as ItemSource,
     specifications: '',
     notes: '',
-    purchaseOrderId: null as number | null,
+    purchaseOrderId: defaultPurchaseOrderId ?? (null as number | null),
     agreementId: null as number | null,
     location: '',
   });
 
   const [ai, dispatchAi] = useReducer(aiReducer, initialAIState());
+  const [searchTags, setSearchTags] = useState<string[]>([]);
+  const [googleQueryOverride, setGoogleQueryOverride] = useState<string | null>(null);
+  const [showSearchAssist, setShowSearchAssist] = useState(false);
   const [pendingRefusal, setPendingRefusal] = useState<{
     suggestions: Record<string, unknown>;
     reason: string;
@@ -347,10 +395,12 @@ export default function ItemForm({
     setDraft({
       title: item.title,
       brand: item.brand ?? '',
-      category: item.category,
+      model: item.product_model ?? '',
+      upc: item.product_upc ?? '',
+      category: item.category ?? '',
       condition: item.condition,
       price: item.price,
-      retail_value: item.retail_value ?? '',
+      retail_value: item.retail_value ?? item.unit_retail ?? '',
       source: item.source,
       specifications:
         item.specifications && Object.keys(item.specifications).length > 0
@@ -362,6 +412,9 @@ export default function ItemForm({
       location: item.location ?? '',
     });
     dispatchAi({ type: 'reset' });
+    setSearchTags([]);
+    setGoogleQueryOverride(null);
+    setShowSearchAssist(false);
   }, [mode, item?.id, item?.updated_at]);
 
   const [printOnSave, setPrintOnSave] = useState(() => readBoolLS(LS_PRINT_ON_SAVE, false));
@@ -443,6 +496,8 @@ export default function ItemForm({
     setDraft({
       title: '',
       brand: 'Generic',
+      model: '',
+      upc: '',
       category: '',
       condition: 'unknown',
       price: '',
@@ -458,9 +513,28 @@ export default function ItemForm({
     setAgreementSearchInput('');
     setFieldErrors({});
     dispatchAi({ type: 'reset' });
+    setSearchTags([]);
+    setGoogleQueryOverride(null);
+    setShowSearchAssist(false);
   }, []);
 
   const ctx = useMemo(() => draftToContext(draft), [draft]);
+
+  const applyExtraAiSuggestions = useCallback((suggestions: Record<string, unknown>) => {
+    if (suggestions.model !== undefined) {
+      setDraft((d) => ({ ...d, model: String(suggestions.model ?? '').trim() }));
+    }
+    if (suggestions.retail_value !== undefined) {
+      setDraft((d) => ({ ...d, retail_value: String(suggestions.retail_value ?? '').trim() }));
+    }
+    const tags = parseSearchTagsInput(suggestions.search_tags);
+    if (suggestions.search_tags !== undefined) {
+      setSearchTags(tags);
+    }
+    const gq = String(suggestions.google_query ?? '').trim();
+    setGoogleQueryOverride(gq || null);
+    setShowSearchAssist(true);
+  }, []);
 
   const runSuggest = async () => {
     const fields = AI_FIELDS.filter((f) => ai[f].enabled);
@@ -497,6 +571,7 @@ export default function ItemForm({
         });
       } else {
         dispatchAi({ type: 'receive', suggestions: result.suggestions });
+        applyExtraAiSuggestions(result.suggestions);
         enqueueSnackbar(
           `Suggestions ready (${result.examples_used} store examples).`,
           { variant: 'success' },
@@ -636,6 +711,11 @@ export default function ItemForm({
       specifications: resolvedSpecsObj,
       notes: resolvedNotes,
     };
+    const modelTrim = draft.model.trim();
+    const upcTrim = draft.upc.trim();
+    if (modelTrim) payload.model = modelTrim;
+    if (upcTrim) payload.upc = upcTrim;
+    if (searchTags.length > 0) payload.search_tags = searchTags;
     if (draft.source === 'purchased' && draft.purchaseOrderId) {
       payload.purchase_order = draft.purchaseOrderId;
     }
@@ -763,6 +843,8 @@ export default function ItemForm({
           condition: resolvedCondition,
           price: resolvedPrice || '0',
           retail_value: draft.retail_value.trim() || undefined,
+          model: draft.model.trim(),
+          upc: draft.upc.trim(),
           source: draft.source,
           specifications,
           notes: resolvedNotes,
@@ -834,8 +916,27 @@ export default function ItemForm({
   const condVal = displayForField('condition', dForDisplay, ai);
   const priceVal = displayForField('price', dForDisplay, ai);
 
+  const fallbackGoogleQuery = useMemo(
+    () =>
+      buildGoogleQuery({
+        brand: brandVal,
+        title: titleVal,
+        model: draft.model,
+        searchTags,
+      }),
+    [brandVal, titleVal, draft.model, searchTags],
+  );
+  const googleLinkQuery = (googleQueryOverride ?? fallbackGoogleQuery).trim();
+  const googleSearchUrl = googleLinkQuery
+    ? `https://www.google.com/search?q=${encodeURIComponent(googleLinkQuery)}`
+    : '';
+
+  const invalidateGoogleOverride = useCallback(() => {
+    setGoogleQueryOverride(null);
+  }, []);
+
   const categoryOptions = useMemo(() => {
-    const v = categoryVal.trim();
+    const v = (categoryVal ?? '').trim();
     if (v && !isTaxonomyV1CategoryName(v)) return [...TAXONOMY_V1_CATEGORY_NAMES, v];
     return [...TAXONOMY_V1_CATEGORY_NAMES];
   }, [categoryVal]);
@@ -1005,6 +1106,7 @@ export default function ItemForm({
                   delete n.title;
                   return n;
                 });
+                invalidateGoogleOverride();
                 onFieldChange('title', e.target.value);
               }}
               error={Boolean(fieldErrors.title)}
@@ -1023,11 +1125,70 @@ export default function ItemForm({
               label="Brand"
               required={mode === 'create'}
               value={brandVal}
-              onChange={(e) => onFieldChange('brand', e.target.value)}
+              onChange={(e) => {
+                invalidateGoogleOverride();
+                onFieldChange('brand', e.target.value);
+              }}
               sx={suggestionActive('brand') ? { '& .MuiOutlinedInput-root': { bgcolor: 'action.hover' } } : {}}
               slotProps={{ input: { endAdornment: renderAiAdornment('brand') } }}
             />
           </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Model"
+              value={draft.model}
+              onChange={(e) => {
+                invalidateGoogleOverride();
+                setDraftField('model', e.target.value);
+              }}
+              helperText="Product identity; helps reuse prior products"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="UPC"
+              value={draft.upc}
+              onChange={(e) => setDraftField('upc', e.target.value)}
+              helperText="Best match when available"
+            />
+          </Grid>
+          {showSearchAssist && googleLinkQuery && (
+            <Grid size={{ xs: 12 }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
+                {searchTags.length > 0 && (
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Search tags"
+                    value={searchTags.join(', ')}
+                    onChange={(e) => {
+                      invalidateGoogleOverride();
+                      setSearchTags(parseSearchTagsInput(e.target.value));
+                    }}
+                    helperText="Extra Google terms when title/brand/model are not enough"
+                    sx={{ flex: 1 }}
+                  />
+                )}
+                <Button
+                  component="a"
+                  href={googleSearchUrl || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="small"
+                  variant="outlined"
+                  disabled={!googleSearchUrl}
+                  startIcon={<OpenInNew fontSize="small" />}
+                  sx={{ alignSelf: { xs: 'stretch', sm: 'center' }, whiteSpace: 'nowrap' }}
+                >
+                  Google item
+                </Button>
+              </Stack>
+            </Grid>
+          )}
           <Grid size={{ xs: 12, md: 6 }}>
             <Autocomplete
               options={categoryOptions}
@@ -1273,6 +1434,7 @@ export default function ItemForm({
       onConfirm={() => {
         if (pendingRefusal) {
           dispatchAi({ type: 'receive', suggestions: pendingRefusal.suggestions });
+          applyExtraAiSuggestions(pendingRefusal.suggestions);
           enqueueSnackbar('Low-confidence suggestions applied.', { variant: 'info' });
           logAddItemForm('User forced low-confidence suggestions');
         }

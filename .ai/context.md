@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-01 (blog_studio v2.27.0 push prep — built + verified; seed on deploy) -->
+<!-- Last updated: 2026-06-09 (checkpoint — quick check-in + detailed check-in UX) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,8 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active initiative:** [`blog_studio`](initiatives/blog_studio.md) — Super Admin **Blog Studio** (`/blog-studio`, lazy TipTap, opens in a new window) + DB-backed public blog (`apps.blog` at `/api/blog/`). **Built + verified locally for v2.27.0** (22 blog tests, staff/public builds green), including the Phase 4/5 editor tools and Bold Modern typography pass. **Next:** deploy, then run `python manage.py seed_initial_blog_posts` **once on prod** (idempotent) to import the three founder posts.
+- **Active initiative:** [`intake_processing_improvements`](initiatives/intake_processing_improvements.md) — debug intake→processing errors, then Item Processor workspace UX (in-workspace add item, richer search, inline item/product edit).
+- **Blog Studio (shipped):** archived [`blog_studio`](initiatives/_archived/_completed/blog_studio.md) — Super Admin **Blog Studio** (`/blog-studio`, lazy TipTap, opens in a new window) + DB-backed public blog (`apps.blog` at `/api/blog/`). Shipped **v2.27.0**–**v2.27.2**. One-time prod ops (if not done): `python manage.py seed_initial_blog_posts` (idempotent).
 - **Parked — public site launch:** [`.ai/initiatives/_archived/_pending/public_website.md`](initiatives/_archived/_pending/public_website.md) — storefront **Phases 0–4 shipped** (**v2.26.0**, `frontend-public/` + `apps.webstore`). **Resume when:** deploy to Heroku + prod `seed_shop_categories`; wire **Helcim + email** after vendor conversations. Hostname routing: `ecothrift.us`/`www` → public SPA, `dash.*` → staff.
 - **Staff UI (shipped):** [`web_ui_cleanup`](initiatives/_archived/_completed/web_ui_cleanup.md) **v2.25.0**.
 - **Inbound intake (shipped):** archived [order_processing_pipeline_rebuild](initiatives/_archived/_completed/order_processing_pipeline_rebuild.md) (**v2.20.0**–**v2.24.2**); reference [`.ai/reference/order_processing_pipeline_rebuild/`](reference/order_processing_pipeline_rebuild/README.md); behavior in **`.ai/extended/inventory-pipeline.md`**.

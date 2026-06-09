@@ -8,6 +8,7 @@ import {
   processingWorkspaceSearchBlob,
   rowMatchesStatusSegment,
   rowsMatchingExactUpc,
+  rowsMatchingExactSku,
 } from './processingWorkspaceFilters';
 
 /** Validation matrix V-07, V-08, V-12 */
@@ -87,6 +88,22 @@ describe('processingWorkspaceFilters', () => {
     it('isSingleScanToken rejects spaced queries', () => {
       expect(isSingleScanToken('012 345')).toBe(false);
       expect(isSingleScanToken('012345')).toBe(true);
+    });
+  });
+
+  describe('rowsMatchingExactSku (list rows)', () => {
+    it('matches list sku without searchString blob', () => {
+      const hits = rowsMatchingExactSku([{ sku: 'ET-FOO-001' }, { sku: 'ET-BAR-002' }], 'ET-FOO-001');
+      expect(hits).toHaveLength(1);
+      expect(hits[0].sku).toBe('ET-FOO-001');
+    });
+
+    it('does not fall back to searchString tokens', () => {
+      const hits = rowsMatchingExactSku(
+        [{ sku: null, searchString: 'foo et-hidden-sku bar' }],
+        'et-hidden-sku',
+      );
+      expect(hits).toHaveLength(0);
     });
   });
 

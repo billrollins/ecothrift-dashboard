@@ -33,16 +33,16 @@ export function ProcessingWorkspaceFooter({
   return (
     <Box
       sx={{
-        mt: 3,
-        pt: 2,
+        mt: 0.75,
+        pt: 0.75,
         borderTop: 1,
         borderColor: 'divider',
         display: 'flex',
         alignItems: { xs: 'stretch', sm: 'center' },
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: 2,
-        rowGap: 2,
+        gap: 1,
+        rowGap: 1,
       }}
     >
       <Typography
@@ -54,6 +54,7 @@ export function ProcessingWorkspaceFooter({
           minWidth: 0,
           alignSelf: 'center',
           maxWidth: { xs: '100%', lg: '60%' },
+          fontSize: '0.8rem',
         }}
       >
         {pendingUnits > 0 ?
@@ -95,8 +96,8 @@ export function ProcessingWorkspaceFooter({
                 onClick={onResetProcessingClick}
                 sx={(theme) => ({
                   px: 1.75,
-                  py: 0.85,
-                  minHeight: 36,
+                  py: 0.45,
+                  minHeight: 30,
                   fontWeight: 900,
                   fontSize: theme.typography.pxToRem(11),
                   lineHeight: 1.25,
@@ -135,7 +136,7 @@ export function ProcessingWorkspaceFooter({
               startIcon={<CheckCircleOutline />}
               disabled={closeLoading || blockClose}
               onClick={onCloseClick}
-              sx={{ minHeight: 36 }}
+              sx={{ minHeight: 30, py: 0.4 }}
             >
               Close PO
             </Button>

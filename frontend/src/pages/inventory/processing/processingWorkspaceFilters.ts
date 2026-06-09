@@ -116,6 +116,32 @@ export function isSingleScanToken(query: string): boolean {
   return !/\s/.test(t);
 }
 
+export interface RowSkuSource {
+  searchString?: string;
+  sku?: string | null;
+  items?: Array<{ sku: string }>;
+}
+
+/** Rows whose list SKU or hydrated items match an exact SKU token. */
+export function rowsMatchingExactSku<T extends RowSkuSource>(rows: T[], scanToken: string): T[] {
+  const q = scanToken.trim().toLowerCase();
+  if (!q) return [];
+  return rows.filter((r) => {
+    const listSku = (r.sku ?? '').trim().toLowerCase();
+    if (listSku.length > 0 && listSku === q) return true;
+    return (r.items ?? []).some((it) => it.sku.trim().toLowerCase() === q);
+  });
+}
+
+/** Try UPC exact match first, then SKU exact match. */
+export function rowsMatchingExactScan<T extends RowUpcSource & RowSkuSource>(rows: T[], scanToken: string): T[] {
+  const upcHits = rowsMatchingExactUpc(rows, scanToken);
+  if (upcHits.length === 1) return upcHits;
+  const skuHits = rowsMatchingExactSku(rows, scanToken);
+  if (skuHits.length === 1) return skuHits;
+  return upcHits.length ? upcHits : skuHits;
+}
+
 /**
  * Derive queue row status for segmented filters (design §5.2 row visualization).
  */

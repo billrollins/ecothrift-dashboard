@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-30 (public_website → _pending/) -->
+<!-- Last updated: 2026-06-06 (blog_studio → _completed/) -->
 # Archive index — initiatives
 
 **Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
@@ -70,6 +70,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | [staff_nav_redesign.md](./_completed/staff_nav_redesign.md) | Staff sidebar bake-off; **Slot C workspace nav** winner; lifecycle workspaces (Buying → Processing → Restoration → Floor → Cashier → Admin); TARS placeholder; switcher + losing variants removed. | 2026-05-30 |
 | [order_processing_pipeline_rebuild.md](./_completed/order_processing_pipeline_rebuild.md) | Inbound fulfillment rebuild: Orders → Preprocessing → Receiving → Processing + disputes/repair; migrations **0045–0051**; shipped **v2.20.0**–**v2.24.2**. Polish (Final Review UI, route placeholders) deferred to future initiatives. | 2026-05-30 |
 | [web_ui_cleanup.md](./_completed/web_ui_cleanup.md) | Staff page/route audit: owner section pass → sidebar nav hides (HR subset, staff Consignment) + route/page removals (legacy hub, products, templates, categories, processing-legacy, public `/pricing`); shipped **v2.25.0**. Customer-facing follow-on: **[public_website](./_pending/public_website.md)** (parked pending). | 2026-05-30 |
+| [blog_studio.md](./_completed/blog_studio.md) | Super Admin **Blog Studio** (`/blog-studio`, lazy TipTap) + DB-backed public blog (`apps.blog`); editor tools, Bold Modern typography, series rename, landing copy + draft slug preview; shipped **v2.27.0**–**v2.27.2**. One-time prod: `seed_initial_blog_posts` (see `CHANGELOG` `[2.27.0]` Deploy). | 2026-06-06 |
 
 ---
 

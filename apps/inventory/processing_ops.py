@@ -17,6 +17,7 @@ from apps.inventory.models import (
     Item,
     ItemHistory,
     ManifestRow,
+    ProcessingCheckInBatch,
     ProcessingRow,
     Product,
     ProductMergeAudit,
@@ -24,10 +25,15 @@ from apps.inventory.models import (
 )
 from apps.inventory.serializers import ItemSerializer
 from apps.inventory.services.disputes import record_processing_dispute_for_items
+from apps.inventory.services.manual_item import (
+    find_or_create_product_for_manual_item,
+    normalize_search_tags,
+)
 from apps.inventory.services.processing_workspace import (
     build_workspace_patch,
     condition_ui_to_db,
     dispatch_to_location,
+    location_to_dispatch,
     printed_items_preview,
     processing_row_ids_for_manifest_rows,
     push_shelf_price_to_bookmark,
@@ -164,20 +170,183 @@ def _resolve_condition_db(cond_raw) -> str:
     return 'unknown'
 
 
-def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
-    """Check in one item; optional sibling updates. Raises ValueError on bad input."""
-    if item.status not in ('intake', 'processing'):
-        raise ValueError('Item already dispositioned')
-    if not item.purchase_order_id:
-        raise ValueError('Item has no purchase order')
+def _processing_row_upc(row: ProcessingRow) -> str:
+    identifiers = row.identifiers if isinstance(row.identifiers, dict) else {}
+    return str(identifiers.get('upc') or identifiers.get('gtin') or '').strip()
+
+
+def _latest_check_in_product_for_row(row: ProcessingRow) -> Product | None:
+    """Most recent Product used when checking in this processing row."""
+
+    batch = (
+        ProcessingCheckInBatch.objects.filter(processing_row=row)
+        .select_related('product')
+        .order_by('-created_at', '-id')
+        .first()
+    )
+    if batch is None or batch.product_id is None:
+        return None
+    return batch.product
+
+
+def _normalize_identifier_key(raw: str) -> str:
+    s = str(raw or '').strip().lower()
+    s = re.sub(r'[\s\-]+', '_', s)
+    s = re.sub(r'[^a-z0-9_]+', '', s)
+    s = re.sub(r'_+', '_', s).strip('_')
+    return s[:64]
+
+
+def _normalize_identifiers_dict(raw: Any) -> dict[str, str]:
+    """Normalize Processing identifiers payload to trimmed string values keyed by snake_case."""
+
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, val in raw.items():
+        norm_key = _normalize_identifier_key(str(key))
+        if not norm_key:
+            continue
+        norm_val = str(val or '').strip()
+        if not norm_val:
+            continue
+        out[norm_key] = norm_val[:256]
+    return out
+
+
+def _sync_manifest_row_from_processing_defaults(row: ProcessingRow, patched: set[str]) -> None:
+    """Mirror ProcessingRow manifest-default edits onto linked ManifestRow for detail display."""
+
+    if not row.manifest_row_id or not patched:
+        return
+    mr = ManifestRow.objects.select_for_update().filter(pk=row.manifest_row_id).first()
+    if mr is None:
+        return
+
+    field_map = {
+        'title': 'title',
+        'brand': 'brand',
+        'model': 'model',
+        'category': 'category',
+        'description': 'description',
+        'notes': 'notes',
+        'identifiers': 'identifiers',
+        'search_tags': 'search_tags',
+        'unit_retail': 'unit_retail',
+        'condition': 'condition',
+    }
+    update_fields: list[str] = []
+    sync_keys = set(patched)
+    if 'retail' in sync_keys:
+        sync_keys.add('unit_retail')
+    for patch_key, mr_attr in field_map.items():
+        if patch_key not in sync_keys:
+            continue
+        setattr(mr, mr_attr, getattr(row, mr_attr))
+        update_fields.append(mr_attr)
+    if update_fields:
+        mr.save(update_fields=update_fields)
+
+
+def _next_processing_row_number(order: PurchaseOrder) -> int:
+    from django.db.models import Max
+
+    current = (
+        ProcessingRow.objects.filter(purchase_order=order).aggregate(m=Max('row_number')).get('m')
+    )
+    return int(current or 0) + 1
+
+
+def _resolve_product_for_processing(
+    data: dict,
+    *,
+    matched_product: Product | None,
+    fallback_title: str,
+    fallback_brand: str = '',
+    fallback_category: str = '',
+    fallback_model: str = '',
+    fallback_upc: str = '',
+    fallback_specs: dict | None = None,
+    fallback_search_tags: list | None = None,
+    default_price: Decimal | None = None,
+) -> Product:
+    """Resolve Product for check-in or add-item based on ``product_mode``."""
+
+    product_mode = str(data.get('product_mode') or 'edit').strip().lower()
+    title = str(data.get('title') or fallback_title or '').strip()
+    brand = str(data.get('brand') or fallback_brand or '').strip()
+    model = str(data.get('model') or fallback_model or '').strip()
+    category = str(data.get('category') or fallback_category or '').strip()
+    upc = str(data.get('upc') or fallback_upc or '').strip()
+    specs = data.get('specifications')
+    specs = specs if isinstance(specs, dict) else (fallback_specs or {})
+    search_tags = normalize_search_tags(data.get('search_tags') or fallback_search_tags)
+    price = parse_decimal(data.get('price') or data.get('shelf_price')) or default_price
+
+    if product_mode == 'keep':
+        if matched_product is not None:
+            return matched_product
+        return find_or_create_product_for_manual_item(
+            title=title or fallback_title,
+            brand=brand,
+            category=category,
+            model=model,
+            upc=upc,
+            specifications=specs,
+            search_tags=search_tags,
+            default_price=price,
+            existing_product=None,
+        )
+
+    if product_mode == 'existing':
+        raw_pid = data.get('product_id') or data.get('productId')
+        if raw_pid in (None, ''):
+            raise ValueError('product_id is required when product_mode is existing')
+        try:
+            pid = int(raw_pid)
+        except (TypeError, ValueError) as e:
+            raise ValueError('product_id must be an integer') from e
+        product = Product.objects.filter(pk=pid).first()
+        if product is None:
+            raise ValueError('Product not found')
+        return product
+
+    existing = None if product_mode == 'new' else matched_product
+    return find_or_create_product_for_manual_item(
+        title=title or fallback_title,
+        brand=brand,
+        category=category,
+        model=model,
+        upc=upc,
+        specifications=specs,
+        search_tags=search_tags,
+        default_price=price,
+        existing_product=existing,
+    )
+
+
+def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, data: dict) -> dict:
+    """Create real Product/Item rows from a ProcessingRow at physical check-in time."""
+
+    try:
+        quantity = int(data.get('quantity') or 1)
+    except (TypeError, ValueError):
+        quantity = 1
+    quantity = max(1, min(quantity, 500))
 
     cond_db = _resolve_condition_db(data.get('condition'))
     retail = parse_decimal(data.get('retail') or data.get('unit_retail'))
     price = parse_decimal(data.get('price'))
     dispatch = data.get('dispatch') or 'on_shelf'
     notes = str(data.get('notes') or '')
-    apply_condition_all = bool(data.get('apply_condition_all') or data.get('applyConditionAll'))
-    apply_retail_all = bool(data.get('apply_retail_all') or data.get('applyRetailAll'))
+    title = str(data.get('title') or '').strip()
+    brand = str(data.get('brand') or '').strip()
+    model = str(data.get('model') or '').strip()
+    category = str(data.get('category') or '').strip()
+    upc = str(data.get('upc') or '').strip()
+    specs = data.get('specifications')
+    specs = specs if isinstance(specs, dict) else {}
+    payload_search_tags = normalize_search_tags(data.get('search_tags'))
 
     if cond_db == 'salvage':
         location = 'salvage'
@@ -189,45 +358,148 @@ def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
     now = timezone.now()
 
     with transaction.atomic():
-        siblings_qs = Item.objects.none()
-        if item.product_id:
-            siblings_qs = (
-                Item.objects.select_for_update()
-                .filter(
-                    purchase_order_id=item.purchase_order_id,
-                    product_id=item.product_id,
-                    status__in=['intake', 'processing'],
-                )
-                .exclude(pk=item.pk)
-            )
+        row = (
+            ProcessingRow.objects
+            .select_for_update()
+            .get(pk=processing_row_id, purchase_order=order)
+        )
+        row = (
+            ProcessingRow.objects
+            .select_related('manifest_row', 'manifest_row__matched_product', 'matched_product', 'purchase_order')
+            .get(pk=row.pk)
+        )
+        if row.manifest_row_id is None:
+            raise ProcessingDataRequired('Finalize preprocessing with a linked manifest row before check-in.')
 
+        search_tags = payload_search_tags or normalize_search_tags(getattr(row, 'search_tags', None))
+        matched = row.matched_product if row.matched_product_id else None
+        latest_batch_product = _latest_check_in_product_for_row(row)
+        if latest_batch_product is not None:
+            matched = latest_batch_product
+        elif matched is None and row.manifest_row and row.manifest_row.matched_product_id:
+            matched = row.manifest_row.matched_product
+
+        product_mode = str(data.get('product_mode') or '').strip().lower()
+        if product_mode in ('', 'keep') and latest_batch_product is not None:
+            data = {
+                **data,
+                'product_mode': 'existing',
+                'product_id': latest_batch_product.id,
+            }
+        elif product_mode == 'keep' and matched is not None:
+            data = {**data, 'product_mode': 'keep'}
+
+        product = _resolve_product_for_processing(
+            data,
+            matched_product=matched,
+            fallback_title=title or row.title or row.description or f'Row {row.row_number}',
+            fallback_brand=brand or row.brand or '',
+            fallback_category=category or row.category or '',
+            fallback_model=model or row.model or '',
+            fallback_upc=upc or _processing_row_upc(row),
+            fallback_specs=specs or row.specifications or {},
+            fallback_search_tags=search_tags,
+            default_price=price or row.shelf_price or row.final_price or row.proposed_price,
+        )
+        if row.matched_product_id != product.id:
+            row.matched_product = product
+            row.save(update_fields=['matched_product', 'updated_at'])
+        if row.manifest_row_id and row.manifest_row.matched_product_id != product.id:
+            ManifestRow.objects.filter(pk=row.manifest_row_id).update(matched_product=product)
+
+        item_price = price or row.shelf_price or row.final_price or row.proposed_price or Decimal('0.00')
+        item_retail = retail if retail is not None else row.unit_retail
+        items: list[Item] = []
+        for _ in range(quantity):
+            item = Item(
+                product=product,
+                purchase_order=order,
+                manifest_row=row.manifest_row,
+                title=product.title or row.title or row.description or f'Row {row.row_number}',
+                brand=product.brand or row.brand or '',
+                price=item_price,
+                unit_retail=item_retail,
+                cost=order.compute_item_cost(item_retail),
+                source='purchased',
+                status='on_shelf',
+                condition=cond_db,
+                location=location,
+                listed_at=now,
+                checked_in_at=now,
+                checked_in_by=user,
+                specifications=specs or row.specifications or {},
+                notes=notes,
+            )
+            item.save()
+            histories.append(
+                ItemHistory(
+                    item=item,
+                    event_type='status_change',
+                    old_value='',
+                    new_value='on_shelf',
+                    note='Created and checked in via Item Processor row check-in',
+                    created_by=user,
+                ),
+            )
+            items.append(item)
+
+        if histories:
+            ItemHistory.objects.bulk_create(histories)
+        touched_mrs.add(row.manifest_row_id)
+        if item_price is not None:
+            push_shelf_price_to_bookmark(order.id, row.manifest_row_id, item_price)
+        batch = ProcessingCheckInBatch.objects.create(
+            purchase_order=order,
+            processing_row=row,
+            product=product,
+            quantity=len(items),
+            item_ids=[item.id for item in items],
+            defaults_snapshot={
+                'condition': cond_db,
+                'dispatch': dispatch,
+                'location': location,
+                'price': str(item_price) if item_price is not None else None,
+                'retail': str(item_retail) if item_retail is not None else None,
+                'notes': notes,
+            },
+            created_by=user,
+        )
+
+    refresh_processing_rows_denorm(order, processing_row_ids=[row.pk])
+    return {
+        'items': ItemSerializer(items, many=True).data,
+        'created_count': len(items),
+        'check_in_batch_id': batch.id,
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[row.pk]),
+        'printed_items_preview': printed_items_preview([item.id for item in items]),
+    }
+
+
+def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
+    """Check in one item. Raises ValueError on bad input."""
+    if item.status not in ('intake', 'processing'):
+        raise ValueError('Item already dispositioned')
+    if not item.purchase_order_id:
+        raise ValueError('Item has no purchase order')
+
+    cond_db = _resolve_condition_db(data.get('condition'))
+    retail = parse_decimal(data.get('retail') or data.get('unit_retail'))
+    price = parse_decimal(data.get('price'))
+    dispatch = data.get('dispatch') or 'on_shelf'
+    notes = str(data.get('notes') or '')
+
+    if cond_db == 'salvage':
+        location = 'salvage'
+    else:
+        location = dispatch_to_location(dispatch)
+
+    touched_mrs: set[int] = set()
+    histories: list[ItemHistory] = []
+    now = timezone.now()
+
+    with transaction.atomic():
         if price is not None and item.manifest_row_id:
             push_shelf_price_to_bookmark(item.purchase_order_id, item.manifest_row_id, price)
-
-        if apply_condition_all or apply_retail_all:
-            for sib in siblings_qs:
-                ch_updates = {}
-                if apply_condition_all:
-                    ch_updates['condition'] = cond_db
-                if apply_retail_all and retail is not None:
-                    ch_updates['unit_retail'] = retail
-                if not ch_updates:
-                    continue
-                changed = apply_item_updates(sib, ch_updates)
-                sib.save()
-                for field, old_v, new_v in changed:
-                    histories.append(
-                        ItemHistory(
-                            item=sib,
-                            event_type=history_event_type_for_field(field),
-                            old_value='' if old_v is None else str(old_v),
-                            new_value='' if new_v is None else str(new_v),
-                            note='Sibling apply from processing check-in',
-                            created_by=user,
-                        ),
-                    )
-                if sib.manifest_row_id:
-                    touched_mrs.add(sib.manifest_row_id)
 
         updates = {'condition': cond_db, 'location': location, 'notes': notes}
         if price is not None:
@@ -707,6 +979,257 @@ def processing_bulk_disposition(user, order: PurchaseOrder, data: dict) -> dict:
     return {'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=pr_ids)}
 
 
+def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
+    """Create Item(s) with no manifest line and a first-class added ProcessingRow."""
+
+    try:
+        quantity = int(data.get('quantity') or 1)
+    except (TypeError, ValueError):
+        quantity = 1
+    quantity = max(1, min(quantity, 500))
+
+    cond_db = _resolve_condition_db(data.get('condition'))
+    retail = parse_decimal(data.get('retail') or data.get('unit_retail') or data.get('retail_value'))
+    price = parse_decimal(data.get('price'))
+    dispatch = data.get('dispatch') or data.get('location') or 'on_shelf'
+    notes = str(data.get('notes') or '')
+    title = str(data.get('title') or '').strip()
+    brand = str(data.get('brand') or '').strip()
+    model = str(data.get('model') or '').strip()
+    category = str(data.get('category') or '').strip()
+    upc = str(data.get('upc') or '').strip()
+    specs = data.get('specifications')
+    specs = specs if isinstance(specs, dict) else {}
+    search_tags = normalize_search_tags(data.get('search_tags'))
+
+    if cond_db == 'salvage':
+        location = 'salvage'
+    else:
+        location = dispatch_to_location(str(dispatch))
+
+    if not title:
+        raise ValueError('title is required')
+
+    histories: list[ItemHistory] = []
+    now = timezone.now()
+
+    with transaction.atomic():
+        product = _resolve_product_for_processing(
+            {**data, 'product_mode': data.get('product_mode') or 'new'},
+            matched_product=None,
+            fallback_title=title,
+            fallback_brand=brand,
+            fallback_category=category,
+            fallback_model=model,
+            fallback_upc=upc,
+            fallback_specs=specs,
+            fallback_search_tags=search_tags,
+            default_price=price,
+        )
+
+        item_price = price or product.default_price or Decimal('0.00')
+        item_retail = retail
+        items: list[Item] = []
+        for _ in range(quantity):
+            item = Item(
+                product=product,
+                purchase_order=order,
+                manifest_row=None,
+                title=product.title or title,
+                brand=product.brand or brand,
+                price=item_price,
+                unit_retail=item_retail,
+                cost=order.compute_item_cost(item_retail),
+                source='purchased',
+                status='on_shelf',
+                condition=cond_db,
+                location=location,
+                listed_at=now,
+                checked_in_at=now,
+                checked_in_by=user,
+                specifications=specs,
+                notes=notes,
+            )
+            item.save()
+            histories.append(
+                ItemHistory(
+                    item=item,
+                    event_type='status_change',
+                    old_value='',
+                    new_value='on_shelf',
+                    note='Added item (no manifest line) via Item Processor',
+                    created_by=user,
+                ),
+            )
+            items.append(item)
+
+        if histories:
+            ItemHistory.objects.bulk_create(histories)
+
+        identifiers: dict[str, str] = {}
+        if product.upc:
+            identifiers['upc'] = product.upc
+        elif upc:
+            identifiers['upc'] = upc
+
+        pr = ProcessingRow.objects.create(
+            purchase_order=order,
+            row_number=_next_processing_row_number(order),
+            row_kind=ProcessingRow.ROW_KIND_ADDED,
+            manifest_row=None,
+            matched_product=product,
+            quantity=quantity,
+            item_ids=[i.id for i in items],
+            title=product.title or title,
+            brand=product.brand or brand,
+            model=product.model or model,
+            category=product.category or category,
+            description=str(data.get('description') or product.description or ''),
+            unit_retail=item_retail,
+            shelf_price=item_price,
+            final_price=item_price,
+            identifiers=identifiers,
+            search_tags=search_tags,
+            notes=notes,
+            condition=cond_db,
+            queue_status='checked_in',
+            qty_dispositioned=len(items),
+            pending_item_count=0,
+            has_on_shelf_unit=True,
+            list_dispatch=location_to_dispatch(location),
+            list_sku=items[0].sku if items else '',
+        )
+
+    refresh_processing_rows_denorm(order, processing_row_ids=[pr.pk])
+    from apps.inventory.services.processing_workspace import build_processing_row_detail
+
+    detail = build_processing_row_detail(order, processing_row_id=pr.pk)
+    return {
+        'row': detail['row'],
+        'items': ItemSerializer(items, many=True).data,
+        'created_count': len(items),
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[pr.pk]),
+        'printed_items_preview': printed_items_preview([item.id for item in items]),
+    }
+
+
+def processing_row_patch(user, order: PurchaseOrder, processing_row_id: int, data: dict) -> dict:
+    """Edit ProcessingRow defaults before or between check-ins (does not create Items)."""
+
+    with transaction.atomic():
+        row = (
+            ProcessingRow.objects
+            .select_for_update()
+            .filter(pk=processing_row_id, purchase_order=order)
+            .first()
+        )
+        if row is None:
+            raise ProcessingRow.DoesNotExist
+
+        patched: set[str] = set()
+
+        if 'title' in data:
+            row.title = str(data.get('title') or '')[:300]
+            patched.add('title')
+        if 'brand' in data:
+            row.brand = str(data.get('brand') or '')[:200]
+            patched.add('brand')
+        if 'model' in data:
+            row.model = str(data.get('model') or '')[:200]
+            patched.add('model')
+        if 'category' in data:
+            row.category = str(data.get('category') or '')[:200]
+            patched.add('category')
+        if 'description' in data:
+            row.description = str(data.get('description') or '')
+            patched.add('description')
+        if 'notes' in data:
+            row.notes = str(data.get('notes') or '')
+            patched.add('notes')
+        if 'condition' in data:
+            row.condition = _resolve_condition_db(data.get('condition'))[:20]
+            patched.add('condition')
+        if 'search_tags' in data:
+            row.search_tags = normalize_search_tags(data.get('search_tags'))
+            patched.add('search_tags')
+        if 'unit_retail' in data or 'retail' in data:
+            row.unit_retail = parse_decimal(data.get('unit_retail') or data.get('retail'))
+            patched.add('unit_retail')
+            if 'retail' in data:
+                patched.add('retail')
+        if 'proposed_price' in data:
+            row.proposed_price = parse_decimal(data.get('proposed_price'))
+        if 'final_price' in data:
+            row.final_price = parse_decimal(data.get('final_price'))
+        if 'price' in data or 'shelf_price' in data:
+            shelf = parse_decimal(data.get('shelf_price') or data.get('price'))
+            if shelf is not None:
+                row.shelf_price = shelf
+        if 'identifiers' in data:
+            row.identifiers = _normalize_identifiers_dict(data.get('identifiers'))
+            patched.add('identifiers')
+        elif 'upc' in data:
+            ids = dict(row.identifiers) if isinstance(row.identifiers, dict) else {}
+            upc = str(data.get('upc') or '').strip()
+            if upc:
+                ids['upc'] = upc[:256]
+            elif 'upc' in ids:
+                ids.pop('upc', None)
+            row.identifiers = ids
+            patched.add('identifiers')
+
+        row.save()
+        _sync_manifest_row_from_processing_defaults(row, patched)
+
+    refresh_processing_rows_denorm(order, processing_row_ids=[processing_row_id])
+    from apps.inventory.services.processing_workspace import build_processing_row_detail
+
+    detail = build_processing_row_detail(order, processing_row_id=processing_row_id)
+    return {
+        'row': detail['row'],
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[processing_row_id]),
+    }
+
+
+_CHECKED_IN_DISPUTE_TYPES = frozenset({
+    Item.DISPUTE_TYPE_BROKEN,
+    Item.DISPUTE_TYPE_MISSING_PIECES,
+    Item.DISPUTE_TYPE_COSMETIC_DAMAGE,
+    Item.DISPUTE_TYPE_MISSING_CRITICAL_PIECE,
+    Item.DISPUTE_TYPE_BAD_CONDITION,
+    Item.DISPUTE_TYPE_OTHER,
+})
+
+
+def _apply_checked_in_dispute_patch(updates: dict, data: dict) -> None:
+    """Patch dispute fields on on-shelf items without changing status."""
+    if 'disputed' not in data and 'dispute_type' not in data and 'dispute_pct_loss' not in data:
+        return
+    if 'disputed' in data and not data.get('disputed'):
+        updates['dispute_type'] = ''
+        updates['dispute_pct_loss'] = None
+        updates['dispute_description'] = ''
+        return
+    disputed = bool(data.get('disputed', True))
+    if not disputed:
+        updates['dispute_type'] = ''
+        updates['dispute_pct_loss'] = None
+        updates['dispute_description'] = ''
+        return
+    dtype = str(data.get('dispute_type') or '').strip()
+    if dtype not in _CHECKED_IN_DISPUTE_TYPES:
+        raise ValueError('dispute_type required when disputed')
+    pct_raw = data.get('dispute_pct_loss')
+    if pct_raw is None or pct_raw == '':
+        raise ValueError('dispute_pct_loss required when disputed')
+    pct = int(pct_raw)
+    if pct < 0 or pct > 100:
+        raise ValueError('dispute_pct_loss must be between 0 and 100')
+    updates['dispute_type'] = dtype
+    updates['dispute_pct_loss'] = pct
+    updates['dispute_description'] = str(data.get('dispute_description') or '').strip()
+
+
 def processing_patch_item(user, item: Item, data: dict) -> dict:
     """Edit item after check-in (no auto-status change)."""
     if item.status not in ('on_shelf',):
@@ -731,6 +1254,7 @@ def processing_patch_item(user, item: Item, data: dict) -> dict:
             updates['location'] = dispatch_to_location(str(data.get('dispatch') or 'on_shelf'))
     if 'notes' in data:
         updates['notes'] = str(data.get('notes') or '')
+    _apply_checked_in_dispute_patch(updates, data)
 
     histories = []
     with transaction.atomic():

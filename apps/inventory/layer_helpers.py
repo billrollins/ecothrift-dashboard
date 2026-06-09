@@ -32,6 +32,29 @@ TRIPLE_LAYER_SPECS: dict[str, FieldKind] = {
 }
 
 
+def _manifest_row_standard_value(sr, field_base: str) -> Any:
+    mr = getattr(sr, 'manifest_row', None)
+    if mr is None:
+        return None
+    if field_base == 'description':
+        return getattr(mr, 'description', '')
+    if field_base in {'brand', 'model', 'condition', 'notes'}:
+        return getattr(mr, field_base, '')
+    if field_base in {'identifiers', 'taxonomy', 'specifications', 'tracking', 'search_tags'}:
+        return getattr(mr, field_base, {} if field_base != 'search_tags' else [])
+    return None
+
+
+def preprocessing_standard_value(sr, field_base: str) -> Any:
+    """Standard value from stable ManifestRow when linked, else legacy standard_* column."""
+
+    manifest_v = _manifest_row_standard_value(sr, field_base)
+    kind = TRIPLE_LAYER_SPECS[field_base]
+    if is_meaningful(manifest_v, kind):
+        return manifest_v
+    return getattr(sr, f'standard_{field_base}', None)
+
+
 def preprocessing_row_has_final(sr) -> bool:
     """True when any final_* field is populated (cleanup upload or finalize snapshot)."""
     fd = getattr(sr, 'final_description', None)
@@ -75,6 +98,16 @@ def coalesce_final_category_from_row(sr) -> str:
     ai_c = getattr(sr, 'ai_category', '') or ''
     if is_meaningful(ai_c, 'str'):
         return str(ai_c).strip()[:200]
+    mr = getattr(sr, 'manifest_row', None)
+    if mr is not None:
+        flat = getattr(mr, 'category', None)
+        if is_meaningful(flat, 'str'):
+            return str(flat).strip()[:200]
+        mtax = getattr(mr, 'taxonomy', None) or {}
+        if isinstance(mtax, dict):
+            cat = mtax.get('category')
+            if is_meaningful(cat, 'str'):
+                return str(cat).strip()[:200]
     tax = getattr(sr, 'standard_taxonomy', None) or {}
     if isinstance(tax, dict):
         cat = tax.get('category')
@@ -112,7 +145,7 @@ def effective_preprocessing_triple(sr, field_base: str) -> Any:
     elif final_v is not None and is_meaningful(final_v, kind):
         return final_v
     ai_v = getattr(sr, f'ai_{field_base}', None)
-    std_v = getattr(sr, f'standard_{field_base}', None)
+    std_v = preprocessing_standard_value(sr, field_base)
     if is_meaningful(ai_v, kind):
         return ai_v
     return std_v
@@ -125,6 +158,14 @@ def effective_preprocessing_title(sr) -> str:
     ai_t = getattr(sr, 'ai_title', '') or ''
     if is_meaningful(ai_t, 'str'):
         return ai_t[:300]
+    mr = getattr(sr, 'manifest_row', None)
+    if mr is not None:
+        mt = getattr(mr, 'title', '') or ''
+        if is_meaningful(mt, 'str'):
+            return mt[:300]
+        md = getattr(mr, 'description', '') or ''
+        if is_meaningful(md, 'str'):
+            return md[:300]
     std_d = getattr(sr, 'standard_description', '') or ''
     if is_meaningful(std_d, 'str'):
         return std_d[:300]
@@ -147,6 +188,16 @@ def effective_taxonomy_category_for_row(row) -> str:
             ac = getattr(row, 'ai_category', None)
             if is_meaningful(ac, 'str'):
                 return str(ac or '').strip()[:200]
+            mr = getattr(row, 'manifest_row', None)
+            if mr is not None:
+                flat = getattr(mr, 'category', None)
+                if is_meaningful(flat, 'str'):
+                    return str(flat or '').strip()[:200]
+                triple = getattr(mr, 'taxonomy', {}) or {}
+                if isinstance(triple, dict):
+                    cat = triple.get('category')
+                    if is_meaningful(cat, 'str'):
+                        return str(cat).strip()[:200]
             tax = getattr(row, 'standard_taxonomy', None) or {}
             if isinstance(tax, dict):
                 cat = tax.get('category')
@@ -159,6 +210,14 @@ def effective_taxonomy_category_for_row(row) -> str:
         ac = getattr(row, 'ai_category', None)
         if is_meaningful(ac, 'str'):
             return str(ac or '').strip()[:200]
+        mr = getattr(row, 'manifest_row', None)
+        if mr is not None:
+            flat = getattr(mr, 'category', None)
+            if is_meaningful(flat, 'str'):
+                return str(flat or '').strip()[:200]
+            triple = getattr(mr, 'taxonomy', {}) or {}
+            if isinstance(triple, dict):
+                return str(triple.get('category') or '')[:200]
         return ''
     flat = getattr(row, 'category', None)
     if is_meaningful(flat, 'str'):

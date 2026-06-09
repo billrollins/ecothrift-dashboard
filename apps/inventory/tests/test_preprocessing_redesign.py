@@ -1207,8 +1207,35 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 409)
 
     def test_finalize_preprocessing_promotes_staging_to_manifest_and_items(self):
+        mr1 = ManifestRow.objects.create(
+            purchase_order=self.order,
+            row_number=1,
+            quantity=2,
+            description='Widget A standard',
+            title='Widget A standard',
+            brand='BrandA',
+            category='Kitchen & dining',
+            condition='good',
+            unit_retail=Decimal('40.00'),
+            proposed_price=Decimal('15.00'),
+            pricing_stage='final',
+        )
+        mr2 = ManifestRow.objects.create(
+            purchase_order=self.order,
+            row_number=2,
+            quantity=1,
+            description='Gadget B standard',
+            title='Gadget B standard',
+            brand='BrandB',
+            category='Home décor & lighting',
+            condition='good',
+            unit_retail=Decimal('30.00'),
+            proposed_price=Decimal('12.00'),
+            pricing_stage='final',
+        )
         PreprocessingRow.objects.create(
             purchase_order=self.order,
+            manifest_row=mr1,
             row_number=1,
             quantity=2,
             standard_description='Widget A',
@@ -1228,6 +1255,7 @@ class PreprocessingRedesignTests(TestCase):
         )
         PreprocessingRow.objects.create(
             purchase_order=self.order,
+            manifest_row=mr2,
             row_number=2,
             quantity=1,
             standard_description='Gadget B',
@@ -1249,18 +1277,13 @@ class PreprocessingRedesignTests(TestCase):
         fin = self._finalize_preprocessing_fast()
         self.assertEqual(fin.status_code, 200, fin.data if hasattr(fin, 'data') else fin.content)
         self.assertEqual(ProcessingRow.objects.filter(purchase_order=self.order).count(), 2)
-        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 0)
-        self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 0)
-
-        build_resp = self._build_processing_data()
-        self.assertEqual(build_resp.status_code, 200, build_resp.data)
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 2)
-        self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 3)
-        self.assertEqual(Product.objects.count(), 0)
-        self.assertEqual(build_resp.data['products_created'], 0)
-        mrows = list(ManifestRow.objects.filter(purchase_order=self.order).order_by('row_number'))
-        self.assertEqual(mrows[0].category, 'Kitchen & dining')
-        self.assertEqual(mrows[1].category, 'Home décor & lighting')
+        self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 0)
+        bookmarks = list(ProcessingRow.objects.filter(purchase_order=self.order).order_by('row_number'))
+        self.assertEqual(bookmarks[0].manifest_row_id, mr1.id)
+        self.assertEqual(bookmarks[0].category, 'Kitchen & dining')
+        self.assertEqual(bookmarks[1].manifest_row_id, mr2.id)
+        self.assertEqual(bookmarks[1].category, 'Home décor & lighting')
         self.order.refresh_from_db()
         self.assertIsNotNone(self.order.finalized_at)
         self.assertEqual(self.order.preprocess_status, 'finalized')
@@ -1334,11 +1357,8 @@ class PreprocessingRedesignTests(TestCase):
 
         fin = self._finalize_preprocessing_fast()
         self.assertEqual(fin.status_code, 200, fin.data)
-        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 0)
-
-        build_resp = self._build_processing_data()
-        self.assertEqual(build_resp.status_code, 200)
-        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 1)
+        self.assertEqual(ProcessingRow.objects.filter(purchase_order=self.order).count(), 1)
+        self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 0)
 
     def test_finalize_preprocessing_preserves_staff_final_review_on_bookmarks_then_manifest(self):
         row = PreprocessingRow.objects.create(
@@ -1683,12 +1703,11 @@ class PreprocessingRedesignTests(TestCase):
         sig = header_signature(reader_headers)
 
         old_maps = default_column_mappings(reader_headers)
-        new_maps = []
-        for m in old_maps:
-            entry = dict(m)
-            if entry['target'] == 'description':
-                entry['transforms'] = [{'type': 'upper'}]
-            new_maps.append(entry)
+        new_maps = [
+            {'target': 'quantity', 'source': 'Qty'},
+            {'target': 'description', 'source': 'Item Desc', 'transforms': [{'type': 'upper'}]},
+            {'target': 'unit_retail', 'source': 'Unit Retail'},
+        ]
 
         tpl_old = CSVTemplate.objects.create(
             vendor=self.vendor,
@@ -1742,6 +1761,27 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(tpl_old.column_mappings, old_maps)
         created = CSVTemplate.objects.get(vendor=self.vendor, name='Derived From Original')
         self.assertEqual(created.header_signature, sig)
+        self.assertEqual(response.data['manifest_rows_upserted'], 1)
+        manifest_row = ManifestRow.objects.get(purchase_order=self.order, row_number=1)
+        self.assertEqual(manifest_row.description, 'WIDGET A')
+        staging_row = PreprocessingRow.objects.get(purchase_order=self.order, row_number=1)
+        self.assertEqual(staging_row.manifest_row_id, manifest_row.id)
+        self.assertEqual(staging_row.standard_description, 'WIDGET A')
+
+        download = self._download_cleanup_csv()
+        downloaded_rows = list(csv.DictReader(io.StringIO(download.content.decode('utf-8'))))
+        self.assertEqual(downloaded_rows[0]['row_id'], str(manifest_row.id))
+        self.assertEqual(downloaded_rows[0]['description'], 'WIDGET A')
+
+        cleanup_csv = (
+            'row_id,ai_title,ai_brand,ai_model,category,condition,proposed_price\n'
+            f'{manifest_row.id},Widget A Final,Acme,W1,Kitchen & dining,good,12.99\n'
+        )
+        cleanup_response = self._upload_cleanup_csv(cleanup_csv)
+        self.assertEqual(cleanup_response.status_code, 200, cleanup_response.data)
+        staging_row.refresh_from_db()
+        self.assertEqual(staging_row.ai_title, 'Widget A Final')
+        self.assertEqual(staging_row.ai_category, 'Kitchen & dining')
 
     def test_validate_mapping_target_tracking_custom_subkey(self):
         self.assertIsNone(validate_mapping_target('tracking.warehouse_zone'))

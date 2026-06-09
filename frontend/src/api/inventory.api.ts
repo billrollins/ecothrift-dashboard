@@ -1301,6 +1301,73 @@ export function processingPrintMultiple(
   );
 }
 
+export interface ProcessingRowCheckInPayload {
+  processing_row_id: number;
+  quantity: number;
+  condition?: string;
+  dispatch?: string;
+  retail?: string;
+  price?: string;
+  title?: string;
+  brand?: string;
+  model?: string;
+  category?: string;
+  upc?: string;
+  specifications?: Record<string, unknown>;
+  notes?: string;
+}
+
+export interface ProcessingRowCheckInResponse {
+  items: Item[];
+  created_count: number;
+  check_in_batch_id?: number;
+  workspace_patch: ProcessingWorkspacePatchDTO;
+  printed_items_preview: PrintedItemPreview[];
+}
+
+export function processingRowCheckIn(
+  orderId: number,
+  payload: ProcessingRowCheckInPayload | Record<string, unknown>,
+): Promise<{ data: ProcessingRowCheckInResponse }> {
+  return api.post<ProcessingRowCheckInResponse>(
+    `/inventory/orders/${orderId}/processing-row-check-in/`,
+    payload,
+  );
+}
+
+export interface ProcessingRowPatchResponse {
+  row: ProcessingWorkspaceDTO['rows'][number];
+  workspace_patch: ProcessingWorkspacePatchDTO;
+}
+
+export function processingRowPatch(
+  orderId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: ProcessingRowPatchResponse }> {
+  return api.patch<ProcessingRowPatchResponse>(
+    `/inventory/orders/${orderId}/processing-row-patch/`,
+    payload,
+  );
+}
+
+export interface ProcessingAddItemResponse {
+  row: ProcessingWorkspaceDTO['rows'][number];
+  items: Item[];
+  created_count: number;
+  workspace_patch: ProcessingWorkspacePatchDTO;
+  printed_items_preview?: PrintedItemPreview[];
+}
+
+export function processingAddItem(
+  orderId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: ProcessingAddItemResponse }> {
+  return api.post<ProcessingAddItemResponse>(
+    `/inventory/orders/${orderId}/processing-add-item/`,
+    payload,
+  );
+}
+
 export interface ProcessingDisputePayload {
   scope: 'items' | 'manifest_row' | 'manifest_rows' | 'processing_rows';
   ids?: number[];

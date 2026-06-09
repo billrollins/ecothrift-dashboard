@@ -389,7 +389,10 @@ export interface Item {
   product: number | null;
   product_title: string | null;
   product_number: string | null;
+  product_model?: string;
+  product_upc?: string;
   purchase_order: number | null;
+  purchase_order_number?: string | null;
   manifest_row: number | null;
   batch_group: number | null;
   batch_group_number: string | null;
@@ -397,9 +400,11 @@ export interface Item {
   processing_tier: ProcessingTier;
   title: string;
   brand: string;
-  category: string;
+  category?: string;
   price: string;
-  retail_value: string | null;
+  /** Staff API alias for ``unit_retail`` (MSRP). */
+  retail_value?: string | null;
+  unit_retail?: string | null;
   cost: string | null;
   source: ItemSource;
   status: ItemStatus;
@@ -432,7 +437,18 @@ export interface ProcessingWorkspaceProductDTO {
   taxonomy: string;
   category: string;
   upc: string;
+  times_ordered?: number;
+  total_units_received?: number;
 }
+
+export type ProcessingItemDisputeType =
+  | 'broken'
+  | 'missing_pieces'
+  | 'cosmetic_damage'
+  | 'missing_critical_piece'
+  | 'bad_condition'
+  | 'other'
+  | 'undelivered';
 
 export interface ProcessingWorkspaceItemDTO {
   id: number;
@@ -445,28 +461,49 @@ export interface ProcessingWorkspaceItemDTO {
   disposition: string;
   notes: string;
   status: ItemStatus;
+  location?: string;
   product: number | null;
+  product_number?: string | null;
+  product_title?: string | null;
+  product_brand?: string;
+  product_model?: string;
   manifest_row: number | null;
+  created_at?: string | null;
   checked_in_at: string | null;
-  dispute_type: string | null;
+  dispute_type: ProcessingItemDisputeType | null;
   dispute_pct_loss: number | null;
   dispute_description: string;
 }
 
+export interface ProcessingCheckInBatchDTO {
+  id: number;
+  quantity: number;
+  item_ids: number[];
+  items: ProcessingWorkspaceItemDTO[];
+  product: ProcessingWorkspaceProductDTO | null;
+  created_at: string | null;
+  created_by: number | null;
+  defaults: Record<string, unknown>;
+  dispute_count: number;
+}
+
 /** Subset returned from GET processing-workspace (no nested items/products). */
+export type ProcessingRowKind = 'manifest' | 'added';
+
 export interface ProcessingWorkspaceRowDTO {
   processing_row_id: number;
+  rowKind?: ProcessingRowKind;
   manifest_row_id: number | null;
   rowNum: number;
   productId: number | null;
   product: ProcessingWorkspaceProductDTO | null;
   title: string;
   brand: string;
-  model: string;
-  description: string;
-  specs: Record<string, unknown>;
-  tags: string;
-  taxonomy: string;
+  model?: string;
+  description?: string;
+  specs?: Record<string, unknown>;
+  tags?: string;
+  taxonomy?: string;
   category: string;
   qty: number;
   qtyDispositioned: number;
@@ -474,19 +511,50 @@ export interface ProcessingWorkspaceRowDTO {
   pendingItemCount?: number;
   hasOnShelfUnit?: boolean;
   unitRetail: string | null;
-  manifestNotes: string;
+  manifestNotes?: string;
   identifiers: Record<string, unknown>;
-  tracking: Record<string, unknown>;
+  tracking?: Record<string, unknown>;
   /** Empty on list payloads; hydrated from processing-row-detail. */
-  items: ProcessingWorkspaceItemDTO[];
+  items?: ProcessingWorkspaceItemDTO[];
+  /** Temporary processing-stage groups for items checked in together. */
+  checkInBatches?: ProcessingCheckInBatchDTO[];
   status: string;
   likelyDuplicateOf: number[];
   condition: string;
   price: string | null;
   dispatch: string;
   sku: string | null;
-  /** Lowercased denormalized substring search blob from backend; source of truth over client-side blobs. */
-  searchString: string;
+  /** Lowercased denormalized substring search blob; detail payloads only (list search is server-side). */
+  searchString?: string;
+  /** Expected minus checked-in (detail payloads). */
+  qtyRemaining?: number;
+  /** Checked-in minus expected when over manifest qty (detail payloads). */
+  qtyOverage?: number;
+}
+
+export interface ProcessingWorkspaceRollupsDTO {
+  expected_qty: number;
+  dispositioned_qty: number;
+  remaining_qty: number;
+  overage_qty: number;
+  expected_retail: string | null;
+  on_shelf_qty: number;
+  sold_qty: number;
+  scrapped_qty: number;
+  lost_qty: number;
+  pending_qty: number;
+  total_items: number;
+  unmanifested_qty: number;
+  sold_value: string | null;
+  on_shelf_value: string | null;
+}
+
+export interface ProcessingIntakeMigrationDTO {
+  has_linked_manifest_rows: boolean;
+  unlinked_row_count: number;
+  requires_legacy_build: boolean;
+  has_terminal_item_history: boolean;
+  incomplete_legacy_build?: boolean;
 }
 
 export interface ProcessingWorkspaceOrderDTO {
@@ -529,6 +597,8 @@ export interface ProcessingWorkspaceDTO {
   processingBookmarkOnly?: boolean;
   /** ISO timestamp when preprocessing was finalized on this PO, if any (empty workspace UX). */
   preprocessing_finalized_at?: string | null;
+  rollups?: ProcessingWorkspaceRollupsDTO;
+  intake_migration?: ProcessingIntakeMigrationDTO;
 }
 
 /** PATCH payload returned by processor mutations (`workspace_patch`). */

@@ -144,9 +144,15 @@ def _find_comparables(
         sold_for__isnull=False,
     ).exclude(sold_for=0)
 
-    # Narrow by category first
+    # Narrow by category first (Item has no category column — product / manifest row)
     if category_name:
-        qs = qs.filter(category__icontains=category_name.split(' ')[0])
+        first = (category_name.split() or [''])[0]
+        if first:
+            from django.db.models import Q
+
+            qs = qs.filter(
+                Q(manifest_row__category__icontains=first) | Q(product__category__icontains=first),
+            )
 
     # Further narrow by brand
     if brand and brand.strip():

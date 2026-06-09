@@ -9,6 +9,7 @@ from .models import (
     Receiving, ReceivingPallet, ReceivingAttachment,
     Dispute,
 )
+from .services.manual_item import find_or_create_product_for_manual_item
 from .layer_helpers import (
     effective_preprocessing_title,
     effective_preprocessing_triple,
@@ -742,9 +743,34 @@ class BatchGroupSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'batch_number', 'created_at', 'updated_at']
 
 
+def item_listing_category(obj: Item) -> str:
+    """Category for staff item APIs — product, then manifest flat/taxonomy."""
+
+    mr = getattr(obj, 'manifest_row', None)
+    if mr is not None:
+        flat = str(getattr(mr, 'category', None) or '').strip()
+        if flat:
+            return flat
+        c = str((mr.taxonomy or {}).get('category') or '').strip()
+        if c:
+            return c
+    if obj.product_id:
+        prod = getattr(obj, 'product', None)
+        if prod is not None:
+            return str(prod.category or '').strip()
+    return ''
+
+
 class ItemSerializer(serializers.ModelSerializer):
     product_title = serializers.CharField(source='product.title', read_only=True, default=None)
     product_number = serializers.CharField(source='product.product_number', read_only=True, default=None)
+    product_model = serializers.CharField(source='product.model', read_only=True, default='')
+    product_upc = serializers.CharField(source='product.upc', read_only=True, default='')
+    purchase_order_number = serializers.CharField(
+        source='purchase_order.order_number',
+        read_only=True,
+        default=None,
+    )
     batch_group_number = serializers.CharField(
         source='batch_group.batch_number',
         read_only=True,
@@ -755,14 +781,30 @@ class ItemSerializer(serializers.ModelSerializer):
         read_only=True,
         default=None,
     )
+    category = serializers.SerializerMethodField()
+    model = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    upc = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    search_tags = serializers.ListField(
+        child=serializers.CharField(max_length=40),
+        required=False,
+        allow_empty=True,
+        write_only=True,
+    )
+    retail_value = serializers.DecimalField(
+        source='unit_retail',
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = Item
         fields = [
-            'id', 'sku', 'product', 'product_title', 'purchase_order',
+            'id', 'sku', 'product', 'product_title', 'purchase_order', 'purchase_order_number',
             'manifest_row', 'batch_group', 'batch_group_number', 'batch_group_status',
-            'processing_tier', 'product_number',
-            'title', 'brand', 'price', 'unit_retail', 'cost',
+            'processing_tier', 'product_number', 'product_model', 'product_upc',
+            'title', 'brand', 'category', 'model', 'upc', 'search_tags', 'price', 'retail_value', 'unit_retail', 'cost',
             'source', 'status', 'condition', 'specifications',
             'location', 'listed_at', 'checked_in_at', 'checked_in_by',
             'sold_at', 'sold_for', 'notes',
@@ -783,6 +825,60 @@ class ItemSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
 
+    def get_category(self, obj):
+        return item_listing_category(obj)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        raw = self.initial_data if isinstance(self.initial_data, dict) else {}
+        for key in ('category', 'model', 'upc'):
+            if key in raw:
+                attrs[key] = str(raw.get(key) or '').strip()
+        return attrs
+
+    def create(self, validated_data):
+        category = (validated_data.pop('category', None) or '').strip()
+        model = (validated_data.pop('model', None) or '').strip()
+        upc = (validated_data.pop('upc', None) or '').strip()
+        search_tags = validated_data.pop('search_tags', None)
+        existing_product = validated_data.get('product')
+        product = find_or_create_product_for_manual_item(
+            title=validated_data.get('title') or '',
+            brand=validated_data.get('brand') or '',
+            category=category,
+            model=model,
+            upc=upc,
+            specifications=validated_data.get('specifications') or {},
+            search_tags=search_tags,
+            default_price=validated_data.get('price'),
+            existing_product=existing_product,
+        )
+        validated_data['product'] = product
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        category = validated_data.pop('category', None)
+        model = validated_data.pop('model', None)
+        upc = validated_data.pop('upc', None)
+        search_tags = validated_data.pop('search_tags', None)
+        item = super().update(instance, validated_data)
+        if category is not None or model is not None or upc is not None or search_tags is not None:
+            product = find_or_create_product_for_manual_item(
+                title=item.title,
+                brand=item.brand or '',
+                category=(category or item_listing_category(item) or '').strip(),
+                model=(model if model is not None else getattr(item.product, 'model', '') if item.product_id else ''),
+                upc=(upc if upc is not None else getattr(item.product, 'upc', '') if item.product_id else ''),
+                specifications=item.specifications or {},
+                search_tags=search_tags,
+                default_price=item.price,
+                existing_product=item.product if item.product_id else None,
+            )
+            if item.product_id != product.id:
+                item.product = product
+                item.save(update_fields=['product', 'search_text', 'updated_at'])
+        return item
+
 
 class ItemPublicSerializer(serializers.ModelSerializer):
     """Public-facing item info for customer scan — no cost, no internal fields."""
@@ -793,19 +889,7 @@ class ItemPublicSerializer(serializers.ModelSerializer):
     category = serializers.SerializerMethodField()
 
     def get_category(self, obj):
-        mr = getattr(obj, 'manifest_row', None)
-        if mr is not None:
-            flat = str(getattr(mr, 'category', None) or '').strip()
-            if flat:
-                return flat
-            c = str((mr.taxonomy or {}).get('category') or '').strip()
-            if c:
-                return c
-        if obj.product_id:
-            prod = getattr(obj, 'product', None)
-            if prod is not None:
-                return prod.category or ''
-        return ''
+        return item_listing_category(obj)
 
     def get_estimated_retail_value(self, obj):
         mr = getattr(obj, 'manifest_row', None)
