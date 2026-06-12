@@ -271,6 +271,9 @@ def bulk_clear_preprocess_ai_and_final_layers(qs):
         final_specifications=None,
         final_tracking=None,
         final_search_tags=None,
+        match_candidates=[],
+        final_matched_product=None,
+        match_source='',
     )
 
 

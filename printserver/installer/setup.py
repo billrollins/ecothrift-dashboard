@@ -109,21 +109,18 @@ def cleanup_legacy_prior(log: "callable[[str], None]") -> None:
 
     appdata = os.environ.get("APPDATA")
     if appdata:
-        v2_startup = (
-            Path(appdata)
-            / "Microsoft"
-            / "Windows"
-            / "Start Menu"
-            / "Programs"
-            / "Startup"
-            / "Eco-Thrift Print Server.vbs"
+        startup_dir = (
+            Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
         )
-        if v2_startup.is_file():
-            try:
-                v2_startup.unlink()
-                log(f"Removed legacy V2 Startup shortcut: {v2_startup}")
-            except OSError as exc:
-                log(f"Could not remove {v2_startup}: {exc}")
+        # V2 installs used both spellings in the wild; remove either dead pointer.
+        for vbs_name in ("Eco-Thrift Print Server.vbs", "EcoThrift Print Server.vbs"):
+            v2_startup = startup_dir / vbs_name
+            if v2_startup.is_file():
+                try:
+                    v2_startup.unlink()
+                    log(f"Removed legacy V2 Startup shortcut: {v2_startup}")
+                except OSError as exc:
+                    log(f"Could not remove {v2_startup}: {exc}")
 
     for legacy_root in (Path("C:/DashPrintServer"), Path("C:/PrintServer")):
         if not legacy_root.is_dir():

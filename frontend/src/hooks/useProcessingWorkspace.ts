@@ -12,17 +12,28 @@ import {
   getProcessingRowDetail,
   processingBulkDisposition,
   processingDispute,
-  processingMergeRows,
+  processingAssignSharedProduct,
+  processingBreakApartRow,
+  processingCollapseRows,
+  processingMakeSetRow,
+  processingRestartRow,
+  processingUncollapseRows,
   processingPatchItem,
   processingPrintAndCheckIn,
   processingPrintMultiple,
   processingRowCheckIn,
+  processingCheckInTogether,
+  processingRemapCheckInBatchProduct,
   processingRowPatch,
   processingAddItem,
   runProcessingDataBuildChunk,
   type ProcessingPrintAndCheckInResponse,
   type ProcessingPrintMultipleResponse,
   type ProcessingRowCheckInResponse,
+  type ProcessingCheckInTogetherResponse,
+  type ProcessingAssignSharedProductResponse,
+  type ProcessingTransformResponse,
+  type ProcessingRestartRowResponse,
   type BuildProcessingDataResponse,
   type ClearProcessingDataResponse,
   type PrintedItemPreview,
@@ -62,6 +73,9 @@ export function mergeProcessingWorkspacePatch(
   return {
     ...prev,
     progress: patch.progress ?? prev.progress,
+    rollups: patch.rollups ?? prev.rollups,
+    manifest_qty_dispositioned_total:
+      patch.manifest_qty_dispositioned_total ?? prev.manifest_qty_dispositioned_total,
     rows: [...rowsById.values()].sort((a, b) => a.rowNum - b.rowNum),
   };
 }
@@ -165,6 +179,152 @@ export function useProcessingRowCheckIn(orderId: number) {
   });
 }
 
+export function useProcessingCheckInTogether(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await processingCheckInTogether(orderId, payload);
+      return data;
+    },
+    onSuccess: (data: ProcessingCheckInTogetherResponse) => {
+      applyWorkspacePatch(qc, orderId, data.workspace_patch);
+      invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
+export function useProcessingAssignSharedProduct(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await processingAssignSharedProduct(orderId, payload);
+      return data;
+    },
+    onSuccess: (data: ProcessingAssignSharedProductResponse) => {
+      applyWorkspacePatch(qc, orderId, data.workspace_patch);
+      invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+    },
+  });
+}
+
+export function useProcessingCollapseRows(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await processingCollapseRows(orderId, payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      applyWorkspacePatch(qc, orderId, data.workspace_patch);
+      invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
+      qc.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
+    },
+  });
+}
+
+export function useProcessingUncollapseRows(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await processingUncollapseRows(orderId, payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      applyWorkspacePatch(qc, orderId, data.workspace_patch);
+      invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
+      qc.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
+    },
+  });
+}
+
+/** P9 transforms — Break apart / Make set create or rewrite rows, so refetch the list. */
+function applyTransformResult(
+  qc: ReturnType<typeof useQueryClient>,
+  orderId: number,
+  data: ProcessingTransformResponse,
+) {
+  applyWorkspacePatch(qc, orderId, data.workspace_patch);
+  const rowId = data.row?.processing_row_id;
+  if (rowId != null) {
+    qc.setQueryData(['processing-row-detail', orderId, rowId], data.row);
+  }
+  invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
+  qc.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
+  qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+}
+
+export function useProcessingBreakApartRow(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await processingBreakApartRow(orderId, payload);
+      return data;
+    },
+    onSuccess: (data) => applyTransformResult(qc, orderId, data),
+  });
+}
+
+export function useProcessingMakeSetRow(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const { data } = await processingMakeSetRow(orderId, payload);
+      return data;
+    },
+    onSuccess: (data) => applyTransformResult(qc, orderId, data),
+  });
+}
+
+export function useProcessingRestartRow(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { processing_row_id: number; confirm?: boolean }) => {
+      const { data } = await processingRestartRow(orderId, payload);
+      return data;
+    },
+    onSuccess: (data: ProcessingRestartRowResponse) => {
+      if (!data.restarted) return; // confirm-preview: no cache changes
+      if (data.workspace_patch) {
+        applyWorkspacePatch(qc, orderId, data.workspace_patch);
+        invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
+      }
+      for (const deletedId of data.deleted_processing_row_ids ?? []) {
+        qc.removeQueries({ queryKey: ['processing-row-detail', orderId, deletedId] });
+      }
+      // Sub rows were deleted — the merge-only patch can't remove them from the list.
+      qc.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
+export function useRemapCheckInBatchProduct(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ batchId, payload }: { batchId: number; payload: Record<string, unknown> }) => {
+      const { data } = await processingRemapCheckInBatchProduct(orderId, batchId, payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      applyWorkspacePatch(qc, orderId, data.workspace_patch);
+      const rowId = data.row?.processing_row_id;
+      if (rowId != null) {
+        qc.setQueryData(['processing-row-detail', orderId, rowId], data.row);
+      }
+      invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
+      qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
 export function useProcessingAddItem(orderId: number) {
   const qc = useQueryClient();
   return useMutation({
@@ -225,23 +385,6 @@ export function useProcessingDispute(orderId: number) {
   return useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
       const { data } = await processingDispute(orderId, payload);
-      return data.workspace_patch;
-    },
-    onSuccess: (patch) => {
-      applyWorkspacePatch(qc, orderId, patch);
-      invalidateTouchedProcessingRowDetails(qc, orderId, patch);
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
-      qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
-      qc.invalidateQueries({ queryKey: ['items'] });
-    },
-  });
-}
-
-export function useProcessingMergeRows(orderId: number) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: Record<string, unknown>) => {
-      const { data } = await processingMergeRows(orderId, payload);
       return data.workspace_patch;
     },
     onSuccess: (patch) => {

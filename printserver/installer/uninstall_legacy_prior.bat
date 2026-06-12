@@ -19,6 +19,11 @@ if exist "%VBS%" (
   echo Removing V2 Startup VBS...
   del /f /q "%VBS%"
 )
+set "VBS2=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\EcoThrift Print Server.vbs"
+if exist "%VBS2%" (
+  echo Removing V2 Startup VBS ^(no-hyphen variant^)...
+  del /f /q "%VBS2%"
+)
 
 call :TryRemoveV2 "C:\DashPrintServer"
 call :TryRemoveV2 "C:\PrintServer"

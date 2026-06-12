@@ -1,5 +1,6 @@
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import { Box, Paper, Typography } from '@mui/material';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { processingTokens } from './processingTokens';
 
 /** Row detail = eco green · Quick check-in = cardboard brown · Prior check-ins = light grey */
@@ -38,23 +39,33 @@ export function ProcessingRowSectionHeader({
   note,
   trailing,
   surface = 'rowDetail',
+  collapsed,
+  onToggleCollapse,
 }: {
   title: string;
   note?: ReactNode;
   trailing?: ReactNode;
   surface?: ProcessingRowSectionSurface;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   const theme = sectionTheme[surface];
 
   return (
     <Box
+      onClick={onToggleCollapse}
+      role={onToggleCollapse ? 'button' : undefined}
+      aria-expanded={onToggleCollapse ? !collapsed : undefined}
       sx={{
         flexShrink: 0,
         px: { xs: 1.25, md: 1.5 },
         py: 1,
-        borderBottom: 1,
+        borderBottom: collapsed ? 0 : 1,
         borderColor: theme.borderColor,
         bgcolor: theme.headerBg,
+        ...(onToggleCollapse ?
+          { cursor: 'pointer', userSelect: 'none', '&:hover': { filter: 'brightness(0.985)' } }
+        : {}),
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
@@ -90,9 +101,19 @@ export function ProcessingRowSectionHeader({
             </Typography>
           : null}
         </Box>
-        {trailing ?
-          <Box sx={{ flexShrink: 0, pt: 0.05 }}>{trailing}</Box>
-        : null}
+        <Box sx={{ flexShrink: 0, pt: 0.05, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {trailing}
+          {onToggleCollapse ?
+            <ExpandMore
+              sx={{
+                fontSize: 18,
+                color: theme.titleColor,
+                transition: 'transform 150ms',
+                transform: collapsed ? 'rotate(-90deg)' : 'none',
+              }}
+            />
+          : null}
+        </Box>
       </Box>
     </Box>
   );
@@ -107,6 +128,8 @@ export function ProcessingRowSection({
   bodySx,
   fill = false,
   surface = 'rowDetail',
+  collapsible = false,
+  defaultCollapsed = false,
 }: {
   title: string;
   note?: ReactNode;
@@ -116,8 +139,12 @@ export function ProcessingRowSection({
   bodySx?: object;
   fill?: boolean;
   surface?: ProcessingRowSectionSurface;
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
 }) {
   const theme = sectionTheme[surface];
+  const [collapsed, setCollapsed] = useState(collapsible && defaultCollapsed);
+  const isCollapsed = collapsible && collapsed;
 
   return (
     <Paper
@@ -138,26 +165,35 @@ export function ProcessingRowSection({
         ...sx,
       }}
     >
-      <ProcessingRowSectionHeader title={title} note={note} trailing={trailing} surface={surface} />
-      <Box
-        sx={{
-          bgcolor: theme.bodyBg,
-          px: { xs: 1.25, md: 1.5 },
-          py: { xs: 1.25, md: 1.5 },
-          ...(fill ?
-            {
-              flex: 1,
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            }
-          : {}),
-          ...bodySx,
-        }}
-      >
-        {children}
-      </Box>
+      <ProcessingRowSectionHeader
+        title={title}
+        note={isCollapsed ? undefined : note}
+        trailing={trailing}
+        surface={surface}
+        collapsed={isCollapsed}
+        onToggleCollapse={collapsible ? () => setCollapsed((c) => !c) : undefined}
+      />
+      {isCollapsed ? null : (
+        <Box
+          sx={{
+            bgcolor: theme.bodyBg,
+            px: { xs: 1.25, md: 1.5 },
+            py: { xs: 1.25, md: 1.5 },
+            ...(fill ?
+              {
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }
+            : {}),
+            ...bodySx,
+          }}
+        >
+          {children}
+        </Box>
+      )}
     </Paper>
   );
 }

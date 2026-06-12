@@ -3,7 +3,7 @@ import { keyframes } from '@emotion/react';
 import { Box, Typography } from '@mui/material';
 import { preprocessingFonts } from './preprocessingTokens';
 
-export const PREPROCESSING_STEP_LABELS = ['Standardize Manifest', 'AI Cleanup', 'Manual Review'] as const;
+export const PREPROCESSING_STEP_LABELS = ['Standardize Manifest', 'AI Cleanup', 'Final Decisions'] as const;
 
 export type StepState = 'selected' | 'done' | 'ready' | 'notReady';
 

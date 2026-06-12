@@ -7,31 +7,23 @@ import logging
 import re
 from typing import Any
 
-from django.conf import settings
 from django.utils import timezone as dj_tz
 
 from apps.buying.models import ManifestTemplate, Marketplace
-from apps.core.services.ai_usage_log import log_ai_usage, log_ai_usage_from_response
+from apps.core.services.ai_usage_log import log_ai_usage
+from apps.core.services.llm_router import (
+    LLMAPIError,
+    LLMConfigError,
+    llm_complete,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _import_anthropic():
-    import anthropic as _anthropic
-
-    return _anthropic
-
-
-def get_anthropic_client():
-    api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
-    if not api_key:
-        return None
-    anthropic = _import_anthropic()
-    return anthropic.Anthropic(api_key=api_key)
-
-
 def _default_model() -> str:
-    return (getattr(settings, 'AI_MODEL', None) or 'claude-sonnet-4-6').strip()
+    from apps.core.ai_config import ai_model
+
+    return ai_model('MANIFEST_TEMPLATE')
 
 
 COLUMN_MAP_KEYS_PICK = frozenset(
@@ -155,27 +147,28 @@ def propose_manifest_template_with_ai(
     auction_id: int | None,
 ) -> bool:
     """
-    Call Claude to fill column_map and category_fields; set is_reviewed=True.
-    Returns True on success.
+    Call the configured model (AI_MODEL_MANIFEST_TEMPLATE) to fill column_map and
+    category_fields; set is_reviewed=True. Returns True on success.
     """
-    client = get_anthropic_client()
-    if client is None:
-        return False
-
-    anthropic = _import_anthropic()
     model = _default_model()
     system = build_system_prompt()
     user = build_user_prompt(marketplace, columns, rows[:5])
 
     try:
-        response = client.messages.create(
-            model=model,
+        result = llm_complete(
+            model_id=model,
+            system=system,
+            user=user,
             max_tokens=4096,
-            system=[{'type': 'text', 'text': system, 'cache_control': {'type': 'ephemeral'}}],
-            messages=[{'role': 'user', 'content': user}],
+            log_source='ai_template_creation',
+            log_detail='propose_manifest_template_with_ai',
+            log_auction_id=auction_id,
+            log_marketplace=marketplace.slug,
         )
-    except anthropic.APIError as e:  # type: ignore[attr-defined]
-        logger.warning('Anthropic error in ai_manifest_template: %s', e)
+    except LLMConfigError:
+        return False
+    except LLMAPIError as e:
+        logger.warning('LLM error in ai_manifest_template: %s', e)
         log_ai_usage(
             'ai_template_creation',
             model,
@@ -189,19 +182,7 @@ def propose_manifest_template_with_ai(
         )
         return False
 
-    log_ai_usage_from_response(
-        'ai_template_creation',
-        response,
-        model=model,
-        auction_id=auction_id,
-        marketplace=marketplace.slug,
-        detail='propose_manifest_template_with_ai',
-    )
-
-    text = ''
-    for block in response.content:
-        if block.type == 'text':
-            text += block.text
+    text = result.text
 
     try:
         data = _parse_json_object(text)

@@ -14,6 +14,7 @@ from apps.inventory.models import (
     Item,
     ManifestRow,
     PreprocessingRow,
+    ProcessingCheckInBatch,
     ProcessingDataBuild,
     ProcessingRow,
     PurchaseOrder,
@@ -59,6 +60,20 @@ def _terminal_block_reason(order: PurchaseOrder) -> str | None:
     return None
 
 
+def _items_block_undo(order: PurchaseOrder) -> str | None:
+    """Block preprocessing undo when processing items already exist on the PO."""
+    if Item.objects.filter(purchase_order_id=order.pk).exists():
+        return 'Cannot undo while processing items exist on this order.'
+    return None
+
+
+def _remove_manifest_spine(order: PurchaseOrder) -> int:
+    """Unlink preprocessing overlays and delete standardized ManifestRow spine rows."""
+    PreprocessingRow.objects.filter(purchase_order_id=order.pk).update(manifest_row_id=None)
+    deleted, _ = ManifestRow.objects.filter(purchase_order_id=order.pk).delete()
+    return int(deleted)
+
+
 def compute_undo_preview(order: PurchaseOrder, to_stage: str) -> dict[str, Any]:
     if to_stage not in UNDO_STAGES:
         return _blocked(
@@ -77,7 +92,7 @@ def compute_undo_preview(order: PurchaseOrder, to_stage: str) -> dict[str, Any]:
         return _blocked(base, t)
 
     preprow_ct = PreprocessingRow.objects.filter(purchase_order_id=order.pk).count()
-    legacy_manifest = ManifestRow.objects.filter(purchase_order_id=order.pk).exists()
+    manifest_row_ct = ManifestRow.objects.filter(purchase_order_id=order.pk).count()
     bookmark_ct = ProcessingRow.objects.filter(purchase_order_id=order.pk).count()
     linked_bm = ProcessingRow.objects.filter(
         purchase_order_id=order.pk,
@@ -117,16 +132,14 @@ def compute_undo_preview(order: PurchaseOrder, to_stage: str) -> dict[str, Any]:
         return base
 
     if to_stage == 'standardize':
-        if legacy_manifest:
-            return _blocked(
-                base,
-                'This order has legacy ManifestRow lines. Use legacy tools or clear manifest rows before rewinding standardization.',
-            )
         if bookmark_ct:
             return _blocked(
                 base,
                 'Cannot undo standardize while processing bookmarks exist. Undo finalize (timeline) first.',
             )
+        item_block = _items_block_undo(order)
+        if item_block:
+            return _blocked(base, item_block)
         base['fields_to_null'] = [
             'standardized_at',
             'ai_cleaned_at',
@@ -140,55 +153,61 @@ def compute_undo_preview(order: PurchaseOrder, to_stage: str) -> dict[str, Any]:
         ]
         base['status_resets'] = {'preprocess_status': 'not_started'}
         base['rows_to_update']['inventory_preprocessingrow'] = preprow_ct
+        if manifest_row_ct:
+            base['rows_to_delete']['inventory_manifestrow'] = manifest_row_ct
+        base['cascade_warnings'].append(
+            'Deletes standardized manifest spine rows. Uploaded CSV file is unchanged.',
+        )
         base['cascade_warnings'].append(
             'Increments ai_cleanup_generation to invalidate in-flight AI cleanup batches.',
         )
         return base
 
     if to_stage == 'ai_cleanup':
-        if legacy_manifest:
-            return _blocked(
-                base,
-                'This order has legacy ManifestRow lines; AI cleanup undo is not supported on that path.',
-            )
         if bookmark_ct:
             return _blocked(
                 base,
                 'Cannot undo AI cleanup while processing bookmarks exist. Undo finalize first.',
             )
+        item_block = _items_block_undo(order)
+        if item_block:
+            return _blocked(base, item_block)
         base['fields_to_null'] = ['ai_cleaned_at', 'review_saved_at', 'finalized_at']
         base['status_resets'] = {'preprocess_status': 'standardized'}
         base['rows_to_update']['inventory_preprocessingrow'] = preprow_ct
         return base
 
-    # finalize
-    if legacy_manifest:
-        return _blocked(
-            base,
-            'Cannot undo finalize while canonical manifest rows exist.',
-        )
+    # finalize — new-flow bookmarks are ALWAYS manifest-linked (finalize sets
+    # manifest_row_id at creation), so linkage is not a danger signal. Physical
+    # facts are: real Items (checked above) and check-in batches.
+    if not bookmark_ct:
+        return _blocked(base, 'No processing bookmarks to rewind.')
     if non_terminal_items:
         return _blocked(
             base,
             'Cannot undo finalize while processing items exist on this order.',
         )
-    if linked_bm:
+    if ProcessingCheckInBatch.objects.filter(purchase_order_id=order.pk).exists():
         return _blocked(
             base,
-            'Bookmarks are already linked to manifest rows; cannot safely rewind finalize.',
+            'Cannot undo finalize — check-in batches exist on this order.',
         )
+    _ = linked_bm  # informational only since the intake redesign
     base['fields_to_null'] = ['finalized_at', 'review_saved_at']
     base['status_resets'] = {'preprocess_status': 'cleaned'}
     base['rows_to_delete']['inventory_processingrow'] = bookmark_ct
     if build_ct:
         base['rows_to_delete']['inventory_processingdatabuild'] = build_ct
-    base['rows_to_update']['inventory_preprocessingrow'] = preprow_ct
+    base['cascade_warnings'].append(
+        'Final Decisions edits (prices, matches, listing fields) are preserved; only the processing bookmarks are deleted.',
+    )
     return base
 
 
 def _apply_standardize(order: PurchaseOrder) -> None:
     with transaction.atomic():
         locked = PurchaseOrder.objects.select_for_update().get(pk=order.pk)
+        _remove_manifest_spine(locked)
         pr_qs = PreprocessingRow.objects.filter(purchase_order_id=locked.pk)
         bulk_clear_preprocess_standard_layer(pr_qs)
         bulk_clear_preprocess_ai_and_final_layers(pr_qs)
@@ -240,45 +259,39 @@ def _apply_ai_cleanup(order: PurchaseOrder) -> None:
         locked.review_saved_at = None
         locked.finalized_at = None
         locked.preprocess_status = 'standardized'
+        # Invalidate any in-flight web cleanup batches (they check generation before save).
+        locked.ai_cleanup_generation = (locked.ai_cleanup_generation or 0) + 1
         locked.save(
             update_fields=[
                 'ai_cleaned_at',
                 'review_saved_at',
                 'finalized_at',
                 'preprocess_status',
+                'ai_cleanup_generation',
                 'updated_at',
             ],
         )
 
 
 def _apply_finalize(order: PurchaseOrder) -> None:
+    # Since the intake redesign, final_* layers are written at cleanup-apply and review-PATCH
+    # time — finalize only READS them to project bookmarks. Rewinding therefore preserves
+    # every Final Decisions edit (prices, matches, listing fields) and deletes bookmarks only.
     with transaction.atomic():
         locked = PurchaseOrder.objects.select_for_update().get(pk=order.pk)
-        pr_qs = PreprocessingRow.objects.filter(purchase_order_id=locked.pk)
-        pr_qs.update(
-            final_description=None,
-            final_title=None,
-            final_category=None,
-            final_brand=None,
-            final_model=None,
-            final_condition=None,
-            final_notes=None,
-            final_identifiers=None,
-            final_taxonomy=None,
-            final_specifications=None,
-            final_tracking=None,
-            final_search_tags=None,
-        )
         ProcessingDataBuild.objects.filter(purchase_order_id=locked.pk).delete()
         ProcessingRow.objects.filter(purchase_order_id=locked.pk).delete()
         locked.finalized_at = None
         locked.review_saved_at = None
         locked.preprocess_status = 'cleaned'
+        # Invalidate any in-flight web cleanup batches started before the rewind.
+        locked.ai_cleanup_generation = (locked.ai_cleanup_generation or 0) + 1
         locked.save(
             update_fields=[
                 'finalized_at',
                 'review_saved_at',
                 'preprocess_status',
+                'ai_cleanup_generation',
                 'updated_at',
             ],
         )

@@ -356,6 +356,37 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 2)
         self.assertEqual(Product.objects.count(), 1)
 
+    def test_ensure_manifest_prefers_processing_row_match_over_manifest_legacy(self):
+        """P6: ProcessingRow hint wins when ManifestRow still has a legacy matched_product."""
+        legacy = Product.objects.create(title='Legacy MR Product', brand='Old')
+        decided = Product.objects.create(title='Decided PR Product', brand='New')
+        mr = ManifestRow.objects.create(
+            purchase_order=self.order,
+            row_number=5,
+            quantity=1,
+            title='Widget',
+            brand='Acme',
+            unit_retail=Decimal('10.00'),
+            matched_product=legacy,
+        )
+        ProcessingRow.objects.create(
+            purchase_order=self.order,
+            manifest_row=mr,
+            row_number=5,
+            quantity=1,
+            title='Widget',
+            brand='Acme',
+            unit_retail=Decimal('10.00'),
+            matched_product=decided,
+        )
+
+        ensure_manifest_products_and_items(self.order)
+
+        item = Item.objects.get(purchase_order=self.order, manifest_row=mr)
+        self.assertEqual(item.product_id, decided.id)
+        mr.refresh_from_db()
+        self.assertEqual(mr.matched_product_id, legacy.id)
+
     def test_parse_ai_cleanup_suggestions_accepts_json_fence(self):
         parsed = parse_ai_cleanup_suggestions(
             '```json\n[{"row_id": 1, "row_number": 10, "item_id": 99, "title": "Clean"}]\n```',
@@ -1301,13 +1332,17 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data.get('fields'), 'minimal')
         row = response.data['rows'][0]
-        self.assertNotIn('standard_description', row)
+        # Heavy JSON triples + final_* stay excluded; scalar ai_*/standard_* layer
+        # fields ARE included (2026-06-10 — table hover tooltips + AI condition reset).
         self.assertNotIn('final_title', row)
-        self.assertNotIn('ai_brand', row)
         self.assertNotIn('ai_status', row)
+        self.assertNotIn('identifiers', row)
+        self.assertNotIn('ai_identifiers', row)
         self.assertIn('description', row)
         self.assertIn('title', row)
-        self.assertNotIn('identifiers', row)
+        self.assertIn('ai_brand', row)
+        self.assertIn('ai_condition', row)
+        self.assertIn('standard_description', row)
 
     def test_finalize_preprocessing_rejects_inline_rows_payload(self):
         PreprocessingRow.objects.create(

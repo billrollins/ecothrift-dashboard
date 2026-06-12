@@ -30,10 +30,14 @@ from apps.inventory.services.manual_item import (
     normalize_search_tags,
 )
 from apps.inventory.services.processing_workspace import (
+    _processing_row_item_ids,
+    attributed_items_for_processing_row,
     build_workspace_patch,
     condition_ui_to_db,
     dispatch_to_location,
+    distinct_product_count_for_items,
     location_to_dispatch,
+    primary_product_id_for_items,
     printed_items_preview,
     processing_row_ids_for_manifest_rows,
     push_shelf_price_to_bookmark,
@@ -161,6 +165,25 @@ def apply_item_updates(item, updates):
     return changed
 
 
+# Owner ruling (2026-06-11): no low per-action cap — staff confirm big check-ins in the
+# UI ("type PRINT N") instead of being blocked. This ceiling is a fat-finger backstop
+# only; exceeding it is an explicit 400, never a silent clamp.
+MAX_CHECK_IN_QUANTITY = 10_000
+
+
+def _parse_check_in_quantity(raw) -> int:
+    try:
+        qty = int(raw if raw not in (None, '') else 1)
+    except (TypeError, ValueError):
+        qty = 1
+    qty = max(1, qty)
+    if qty > MAX_CHECK_IN_QUANTITY:
+        raise ValueError(
+            f'Quantity {qty:,} exceeds the {MAX_CHECK_IN_QUANTITY:,} per-action safety limit.',
+        )
+    return qty
+
+
 def _resolve_condition_db(cond_raw) -> str:
     allowed = {c[0] for c in Item.CONDITION_CHOICES}
     if cond_raw in allowed:
@@ -189,6 +212,36 @@ def _latest_check_in_product_for_row(row: ProcessingRow) -> Product | None:
     return batch.product
 
 
+def _implicit_check_in_product_reuse(data: dict) -> bool:
+    """True when check-in would silently reuse latest batch / bookmark product."""
+    product_mode = str(data.get('product_mode') or '').strip().lower()
+    raw_pid = data.get('product_id') or data.get('productId')
+    has_explicit_pid = raw_pid not in (None, '')
+    if product_mode == 'existing' and has_explicit_pid:
+        return False
+    if product_mode == 'new':
+        return False
+    if product_mode == 'edit':
+        return False
+    if product_mode in ('', 'keep') and not has_explicit_pid:
+        return True
+    return product_mode in ('', 'keep')
+
+
+def _mixed_product_row_distinct_count(row: ProcessingRow) -> int:
+    """Prefer denorm column; recompute live from Items when manifest-linked.
+
+    Uses family-aware attribution (P9): siblings sharing a manifest line never
+    count each other's products as "mixed" on this row.
+    """
+    if row.manifest_row_id:
+        items = attributed_items_for_processing_row(row)
+        live = distinct_product_count_for_items(items)
+        if live > 0:
+            return live
+    return int(row.distinct_product_count or 0)
+
+
 def _normalize_identifier_key(raw: str) -> str:
     s = str(raw or '').strip().lower()
     s = re.sub(r'[\s\-]+', '_', s)
@@ -212,40 +265,6 @@ def _normalize_identifiers_dict(raw: Any) -> dict[str, str]:
             continue
         out[norm_key] = norm_val[:256]
     return out
-
-
-def _sync_manifest_row_from_processing_defaults(row: ProcessingRow, patched: set[str]) -> None:
-    """Mirror ProcessingRow manifest-default edits onto linked ManifestRow for detail display."""
-
-    if not row.manifest_row_id or not patched:
-        return
-    mr = ManifestRow.objects.select_for_update().filter(pk=row.manifest_row_id).first()
-    if mr is None:
-        return
-
-    field_map = {
-        'title': 'title',
-        'brand': 'brand',
-        'model': 'model',
-        'category': 'category',
-        'description': 'description',
-        'notes': 'notes',
-        'identifiers': 'identifiers',
-        'search_tags': 'search_tags',
-        'unit_retail': 'unit_retail',
-        'condition': 'condition',
-    }
-    update_fields: list[str] = []
-    sync_keys = set(patched)
-    if 'retail' in sync_keys:
-        sync_keys.add('unit_retail')
-    for patch_key, mr_attr in field_map.items():
-        if patch_key not in sync_keys:
-            continue
-        setattr(mr, mr_attr, getattr(row, mr_attr))
-        update_fields.append(mr_attr)
-    if update_fields:
-        mr.save(update_fields=update_fields)
 
 
 def _next_processing_row_number(order: PurchaseOrder) -> int:
@@ -325,14 +344,22 @@ def _resolve_product_for_processing(
     )
 
 
-def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, data: dict) -> dict:
-    """Create real Product/Item rows from a ProcessingRow at physical check-in time."""
+def _processing_row_remaining_qty(row: ProcessingRow) -> int:
+    return max(0, int(row.quantity or 0) - int(row.qty_dispositioned or 0))
 
-    try:
-        quantity = int(data.get('quantity') or 1)
-    except (TypeError, ValueError):
-        quantity = 1
-    quantity = max(1, min(quantity, 500))
+
+def _check_in_processing_row(
+    user,
+    order: PurchaseOrder,
+    row: ProcessingRow,
+    data: dict,
+    *,
+    enforce_mixed_guard: bool = True,
+    allow_latest_batch_prefill: bool = True,
+) -> tuple[list[Item], ProcessingCheckInBatch]:
+    """Check in units on a locked ProcessingRow. Caller must hold row lock inside transaction."""
+
+    quantity = _parse_check_in_quantity(data.get('quantity'))
 
     cond_db = _resolve_condition_db(data.get('condition'))
     retail = parse_decimal(data.get('retail') or data.get('unit_retail'))
@@ -353,9 +380,122 @@ def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, 
     else:
         location = dispatch_to_location(dispatch)
 
-    touched_mrs: set[int] = set()
+    if row.manifest_row_id is None:
+        raise ProcessingDataRequired('Finalize preprocessing with a linked manifest row before check-in.')
+
+    search_tags = payload_search_tags or normalize_search_tags(getattr(row, 'search_tags', None))
+    matched = row.matched_product if row.matched_product_id else None
+    latest_batch_product = _latest_check_in_product_for_row(row) if allow_latest_batch_prefill else None
+
+    if enforce_mixed_guard:
+        distinct_count = _mixed_product_row_distinct_count(row)
+        if distinct_count >= 2 and _implicit_check_in_product_reuse(data):
+            raise ValueError(
+                'Multiple products on this row — specify product in Detailed check-in.',
+            )
+
+    if latest_batch_product is not None:
+        matched = latest_batch_product
+
+    product_mode = str(data.get('product_mode') or '').strip().lower()
+    if allow_latest_batch_prefill and product_mode in ('', 'keep') and latest_batch_product is not None:
+        data = {
+            **data,
+            'product_mode': 'existing',
+            'product_id': latest_batch_product.id,
+        }
+    elif product_mode == 'keep' and matched is not None:
+        data = {**data, 'product_mode': 'keep'}
+
+    product = _resolve_product_for_processing(
+        data,
+        matched_product=matched,
+        fallback_title=title or row.title or row.description or f'Row {row.row_number}',
+        fallback_brand=brand or row.brand or '',
+        fallback_category=category or row.category or '',
+        fallback_model=model or row.model or '',
+        fallback_upc=upc or _processing_row_upc(row),
+        fallback_specs=specs or row.specifications or {},
+        fallback_search_tags=search_tags,
+        default_price=price or row.shelf_price or row.final_price or row.proposed_price,
+    )
+    if row.matched_product_id != product.id:
+        row.matched_product = product
+        row.save(update_fields=['matched_product', 'updated_at'])
+
+    item_price = price or row.shelf_price or row.final_price or row.proposed_price or Decimal('0.00')
+    item_retail = retail if retail is not None else row.unit_retail
+    items: list[Item] = []
     histories: list[ItemHistory] = []
     now = timezone.now()
+    for _ in range(quantity):
+        item = Item(
+            product=product,
+            purchase_order=order,
+            manifest_row=row.manifest_row,
+            unit_count=max(1, int(row.units_per_item or 1)),
+            title=product.title or row.title or row.description or f'Row {row.row_number}',
+            brand=product.brand or row.brand or '',
+            price=item_price,
+            unit_retail=item_retail,
+            cost=order.compute_item_cost(item_retail),
+            source='purchased',
+            status='on_shelf',
+            condition=cond_db,
+            location=location,
+            listed_at=now,
+            checked_in_at=now,
+            checked_in_by=user,
+            specifications=specs or row.specifications or {},
+            notes=notes,
+        )
+        item.save()
+        histories.append(
+            ItemHistory(
+                item=item,
+                event_type='status_change',
+                old_value='',
+                new_value='on_shelf',
+                note='Created and checked in via Item Processor row check-in',
+                created_by=user,
+            ),
+        )
+        items.append(item)
+
+    if histories:
+        ItemHistory.objects.bulk_create(histories)
+    if item_price is not None:
+        push_shelf_price_to_bookmark(order.id, row.manifest_row_id, item_price, processing_row_id=row.pk)
+    batch = ProcessingCheckInBatch.objects.create(
+        purchase_order=order,
+        processing_row=row,
+        product=product,
+        quantity=len(items),
+        item_ids=[item.id for item in items],
+        defaults_snapshot={
+            'condition': cond_db,
+            'dispatch': dispatch,
+            'location': location,
+            'price': str(item_price) if item_price is not None else None,
+            'retail': str(item_retail) if item_retail is not None else None,
+            'notes': notes,
+        },
+        created_by=user,
+    )
+    return items, batch
+
+
+def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, data: dict) -> dict:
+    """Create real Product/Item rows from a ProcessingRow at physical check-in time.
+
+    P7 collapse: a check-in on a group MASTER distributes quantity across the group in
+    row order — earlier rows fill first; any excess lands on the LAST row as overage.
+    Followers reject direct check-in (the master owns the group).
+    """
+
+    all_items: list[Item] = []
+    batches: list[ProcessingCheckInBatch] = []
+    touched_ids: list[int] = []
 
     with transaction.atomic():
         row = (
@@ -363,115 +503,458 @@ def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, 
             .select_for_update()
             .get(pk=processing_row_id, purchase_order=order)
         )
-        row = (
-            ProcessingRow.objects
-            .select_related('manifest_row', 'manifest_row__matched_product', 'matched_product', 'purchase_order')
-            .get(pk=row.pk)
+        if row.collapse_master_id:
+            master_num = ProcessingRow.objects.filter(pk=row.collapse_master_id).values_list('row_number', flat=True).first()
+            raise ValueError(f'Row {row.row_number} is collapsed into row {master_num} — check in on the master or uncollapse.')
+
+        member_ids = list(
+            ProcessingRow.objects.select_for_update()
+            .filter(collapse_master_id=row.pk)
+            .order_by('row_number')
+            .values_list('pk', flat=True),
         )
-        if row.manifest_row_id is None:
-            raise ProcessingDataRequired('Finalize preprocessing with a linked manifest row before check-in.')
 
-        search_tags = payload_search_tags or normalize_search_tags(getattr(row, 'search_tags', None))
-        matched = row.matched_product if row.matched_product_id else None
-        latest_batch_product = _latest_check_in_product_for_row(row)
-        if latest_batch_product is not None:
-            matched = latest_batch_product
-        elif matched is None and row.manifest_row and row.manifest_row.matched_product_id:
-            matched = row.manifest_row.matched_product
+        def _hydrate(pk: int) -> ProcessingRow:
+            return (
+                ProcessingRow.objects
+                .select_related('manifest_row', 'matched_product', 'purchase_order')
+                .get(pk=pk)
+            )
 
-        product_mode = str(data.get('product_mode') or '').strip().lower()
-        if product_mode in ('', 'keep') and latest_batch_product is not None:
-            data = {
-                **data,
-                'product_mode': 'existing',
-                'product_id': latest_batch_product.id,
-            }
-        elif product_mode == 'keep' and matched is not None:
-            data = {**data, 'product_mode': 'keep'}
+        row = _hydrate(row.pk)
+
+        if not member_ids:
+            items, batch = _check_in_processing_row(user, order, row, data)
+            all_items.extend(items)
+            batches.append(batch)
+            touched_ids.append(row.pk)
+        else:
+            group = [row] + [_hydrate(pk) for pk in member_ids]
+            qty_requested = _parse_check_in_quantity(data.get('quantity'))
+
+            # Fill earlier rows first; leftover lands on the last row as overage.
+            allocations = [0] * len(group)
+            left = qty_requested
+            for i, member in enumerate(group):
+                take = min(left, _processing_row_remaining_qty(member))
+                allocations[i] = take
+                left -= take
+                if left == 0:
+                    break
+            if left > 0:
+                allocations[-1] += left
+
+            shared_product_id: int | None = None
+            for member, alloc in zip(group, allocations):
+                if alloc <= 0:
+                    continue
+                member_data = {**data, 'quantity': alloc}
+                if shared_product_id is not None:
+                    # One product decision for the whole group — resolved on the first fill.
+                    member_data['product_mode'] = 'existing'
+                    member_data['product_id'] = shared_product_id
+                items, batch = _check_in_processing_row(
+                    user,
+                    order,
+                    member,
+                    member_data,
+                    allow_latest_batch_prefill=shared_product_id is None,
+                )
+                shared_product_id = batch.product_id or shared_product_id
+                all_items.extend(items)
+                batches.append(batch)
+                touched_ids.append(member.pk)
+
+    refresh_processing_rows_denorm(order, processing_row_ids=touched_ids or [processing_row_id])
+    return {
+        'items': ItemSerializer(all_items, many=True).data,
+        'created_count': len(all_items),
+        'check_in_batch_id': batches[0].id if batches else None,
+        'check_in_batch_ids': [b.id for b in batches],
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched_ids or [processing_row_id]),
+        'printed_items_preview': printed_items_preview([item.id for item in all_items]),
+    }
+
+
+def processing_check_in_together(user, order: PurchaseOrder, data: dict) -> dict:
+    """Check in multiple manifest-backed rows sharing one matched product (P5 collapse)."""
+
+    raw_ids = data.get('processing_row_ids') or data.get('processingRowIds') or []
+    if not isinstance(raw_ids, (list, tuple)):
+        raise ValueError('processing_row_ids must be a list.')
+    row_ids = sorted({int(x) for x in raw_ids if str(x).strip().isdigit()})
+    if len(row_ids) < 2:
+        raise ValueError('Select at least two rows to check in together.')
+
+    rows_payload = data.get('rows') or []
+    qty_by_row_id: dict[int, int] = {}
+    if isinstance(rows_payload, (list, tuple)):
+        for entry in rows_payload:
+            if not isinstance(entry, dict):
+                continue
+            raw_rid = entry.get('processing_row_id') or entry.get('processingRowId')
+            if raw_rid is None or not str(raw_rid).strip().isdigit():
+                continue
+            rid = int(raw_rid)
+            try:
+                qty = int(entry.get('quantity') or 1)
+            except (TypeError, ValueError):
+                qty = 1
+            qty_by_row_id[rid] = _parse_check_in_quantity(qty)
+
+    product_mode = str(data.get('product_mode') or '').strip().lower()
+    if product_mode != 'existing':
+        raise ValueError('product_mode must be existing for check-in together.')
+    raw_pid = data.get('product_id') or data.get('productId')
+    if raw_pid in (None, '') or not str(raw_pid).strip().isdigit():
+        raise ValueError('product_id is required.')
+    product_id = int(raw_pid)
+    if Product.objects.filter(pk=product_id).first() is None:
+        raise ValueError('Product not found.')
+
+    shared_fields = {
+        'product_mode': 'existing',
+        'product_id': product_id,
+        'condition': data.get('condition'),
+        'dispatch': data.get('dispatch') or 'on_shelf',
+        'price': data.get('price'),
+        'retail': data.get('retail') or data.get('unit_retail'),
+        'notes': data.get('notes') or '',
+    }
+
+    batch_ids: list[int] = []
+    all_items: list[Item] = []
+    touched_ids: list[int] = []
+
+    with transaction.atomic():
+        locked = list(
+            ProcessingRow.objects.select_for_update()
+            .filter(pk__in=row_ids, purchase_order=order),
+        )
+        if len(locked) != len(row_ids):
+            raise ValueError('One or more processing rows were not found on this order.')
+
+        locked_by_id = {int(r.id): r for r in locked}
+        ordered_rows = [
+            ProcessingRow.objects.select_related('manifest_row', 'matched_product', 'purchase_order')
+            .get(pk=locked_by_id[rid].pk)
+            for rid in row_ids
+        ]
+
+        matched_ids = {int(r.matched_product_id) for r in ordered_rows if r.matched_product_id}
+        if len(matched_ids) != 1 or product_id not in matched_ids:
+            raise ValueError('All selected rows must share the same matched product.')
+
+        for row in ordered_rows:
+            if row.manifest_row_id is None:
+                raise ValueError('All rows must be linked to manifest lines.')
+            if row.row_kind == ProcessingRow.ROW_KIND_ADDED:
+                raise ValueError('Added rows cannot be checked in together in this version.')
+            if _mixed_product_row_distinct_count(row) >= 2:
+                raise ValueError('Rows with multiple products cannot be checked in together.')
+            remaining = _processing_row_remaining_qty(row)
+            if remaining <= 0:
+                raise ValueError(f'Row {row.row_number} has no remaining quantity.')
+            qty = qty_by_row_id.get(int(row.id), remaining)
+            if qty > remaining:
+                raise ValueError(
+                    f'Quantity for row {row.row_number} exceeds remaining ({remaining}).',
+                )
+            row_data = {**shared_fields, 'quantity': qty}
+            items, batch = _check_in_processing_row(
+                user,
+                order,
+                row,
+                row_data,
+                enforce_mixed_guard=False,
+                allow_latest_batch_prefill=False,
+            )
+            all_items.extend(items)
+            batch_ids.append(batch.id)
+            touched_ids.append(int(row.id))
+
+    refresh_processing_rows_denorm(order, processing_row_ids=touched_ids)
+    return {
+        'items': ItemSerializer(all_items, many=True).data,
+        'created_count': len(all_items),
+        'check_in_batch_ids': batch_ids,
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched_ids),
+        'printed_items_preview': printed_items_preview([item.id for item in all_items]),
+    }
+
+
+def processing_assign_shared_product(user, order: PurchaseOrder, data: dict) -> dict:
+    """Align ProcessingRow.matched_product_id across rows without manifest or Item writes (P6)."""
+
+    raw_ids = data.get('processing_row_ids') or data.get('processingRowIds') or []
+    if not isinstance(raw_ids, (list, tuple)):
+        raise ValueError('processing_row_ids must be a list.')
+    row_ids = sorted({int(x) for x in raw_ids if str(x).strip().isdigit()})
+    if len(row_ids) < 2:
+        raise ValueError('Select at least two rows to assign a shared product.')
+
+    product_mode = str(data.get('product_mode') or '').strip().lower()
+    if product_mode not in ('existing', 'new'):
+        raise ValueError('product_mode must be existing or new for assign shared product.')
+    if product_mode == 'existing':
+        raw_pid = data.get('product_id') or data.get('productId')
+        if raw_pid in (None, '') or not str(raw_pid).strip().isdigit():
+            raise ValueError('product_id is required.')
+        product_id = int(raw_pid)
+        product = Product.objects.filter(pk=product_id).first()
+        if product is None:
+            raise ValueError('Product not found.')
+    else:
+        # Owner-approved Level-3 exception (2026-06-10): a collapse decision may create
+        # the Product before check-in. Identity seeds from the payload, falling back to
+        # the first selected row's bookmark fields.
+        first = (
+            ProcessingRow.objects.filter(pk__in=row_ids, purchase_order=order)
+            .order_by('row_number')
+            .first()
+        )
+        if first is None:
+            raise ValueError('One or more processing rows were not found on this order.')
+        product = _resolve_product_for_processing(
+            {**data, 'product_mode': 'new'},
+            matched_product=None,
+            fallback_title=first.title or first.description or f'Row {first.row_number}',
+            fallback_brand=first.brand or '',
+            fallback_category=first.category or '',
+            fallback_model=first.model or '',
+            fallback_upc=_processing_row_upc(first),
+            fallback_specs=first.specifications or {},
+            fallback_search_tags=normalize_search_tags(getattr(first, 'search_tags', None)),
+            default_price=first.shelf_price or first.final_price or first.proposed_price,
+        )
+        product_id = product.id
+
+    touched_ids: list[int] = []
+
+    with transaction.atomic():
+        locked = list(
+            ProcessingRow.objects.select_for_update()
+            .filter(pk__in=row_ids, purchase_order=order),
+        )
+        if len(locked) != len(row_ids):
+            raise ValueError('One or more processing rows were not found on this order.')
+
+        for row in locked:
+            if row.manifest_row_id is None:
+                raise ValueError('All rows must be linked to manifest lines.')
+            if row.row_kind == ProcessingRow.ROW_KIND_ADDED:
+                raise ValueError('Added rows cannot use assign shared product in this version.')
+            items = attributed_items_for_processing_row(row)
+            if (distinct_product_count_for_items(items) or int(row.distinct_product_count or 0)) >= 2:
+                raise ValueError('Rows with multiple products cannot use assign shared product.')
+            # Denorm recomputes the hint from dispositioned items (primary product);
+            # assigning over checked-in units of another product would silently revert.
+            checked_in_pid = primary_product_id_for_items(items)
+            if checked_in_pid is not None and checked_in_pid != product_id:
+                raise ValueError(
+                    f'Row {row.row_number} already has checked-in units of a different product — '
+                    'remap that batch first.',
+                )
+            if row.matched_product_id != product_id:
+                row.matched_product_id = product_id
+                row.save(update_fields=['matched_product_id', 'updated_at'])
+            touched_ids.append(int(row.id))
+
+    refresh_processing_rows_denorm(order, processing_row_ids=touched_ids)
+    return {
+        'product_id': product_id,
+        'rows_updated': len(touched_ids),
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched_ids),
+    }
+
+
+def processing_collapse_rows(user, order: PurchaseOrder, data: dict) -> dict:
+    """P7 collapse: group ≥2 manifest-backed rows under the first (master) row.
+
+    Presentation + check-in distribution only — ManifestRows untouched, ProcessingRows
+    never merged. All rows end up sharing one decided product: ``product_mode`` 'keep'
+    (must already share), 'existing' (+product_id), or 'new' (created from master).
+    """
+
+    raw_ids = data.get('processing_row_ids') or data.get('processingRowIds') or []
+    if not isinstance(raw_ids, (list, tuple)):
+        raise ValueError('processing_row_ids must be a list.')
+    row_ids = sorted({int(x) for x in raw_ids if str(x).strip().isdigit()})
+    if len(row_ids) < 2:
+        raise ValueError('Select at least two rows to collapse.')
+
+    with transaction.atomic():
+        locked = list(
+            ProcessingRow.objects.select_for_update()
+            .filter(pk__in=row_ids, purchase_order=order)
+            .order_by('row_number'),
+        )
+        if len(locked) != len(row_ids):
+            raise ValueError('One or more processing rows were not found on this order.')
+        for row in locked:
+            if row.manifest_row_id is None or row.row_kind == ProcessingRow.ROW_KIND_ADDED:
+                raise ValueError('Only manifest-backed rows can be collapsed.')
+            if row.split_parent_id or row.split_children.exists():
+                raise ValueError(
+                    f'Row {row.row_number} is part of a Break apart / Make set family — '
+                    'restart the row before collapsing.',
+                )
+            if row.collapse_master_id and row.collapse_master_id not in row_ids:
+                raise ValueError(f'Row {row.row_number} is already collapsed into another group.')
+            if ProcessingRow.objects.filter(collapse_master=row).exclude(pk__in=row_ids).exists():
+                raise ValueError(f'Row {row.row_number} is the master of another group — uncollapse it first.')
+            if _mixed_product_row_distinct_count(row) >= 2:
+                raise ValueError(f'Row {row.row_number} has multiple products checked in — cannot collapse.')
+
+        master, *members = locked
+
+        product_mode = str(data.get('product_mode') or 'keep').strip().lower()
+        if product_mode == 'keep':
+            hint_ids = {r.matched_product_id for r in locked}
+            if len(hint_ids) != 1:
+                raise ValueError(
+                    'Rows have different product decisions — pick an existing product or create a new one.',
+                )
+            shared_product_id = master.matched_product_id  # may be None: "new at check-in"
+        else:
+            assign = processing_assign_shared_product(user, order, {**data, 'processing_row_ids': row_ids})
+            shared_product_id = assign['product_id']
+            for r in locked:
+                r.refresh_from_db()
+
+        master.collapse_master = None
+        master.save(update_fields=['collapse_master', 'updated_at'])
+        for member in members:
+            member.collapse_master = master
+            member.save(update_fields=['collapse_master', 'updated_at'])
+
+    refresh_processing_rows_denorm(order, processing_row_ids=row_ids)
+    return {
+        'master_processing_row_id': master.pk,
+        'member_processing_row_ids': [m.pk for m in members],
+        'product_id': shared_product_id,
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=row_ids),
+    }
+
+
+def processing_uncollapse_rows(user, order: PurchaseOrder, data: dict) -> dict:
+    """Dissolve a collapse group (by master id) — rows return to individual display."""
+
+    raw = data.get('master_processing_row_id') or data.get('masterProcessingRowId')
+    if raw in (None, '') or not str(raw).strip().isdigit():
+        raise ValueError('master_processing_row_id is required.')
+    master_id = int(raw)
+
+    with transaction.atomic():
+        master = (
+            ProcessingRow.objects.select_for_update()
+            .filter(pk=master_id, purchase_order=order)
+            .first()
+        )
+        if master is None:
+            raise ValueError('Master processing row not found on this order.')
+        member_ids = list(
+            ProcessingRow.objects.select_for_update()
+            .filter(collapse_master=master)
+            .values_list('pk', flat=True),
+        )
+        ProcessingRow.objects.filter(pk__in=member_ids).update(collapse_master=None)
+
+    touched = [master_id, *member_ids]
+    refresh_processing_rows_denorm(order, processing_row_ids=touched)
+    return {
+        'uncollapsed_row_ids': touched,
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched),
+    }
+
+
+def remap_check_in_batch_product(
+    user,
+    order: PurchaseOrder,
+    batch_id: int,
+    data: dict,
+) -> dict:
+    """Re-point all Items in a check-in batch to a different Product (atomic)."""
+
+    with transaction.atomic():
+        batch = (
+            ProcessingCheckInBatch.objects.select_for_update()
+            .filter(pk=batch_id, purchase_order=order)
+            .first()
+        )
+        if batch is None:
+            raise ValueError('Check-in batch not found for this order.')
+        row = (
+            ProcessingRow.objects.select_for_update()
+            .get(pk=batch.processing_row_id, purchase_order=order)
+        )
+        matched = Product.objects.filter(pk=batch.product_id).first() if batch.product_id else None
+
+        item_ids = [int(x) for x in (batch.item_ids or []) if str(x).strip().isdigit()]
+        if not item_ids:
+            raise ValueError('Batch has no items to remap.')
+
+        items = list(
+            Item.objects.select_for_update()
+            .filter(pk__in=item_ids, purchase_order=order),
+        )
+        if len(items) != len(item_ids):
+            raise ValueError('Batch items must belong to this order.')
+
+        expected_mr = row.manifest_row_id
+        for item in items:
+            if expected_mr is not None and item.manifest_row_id != expected_mr:
+                raise ValueError('Batch items must belong to the same manifest row.')
+            if expected_mr is None and item.pk not in set(_processing_row_item_ids(row)):
+                raise ValueError('Batch items must belong to this processing row.')
 
         product = _resolve_product_for_processing(
             data,
             matched_product=matched,
-            fallback_title=title or row.title or row.description or f'Row {row.row_number}',
-            fallback_brand=brand or row.brand or '',
-            fallback_category=category or row.category or '',
-            fallback_model=model or row.model or '',
-            fallback_upc=upc or _processing_row_upc(row),
-            fallback_specs=specs or row.specifications or {},
-            fallback_search_tags=search_tags,
-            default_price=price or row.shelf_price or row.final_price or row.proposed_price,
+            fallback_title=row.title or row.description or f'Row {row.row_number}',
+            fallback_brand=row.brand or '',
+            fallback_category=row.category or '',
+            fallback_model=row.model or '',
+            fallback_upc=_processing_row_upc(row),
+            fallback_specs=row.specifications or {},
+            fallback_search_tags=normalize_search_tags(getattr(row, 'search_tags', None)),
+            default_price=row.shelf_price or row.final_price or row.proposed_price,
         )
-        if row.matched_product_id != product.id:
-            row.matched_product = product
-            row.save(update_fields=['matched_product', 'updated_at'])
-        if row.manifest_row_id and row.manifest_row.matched_product_id != product.id:
-            ManifestRow.objects.filter(pk=row.manifest_row_id).update(matched_product=product)
 
-        item_price = price or row.shelf_price or row.final_price or row.proposed_price or Decimal('0.00')
-        item_retail = retail if retail is not None else row.unit_retail
-        items: list[Item] = []
-        for _ in range(quantity):
-            item = Item(
-                product=product,
-                purchase_order=order,
-                manifest_row=row.manifest_row,
-                title=product.title or row.title or row.description or f'Row {row.row_number}',
-                brand=product.brand or row.brand or '',
-                price=item_price,
-                unit_retail=item_retail,
-                cost=order.compute_item_cost(item_retail),
-                source='purchased',
-                status='on_shelf',
-                condition=cond_db,
-                location=location,
-                listed_at=now,
-                checked_in_at=now,
-                checked_in_by=user,
-                specifications=specs or row.specifications or {},
-                notes=notes,
-            )
-            item.save()
+        histories: list[ItemHistory] = []
+        for item in items:
+            old_pid = item.product_id
+            if old_pid == product.id:
+                continue
+            item.product = product
+            item.save(update_fields=['product', 'updated_at'])
             histories.append(
                 ItemHistory(
                     item=item,
-                    event_type='status_change',
-                    old_value='',
-                    new_value='on_shelf',
-                    note='Created and checked in via Item Processor row check-in',
+                    event_type='note',
+                    old_value=str(old_pid or ''),
+                    new_value=str(product.id),
+                    note='Product remapped via Item Processor batch remap',
                     created_by=user,
                 ),
             )
-            items.append(item)
+
+        batch.product = product
+        batch.save(update_fields=['product'])
 
         if histories:
             ItemHistory.objects.bulk_create(histories)
-        touched_mrs.add(row.manifest_row_id)
-        if item_price is not None:
-            push_shelf_price_to_bookmark(order.id, row.manifest_row_id, item_price)
-        batch = ProcessingCheckInBatch.objects.create(
-            purchase_order=order,
-            processing_row=row,
-            product=product,
-            quantity=len(items),
-            item_ids=[item.id for item in items],
-            defaults_snapshot={
-                'condition': cond_db,
-                'dispatch': dispatch,
-                'location': location,
-                'price': str(item_price) if item_price is not None else None,
-                'retail': str(item_retail) if item_retail is not None else None,
-                'notes': notes,
-            },
-            created_by=user,
-        )
 
     refresh_processing_rows_denorm(order, processing_row_ids=[row.pk])
+    from apps.inventory.services.processing_workspace import build_processing_row_detail
+
+    detail = build_processing_row_detail(order, processing_row_id=row.pk)
     return {
-        'items': ItemSerializer(items, many=True).data,
-        'created_count': len(items),
-        'check_in_batch_id': batch.id,
+        'batch_id': batch.id,
+        'product_id': product.id,
+        'items_updated': len(items),
+        'row': detail['row'],
         'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[row.pk]),
-        'printed_items_preview': printed_items_preview([item.id for item in items]),
     }
 
 
@@ -499,7 +982,9 @@ def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
 
     with transaction.atomic():
         if price is not None and item.manifest_row_id:
-            push_shelf_price_to_bookmark(item.purchase_order_id, item.manifest_row_id, price)
+            push_shelf_price_to_bookmark(
+                item.purchase_order_id, item.manifest_row_id, price, item_id=item.pk,
+            )
 
         updates = {'condition': cond_db, 'location': location, 'notes': notes}
         if price is not None:
@@ -791,99 +1276,6 @@ def processing_dispute(user, order: PurchaseOrder, data: dict) -> dict:
         }
 
 
-def _apply_product_field_values(product: Product, fv: dict) -> None:
-    if 'title' in fv:
-        product.title = str(fv['title'] or '')[:300]
-    if 'brand' in fv:
-        product.brand = str(fv['brand'] or '')[:200]
-    if 'model' in fv:
-        product.model = str(fv['model'] or '')[:200]
-    if 'description' in fv:
-        product.description = str(fv['description'] or '')
-    if 'specs' in fv and isinstance(fv['specs'], dict):
-        product.specifications = fv['specs']
-    if 'tags' in fv:
-        tags = fv['tags']
-        if isinstance(tags, str):
-            product.specifications = dict(product.specifications or {})
-            product.specifications['tags'] = tags
-    if 'taxonomy' in fv:
-        pass  # taxonomy lives on ManifestRow primarily
-    if 'category' in fv:
-        product.category = str(fv['category'] or '')[:200]
-
-
-def processing_merge_rows(user, order: PurchaseOrder, data: dict) -> dict:
-    row_ids, _src = _resolve_merge_or_bulk_manifest_ids(order, data)
-    fv = data.get('field_values') or {}
-    if len(row_ids) < 2:
-        raise ValueError('At least two manifest rows required')
-
-    rows = list(
-        ManifestRow.objects.filter(purchase_order=order, pk__in=row_ids)
-        .select_related('matched_product')
-        .order_by('row_number'),
-    )
-    if len(rows) != len(set(row_ids)):
-        raise ValueError('Invalid manifest row ids')
-
-    canonical_row = rows[0]
-    target = canonical_row.matched_product
-    snapshots = []
-
-    with transaction.atomic():
-        if target is None:
-            target = Product.objects.create(
-                title=str(fv.get('title') or canonical_row.title or 'Merged')[:300],
-                brand=str(fv.get('brand') or canonical_row.brand or '')[:200],
-                model=str(fv.get('model') or canonical_row.model or '')[:200],
-                category=str(fv.get('category') or canonical_row.category or '')[:200],
-                description=str(fv.get('description') or canonical_row.description or ''),
-                specifications=fv.get('specs') if isinstance(fv.get('specs'), dict) else {},
-                default_price=canonical_row.final_price or canonical_row.proposed_price,
-                upc=str((canonical_row.identifiers or {}).get('upc') or '')[:100],
-            )
-
-        pre_merge = {'product_id': target.id, 'title': target.title, 'brand': target.brand}
-        _apply_product_field_values(target, fv)
-        target.save()
-
-        for row in rows:
-            old_p = row.matched_product
-            snapshots.append(
-                {
-                    'manifest_row_id': row.id,
-                    'row_number': row.row_number,
-                    'prior_product_id': old_p.id if old_p else None,
-                },
-            )
-            row.matched_product = target
-            row.save(update_fields=['matched_product'])
-            for it in Item.objects.select_for_update().filter(manifest_row=row):
-                it.product = target
-                it.title = target.title
-                it.brand = target.brand or it.brand
-                it.save()
-
-        ProductMergeAudit.objects.create(
-            purchase_order=order,
-            merged_by=user,
-            source_manifest_row_ids=[r.id for r in rows],
-            target_product=target,
-            snapshot={'rows': snapshots, 'prior_canonical': pre_merge},
-        )
-
-    touched_mr_ids = {r.id for r in rows}
-    pr_ids = list(
-        ProcessingRow.objects.filter(
-            purchase_order=order,
-            manifest_row_id__in=touched_mr_ids,
-        ).values_list('pk', flat=True),
-    )
-    refresh_processing_rows_denorm(order, processing_row_ids=pr_ids)
-    return {'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=pr_ids)}
-
-
 def processing_bulk_disposition(user, order: PurchaseOrder, data: dict) -> dict:
     row_ids, _src = _resolve_merge_or_bulk_manifest_ids(order, data)
     retail = parse_decimal(data.get('retail'))
@@ -982,11 +1374,7 @@ def processing_bulk_disposition(user, order: PurchaseOrder, data: dict) -> dict:
 def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
     """Create Item(s) with no manifest line and a first-class added ProcessingRow."""
 
-    try:
-        quantity = int(data.get('quantity') or 1)
-    except (TypeError, ValueError):
-        quantity = 1
-    quantity = max(1, min(quantity, 500))
+    quantity = _parse_check_in_quantity(data.get('quantity'))
 
     cond_db = _resolve_condition_db(data.get('condition'))
     retail = parse_decimal(data.get('retail') or data.get('unit_retail') or data.get('retail_value'))
@@ -1126,37 +1514,24 @@ def processing_row_patch(user, order: PurchaseOrder, processing_row_id: int, dat
         if row is None:
             raise ProcessingRow.DoesNotExist
 
-        patched: set[str] = set()
-
         if 'title' in data:
             row.title = str(data.get('title') or '')[:300]
-            patched.add('title')
         if 'brand' in data:
             row.brand = str(data.get('brand') or '')[:200]
-            patched.add('brand')
         if 'model' in data:
             row.model = str(data.get('model') or '')[:200]
-            patched.add('model')
         if 'category' in data:
             row.category = str(data.get('category') or '')[:200]
-            patched.add('category')
         if 'description' in data:
             row.description = str(data.get('description') or '')
-            patched.add('description')
         if 'notes' in data:
             row.notes = str(data.get('notes') or '')
-            patched.add('notes')
         if 'condition' in data:
             row.condition = _resolve_condition_db(data.get('condition'))[:20]
-            patched.add('condition')
         if 'search_tags' in data:
             row.search_tags = normalize_search_tags(data.get('search_tags'))
-            patched.add('search_tags')
         if 'unit_retail' in data or 'retail' in data:
             row.unit_retail = parse_decimal(data.get('unit_retail') or data.get('retail'))
-            patched.add('unit_retail')
-            if 'retail' in data:
-                patched.add('retail')
         if 'proposed_price' in data:
             row.proposed_price = parse_decimal(data.get('proposed_price'))
         if 'final_price' in data:
@@ -1167,7 +1542,6 @@ def processing_row_patch(user, order: PurchaseOrder, processing_row_id: int, dat
                 row.shelf_price = shelf
         if 'identifiers' in data:
             row.identifiers = _normalize_identifiers_dict(data.get('identifiers'))
-            patched.add('identifiers')
         elif 'upc' in data:
             ids = dict(row.identifiers) if isinstance(row.identifiers, dict) else {}
             upc = str(data.get('upc') or '').strip()
@@ -1176,10 +1550,8 @@ def processing_row_patch(user, order: PurchaseOrder, processing_row_id: int, dat
             elif 'upc' in ids:
                 ids.pop('upc', None)
             row.identifiers = ids
-            patched.add('identifiers')
 
         row.save()
-        _sync_manifest_row_from_processing_defaults(row, patched)
 
     refresh_processing_rows_denorm(order, processing_row_ids=[processing_row_id])
     from apps.inventory.services.processing_workspace import build_processing_row_detail
@@ -1259,7 +1631,9 @@ def processing_patch_item(user, item: Item, data: dict) -> dict:
     histories = []
     with transaction.atomic():
         if updates.get('price') is not None and item.manifest_row_id:
-            push_shelf_price_to_bookmark(item.purchase_order_id, item.manifest_row_id, updates['price'])
+            push_shelf_price_to_bookmark(
+                item.purchase_order_id, item.manifest_row_id, updates['price'], item_id=item.pk,
+            )
         changed = apply_item_updates(item, updates)
         item.save()
         for field, old_value, new_value in changed:

@@ -2,7 +2,7 @@ import Add from '@mui/icons-material/Add';
 import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import OpenInFull from '@mui/icons-material/OpenInFull';
 import Remove from '@mui/icons-material/Remove';
-import { Box, Button, IconButton, MenuItem, TextField, Typography } from '@mui/material';
+import { Box, Button, IconButton, MenuItem, TextField, Tooltip, Typography } from '@mui/material';
 import { useEffect, useState, type ReactNode, type WheelEvent } from 'react';
 import { preventWheelChangeNumber } from '../../../utils/formInputs';
 import { manifestToolbarLabelSx } from './ManifestToolbarPill';
@@ -14,6 +14,7 @@ import {
 import { ProcessingRowSection } from './ProcessingRowSection';
 import { processingRowSectionBodyFitSx, processingRowToolbarRowSx } from './processingRowToolbarLayout';
 import { processingTokens } from './processingTokens';
+import { MAX_CHECK_IN_QUANTITY } from './largeCheckIn';
 
 const CONDITION_OPTIONS = ['New', 'Like New', 'Very Good', 'Used Good', 'Used Fair', 'Salvage'];
 
@@ -26,7 +27,8 @@ const DISPATCH_OPTIONS: Array<{ value: string; label: string }> = [
 ];
 
 const CONTROL_HEIGHT = PROCESSING_ROW_FIELD_HEIGHT;
-const MAX_CHECK_IN_QTY = 500;
+// Owner ruling: no low cap — the parent confirms large runs (type PRINT <qty>) instead.
+const MAX_CHECK_IN_QTY = MAX_CHECK_IN_QUANTITY;
 
 function parseCheckInQuantity(raw: string): number {
   return Math.max(1, Math.min(MAX_CHECK_IN_QTY, Number.parseInt(raw, 10) || 1));
@@ -110,6 +112,8 @@ export interface ProcessingQuickCheckInFooterProps {
   dispatch: string;
   price: string;
   salvageLocked: boolean;
+  quickCheckInDisabled?: boolean;
+  quickCheckInDisabledReason?: string;
   onConditionChange: (value: string) => void;
   onDispatchChange: (value: string) => void;
   onPriceChange: (value: string) => void;
@@ -119,6 +123,8 @@ export interface ProcessingQuickCheckInFooterProps {
   variant?: 'header' | 'section';
   sectionTitle?: string;
   sectionNote?: ReactNode;
+  /** Rendered above the controls (e.g. mixed-row product picker). */
+  topContent?: ReactNode;
 }
 
 export function ProcessingQuickCheckInFooter({
@@ -128,6 +134,8 @@ export function ProcessingQuickCheckInFooter({
   dispatch,
   price,
   salvageLocked,
+  quickCheckInDisabled = false,
+  quickCheckInDisabledReason,
   onConditionChange,
   onDispatchChange,
   onPriceChange,
@@ -137,6 +145,7 @@ export function ProcessingQuickCheckInFooter({
   variant = 'section',
   sectionTitle,
   sectionNote,
+  topContent,
 }: ProcessingQuickCheckInFooterProps) {
   const [quantity, setQuantity] = useState('1');
 
@@ -145,7 +154,7 @@ export function ProcessingQuickCheckInFooter({
   }, [qtyRemaining]);
 
   const qtyValue = quantity.trim() === '' ? 0 : parseCheckInQuantity(quantity);
-  const disabled = checkInLoading || qtyRemaining <= 0 || qtyValue < 1;
+  const disabled = checkInLoading || qtyRemaining <= 0 || qtyValue < 1 || quickCheckInDisabled;
   const leftAfter = Math.max(0, qtyRemaining - qtyValue);
   const isHeader = variant === 'header';
 
@@ -196,6 +205,12 @@ export function ProcessingQuickCheckInFooter({
             aria-label="Quantity"
             onChange={(e) => handleQuantityChange(e.target.value)}
             onBlur={handleQuantityBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !disabled) {
+                e.preventDefault();
+                submitCheckIn(true);
+              }
+            }}
             onWheel={(e: WheelEvent<HTMLInputElement>) => preventWheelChangeNumber(e)}
             sx={{
               ...shellInputSx,
@@ -283,34 +298,46 @@ export function ProcessingQuickCheckInFooter({
             minWidth: 0,
           }}
         >
-          <Button
-            size="small"
-            variant="contained"
-            color="success"
-            startIcon={<LocalPrintshop fontSize="small" />}
-            disabled={disabled}
-            onClick={() => submitCheckIn(true)}
-            sx={actionButtonSx}
+          <Tooltip
+            title={quickCheckInDisabled ? (quickCheckInDisabledReason || '') : ''}
+            disableHoverListener={!quickCheckInDisabled}
           >
-            Check in
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={disabled}
-            onClick={() => submitCheckIn(false)}
-            sx={{
-              ...actionButtonSx,
-              borderColor: processingTokens.accentGreen,
-              color: processingTokens.accentGreen,
-              '&:hover': {
-                borderColor: processingTokens.primaryDark,
-                bgcolor: processingTokens.greenSoft,
-              },
-            }}
+            <span>
+              <Button
+                size="small"
+                variant="contained"
+                color="success"
+                startIcon={<LocalPrintshop fontSize="small" />}
+                disabled={disabled}
+                onClick={() => submitCheckIn(true)}
+                sx={actionButtonSx}
+              >
+                Check in + print
+              </Button>
+            </span>
+          </Tooltip>
+          <Tooltip
+            title={quickCheckInDisabled ? (quickCheckInDisabledReason || '') : ''}
+            disableHoverListener={!quickCheckInDisabled}
           >
-            Check in
-          </Button>
+            <span>
+              <Button
+                size="small"
+                variant="text"
+                disabled={disabled}
+                onClick={() => submitCheckIn(false)}
+                sx={{
+                  ...actionButtonSx,
+                  color: processingTokens.accentGreen,
+                  '&:hover': {
+                    bgcolor: processingTokens.greenSoft,
+                  },
+                }}
+              >
+                Check in only
+              </Button>
+            </span>
+          </Tooltip>
           <Button
             size="small"
             variant="outlined"
@@ -348,6 +375,7 @@ export function ProcessingQuickCheckInFooter({
         sx={{ minWidth: 0, width: '100%' }}
         bodySx={{ px: 0.75, py: 0.85, ...processingRowSectionBodyFitSx }}
       >
+        {topContent ? <Box sx={{ mb: 0.75, px: 0.25 }}>{topContent}</Box> : null}
         {controls}
       </ProcessingRowSection>
     );
@@ -398,6 +426,7 @@ export function ProcessingQuickCheckInFooter({
         </Typography>
         {leftAfterLabel}
       </Box>
+      {topContent ? <Box sx={{ mb: 0.5, px: 0.25 }}>{topContent}</Box> : null}
       {controls}
     </Box>
   );

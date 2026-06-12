@@ -54,6 +54,22 @@ describe('computeProcessingQueueColumnWidths', () => {
     expect(layout.cols).toEqual(PROCESSING_QUEUE_COL_DEFAULTS);
   });
 
+  it('title column is wider than brand', () => {
+    const rows = [
+      sampleRow({ title: 'A moderately long product title for testing', brand: 'Sony' }),
+    ];
+    const layout = computeProcessingQueueColumnWidths(rows, 1000, fonts, stubMeasure);
+    expect(layout.cols.title).toBeGreaterThan(layout.cols.brand);
+  });
+
+  it('expands brand to fit content when viewport has room', () => {
+    const longBrand = 'VeryLongBrandNameHereThatShouldExpandTheColumn';
+    const rows = [sampleRow({ brand: longBrand })];
+    const layout = computeProcessingQueueColumnWidths(rows, 1400, fonts, stubMeasure);
+    const expectedMin = Math.ceil(stubMeasure(longBrand, fonts.bodyBrand) + 18);
+    expect(layout.cols.brand).toBeGreaterThanOrEqual(expectedMin);
+  });
+
   it('sizes brand from longest row content', () => {
     const rows = [
       sampleRow({ brand: 'A' }),
@@ -104,7 +120,15 @@ describe('computeProcessingQueueColumnWidths', () => {
     );
   });
 
-  it('includes header labels in column max (category wider than short data)', () => {
+  it('expands category to fit content when viewport has room', () => {
+    const longCategory = 'ARTS_AND_CRAFTS_SUPPLIES';
+    const rows = [sampleRow({ category: longCategory })];
+    const layout = computeProcessingQueueColumnWidths(rows, 1200, fonts, stubMeasure);
+    const expectedMin = Math.ceil(stubMeasure(longCategory, fonts.body) + 18);
+    expect(layout.cols.category).toBeGreaterThanOrEqual(expectedMin);
+  });
+
+  it('includes header labels in column width (category wider than short data)', () => {
     const rows = [sampleRow({ category: 'A' })];
     const layout = computeProcessingQueueColumnWidths(rows, 1000, fonts, stubMeasure);
     const categoryHeaderWidth = stubMeasure('Category', fonts.header) + 18;
@@ -126,5 +150,13 @@ describe('computeProcessingQueueColumnWidths', () => {
     );
     expect(withDup.cols.title).toBeGreaterThanOrEqual(withoutDup.cols.title);
     expect(withDup.cols.title - withoutDup.cols.title).toBeLessThanOrEqual(PROCESSING_QUEUE_DUP_CHIP_PX + 2);
+  });
+
+  it('sizes extRetail from unit retail times qty', () => {
+    const rows = [sampleRow({ unitRetail: '99.00', qty: 100 })];
+    const layout = computeProcessingQueueColumnWidths(rows, 1200, fonts, stubMeasure);
+    expect(layout.cols.extRetail).toBeGreaterThanOrEqual(PROCESSING_QUEUE_COL_MIN.extRetail);
+    expect(layout.cols.retail).toBeGreaterThanOrEqual(PROCESSING_QUEUE_COL_MIN.retail);
+    expect(layout.cols.price).toBeGreaterThanOrEqual(PROCESSING_QUEUE_COL_MIN.price);
   });
 });

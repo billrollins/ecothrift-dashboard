@@ -7,12 +7,16 @@ import logging
 import re
 from typing import Any
 
-from django.conf import settings
-
 from apps.buying.models import Auction
 from apps.buying.services.valuation import recompute_auction_valuation
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
-from apps.core.services.ai_usage_log import estimate_cost_usd, log_ai_usage, log_ai_usage_from_response
+from apps.core.services.ai_usage_log import estimate_cost_usd, log_ai_usage
+from apps.core.services.llm_router import (
+    LLMAPIError,
+    LLMConfigError,
+    is_provider_configured,
+    llm_complete,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,22 +25,10 @@ BATCH_SIZE = 25
 JUNK_MIXED_THRESHOLD = 80.0
 
 
-def _import_anthropic():
-    import anthropic as _anthropic
-
-    return _anthropic
-
-
-def get_anthropic_client():
-    api_key = getattr(settings, "ANTHROPIC_API_KEY", None)
-    if not api_key:
-        return None
-    anthropic = _import_anthropic()
-    return anthropic.Anthropic(api_key=api_key)
-
-
 def _fast_model() -> str:
-    return (getattr(settings, "AI_MODEL_FAST", None) or "claude-haiku-4-5").strip()
+    from apps.core.ai_config import ai_model
+
+    return ai_model('TITLE_CATEGORY_ESTIMATE')
 
 
 def _parse_json_array(text: str) -> list[dict[str, Any]]:
@@ -59,8 +51,9 @@ def _parse_json_array(text: str) -> list[dict[str, Any]]:
     raise ValueError(f"Could not parse JSON array: {text[:400]}")
 
 
-def _usage_dict(usage: Any) -> dict[str, int]:
-    if usage is None:
+def _usage_dict(result: Any = None) -> dict[str, int]:
+    """Usage payload for the JSON response from an LLMResult (or zeros)."""
+    if result is None:
         return {
             "input_tokens": 0,
             "output_tokens": 0,
@@ -68,10 +61,10 @@ def _usage_dict(usage: Any) -> dict[str, int]:
             "cache_read_tokens": 0,
         }
     return {
-        "input_tokens": int(getattr(usage, "input_tokens", 0) or 0),
-        "output_tokens": int(getattr(usage, "output_tokens", 0) or 0),
-        "cache_creation_tokens": int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
-        "cache_read_tokens": int(getattr(usage, "cache_read_input_tokens", 0) or 0),
+        "input_tokens": int(getattr(result, "input_tokens", 0) or 0),
+        "output_tokens": int(getattr(result, "output_tokens", 0) or 0),
+        "cache_creation_tokens": int(getattr(result, "cache_creation_tokens", 0) or 0),
+        "cache_read_tokens": int(getattr(result, "cache_read_tokens", 0) or 0),
     }
 
 
@@ -142,8 +135,8 @@ def estimate_batch(auction_ids: list[int]) -> dict[str, Any]:
 
     Rows are matched by auction_id to the batch; normalizes percentages to sum 100.
     """
-    client = get_anthropic_client()
-    if client is None:
+    model = _fast_model()
+    if not is_provider_configured(model):
         return {"error": "ai_not_configured", "estimated": 0, "items": []}
 
     auctions = list(
@@ -151,9 +144,6 @@ def estimate_batch(auction_ids: list[int]) -> dict[str, Any]:
     )
     if not auctions:
         return {"estimated": 0, "items": [], "usage": _usage_dict(None), "estimated_cost_usd": 0.0}
-
-    anthropic = _import_anthropic()
-    model = _fast_model()
     mp_slug = auctions[0].marketplace.slug if auctions[0].marketplace_id else None
 
     by_mp: dict[int, list[Auction]] = {}
@@ -212,14 +202,18 @@ def estimate_batch(auction_ids: list[int]) -> dict[str, Any]:
             user_parts.append(f"Listings JSON: {json.dumps(listings, ensure_ascii=False)}")
             user = "\n\n".join(user_parts)
             try:
-                response = client.messages.create(
-                    model=model,
+                result = llm_complete(
+                    model_id=model,
+                    system=system_text,
+                    user=user,
                     max_tokens=8192,
-                    system=[{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}],
-                    messages=[{"role": "user", "content": user}],
+                    log_source="ai_title_category_estimate",
+                    log_detail=f"estimate_batch n={len(chunk)}",
+                    log_auction_id=chunk[0].pk,
+                    log_marketplace=mp_slug,
                 )
-            except anthropic.APIError as e:  # type: ignore[attr-defined]
-                logger.warning("Anthropic error in ai_title_category_estimate: %s", e)
+            except (LLMConfigError, LLMAPIError) as e:
+                logger.warning("LLM error in ai_title_category_estimate: %s", e)
                 log_ai_usage(
                     "ai_title_category_estimate",
                     model,
@@ -233,21 +227,12 @@ def estimate_batch(auction_ids: list[int]) -> dict[str, Any]:
                 )
                 continue
 
-            log_ai_usage_from_response(
-                "ai_title_category_estimate",
-                response,
-                model=model,
-                auction_id=chunk[0].pk,
-                marketplace=mp_slug,
-                detail=f"estimate_batch n={len(chunk)}",
-            )
-            usage = _usage_dict(getattr(response, "usage", None))
+            usage = _usage_dict(result)
             for k, v in usage.items():
                 total_usage[k] = total_usage.get(k, 0) + v
-            mid = getattr(response, "model", None) or model
             total_cost += float(
                 estimate_cost_usd(
-                    mid,
+                    result.model_used,
                     usage["input_tokens"],
                     usage["output_tokens"],
                     usage["cache_creation_tokens"],
@@ -255,10 +240,7 @@ def estimate_batch(auction_ids: list[int]) -> dict[str, Any]:
                 )
             )
 
-            text = ""
-            for block in response.content:
-                if block.type == "text":
-                    text += block.text
+            text = result.text
 
             try:
                 rows = _parse_json_array(text)

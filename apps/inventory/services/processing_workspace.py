@@ -114,6 +114,25 @@ def row_qty_dispositioned(items: list[Item]) -> int:
     return sum(1 for i in items if dispositioned_item(i))
 
 
+def distinct_product_count_for_items(items: list[Item]) -> int:
+    """Distinct non-null product_id on dispositioned items only."""
+    return len({
+        i.product_id for i in items if dispositioned_item(i) and i.product_id is not None
+    })
+
+
+def primary_product_id_for_items(items: list[Item]) -> int | None:
+    """Product with the most dispositioned units; tie-break lowest product_id."""
+    counts: dict[int, int] = defaultdict(int)
+    for i in items:
+        if dispositioned_item(i) and i.product_id is not None:
+            counts[i.product_id] += 1
+    if not counts:
+        return None
+    max_count = max(counts.values())
+    return min(pid for pid, c in counts.items() if c == max_count)
+
+
 def _money(v: Decimal | None) -> str | None:
     if v is None:
         return None
@@ -139,6 +158,7 @@ def _serialize_item(it: Item) -> dict[str, Any]:
     return {
         'id': it.id,
         'sku': it.sku,
+        'unit_count': int(it.unit_count or 1),
         'condition': it.condition,
         'condition_label': condition_db_to_ui(it.condition),
         'price': _money(it.price) or '0.00',
@@ -231,12 +251,32 @@ def push_shelf_price_to_bookmark(
     order: PurchaseOrder | int,
     manifest_row_id: int | None,
     price: Decimal | None,
+    *,
+    processing_row_id: int | None = None,
+    item_id: int | None = None,
 ) -> None:
-    """Persist workspace-canonical shelf price on ``ProcessingRow`` before aligning ``Item.price``."""
+    """Persist workspace-canonical shelf price on ``ProcessingRow`` before aligning ``Item.price``.
+
+    P9 split families: several rows can share one manifest line, so the target row must be
+    pinned — by ``processing_row_id`` when the caller knows it, by ``item_id`` (resolved via
+    the row that claims the item) for item-level edits, else the family ROOT.
+    """
     if manifest_row_id is None or price is None:
         return
     oid = order.pk if isinstance(order, PurchaseOrder) else int(order)
-    pr = ProcessingRow.objects.filter(purchase_order_id=oid, manifest_row_id=int(manifest_row_id)).first()
+    if processing_row_id is not None:
+        pr = ProcessingRow.objects.filter(purchase_order_id=oid, pk=int(processing_row_id)).first()
+    else:
+        rows = list(ProcessingRow.objects.filter(purchase_order_id=oid, manifest_row_id=int(manifest_row_id)))
+        pr = rows[0] if len(rows) == 1 else None
+        if pr is None and rows:
+            if item_id is not None:
+                for r in rows:
+                    if int(item_id) in set(_processing_row_item_ids(r)):
+                        pr = r
+                        break
+            if pr is None:
+                pr = next((r for r in rows if r.split_parent_id is None), rows[0])
     if pr is None:
         return
     pr.shelf_price = price
@@ -324,6 +364,84 @@ def _processing_row_item_ids(row: ProcessingRow | dict[str, Any]) -> list[int]:
     return out
 
 
+def _checkin_batch_item_id_map(row_ids: Iterable[int]) -> dict[int, set[int]]:
+    """Map processing_row pk → union of its check-in batches' item ids."""
+    out: dict[int, set[int]] = defaultdict(set)
+    pairs = ProcessingCheckInBatch.objects.filter(
+        processing_row_id__in=list(row_ids),
+    ).values_list('processing_row_id', 'item_ids')
+    for row_id, item_ids in pairs:
+        for x in item_ids or []:
+            try:
+                out[int(row_id)].add(int(x))
+            except (TypeError, ValueError):
+                continue
+    return out
+
+
+def split_family_attribution(
+    oid: int,
+    manifest_row_ids: Iterable[int],
+) -> dict[int, dict[str, Any]]:
+    """P9 split families: per-row Item attribution for manifest lines with >1 ProcessingRow.
+
+    Items are claimed by the row whose check-in batches created them; anything unclaimed
+    (legacy build items, pre-split history) belongs to the family ROOT (split_parent null).
+    Lines with a single row are omitted — callers keep the all-line-items fast path.
+
+    Returns {manifest_row_id: {'claimed': {row_pk: set(item_ids)}, 'root_pk': int}}.
+    """
+    mids = [int(x) for x in manifest_row_ids if x]
+    if not mids:
+        return {}
+    rows = list(
+        ProcessingRow.objects.filter(purchase_order_id=oid, manifest_row_id__in=mids)
+        .values_list('id', 'manifest_row_id', 'split_parent_id'),
+    )
+    by_mr: dict[int, list[tuple[int, int | None]]] = defaultdict(list)
+    for rid, mid, parent_id in rows:
+        by_mr[int(mid)].append((int(rid), parent_id))
+    multi = {mid: members for mid, members in by_mr.items() if len(members) > 1}
+    if not multi:
+        return {}
+    all_row_ids = [rid for members in multi.values() for rid, _parent in members]
+    batch_map = _checkin_batch_item_id_map(all_row_ids)
+    out: dict[int, dict[str, Any]] = {}
+    for mid, members in multi.items():
+        root_pk = next((rid for rid, parent in members if parent is None), members[0][0])
+        out[mid] = {
+            'claimed': {rid: batch_map.get(rid, set()) for rid, _parent in members},
+            'root_pk': root_pk,
+        }
+    return out
+
+
+def _items_for_family_row(row_pk: int, fam: dict[str, Any], line_items: list[Item]) -> list[Item]:
+    """Slice one row's Items out of its manifest line's items per family attribution."""
+    own = fam['claimed'].get(row_pk, set())
+    if row_pk == fam['root_pk']:
+        claimed_elsewhere: set[int] = set()
+        for rid, ids in fam['claimed'].items():
+            if rid != row_pk:
+                claimed_elsewhere |= ids
+        return [it for it in line_items if it.id in own or it.id not in claimed_elsewhere]
+    return [it for it in line_items if it.id in own]
+
+
+def attributed_items_for_processing_row(row: ProcessingRow) -> list[Item]:
+    """Items belonging to THIS row — family-aware when the manifest line is split (P9)."""
+    if row.manifest_row_id is None:
+        item_pks = _processing_row_item_ids(row)
+        if not item_pks:
+            return []
+        return list(Item.objects.filter(pk__in=item_pks).order_by('id'))
+    line_items = list(Item.objects.filter(manifest_row_id=row.manifest_row_id).order_by('id'))
+    fam = split_family_attribution(row.purchase_order_id, [row.manifest_row_id]).get(row.manifest_row_id)
+    if fam is None:
+        return line_items
+    return _items_for_family_row(row.pk, fam, line_items)
+
+
 PROCESSING_WORKSPACE_ROW_VALUE_FIELDS = (
     'id',
     'row_kind',
@@ -345,16 +463,192 @@ PROCESSING_WORKSPACE_ROW_VALUE_FIELDS = (
     'search_string',
     'queue_status',
     'qty_dispositioned',
+    'distinct_product_count',
     'pending_item_count',
     'has_on_shelf_unit',
     'list_dispatch',
     'list_sku',
     'shelf_price',
     'item_ids',
+    'collapse_master_id',
+    'split_parent_id',
+    'split_seq',
+    'units_per_item',
 )
 
 
-def _workspace_row_core_fields(rw: dict[str, Any], dup_hint: list[int]) -> dict[str, Any]:
+def collapse_rollups_for_order(order: PurchaseOrder | int) -> dict[int, dict[str, Any]]:
+    """Map master row pk → combined group rollup (P7 collapse).
+
+    {'memberRowNumbers': [...], 'memberRowIds': [...], 'totalQty', 'totalDispositioned'}
+    Totals include the master itself.
+    """
+    oid = order.pk if isinstance(order, PurchaseOrder) else int(order)
+    rollups: dict[int, dict[str, Any]] = {}
+    members = (
+        ProcessingRow.objects.filter(purchase_order_id=oid, collapse_master_id__isnull=False)
+        .values_list('collapse_master_id', 'id', 'row_number', 'quantity', 'qty_dispositioned')
+        .order_by('row_number')
+    )
+    for master_id, member_id, row_number, qty, disp in members:
+        entry = rollups.setdefault(int(master_id), {
+            'memberRowNumbers': [],
+            'memberRowIds': [],
+            'totalQty': 0,
+            'totalDispositioned': 0,
+        })
+        entry['memberRowNumbers'].append(int(row_number))
+        entry['memberRowIds'].append(int(member_id))
+        entry['totalQty'] += int(qty or 0)
+        entry['totalDispositioned'] += int(disp or 0)
+    if rollups:
+        masters = ProcessingRow.objects.filter(pk__in=rollups.keys()).values_list(
+            'id', 'quantity', 'qty_dispositioned',
+        )
+        for pk, qty, disp in masters:
+            rollups[int(pk)]['totalQty'] += int(qty or 0)
+            rollups[int(pk)]['totalDispositioned'] += int(disp or 0)
+    return rollups
+
+
+def _field_from_row_source(src: Any, field: str) -> str:
+    if src is None:
+        return ''
+    if isinstance(src, dict):
+        val = src.get(field)
+    else:
+        val = getattr(src, field, None)
+    return str(val or '').strip()
+
+
+def _specs_from_row_source(src: Any) -> dict[str, Any]:
+    if src is None:
+        return {}
+    if isinstance(src, dict):
+        val = src.get('specifications')
+    else:
+        val = getattr(src, 'specifications', None)
+    return val if isinstance(val, dict) else {}
+
+
+def _upc_from_row_source(src: Any) -> str:
+    if src is None:
+        return ''
+    if isinstance(src, dict):
+        ids = src.get('identifiers')
+    else:
+        ids = getattr(src, 'identifiers', None)
+    if not isinstance(ids, dict):
+        return ''
+    return str(ids.get('upc') or '').strip()
+
+
+def _first_nonempty_str(*values: Any) -> str:
+    for val in values:
+        text = str(val or '').strip()
+        if text:
+            return text
+    return ''
+
+
+def coalesce_processing_row_identity(
+    row: Any,
+    product: Product | None = None,
+    *,
+    manifest_row: ManifestRow | None = None,
+) -> dict[str, Any]:
+    """Product-wins identity for display only — never writes back to DB."""
+
+    def tier(field: str) -> str:
+        return _first_nonempty_str(
+            _field_from_row_source(product, field) if product else '',
+            _field_from_row_source(row, field),
+            _field_from_row_source(manifest_row, field) if manifest_row else '',
+        )
+
+    title = tier('title')
+    if not title:
+        desc = _field_from_row_source(row, 'description')
+        if not desc and manifest_row is not None:
+            desc = _field_from_row_source(manifest_row, 'description')
+        title = desc[:80] if desc else ''
+
+    specs = _specs_from_row_source(product) if product else {}
+    if not specs:
+        specs = _specs_from_row_source(row)
+    if not specs and manifest_row is not None:
+        specs = _specs_from_row_source(manifest_row)
+
+    upc = _first_nonempty_str(
+        _field_from_row_source(product, 'upc') if product else '',
+        _upc_from_row_source(row),
+        _upc_from_row_source(manifest_row) if manifest_row else '',
+    )
+    identifiers: dict[str, str] = {'upc': upc} if upc else {}
+
+    return {
+        'title': title,
+        'brand': tier('brand'),
+        'model': tier('model'),
+        'category': tier('category'),
+        'description': tier('description'),
+        'specifications': specs,
+        'identifiers': identifiers,
+    }
+
+
+def _minimal_list_product(prod: Product) -> dict[str, Any]:
+    return {
+        'id': prod.id,
+        'product_number': prod.product_number or '',
+        'title': prod.title or '',
+        'brand': prod.brand or '',
+        'upc': prod.upc or '',
+    }
+
+
+def _same_product_peers_for_order(order: PurchaseOrder | int) -> dict[int, list[int]]:
+    """Map processing_row pk → peer row_numbers sharing the same matched_product_id."""
+    from collections import defaultdict
+
+    oid = order.pk if isinstance(order, PurchaseOrder) else int(order)
+    by_product: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    for row_id, product_id, row_number in (
+        ProcessingRow.objects.filter(
+            purchase_order_id=oid,
+            matched_product_id__isnull=False,
+        ).values_list('id', 'matched_product_id', 'row_number')
+    ):
+        by_product[int(product_id)].append((int(row_id), int(row_number)))
+
+    peers_by_row_id: dict[int, list[int]] = {}
+    for entries in by_product.values():
+        if len(entries) < 2:
+            continue
+        for row_id, _row_number in entries:
+            others = sorted(rn for rid, rn in entries if rid != row_id)[:10]
+            peers_by_row_id[row_id] = others
+    return peers_by_row_id
+
+
+def _manifest_evidence(mr: ManifestRow) -> dict[str, Any]:
+    return {
+        'title': mr.title or '',
+        'brand': mr.brand or '',
+        'description': mr.description or '',
+        'quantity': int(mr.quantity or 1),
+        'unit_retail': _money(mr.unit_retail),
+    }
+
+
+def _workspace_row_core_fields(
+    rw: dict[str, Any],
+    dup_hint: list[int],
+    *,
+    product: Product | None = None,
+    manifest_row: ManifestRow | None = None,
+    same_product_peer_row_numbers: list[int] | None = None,
+) -> dict[str, Any]:
     """Shared queue-row fields from a ``values()`` dict (snake_case keys)."""
     rn = int(rw['row_number'])
     mid = rw.get('manifest_row_id')
@@ -368,13 +662,15 @@ def _workspace_row_core_fields(rw: dict[str, Any], dup_hint: list[int]) -> dict[
         q_int = 1
     item_id_count = len(_processing_row_item_ids(rw))
     qty_target = q_int if q_int > 0 else max(1, item_id_count if is_manifest_backed else 1)
-    listing_title = str(rw.get('title') or '').strip()
-    listing_desc = str(rw.get('description') or '').strip()
-    display_title = listing_title if listing_title else listing_desc[:80]
+    identity = coalesce_processing_row_identity(rw, product, manifest_row=manifest_row)
+    display_title = identity['title']
+    identifiers_out = identity.get('identifiers') or {}
+    if identifiers_out.get('upc'):
+        identifiers_out = {'upc': identifiers_out['upc']}
+    else:
+        identifiers_out = {}
 
-    ids = rw.get('identifiers') if isinstance(rw.get('identifiers'), dict) else {}
-    raw_upc = str((ids or {}).get('upc') or '').strip()
-    identifiers_out = {'upc': raw_upc} if raw_upc else {}
+    listing_desc = str(rw.get('description') or '').strip()
 
     list_price = _workspace_price_from_bookmark_row(rw)
     cond_ui = condition_db_to_ui(str(rw.get('condition') or ''))
@@ -387,12 +683,18 @@ def _workspace_row_core_fields(rw: dict[str, Any], dup_hint: list[int]) -> dict[
         'rowKind': row_kind,
         'manifest_row_id': mid,
         'rowNum': rn,
+        'collapseMasterId': rw.get('collapse_master_id'),
+        'splitParentId': rw.get('split_parent_id'),
+        'splitSeq': rw.get('split_seq'),
+        'unitsPerItem': int(rw.get('units_per_item') or 1),
         'productId': rw.get('matched_product_id'),
         'title': display_title,
-        'brand': str(rw.get('brand') or ''),
-        'category': str(rw.get('category') or ''),
+        'brand': identity['brand'],
+        'category': identity['category'],
         'qty': qty_target,
         'qtyDispositioned': int(rw['qty_dispositioned'] or 0) if is_manifest_backed else 0,
+        'distinctProductCount': int(rw.get('distinct_product_count') or 0),
+        'sameProductRowNumbers': list(same_product_peer_row_numbers or []),
         'pendingItemCount': int(rw['pending_item_count'] or 0) if is_manifest_backed else qty_target,
         'hasOnShelfUnit': bool(rw.get('has_on_shelf_unit')) if is_manifest_backed else False,
         'unitRetail': _money(rw.get('unit_retail')),
@@ -405,7 +707,7 @@ def _workspace_row_core_fields(rw: dict[str, Any], dup_hint: list[int]) -> dict[
         'sku': sku_val if sku_val else None,
         '_listing_desc': listing_desc,
         '_search_string': str(rw.get('search_string') or ''),
-        '_model': str(rw.get('model') or ''),
+        '_model': identity['model'],
         '_search_tags': rw.get('search_tags'),
     }
 
@@ -413,22 +715,35 @@ def _workspace_row_core_fields(rw: dict[str, Any], dup_hint: list[int]) -> dict[
 def serialize_processing_workspace_list_row_values(
     rw: dict[str, Any],
     dup_hint: list[int],
+    *,
+    product: Product | None = None,
+    same_product_peer_row_numbers: list[int] | None = None,
 ) -> dict[str, Any]:
     """Slim list payload — queue table columns + UPC/SKU scan only."""
-    core = _workspace_row_core_fields(rw, dup_hint)
-    return {k: v for k, v in core.items() if not k.startswith('_')}
+    core = _workspace_row_core_fields(
+        rw,
+        dup_hint,
+        product=product,
+        same_product_peer_row_numbers=same_product_peer_row_numbers,
+    )
+    out = {k: v for k, v in core.items() if not k.startswith('_')}
+    out['product'] = _minimal_list_product(product) if product else None
+    return out
 
 
 def serialize_processing_workspace_row_values(
     rw: dict[str, Any],
     dup_hint: list[int],
+    *,
+    product: Product | None = None,
+    manifest_row: ManifestRow | None = None,
 ) -> dict[str, Any]:
     """Full row JSON for detail endpoint and hydrated mutations.
 
     ``identifiers`` is reduced to ``upc`` only for search/size.
     ``price`` comes from bookmark ``shelf_price`` (and legacy ``final_price`` fallback only).
     """
-    core = _workspace_row_core_fields(rw, dup_hint)
+    core = _workspace_row_core_fields(rw, dup_hint, product=product, manifest_row=manifest_row)
     stags = core.pop('_search_tags')
     if isinstance(stags, list):
         tags_str = ','.join(str(x) for x in stags)
@@ -438,13 +753,14 @@ def serialize_processing_workspace_row_values(
     listing_desc = core.pop('_listing_desc')
     search_string = core.pop('_search_string')
     model = core.pop('_model')
+    identity = coalesce_processing_row_identity(rw, product, manifest_row=manifest_row)
 
     return {
         **core,
-        'product': None,
+        'product': _serialize_product(product) if product else None,
         'model': model,
-        'description': listing_desc,
-        'specs': {},
+        'description': identity['description'] or listing_desc,
+        'specs': identity['specifications'],
         'tags': tags_str,
         'taxonomy': '',
         'manifestNotes': '',
@@ -452,6 +768,20 @@ def serialize_processing_workspace_row_values(
         'items': [],
         'searchString': search_string,
     }
+
+
+def _attach_split_parent_row_numbers(rows_payload: list[dict[str, Any]]) -> None:
+    """Resolve ``splitParentRowNumber`` so clients can label sub rows ``#12.1`` (one query)."""
+    parent_ids = {int(r['splitParentId']) for r in rows_payload if r.get('splitParentId')}
+    if not parent_ids:
+        return
+    rn_by_pk = dict(
+        ProcessingRow.objects.filter(pk__in=parent_ids).values_list('id', 'row_number'),
+    )
+    for r in rows_payload:
+        pid = r.get('splitParentId')
+        if pid and int(pid) in rn_by_pk:
+            r['splitParentRowNumber'] = int(rn_by_pk[int(pid)])
 
 
 def workspace_progress_aggregate(order: PurchaseOrder) -> dict[str, int]:
@@ -485,12 +815,11 @@ def refresh_processing_rows_denorm(
 
     mr_ids = [p.manifest_row_id for p in prs if p.manifest_row_id]
     items_by_mr: dict[int, list[Item]] = defaultdict(list)
-    m_match: dict[int, int | None] = {}
     if mr_ids:
         for it in Item.objects.filter(manifest_row_id__in=mr_ids).order_by('id'):
             items_by_mr[it.manifest_row_id].append(it)
-        for mr in ManifestRow.objects.filter(pk__in=mr_ids).only('pk', 'matched_product_id'):
-            m_match[mr.pk] = mr.matched_product_id
+    # P9 split families: siblings share a manifest line — attribute its items per row.
+    split_attr = split_family_attribution(oid, mr_ids)
 
     product_ids = {p.matched_product_id for p in prs if p.matched_product_id}
     products_by_id: dict[int, Product] = {}
@@ -514,6 +843,10 @@ def refresh_processing_rows_denorm(
                 pr.matched_product_id = items[0].product_id
             pr.queue_status = derive_row_queue_status(items) if items else 'checked_in'
             pr.qty_dispositioned = row_qty_dispositioned(items) if items else 0
+            pr.distinct_product_count = distinct_product_count_for_items(items)
+            primary_pid = primary_product_id_for_items(items)
+            if primary_pid is not None:
+                pr.matched_product_id = primary_pid
             pr.pending_item_count = sum(1 for i in items if i.status in ('intake', 'processing'))
             pr.has_on_shelf_unit = any(i.status == 'on_shelf' for i in items)
             primary = _row_primary_item(items)
@@ -538,26 +871,35 @@ def refresh_processing_rows_denorm(
         if not pr.manifest_row_id:
             pr.queue_status = 'pending'
             pr.qty_dispositioned = 0
+            pr.distinct_product_count = 0
             pr.pending_item_count = 0
             pr.has_on_shelf_unit = False
             pr.item_ids = []
             pr.list_dispatch = 'on_shelf'
             pr.list_sku = ''
             pr.shelf_price = pr.final_price if pr.final_price is not None else pr.proposed_price
-            pr.matched_product_id = None
+            # matched_product is preserved: ProcessingRow owns its decided match
+            # (product_identity_design.md §2); deliberate clears go through
+            # _unlink_processing_bookmarks / explicit mutations.
             continue
 
         mr_id = pr.manifest_row_id
         items = items_by_mr.get(mr_id, [])
+        fam = split_attr.get(mr_id)
+        if fam is not None:
+            items = _items_for_family_row(pr.pk, fam, items)
         ids = [i.id for i in items]
         pr.item_ids = ids
-        pr.matched_product_id = m_match.get(mr_id)
-        if pr.matched_product_id is None and items:
+        pr.queue_status = derive_row_queue_status(items)
+        pr.qty_dispositioned = row_qty_dispositioned(items)
+        pr.distinct_product_count = distinct_product_count_for_items(items)
+        primary_pid = primary_product_id_for_items(items)
+        if primary_pid is not None:
+            pr.matched_product_id = primary_pid
+        elif pr.matched_product_id is None and items:
             primary = _row_primary_item(items)
             if primary is not None and primary.product_id:
                 pr.matched_product_id = primary.product_id
-        pr.queue_status = derive_row_queue_status(items)
-        pr.qty_dispositioned = row_qty_dispositioned(items)
         pr.pending_item_count = sum(1 for i in items if i.status in ('intake', 'processing'))
         pr.has_on_shelf_unit = any(i.status == 'on_shelf' for i in items)
 
@@ -572,11 +914,65 @@ def refresh_processing_rows_denorm(
             pr.shelf_price = pr.final_price if pr.final_price is not None else pr.proposed_price
 
     manifest_prs = [p for p in prs if p.row_kind != ProcessingRow.ROW_KIND_ADDED]
+    # Rebuild after legacy manifest/item backfill may have set matched_product_id (P3 / Session 5).
+    product_ids = {p.matched_product_id for p in manifest_prs if p.matched_product_id}
+    if product_ids:
+        products_by_id = {p.id: p for p in Product.objects.filter(pk__in=product_ids)}
     assign_search_strings_for_instances(
         manifest_prs,
         products_by_id=products_by_id,
         items_by_manifest_row=items_by_mr,
     )
+
+    # P7 collapse: a master row REPRESENTS its whole group while collapsed, and check-ins
+    # fill the master first — so its own-items status would read 'checked_in' while group
+    # units are still pending, dropping the group out of hide_checked_in / segment filters.
+    # Override master queue_status from GROUP totals (qty fields stay per-row: the
+    # fill-in-order allocator depends on them).
+    group_member_rows = list(
+        ProcessingRow.objects.filter(purchase_order_id=oid, collapse_master_id__isnull=False)
+        .values_list('collapse_master_id', 'id', 'quantity', 'qty_dispositioned', 'queue_status'),
+    )
+    if group_member_rows:
+        prs_by_pk = {p.pk: p for p in prs}
+        groups: dict[int, list[tuple]] = defaultdict(list)
+        for master_id, member_id, qty, disp, status in group_member_rows:
+            groups[int(master_id)].append((int(member_id), qty, disp, status))
+        for master_pk, members in groups.items():
+            member_pks = {m[0] for m in members}
+            if (
+                processing_row_ids is not None
+                and master_pk not in prs_by_pk
+                and not (member_pks & prs_by_pk.keys())
+            ):
+                continue  # scoped refresh that didn't touch this group
+            master = prs_by_pk.get(master_pk)
+            if master is None:
+                # A member was touched but the master wasn't in scope — its status
+                # still depends on the group, so pull it into the update set.
+                master = ProcessingRow.objects.filter(pk=master_pk).first()
+                if master is None:
+                    continue
+                prs.append(master)
+                prs_by_pk[master_pk] = master
+            total_qty = int(master.quantity or 0)
+            total_disp = int(master.qty_dispositioned or 0)
+            statuses = [master.queue_status]
+            for member_id, qty, disp, status in members:
+                mem = prs_by_pk.get(member_id)
+                if mem is not None:  # freshly recomputed values win over the stored row
+                    qty, disp, status = mem.quantity, mem.qty_dispositioned, mem.queue_status
+                total_qty += int(qty or 0)
+                total_disp += int(disp or 0)
+                statuses.append(status)
+            if any(s == 'disputed' for s in statuses):
+                master.queue_status = 'disputed'
+            elif total_disp <= 0:
+                master.queue_status = 'pending'
+            elif total_disp < total_qty:
+                master.queue_status = 'partial'
+            else:
+                master.queue_status = 'checked_in'
 
     ProcessingRow.objects.bulk_update(
         prs,
@@ -584,6 +980,7 @@ def refresh_processing_rows_denorm(
             'matched_product_id',
             'queue_status',
             'qty_dispositioned',
+            'distinct_product_count',
             'pending_item_count',
             'has_on_shelf_unit',
             'item_ids',
@@ -607,7 +1004,8 @@ def link_processing_rows_to_manifest_rows(order: PurchaseOrder) -> None:
         mr = by_rn.get(int(pr.row_number))
         if mr:
             pr.manifest_row_id = mr.pk
-            pr.matched_product_id = mr.matched_product_id
+            if pr.matched_product_id is None and mr.matched_product_id:
+                pr.matched_product_id = mr.matched_product_id
     if prs:
         ProcessingRow.objects.bulk_update(prs, ['manifest_row_id', 'matched_product_id'])
 
@@ -760,10 +1158,30 @@ def build_processing_workspace(
     slice_qs = filtered_qs[safe_offset : safe_offset + safe_limit]
 
     raw_rows = list(slice_qs.values(*PROCESSING_WORKSPACE_ROW_VALUE_FIELDS))
+    peers_by_row_id = _same_product_peers_for_order(order)
+    matched_ids = {int(r['matched_product_id']) for r in raw_rows if r.get('matched_product_id')}
+    products_by_id = (
+        {p.id: p for p in Product.objects.filter(pk__in=matched_ids)}
+        if matched_ids else {}
+    )
     out_rows = [
-        serialize_processing_workspace_list_row_values(rw, dup_map.get(int(rw['row_number']), []))
+        serialize_processing_workspace_list_row_values(
+            rw,
+            dup_map.get(int(rw['row_number']), []),
+            product=products_by_id.get(int(rw['matched_product_id'])) if rw.get('matched_product_id') else None,
+            same_product_peer_row_numbers=peers_by_row_id.get(int(rw['id'])),
+        )
         for rw in raw_rows
     ]
+
+    # P7 collapse: masters carry the combined group rollup for collapsed display.
+    collapse_map = collapse_rollups_for_order(order)
+    if collapse_map:
+        for row_payload in out_rows:
+            group = collapse_map.get(int(row_payload['processing_row_id']))
+            if group:
+                row_payload['collapsedGroup'] = group
+    _attach_split_parent_row_numbers(out_rows)
 
     incomplete_build = ProcessingDataBuild.objects.filter(purchase_order_id=order.pk).exclude(
         status=ProcessingDataBuild.STATUS_COMPLETE,
@@ -815,12 +1233,35 @@ def build_workspace_patch(order: PurchaseOrder, *, touched_processing_row_ids: I
     raw_touched = list(
         ProcessingRow.objects.filter(pk__in=touched, purchase_order=order).values(*PROCESSING_WORKSPACE_ROW_VALUE_FIELDS),
     )
+    peers_by_row_id = _same_product_peers_for_order(order)
+    matched_ids = {int(r['matched_product_id']) for r in raw_touched if r.get('matched_product_id')}
+    products_by_id = (
+        {p.id: p for p in Product.objects.filter(pk__in=matched_ids)}
+        if matched_ids else {}
+    )
+    collapse_map = collapse_rollups_for_order(order)
     rows_out = [
-        serialize_processing_workspace_list_row_values(rw, dup_map.get(int(rw['row_number']), []))
+        serialize_processing_workspace_list_row_values(
+            rw,
+            dup_map.get(int(rw['row_number']), []),
+            product=products_by_id.get(int(rw['matched_product_id'])) if rw.get('matched_product_id') else None,
+            same_product_peer_row_numbers=peers_by_row_id.get(int(rw['id'])),
+        )
         for rw in sorted(raw_touched, key=lambda z: z['row_number'])
     ]
+    if collapse_map:
+        for row_payload in rows_out:
+            group = collapse_map.get(int(row_payload['processing_row_id']))
+            if group:
+                row_payload['collapsedGroup'] = group
+    _attach_split_parent_row_numbers(rows_out)
+    qty_agg = ProcessingRow.objects.filter(purchase_order=order).aggregate(
+        sum_disp=Sum('qty_dispositioned'),
+    )
     return {
         'progress': workspace_progress_aggregate(order),
+        'rollups': compute_order_processing_rollups(order),
+        'manifest_qty_dispositioned_total': int(qty_agg['sum_disp'] or 0),
         'rows': rows_out,
     }
 
@@ -907,7 +1348,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         raise LookupError('processing_row_not_found')
 
     rw_vals = {name: getattr(bk, name) for name in PROCESSING_WORKSPACE_ROW_VALUE_FIELDS}
-    base = serialize_processing_workspace_row_values(rw_vals, [])
+    base = serialize_processing_workspace_row_values(rw_vals, [], product=bk.matched_product)
 
     if bk.row_kind == ProcessingRow.ROW_KIND_ADDED:
         item_pks = _processing_row_item_ids(bk)
@@ -918,6 +1359,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         prod = bk.matched_product
         if prod is None and items:
             prod = items[0].product
+        identity = coalesce_processing_row_identity(bk, prod)
         qty_target = max(1, int(bk.quantity or 1), len(items))
         primary = _row_primary_item(items)
         row_price = _workspace_price_from_bookmark_row(rw_vals)
@@ -929,21 +1371,21 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
             'manifest_row_id': None,
             'productId': prod.id if prod else None,
             'product': _serialize_product(prod),
-            'title': bk.title or (prod.title if prod else '') or base['title'],
-            'brand': bk.brand or (prod.brand if prod else '') or '',
-            'model': bk.model or (prod.model if prod else '') or '',
-            'description': bk.description or (prod.description if prod else '') or '',
-            'specs': bk.specifications if isinstance(bk.specifications, dict) else {},
+            'title': identity['title'],
+            'brand': identity['brand'],
+            'model': identity['model'],
+            'description': identity['description'] or bk.description or '',
+            'specs': identity['specifications'],
             'tags': tags_str,
             'taxonomy': str((bk.taxonomy or {}).get('path') or (bk.taxonomy or {}).get('category') or ''),
-            'category': bk.category or (prod.category if prod else '') or '',
+            'category': identity['category'],
             'qty': qty_target,
             'qtyDispositioned': qty_disp,
             'qtyRemaining': max(0, qty_target - qty_disp),
             'qtyOverage': max(0, qty_disp - qty_target),
             'unitRetail': _money(bk.unit_retail),
             'manifestNotes': bk.notes or '',
-            'identifiers': bk.identifiers if isinstance(bk.identifiers, dict) else {},
+            'identifiers': identity['identifiers'] or (bk.identifiers if isinstance(bk.identifiers, dict) else {}),
             'tracking': bk.tracking if isinstance(bk.tracking, dict) else {},
             'items': [_serialize_item(i) for i in items],
             'checkInBatches': _serialize_checkin_batches(bk, items_by_id),
@@ -968,7 +1410,6 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
 
     mr = (
         ManifestRow.objects.filter(pk=bk.manifest_row_id, purchase_order_id=order.pk)
-        .select_related('matched_product')
         .first()
     )
     if mr is None:
@@ -982,39 +1423,48 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         return {'row': out}
 
     items = list(Item.objects.filter(manifest_row_id=mr.pk).select_related('product').order_by('id'))
+    fam = split_family_attribution(order.pk, [mr.pk]).get(mr.pk)
+    if fam is not None:
+        items = _items_for_family_row(bk.pk, fam, items)
     items_by_id = {i.id: i for i in items}
-    prod = mr.matched_product
-    qty_target = mr.quantity if mr.quantity and mr.quantity > 0 else max(1, len(items))
+    prod = bk.matched_product
+    identity = coalesce_processing_row_identity(bk, prod, manifest_row=mr)
+    qty_target = bk.quantity if bk.quantity and bk.quantity > 0 else (
+        mr.quantity if mr.quantity and mr.quantity > 0 else max(1, len(items))
+    )
 
     primary = _row_primary_item(items)
     row_price = _workspace_price_from_bookmark_row(rw_vals)
     qty_disp = row_qty_dispositioned(items)
     qty_remaining = max(0, qty_target - qty_disp)
     qty_overage = max(0, qty_disp - qty_target)
+    stags = bk.search_tags
+    tags_str = ','.join(str(x) for x in stags) if isinstance(stags, list) else str(stags or '')
+    row_identifiers = bk.identifiers if isinstance(bk.identifiers, dict) else {}
+    if identity.get('identifiers'):
+        row_identifiers = {**row_identifiers, **identity['identifiers']}
     row_full = {
         **base,
         'manifest_row_id': mr.id,
         'rowNum': mr.row_number,
         'productId': prod.id if prod else None,
         'product': _serialize_product(prod),
-        'title': mr.title or (prod.title if prod else '') or base['title'],
-        'brand': mr.brand or (prod.brand if prod else '') or '',
-        'model': mr.model or (prod.model if prod else '') or '',
-        'description': mr.description or (prod.description if prod else '') or '',
-        'specs': mr.specifications if isinstance(mr.specifications, dict) else {},
-        'tags': ','.join(str(x) for x in mr.search_tags)
-        if isinstance(mr.search_tags, list)
-        else str(mr.search_tags or ''),
-        'taxonomy': str((mr.taxonomy or {}).get('path') or (mr.taxonomy or {}).get('category') or ''),
-        'category': mr.category or '',
+        'title': identity['title'],
+        'brand': identity['brand'],
+        'model': identity['model'],
+        'description': identity['description'] or bk.description or mr.description or '',
+        'specs': identity['specifications'],
+        'tags': tags_str,
+        'taxonomy': str((bk.taxonomy or {}).get('path') or (bk.taxonomy or {}).get('category') or ''),
+        'category': identity['category'],
         'qty': qty_target,
         'qtyDispositioned': qty_disp,
         'qtyRemaining': qty_remaining,
         'qtyOverage': qty_overage,
-        'unitRetail': _money(mr.unit_retail),
-        'manifestNotes': mr.notes or '',
-        'identifiers': mr.identifiers if isinstance(mr.identifiers, dict) else {},
-        'tracking': mr.tracking if isinstance(mr.tracking, dict) else {},
+        'unitRetail': _money(bk.unit_retail if bk.unit_retail is not None else mr.unit_retail),
+        'manifestNotes': bk.notes or '',
+        'identifiers': row_identifiers,
+        'tracking': bk.tracking if isinstance(bk.tracking, dict) else {},
         'items': [_serialize_item(i) for i in items],
         'checkInBatches': _serialize_checkin_batches(bk, items_by_id),
         'status': derive_row_queue_status(items),
@@ -1023,5 +1473,88 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         'dispatch': location_to_dispatch(primary.location) if primary else base['dispatch'],
         'sku': primary.sku if primary else None,
     }
+    # P7 collapse: a master's detail covers the WHOLE group — combined rollup, every
+    # member's items, and every member's check-in batches (one check-in spanning rows
+    # creates one batch per member). Per-row qty fields stay own-row; the client reads
+    # collapsedGroup for combined displays.
+    member_rows = list(
+        ProcessingRow.objects.filter(collapse_master_id=bk.pk)
+        .order_by('row_number'),
+    )
+    if member_rows:
+        member_mr_ids = [m.manifest_row_id for m in member_rows if m.manifest_row_id]
+        member_items = list(
+            Item.objects.filter(manifest_row_id__in=member_mr_ids)
+            .select_related('product')
+            .order_by('id'),
+        ) if member_mr_ids else []
+        member_items_by_mr: dict[int, list[Item]] = defaultdict(list)
+        for it in member_items:
+            member_items_by_mr[it.manifest_row_id].append(it)
+
+        all_items = items + member_items
+        items_by_id = {i.id: i for i in all_items}
+        batches = _serialize_checkin_batches(bk, items_by_id)
+        for member in member_rows:
+            batches.extend(_serialize_checkin_batches(member, items_by_id))
+        batches.sort(key=lambda b: (b['created_at'] or '', b['id']), reverse=True)
+
+        group_qty = int(qty_target) + sum(int(m.quantity or 0) for m in member_rows)
+        group_disp = qty_disp + sum(
+            row_qty_dispositioned(member_items_by_mr.get(m.manifest_row_id, []))
+            for m in member_rows
+        )
+        row_full['collapsedGroup'] = {
+            'memberRowNumbers': [int(m.row_number) for m in member_rows],
+            'memberRowIds': [m.pk for m in member_rows],
+            'totalQty': group_qty,
+            'totalDispositioned': group_disp,
+        }
+        row_full['items'] = [_serialize_item(i) for i in all_items]
+        row_full['checkInBatches'] = batches
+        derived = derive_row_queue_status(all_items)
+        if derived != 'disputed':
+            derived = (
+                'pending' if group_disp <= 0
+                else 'partial' if group_disp < group_qty
+                else 'checked_in'
+            )
+        row_full['status'] = derived
+
+    _attach_split_family_payload(bk, row_full)
+    if prod is not None:
+        row_full['manifestEvidence'] = _manifest_evidence(mr)
     row_full.pop('likelyDuplicateOf', None)
     return {'row': row_full}
+
+
+def _attach_split_family_payload(bk: ProcessingRow, row_full: dict[str, Any]) -> None:
+    """P9 transforms: family map + transform history for root and sub rows alike."""
+    root = bk if bk.split_parent_id is None else ProcessingRow.objects.filter(pk=bk.split_parent_id).first()
+    if root is None:
+        return
+    children = list(
+        ProcessingRow.objects.filter(split_parent=root).order_by('split_seq', 'row_number'),
+    )
+    transforms = list(root.transforms or [])
+    if bk.split_parent_id is None and not children and not transforms:
+        return
+    if bk.split_parent_id is not None:
+        row_full['splitParentRowNumber'] = int(root.row_number)
+    row_full['transforms'] = transforms
+    row_full['splitFamily'] = {
+        'rootProcessingRowId': root.pk,
+        'rootRowNumber': int(root.row_number),
+        'children': [
+            {
+                'processing_row_id': c.pk,
+                'rowNumber': int(c.row_number),
+                'splitSeq': c.split_seq,
+                'qty': int(c.quantity or 0),
+                'unitsPerItem': int(c.units_per_item or 1),
+                'qtyDispositioned': int(c.qty_dispositioned or 0),
+            }
+            for c in children
+        ],
+        'canRestart': bool(transforms or children),
+    }

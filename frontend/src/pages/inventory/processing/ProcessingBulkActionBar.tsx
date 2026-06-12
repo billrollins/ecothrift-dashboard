@@ -4,8 +4,16 @@ export interface ProcessingBulkActionBarProps {
   selectedCount: number;
   onClear: () => void;
   sameProduct: boolean;
-  onMerge: () => void;
-  onBulkDisposition: () => void;
+  canAssignSharedProduct: boolean;
+  onCheckInTogether: () => void;
+  onAssignSharedProduct: () => void;
+  /** P7 collapse: enabled when ≥2 manifest-backed rows are selected, none already grouped. */
+  canCollapseRows?: boolean;
+  /** Set when the selection is exactly one collapse-group master row. */
+  collapseMasterRowId?: number | null;
+  collapseLoading?: boolean;
+  onCollapseRows?: () => void;
+  onUncollapseRows?: (masterProcessingRowId: number) => void;
   onMarkBroken: () => void;
   onMarkUndelivered: () => void;
   /** When true, item-level bulk actions are disabled (e.g. preprocessing bookmark rows selected). */
@@ -19,14 +27,21 @@ export function ProcessingBulkActionBar({
   selectedCount,
   onClear,
   sameProduct,
-  onMerge,
-  onBulkDisposition,
+  canAssignSharedProduct,
+  onCheckInTogether,
+  onAssignSharedProduct,
+  canCollapseRows = false,
+  collapseMasterRowId = null,
+  collapseLoading = false,
+  onCollapseRows,
+  onUncollapseRows,
   onMarkBroken,
   onMarkUndelivered,
   itemActionsBlocked = false,
   itemActionsBlockedHint,
 }: ProcessingBulkActionBarProps) {
-  if (selectedCount < 2) return null;
+  // A single selected collapse master still gets the bar (for Uncollapse).
+  if (selectedCount < 2 && collapseMasterRowId == null) return null;
 
   return (
     <Box
@@ -52,34 +67,55 @@ export function ProcessingBulkActionBar({
           {selectedCount}
         </Typography>
         <Typography variant="body2" sx={{ color: 'grey.300' }}>
-          rows selected
+          {selectedCount === 1 ? 'row selected' : 'rows selected'}
         </Typography>
         <Button size="small" variant="text" sx={{ color: 'grey.300' }} onClick={onClear}>
           Clear
         </Button>
         <Divider orientation="vertical" flexItem sx={{ borderColor: 'grey.700', mx: 1 }} />
-        {sameProduct ? (
+        {sameProduct ?
           <Button
             size="small"
             variant="contained"
             color="primary"
-            onClick={onBulkDisposition}
+            onClick={onCheckInTogether}
             disabled={itemActionsBlocked}
           >
-            Bulk disposition
+            Check in together
           </Button>
-        ) : (
+        : canAssignSharedProduct ?
           <Button
             size="small"
             variant="contained"
-            color="inherit"
-            sx={{ bgcolor: 'grey.700', color: 'white' }}
-            onClick={onMerge}
+            color="primary"
+            onClick={onAssignSharedProduct}
             disabled={itemActionsBlocked}
           >
-            These are the same product
+            Assign shared product
           </Button>
-        )}
+        : null}
+        {canCollapseRows && onCollapseRows ?
+          <Button
+            size="small"
+            variant="outlined"
+            sx={{ borderColor: 'grey.500', color: 'grey.200' }}
+            onClick={onCollapseRows}
+            disabled={itemActionsBlocked || collapseLoading}
+          >
+            Collapse rows
+          </Button>
+        : null}
+        {collapseMasterRowId != null && onUncollapseRows ?
+          <Button
+            size="small"
+            variant="outlined"
+            sx={{ borderColor: 'grey.500', color: 'grey.200' }}
+            onClick={() => onUncollapseRows(collapseMasterRowId)}
+            disabled={itemActionsBlocked || collapseLoading}
+          >
+            Uncollapse
+          </Button>
+        : null}
         <Button
           size="small"
           variant="outlined"

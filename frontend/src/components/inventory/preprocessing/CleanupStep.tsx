@@ -1,7 +1,9 @@
-import { Alert, Box } from '@mui/material';
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Typography } from '@mui/material';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import type { CleanupCsvApplyRowPayload, CleanupCsvSoftWarning } from '../../../api/inventory.api';
 import { RowProcessingPanel } from '../RowProcessingPanel';
+import { WebAiCleanupPanel } from './WebAiCleanupPanel';
 
 interface CleanupStepProps {
   orderId: number;
@@ -44,17 +46,27 @@ export function CleanupStep({
           CSV validated — {validatedPayload.length} rows ready. Click <strong>Run Cleanup</strong> in the toolbar to apply changes to preprocessing rows.
         </Alert>
       )}
-      <RowProcessingPanel
-        orderId={orderId}
-        orderNumber={orderNumber}
-        rowCount={standardizedRowCount}
-        expectedRowIds={expectedRowIds}
-        rowNumberById={rowNumberById}
-        validatedPayload={validatedPayload}
-        onValidatedPayloadChange={onValidatedPayloadChange}
-        lastApplySoftWarnings={lastApplySoftWarnings}
-        onDismissApplyWarnings={onDismissApplyWarnings}
-      />
+      <WebAiCleanupPanel orderId={orderId} />
+      <Accordion disableGutters elevation={0} sx={{ border: '1px solid #DDD5C9', borderRadius: '8px', '&::before': { display: 'none' } }}>
+        <AccordionSummary expandIcon={<ExpandMore />}>
+          <Typography sx={{ fontSize: 14, fontWeight: 600, color: '#1B4332' }}>
+            Advanced — Offline CSV cleanup (Grok fallback)
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <RowProcessingPanel
+            orderId={orderId}
+            orderNumber={orderNumber}
+            rowCount={standardizedRowCount}
+            expectedRowIds={expectedRowIds}
+            rowNumberById={rowNumberById}
+            validatedPayload={validatedPayload}
+            onValidatedPayloadChange={onValidatedPayloadChange}
+            lastApplySoftWarnings={lastApplySoftWarnings}
+            onDismissApplyWarnings={onDismissApplyWarnings}
+          />
+        </AccordionDetails>
+      </Accordion>
     </Box>
   );
 }

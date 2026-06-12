@@ -7,30 +7,21 @@ import logging
 import re
 from typing import Any
 
-from django.conf import settings
-
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
-from apps.core.services.ai_usage_log import log_ai_usage, log_ai_usage_from_response
+from apps.core.services.ai_usage_log import log_ai_usage
+from apps.core.services.llm_router import (
+    LLMAPIError,
+    LLMConfigError,
+    llm_complete,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _import_anthropic():
-    import anthropic as _anthropic
-
-    return _anthropic
-
-
-def get_anthropic_client():
-    api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
-    if not api_key:
-        return None
-    anthropic = _import_anthropic()
-    return anthropic.Anthropic(api_key=api_key)
-
-
 def _default_model() -> str:
-    return (getattr(settings, 'AI_MODEL', None) or 'claude-sonnet-4-6').strip()
+    from apps.core.ai_config import ai_model
+
+    return ai_model('CATEGORY_AI')
 
 
 def build_system_prompt() -> str:
@@ -92,33 +83,34 @@ def suggest_category_for_source_key(
     marketplace_slug: str | None = None,
 ) -> tuple[str, str]:
     """
-    One Claude call: returns (canonical_category, reasoning) or raises.
+    One model call (AI_MODEL_CATEGORY_AI): returns (canonical_category, reasoning) or raises.
     sample_rows: ManifestRow-like with title, brand, condition.
     """
-    client = get_anthropic_client()
-    if client is None:
-        raise RuntimeError('ANTHROPIC_API_KEY is not configured.')
-
     sample_lines: list[tuple[str, str, str]] = []
     for r in sample_rows:
         sample_lines.append(
             (getattr(r, 'title', '') or '', getattr(r, 'brand', '') or '', getattr(r, 'condition', '') or '')
         )
 
-    anthropic = _import_anthropic()
     system = build_system_prompt()
     user = build_user_prompt(source_key, sample_lines)
     model = _default_model()
 
     try:
-        response = client.messages.create(
-            model=model,
+        result = llm_complete(
+            model_id=model,
+            system=system,
+            user=user,
             max_tokens=1024,
-            system=[{'type': 'text', 'text': system, 'cache_control': {'type': 'ephemeral'}}],
-            messages=[{'role': 'user', 'content': user}],
+            log_source='categorize_manifests',
+            log_detail=f'source_key={source_key[:120]!r}',
+            log_auction_id=auction_id,
+            log_marketplace=marketplace_slug,
         )
-    except anthropic.APIError as e:  # type: ignore[attr-defined]
-        logger.warning('Anthropic API error in category_ai: %s', e)
+    except LLMConfigError as e:
+        raise RuntimeError(str(e)) from e
+    except LLMAPIError as e:
+        logger.warning('LLM API error in category_ai: %s', e)
         log_ai_usage(
             'categorize_manifests',
             model,
@@ -132,21 +124,7 @@ def suggest_category_for_source_key(
         )
         raise
 
-    log_ai_usage_from_response(
-        'categorize_manifests',
-        response,
-        model=model,
-        auction_id=auction_id,
-        marketplace=marketplace_slug,
-        detail=f'source_key={source_key[:120]!r}',
-    )
-
-    content_text = ''
-    for block in response.content:
-        if block.type == 'text':
-            content_text += block.text
-
-    data = parse_ai_category_json(content_text)
+    data = parse_ai_category_json(result.text)
     canonical = (data.get('canonical_category') or '').strip()
     reasoning = (data.get('reasoning') or '').strip()
     if canonical not in TAXONOMY_V1_CATEGORY_NAMES:

@@ -8,36 +8,25 @@ import math
 import re
 from typing import Any
 
-from django.conf import settings
 from django.db.models import Q
 
 from apps.buying.models import Auction, CategoryMapping, ManifestRow
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
-from apps.core.services.ai_usage_log import (
-    estimate_cost_usd,
-    log_ai_usage,
-    log_ai_usage_from_response,
+from apps.core.services.ai_usage_log import estimate_cost_usd, log_ai_usage
+from apps.core.services.llm_router import (
+    LLMAPIError,
+    LLMConfigError,
+    is_provider_configured,
+    llm_complete,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def _import_anthropic():
-    import anthropic as _anthropic
-
-    return _anthropic
-
-
-def get_anthropic_client():
-    api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
-    if not api_key:
-        return None
-    anthropic = _import_anthropic()
-    return anthropic.Anthropic(api_key=api_key)
-
-
 def _default_model() -> str:
-    return (getattr(settings, 'AI_MODEL', None) or 'claude-sonnet-4-6').strip()
+    from apps.core.ai_config import ai_model
+
+    return ai_model('KEY_MAPPING')
 
 
 def build_system_prompt() -> str:
@@ -138,8 +127,9 @@ def total_batches_for_count(unmapped_key_count: int) -> int:
     return int(math.ceil(unmapped_key_count / BATCH_SIZE))
 
 
-def _usage_dict(usage: Any) -> dict[str, int]:
-    if usage is None:
+def _usage_dict(result: Any = None) -> dict[str, int]:
+    """Usage payload for the JSON response from an LLMResult (or zeros)."""
+    if result is None:
         return {
             'input_tokens': 0,
             'output_tokens': 0,
@@ -147,10 +137,10 @@ def _usage_dict(usage: Any) -> dict[str, int]:
             'cache_read_tokens': 0,
         }
     return {
-        'input_tokens': int(getattr(usage, 'input_tokens', 0) or 0),
-        'output_tokens': int(getattr(usage, 'output_tokens', 0) or 0),
-        'cache_creation_tokens': int(getattr(usage, 'cache_creation_input_tokens', 0) or 0),
-        'cache_read_tokens': int(getattr(usage, 'cache_read_input_tokens', 0) or 0),
+        'input_tokens': int(getattr(result, 'input_tokens', 0) or 0),
+        'output_tokens': int(getattr(result, 'output_tokens', 0) or 0),
+        'cache_creation_tokens': int(getattr(result, 'cache_creation_tokens', 0) or 0),
+        'cache_read_tokens': int(getattr(result, 'cache_read_tokens', 0) or 0),
     }
 
 
@@ -162,10 +152,11 @@ def map_one_fast_cat_batch(
     """
     Process up to BATCH_SIZE unmapped keys. Overlapping work across concurrent callers is allowed.
 
-    Returns a dict for JSON (includes ``usage`` and ``estimated_cost_usd`` when Claude ran).
+    Returns a dict for JSON (includes ``usage`` and ``estimated_cost_usd`` when the model ran).
     On missing API key: ``error`` = ``ai_not_configured``, HTTP 200 from the view.
     """
-    client = get_anthropic_client()
+    model = _default_model()
+    ai_configured = is_provider_configured(model)
     mp_slug = auction.marketplace.slug if auction.marketplace_id else None
 
     # Refresh mapping from DB so concurrent workers see new CategoryMappings
@@ -182,7 +173,7 @@ def map_one_fast_cat_batch(
             'estimated_cost_usd': 0.0,
         }
 
-    if client is None:
+    if not ai_configured:
         n = count_distinct_unmapped_keys(auction, mapping)
         return {
             'error': 'ai_not_configured',
@@ -215,8 +206,6 @@ def map_one_fast_cat_batch(
             'estimated_cost_usd': 0.0,
         }
 
-    anthropic = _import_anthropic()
-    model = _default_model()
     system = build_system_prompt()
     key_context = {}
     for k in unknown:
@@ -229,14 +218,18 @@ def map_one_fast_cat_batch(
     user = build_user_prompt(unknown, key_context)
 
     try:
-        response = client.messages.create(
-            model=model,
+        result = llm_complete(
+            model_id=model,
+            system=system,
+            user=user,
             max_tokens=4096,
-            system=[{'type': 'text', 'text': system, 'cache_control': {'type': 'ephemeral'}}],
-            messages=[{'role': 'user', 'content': user}],
+            log_source='ai_key_mapping',
+            log_detail=f'map_one_fast_cat_batch keys={len(unknown)}',
+            log_auction_id=auction.pk,
+            log_marketplace=mp_slug,
         )
-    except anthropic.APIError as e:  # type: ignore[attr-defined]
-        logger.warning('Anthropic error in ai_key_mapping: %s', e)
+    except (LLMConfigError, LLMAPIError) as e:
+        logger.warning('LLM error in ai_key_mapping: %s', e)
         log_ai_usage(
             'ai_key_mapping',
             model,
@@ -258,29 +251,16 @@ def map_one_fast_cat_batch(
             'estimated_cost_usd': 0.0,
         }
 
-    log_ai_usage_from_response(
-        'ai_key_mapping',
-        response,
-        model=model,
-        auction_id=auction.pk,
-        marketplace=mp_slug,
-        detail=f'map_one_fast_cat_batch keys={len(unknown)}',
-    )
-
-    usage = _usage_dict(getattr(response, 'usage', None))
-    mid = getattr(response, 'model', None) or model
+    usage = _usage_dict(result)
     est = estimate_cost_usd(
-        mid,
+        result.model_used,
         usage['input_tokens'],
         usage['output_tokens'],
         usage['cache_creation_tokens'],
         usage['cache_read_tokens'],
     )
 
-    text = ''
-    for block in response.content:
-        if block.type == 'text':
-            text += block.text
+    text = result.text
 
     mappings_out: list[dict[str, Any]] = []
     keys_mapped_count = 0

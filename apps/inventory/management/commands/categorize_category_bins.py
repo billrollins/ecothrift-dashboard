@@ -31,6 +31,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.core.services.llm_router import LLMAPIError, is_provider_configured, llm_complete
 from apps.inventory.category_research_paths import (
     category_research_categorized_exports,
     category_research_categorization_logs,
@@ -47,19 +48,6 @@ from apps.inventory.services.category_taxonomy import (
     taxonomy_prompt_hash,
     validate_assignment,
 )
-
-
-def _import_anthropic():
-    import anthropic as _anthropic
-    return _anthropic
-
-
-def get_anthropic_client():
-    api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
-    if not api_key:
-        return None
-    anthropic = _import_anthropic()
-    return anthropic.Anthropic(api_key=api_key)
 
 
 def latest_chunk_run_dir(base: Path, bin_label: str) -> Path | None:
@@ -256,10 +244,8 @@ class Command(BaseCommand):
         chunk_dir = chunk_run_dir(base, bin_label, stamp)
         chunk_dir.mkdir(parents=True, exist_ok=True)
 
-        client = get_anthropic_client()
-        if client is None and not options['dry_run']:
-            raise CommandError('ANTHROPIC_API_KEY is not configured.')
-        anthropic_mod = _import_anthropic()
+        if not options['dry_run'] and not is_provider_configured(options['model']):
+            raise CommandError(f'API key is not configured for model {options["model"]!r}.')
 
         system_prompt = build_categorization_system_prompt(data, bin_label)
 
@@ -331,34 +317,24 @@ class Command(BaseCommand):
                     row_out['validation_message'] = ''
                     batch_out.append(row_out)
             else:
-                assert client is not None
                 try:
-                    response = client.messages.create(
-                        model=options['model'],
-                        max_tokens=8192,
+                    response = llm_complete(
+                        model_id=options['model'],
                         system=system_prompt,
-                        messages=[{'role': 'user', 'content': user_content}],
+                        user=user_content,
+                        max_tokens=8192,
+                        log_source='categorize_category_bins',
+                        log_detail='categorize_category_bins',
                     )
-                    from apps.core.services.ai_usage_log import log_ai_usage_from_response
+                except LLMAPIError as e:
+                    raise CommandError(f'LLM API error: {e}') from e
 
-                    log_ai_usage_from_response(
-                        'categorize_category_bins',
-                        response,
-                        model=options['model'],
-                        detail='categorize_category_bins',
-                    )
-                except anthropic_mod.APIError as e:
-                    raise CommandError(f'Anthropic API error: {e}') from e
+                text = response.text
 
-                text = ''
-                for block in response.content:
-                    if block.type == 'text':
-                        text += block.text
-
-                log_entry['response_id'] = getattr(response, 'id', None)
+                log_entry['response_id'] = response.response_id or None
                 log_entry['usage'] = {
-                    'input_tokens': response.usage.input_tokens,
-                    'output_tokens': response.usage.output_tokens,
+                    'input_tokens': response.input_tokens,
+                    'output_tokens': response.output_tokens,
                 }
                 log_entry['response_text'] = text
 

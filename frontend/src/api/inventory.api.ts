@@ -47,52 +47,6 @@ type OrderListRow = PurchaseOrderListRow;
 type Template = CSVTemplate;
 type Batch = BatchGroup;
 
-export interface MatchProductsPayload {
-  use_ai?: boolean;
-  model?: string;
-}
-
-export interface MatchProductsResponse {
-  total_rows: number;
-  matched: number;
-  pending_review: number;
-  confirmed: number;
-  uncertain: number;
-  new_products: number;
-}
-
-export interface MatchResultsSummary {
-  total: number;
-  matched: number;
-  pending_review: number;
-  confirmed: number;
-  uncertain: number;
-  new_product: number;
-}
-
-export interface MatchResultsResponse {
-  rows: import('../types/inventory.types').ManifestRow[];
-  summary: MatchResultsSummary;
-}
-
-export interface ReviewMatchDecision {
-  row_id: number;
-  decision: 'accept' | 'reject' | 'modify';
-  product_id?: number;
-  update_product?: boolean;
-  modifications?: { title?: string; brand?: string; model?: string; category?: string };
-}
-
-export interface ReviewMatchesPayload {
-  decisions: ReviewMatchDecision[];
-}
-
-export interface ReviewMatchesResponse {
-  accepted: number;
-  rejected: number;
-  new_products: number;
-}
-
 export interface CreateItemsResponse {
   batch_id: number;
   items_created: number;
@@ -539,113 +493,68 @@ export function suggestFormulas(
   return api.post<SuggestFormulasResponse>(`/inventory/orders/${orderId}/suggest-formulas/`, data ?? {});
 }
 
-export interface AICleanupRowsPayload {
+export interface AiCleanupBatchPayload {
+  /** PreprocessingRow ids for this batch (≤25; pool default 10). */
+  row_ids: number[];
   model?: string;
-  batch_size?: number;
-  offset?: number;
-  debug_payload?: boolean;
-  mode?: 'fast' | 'rich';
 }
 
-export interface AICleanupSuggestion {
+export interface AiCleanupBatchDiscardedRow {
   row_id: number;
-  row_number?: number;
-  item_id?: number | null;
-  title: string;
-  brand: string;
-  model: string;
-  category?: string;
-  condition?: string;
-  price?: string;
-  search_tags: string;
-  specifications: Record<string, unknown>;
-  notes?: string;
-  reasoning: string;
-  low_confidence?: boolean;
-  low_confidence_reason?: string;
+  reason: 'missing' | 'empty_title' | string;
 }
 
-export interface AICleanupSubmittedRow {
-  row_id: number;
-  row_number: number;
-  item_id: number | null;
-  sku: string;
-  description: string;
-  title: string;
-  brand: string;
-  model: string;
-  category: string;
-  condition: string;
-  upc: string;
-  retail_value: string;
-  base_cost: string;
-  ideal_price: string;
-}
-
-export interface AICleanupDiscardedRow {
-  row_id: number;
-  row_number: number;
-  item_id: number | null;
-  reason: 'missing' | 'row_number_mismatch' | 'item_id_mismatch' | 'parse_failed' | string;
-  detail?: string;
-  received_row_number?: number | string;
-  received_item_id?: number | string | null;
-}
-
-export interface AICleanupTiming {
+export interface AiCleanupBatchTiming {
   db_fetch_ms: number;
   prompt_build_ms: number;
   api_call_ms: number;
-  response_parse_ms: number;
+  parse_ms: number;
   db_save_ms: number;
   total_ms: number;
-  retries: number;
 }
 
-export interface AICleanupRowsResponse {
-  rows_processed: number;
-  rows_saved?: number;
-  total_rows: number;
-  offset: number;
-  batch_size?: number;
-  row_start?: number | null;
-  row_end?: number | null;
-  submitted_row_ids?: number[];
-  submitted_row_numbers?: number[];
-  submitted_rows?: AICleanupSubmittedRow[];
-  suggestions: AICleanupSuggestion[];
+export interface AiCleanupBatchResponse {
+  rows_requested: number;
+  rows_saved: number;
+  saved_row_ids: number[];
+  discarded_rows: AiCleanupBatchDiscardedRow[];
+  /** True when undo/cancel bumped ai_cleanup_generation mid-call; nothing was saved. */
+  cancelled: boolean;
+  generation: number;
   model_used: string;
-  has_more: boolean;
-  timing?: AICleanupTiming;
-  stop_reason?: string;
-  mode?: 'fast' | 'rich' | string;
-  /** True when cancel ran during the API call; this batch was not saved. */
-  cancelled?: boolean;
-  rows_discarded?: number;
-  rows_low_confidence?: number;
-  received_response?: boolean;
-  response_text_length?: number;
-  parsed_count?: number;
-  validated_row_ids?: number[];
-  discarded_rows?: AICleanupDiscardedRow[];
-  item_count?: number;
+  timing: AiCleanupBatchTiming;
+}
+
+export interface AiCleanupCompleteResponse {
+  total_rows: number;
+  cleaned_rows: number;
+  remaining_rows: number;
+  match_candidates: MatchCandidatesSummary;
 }
 
 export interface AICleanupStatusResponse {
   total_rows: number;
   cleaned_rows: number;
   remaining_rows: number;
+  generation: number;
+  use_staging: boolean;
+  /** Staging only — drives the web batch pool and resume. */
+  uncleaned_row_ids?: number[];
 }
 
 export interface CancelAICleanupResponse {
   rows_cleared: number;
 }
 
-export function aiCleanupRows(
+export function aiCleanupBatch(
   orderId: number,
-  data?: AICleanupRowsPayload,
-): Promise<{ data: AICleanupRowsResponse }> {
-  return api.post<AICleanupRowsResponse>(`/inventory/orders/${orderId}/ai-cleanup-rows/`, data ?? {});
+  data: AiCleanupBatchPayload,
+): Promise<{ data: AiCleanupBatchResponse }> {
+  return api.post<AiCleanupBatchResponse>(`/inventory/orders/${orderId}/ai-cleanup-batch/`, data);
+}
+
+export function aiCleanupComplete(orderId: number): Promise<{ data: AiCleanupCompleteResponse }> {
+  return api.post<AiCleanupCompleteResponse>(`/inventory/orders/${orderId}/ai-cleanup-complete/`);
 }
 
 export function getAICleanupStatus(orderId: number): Promise<{ data: AICleanupStatusResponse }> {
@@ -654,31 +563,6 @@ export function getAICleanupStatus(orderId: number): Promise<{ data: AICleanupSt
 
 export function cancelAICleanup(orderId: number): Promise<{ data: CancelAICleanupResponse }> {
   return api.post<CancelAICleanupResponse>(`/inventory/orders/${orderId}/cancel-ai-cleanup/`);
-}
-
-export interface ClearManifestRowsResponse {
-  rows_deleted: number;
-  items_deleted?: number;
-}
-
-export function clearManifestRows(orderId: number): Promise<{ data: ClearManifestRowsResponse }> {
-  return api.post<ClearManifestRowsResponse>(`/inventory/orders/${orderId}/clear-manifest-rows/`);
-}
-
-export interface UndoProductMatchingResponse {
-  rows_cleared: number;
-}
-
-export function undoProductMatching(orderId: number): Promise<{ data: UndoProductMatchingResponse }> {
-  return api.post<UndoProductMatchingResponse>(`/inventory/orders/${orderId}/undo-product-matching/`);
-}
-
-export interface ClearPricingResponse {
-  rows_cleared: number;
-}
-
-export function clearPricing(orderId: number): Promise<{ data: ClearPricingResponse }> {
-  return api.post<ClearPricingResponse>(`/inventory/orders/${orderId}/clear-pricing/`);
 }
 
 export interface SuggestFinalizationPayload {
@@ -800,6 +684,8 @@ export interface PreprocessingStatusResponse {
     id: number;
     order_number: string;
     vendor_name: string;
+    /** PO description — the long vendor load title shown beside the order selector. */
+    load_type: string;
     status: string;
     item_count: number;
     has_manifest_file: boolean;
@@ -868,6 +754,8 @@ export interface ManualReviewUpdateResponse {
 
 export interface PreprocessingReviewRow {
   id: number;
+  /** When set, cleanup CSV row_id matches this manifest spine id (see download-cleanup-csv). */
+  manifest_row_id?: number | null;
   row_number: number;
   quantity: number;
   unit_retail: string | null;
@@ -934,6 +822,39 @@ export interface PreprocessingReviewRow {
   ideal_price: string | null;
   set_price: string | null;
   ideal_delta_pct: number | null;
+  match_candidates: PreprocessingMatchCandidate[];
+  final_matched_product: number | null;
+  match_source: '' | 'auto' | 'staff';
+  matched_product_detail: PreprocessingMatchedProductDetail | null;
+  same_product_row_numbers: number[];
+}
+
+export interface PreprocessingMatchCandidate {
+  product_id: number;
+  score: number;
+  source: 'upc' | 'vendor_ref' | 'text';
+  snapshot: {
+    title: string;
+    brand: string;
+    upc: string;
+    default_price: string | null;
+    product_number: string;
+  };
+}
+
+export interface PreprocessingMatchedProductDetail {
+  id: number;
+  product_number: string;
+  title: string;
+  brand: string;
+  upc: string;
+  default_price: string | null;
+}
+
+export interface MatchCandidatesSummary {
+  rows_scanned: number;
+  rows_with_candidates: number;
+  auto_selected: number;
 }
 
 export type PreprocessingReviewSummary = ManualReviewSummary;
@@ -958,6 +879,10 @@ export type PreprocessingReviewRowPatch = Partial<Pick<
 export interface PreprocessingReviewRowUpdate extends PreprocessingReviewRowPatch {
   id: number;
   patch?: PreprocessingReviewRowPatch;
+  /** Match-only PATCH: send without patch wrapper; server stamps match_source=staff */
+  final_matched_product?: number | null;
+  /** With final_matched_product null: '' = REMOVE the match (back to undecided), omit = staff "new product". */
+  match_source?: '';
 }
 
 export interface PreprocessingReviewResponse {
@@ -1152,8 +1077,12 @@ export interface CleanupCsvApplyRowPayload {
 export function uploadCleanupCsvRows(
   orderId: number,
   rows: CleanupCsvApplyRowPayload[],
+  options?: { partial?: boolean },
 ): Promise<{ data: UploadCleanupCsvResponse }> {
-  return api.post<UploadCleanupCsvResponse>(`/inventory/orders/${orderId}/apply-cleanup-csv/`, { rows });
+  return api.post<UploadCleanupCsvResponse>(`/inventory/orders/${orderId}/apply-cleanup-csv/`, {
+    rows,
+    ...(options?.partial ? { partial: true } : {}),
+  });
 }
 
 export function getPreprocessingStatus(orderId: number): Promise<{ data: PreprocessingStatusResponse }> {
@@ -1196,24 +1125,6 @@ export function resetPreprocessingReviewFinal(
     `/inventory/orders/${orderId}/preprocessing-review-reset-final/`,
     payload,
   );
-}
-
-export function matchProducts(
-  orderId: number,
-  data?: MatchProductsPayload,
-): Promise<{ data: MatchProductsResponse }> {
-  return api.post<MatchProductsResponse>(`/inventory/orders/${orderId}/match-products/`, data ?? {});
-}
-
-export function getMatchResults(orderId: number): Promise<{ data: MatchResultsResponse }> {
-  return api.get<MatchResultsResponse>(`/inventory/orders/${orderId}/match-results/`);
-}
-
-export function reviewMatches(
-  orderId: number,
-  data: ReviewMatchesPayload,
-): Promise<{ data: ReviewMatchesResponse }> {
-  return api.post<ReviewMatchesResponse>(`/inventory/orders/${orderId}/review-matches/`, data);
 }
 
 export function markOrderComplete(orderId: number): Promise<{ data: Order }> {
@@ -1335,6 +1246,195 @@ export function processingRowCheckIn(
   );
 }
 
+export interface ProcessingCheckInTogetherRowPayload {
+  processing_row_id: number;
+  quantity: number;
+}
+
+export interface ProcessingCheckInTogetherPayload {
+  processing_row_ids: number[];
+  rows: ProcessingCheckInTogetherRowPayload[];
+  product_mode: 'existing';
+  product_id: number;
+  condition?: string;
+  dispatch?: string;
+  price?: string;
+  notes?: string;
+}
+
+export interface ProcessingCheckInTogetherResponse {
+  items: Item[];
+  created_count: number;
+  check_in_batch_ids: number[];
+  workspace_patch: ProcessingWorkspacePatchDTO;
+  printed_items_preview: PrintedItemPreview[];
+}
+
+export function processingCheckInTogether(
+  orderId: number,
+  payload: ProcessingCheckInTogetherPayload | Record<string, unknown>,
+): Promise<{ data: ProcessingCheckInTogetherResponse }> {
+  return api.post<ProcessingCheckInTogetherResponse>(
+    `/inventory/orders/${orderId}/processing-check-in-together/`,
+    payload,
+  );
+}
+
+export interface ProcessingAssignSharedProductPayload {
+  processing_row_ids: number[];
+  product_mode: 'existing';
+  product_id: number;
+}
+
+export interface ProcessingAssignSharedProductResponse {
+  product_id: number;
+  rows_updated: number;
+  workspace_patch: ProcessingWorkspacePatchDTO;
+}
+
+export function processingAssignSharedProduct(
+  orderId: number,
+  payload: ProcessingAssignSharedProductPayload | Record<string, unknown>,
+): Promise<{ data: ProcessingAssignSharedProductResponse }> {
+  return api.post<ProcessingAssignSharedProductResponse>(
+    `/inventory/orders/${orderId}/processing-assign-shared-product/`,
+    payload,
+  );
+}
+
+export interface ProcessingCollapseRowsResponse {
+  master_processing_row_id: number;
+  member_processing_row_ids: number[];
+  product_id: number | null;
+  workspace_patch: ProcessingWorkspacePatchDTO;
+}
+
+export function processingCollapseRows(
+  orderId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: ProcessingCollapseRowsResponse }> {
+  return api.post<ProcessingCollapseRowsResponse>(
+    `/inventory/orders/${orderId}/processing-collapse-rows/`,
+    payload,
+  );
+}
+
+export interface ProcessingUncollapseRowsResponse {
+  uncollapsed_row_ids: number[];
+  workspace_patch: ProcessingWorkspacePatchDTO;
+}
+
+export function processingUncollapseRows(
+  orderId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: ProcessingUncollapseRowsResponse }> {
+  return api.post<ProcessingUncollapseRowsResponse>(
+    `/inventory/orders/${orderId}/processing-uncollapse-rows/`,
+    payload,
+  );
+}
+
+/** P9 transforms: Break apart / Make set share one response shape. */
+export interface ProcessingTransformResponse {
+  root_processing_row_id: number;
+  sub_processing_row_id: number | null;
+  row: ProcessingWorkspaceDTO['rows'][number];
+  workspace_patch: ProcessingWorkspacePatchDTO;
+}
+
+export interface ProcessingBreakApartPayload {
+  processing_row_id: number;
+  units: number;
+  factor: number;
+  product_mode?: 'keep' | 'existing' | 'new';
+  product_id?: number;
+  title?: string;
+  unit_retail?: string;
+  shelf_price?: string;
+}
+
+export function processingBreakApartRow(
+  orderId: number,
+  payload: ProcessingBreakApartPayload | Record<string, unknown>,
+): Promise<{ data: ProcessingTransformResponse }> {
+  return api.post<ProcessingTransformResponse>(
+    `/inventory/orders/${orderId}/processing-break-apart-row/`,
+    payload,
+  );
+}
+
+export interface ProcessingMakeSetPayload {
+  processing_row_id: number;
+  set_size: number;
+  num_sets: number;
+  product_mode?: 'keep' | 'existing' | 'new';
+  product_id?: number;
+  title?: string;
+  unit_retail?: string;
+  shelf_price?: string;
+}
+
+export function processingMakeSetRow(
+  orderId: number,
+  payload: ProcessingMakeSetPayload | Record<string, unknown>,
+): Promise<{ data: ProcessingTransformResponse }> {
+  return api.post<ProcessingTransformResponse>(
+    `/inventory/orders/${orderId}/processing-make-set-row/`,
+    payload,
+  );
+}
+
+export interface ProcessingRestartSummary {
+  root_processing_row_id: number;
+  root_row_number: number;
+  sub_row_numbers: number[];
+  item_count: number;
+  on_shelf_count: number;
+  on_shelf_skus: string[];
+  disputed_count: number;
+  created_product_ids: number[];
+}
+
+export interface ProcessingRestartRowResponse {
+  requires_confirm?: boolean;
+  restarted?: boolean;
+  summary: ProcessingRestartSummary;
+  deleted_processing_row_ids?: number[];
+  deleted_product_ids?: number[];
+  kept_product_ids?: number[];
+  row?: ProcessingWorkspaceDTO['rows'][number];
+  workspace_patch?: ProcessingWorkspacePatchDTO;
+}
+
+export function processingRestartRow(
+  orderId: number,
+  payload: { processing_row_id: number; confirm?: boolean },
+): Promise<{ data: ProcessingRestartRowResponse }> {
+  return api.post<ProcessingRestartRowResponse>(
+    `/inventory/orders/${orderId}/processing-restart-row/`,
+    payload,
+  );
+}
+
+export interface ProcessingRemapBatchProductResponse {
+  batch_id: number;
+  product_id: number;
+  items_updated: number;
+  row: ProcessingWorkspaceDTO['rows'][number];
+  workspace_patch: ProcessingWorkspacePatchDTO;
+}
+
+export function processingRemapCheckInBatchProduct(
+  orderId: number,
+  batchId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: ProcessingRemapBatchProductResponse }> {
+  return api.post<ProcessingRemapBatchProductResponse>(
+    `/inventory/orders/${orderId}/processing-check-in-batch/${batchId}/remap-product/`,
+    payload,
+  );
+}
+
 export interface ProcessingRowPatchResponse {
   row: ProcessingWorkspaceDTO['rows'][number];
   workspace_patch: ProcessingWorkspacePatchDTO;
@@ -1384,22 +1484,6 @@ export function processingDispute(
 ): Promise<{ data: { workspace_patch: ProcessingWorkspacePatchDTO } }> {
   return api.post<{ workspace_patch: ProcessingWorkspacePatchDTO }>(
     `/inventory/orders/${orderId}/processing-dispute/`,
-    payload,
-  );
-}
-
-export interface ProcessingMergeRowsPayload {
-  processing_row_ids?: number[];
-  manifest_row_ids?: number[];
-  field_values: Record<string, unknown>;
-}
-
-export function processingMergeRows(
-  orderId: number,
-  payload: ProcessingMergeRowsPayload | Record<string, unknown>,
-): Promise<{ data: { workspace_patch: ProcessingWorkspacePatchDTO } }> {
-  return api.post<{ workspace_patch: ProcessingWorkspacePatchDTO }>(
-    `/inventory/orders/${orderId}/processing-merge-rows/`,
     payload,
   );
 }
@@ -1507,6 +1591,19 @@ export function updateProduct(id: number, data: Record<string, unknown>): Promis
 
 export function deleteProduct(id: number): Promise<{ data: void }> {
   return api.delete(`/inventory/products/${id}/`);
+}
+
+export interface ProductUsage {
+  product_id: number;
+  /** Items sharing this catalog product. */
+  item_count: number;
+  /** Distinct purchase orders those items span. */
+  order_count: number;
+}
+
+/** Blast radius before editing a shared product ("affects X items across Y orders"). */
+export function getProductUsage(id: number): Promise<{ data: ProductUsage }> {
+  return api.get<ProductUsage>(`/inventory/products/${id}/usage/`);
 }
 
 // Vendor product refs

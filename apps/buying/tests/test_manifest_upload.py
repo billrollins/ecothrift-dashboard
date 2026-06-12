@@ -112,7 +112,7 @@ class ManifestUploadProcessTests(TestCase):
         self.assertEqual(row.manifest_template_id, self.template.pk)
         self.assertIsNone(row.canonical_category)
 
-    @override_settings(ANTHROPIC_API_KEY='')
+    @override_settings(ANTHROPIC_API_KEY='', AI_MODEL_MANIFEST_TEMPLATE='claude-sonnet-4-6')
     def test_unknown_header_creates_stub_400(self) -> None:
         csv_text = 'A,B\n1,2\n'
         body, code = process_manifest_upload(self.auction, csv_text.encode('utf-8'), 'x.csv')
@@ -163,7 +163,7 @@ class MapFastCatBatchTests(TestCase):
             is_reviewed=True,
         )
 
-    @override_settings(ANTHROPIC_API_KEY='')
+    @override_settings(ANTHROPIC_API_KEY='', AI_MODEL_KEY_MAPPING='claude-sonnet-4-6')
     def test_map_one_batch_no_api_key(self) -> None:
         ManifestRow.objects.create(
             auction=self.auction,

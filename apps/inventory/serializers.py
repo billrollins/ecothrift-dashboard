@@ -10,6 +10,7 @@ from .models import (
     Dispute,
 )
 from .services.manual_item import find_or_create_product_for_manual_item
+from .services.product_matching import product_snapshot
 from .layer_helpers import (
     effective_preprocessing_title,
     effective_preprocessing_triple,
@@ -229,6 +230,8 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
     search_tags = serializers.SerializerMethodField()
 
     final_layer_visible = serializers.SerializerMethodField()
+    matched_product_detail = serializers.SerializerMethodField()
+    same_product_row_numbers = serializers.SerializerMethodField()
 
     class Meta:
         model = PreprocessingRow
@@ -292,6 +295,11 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
             'ai_reasoning',
             'ai_status',
             'batch_flag',
+            'match_candidates',
+            'final_matched_product',
+            'match_source',
+            'matched_product_detail',
+            'same_product_row_numbers',
             'final_layer_visible',
             'base_cost',
             'ideal_price',
@@ -345,6 +353,16 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
     def get_final_layer_visible(self, obj):
         return preprocessing_row_has_final(obj)
 
+    def get_matched_product_detail(self, obj):
+        p = obj.final_matched_product
+        if p is None:
+            return None
+        return {'id': p.id, **product_snapshot(p)}
+
+    def get_same_product_row_numbers(self, obj):
+        peers = self.context.get('same_product_peers_by_row_id') or {}
+        return peers.get(obj.id, [])
+
     def get_base_cost(self, obj):
         po = obj.purchase_order
         if not po:
@@ -385,6 +403,7 @@ class PreprocessingReviewRowMinimalSerializer(PreprocessingReviewRowSerializer):
     class Meta(PreprocessingReviewRowSerializer.Meta):
         fields = [
             'id',
+            'manifest_row_id',
             'row_number',
             'quantity',
             'unit_retail',
@@ -407,6 +426,21 @@ class PreprocessingReviewRowMinimalSerializer(PreprocessingReviewRowSerializer):
             'set_price',
             'ideal_delta_pct',
             'final_layer_visible',
+            'match_candidates',
+            'final_matched_product',
+            'match_source',
+            'matched_product_detail',
+            'same_product_row_numbers',
+            # Scalar layer fields for hover tooltips + "Reset to AI condition" (cheap;
+            # the heavy JSON triples stay excluded).
+            'ai_title',
+            'ai_brand',
+            'ai_model',
+            'ai_condition',
+            'standard_description',
+            'standard_brand',
+            'standard_model',
+            'standard_condition',
         ]
 
 
@@ -805,7 +839,7 @@ class ItemSerializer(serializers.ModelSerializer):
             'manifest_row', 'batch_group', 'batch_group_number', 'batch_group_status',
             'processing_tier', 'product_number', 'product_model', 'product_upc',
             'title', 'brand', 'category', 'model', 'upc', 'search_tags', 'price', 'retail_value', 'unit_retail', 'cost',
-            'source', 'status', 'condition', 'specifications',
+            'unit_count', 'source', 'status', 'condition', 'specifications',
             'location', 'listed_at', 'checked_in_at', 'checked_in_by',
             'sold_at', 'sold_for', 'notes',
             'dispute_type', 'dispute_pct_loss', 'dispute_description',

@@ -82,6 +82,8 @@ export type ItemFormProps = {
   mode: 'create' | 'edit';
   /** Pre-select PO on create (e.g. in-workspace unmanifested add). */
   defaultPurchaseOrderId?: number;
+  /** Hide Source + PO/Agreement pickers — the PO is fixed by context (workspace add dialog). */
+  lockPurchaseOrder?: boolean;
   /** Required when mode is edit; when null/undefined while loading, form is empty. */
   item?: Item | null;
   /** After create (always). Pass { keepOpen } so parent can leave drawer open. */
@@ -93,6 +95,13 @@ export type ItemFormProps = {
   onStatsContext?: (ctx: { productId: number | null; category: string | null }) => void;
   /** Renders beside AI pills with a vertical divider on md+ (e.g. ItemStatsPanel). */
   inventoryStatsSlot?: ReactNode;
+  /**
+   * P8e: replace the default POST /items submit with a context-specific pipeline
+   * (e.g. the processing workspace posts processing-add-item to get its workspace
+   * patch + label print + open-detail flow). The override owns success side effects;
+   * the form resets itself when the promise resolves.
+   */
+  submitOverride?: (payload: Record<string, unknown>) => Promise<void>;
 };
 
 type AIFieldName =
@@ -330,6 +339,7 @@ function displayForField(field: AIFieldName, d: DraftState, aiState: Record<AIFi
 export default function ItemForm({
   mode,
   defaultPurchaseOrderId,
+  lockPurchaseOrder = false,
   item,
   onItemCreated,
   onItemUpdated,
@@ -337,6 +347,7 @@ export default function ItemForm({
   onPendingChange,
   onStatsContext,
   inventoryStatsSlot,
+  submitOverride,
 }: ItemFormProps) {
   const { enqueueSnackbar } = useSnackbar();
   const createItem = useCreateItem();
@@ -382,6 +393,7 @@ export default function ItemForm({
   });
 
   const [ai, dispatchAi] = useReducer(aiReducer, initialAIState());
+  const [quantity, setQuantity] = useState('1');
   const [searchTags, setSearchTags] = useState<string[]>([]);
   const [googleQueryOverride, setGoogleQueryOverride] = useState<string | null>(null);
   const [showSearchAssist, setShowSearchAssist] = useState(false);
@@ -458,9 +470,10 @@ export default function ItemForm({
       page_size: 20,
       ...(debouncedPoSearch.trim() ? { search: debouncedPoSearch.trim() } : {}),
     },
-    { enabled: mode === 'create' && draft.source === 'purchased' },
+    // Locked-PO hosts (workspace add dialog) never show the picker — skip the fetch.
+    { enabled: mode === 'create' && draft.source === 'purchased' && !lockPurchaseOrder },
   );
-  const { data: selectedPoDetail } = usePurchaseOrder(draft.purchaseOrderId);
+  const { data: selectedPoDetail } = usePurchaseOrder(lockPurchaseOrder ? null : draft.purchaseOrderId);
 
   const purchaseOrders: (PurchaseOrderListRow | PurchaseOrder)[] = useMemo(() => {
     const list = ordersData?.results ?? [];
@@ -505,7 +518,7 @@ export default function ItemForm({
       source: 'purchased',
       specifications: '',
       notes: '',
-      purchaseOrderId: null,
+      purchaseOrderId: defaultPurchaseOrderId ?? null,
       agreementId: null,
       location: '',
     });
@@ -513,10 +526,11 @@ export default function ItemForm({
     setAgreementSearchInput('');
     setFieldErrors({});
     dispatchAi({ type: 'reset' });
+    setQuantity('1');
     setSearchTags([]);
     setGoogleQueryOverride(null);
     setShowSearchAssist(false);
-  }, []);
+  }, [defaultPurchaseOrderId]);
 
   const ctx = useMemo(() => draftToContext(draft), [draft]);
 
@@ -699,6 +713,7 @@ export default function ItemForm({
     setFieldErrors({});
 
     const resolvedSpecsObj = parseSpecificationsInput(resolvedSpecsStr);
+    const qty = Math.max(1, Math.min(10_000, Number.parseInt(quantity, 10) || 1));
 
     const payload: Record<string, unknown> = {
       title: resolvedTitle,
@@ -710,6 +725,7 @@ export default function ItemForm({
       condition: resolvedCondition,
       specifications: resolvedSpecsObj,
       notes: resolvedNotes,
+      quantity: qty,
     };
     const modelTrim = draft.model.trim();
     const upcTrim = draft.upc.trim();
@@ -718,6 +734,17 @@ export default function ItemForm({
     if (searchTags.length > 0) payload.search_tags = searchTags;
     if (draft.source === 'purchased' && draft.purchaseOrderId) {
       payload.purchase_order = draft.purchaseOrderId;
+    }
+
+    if (submitOverride) {
+      // Context-specific pipeline (workspace add) owns success side effects.
+      try {
+        await submitOverride(payload);
+        resetForm();
+      } catch {
+        /* override surfaces its own error feedback */
+      }
+      return;
     }
 
     try {
@@ -736,30 +763,44 @@ export default function ItemForm({
 
       onItemCreated?.(item, { keepOpen });
 
+      // Qty-aware create: the response lists every created unit so each gets its own label.
+      const createdItems = (item as unknown as {
+        created_items?: Array<{ sku: string; price: string; title: string; brand?: string; product_number?: string | null }>;
+      }).created_items ?? [
+        { sku: item.sku, price: item.price, title: item.title, brand: item.brand ?? undefined, product_number: item.product_number ?? undefined },
+      ];
+
       if (printOnSave) {
-        const ok = await localPrintService
-          .printLabel({
-            qr_data: item.sku,
-            text: `$${Number(item.price).toFixed(2)}`,
-            product_title: item.title,
-            product_brand: item.brand?.trim() || undefined,
-            product_model: item.product_number?.trim() || undefined,
-            include_text: true,
-          })
-          .then(() => true)
-          .catch(() => false);
-        if (!ok) {
+        let failed = 0;
+        for (const created of createdItems) {
+          const ok = await localPrintService
+            .printLabel({
+              qr_data: created.sku,
+              text: `$${Number(created.price).toFixed(2)}`,
+              product_title: created.title,
+              product_brand: created.brand?.trim() || undefined,
+              product_model: created.product_number?.trim() || undefined,
+              include_text: true,
+            })
+            .then(() => true)
+            .catch(() => false);
+          if (!ok) failed += 1;
+        }
+        if (failed > 0) {
           enqueueSnackbar('Print server may be offline', { variant: 'warning' });
         }
       }
 
+      const createdLabel =
+        createdItems.length > 1 ? `Created ${createdItems.length} items` : `Created ${item.sku}`;
+
       if (keepOpen) {
-        enqueueSnackbar(`Created ${item.sku}`, { variant: 'success' });
+        enqueueSnackbar(createdLabel, { variant: 'success' });
         resetForm();
         return;
       }
 
-      enqueueSnackbar('Item created', { variant: 'success' });
+      enqueueSnackbar(createdItems.length > 1 ? createdLabel : 'Item created', { variant: 'success' });
       resetForm();
       onCloseAfterCreate?.();
     } catch {
@@ -1301,28 +1342,47 @@ export default function ItemForm({
               }}
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              fullWidth
-              size="small"
-              select
-              label="Source"
-              value={draft.source}
-              onChange={(e) => {
-                const s = e.target.value as ItemSource;
-                setDraftField('source', s);
-                setDraftField('purchaseOrderId', null);
-                setDraftField('agreementId', null);
-              }}
-            >
-              {ITEM_SOURCES.map((s) => (
-                <MenuItem key={s} value={s}>
-                  {formatItemSourceLabel(s)}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          {mode === 'create' && draft.source === 'purchased' && (
+          {mode === 'create' && (
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Quantity"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value.replace(/[^0-9]/g, ''))}
+                onBlur={() => {
+                  const n = Math.max(1, Math.min(10_000, Number.parseInt(quantity, 10) || 1));
+                  setQuantity(String(n));
+                }}
+                helperText="Creates this many identical units (each gets its own SKU + label)"
+                slotProps={{ htmlInput: { inputMode: 'numeric' } }}
+              />
+            </Grid>
+          )}
+          {!lockPurchaseOrder && (
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                select
+                label="Source"
+                value={draft.source}
+                onChange={(e) => {
+                  const s = e.target.value as ItemSource;
+                  setDraftField('source', s);
+                  setDraftField('purchaseOrderId', null);
+                  setDraftField('agreementId', null);
+                }}
+              >
+                {ITEM_SOURCES.map((s) => (
+                  <MenuItem key={s} value={s}>
+                    {formatItemSourceLabel(s)}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+          )}
+          {mode === 'create' && !lockPurchaseOrder && draft.source === 'purchased' && (
             <Grid size={{ xs: 12, md: 6 }}>
               <Autocomplete
                 size="small"

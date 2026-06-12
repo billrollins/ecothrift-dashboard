@@ -4,6 +4,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Link,
   Table,
@@ -19,12 +20,18 @@ import { Link as RouterLink } from 'react-router-dom';
 import type { PurchaseOrderStatus } from '../../../types/inventory.types';
 import type { ProcessingWorkspaceRowDTO } from '../../../types/inventory.types';
 import {
+  effectiveRowQty,
   formatQueueMoney,
   queueBrandText,
   queueCategoryText,
   queueDispatchLabel,
+  queueExtRetailText,
+  queueExtRetailValue,
+  queueProductsChipLabel,
   queueQtyText,
+  queueSameProductPeerLabel,
   queueStatusMeta,
+  queueRowNumLabel,
   queueTitleText,
 } from './processingQueueCellText';
 import {
@@ -35,6 +42,7 @@ import {
 import {
   PROCESSING_QUEUE_TABLE_HEAD_HEIGHT,
   PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
+  PROCESSING_QUEUE_CHECKBOX_COL_PX,
   readProcessingQueueTableClientWidth,
 } from './processingQueueLayout';
 import { processingHeaderGradient, processingTokens } from './processingTokens';
@@ -46,12 +54,57 @@ export type QueueSortField =
   | 'category'
   | 'qty'
   | 'retail'
+  | 'extRetail'
   | 'price'
   | 'condition'
   | 'dispatch'
   | 'status';
 
-const COLUMN_COUNT = 10;
+const DATA_COLUMN_COUNT = 11;
+const TABLE_COLUMN_COUNT = DATA_COLUMN_COUNT + 1;
+
+type QueueVirtualEntry =
+  | { kind: 'group'; key: string; label: string; count: number }
+  | { kind: 'row'; row: ProcessingWorkspaceRowDTO };
+
+function productGroupLabel(row: ProcessingWorkspaceRowDTO): string {
+  if (row.productId == null) return 'No product decided';
+  return row.product?.title || `Product #${row.productId}`;
+}
+
+function buildQueueVirtualEntries(
+  rows: ProcessingWorkspaceRowDTO[],
+  groupByProduct: boolean,
+): QueueVirtualEntry[] {
+  if (!groupByProduct) return rows.map((row) => ({ kind: 'row', row }));
+
+  const groups = new Map<string, ProcessingWorkspaceRowDTO[]>();
+  for (const row of rows) {
+    const key = row.productId != null ? String(row.productId) : 'none';
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(row);
+    else groups.set(key, [row]);
+  }
+
+  const sortedGroups = [...groups.entries()].sort((a, b) => {
+    const labelA = productGroupLabel(a[1][0]);
+    const labelB = productGroupLabel(b[1][0]);
+    return labelA.localeCompare(labelB);
+  });
+
+  const out: QueueVirtualEntry[] = [];
+  for (const [key, groupRows] of sortedGroups) {
+    const sorted = [...groupRows].sort((a, b) => a.rowNum - b.rowNum);
+    out.push({
+      kind: 'group',
+      key,
+      label: productGroupLabel(sorted[0]),
+      count: sorted.length,
+    });
+    for (const row of sorted) out.push({ kind: 'row', row });
+  }
+  return out;
+}
 
 export interface ProcessingQueueTableProps {
   rows: ProcessingWorkspaceRowDTO[];
@@ -62,42 +115,65 @@ export interface ProcessingQueueTableProps {
   orderId: number;
   orderStatus: PurchaseOrderStatus;
   detailProcessingRowId: number | null;
-  onOpenDetail: (processingRowId: number) => void;
+  onOpenDetail: (processingRowId: number, options?: { scrollToHistory?: boolean }) => void;
+  /** Peer chip click — filter the queue to this row's matched product. */
+  onFilterProduct?: (row: ProcessingWorkspaceRowDTO) => void;
+  groupByProduct?: boolean;
+  /** P7: reveal collapsed-group member rows (hidden by default; master shows combined). */
+  showCollapsedMembers?: boolean;
+  selectedRowIds?: Set<number>;
+  onToggleRow?: (processingRowId: number) => void;
+  onSelectAllVisible?: (processingRowIds: number[]) => void;
 }
 
 type SortCycleState = { field: QueueSortField; dir: 'asc' | 'desc' } | null;
 
 interface ProcessingQueueRowProps {
   row: ProcessingWorkspaceRowDTO;
-  selected: boolean;
+  detailSelected: boolean;
+  multiSelected: boolean;
   striped: boolean;
-  onOpenDetail: (processingRowId: number) => void;
+  onOpenDetail: (processingRowId: number, options?: { scrollToHistory?: boolean }) => void;
+  onFilterProduct?: (row: ProcessingWorkspaceRowDTO) => void;
+  onToggleRow?: (processingRowId: number) => void;
+  selectionEnabled: boolean;
 }
 
 const ProcessingQueueRow = memo(function ProcessingQueueRow({
   row: r,
-  selected,
+  detailSelected,
+  multiSelected,
   striped,
   onOpenDetail,
+  onFilterProduct,
+  onToggleRow,
+  selectionEnabled,
 }: ProcessingQueueRowProps) {
   const meta = queueStatusMeta(r.status);
+  const productsChip = queueProductsChipLabel(r.distinctProductCount);
+  const peerLabel = queueSameProductPeerLabel(r.sameProductRowNumbers);
   const title = queueTitleText(r);
-  const titleTooltip = [title, r.sku ? `SKU ${r.sku}` : ''].filter(Boolean).join(' · ');
+  const titleTooltip = [`Row ${r.rowNum}`, title, r.sku ? `SKU ${r.sku}` : ''].filter(Boolean).join(' · ');
   const dupTitle =
     r.likelyDuplicateOf?.length ?
       `Likely same product as row ${r.likelyDuplicateOf.join(', ')}`
     : undefined;
+  const peerTitle =
+    r.sameProductRowNumbers?.length ?
+      `Same matched product as row ${r.sameProductRowNumbers.join(', ')}`
+    : undefined;
   const open = () => onOpenDetail(r.processing_row_id);
+  const openHistory = () => onOpenDetail(r.processing_row_id, { scrollToHistory: true });
 
   return (
     <TableRow
       hover
-      selected={selected}
+      selected={detailSelected || multiSelected}
       sx={{
         cursor: 'pointer',
         height: PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
         bgcolor: (theme) => {
-          if (selected) {
+          if (detailSelected || multiSelected) {
             return theme.palette.mode === 'dark' ? processingTokens.rowSelectedDark : processingTokens.rowSelected;
           }
           if (striped) {
@@ -105,7 +181,7 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
           }
           return 'transparent';
         },
-        boxShadow: selected ? `inset 3px 0 0 ${processingTokens.rowSelectedAccent}` : 'none',
+        boxShadow: detailSelected ? `inset 3px 0 0 ${processingTokens.rowSelectedAccent}` : 'none',
         '&:hover': {
           bgcolor: (theme) =>
             theme.palette.mode === 'dark' ? processingTokens.rowHoverDark : processingTokens.rowHover,
@@ -113,12 +189,26 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
       }}
     >
       <TableCell
-        align="left"
+        padding="checkbox"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {selectionEnabled ?
+          <Checkbox
+            size="small"
+            checked={multiSelected}
+            onChange={() => onToggleRow?.(r.processing_row_id)}
+            inputProps={{ 'aria-label': `Select row ${r.rowNum}` }}
+          />
+        : null}
+      </TableCell>
+      <TableCell
+        align="center"
         onClick={open}
         sx={{
           whiteSpace: 'nowrap',
           fontVariantNumeric: 'tabular-nums',
           color: 'text.secondary',
+          textOverflow: 'clip',
         }}
       >
         {r.rowKind === 'added' ?
@@ -133,14 +223,31 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
               border: `1px solid ${processingTokens.borderStrong}`,
             }}
           />
-        : r.rowNum}
+        : queueRowNumLabel(r)}
       </TableCell>
-      <TableCell onClick={open}>
+      <TableCell
+        align="center"
+        onClick={open}
+        sx={{
+          fontVariantNumeric: 'tabular-nums',
+          whiteSpace: 'nowrap',
+          fontSize: '0.72rem',
+          textOverflow: 'clip',
+        }}
+      >
+        <Typography component="span" sx={{ fontWeight: 700, fontSize: 'inherit' }}>
+          {effectiveRowQty(r).dispositioned.toLocaleString()}
+        </Typography>
+        <Typography component="span" sx={{ fontSize: 'inherit' }} color="text.secondary">
+          {' '}/ {effectiveRowQty(r).qty.toLocaleString()}
+        </Typography>
+      </TableCell>
+      <TableCell align="left" onClick={open}>
         <Typography sx={{ fontSize: '0.72rem', fontWeight: 600 }} noWrap title={r.brand || undefined}>
           {queueBrandText(r)}
         </Typography>
       </TableCell>
-      <TableCell onClick={open} sx={{ minWidth: 0 }}>
+      <TableCell align="left" onClick={open} sx={{ minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
           <Typography
             component="span"
@@ -167,50 +274,82 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
               onClick={(e) => e.stopPropagation()}
             />
           : null}
+          {peerLabel ?
+            <Chip
+              size="small"
+              label={peerLabel}
+              variant="outlined"
+              title={
+                onFilterProduct && r.productId != null ?
+                  `${peerTitle} — click to filter the queue to this product`
+                : peerTitle
+              }
+              sx={{
+                height: 16,
+                fontSize: 8.5,
+                flexShrink: 0,
+                borderColor: processingTokens.borderStrong,
+                color: processingTokens.textSoft,
+                bgcolor: processingTokens.neutralSoft,
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (r.productId != null) onFilterProduct?.(r);
+              }}
+            />
+          : null}
         </Box>
       </TableCell>
-      <TableCell onClick={open}>
+      <TableCell align="left" onClick={open}>
         <Typography sx={{ fontSize: '0.72rem' }} noWrap title={r.category || undefined}>
           {queueCategoryText(r)}
         </Typography>
       </TableCell>
       <TableCell
-        align="right"
+        align="center"
         onClick={open}
-        sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontSize: '0.72rem' }}
-      >
-        <Typography component="span" sx={{ fontWeight: 700, fontSize: 'inherit' }}>
-          {r.qtyDispositioned}
-        </Typography>
-        <Typography component="span" sx={{ fontSize: 'inherit' }} color="text.secondary">
-          {' '}/ {r.qty}
-        </Typography>
-      </TableCell>
-      <TableCell
-        align="right"
-        onClick={open}
-        sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontSize: '0.72rem', color: 'text.secondary' }}
+        sx={{
+          fontVariantNumeric: 'tabular-nums',
+          whiteSpace: 'nowrap',
+          fontSize: '0.72rem',
+          color: 'text.secondary',
+          textOverflow: 'clip',
+        }}
       >
         {formatQueueMoney(r.unitRetail)}
       </TableCell>
       <TableCell
-        align="right"
+        align="center"
         onClick={open}
         sx={{
           fontVariantNumeric: 'tabular-nums',
           whiteSpace: 'nowrap',
           fontWeight: 700,
           fontSize: '0.72rem',
+          textOverflow: 'clip',
+        }}
+      >
+        {queueExtRetailText(r)}
+      </TableCell>
+      <TableCell
+        align="center"
+        onClick={open}
+        sx={{
+          fontVariantNumeric: 'tabular-nums',
+          whiteSpace: 'nowrap',
+          fontWeight: 700,
+          fontSize: '0.72rem',
+          textOverflow: 'clip',
         }}
       >
         {formatQueueMoney(r.price)}
       </TableCell>
-      <TableCell onClick={open}>
+      <TableCell align="center" onClick={open}>
         <Typography sx={{ fontSize: '0.72rem' }} noWrap>
           {r.condition}
         </Typography>
       </TableCell>
-      <TableCell onClick={open}>
+      <TableCell align="center" onClick={open}>
         <Chip
           label={queueDispatchLabel(r.dispatch)}
           size="small"
@@ -225,18 +364,40 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
           }}
         />
       </TableCell>
-      <TableCell onClick={open}>
-        <Chip
-          label={meta.label}
-          size="small"
-          sx={{
-            height: 15,
-            fontSize: 9,
-            bgcolor: meta.bg,
-            color: meta.color,
-            border: meta.border ? `1px solid ${meta.border}` : 'none',
-          }}
-        />
+      <TableCell align="center" onClick={open}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.35, flexWrap: 'wrap' }}>
+          <Chip
+            label={meta.label}
+            size="small"
+            sx={{
+              height: 15,
+              fontSize: 9,
+              bgcolor: meta.bg,
+              color: meta.color,
+              border: meta.border ? `1px solid ${meta.border}` : 'none',
+            }}
+          />
+          {productsChip ?
+            <Chip
+              size="small"
+              label={productsChip}
+              title="Multiple products checked in on this row — click to review check-in history"
+              sx={{
+                height: 15,
+                fontSize: 8.5,
+                flexShrink: 0,
+                borderColor: processingTokens.borderStrong,
+                color: processingTokens.accentBlue,
+                bgcolor: processingTokens.blueSoft,
+              }}
+              variant="outlined"
+              onClick={(e) => {
+                e.stopPropagation();
+                openHistory();
+              }}
+            />
+          : null}
+        </Box>
       </TableCell>
     </TableRow>
   );
@@ -253,16 +414,25 @@ const tableSx = (mode: 'light' | 'dark') =>
       pr: '6px',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
+      boxSizing: 'border-box',
+      verticalAlign: 'middle',
       fontSize: (theme: { typography: { pxToRem: (n: number) => string } }) => theme.typography.pxToRem(11),
       lineHeight: 1.12,
       height: PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
     },
+    '& .MuiTableCell-paddingCheckbox': {
+      width: PROCESSING_QUEUE_CHECKBOX_COL_PX,
+      minWidth: PROCESSING_QUEUE_CHECKBOX_COL_PX,
+      maxWidth: PROCESSING_QUEUE_CHECKBOX_COL_PX,
+      pl: '4px',
+      pr: '4px',
+      py: '1px',
+      overflow: 'visible',
+      textOverflow: 'clip',
+      textAlign: 'center',
+    },
     '& .MuiTableCell-root + .MuiTableCell-root': {
       pl: '12px',
-    },
-    '& .MuiTableCell-root:first-of-type': {
-      pl: '10px',
-      pr: '14px',
     },
     '& .MuiTableHead-root .MuiTableCell-root': {
       py: '4px',
@@ -292,6 +462,8 @@ const tableSx = (mode: 'light' | 'dark') =>
     },
   }) as const;
 
+const centeredSortLabelSx = { width: '100%', justifyContent: 'center' } as const;
+
 export function ProcessingQueueTable({
   rows,
   preprocessingFinalizedAt,
@@ -301,24 +473,40 @@ export function ProcessingQueueTable({
   orderStatus,
   detailProcessingRowId,
   onOpenDetail,
+  onFilterProduct,
+  groupByProduct = false,
+  showCollapsedMembers = false,
+  selectedRowIds,
+  onToggleRow,
+  onSelectAllVisible,
 }: ProcessingQueueTableProps) {
   const theme = useTheme();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [sortState, setSortState] = useState<SortCycleState>(null);
+  const selectionEnabled = Boolean(onToggleRow && selectedRowIds);
 
   const measureFonts = useMemo(
     () => createProcessingQueueMeasureFonts(String(theme.typography.fontFamily ?? 'sans-serif')),
     [theme.typography.fontFamily],
   );
 
+  const dataColumnWidth = Math.max(0, containerWidth - PROCESSING_QUEUE_CHECKBOX_COL_PX);
+
+  // P7 collapse: members are hidden by default — the master row represents the group
+  // with combined quantities. The filter-row toggle reveals members (↳-prefixed).
+  const visibleRows = useMemo(
+    () => (showCollapsedMembers ? rows : rows.filter((r) => !r.collapseMasterId)),
+    [rows, showCollapsedMembers],
+  );
+
   const columnLayout = useMemo(
-    () => computeProcessingQueueColumnWidths(rows, containerWidth, measureFonts),
-    [rows, containerWidth, measureFonts],
+    () => computeProcessingQueueColumnWidths(visibleRows, dataColumnWidth, measureFonts),
+    [visibleRows, dataColumnWidth, measureFonts],
   );
 
   const sortedRows = useMemo(() => {
-    const copy = [...rows];
+    const copy = [...visibleRows];
     if (sortState === null) {
       copy.sort((a, b) => a.rowNum - b.rowNum);
       return copy;
@@ -340,14 +528,24 @@ export function ProcessingQueueTable({
         case 'category':
           cmp = queueCategoryText(a).localeCompare(queueCategoryText(b));
           break;
-        case 'qty':
-          cmp = a.qtyDispositioned / Math.max(a.qty, 1) - b.qtyDispositioned / Math.max(b.qty, 1);
-          if (cmp === 0) cmp = a.qty - b.qty;
+        case 'qty': {
+          // Masters sort by their COMBINED group progress (collapsed rows act as one).
+          const aq = effectiveRowQty(a);
+          const bq = effectiveRowQty(b);
+          cmp = aq.dispositioned / Math.max(aq.qty, 1) - bq.dispositioned / Math.max(bq.qty, 1);
+          if (cmp === 0) cmp = aq.qty - bq.qty;
           break;
+        }
         case 'retail': {
           const ar = parseFloat(a.unitRetail ?? '') || 0;
           const br = parseFloat(b.unitRetail ?? '') || 0;
           cmp = ar - br;
+          break;
+        }
+        case 'extRetail': {
+          const ae = queueExtRetailValue(a) ?? -1;
+          const be = queueExtRetailValue(b) ?? -1;
+          cmp = ae - be;
           break;
         }
         case 'price': {
@@ -371,10 +569,30 @@ export function ProcessingQueueTable({
       return cmp * mult;
     });
     return copy;
-  }, [rows, sortState]);
+  }, [visibleRows, sortState]);
+
+  const virtualEntries = useMemo(
+    () => buildQueueVirtualEntries(sortedRows, groupByProduct),
+    [sortedRows, groupByProduct],
+  );
+
+  const visibleRowIds = useMemo(
+    () =>
+      virtualEntries
+        .filter((entry): entry is { kind: 'row'; row: ProcessingWorkspaceRowDTO } => entry.kind === 'row')
+        .map((entry) => entry.row.processing_row_id),
+    [virtualEntries],
+  );
+
+  const allVisibleSelected =
+    selectionEnabled &&
+    visibleRowIds.length > 0 &&
+    visibleRowIds.every((id) => selectedRowIds!.has(id));
+  const someVisibleSelected =
+    selectionEnabled && visibleRowIds.some((id) => selectedRowIds!.has(id)) && !allVisibleSelected;
 
   const rowVirtualizer = useVirtualizer({
-    count: sortedRows.length,
+    count: virtualEntries.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
     overscan: 12,
@@ -478,6 +696,7 @@ export function ProcessingQueueTable({
 
   const colgroup = (
     <colgroup>
+      <col style={{ width: PROCESSING_QUEUE_CHECKBOX_COL_PX }} />
       {PROCESSING_QUEUE_COLUMN_ORDER.map((id) => (
         <col key={id} style={{ width: columnLayout.cols[id] }} />
       ))}
@@ -520,23 +739,48 @@ export function ProcessingQueueTable({
           {colgroup}
           <TableHead>
             <TableRow>
-              <TableCell align="left" sx={{ whiteSpace: 'nowrap', overflow: 'hidden' }}>
+              <TableCell
+                padding="checkbox"
+              >
+                {selectionEnabled ?
+                  <Checkbox
+                    size="small"
+                    indeterminate={someVisibleSelected}
+                    checked={allVisibleSelected}
+                    onChange={() => onSelectAllVisible?.(visibleRowIds)}
+                    inputProps={{ 'aria-label': 'Select all visible rows' }}
+                  />
+                : null}
+              </TableCell>
+              <TableCell
+                align="center"
+                onClick={() => handleSort('rowNum')}
+                sx={{
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  textOverflow: 'clip',
+                  overflow: 'hidden',
+                  userSelect: 'none',
+                  textTransform: 'none',
+                  letterSpacing: 0,
+                  fontWeight: sortState?.field === 'rowNum' ? 800 : 700,
+                  color: sortState?.field === 'rowNum' ? processingTokens.textStrong : undefined,
+                }}
+              >
+                #
+              </TableCell>
+              <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
                 <TableSortLabel
-                  active={sortState?.field === 'rowNum'}
-                  direction={sortState?.field === 'rowNum' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('rowNum')}
-                  hideSortIcon={sortState?.field !== 'rowNum'}
-                  aria-label="Row number"
-                  sx={{
-                    justifyContent: 'flex-start',
-                    maxWidth: '100%',
-                    '& .MuiTableSortLabel-icon': { flexShrink: 0 },
-                  }}
+                  active={sortState?.field === 'qty'}
+                  direction={sortState && sortState.field === 'qty' ? sortState.dir : 'asc'}
+                  onClick={() => handleSort('qty')}
+                  hideSortIcon={sortState?.field !== 'qty'}
+                  sx={centeredSortLabelSx}
                 >
-                  #
+                  Qty
                 </TableSortLabel>
               </TableCell>
-              <TableCell sx={{ overflow: 'hidden' }}>
+              <TableCell align="left" sx={{ overflow: 'hidden' }}>
                 <TableSortLabel
                   active={sortState?.field === 'brand'}
                   direction={sortState && sortState.field === 'brand' ? sortState.dir : 'asc'}
@@ -547,7 +791,7 @@ export function ProcessingQueueTable({
                   Brand
                 </TableSortLabel>
               </TableCell>
-              <TableCell>
+              <TableCell align="left">
                 <TableSortLabel
                   active={sortState?.field === 'title'}
                   direction={sortState && sortState.field === 'title' ? sortState.dir : 'asc'}
@@ -557,7 +801,7 @@ export function ProcessingQueueTable({
                   Title
                 </TableSortLabel>
               </TableCell>
-              <TableCell>
+              <TableCell align="left">
                 <TableSortLabel
                   active={sortState?.field === 'category'}
                   direction={sortState && sortState.field === 'category' ? sortState.dir : 'asc'}
@@ -566,56 +810,62 @@ export function ProcessingQueueTable({
                   Category
                 </TableSortLabel>
               </TableCell>
-              <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                <TableSortLabel
-                  active={sortState?.field === 'qty'}
-                  direction={sortState && sortState.field === 'qty' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('qty')}
-                >
-                  Qty
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+              <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
                 <TableSortLabel
                   active={sortState?.field === 'retail'}
                   direction={sortState && sortState.field === 'retail' ? sortState.dir : 'asc'}
                   onClick={() => handleSort('retail')}
+                  sx={centeredSortLabelSx}
                 >
                   Retail
                 </TableSortLabel>
               </TableCell>
-              <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+              <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                <TableSortLabel
+                  active={sortState?.field === 'extRetail'}
+                  direction={sortState && sortState.field === 'extRetail' ? sortState.dir : 'asc'}
+                  onClick={() => handleSort('extRetail')}
+                  sx={centeredSortLabelSx}
+                >
+                  Ext. Retail
+                </TableSortLabel>
+              </TableCell>
+              <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
                 <TableSortLabel
                   active={sortState?.field === 'price'}
                   direction={sortState && sortState.field === 'price' ? sortState.dir : 'asc'}
                   onClick={() => handleSort('price')}
+                  sx={centeredSortLabelSx}
                 >
                   Price
                 </TableSortLabel>
               </TableCell>
-              <TableCell>
+              <TableCell align="center">
                 <TableSortLabel
                   active={sortState?.field === 'condition'}
                   direction={sortState && sortState.field === 'condition' ? sortState.dir : 'asc'}
                   onClick={() => handleSort('condition')}
+                  sx={centeredSortLabelSx}
                 >
                   Condition
                 </TableSortLabel>
               </TableCell>
-              <TableCell>
+              <TableCell align="center">
                 <TableSortLabel
                   active={sortState?.field === 'dispatch'}
                   direction={sortState && sortState.field === 'dispatch' ? sortState.dir : 'asc'}
                   onClick={() => handleSort('dispatch')}
+                  sx={centeredSortLabelSx}
                 >
                   Dispatch
                 </TableSortLabel>
               </TableCell>
-              <TableCell>
+              <TableCell align="center">
                 <TableSortLabel
                   active={sortState?.field === 'status'}
                   direction={sortState && sortState.field === 'status' ? sortState.dir : 'asc'}
                   onClick={() => handleSort('status')}
+                  sx={centeredSortLabelSx}
                 >
                   Status
                 </TableSortLabel>
@@ -625,24 +875,47 @@ export function ProcessingQueueTable({
           <TableBody>
             {paddingTop > 0 ?
               <TableRow aria-hidden sx={{ height: paddingTop, pointerEvents: 'none', visibility: 'hidden' }}>
-                <TableCell colSpan={COLUMN_COUNT} sx={{ p: 0, border: 0, height: paddingTop }} />
+                <TableCell colSpan={TABLE_COLUMN_COUNT} sx={{ p: 0, border: 0, height: paddingTop }} />
               </TableRow>
             : null}
             {virtualItems.map((virtualRow) => {
-              const r = sortedRows[virtualRow.index];
+              const entry = virtualEntries[virtualRow.index];
+              if (entry.kind === 'group') {
+                return (
+                  <TableRow
+                    key={`group-${entry.key}`}
+                    sx={{
+                      height: PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
+                      bgcolor: (t) =>
+                        t.palette.mode === 'dark' ? processingTokens.rowStripeDark : processingTokens.primarySoft,
+                    }}
+                  >
+                    <TableCell colSpan={TABLE_COLUMN_COUNT} sx={{ py: 0.25 }}>
+                      <Typography variant="caption" fontWeight={800} noWrap>
+                        {entry.label} · {entry.count} row{entry.count === 1 ? '' : 's'}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                );
+              }
+              const r = entry.row;
               return (
                 <ProcessingQueueRow
                   key={r.processing_row_id}
                   row={r}
-                  selected={r.processing_row_id === detailProcessingRowId}
+                  detailSelected={r.processing_row_id === detailProcessingRowId}
+                  multiSelected={selectedRowIds?.has(r.processing_row_id) ?? false}
                   striped={virtualRow.index % 2 === 1}
                   onOpenDetail={onOpenDetail}
+                  onFilterProduct={onFilterProduct}
+                  onToggleRow={onToggleRow}
+                  selectionEnabled={selectionEnabled}
                 />
               );
             })}
             {paddingBottom > 0 ?
               <TableRow aria-hidden sx={{ height: paddingBottom, pointerEvents: 'none', visibility: 'hidden' }}>
-                <TableCell colSpan={COLUMN_COUNT} sx={{ p: 0, border: 0, height: paddingBottom }} />
+                <TableCell colSpan={TABLE_COLUMN_COUNT} sx={{ p: 0, border: 0, height: paddingBottom }} />
               </TableRow>
             : null}
           </TableBody>

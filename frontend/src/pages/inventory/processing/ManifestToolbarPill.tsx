@@ -3,7 +3,6 @@ import { alpha } from '@mui/material/styles';
 import type { ReactElement } from 'react';
 import {
   processingRowLabelSx,
-  processingRowPillShellSx,
   PROCESSING_ROW_FIELD_HEIGHT,
   PROCESSING_ROW_VALUE_FONT,
   PROCESSING_ROW_VALUE_FONT_WEIGHT,
@@ -60,10 +59,15 @@ export function ManifestToolbarPill({
   const isEmpty = !value.trim();
   const shown = isEmpty ? placeholder : value;
   const isDisplay = appearance === 'display';
-  const valueSx = {
-    ...processingRowPillShellSx,
+  const valueTextSx = {
     fontSize: valueFontSize,
     fontWeight: valueFontWeight,
+    lineHeight: 1.2,
+  };
+  const valueShellSx = {
+    display: 'flex',
+    alignItems: 'center',
+    minHeight: PROCESSING_ROW_FIELD_HEIGHT,
   };
 
   return (
@@ -82,17 +86,15 @@ export function ManifestToolbarPill({
       {isDisplay ?
         <Box
           sx={{
-            display: 'flex',
-            alignItems: 'center',
+            ...valueShellSx,
             justifyContent: 'center',
-            minHeight: PROCESSING_ROW_FIELD_HEIGHT,
             px: 0.5,
           }}
         >
           <Typography
             noWrap
             sx={{
-              ...valueSx,
+              ...valueTextSx,
               fontWeight: 700,
               textAlign: 'center',
               fontVariantNumeric: 'tabular-nums',
@@ -106,9 +108,7 @@ export function ManifestToolbarPill({
           <Box
             onClick={readOnly ? undefined : onClick}
             sx={{
-              display: 'flex',
-              alignItems: 'center',
-              minHeight: PROCESSING_ROW_FIELD_HEIGHT,
+              ...valueShellSx,
               borderRadius: 1,
               border: '1px solid',
               borderColor: processingTokens.border,
@@ -133,7 +133,7 @@ export function ManifestToolbarPill({
                 flex: 1,
                 minWidth: 0,
                 px: 0.75,
-                ...valueSx,
+                ...valueTextSx,
                 color: isEmpty ? 'text.disabled' : 'text.primary',
                 fontStyle: isEmpty && emptyItalic ? 'italic' : 'normal',
                 overflow: 'hidden',

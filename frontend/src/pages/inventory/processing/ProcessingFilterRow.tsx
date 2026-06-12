@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { Box, Chip, CircularProgress, Typography } from '@mui/material';
+import { Box, Chip, Typography } from '@mui/material';
 import Check from '@mui/icons-material/Check';
 import Close from '@mui/icons-material/Close';
-import SearchIcon from '@mui/icons-material/Search';
 import type { ProcessingStatusSegment } from './processingWorkspaceFilters';
 import { processingTokens } from './processingTokens';
 
@@ -14,16 +12,15 @@ export interface ProcessingFilterRowProps {
   productFilterProductId: number | null;
   productFilterTitle?: string;
   onClearProductFilter: () => void;
-  search: string;
-  onSearchChange: (v: string) => void;
-  searchFocusSignal?: number;
-  onSearchEnter?: () => void;
   /** Total manifest/processing lines on this PO. */
   totalRowCount?: number;
   /** Lines matching segment, search, and other filters. */
   filteredRowCount?: number;
-  /** True while a background refetch is in flight (search/filter change). */
-  isFetching?: boolean;
+  groupByProduct?: boolean;
+  onGroupByProductChange?: (value: boolean) => void;
+  /** P7 collapse: when true, collapsed member rows stay visible (indented under their master). */
+  showCollapsedMembers?: boolean;
+  onShowCollapsedMembersChange?: (value: boolean) => void;
 }
 
 const SEGMENTS: Array<{ id: ProcessingStatusSegment; label: string }> = [
@@ -42,32 +39,13 @@ export function ProcessingFilterRow({
   productFilterProductId,
   productFilterTitle,
   onClearProductFilter,
-  search,
-  onSearchChange,
-  searchFocusSignal = 0,
-  onSearchEnter,
   totalRowCount,
   filteredRowCount,
-  isFetching = false,
+  groupByProduct = false,
+  onGroupByProductChange,
+  showCollapsedMembers = false,
+  onShowCollapsedMembersChange,
 }: ProcessingFilterRowProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    if (!searchFocusSignal) return;
-    inputRef.current?.focus();
-  }, [searchFocusSignal]);
-
-  const handleClearSearch = useCallback(() => {
-    onSearchChange('');
-    inputRef.current?.focus();
-  }, [onSearchChange]);
-
-  const hasSearch = search.trim().length > 0;
-
   return (
     <Box
       sx={{
@@ -84,111 +62,6 @@ export function ProcessingFilterRow({
         minWidth: 0,
       }}
     >
-      <Box
-        sx={{
-          flex: '1 1 520px',
-          maxWidth: 620,
-          minWidth: 260,
-          display: 'flex',
-          alignItems: 'stretch',
-          height: 34,
-          borderRadius: 1,
-          border: '1px solid',
-          borderColor: processingTokens.borderStrong,
-          bgcolor: processingTokens.surfaceTint,
-          overflow: 'hidden',
-          transition: (theme) => theme.transitions.create(['border-color', 'box-shadow']),
-          '&:focus-within': {
-            borderColor: processingTokens.textSoft,
-            boxShadow: processingTokens.focusRing,
-          },
-        }}
-      >
-        <Box
-          sx={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            minWidth: 0,
-            pl: 1.25,
-            pr: hasSearch ? 0.75 : 1.25,
-          }}
-        >
-          {isFetching ?
-            <CircularProgress size={14} sx={{ color: 'text.secondary', flexShrink: 0 }} />
-          : <SearchIcon sx={{ color: 'text.secondary', fontSize: 17, flexShrink: 0 }} />}
-          <Box
-            component="input"
-            ref={inputRef}
-            type="text"
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                onSearchEnter?.();
-                return;
-              }
-              if (e.key === 'Escape' && hasSearch) {
-                e.preventDefault();
-                handleClearSearch();
-              }
-            }}
-            placeholder="Scan or search row #, title, UPC, SKU, brand, model, category, specs, tags..."
-            aria-label="Search processing queue"
-            sx={{
-              flex: 1,
-              minWidth: 0,
-              border: 0,
-              outline: 0,
-              bgcolor: 'transparent',
-              font: 'inherit',
-              fontSize: 13,
-              color: 'text.primary',
-              py: 0,
-              '&::placeholder': { color: processingTokens.textMute, opacity: 1 },
-            }}
-          />
-        </Box>
-        {hasSearch ?
-          <Box
-            component="button"
-            type="button"
-            onClick={handleClearSearch}
-            aria-label="Clear search (Esc)"
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              px: 1.25,
-              m: 0,
-              border: 0,
-              borderLeft: '1px solid',
-              borderColor: processingTokens.border,
-              bgcolor: (theme) =>
-                theme.palette.mode === 'dark' ?
-                  processingTokens.clearSegmentBgDark
-                : processingTokens.clearSegmentBg,
-              cursor: 'pointer',
-              font: 'inherit',
-              fontSize: '0.68rem',
-              fontWeight: 700,
-              letterSpacing: '0.03em',
-              color: processingTokens.textSoft,
-              flexShrink: 0,
-              alignSelf: 'stretch',
-              transition: (theme) => theme.transitions.create(['background-color', 'color']),
-              '&:hover': {
-                bgcolor: processingTokens.primarySoftStrong,
-                color: processingTokens.textStrong,
-              },
-            }}
-          >
-            Clear
-          </Box>
-        : null}
-      </Box>
-
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
         {SEGMENTS.map((s) => {
           const active = segment === s.id;
@@ -245,6 +118,70 @@ export function ProcessingFilterRow({
           {hideDispositioned ? <Check sx={{ fontSize: 14 }} /> : null}
           Hide done
         </Box>
+        {onGroupByProductChange ?
+          <Box
+            component="button"
+            type="button"
+            onClick={() => onGroupByProductChange(!groupByProduct)}
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.4,
+              height: 27,
+              px: 1,
+              borderRadius: 99,
+              border: groupByProduct ?
+                `1px solid ${processingTokens.borderStrong}`
+              : `1px solid ${processingTokens.border}`,
+              bgcolor: groupByProduct ? processingTokens.primarySoftStrong : 'transparent',
+              color: groupByProduct ? processingTokens.textStrong : processingTokens.textSoft,
+              cursor: 'pointer',
+              font: 'inherit',
+              fontSize: 11.5,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              transition: (theme) => theme.transitions.create(['background-color', 'border-color']),
+              '&:hover': {
+                bgcolor: processingTokens.primarySoft,
+              },
+            }}
+          >
+            {groupByProduct ? <Check sx={{ fontSize: 14 }} /> : null}
+            Group by product
+          </Box>
+        : null}
+        {onShowCollapsedMembersChange ?
+          <Box
+            component="button"
+            type="button"
+            onClick={() => onShowCollapsedMembersChange(!showCollapsedMembers)}
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.4,
+              height: 27,
+              px: 1,
+              borderRadius: 99,
+              border: showCollapsedMembers ?
+                `1px solid ${processingTokens.borderStrong}`
+              : `1px solid ${processingTokens.border}`,
+              bgcolor: showCollapsedMembers ? processingTokens.primarySoftStrong : 'transparent',
+              color: showCollapsedMembers ? processingTokens.textStrong : processingTokens.textSoft,
+              cursor: 'pointer',
+              font: 'inherit',
+              fontSize: 11.5,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              transition: (theme) => theme.transitions.create(['background-color', 'border-color']),
+              '&:hover': {
+                bgcolor: processingTokens.primarySoft,
+              },
+            }}
+          >
+            {showCollapsedMembers ? <Check sx={{ fontSize: 14 }} /> : null}
+            Show collapsed rows
+          </Box>
+        : null}
         {productFilterProductId != null ? (
           <Chip
             label={`Product: ${productFilterTitle || `#${productFilterProductId}`}`}

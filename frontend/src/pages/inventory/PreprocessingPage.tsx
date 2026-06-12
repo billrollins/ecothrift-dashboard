@@ -28,13 +28,15 @@ import {
   usePreprocessingQueue,
   useSuggestFormulas,
   useUpdatePreprocessingReview,
+  useUpdatePreprocessingMatch,
   useUploadCleanupCsvRows,
 } from '../../hooks/useInventory';
+import { apiErrorDetail } from '../../hooks/useProductSearch';
 import { prepS1 } from '../../utils/preprocessingStep1Diag';
 import { useStandardManifest, buildFormulas } from '../../hooks/useStandardManifest';
 import { StandardManifestBuilder } from '../../components/inventory/StandardManifestBuilder';
 import { PreprocessingReviewTable } from '../../components/inventory/PreprocessingReviewTable';
-import { getPreprocessingReview, getTemplate } from '../../api/inventory.api';
+import { aiCleanupComplete, getPreprocessingReview, getTemplate } from '../../api/inventory.api';
 import type {
   CleanupCsvApplyRowPayload,
   CleanupCsvSoftWarning,
@@ -101,27 +103,24 @@ export default function PreprocessingPage() {
   const uploadCleanupRowsMutation = useUploadCleanupCsvRows();
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [stepDerived, setStepDerived] = useState(false);
-  const [reviewPage, setReviewPage] = useState(1);
-  const [reviewPageSize, setReviewPageSize] = useState(50);
-  const [reviewSearchInput, setReviewSearchInput] = useState('');
-  const [reviewSearch, setReviewSearch] = useState('');
   const [reviewRows, setReviewRows] = useState<PreprocessingReviewRow[]>([]);
-  const [reviewTotalCount, setReviewTotalCount] = useState(0);
   const [reviewApiSummary, setReviewApiSummary] = useState<PreprocessingReviewSummary | null>(null);
   const [reviewRowMap, setReviewRowMap] = useState<Record<number, PreprocessingReviewRow>>({});
-  const [reviewTotalsRowMap, setReviewTotalsRowMap] = useState<Record<number, PreprocessingReviewRow>>({});
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewFetchNonce, setReviewFetchNonce] = useState(0);
   const hasActivePreprocessingSession = Boolean(
     preprocessingStatus?.preprocessing?.row_count && !preprocessingStatus.preprocessing.finalized_at,
   );
   const updatePreprocessingReview = useUpdatePreprocessingReview();
+  const updatePreprocessingMatch = useUpdatePreprocessingMatch();
   const finalizePreprocessingMutation = useFinalizePreprocessing();
+  const [updatingMatchRowId, setUpdatingMatchRowId] = useState<number | null>(null);
 
   const [selectedManifestTemplateId, setSelectedManifestTemplateId] = useState<number | null>(null);
 
   const [cleanupValidatedPayload, setCleanupValidatedPayload] = useState<CleanupCsvApplyRowPayload[] | null>(null);
   const [cleanupApplySoftWarnings, setCleanupApplySoftWarnings] = useState<CleanupCsvSoftWarning[] | null>(null);
+  const [cleanupApplyProgress, setCleanupApplyProgress] = useState<string | null>(null);
   const [cleanupExpectedRowIds, setCleanupExpectedRowIds] = useState<Set<number> | null>(null);
   const [cleanupRowNumberById, setCleanupRowNumberById] = useState<Record<number, number>>({});
   const [reviewDirtyCount, setReviewDirtyCount] = useState(0);
@@ -134,7 +133,6 @@ export default function PreprocessingPage() {
   const [formulaPreviewOpen, setFormulaPreviewOpen] = useState(false);
   const [rawReferenceOpen, setRawReferenceOpen] = useState(false);
   const [processResult, setProcessResult] = useState<{ rows_created: number } | null>(null);
-  const reviewSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const standardizedFormulasRef = useRef<Record<string, string> | null>(null);
 
   const templateBaselineFingerprintRef = useRef<string | null>(null);
@@ -306,6 +304,9 @@ export default function PreprocessingPage() {
       setCleanupRowNumberById({});
       return;
     }
+    // Only the Step 2 offline-CSV validator needs this id sweep — don't pay for it on
+    // Standardize or Final Decisions.
+    if (activeStep !== 1) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -313,10 +314,11 @@ export default function PreprocessingPage() {
         const rn: Record<number, number> = {};
         let page = 1;
         while (!cancelled) {
-          const { data } = await getPreprocessingReview(orderId, { page, page_size: 100, fields: 'minimal' });
+          const { data } = await getPreprocessingReview(orderId, { page, page_size: 500, fields: 'minimal' });
           for (const r of data.rows) {
-            ids.add(r.id);
-            rn[r.id] = r.row_number;
+            const cleanupRowId = r.manifest_row_id ?? r.id;
+            ids.add(cleanupRowId);
+            rn[cleanupRowId] = r.row_number;
           }
           if (!data.has_next) break;
           page++;
@@ -335,14 +337,12 @@ export default function PreprocessingPage() {
     return () => {
       cancelled = true;
     };
-  }, [orderId, hasActivePreprocessingSession, standardizedRowCount]);
+  }, [orderId, activeStep, hasActivePreprocessingSession, standardizedRowCount]);
 
   useEffect(() => {
     setReviewRows([]);
-    setReviewTotalCount(0);
     setReviewApiSummary(null);
     setReviewRowMap({});
-    setReviewTotalsRowMap({});
     setReviewFetchNonce(0);
     setReviewTableMountKey(0);
     setCleanupValidatedPayload(null);
@@ -354,47 +354,45 @@ export default function PreprocessingPage() {
     setSelectedManifestTemplateId(templateId ?? null);
   }, [templateId]);
 
-  useEffect(() => {
-    setReviewPage(1);
-  }, [reviewSearch]);
-
-  useEffect(() => {
-    setReviewRowMap({});
-  }, [reviewSearch]);
-
+  // ONE whole-order load (page_size 500, minimal fields) feeds the table, the row maps,
+  // and order totals. The table virtualizes + filters client-side — no pagination, no
+  // server search (mimics the Processing queue strategy). Re-runs on reviewFetchNonce
+  // (match PATCHes need server-hydrated matched_product_detail / peer row numbers).
   useEffect(() => {
     if (!orderId || !hasActivePreprocessingSession) return;
-    // Load review rows whenever Manual Review is visible, and prefetch once the backend marks
-    // step 3 reachable (completed_step >= 2) so stale activeStep / fast navigation still populate data.
     const wantReviewRows =
       activeStep === 2 || (completedStep >= 2 && activeStep != null && activeStep < 2);
     if (!wantReviewRows) return;
     let cancelled = false;
     setReviewLoading(true);
-    void getPreprocessingReview(orderId, {
-      page: reviewPage,
-      page_size: reviewPageSize,
-      search: reviewSearch.trim() || undefined,
-      fields: 'minimal',
-    })
-      .then(({ data }) => {
+    void (async () => {
+      try {
+        const merged: Record<number, PreprocessingReviewRow> = {};
+        let page = 1;
+        while (true) {
+          const { data } = await getPreprocessingReview(orderId, {
+            page,
+            page_size: 500,
+            fields: 'minimal',
+          });
+          if (cancelled) return;
+          if (page === 1) setReviewApiSummary(data.summary);
+          for (const r of data.rows) merged[r.id] = r;
+          if (!data.has_next) break;
+          page++;
+        }
         if (cancelled) return;
-        setReviewRows(data.rows);
-        setReviewTotalCount(data.count);
-        setReviewApiSummary(data.summary);
-        setReviewRowMap((prev) => {
-          const next = { ...prev };
-          for (const r of data.rows) next[r.id] = r;
-          return next;
-        });
-      })
-      .catch((err: unknown) => {
+        const all = Object.values(merged).sort((a, b) => a.row_number - b.row_number);
+        setReviewRows(all);
+        setReviewRowMap(merged);
+      } catch (err: unknown) {
+        if (cancelled) return;
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
         enqueueSnackbar(detail || 'Failed to load review rows', { variant: 'error' });
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setReviewLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -403,72 +401,31 @@ export default function PreprocessingPage() {
     activeStep,
     completedStep,
     hasActivePreprocessingSession,
-    reviewPage,
-    reviewPageSize,
-    reviewSearch,
     reviewFetchNonce,
     enqueueSnackbar,
     preprocessingStatus?.preprocessing?.row_count,
   ]);
 
-  useEffect(() => {
-    if (!orderId || activeStep !== 2 || !hasActivePreprocessingSession) return;
-    let cancelled = false;
-    setReviewTotalsRowMap({});
-    void (async () => {
-      try {
-        const merged: Record<number, PreprocessingReviewRow> = {};
-        let page = 1;
-        while (true) {
-          const { data } = await getPreprocessingReview(orderId, {
-            page,
-            page_size: 100,
-            search: reviewSearch.trim() || undefined,
-            fields: 'minimal',
-          });
-          if (cancelled) return;
-          for (const r of data.rows) merged[r.id] = r;
-          if (!data.has_next) break;
-          page++;
-        }
-        if (!cancelled) setReviewTotalsRowMap(merged);
-      } catch {
-        if (!cancelled) setReviewTotalsRowMap({});
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [orderId, activeStep, hasActivePreprocessingSession, reviewSearch, reviewFetchNonce]);
-
   const reviewTableSummary = reviewApiSummary;
 
-  const pricingTotalsRows = useMemo(() => Object.values(reviewTotalsRowMap), [reviewTotalsRowMap]);
-  const pricingTotalsComplete =
-    reviewTotalCount === 0 ||
-    (pricingTotalsRows.length > 0 && pricingTotalsRows.length === reviewTotalCount);
-
-  const getStagedRow = useCallback((id: number) => reviewRowMap[id], [reviewRowMap]);
-
-  const prefetchFilteredRowsForBulk = useCallback(async (): Promise<number[]> => {
-    if (!orderId) return [];
-    const merged: Record<number, PreprocessingReviewRow> = {};
-    let page = 1;
-    while (true) {
-      const { data } = await getPreprocessingReview(orderId, {
-        page,
-        page_size: 100,
-        search: reviewSearch.trim() || undefined,
-        fields: 'minimal',
-      });
-      for (const r of data.rows) merged[r.id] = r;
-      if (!data.has_next) break;
-      page++;
-    }
-    setReviewRowMap(merged);
-    setReviewTotalsRowMap(merged);
-    return Object.keys(merged).map(Number);
-  }, [orderId, reviewSearch]);
+  // Match candidates are generated ONCE at AI-cleanup completion (ai-cleanup-complete /
+  // apply-cleanup-csv). Final Decisions never regenerates them (owner rule, 2026-06-10).
+  const handleSetMatch = useCallback(
+    async (rowId: number, finalMatchedProduct: number | null, decision?: 'unset') => {
+      if (!orderId) return;
+      setUpdatingMatchRowId(rowId);
+      try {
+        await updatePreprocessingMatch.mutateAsync({ orderId, rowId, finalMatchedProduct, decision });
+        setReviewFetchNonce((n) => n + 1);
+      } catch (err) {
+        enqueueSnackbar(apiErrorDetail(err, 'Failed to save match'), { variant: 'error' });
+        throw err;
+      } finally {
+        setUpdatingMatchRowId(null);
+      }
+    },
+    [orderId, updatePreprocessingMatch, enqueueSnackbar],
+  );
 
   const mergeReviewPatches = useCallback((updates: PreprocessingReviewRowUpdate[]) => {
     const applyPatch = (row: PreprocessingReviewRow, u: PreprocessingReviewRowUpdate): PreprocessingReviewRow => {
@@ -683,21 +640,6 @@ export default function PreprocessingPage() {
 
   const effectiveManifestTemplateId = selectedManifestTemplateId ?? templateId;
 
-  useEffect(() => {
-    if (reviewSearchDebounceRef.current) clearTimeout(reviewSearchDebounceRef.current);
-    reviewSearchDebounceRef.current = setTimeout(() => {
-      setReviewSearch(reviewSearchInput);
-      setReviewPage(1);
-    }, 300);
-    return () => {
-      if (reviewSearchDebounceRef.current) clearTimeout(reviewSearchDebounceRef.current);
-    };
-  }, [reviewSearchInput]);
-
-  useEffect(() => () => {
-    if (reviewSearchDebounceRef.current) clearTimeout(reviewSearchDebounceRef.current);
-  }, []);
-
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleSuggestFormulas = async () => {
@@ -781,22 +723,51 @@ export default function PreprocessingPage() {
     navigate(`/inventory/orders/${orderId}?drawer=timeline&undo=standardize`);
   };
 
+  // Chunked offline apply (Fable verdict slice 6): 50 rows per partial POST so one bad
+  // row fails its chunk — not all 744 — and a 744-row PO can't H12 the apply. The final
+  // ai-cleanup-complete call owns match candidates + order flags. Re-applying after a
+  // failed chunk is safe (same-values merge is idempotent).
   const handleRunCleanupApply = async () => {
     if (!orderId || !cleanupValidatedPayload?.length) return;
+    const CHUNK_SIZE = 50;
+    const chunks: CleanupCsvApplyRowPayload[][] = [];
+    for (let i = 0; i < cleanupValidatedPayload.length; i += CHUNK_SIZE) {
+      chunks.push(cleanupValidatedPayload.slice(i, i + CHUNK_SIZE));
+    }
+    const allWarnings: CleanupCsvSoftWarning[] = [];
+    let rowsApplied = 0;
+    let chunkIndex = 0;
     try {
-      const result = await uploadCleanupRowsMutation.mutateAsync({ orderId, rows: cleanupValidatedPayload });
-      const sw = result.soft_warnings?.length ?? 0;
-      setCleanupApplySoftWarnings(result.soft_warnings?.length ? result.soft_warnings : null);
+      for (chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
+        setCleanupApplyProgress(`chunk ${chunkIndex + 1}/${chunks.length}`);
+        const result = await uploadCleanupRowsMutation.mutateAsync({
+          orderId,
+          rows: chunks[chunkIndex],
+          partial: true,
+        });
+        rowsApplied += result.rows_updated ?? 0;
+        if (result.soft_warnings?.length) allWarnings.push(...result.soft_warnings);
+      }
+      setCleanupApplyProgress('finishing…');
+      await aiCleanupComplete(orderId);
+      setCleanupApplySoftWarnings(allWarnings.length ? allWarnings : null);
       enqueueSnackbar(
-        sw
-          ? `Applied cleanup to ${cleanupValidatedPayload.length} row(s) — ${sw} soft warning(s) (see upload log).`
-          : `Applied cleanup to ${cleanupValidatedPayload.length} row(s)`,
+        allWarnings.length
+          ? `Applied cleanup to ${rowsApplied} row(s) in ${chunks.length} chunk(s) — ${allWarnings.length} soft warning(s) (see upload log).`
+          : `Applied cleanup to ${rowsApplied} row(s) in ${chunks.length} chunk(s)`,
         { variant: 'success' },
       );
       setCleanupValidatedPayload(null);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { detail?: string } } };
-      enqueueSnackbar(axiosErr?.response?.data?.detail || 'Failed to apply cleanup CSV', { variant: 'error' });
+      const detail = axiosErr?.response?.data?.detail || 'Failed to apply cleanup CSV';
+      setCleanupApplySoftWarnings(allWarnings.length ? allWarnings : null);
+      enqueueSnackbar(
+        `${detail} (chunk ${chunkIndex + 1}/${chunks.length}; ${rowsApplied} row(s) already applied — fixing the CSV and re-running is safe)`,
+        { variant: 'error' },
+      );
+    } finally {
+      setCleanupApplyProgress(null);
     }
   };
 
@@ -804,8 +775,9 @@ export default function PreprocessingPage() {
     if (!orderId) return;
     try {
       const result = await updatePreprocessingReview.mutateAsync({ orderId, rows });
+      // No refetch: onPersistSuccess (mergeReviewPatches) updates client rows; the PATCH
+      // response carries fresh order-level summary.
       setReviewApiSummary(result.summary);
-      setReviewFetchNonce((n) => n + 1);
       enqueueSnackbar(`Saved ${result.rows_updated} staged row(s)`, { variant: 'success' });
     } catch {
       enqueueSnackbar('Failed to save preprocessing review', { variant: 'error' });
@@ -988,10 +960,10 @@ export default function PreprocessingPage() {
           variant="contained"
           size="small"
           onClick={() => void handleRunCleanupApply()}
-          disabled={uploadCleanupRowsMutation.isPending}
+          disabled={uploadCleanupRowsMutation.isPending || cleanupApplyProgress != null}
           sx={{ bgcolor: '#1565C0', fontSize: 14, fontWeight: 600, textTransform: 'none', py: '10px', px: '20px' }}
         >
-          {uploadCleanupRowsMutation.isPending ? 'Applying…' : 'Run Cleanup'}
+          {cleanupApplyProgress ? `Applying ${cleanupApplyProgress}` : 'Run Cleanup'}
         </Button>
       );
     }
@@ -1046,6 +1018,8 @@ export default function PreprocessingPage() {
         orders={dropdownOrders}
         selectedOrderId={order.id}
         onSelectOrderId={(id) => navigate(`/inventory/preprocessing/${id}`)}
+        vendorName={order.vendor_name}
+        orderTitle={order.load_type}
         totalUnits={headerTotalUnits}
         estimatedRetailLabel={headerEstimatedRetailLabel}
         onBackToOrder={() => navigate(`/inventory/orders/${order.id}`)}
@@ -1338,48 +1312,34 @@ export default function PreprocessingPage() {
           )}
 
           {/* ════════════════════════════════════════════════════════
-              STEP 3: Final Review
+              STEP 3: Final Decisions
           ════════════════════════════════════════════════════════ */}
           {activeStep === 2 && (
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+            <Box
+              sx={{
+                // Processing-queue layout: the page stays fixed; the table body is the
+                // only scroller. Viewport-derived height; flex children absorb the rest.
+                height: 'calc(100vh - 252px)',
+                minHeight: 420,
+                display: 'flex',
+                flexDirection: 'column',
+                minWidth: 0,
+                overflow: 'hidden',
+              }}
+            >
               {hasActivePreprocessingSession ? (
                 <>
-                  {reviewLoading && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      Loading {preprocessingStatus?.preprocessing?.row_count ?? ''} staged rows…
-                    </Typography>
-                  )}
                   <PreprocessingReviewTable
                     key={reviewTableMountKey}
                     rows={reviewRows}
-                    getStagedRow={getStagedRow}
-                    ensureBulkTargetsLoaded={prefetchFilteredRowsForBulk}
                     summary={reviewTableSummary}
-                    pricingTotalsRows={pricingTotalsRows}
-                    pricingTotalsComplete={pricingTotalsComplete}
-                    totalFilteredCount={reviewTotalCount}
-                    page={reviewPage}
-                    pageSize={reviewPageSize}
                     isLoading={reviewLoading && reviewRows.length === 0}
-                    searchValue={reviewSearchInput}
-                    onPageChange={setReviewPage}
-                    onPageSizeChange={(size) => {
-                      setReviewPageSize(size);
-                      setReviewPage(1);
-                    }}
-                    onSearchChange={(search) => {
-                      setReviewSearchInput(search);
-                    }}
                     onSaveRows={handlePreprocessingReviewSave}
                     onPersistSuccess={mergeReviewPatches}
                     onDirtyCountChange={setReviewDirtyCount}
                     isSaving={updatePreprocessingReview.isPending}
-                    isResettingFinal={false}
-                    onResetFinalClick={
-                      orderId
-                        ? () => navigate(`/inventory/orders/${orderId}?drawer=timeline&undo=ai_cleanup`)
-                        : undefined
-                    }
+                    updatingMatchRowId={updatingMatchRowId}
+                    onSetMatch={handleSetMatch}
                   />
                 </>
               ) : hasCanonicalProcessingQueue ? (

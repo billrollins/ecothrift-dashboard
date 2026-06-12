@@ -5,6 +5,13 @@ Run `python distribute.py` from this directory to build and publish a new releas
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **Installer / legacy cleanup:** the V2 Startup-shortcut sweep only matched `Eco-Thrift Print Server.vbs`; real V2 installs also wrote `EcoThrift Print Server.vbs` (no hyphen), so the dead pointer survived upgrades. Both `installer/setup.py` and `installer/uninstall_legacy_prior.bat` now remove both name variants. (Found 2026-06-10 on the owner's machine: dead VBS pointing at the removed `C:\DashPrintServer\start.bat` alongside the correct HKCU Run-key autostart; VBS deleted manually there.)
+
+---
+
 ## [1.2.38] — 2026-03-28
 
 ### Changed

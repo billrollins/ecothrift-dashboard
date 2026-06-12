@@ -16,6 +16,8 @@
       JOIN purchase_order_id + row_number (works even if manifest_row_id IS NULL)
     - inventory_item.price for lines linked to touched manifest rows (non-terminal)
     - inventory_product.default_price when manifest.matched_product_id set
+      (DEPRECATED column — P6: prefer ProcessingRow.matched_product_id in new SQL;
+       this script unchanged until a follow-up rewrite)
 
   This does NOT compound prior manifest/processing edits: each run derives from
   current preprocessing proposed_price only.

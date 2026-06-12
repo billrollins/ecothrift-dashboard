@@ -24,7 +24,6 @@ if !errorlevel! neq 0 (
     echo ERROR: Not logged into Heroku CLI.
     echo Run: heroku login
     echo Then re-run this script.
-    pause
     exit /b 1
 )
 for /f "delims=" %%u in ('call heroku auth:whoami 2^>nul') do echo        Logged in as: %%u
@@ -37,7 +36,6 @@ echo [Step 1] Fetching production DATABASE_URL...
 for /f "delims=" %%u in ('call heroku config:get DATABASE_URL -a ecothrift-dashboard 2^>nul') do set "PROD_DB_URL=%%u"
 if not defined PROD_DB_URL (
     echo ERROR: Could not fetch DATABASE_URL from Heroku.
-    pause
     exit /b 1
 )
 echo        Got DATABASE_URL (hidden for security)
@@ -57,7 +55,6 @@ del "!TEMP_DUMP!" 2>nul
 if !DUMP_RC! neq 0 (
     echo ERROR: pg_dump from production failed.
     del "%DUMP_FILE%" 2>nul
-    pause
     exit /b 1
 )
 echo        Production ecothrift dump saved to: %DUMP_FILE%
@@ -82,7 +79,6 @@ psql -h localhost -p 5432 -U postgres -d ecothrift_v3 -c "DROP SCHEMA IF EXISTS 
 if !errorlevel! neq 0 (
     echo ERROR: Failed to drop local ecothrift schema.
     del "%DUMP_FILE%" 2>nul
-    pause
     exit /b 1
 )
 echo        Local schema ecothrift dropped.

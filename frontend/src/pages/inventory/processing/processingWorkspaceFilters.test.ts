@@ -61,8 +61,8 @@ describe('processingWorkspaceFilters', () => {
     const rows = [
       {
         manifest_row_id: 1,
-        identifiers: { upc: ' 012345678901 ' },
-        product: { upc: 'ignored' as string },
+        identifiers: { upc: 'ignored-by-product-wins' },
+        product: { upc: '012345678901' as string },
       },
       {
         manifest_row_id: 2,

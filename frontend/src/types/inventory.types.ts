@@ -57,8 +57,6 @@ export type ProcessingTier = 'individual' | 'batch';
  */
 export type ProcessingBatchStatus = 'pending' | 'in_progress' | 'complete';
 
-export type MatchStatus = 'pending' | 'matched' | 'new';
-export type AIMatchDecision = 'pending_review' | 'confirmed' | 'rejected' | 'uncertain' | 'new_product' | '';
 export type BatchGroupStatus = 'pending' | 'in_progress' | 'complete';
 export type ManifestPricingStage = 'unpriced' | 'draft' | 'final';
 
@@ -92,13 +90,6 @@ export interface Vendor {
   created_at: string;
 }
 
-export interface MatchCandidate {
-  product_id: number;
-  product_title: string;
-  score: number;
-  match_type: string;
-}
-
 export interface ManifestRow {
   id: number;
   purchase_order: number;
@@ -122,12 +113,6 @@ export interface ManifestRow {
   batch_flag: boolean;
   search_tags: string;
   specifications: Record<string, unknown>;
-  matched_product: number | null;
-  matched_product_title: string | null;
-  matched_product_number: string | null;
-  match_status: MatchStatus;
-  match_candidates: MatchCandidate[];
-  ai_match_decision: AIMatchDecision;
   ai_reasoning: string;
   notes: string;
   item_ids?: number[];
@@ -453,6 +438,8 @@ export type ProcessingItemDisputeType =
 export interface ProcessingWorkspaceItemDTO {
   id: number;
   sku: string;
+  /** Physical units inside this sellable Item (a set tag covers N units). */
+  unit_count?: number;
   condition: string;
   condition_label: string;
   price: string;
@@ -487,14 +474,75 @@ export interface ProcessingCheckInBatchDTO {
   dispute_count: number;
 }
 
+export interface ProcessingManifestEvidenceDTO {
+  title: string;
+  brand: string;
+  description: string;
+  quantity: number;
+  unit_retail: string | null;
+}
+
 /** Subset returned from GET processing-workspace (no nested items/products). */
 export type ProcessingRowKind = 'manifest' | 'added';
+
+/** P7 collapse: combined rollup carried by the group MASTER row. */
+export interface ProcessingCollapsedGroupDTO {
+  memberRowNumbers: number[];
+  memberRowIds: number[];
+  totalQty: number;
+  totalDispositioned: number;
+}
+
+/** P9 transforms: one Break apart / Make set audit entry on the family ROOT row. */
+export interface ProcessingTransformMemoDTO {
+  op: 'break_apart' | 'make_set';
+  units: number;
+  factor?: number;
+  set_size?: number;
+  num_sets?: number;
+  in_place: boolean;
+  sub_row_id: number | null;
+  sub_row_number: number | null;
+  created_product_id: number | null;
+  by: number | null;
+  at: string;
+}
+
+/** P9 transforms: family map present on detail payloads of split roots and sub rows. */
+export interface ProcessingSplitFamilyDTO {
+  rootProcessingRowId: number;
+  rootRowNumber: number;
+  children: Array<{
+    processing_row_id: number;
+    rowNumber: number;
+    splitSeq: number | null;
+    qty: number;
+    unitsPerItem: number;
+    qtyDispositioned: number;
+  }>;
+  canRestart: boolean;
+}
 
 export interface ProcessingWorkspaceRowDTO {
   processing_row_id: number;
   rowKind?: ProcessingRowKind;
   manifest_row_id: number | null;
   rowNum: number;
+  /** Non-null on FOLLOWER rows of a collapse group (points at the master row id). */
+  collapseMasterId?: number | null;
+  /** Present on group MASTER rows only. */
+  collapsedGroup?: ProcessingCollapsedGroupDTO;
+  /** P9 split families: non-null on SUB rows created by Break apart / Make set. */
+  splitParentId?: number | null;
+  splitSeq?: number | null;
+  /** Resolved parent row number so sub rows can label as `#12.1`. */
+  splitParentRowNumber?: number;
+  /** Physical units inside each Item checked in from this row (set rows > 1). */
+  unitsPerItem?: number;
+  /** Detail-only: transform audit trail (always the family ROOT's list). */
+  transforms?: ProcessingTransformMemoDTO[];
+  /** Detail-only: split family map when this row is a transform root or sub row. */
+  splitFamily?: ProcessingSplitFamilyDTO;
   productId: number | null;
   product: ProcessingWorkspaceProductDTO | null;
   title: string;
@@ -507,6 +555,10 @@ export interface ProcessingWorkspaceRowDTO {
   category: string;
   qty: number;
   qtyDispositioned: number;
+  /** Denormalized distinct product count (dispositioned items); list + detail. */
+  distinctProductCount?: number;
+  /** Other row numbers sharing matched_product_id (list peer hint). */
+  sameProductRowNumbers?: number[];
   /** Pending unit count when list-only; detail query may hydrate items[]. */
   pendingItemCount?: number;
   hasOnShelfUnit?: boolean;
@@ -530,6 +582,8 @@ export interface ProcessingWorkspaceRowDTO {
   qtyRemaining?: number;
   /** Checked-in minus expected when over manifest qty (detail payloads). */
   qtyOverage?: number;
+  /** Detail-only vendor claim when a product is matched. */
+  manifestEvidence?: ProcessingManifestEvidenceDTO;
 }
 
 export interface ProcessingWorkspaceRollupsDTO {
@@ -604,6 +658,9 @@ export interface ProcessingWorkspaceDTO {
 /** PATCH payload returned by processor mutations (`workspace_patch`). */
 export interface ProcessingWorkspacePatchDTO {
   progress: ProcessingWorkspaceDTO['progress'];
+  /** Live header rollups recomputed after each mutation. */
+  rollups?: ProcessingWorkspaceRollupsDTO;
+  manifest_qty_dispositioned_total?: number;
   rows: ProcessingWorkspaceRowDTO[];
 }
 

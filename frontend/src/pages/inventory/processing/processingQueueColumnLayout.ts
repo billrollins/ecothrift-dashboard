@@ -5,6 +5,8 @@ import {
   queueBrandText,
   queueCategoryText,
   queueDispatchLabel,
+  queueExtRetailText,
+  queueProductsChipLabel,
   queueQtyText,
   queueStatusLabel,
   queueTitleText,
@@ -14,20 +16,23 @@ import {
   PROCESSING_QUEUE_CELL_PAD_PX,
   PROCESSING_QUEUE_CHIP_PAD_PX,
   PROCESSING_QUEUE_COL_DEFAULTS,
-  PROCESSING_QUEUE_COL_MAX,
   PROCESSING_QUEUE_COL_MIN,
   PROCESSING_QUEUE_DUP_CHIP_PX,
+  PROCESSING_QUEUE_MONEY_COL_MIN,
+  PROCESSING_QUEUE_PEER_CHIP_PX,
+  PROCESSING_QUEUE_PRODUCTS_CHIP_PX,
   PROCESSING_QUEUE_ROW_NUM_PAD_PX,
   PROCESSING_QUEUE_SORT_ICON_PX,
 } from './processingQueueLayout';
 
 export type ProcessingQueueColumnId =
   | 'rowNum'
+  | 'qty'
   | 'brand'
   | 'title'
   | 'category'
-  | 'qty'
   | 'retail'
+  | 'extRetail'
   | 'price'
   | 'condition'
   | 'dispatch'
@@ -35,11 +40,12 @@ export type ProcessingQueueColumnId =
 
 export const PROCESSING_QUEUE_COLUMN_ORDER: ProcessingQueueColumnId[] = [
   'rowNum',
+  'qty',
   'brand',
   'title',
   'category',
-  'qty',
   'retail',
+  'extRetail',
   'price',
   'condition',
   'dispatch',
@@ -74,46 +80,58 @@ export function createProcessingQueueMeasureFonts(fontFamily: string): Processin
   };
 }
 
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, n));
-}
-
 function sumColumnWidths(cols: Record<ProcessingQueueColumnId, number>): number {
   return PROCESSING_QUEUE_COLUMN_ORDER.reduce((sum, id) => sum + cols[id], 0);
 }
 
-/** Force column widths to sum exactly to containerWidth (never wider than viewport). */
-function normalizeColumnsToContainerWidth(
+function ceilPad(w: number, pad: number): number {
+  return Math.ceil(w + pad);
+}
+
+function idealFloor(ideal: number, min: number): number {
+  return Math.max(min, ideal);
+}
+
+/** Assign any px drift from rounding to the title column. */
+function finalizeColumnWidths(
   cols: Record<ProcessingQueueColumnId, number>,
   containerWidth: number,
 ): Record<ProcessingQueueColumnId, number> {
-  if (containerWidth <= 0) return cols;
-
-  const next = { ...cols };
+  let next = { ...cols };
   let sum = sumColumnWidths(next);
-
-  if (sum < containerWidth) {
-    next.title += containerWidth - sum;
-    return next;
+  if (sum > containerWidth) {
+    next = proportionallyScaleColumns(next, containerWidth);
+    sum = sumColumnWidths(next);
   }
+  const drift = containerWidth - sum;
+  if (drift !== 0) {
+    next.title += drift;
+  }
+  return next;
+}
 
-  if (sum === containerWidth) return next;
-
+function proportionallyScaleColumns(
+  cols: Record<ProcessingQueueColumnId, number>,
+  containerWidth: number,
+): Record<ProcessingQueueColumnId, number> {
+  const sum = sumColumnWidths(cols);
+  if (sum <= 0 || sum <= containerWidth) return cols;
   const scale = containerWidth / sum;
+  const next = { ...cols };
   for (const id of PROCESSING_QUEUE_COLUMN_ORDER) {
     next[id] = Math.max(1, Math.floor(next[id] * scale));
   }
-  next.title += containerWidth - sumColumnWidths(next);
-  next.title = Math.max(1, next.title);
   return next;
 }
 
 function scaleDefaultColumnsToContainer(containerWidth: number): Record<ProcessingQueueColumnId, number> {
-  return normalizeColumnsToContainerWidth({ ...PROCESSING_QUEUE_COL_DEFAULTS }, containerWidth);
-}
-
-function ceilPad(w: number, pad: number): number {
-  return Math.ceil(w + pad);
+  const next: Record<ProcessingQueueColumnId, number> = { ...PROCESSING_QUEUE_COL_DEFAULTS };
+  const fixedSum = PROCESSING_QUEUE_COLUMN_ORDER.filter((id) => id !== 'title').reduce(
+    (sum, id) => sum + next[id],
+    0,
+  );
+  next.title = Math.max(PROCESSING_QUEUE_COL_MIN.title, containerWidth - fixedSum);
+  return finalizeColumnWidths(next, containerWidth);
 }
 
 function shrinkFixedColumnsToFit(
@@ -151,6 +169,36 @@ function shrinkFixedColumnsToFit(
   return next;
 }
 
+/**
+ * Fixed columns get their measured ideal width when space allows.
+ * Title absorbs leftover viewport width; it shrinks first when space is tight.
+ */
+function distributeColumnWidths(
+  ideals: Record<ProcessingQueueColumnId, number>,
+  containerWidth: number,
+): Record<ProcessingQueueColumnId, number> {
+  const fixedIds = PROCESSING_QUEUE_COLUMN_ORDER.filter((id) => id !== 'title');
+  const next = { ...ideals };
+
+  const fixedSum = () => fixedIds.reduce((sum, id) => sum + next[id], 0);
+  let titleSpace = containerWidth - fixedSum();
+
+  if (titleSpace >= ideals.title) {
+    next.title = titleSpace;
+    return next;
+  }
+
+  if (titleSpace >= PROCESSING_QUEUE_COL_MIN.title) {
+    next.title = titleSpace;
+    return next;
+  }
+
+  const shrunk = shrinkFixedColumnsToFit(next, containerWidth, PROCESSING_QUEUE_COL_MIN.title);
+  titleSpace = containerWidth - fixedIds.reduce((sum, id) => sum + shrunk[id], 0);
+  shrunk.title = Math.max(PROCESSING_QUEUE_COL_MIN.title, titleSpace);
+  return shrunk;
+}
+
 export function computeProcessingQueueColumnWidths(
   rows: ProcessingWorkspaceRowDTO[],
   containerWidth: number,
@@ -168,22 +216,40 @@ export function computeProcessingQueueColumnWidths(
   }
 
   let rowNumW = measureTextWidth('#', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
+  let qtyW = measureTextWidth('Qty', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
   let brandW = measureTextWidth('Brand', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
   let titleW = measureTextWidth('Title', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
   let categoryW = measureTextWidth('Category', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
-  let qtyW = measureTextWidth('Qty', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
-  let retailW = measureTextWidth('Retail', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
-  let priceW = measureTextWidth('Price', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
+  const moneyFloor = Math.max(
+    PROCESSING_QUEUE_MONEY_COL_MIN,
+    measureTextWidth('$999,999.99', fonts.bodyBold),
+  );
+  let retailW = Math.max(
+    measureTextWidth('Retail', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX,
+    moneyFloor,
+  );
+  let extRetailW = Math.max(
+    measureTextWidth('Ext. Retail', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX,
+    moneyFloor,
+  );
+  let priceW = Math.max(
+    measureTextWidth('Price', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX,
+    moneyFloor,
+  );
   let conditionW = measureTextWidth('Condition', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
   let dispatchW = measureTextWidth('Dispatch', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
   let statusW = measureTextWidth('Status', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
 
   let hasAddedRow = false;
   let hasDupChip = false;
+  let hasPeerChip = false;
+  let hasProductsChip = false;
 
   for (const row of rows) {
     if (row.rowKind === 'added') hasAddedRow = true;
     if (row.likelyDuplicateOf?.length) hasDupChip = true;
+    if (row.sameProductRowNumbers?.length) hasPeerChip = true;
+    if ((row.distinctProductCount ?? 0) >= 2) hasProductsChip = true;
 
     rowNumW = Math.max(rowNumW, measureTextWidth(String(row.rowNum), fonts.body));
     brandW = Math.max(brandW, measureTextWidth(queueBrandText(row), fonts.bodyBrand));
@@ -191,6 +257,7 @@ export function computeProcessingQueueColumnWidths(
     categoryW = Math.max(categoryW, measureTextWidth(queueCategoryText(row), fonts.body));
     qtyW = Math.max(qtyW, measureTextWidth(queueQtyText(row), fonts.bodyBold));
     retailW = Math.max(retailW, measureTextWidth(formatQueueMoney(row.unitRetail), fonts.body));
+    extRetailW = Math.max(extRetailW, measureTextWidth(queueExtRetailText(row), fonts.bodyBold));
     priceW = Math.max(priceW, measureTextWidth(formatQueueMoney(row.price), fonts.bodyBold));
     conditionW = Math.max(conditionW, measureTextWidth(row.condition || '', fonts.body));
     dispatchW = Math.max(
@@ -201,6 +268,13 @@ export function computeProcessingQueueColumnWidths(
       statusW,
       measureTextWidth(queueStatusLabel(row.status), fonts.chip) + PROCESSING_QUEUE_CHIP_PAD_PX,
     );
+    const productsLabel = queueProductsChipLabel(row.distinctProductCount);
+    if (productsLabel) {
+      statusW = Math.max(
+        statusW,
+        measureTextWidth(productsLabel, fonts.chip) + PROCESSING_QUEUE_CHIP_PAD_PX,
+      );
+    }
   }
 
   if (hasAddedRow) {
@@ -209,64 +283,28 @@ export function computeProcessingQueueColumnWidths(
   if (hasDupChip) {
     titleW += PROCESSING_QUEUE_DUP_CHIP_PX;
   }
+  if (hasPeerChip) {
+    titleW += PROCESSING_QUEUE_PEER_CHIP_PX;
+  }
+  if (hasProductsChip) {
+    statusW += PROCESSING_QUEUE_PRODUCTS_CHIP_PX;
+  }
 
-  let cols: Record<ProcessingQueueColumnId, number> = {
-    rowNum: clamp(
-      ceilPad(rowNumW, PROCESSING_QUEUE_ROW_NUM_PAD_PX),
-      PROCESSING_QUEUE_COL_MIN.rowNum,
-      PROCESSING_QUEUE_COL_MAX.rowNum,
-    ),
-    brand: clamp(
-      ceilPad(brandW, PROCESSING_QUEUE_CELL_PAD_PX),
-      PROCESSING_QUEUE_COL_MIN.brand,
-      PROCESSING_QUEUE_COL_MAX.brand,
-    ),
-    title: 0,
-    category: clamp(
-      ceilPad(categoryW, PROCESSING_QUEUE_CELL_PAD_PX),
-      PROCESSING_QUEUE_COL_MIN.category,
-      PROCESSING_QUEUE_COL_MAX.category,
-    ),
-    qty: clamp(
-      ceilPad(qtyW, PROCESSING_QUEUE_CELL_PAD_PX),
-      PROCESSING_QUEUE_COL_MIN.qty,
-      PROCESSING_QUEUE_COL_MAX.qty,
-    ),
-    retail: clamp(
-      ceilPad(retailW, PROCESSING_QUEUE_CELL_PAD_PX),
-      PROCESSING_QUEUE_COL_MIN.retail,
-      PROCESSING_QUEUE_COL_MAX.retail,
-    ),
-    price: clamp(
-      ceilPad(priceW, PROCESSING_QUEUE_CELL_PAD_PX),
-      PROCESSING_QUEUE_COL_MIN.price,
-      PROCESSING_QUEUE_COL_MAX.price,
-    ),
-    condition: clamp(
-      ceilPad(conditionW, PROCESSING_QUEUE_CELL_PAD_PX),
-      PROCESSING_QUEUE_COL_MIN.condition,
-      PROCESSING_QUEUE_COL_MAX.condition,
-    ),
-    dispatch: clamp(
-      ceilPad(dispatchW, PROCESSING_QUEUE_CELL_PAD_PX),
-      PROCESSING_QUEUE_COL_MIN.dispatch,
-      PROCESSING_QUEUE_COL_MAX.dispatch,
-    ),
-    status: clamp(
-      ceilPad(statusW, PROCESSING_QUEUE_CELL_PAD_PX),
-      PROCESSING_QUEUE_COL_MIN.status,
-      PROCESSING_QUEUE_COL_MAX.status,
-    ),
+  const ideals: Record<ProcessingQueueColumnId, number> = {
+    rowNum: idealFloor(ceilPad(rowNumW, PROCESSING_QUEUE_ROW_NUM_PAD_PX), PROCESSING_QUEUE_COL_MIN.rowNum),
+    qty: idealFloor(ceilPad(qtyW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.qty),
+    brand: idealFloor(ceilPad(brandW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.brand),
+    title: idealFloor(ceilPad(titleW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.title),
+    category: idealFloor(ceilPad(categoryW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.category),
+    retail: idealFloor(ceilPad(retailW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.retail),
+    extRetail: idealFloor(ceilPad(extRetailW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.extRetail),
+    price: idealFloor(ceilPad(priceW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.price),
+    condition: idealFloor(ceilPad(conditionW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.condition),
+    dispatch: idealFloor(ceilPad(dispatchW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.dispatch),
+    status: idealFloor(ceilPad(statusW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.status),
   };
 
-  cols = shrinkFixedColumnsToFit(cols, containerWidth, PROCESSING_QUEUE_COL_MIN.title);
-
-  const fixedSum = PROCESSING_QUEUE_COLUMN_ORDER.filter((id) => id !== 'title').reduce(
-    (sum, id) => sum + cols[id],
-    0,
-  );
-  cols.title = Math.max(1, containerWidth - fixedSum);
-  cols = normalizeColumnsToContainerWidth(cols, containerWidth);
+  const cols = finalizeColumnWidths(distributeColumnWidths(ideals, containerWidth), containerWidth);
 
   return {
     cols,

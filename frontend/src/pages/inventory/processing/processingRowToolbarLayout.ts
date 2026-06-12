@@ -12,7 +12,7 @@ export const processingRowToolbarRowSx = {
 /** Processing row defaults — single horizontal line (scroll inside card if needed). */
 export const processingRowManifestToolbarRowSx = {
   display: 'flex',
-  alignItems: 'flex-end',
+  alignItems: 'center',
   flexWrap: 'nowrap',
   gap: 0.5,
   minWidth: 'max-content',

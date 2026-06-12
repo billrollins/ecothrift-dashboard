@@ -27,4 +27,4 @@ export const processingRowPillShellSx = {
 } as const;
 
 /** Minimum pill width while editing (input + save/cancel). */
-export const PROCESSING_ROW_PILL_EDIT_MIN_WIDTH = 108;
+export const PROCESSING_ROW_PILL_EDIT_MIN_WIDTH = PROCESSING_ROW_EDIT_SEGMENTS_WIDTH + 72;

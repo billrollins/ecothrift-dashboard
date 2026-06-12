@@ -439,18 +439,25 @@ class ManifestRow(models.Model):
         null=True,
         blank=True,
         related_name='matched_rows',
+        help_text='Deprecated — use ProcessingRow.matched_product / PreprocessingRow.final_matched_product. Do not write.',
     )
     match_status = models.CharField(
         max_length=20,
         choices=MATCH_STATUS_CHOICES,
         default='pending',
+        help_text='Deprecated — match decisions live on preprocessing/processing rows. Do not write.',
     )
-    match_candidates = models.JSONField(default=list, blank=True)
+    match_candidates = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Deprecated — use PreprocessingRow.match_candidates. Do not write.',
+    )
     ai_match_decision = models.CharField(
         max_length=20,
         choices=AI_MATCH_DECISION_CHOICES,
         blank=True,
         default='',
+        help_text='Deprecated — use PreprocessingRow match fields. Do not write.',
     )
     ai_reasoning = models.TextField(blank=True, default='')
     notes = models.TextField(blank=True, default='')
@@ -556,6 +563,36 @@ class PreprocessingRow(models.Model):
     ai_search_tags = models.JSONField(default=list, blank=True)
     final_search_tags = models.JSONField(null=True, blank=True)
 
+    MATCH_SOURCE_CHOICES = [
+        ('', 'Undecided'),
+        ('auto', 'Auto (matcher)'),
+        ('staff', 'Staff'),
+    ]
+
+    match_candidates = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            'Scored product suggestions: [{product_id, score, source: upc|vendor_ref|text, '
+            'snapshot: {title, brand, upc, default_price, product_number}}]. Staging-only.'
+        ),
+    )
+    final_matched_product = models.ForeignKey(
+        'Product',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        help_text='Decided product match for this line; null = believed new product.',
+    )
+    match_source = models.CharField(
+        max_length=8,
+        blank=True,
+        default='',
+        choices=MATCH_SOURCE_CHOICES,
+        help_text='Who decided final_matched_product; staff decisions are never auto-overridden.',
+    )
+
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -634,6 +671,53 @@ class ProcessingRow(models.Model):
         related_name='+',
         help_text='Denormalized from manifest row after product matching / build.',
     )
+    collapse_master = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='collapse_members',
+        help_text=(
+            'P7 collapse: set on FOLLOWER rows pointing at the first (master) row of the '
+            'group. Presentation + check-in distribution only — manifest lines untouched.'
+        ),
+    )
+    split_parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='split_children',
+        help_text=(
+            'P9 transforms: set on SUB rows created by Break apart / Make set. Sub rows '
+            'share the parent\'s manifest_row; the manifest line itself is never split.'
+        ),
+    )
+    split_seq = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text='Display ordinal for sub rows: parent #12 shows children as #12.1, #12.2 …',
+    )
+    units_per_item = models.PositiveIntegerField(
+        default=1,
+        help_text=(
+            'Physical units inside each Item checked in from this row (Make set rows: set '
+            'size; Break apart leftovers: known pack size). Stamped onto Item.unit_count.'
+        ),
+    )
+    transforms = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            'Audit list of Break apart / Make set operations applied to this ROOT row: '
+            '[{op, units, factor|set_size, in_place, sub_row_id, created_product_id, by, at}].'
+        ),
+    )
+    original_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Root row fields captured before the first transform; Restart row restores from this.',
+    )
 
     queue_status = models.CharField(
         max_length=16,
@@ -643,6 +727,10 @@ class ProcessingRow(models.Model):
         help_text='pending | partial | checked_in | disputed — mirrors Item aggregate for this row.',
     )
     qty_dispositioned = models.PositiveIntegerField(default=0)
+    distinct_product_count = models.PositiveIntegerField(
+        default=0,
+        help_text='Count of distinct Item.product_id among dispositioned items for this row (P4 split).',
+    )
     pending_item_count = models.PositiveIntegerField(default=0)
     has_on_shelf_unit = models.BooleanField(default=False)
     list_dispatch = models.CharField(max_length=32, blank=True, default='on_shelf')
@@ -1003,6 +1091,13 @@ class Item(models.Model):
     ]
 
     sku = models.CharField(max_length=20, unique=True)
+    unit_count = models.PositiveIntegerField(
+        default=1,
+        help_text=(
+            'Physical units contained in this sellable Item (a "set of 10" tag = 10). '
+            'One physical unit lives in exactly one active Item; unit reports sum this field.'
+        ),
+    )
     product = models.ForeignKey(
         Product, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='items',

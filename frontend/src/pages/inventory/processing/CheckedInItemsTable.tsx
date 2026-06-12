@@ -1,8 +1,9 @@
 import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import OpenInNew from '@mui/icons-material/OpenInNew';
-import { memo, useMemo, useState, type ReactNode } from 'react';
+import { memo, useMemo, useState, Fragment, type ReactNode } from 'react';
 import {
   Box,
+  Button,
   Chip,
   IconButton,
   Table,
@@ -17,7 +18,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import type { ProcessingWorkspaceItemDTO, ProcessingWorkspaceProductDTO } from '../../../types/inventory.types';
-import type { CheckedInHistoryRow } from './checkedInHistory';
+import type { CheckedInHistoryRow, ProductGroupedHistory } from './checkedInHistory';
 import {
   checkedInBrandText,
   checkedInCategoryText,
@@ -154,6 +155,8 @@ interface CheckedInHistoryTableRowProps {
   striped: boolean;
   onSelectItemId: (itemId: number) => void;
   onReprintItems?: (items: ProcessingWorkspaceItemDTO[]) => Promise<void>;
+  onRemapBatch?: (row: CheckedInHistoryRow) => void;
+  showRemapAction?: boolean;
 }
 
 const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
@@ -163,6 +166,8 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
   striped,
   onSelectItemId,
   onReprintItems,
+  onRemapBatch,
+  showRemapAction = false,
 }: CheckedInHistoryTableRowProps) {
   const navigate = useNavigate();
   const { item, qty, batchId } = row;
@@ -257,6 +262,16 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
       </TableCell>
       <TableCell align="right" sx={{ px: '4px !important', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
         <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+          {showRemapAction && batchId != null && onRemapBatch ?
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => onRemapBatch(row)}
+              sx={{ minWidth: 0, px: 0.5, fontSize: '0.625rem', mr: 0.25 }}
+            >
+              Change product
+            </Button>
+          : null}
           <IconButton
             size="small"
             aria-label={`Reprint ${item.sku}`}
@@ -344,27 +359,39 @@ function SortableHead({
 
 export interface CheckedInItemsTableProps {
   rows: CheckedInHistoryRow[];
+  productGroups?: ProductGroupedHistory[];
   fallbackProduct: ProcessingWorkspaceProductDTO | null;
   activeItemId: number | null;
   onSelectItemId: (itemId: number) => void;
   onReprintItems?: (items: ProcessingWorkspaceItemDTO[]) => Promise<void>;
+  onRemapBatch?: (row: CheckedInHistoryRow) => void;
+  showRemapAction?: boolean;
   scrollable?: boolean;
 }
 
 export function CheckedInItemsTable({
   rows,
+  productGroups,
   fallbackProduct,
   activeItemId,
   onSelectItemId,
   onReprintItems,
+  onRemapBatch,
+  showRemapAction = false,
   scrollable = false,
 }: CheckedInItemsTableProps) {
   const theme = useTheme();
   const [sortState, setSortState] = useState<CheckedInSortState>(null);
 
-  const sortedRows = useMemo(
-    () => sortCheckedInHistoryRows(rows, sortState, fallbackProduct),
-    [rows, sortState, fallbackProduct],
+  const grouped = productGroups ?? [{ productId: null, productLabel: '', totalQty: 0, historyRows: rows }];
+
+  const sortedGroups = useMemo(
+    () =>
+      grouped.map((group) => ({
+        ...group,
+        historyRows: sortCheckedInHistoryRows(group.historyRows, sortState, fallbackProduct),
+      })),
+    [grouped, sortState, fallbackProduct],
   );
 
   function handleSort(field: CheckedInSortField) {
@@ -441,16 +468,31 @@ export function CheckedInItemsTable({
           </TableRow>
         </TableHead>
         <TableBody>
-          {sortedRows.map((row, index) => (
-            <CheckedInHistoryTableRow
-              key={row.batchId != null ? `batch-${row.batchId}` : `item-${row.item.id}`}
-              row={row}
-              fallbackProduct={fallbackProduct}
-              selected={historyRowIncludesItem(row, activeItemId)}
-              striped={index % 2 === 1}
-              onSelectItemId={onSelectItemId}
-              onReprintItems={onReprintItems}
-            />
+          {sortedGroups.map((group) => (
+            <Fragment key={group.productId ?? group.productLabel}>
+              {productGroups && productGroups.length > 1 ?
+                <TableRow>
+                  <TableCell colSpan={CHECKED_IN_COL_COUNT + PRODUCT_COL_COUNT + ITEM_COL_COUNT + 1} sx={{ py: 0.75, bgcolor: processingTokens.neutralSoft }}>
+                    <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.6875rem' }}>
+                      {group.productLabel} · {group.totalQty} unit{group.totalQty === 1 ? '' : 's'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              : null}
+              {group.historyRows.map((row, index) => (
+                <CheckedInHistoryTableRow
+                  key={row.batchId != null ? `batch-${row.batchId}` : `item-${row.item.id}`}
+                  row={row}
+                  fallbackProduct={fallbackProduct}
+                  selected={historyRowIncludesItem(row, activeItemId)}
+                  striped={index % 2 === 1}
+                  onSelectItemId={onSelectItemId}
+                  onReprintItems={onReprintItems}
+                  onRemapBatch={onRemapBatch}
+                  showRemapAction={showRemapAction}
+                />
+              ))}
+            </Fragment>
           ))}
         </TableBody>
       </Table>

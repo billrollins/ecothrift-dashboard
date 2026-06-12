@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildCheckedInHistoryRows,
+  buildProductGroupedHistory,
   distinctProductCount,
   disputedItemCount,
 } from './checkedInHistory';
@@ -64,5 +65,32 @@ describe('checkedInHistory', () => {
     ];
     expect(distinctProductCount(items)).toBe(2);
     expect(disputedItemCount(items)).toBe(1);
+  });
+
+  it('groups history rows by product sorted by total qty desc', () => {
+    const items = [
+      item({ id: 1, sku: 'A', product: 10, product_title: 'Alpha', checked_in_at: '2026-06-01T10:00:00Z' }),
+      item({ id: 2, sku: 'B', product: 11, product_title: 'Beta', checked_in_at: '2026-06-02T10:00:00Z' }),
+      item({ id: 3, sku: 'C', product: 11, product_title: 'Beta', checked_in_at: '2026-06-03T10:00:00Z' }),
+    ];
+    const batches: ProcessingCheckInBatchDTO[] = [
+      {
+        id: 1,
+        quantity: 2,
+        item_ids: [2, 3],
+        items: [items[1], items[2]],
+        product: { id: 11, title: 'Beta', brand: '', model: '', description: '', specs: {}, tags: '', taxonomy: '', category: '', upc: '', times_ordered: 0, total_units_received: 0, product_number: 'P-11' },
+        created_at: '2026-06-03T10:00:00Z',
+        created_by: null,
+        defaults: {},
+        dispute_count: 0,
+      },
+    ];
+    const groups = buildProductGroupedHistory(items, batches);
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.productLabel).toBe('Beta');
+    expect(groups[0]?.totalQty).toBe(2);
+    expect(groups[1]?.productLabel).toBe('Alpha');
+    expect(groups[1]?.totalQty).toBe(1);
   });
 });

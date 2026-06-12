@@ -2,7 +2,6 @@ import csv
 import hashlib
 import io
 import json
-from copy import deepcopy
 import re
 import time
 import uuid
@@ -49,11 +48,10 @@ from ecothrift.pagination import ItemListPagination
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
 
-DEFAULT_AI_MODEL = getattr(settings, 'AI_MODEL', 'claude-sonnet-4-6')
-DEFAULT_AI_FAST_MODEL = getattr(settings, 'AI_MODEL_FAST', DEFAULT_AI_MODEL)
+from apps.core.ai_config import ai_model
 from apps.core.logging import get_logger
 from apps.core.models import AppSetting, S3File
-from apps.core.services.ai_usage_log import log_ai_usage, log_ai_usage_from_response
+from apps.core.services.ai_usage_log import log_ai_usage
 from .constants import PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES
 from .formula_engine import evaluate_formula, FormulaError
 
@@ -135,6 +133,14 @@ from apps.inventory.services.manifest_meta import compute_category_count
 from .cleanup_condition import normalize_cleanup_condition
 from .cleanup_csv_validate import validate_cleanup_row_values
 from .prompts import CONDITION_VALUES, FEW_SHOT_ADD_ITEM, LISTING_STANDARDS, OUTPUT_SCHEMA_HINT
+from .services.ai_cleanup import (
+    AiCleanupBatchError,
+    apply_cleanup_values_to_staging_row,
+    complete_ai_cleanup,
+    run_ai_cleanup_batch,
+    snapshot_final_for_rows,
+    uncleaned_staging_row_ids,
+)
 from .services.ai_listing_context import retrieve_listing_examples_for_prompt
 from apps.inventory.manifest_standard_fields import (
     AI_LOCKED_FIELDS,
@@ -556,13 +562,14 @@ def _parse_page_params(query_params):
         page_size = int(query_params.get('page_size', 50))
     except (TypeError, ValueError):
         page_size = 50
-    return max(1, page), max(10, min(page_size, 100))
+    # 500 cap supports the review sweep loops (fields=minimal); default stays 50.
+    return max(1, page), max(10, min(page_size, 500))
 
 
 def build_preprocessing_review_queryset(order, query_params):
     rows_qs = (
         PreprocessingRow.objects.filter(purchase_order=order)
-        .select_related('purchase_order', 'manifest_row')
+        .select_related('purchase_order', 'manifest_row', 'final_matched_product')
         .order_by('row_number')
     )
     search_term = str(query_params.get('search') or '').strip().lower()
@@ -601,6 +608,29 @@ def build_preprocessing_review_queryset(order, query_params):
     return rows_qs
 
 
+def build_preprocessing_review_serializer_context(order):
+    """Peer row_numbers sharing the same decided product (for same-product badges)."""
+    from collections import defaultdict
+
+    by_product = defaultdict(list)
+    for row_id, product_id, row_number in (
+        PreprocessingRow.objects.filter(
+            purchase_order=order,
+            final_matched_product_id__isnull=False,
+        ).values_list('id', 'final_matched_product_id', 'row_number')
+    ):
+        by_product[product_id].append((row_id, row_number))
+
+    peers_by_row_id = {}
+    for entries in by_product.values():
+        if len(entries) < 2:
+            continue
+        for row_id, _row_number in entries:
+            others = sorted(rn for rid, rn in entries if rid != row_id)[:10]
+            peers_by_row_id[row_id] = others
+    return {'same_product_peers_by_row_id': peers_by_row_id}
+
+
 def summarize_preprocessing_rows(order, rows_qs):
     """Aggregate-only summary (no per-row Python iteration)."""
     return summarize_preprocessing_rows_aggregate(order, rows_qs)
@@ -611,6 +641,28 @@ def update_preprocessing_review_rows(order, rows_payload):
         row.id: row
         for row in PreprocessingRow.objects.filter(purchase_order=order)
     }
+    product_ids_to_validate: set[int] = set()
+    for row_data in rows_payload:
+        if not isinstance(row_data, dict):
+            continue
+        effective = row_data
+        patch = row_data.get('patch')
+        if isinstance(patch, dict):
+            effective = {**patch, 'id': row_data.get('id')}
+        if 'final_matched_product' not in effective:
+            continue
+        raw_pid = effective.get('final_matched_product')
+        if raw_pid in (None, ''):
+            continue
+        try:
+            product_ids_to_validate.add(int(raw_pid))
+        except (TypeError, ValueError):
+            pass
+    valid_product_ids = (
+        set(Product.objects.filter(pk__in=product_ids_to_validate).values_list('pk', flat=True))
+        if product_ids_to_validate
+        else set()
+    )
     changed_rows = []
     changed_ids = []
     for row_data in rows_payload:
@@ -737,6 +789,30 @@ def update_preprocessing_review_rows(order, rows_payload):
             row.final_specifications = row_data['specifications']
             update_fields.append('final_specifications')
             edited_aliases.add('specifications')
+        if 'final_matched_product' in row_data:
+            raw_pid = row_data.get('final_matched_product')
+            if raw_pid in (None, ''):
+                row.final_matched_product = None
+                # Explicit ``match_source: ''`` = REMOVE the match (back to undecided —
+                # auto-matching may pick it up again). Default null = staff "new product".
+                if 'match_source' in row_data and row_data.get('match_source') == '':
+                    row.match_source = ''
+                else:
+                    row.match_source = 'staff'
+                update_fields.extend(['final_matched_product', 'match_source'])
+            else:
+                try:
+                    pid = int(raw_pid)
+                except (TypeError, ValueError):
+                    pid = None
+                if pid is not None:
+                    if pid not in valid_product_ids:
+                        raise ValidationError({
+                            'detail': f'Row {row.row_number}: product {pid} not found.',
+                        })
+                    row.final_matched_product_id = pid
+                    row.match_source = 'staff'
+                    update_fields.extend(['final_matched_product', 'match_source'])
         if 'batch_flag' in row_data:
             row.batch_flag = bool(row_data.get('batch_flag'))
             update_fields.append('batch_flag')
@@ -1103,23 +1179,33 @@ def ensure_manifest_products_and_items(order, user=None):
     items_deleted = 0
     rows_linked = 0
     cache = {'upc': {}, 'vk': {}, 'exact': {}}
-    manifest_rows_to_update = []
+    processing_rows_to_update: list[ProcessingRow] = []
     touched_product_ids = []
     product_last_default = {}
 
     with transaction.atomic():
+        pr_by_mr_id = {
+            pr.manifest_row_id: pr
+            for pr in ProcessingRow.objects.filter(
+                purchase_order=order,
+                manifest_row_id__isnull=False,
+            ).select_related('matched_product')
+        }
         for row in rows:
-            product, created_product = _find_or_create_manifest_product(order, row, cache=cache)
+            pr = pr_by_mr_id.get(row.id)
+            if pr is not None and pr.matched_product_id:
+                product = pr.matched_product
+                created_product = False
+            else:
+                product, created_product = _find_or_create_manifest_product(order, row, cache=cache)
             if created_product:
                 products_created += 1
             touched_product_ids.append(product.id)
             product_last_default[product.id] = _row_price(row)
 
-            if row.matched_product_id != product.id or row.match_status != 'matched':
-                row.matched_product = product
-                row.match_status = 'matched'
-                row.ai_match_decision = 'confirmed'
-                manifest_rows_to_update.append(row)
+            if pr is not None and pr.matched_product_id != product.id:
+                pr.matched_product_id = product.id
+                processing_rows_to_update.append(pr)
                 rows_linked += 1
 
             created, updated, deleted = _sync_manifest_items_for_row(order, row, product)
@@ -1127,16 +1213,13 @@ def ensure_manifest_products_and_items(order, user=None):
             items_updated += updated
             items_deleted += deleted
 
-        if manifest_rows_to_update:
-            ManifestRow.objects.bulk_update(
-                manifest_rows_to_update,
-                ['matched_product', 'match_status', 'ai_match_decision'],
-            )
+        if processing_rows_to_update:
+            ProcessingRow.objects.bulk_update(processing_rows_to_update, ['matched_product_id', 'updated_at'])
 
         touched_unique = list(dict.fromkeys(touched_product_ids))
         times_map = {
             r['matched_product_id']: r['c']
-            for r in ManifestRow.objects.filter(matched_product_id__in=touched_unique)
+            for r in ProcessingRow.objects.filter(matched_product_id__in=touched_unique)
             .values('matched_product_id')
             .annotate(c=Count('id'))
         }
@@ -1182,8 +1265,29 @@ def sync_manifest_row_outputs_to_items(order, rows):
     rows_updated = 0
     items_updated = 0
     products_updated = 0
+    pr_by_mr_id = {
+        pr.manifest_row_id: pr
+        for pr in ProcessingRow.objects.filter(
+            purchase_order=order,
+            manifest_row_id__isnull=False,
+        ).select_related('matched_product')
+    }
     for row in rows:
+        row_items = list(
+            row.items.exclude(status__in=TERMINAL_ITEM_STATUSES).select_related('product'),
+        )
+        distinct_pids = {i.product_id for i in row_items if i.product_id is not None}
         product = row.matched_product
+        if not product:
+            pr = pr_by_mr_id.get(row.id)
+            if pr is not None and pr.matched_product_id:
+                product = pr.matched_product
+        if not product and row_items:
+            product = row_items[0].product
+        # Mixed-product rows (P4 split): row-level listing data is ambiguous across
+        # products — do not overwrite any single Product's identity fields.
+        if len(distinct_pids) >= 2:
+            product = None
         if product:
             upc_p = str((row.identifiers or {}).get('upc') or '').strip()
             product_updates = {
@@ -1205,10 +1309,11 @@ def sync_manifest_row_outputs_to_items(order, rows):
                 product.save(update_fields=list(dict.fromkeys(changed + ['updated_at'])))
                 products_updated += 1
 
-        item_qs = row.items.exclude(status__in=TERMINAL_ITEM_STATUSES)
-        for item in item_qs:
+        for item in row_items:
+            # No item product re-point here: P6 removed all manifest match writers,
+            # so a decided-product change cannot arrive via this surface. Re-points
+            # go through explicit check-in product modes or batch remap (P4).
             item_updates = {
-                'product': product,
                 'title': _row_listing_title(row),
                 'brand': _row_listing_brand(row),
                 'condition': _row_listing_condition(row),
@@ -1235,6 +1340,11 @@ def sync_manifest_row_outputs_to_items(order, rows):
 
 
 def _inventory_cleanup_model_settings():
+    # Resolve env-configured models at call time (not module import) so settings
+    # overrides — and .env edits between server restarts in tests — take effect.
+    configured_cleanup_model = ai_model('INVENTORY_CLEANUP')
+    fast_model = str(getattr(settings, 'AI_MODEL_FAST', '') or '').strip() or ai_model('AI_CHAT')
+    chat_model = ai_model('AI_CHAT')
     models_setting = AppSetting.objects.filter(key='ai_models_inventory_cleanup').first()
     default_setting = AppSetting.objects.filter(key='ai_default_inventory_cleanup_model').first()
     models = []
@@ -1249,10 +1359,13 @@ def _inventory_cleanup_model_settings():
                 })
     if not models:
         models = [
-            {'id': DEFAULT_AI_FAST_MODEL, 'name': DEFAULT_AI_FAST_MODEL},
-            {'id': DEFAULT_AI_MODEL, 'name': DEFAULT_AI_MODEL},
+            {'id': configured_cleanup_model, 'name': configured_cleanup_model},
+            {'id': fast_model, 'name': fast_model},
+            {'id': chat_model, 'name': chat_model},
         ]
-    default_model = str(default_setting.value).strip() if default_setting else DEFAULT_AI_FAST_MODEL
+    default_model = (
+        str(default_setting.value).strip() if default_setting else configured_cleanup_model
+    )
     if not any(m['id'] == default_model for m in models):
         models.insert(0, {'id': default_model, 'name': default_model})
     return models, default_model
@@ -1263,7 +1376,7 @@ def _save_inventory_cleanup_model_settings(models, default_model, user=None):
         key='ai_models_inventory_cleanup',
         defaults={
             'value': models,
-            'description': 'Claude models available in Inventory Preprocessing AI Cleanup.',
+            'description': 'Models available in Inventory Preprocessing AI Cleanup.',
             'updated_by': user,
         },
     )
@@ -1271,7 +1384,7 @@ def _save_inventory_cleanup_model_settings(models, default_model, user=None):
         key='ai_default_inventory_cleanup_model',
         defaults={
             'value': default_model,
-            'description': 'Default Claude model for Inventory Preprocessing AI Cleanup.',
+            'description': 'Default model for Inventory Preprocessing AI Cleanup.',
             'updated_by': user,
         },
     )
@@ -1332,9 +1445,21 @@ def _build_check_in_queue_from_manifest(order, user):
     batch_groups_created = 0
     histories = []
 
+    pr_by_mr_id = {
+        pr.manifest_row_id: pr
+        for pr in ProcessingRow.objects.filter(
+            purchase_order=order,
+            manifest_row_id__isnull=False,
+        ).select_related('matched_product')
+    }
+
     for row in rows:
-        product = row.matched_product
-        if not product:
+        pr = pr_by_mr_id.get(row.id)
+        if pr is not None and pr.matched_product_id:
+            product = pr.matched_product
+        elif row.matched_product_id:
+            product = row.matched_product
+        else:
             product = Product.objects.create(
                 title=(row.description or 'Untitled Item')[:300],
                 brand=row.brand or '',
@@ -1342,9 +1467,10 @@ def _build_check_in_queue_from_manifest(order, user):
                 category=_row_listing_category(row),
                 upc=str((row.identifiers or {}).get('upc') or ''),
             )
-            row.matched_product = product
-            row.match_status = 'matched'
-            row.save(update_fields=['matched_product', 'match_status'])
+
+        if pr is not None and pr.matched_product_id != product.id:
+            pr.matched_product_id = product.id
+            pr.save(update_fields=['matched_product_id', 'updated_at'])
 
         quantity = row.quantity if row.quantity and row.quantity > 0 else 1
         row_cost = row.unit_retail if row.unit_retail is not None else None
@@ -2079,7 +2205,6 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'processing_row_detail',
         'processing_print_multiple_action',
         'processing_dispute_action',
-        'processing_merge_rows_action',
         'processing_bulk_disposition_action',
         'build_processing_data',
         'processing_data_build',
@@ -2338,6 +2463,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     def upload_manifest(self, request, pk=None):
         """Upload a raw CSV/TSV manifest — S3 storage plus small JSON preview on the order only."""
         order = self.get_object()
+        if order.finalized_at:
+            return Response(
+                {
+                    'detail': 'Preprocessing is finalized — rewind finalize (timeline) before re-uploading a manifest.',
+                    'code': 'finalized',
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         file = request.FILES.get('file')
         if not file:
             return Response(
@@ -2425,6 +2558,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 order.manifest_category_count = compute_category_count(headers, rows_data)
                 order.manifest_signature = sig
                 order.manifest_headers = list(headers)
+                # A new manifest restarts the pipeline: staging is deleted below, so the
+                # flow flags must reset too — otherwise the order claims standardized/
+                # cleaned with zero staging rows (stale-state class bug).
+                order.preprocess_status = 'not_started'
+                order.standardized_at = None
+                order.ai_cleaned_at = None
+                order.review_saved_at = None
                 order.save(
                     update_fields=[
                         'manifest',
@@ -2435,6 +2575,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                         'manifest_category_count',
                         'manifest_signature',
                         'manifest_headers',
+                        'preprocess_status',
+                        'standardized_at',
+                        'ai_cleaned_at',
+                        'review_saved_at',
                         'updated_at',
                     ],
                 )
@@ -2892,7 +3036,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='process-manifest')
     def process_manifest(self, request, pk=None):
-        """Standardize manifest rows into PreprocessingRow staging (no ManifestRow/items yet)."""
+        """Standardize manifest rows: create/update ManifestRow spine and PreprocessingRow overlays."""
         order = self.get_object()
         if not order.manifest_id:
             return Response(
@@ -3231,13 +3375,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='suggest-formulas')
     def suggest_formulas(self, request, pk=None):
-        """Suggest formula mappings for standard manifest fields (Anthropic or xAI Grok per settings)."""
+        """Suggest formula mappings for standard manifest fields (provider via llm_router)."""
         import json as json_lib
 
-        from apps.core.services.llm_chat import (
+        from apps.core.services.llm_router import (
             LLMConfigError,
-            anthropic_tools_suggest_mappings,
-            llm_chat_completion_tool_input,
+            llm_chat_tool_input,
+            suggest_mappings_tools,
         )
 
         order = self.get_object()
@@ -3319,15 +3463,16 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             user_message_parts.append(f'Prior templates for this vendor: {json_lib.dumps(prior_templates)}')
 
         user_content = '\n'.join(user_message_parts)
-        model_id = str(request.data.get('model') or '').strip() or DEFAULT_AI_MODEL
+        model_id = ai_model('PREPROCESSING_SUGGEST', request.data.get('model'))
 
         try:
-            tool_inp, model_used = llm_chat_completion_tool_input(
+            tool_inp, model_used = llm_chat_tool_input(
+                purpose='PREPROCESSING_SUGGEST',
+                model_override=model_id,
                 system=system_prompt,
                 user=user_content,
-                model_id=model_id,
                 tool_name='suggest_mappings',
-                tools=anthropic_tools_suggest_mappings(),
+                tools=suggest_mappings_tools(),
                 temperature=0.0,
                 max_tokens=4096,
                 log_source='ai_suggest_formulas',
@@ -3371,22 +3516,32 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         import json as json_lib
         import time as _time
 
-        try:
-            import anthropic as anthropic_lib
-        except ImportError:
-            return Response(
-                {'error': 'anthropic library is not installed.'},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
+        from apps.core.services.llm_router import (
+            LLMAPIError,
+            LLMConfigError,
+            llm_complete,
+            resolve_api_key,
+            resolve_provider,
+        )
 
         timing = {}
         t_total_start = _time.perf_counter()
         max_retries = 1
 
         try:
-            from django.conf import settings as django_settings
-
             order = self.get_object()
+            if _preprocessing_staging_active(order):
+                # Deprecated for the new flow (P6-style retirement): it creates Products/Items
+                # pre-check-in and writes ManifestRow listing fields. Full removal after soak.
+                return Response(
+                    {
+                        'detail': (
+                            'ai-cleanup-rows is deprecated for staging orders. '
+                            'Use ai-cleanup-batch (web cleanup) or apply-cleanup-csv (offline).'
+                        ),
+                    },
+                    status=status.HTTP_410_GONE,
+                )
             generation_at_start = order.ai_cleanup_generation
             _models, configured_default = _inventory_cleanup_model_settings()
             model_id = request.data.get('model', '') or configured_default
@@ -3395,10 +3550,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             cleanup_mode = str(request.data.get('mode') or 'fast').strip().lower()
             is_fast_mode = cleanup_mode != 'rich'
             include_debug_payload = bool(request.data.get('debug_payload', False))
-            api_key = getattr(django_settings, 'ANTHROPIC_API_KEY', '')
-            if not api_key:
+            try:
+                resolve_api_key(resolve_provider(model_id))
+            except LLMConfigError as e:
                 return Response(
-                    {'error': 'ANTHROPIC_API_KEY not configured.'},
+                    {'error': str(e)},
                     status=status.HTTP_503_SERVICE_UNAVAILABLE,
                 )
 
@@ -3434,7 +3590,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             )
 
             t0 = _time.perf_counter()
-            client = anthropic_lib.Anthropic(api_key=api_key)
 
             if is_fast_mode:
                 system_prompt = (
@@ -3504,19 +3659,21 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             )
 
             t0 = _time.perf_counter()
-            response = None
+            result = None
             for attempt in range(max_retries + 1):
                 try:
-                    response = client.messages.create(
-                        model=model_id,
+                    result = llm_complete(
+                        model_id=model_id,
+                        system=system_prompt,
+                        user=json_lib.dumps(batch_data),
                         max_tokens=calculated_max_tokens,
-                        system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
-                        messages=[{'role': 'user', 'content': json_lib.dumps(batch_data)}],
                         timeout=90.0,
+                        log_source='ai_cleanup_rows',
+                        log_detail=f'order={order.pk} ai-cleanup mode={cleanup_mode} offset={offset} batch={len(batch)}',
                     )
                     break
-                except (anthropic_lib.APIConnectionError, anthropic_lib.RateLimitError) as e:
-                    if attempt < max_retries:
+                except LLMAPIError as e:
+                    if e.retryable and attempt < max_retries:
                         cleanup_logger.warning('AI cleanup retry %d after: %s', attempt + 1, e)
                         _time.sleep(2 ** attempt)
                     else:
@@ -3524,20 +3681,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             timing['api_call_ms'] = round((_time.perf_counter() - t0) * 1000, 1)
             timing['retries'] = attempt
 
-            stop_reason = getattr(response, 'stop_reason', None)
-
-            log_ai_usage_from_response(
-                'ai_cleanup_rows',
-                response,
-                model=model_id,
-                detail=f'order={order.pk} ai-cleanup mode={cleanup_mode} offset={offset} batch={len(batch)}',
-            )
+            # 'max_tokens' (Anthropic), 'length' (xAI), 'MAX_TOKENS' (Google)
+            stop_reason = result.stop_reason or None
+            truncated = stop_reason in ('max_tokens', 'length', 'MAX_TOKENS')
 
             t0 = _time.perf_counter()
-            content_text = ''
-            for block in response.content:
-                if block.type == 'text':
-                    content_text += block.text
+            content_text = result.text
 
             suggestions = []
             rows_to_update = []
@@ -3545,7 +3694,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             low_confidence = 0
             parsed = None
             parse_text = content_text
-            if stop_reason == 'max_tokens':
+            if truncated:
                 bracket_pos = content_text.find('[')
                 if bracket_pos >= 0:
                     parse_text = content_text[bracket_pos:] + ']'
@@ -3734,10 +3883,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'item_count': order.item_count,
             })
 
-        except anthropic_lib.APIError as e:
+        except LLMAPIError as e:
             timing['total_ms'] = round((_time.perf_counter() - t_total_start) * 1000, 1)
             cleanup_logger.error('AI cleanup API error: %s', e)
-            _mid = (request.data.get('model', '') or DEFAULT_AI_FAST_MODEL)
+            _mid = ai_model('INVENTORY_CLEANUP', request.data.get('model'))
             log_ai_usage(
                 'ai_cleanup_rows',
                 _mid,
@@ -3777,11 +3926,18 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             qs = ManifestRow.objects.filter(purchase_order=order)
         total = qs.count()
         cleaned = qs.exclude(ai_reasoning='').count()
-        return Response({
+        payload = {
             'total_rows': total,
             'cleaned_rows': cleaned,
             'remaining_rows': total - cleaned,
-        })
+            'generation': order.ai_cleanup_generation,
+            'use_staging': use_staging,
+        }
+        if use_staging:
+            # Drives the web batch pool: client partitions these into row_ids batches,
+            # and resume is "re-fetch status, process what's left".
+            payload['uncleaned_row_ids'] = uncleaned_staging_row_ids(order)
+        return Response(payload)
 
     @action(detail=True, methods=['post'], url_path='cancel-ai-cleanup')
     def cancel_ai_cleanup(self, request, pk=None):
@@ -3792,20 +3948,18 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             ai_cleanup_generation=F('ai_cleanup_generation') + 1,
         )
         if use_staging:
-            updated = PreprocessingRow.objects.filter(purchase_order=order).update(
-                ai_description='',
-                ai_title='',
-                ai_brand='',
-                ai_model='',
-                ai_category='',
-                ai_condition='',
-                ai_notes='',
-                ai_identifiers={},
-                ai_taxonomy={},
-                ai_specifications={},
-                ai_tracking={},
-                ai_search_tags=[],
-                ai_reasoning='',
+            # Full layer clear (ai_* + final_* snapshot + match fields) — clearing only
+            # ai_* left the final_* snapshot and stale matches visible in Final Decisions
+            # while the order claimed "not cleaned" (same stale-wipe class as the
+            # finalize-rewind bug). Mirrors timeline undo "Before AI cleanup".
+            pr_qs = PreprocessingRow.objects.filter(purchase_order=order)
+            updated = pr_qs.count()
+            bulk_clear_preprocess_ai_and_final_layers(pr_qs)
+            pr_qs.update(ai_reasoning='', ai_status={})
+            PurchaseOrder.objects.filter(pk=order.pk).update(
+                ai_cleaned_at=None,
+                review_saved_at=None,
+                preprocess_status='standardized',
             )
         else:
             updated = ManifestRow.objects.filter(purchase_order=order).update(
@@ -3817,6 +3971,69 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         return Response({
             'rows_cleared': updated,
         })
+
+    @action(detail=True, methods=['post'], url_path='ai-cleanup-batch')
+    def ai_cleanup_batch(self, request, pk=None):
+        """One web cleanup batch: ≤25 staging row ids → one model call → ai_* merge.
+
+        Designed for a browser worker pool (default 4 concurrent). Writes
+        ``PreprocessingRow.ai_*`` only; see ``services/ai_cleanup.py``.
+        """
+        order = self.get_object()
+        if not _preprocessing_staging_active(order):
+            return Response(
+                {'detail': 'AI cleanup batches require active preprocessing staging.', 'code': 'staging_required'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        raw_ids = request.data.get('row_ids')
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return Response(
+                {'detail': 'row_ids must be a non-empty list of staging row ids.', 'code': 'invalid_row_ids'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            row_ids = [int(x) for x in raw_ids]
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'row_ids must be integers.', 'code': 'invalid_row_ids'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.inventory.services.ai_cleanup import resolve_cleanup_api_key
+
+        _models, configured_default = _inventory_cleanup_model_settings()
+        model_id = str(request.data.get('model') or '') or configured_default
+        api_key, key_error = resolve_cleanup_api_key(model_id)
+        if key_error:
+            return Response({'error': key_error}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        try:
+            result = run_ai_cleanup_batch(order, row_ids, model_id=model_id, api_key=api_key)
+        except AiCleanupBatchError as e:
+            return Response({'detail': str(e), 'code': 'invalid_row_ids'}, status=status.HTTP_400_BAD_REQUEST)
+        except ImportError:
+            return Response(
+                {'error': 'anthropic library is not installed.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:  # noqa: BLE001 — model/network failures are retryable per batch
+            return Response(
+                {'detail': f'AI call failed: {e}', 'code': 'ai_call_failed', 'retryable': True},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(result)
+
+    @action(detail=True, methods=['post'], url_path='ai-cleanup-complete')
+    def ai_cleanup_complete(self, request, pk=None):
+        """Fast, idempotent post-cleanup step: match candidates + order flags. No AI."""
+        order = self.get_object()
+        if not _preprocessing_staging_active(order):
+            return Response(
+                {'detail': 'AI cleanup completion requires active preprocessing staging.', 'code': 'staging_required'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(complete_ai_cleanup(order))
 
     @action(detail=True, methods=['post'], url_path='clear-manifest-rows')
     def clear_manifest_rows(self, request, pk=None):
@@ -3836,18 +4053,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order.item_count = 0
         order.save(update_fields=['item_count', 'updated_at'])
         return Response({'rows_deleted': deleted_count, 'items_deleted': items_deleted})
-
-    @action(detail=True, methods=['post'], url_path='undo-product-matching')
-    def undo_product_matching(self, request, pk=None):
-        """Clear product matching data from manifest rows (Undo Step 3). Pricing is preserved."""
-        order = self.get_object()
-        updated = ManifestRow.objects.filter(purchase_order=order).update(
-            matched_product=None,
-            match_status='pending',
-            match_candidates=[],
-            ai_match_decision='',
-        )
-        return Response({'rows_cleared': updated})
 
     @action(detail=True, methods=['post'], url_path='clear-pricing')
     def clear_pricing(self, request, pk=None):
@@ -3895,25 +4100,20 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if action_name == 'verify':
             if not model_id:
                 return Response({'detail': 'Model id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            from apps.core.services.llm_router import LLMConfigError, llm_complete
             try:
-                import anthropic as anthropic_lib
-                api_key = getattr(settings, 'ANTHROPIC_API_KEY', '')
-                if not api_key:
-                    return Response({'ok': False, 'detail': 'ANTHROPIC_API_KEY not configured.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-                client = anthropic_lib.Anthropic(api_key=api_key)
-                response = client.messages.create(
-                    model=model_id,
-                    max_tokens=16,
-                    messages=[{'role': 'user', 'content': 'Reply with OK.'}],
+                result = llm_complete(
+                    model_id=model_id,
+                    system='Reply with OK.',
+                    user='ping',
+                    max_tokens=None,
                     timeout=30.0,
+                    log_source='inventory_cleanup_model_verify',
+                    log_detail='verify cleanup model',
                 )
-                log_ai_usage_from_response(
-                    'inventory_cleanup_model_verify',
-                    response,
-                    model=model_id,
-                    detail='verify cleanup model',
-                )
-                return Response({'ok': True, 'model': response.model})
+                return Response({'ok': True, 'model': result.model_used, 'sample': result.text[:80]})
+            except LLMConfigError as e:
+                return Response({'ok': False, 'detail': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             except Exception as e:
                 return Response({'ok': False, 'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -4081,6 +4281,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     def _upload_cleanup_csv_impl(self, request):
         order = self.get_object()
         use_staging = _preprocessing_staging_active(order)
+        partial = bool(request.data.get('partial')) if isinstance(request.data, dict) else False
+        if partial and not use_staging:
+            return Response(
+                {'detail': 'Partial apply requires active preprocessing staging.', 'code': 'partial_requires_staging'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         csv_rows, parse_error = self._parse_cleanup_csv_upload(request)
         if parse_error is not None:
             return parse_error
@@ -4131,7 +4337,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 _reject(line_no, row_id=row_id_hint, reason='invalid_json', detail=key)
                 return object()
 
-        if rows_seen != expected_rows:
+        if rows_seen != expected_rows and not partial:
             return Response(
                 {
                     'detail': 'Cleanup CSV must include exactly one row for every manifest row.',
@@ -4278,7 +4484,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             })
 
         missing_ids = sorted(expected_row_ids - referenced_in_csv)
-        if missing_ids:
+        if missing_ids and not partial:
             rejected.append({
                 'reason': 'missing_row_ids',
                 'row_ids': missing_ids[:100],
@@ -4302,92 +4508,59 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             for pl in payloads:
                 row = pl['row']
-                ai_title = pl['ai_title']
-                ai_brand = pl['ai_brand']
-                ai_model = pl['ai_model']
-                category = pl['category']
-                condition = pl['condition']
-                proposed_price = pl['proposed_price']
                 staging_wide = pl['staging_wide']
 
-                update_fields_set = set()
                 if pl['use_staging']:
-                    source = row.manifest_row or row
-                    row.ai_title = ai_title[:300]
-                    row.ai_brand = ai_brand[:200]
-                    row.ai_model = ai_model[:200]
-                    row.ai_category = category[:200]
-                    row.ai_identifiers = deepcopy(getattr(source, 'identifiers', row.standard_identifiers) or {})
-                    row.ai_taxonomy = deepcopy(getattr(source, 'taxonomy', row.standard_taxonomy) or {})
-                    row.ai_tracking = deepcopy(getattr(source, 'tracking', row.standard_tracking) or {})
-                    row.ai_condition = condition
-                    row.ai_status = deepcopy(pl.get('ai_status') or {})
-                    update_fields_set.update({
-                        'ai_title', 'ai_brand', 'ai_model', 'ai_category',
-                        'ai_identifiers', 'ai_taxonomy', 'ai_tracking', 'ai_condition',
-                        'ai_status',
+                    apply_cleanup_values_to_staging_row(row, {
+                        'title': pl['ai_title'],
+                        'brand': pl['ai_brand'],
+                        'model': pl['ai_model'],
+                        'category': pl['category'],
+                        'condition': pl['condition'],
+                        'proposed_price': pl['proposed_price'],
+                        'description': pl['extra_description'] if staging_wide else '',
+                        'notes': pl['extra_notes'] if staging_wide else '',
+                        'specifications': pl['parsed_specs'] if staging_wide and isinstance(pl['parsed_specs'], dict) else None,
+                        'search_tags': pl['parsed_search_tags'] if staging_wide and isinstance(pl['parsed_search_tags'], list) else None,
+                        'ai_status': pl.get('ai_status') or {},
+                        'reasoning': 'Imported cleanup CSV',
                     })
-                    if staging_wide:
-                        desc = pl['extra_description']
-                        if desc:
-                            row.ai_description = desc
-                            update_fields_set.add('ai_description')
-                        nd = pl['extra_notes']
-                        if nd:
-                            row.ai_notes = nd
-                            update_fields_set.add('ai_notes')
-                        ps = pl['parsed_specs']
-                        if isinstance(ps, dict):
-                            row.ai_specifications = ps
-                            update_fields_set.add('ai_specifications')
-                        pst = pl['parsed_search_tags']
-                        if isinstance(pst, list):
-                            row.ai_search_tags = pst
-                            update_fields_set.add('ai_search_tags')
                 else:
-                    row.title = ai_title[:300]
-                    row.brand = ai_brand[:200]
-                    row.model = ai_model[:200]
-                    row.category = category[:200]
-                    row.condition = condition
+                    update_fields_set = set()
+                    row.title = pl['ai_title'][:300]
+                    row.brand = pl['ai_brand'][:200]
+                    row.model = pl['ai_model'][:200]
+                    row.category = pl['category'][:200]
+                    row.condition = pl['condition']
                     update_fields_set.update({
                         'title', 'brand', 'model', 'category', 'condition',
                     })
-
-                row.proposed_price = proposed_price
-                row.ai_reasoning = 'Imported cleanup CSV'
-                update_fields_set.update({'proposed_price', 'ai_reasoning'})
-                if proposed_price is not None and row.pricing_stage == 'unpriced':
-                    row.pricing_stage = 'draft'
-                    row.pricing_notes = row.pricing_notes or 'Imported cleanup CSV'
-                    update_fields_set.update({'pricing_stage', 'pricing_notes'})
-                row.save(update_fields=sorted(update_fields_set))
+                    row.proposed_price = pl['proposed_price']
+                    row.ai_reasoning = 'Imported cleanup CSV'
+                    update_fields_set.update({'proposed_price', 'ai_reasoning'})
+                    if pl['proposed_price'] is not None and row.pricing_stage == 'unpriced':
+                        row.pricing_stage = 'draft'
+                        row.pricing_notes = row.pricing_notes or 'Imported cleanup CSV'
+                        update_fields_set.update({'pricing_stage', 'pricing_notes'})
+                    row.save(update_fields=sorted(update_fields_set))
                 changed_rows.append(row)
 
             if use_staging and changed_rows:
-                final_field_names = [f'final_{base}' for base in TRIPLE_LAYER_SPECS.keys()] + [
-                    'final_title',
-                    'final_category',
-                ]
-                snapshot_save_fields = list(dict.fromkeys(final_field_names + ['updated_at']))
-                ts = timezone.now()
-                # Partial row.save(update_fields=...) above can leave ORM state that bulk_update
-                # fails to persist reliably for final_* on some DB backends; refresh then save.
-                for sr in changed_rows:
-                    sr.refresh_from_db()
-                    snapshot_finalize_from_ai_and_standard(sr, fill_missing_only=False)
-                    sr.updated_at = ts
-                    sr.save(update_fields=snapshot_save_fields)
+                snapshot_final_for_rows(changed_rows)
+
+        if use_staging and partial:
+            # Chunked apply: candidates + order flags are deferred to ai-cleanup-complete.
+            return Response({
+                'rows_seen': rows_seen,
+                'rows_updated': len(changed_rows),
+                'rows_rejected': 0,
+                'rejected_rows': [],
+                'soft_warnings': all_soft_warnings[:500],
+                'partial': True,
+            })
 
         if use_staging:
-            now = timezone.now()
-            with transaction.atomic():
-                order_w = PurchaseOrder.objects.select_for_update().get(pk=order.pk)
-                order_w.ai_cleaned_at = now
-                order_w.preprocess_status = 'cleaned'
-                order_w.save(
-                    update_fields=['ai_cleaned_at', 'preprocess_status', 'updated_at'],
-                )
+            completion = complete_ai_cleanup(order)
             return Response({
                 'rows_seen': rows_seen,
                 'rows_updated': len(changed_rows),
@@ -4396,6 +4569,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'soft_warnings': all_soft_warnings[:500],
                 'items_updated': 0,
                 'products_updated': 0,
+                'match_candidates': completion['match_candidates'],
             })
 
         sync_summary = sync_manifest_row_outputs_to_items(order, changed_rows)
@@ -4560,6 +4734,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'id': order.id,
                 'order_number': order.order_number,
                 'vendor_name': order.vendor.name if order.vendor_id else '',
+                'load_type': order.description or '',
                 'status': order.status,
                 'item_count': order.item_count,
                 'has_manifest_file': bool(order.manifest_id),
@@ -4652,11 +4827,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     )
                 rows_qs = (
                     PreprocessingRow.objects.filter(purchase_order=order)
-                    .select_related('purchase_order')
+                    .select_related('purchase_order', 'final_matched_product')
                     .order_by('row_number')
                 )
                 page_rows = list(rows_qs)
-                serializer = row_serializer_cls(page_rows, many=True)
+                review_ctx = build_preprocessing_review_serializer_context(order)
+                serializer = row_serializer_cls(page_rows, many=True, context=review_ctx)
                 return Response({
                     'rows': serializer.data,
                     'count': len(page_rows),
@@ -4671,7 +4847,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             end = start + page_size
             row_count = rows_qs.count()
             page_rows = list(rows_qs[start:end])
-            serializer = row_serializer_cls(page_rows, many=True)
+            review_ctx = build_preprocessing_review_serializer_context(order)
+            serializer = row_serializer_cls(page_rows, many=True, context=review_ctx)
             return Response({
                 'rows': serializer.data,
                 'count': row_count,
@@ -4696,6 +4873,29 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'products_updated': 0,
             'summary': summarize_preprocessing_rows(order, rows_qs),
         })
+
+    @action(detail=True, methods=['post'], url_path='regenerate-match-candidates')
+    def regenerate_match_candidates(self, request, pk=None):
+        """Re-run product match candidates for all staging rows on the order."""
+        order = PurchaseOrder.objects.filter(pk=pk).first()
+        if not order:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        staging_count = PreprocessingRow.objects.filter(purchase_order=order).count()
+        if staging_count == 0:
+            return Response(
+                {'detail': 'Upload and standardize a manifest before reviewing preprocessing rows.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if order.finalized_at:
+            return Response(
+                {'detail': 'Preprocessing has already been finalized; edit canonical rows instead.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        from apps.inventory.services.product_matching import generate_match_candidates_for_order
+
+        summary = generate_match_candidates_for_order(order)
+        return Response(summary)
 
     @action(detail=True, methods=['post'], url_path='preprocessing-review-reset-final')
     def preprocessing_review_reset_final(self, request, pk=None):
@@ -4963,6 +5163,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 return Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
             return Response({'detail': str(detail)}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Invalidate any still-in-flight cleanup batch: a batch that started before
+        # finalize must not overwrite final_* (now projected into bookmarks) on landing.
+        PurchaseOrder.objects.filter(pk=order.pk).update(
+            ai_cleanup_generation=F('ai_cleanup_generation') + 1,
+        )
         order.refresh_from_db()
         elapsed_ms = (time.perf_counter() - t0) * 1000
         finalization_logger.info(
@@ -5119,393 +5324,26 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='match-products')
     def match_products(self, request, pk=None):
-        """Match manifest rows to products: fuzzy scoring + optional AI batch decisions."""
-        from django.conf import settings as django_settings
-        import json as json_lib
-
-        order = self.get_object()
-        use_ai = request.data.get('use_ai', True)
-        ai_model = request.data.get('model', '')
-        rows = ManifestRow.objects.filter(
-            purchase_order=order,
-        ).select_related('matched_product')
-        if not rows.exists():
-            return Response(
-                {'detail': 'No manifest rows to match.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        for row in rows:
-            candidates = []
-            best_product = None
-            best_score = 0.0
-            ids_blob = _row_identifiers_blob(row)
-            upc_hit = str(ids_blob.get('upc') or '').strip()
-
-            if upc_hit:
-                product = Product.objects.filter(upc=upc_hit).first()
-                if product:
-                    candidates.append({
-                        'product_id': product.id,
-                        'product_title': product.title,
-                        'score': 1.0,
-                        'match_type': 'upc',
-                    })
-                    best_product = product
-                    best_score = 1.0
-
-            lookup_key = _vendor_lookup_from_manifest_identifiers(row)
-            if not best_product and lookup_key:
-                ref = VendorProductRef.objects.filter(
-                    vendor=order.vendor,
-                    vendor_item_number=lookup_key,
-                ).select_related('product').first()
-                if ref:
-                    candidates.append({
-                        'product_id': ref.product.id,
-                        'product_title': ref.product.title,
-                        'score': 0.95,
-                        'match_type': 'vendor_ref',
-                    })
-                    best_product = ref.product
-                    best_score = 0.95
-                    ref.times_seen += 1
-                    if row.unit_retail is not None:
-                        ref.last_unit_cost = row.unit_retail
-                    ref.save(update_fields=['times_seen', 'last_unit_cost', 'updated_at'])
-
-            if best_score < 0.95:
-                desc = row.title or row.description or ''
-                match_brand = row.brand or ''
-                match_model = row.model or ''
-                if desc:
-                    text_query = Product.objects.filter(
-                        Q(title__icontains=desc[:60]) |
-                        (Q(brand__icontains=match_brand) if match_brand else Q())
-                    )
-                    for prod in text_query[:3]:
-                        score = 0.0
-                        if match_brand and match_brand.lower() in (prod.brand or '').lower():
-                            score += 0.3
-                        if desc[:30].lower() in (prod.title or '').lower():
-                            score += 0.4
-                        if match_model and match_model.lower() in (prod.model or '').lower():
-                            score += 0.2
-                        score = min(score, 0.9)
-                        candidates.append({
-                            'product_id': prod.id,
-                            'product_title': prod.title,
-                            'score': round(score, 2),
-                            'match_type': 'text',
-                        })
-                        if score > best_score:
-                            best_product = prod
-                            best_score = score
-
-            candidates.sort(key=lambda c: c['score'], reverse=True)
-            row.match_candidates = candidates[:3]
-
-            if best_score >= 0.95:
-                row.matched_product = best_product
-                row.match_status = 'matched'
-                row.ai_match_decision = 'confirmed'
-                row.ai_reasoning = 'High-confidence exact match (UPC or vendor ref).'
-            elif candidates:
-                row.ai_match_decision = 'pending_review'
-            else:
-                row.ai_match_decision = 'new_product'
-
-            row.save(update_fields=[
-                'match_candidates', 'matched_product', 'match_status',
-                'ai_match_decision', 'ai_reasoning',
-            ])
-
-        api_key = getattr(django_settings, 'ANTHROPIC_API_KEY', '')
-        if use_ai and api_key:
-            import anthropic as anthropic_lib
-            try:
-                client = anthropic_lib.Anthropic(api_key=api_key)
-                model_id = ai_model or DEFAULT_AI_MODEL
-
-                pending_rows = ManifestRow.objects.filter(
-                    purchase_order=order,
-                    ai_match_decision__in=['pending_review', 'new_product'],
-                )
-
-                batch_size = 25
-                all_rows_list = list(pending_rows)
-                for i in range(0, len(all_rows_list), batch_size):
-                    batch = all_rows_list[i:i + batch_size]
-                    batch_data = []
-                    for r in batch:
-                        entry = {
-                            'row_id': r.id,
-                            'description': r.description,
-                            'title': r.title,
-                            'brand': r.brand,
-                            'model': r.model,
-                            'category': _row_listing_category(r),
-                            'candidates': r.match_candidates or [],
-                        }
-                        batch_data.append(entry)
-
-                    system_prompt = (
-                        "You are a product matching assistant for a thrift store. "
-                        "For each row, determine if any candidate product matches, or suggest new product data.\n\n"
-                        "Return ONLY valid JSON array:\n"
-                        '[{"row_id": N, "decision": "confirmed|rejected|uncertain|new_product", '
-                        '"product_id": N_or_null, "confidence": 0.0-1.0, "reasoning": "brief", '
-                        '"suggested_title": "", "suggested_brand": "", "suggested_model": ""}]'
-                    )
-
-                    response = client.messages.create(
-                        model=model_id,
-                        max_tokens=4096,
-                        system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
-                        messages=[{
-                            'role': 'user',
-                            'content': json_lib.dumps(batch_data),
-                        }],
-                    )
-
-                    log_ai_usage_from_response(
-                        'ai_match_products',
-                        response,
-                        model=model_id,
-                        detail=f'order={order.pk} match-products batch={i // batch_size}',
-                    )
-
-                    content_text = ''
-                    for block in response.content:
-                        if block.type == 'text':
-                            content_text += block.text
-
-                    json_match = re.search(r'\[[\s\S]*\]', content_text)
-                    if json_match:
-                        try:
-                            decisions = json_lib.loads(json_match.group())
-                            decisions_by_id = {d['row_id']: d for d in decisions if isinstance(d, dict)}
-
-                            for r in batch:
-                                decision_data = decisions_by_id.get(r.id, {})
-                                ai_decision = decision_data.get('decision', '')
-                                if ai_decision in ('confirmed', 'rejected', 'uncertain', 'new_product'):
-                                    r.ai_match_decision = ai_decision
-                                r.ai_reasoning = decision_data.get('reasoning', '')
-                                stitle = decision_data.get('suggested_title', '')
-                                sbrand = decision_data.get('suggested_brand', '')
-                                smodel = decision_data.get('suggested_model', '')
-                                if stitle is not None:
-                                    r.title = str(stitle)[:300]
-                                if sbrand is not None:
-                                    r.brand = str(sbrand)[:200]
-                                if smodel is not None:
-                                    r.model = str(smodel)[:200]
-
-                                if ai_decision == 'confirmed' and decision_data.get('product_id'):
-                                    try:
-                                        product = Product.objects.get(id=decision_data['product_id'])
-                                        r.matched_product = product
-                                        r.match_status = 'matched'
-                                    except Product.DoesNotExist:
-                                        pass
-
-                                r.save(update_fields=[
-                                    'ai_match_decision', 'ai_reasoning',
-                                    'title', 'brand', 'model',
-                                    'matched_product', 'match_status',
-                                ])
-                        except (json_lib.JSONDecodeError, KeyError):
-                            match_logger.warning('Failed to parse AI match decisions for batch')
-
-            except Exception:
-                match_logger.exception('AI matching failed, fuzzy results preserved')
-
-        final_rows = ManifestRow.objects.filter(purchase_order=order)
-        return Response({
-            'total_rows': final_rows.count(),
-            'matched': final_rows.filter(match_status='matched').count(),
-            'pending_review': final_rows.filter(ai_match_decision='pending_review').count(),
-            'confirmed': final_rows.filter(ai_match_decision='confirmed').count(),
-            'uncertain': final_rows.filter(ai_match_decision='uncertain').count(),
-            'new_products': final_rows.filter(ai_match_decision='new_product').count(),
-        })
-
-    @action(detail=True, methods=['get'], url_path='match-results')
-    def match_results(self, request, pk=None):
-        """Return all manifest rows with match candidates, AI decisions, and scores."""
-        order = self.get_object()
-        rows = ManifestRow.objects.filter(purchase_order=order).select_related('matched_product')
-        serializer = ManifestRowSerializer(rows, many=True)
-        return Response({
-            'rows': serializer.data,
-            'summary': {
-                'total': rows.count(),
-                'matched': rows.filter(match_status='matched').count(),
-                'pending_review': rows.filter(ai_match_decision='pending_review').count(),
-                'confirmed': rows.filter(ai_match_decision='confirmed').count(),
-                'uncertain': rows.filter(ai_match_decision='uncertain').count(),
-                'new_product': rows.filter(ai_match_decision='new_product').count(),
+        """Deprecated — manifest match writes removed (P6). Use Final Decisions or assign shared product."""
+        return Response(
+            {
+                'detail': (
+                    'match-products is deprecated. Use Final Decisions during preprocessing '
+                    'or Assign shared product in Item Processor.'
+                ),
             },
-        })
-
-    @action(detail=True, methods=['post'], url_path='review-matches')
-    def review_matches(self, request, pk=None):
-        """Accept user review decisions for product matches."""
-        order = self.get_object()
-        decisions = request.data.get('decisions', [])
-        if not isinstance(decisions, list):
-            return Response({'detail': 'decisions must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        accepted = 0
-        rejected = 0
-        created_products = 0
-        matched_product_ids = set()
-
-        for decision in decisions:
-            row_id = decision.get('row_id')
-            action_type = decision.get('decision')
-            if not row_id or action_type not in ('accept', 'reject', 'modify'):
-                continue
-
-            row = ManifestRow.objects.filter(id=row_id, purchase_order=order).first()
-            if not row:
-                continue
-
-            if action_type == 'accept':
-                product_id = decision.get('product_id') or (
-                    row.matched_product_id if row.matched_product_id else
-                    (row.match_candidates[0]['product_id'] if row.match_candidates else None)
-                )
-                if product_id:
-                    try:
-                        product = Product.objects.get(id=product_id)
-                        if decision.get('update_product'):
-                            product.title = row.title or product.title
-                            product.brand = row.brand or product.brand
-                            product.model = row.model or product.model
-                            cat = _row_listing_category(row)
-                            if cat:
-                                product.category = cat
-                            upcv = str(_row_identifiers_blob(row).get('upc') or '').strip()
-                            if upcv:
-                                product.upc = upcv
-                            if row.specifications:
-                                product.specifications = row.specifications
-                            product.save()
-                        row.matched_product = product
-                        row.match_status = 'matched'
-                        row.ai_match_decision = 'confirmed'
-                        matched_product_ids.add(product.id)
-                        accepted += 1
-                    except Product.DoesNotExist:
-                        continue
-                else:
-                    product = Product.objects.create(
-                        title=row.title or row.description[:300] or 'Untitled',
-                        brand=row.brand or '',
-                        model=row.model or '',
-                        category=_row_listing_category(row),
-                        upc=str(_row_identifiers_blob(row).get('upc') or ''),
-                        default_price=row.unit_retail,
-                    )
-                    row.matched_product = product
-                    row.match_status = 'new'
-                    row.ai_match_decision = 'new_product'
-                    matched_product_ids.add(product.id)
-                    created_products += 1
-                    accepted += 1
-
-            elif action_type == 'reject':
-                product = Product.objects.create(
-                    title=row.title or row.description[:300] or 'Untitled',
-                    brand=row.brand or '',
-                    model=row.model or '',
-                    category=_row_listing_category(row),
-                    upc=str(_row_identifiers_blob(row).get('upc') or ''),
-                    default_price=row.unit_retail,
-                )
-                row.matched_product = product
-                row.match_status = 'new'
-                row.ai_match_decision = 'new_product'
-                matched_product_ids.add(product.id)
-                created_products += 1
-                rejected += 1
-
-            elif action_type == 'modify':
-                mods = decision.get('modifications', {})
-                product_id = decision.get('product_id')
-                if product_id:
-                    try:
-                        product = Product.objects.get(id=product_id)
-                        row.matched_product = product
-                        row.match_status = 'matched'
-                        row.ai_match_decision = 'confirmed'
-                        matched_product_ids.add(product.id)
-                        accepted += 1
-                    except Product.DoesNotExist:
-                        continue
-                else:
-                    product = Product.objects.create(
-                        title=mods.get('title', row.title or row.description[:300] or 'Untitled'),
-                        brand=mods.get('brand', row.brand or ''),
-                        model=mods.get('model', row.model or ''),
-                        category=mods.get('category', _row_listing_category(row)),
-                        upc=str(_row_identifiers_blob(row).get('upc') or ''),
-                        default_price=row.unit_retail,
-                    )
-                    row.matched_product = product
-                    row.match_status = 'new'
-                    row.ai_match_decision = 'new_product'
-                    matched_product_ids.add(product.id)
-                    created_products += 1
-                    accepted += 1
-
-            row.save(update_fields=['matched_product', 'match_status', 'ai_match_decision'])
-
-            lookup_key = _vendor_lookup_from_manifest_identifiers(row)
-            if lookup_key and row.matched_product:
-                VendorProductRef.objects.get_or_create(
-                    vendor=order.vendor,
-                    vendor_item_number=lookup_key,
-                    defaults={
-                        'product': row.matched_product,
-                        'vendor_description': (row.description or '')[:500],
-                        'last_unit_cost': row.unit_retail,
-                        'times_seen': 1,
-                    },
-                )
-
-        for product_id in matched_product_ids:
-            qty = ManifestRow.objects.filter(
-                purchase_order=order, matched_product_id=product_id,
-            ).aggregate(total=Sum('quantity'))['total'] or 0
-            Product.objects.filter(id=product_id).update(
-                times_ordered=F('times_ordered') + 1,
-                total_units_received=F('total_units_received') + qty,
-            )
-
-        return Response({
-            'accepted': accepted,
-            'rejected': rejected,
-            'new_products': created_products,
-        })
+            status=status.HTTP_410_GONE,
+        )
 
     @action(detail=True, methods=['post'], url_path='suggest-finalization')
     def suggest_finalization(self, request, pk=None):
-        """Ask Claude to suggest formatting and spec fields for manifest rows."""
-        from django.conf import settings as django_settings
-        import anthropic as anthropic_lib
+        """Ask the configured model to suggest formatting and spec fields for manifest rows."""
         import json as json_lib
 
+        from apps.core.services.llm_router import LLMConfigError, llm_chat_text
+
         order = self.get_object()
-        model_id = request.data.get('model', '')
-        api_key = getattr(django_settings, 'ANTHROPIC_API_KEY', '')
-        if not api_key:
-            return Response(
-                {'error': 'ANTHROPIC_API_KEY not configured.'},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
+        model_id = ai_model('SUGGEST_FINALIZATION', request.data.get('model'))
 
         rows = ManifestRow.objects.filter(purchase_order=order)[:50]
         rows_data = []
@@ -5532,28 +5370,15 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         )
 
         try:
-            client = anthropic_lib.Anthropic(api_key=api_key)
-            if not model_id:
-                model_id = DEFAULT_AI_MODEL
-
-            response = client.messages.create(
-                model=model_id,
+            content_text, model_used = llm_chat_text(
+                purpose='SUGGEST_FINALIZATION',
+                model_override=model_id,
+                system=system_prompt,
+                user=json_lib.dumps(rows_data),
                 max_tokens=4096,
-                system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
-                messages=[{'role': 'user', 'content': json_lib.dumps(rows_data)}],
+                log_source='ai_suggest_finalization',
+                log_detail=f'order={order.pk} suggest-finalization',
             )
-
-            log_ai_usage_from_response(
-                'ai_suggest_finalization',
-                response,
-                model=model_id,
-                detail=f'order={order.pk} suggest-finalization',
-            )
-
-            content_text = ''
-            for block in response.content:
-                if block.type == 'text':
-                    content_text += block.text
 
             json_match = re.search(r'\[[\s\S]*\]', content_text)
             if not json_match:
@@ -5573,9 +5398,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 )
             return Response({
                 'suggestions': suggestions,
-                'model_used': response.model,
+                'model_used': model_used,
             })
 
+        except LLMConfigError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         except Exception as e:
             finalization_logger.error('AI finalization suggestion failed: %s', e)
             return Response(
@@ -5745,6 +5575,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         ensure_summary = ensure_manifest_products_and_items(order, request.user)
 
+        pr_by_mr_id = {
+            pr.manifest_row_id: pr
+            for pr in ProcessingRow.objects.filter(
+                purchase_order=order,
+                manifest_row_id__isnull=False,
+            ).select_related('matched_product')
+        }
+
         batch = ProcessingBatch.objects.filter(
             purchase_order=order,
         ).order_by('-started_at').first()
@@ -5773,9 +5611,18 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 continue
             batch_group = row.batch_groups.first()
             if not batch_group:
+                pr = pr_by_mr_id.get(row.id)
+                if pr is not None and pr.matched_product_id:
+                    product = pr.matched_product
+                else:
+                    product = row.matched_product
+                if not product:
+                    linked = row.items.select_related('product').first()
+                    if linked:
+                        product = linked.product
                 batch_group = BatchGroup.objects.create(
                     batch_number=BatchGroup.generate_batch_number(),
-                    product=row.matched_product,
+                    product=product,
                     purchase_order=order,
                     manifest_row=row,
                     total_qty=quantity,
@@ -6058,6 +5905,105 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'], url_path='processing-check-in-together')
+    def processing_check_in_together_action(self, request, pk=None):
+        from apps.inventory.processing_ops import ProcessingDataRequired, processing_check_in_together
+
+        order = self.get_object()
+        try:
+            return Response(processing_check_in_together(request.user, order, request.data))
+        except ProcessingDataRequired as e:
+            return Response(
+                {'detail': str(e), 'code': 'processing_data_required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-assign-shared-product')
+    def processing_assign_shared_product_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_assign_shared_product
+
+        order = self.get_object()
+        try:
+            return Response(processing_assign_shared_product(request.user, order, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-collapse-rows')
+    def processing_collapse_rows_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_collapse_rows
+
+        order = self.get_object()
+        try:
+            return Response(processing_collapse_rows(request.user, order, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-uncollapse-rows')
+    def processing_uncollapse_rows_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_uncollapse_rows
+
+        order = self.get_object()
+        try:
+            return Response(processing_uncollapse_rows(request.user, order, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-break-apart-row')
+    def processing_break_apart_row_action(self, request, pk=None):
+        from apps.inventory.services.processing_transforms import processing_break_apart_row
+
+        order = self.get_object()
+        try:
+            return Response(processing_break_apart_row(request.user, order, request.data))
+        except ProcessingRow.DoesNotExist:
+            return Response({'detail': 'Processing row not found for this order.'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-make-set-row')
+    def processing_make_set_row_action(self, request, pk=None):
+        from apps.inventory.services.processing_transforms import processing_make_set_row
+
+        order = self.get_object()
+        try:
+            return Response(processing_make_set_row(request.user, order, request.data))
+        except ProcessingRow.DoesNotExist:
+            return Response({'detail': 'Processing row not found for this order.'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-restart-row')
+    def processing_restart_row_action(self, request, pk=None):
+        from apps.inventory.services.processing_transforms import processing_restart_row
+
+        order = self.get_object()
+        try:
+            return Response(processing_restart_row(request.user, order, request.data))
+        except ProcessingRow.DoesNotExist:
+            return Response({'detail': 'Processing row not found for this order.'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path=r'processing-check-in-batch/(?P<batch_id>[0-9]+)/remap-product',
+    )
+    def processing_check_in_batch_remap_product(self, request, pk=None, batch_id=None):
+        from apps.inventory.processing_ops import remap_check_in_batch_product
+
+        order = self.get_object()
+        try:
+            batch_pk = int(str(batch_id).strip())
+        except (TypeError, ValueError):
+            return Response({'detail': 'batch_id must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(remap_check_in_batch_product(request.user, order, batch_pk, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['patch'], url_path='processing-row-patch')
     def processing_row_patch_action(self, request, pk=None):
         from apps.inventory.processing_ops import processing_row_patch
@@ -6105,21 +6051,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         try:
             return Response(processing_dispute(request.user, order, request.data))
-        except ProcessingDataRequired as e:
-            return Response(
-                {'detail': str(e), 'code': 'processing_data_required'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except ValueError as e:
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['post'], url_path='processing-merge-rows')
-    def processing_merge_rows_action(self, request, pk=None):
-        from apps.inventory.processing_ops import ProcessingDataRequired, processing_merge_rows
-
-        order = self.get_object()
-        try:
-            return Response(processing_merge_rows(request.user, order, request.data))
         except ProcessingDataRequired as e:
             return Response(
                 {'detail': str(e), 'code': 'processing_data_required'},
@@ -6262,6 +6193,20 @@ class ProductViewSet(viewsets.ModelViewSet):
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['product_number', 'title', 'brand', 'model', 'category', 'upc']
     ordering_fields = ['title', 'created_at']
+
+    @action(detail=True, methods=['get'], url_path='usage')
+    def usage(self, request, pk=None):
+        """Blast radius for editing this catalog product: how many Items across how many POs share it."""
+        product = self.get_object()
+        agg = Item.objects.filter(product_id=product.pk).aggregate(
+            item_count=Count('id'),
+            order_count=Count('purchase_order_id', distinct=True),
+        )
+        return Response({
+            'product_id': product.pk,
+            'item_count': agg['item_count'] or 0,
+            'order_count': agg['order_count'] or 0,
+        })
 
 
 class BatchGroupViewSet(viewsets.ModelViewSet):
@@ -6632,6 +6577,89 @@ class ItemViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(sku=Item.generate_sku())
 
+    def create(self, request, *args, **kwargs):
+        """Qty-aware manual create. Workspace-enabled POs route through processing_add_item so
+        the units land in the processing queue as a first-class Added row (one model for
+        adds and check-ins everywhere); other creates loop the serializer per unit."""
+        from apps.inventory.processing_ops import MAX_CHECK_IN_QUANTITY
+
+        data = request.data if isinstance(request.data, dict) else {}
+        try:
+            quantity = int(data.get('quantity') or 1)
+        except (TypeError, ValueError):
+            quantity = 1
+        quantity = max(1, quantity)
+        if quantity > MAX_CHECK_IN_QUANTITY:
+            return Response(
+                {'detail': f'Quantity {quantity:,} exceeds the {MAX_CHECK_IN_QUANTITY:,} per-action safety limit.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order = None
+        raw_po = data.get('purchase_order')
+        if raw_po not in (None, ''):
+            try:
+                order = PurchaseOrder.objects.filter(pk=int(raw_po)).first()
+            except (TypeError, ValueError):
+                order = None
+        workspace_enabled = (
+            order is not None
+            and ProcessingRow.objects.filter(purchase_order=order).exists()
+        )
+
+        if workspace_enabled:
+            from apps.inventory.processing_ops import processing_add_item
+
+            payload = {**data, 'quantity': quantity}
+            # 'edit' = find-or-create from payload fields — same product resolution
+            # (find_or_create_product_for_manual_item) the plain serializer path uses.
+            payload.setdefault('product_mode', 'edit')
+            if not payload.get('retail'):
+                payload['retail'] = data.get('retail_value') or data.get('unit_retail') or ''
+            try:
+                result = processing_add_item(request.user, order, payload)
+            except ValueError as e:
+                return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            body = dict(result['items'][0])
+            body['created_count'] = result['created_count']
+            body['created_items'] = [
+                {
+                    'id': it['id'],
+                    'sku': it['sku'],
+                    'price': it['price'],
+                    'title': it['title'],
+                    'brand': it.get('brand') or '',
+                    'product_number': it.get('product_number'),
+                }
+                for it in result['items']
+            ]
+            return Response(body, status=status.HTTP_201_CREATED)
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            first = serializer.save(sku=Item.generate_sku())
+            items = [first]
+            for _ in range(quantity - 1):
+                dup = self.get_serializer(data=data)
+                dup.is_valid(raise_exception=True)
+                items.append(dup.save(sku=Item.generate_sku()))
+        body = self.get_serializer(first).data
+        body['created_count'] = len(items)
+        body['created_items'] = [
+            {
+                'id': it.id,
+                'sku': it.sku,
+                'price': str(it.price),
+                'title': it.title,
+                'brand': it.brand or '',
+                'product_number': getattr(it.product, 'product_number', None) if it.product_id else None,
+            }
+            for it in items
+        ]
+        headers = self.get_success_headers(body)
+        return Response(body, status=status.HTTP_201_CREATED, headers=headers)
+
     @action(detail=False, methods=['get'], url_path='stats')
     def item_stats(self, request):
         """Product / category / global item aggregates for the item drawer."""
@@ -6680,30 +6708,15 @@ class ItemViewSet(viewsets.ModelViewSet):
         import json as json_lib
         import time as _time
 
-        try:
-            import anthropic as anthropic_lib
-        except ImportError:
-            return Response(
-                {'error': 'anthropic library is not installed.'},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
+        from apps.core.services.llm_router import LLMAPIError, LLMConfigError, llm_complete
 
         t_total = _time.perf_counter()
         timing: dict = {}
 
         try:
-            from django.conf import settings as django_settings
-
-            api_key = getattr(django_settings, 'ANTHROPIC_API_KEY', '')
-            if not api_key:
-                return Response(
-                    {'error': 'ANTHROPIC_API_KEY not configured.'},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
-
             fields = request.data.get('fields') or []
             context = request.data.get('context') or {}
-            model_id = (request.data.get('model') or '').strip() or DEFAULT_AI_FAST_MODEL
+            model_id = ai_model('SUGGEST_ITEM', request.data.get('model'))
 
             if not isinstance(fields, list) or not fields:
                 return Response(
@@ -6772,28 +6785,19 @@ class ItemViewSet(viewsets.ModelViewSet):
                 )
                 suggest_logger.info('%s', prompt_blob)
 
-            client = anthropic_lib.Anthropic(api_key=api_key)
             t0 = _time.perf_counter()
-            response = client.messages.create(
-                model=model_id,
+            response = llm_complete(
+                model_id=model_id,
+                system=system_prompt,
+                user=user_message_json,
                 max_tokens=1024,
-                system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
-                messages=[{'role': 'user', 'content': user_message_json}],
                 timeout=60.0,
+                log_source='suggest_item',
+                log_detail='POST suggest_item',
             )
             timing['api_ms'] = round((_time.perf_counter() - t0) * 1000, 1)
 
-            log_ai_usage_from_response(
-                'suggest_item',
-                response,
-                model=model_id,
-                detail='POST suggest_item',
-            )
-
-            content_text = ''
-            for block in response.content:
-                if block.type == 'text':
-                    content_text += block.text
+            content_text = response.text
 
             if suggest_logger.active_targets() & {'django', 'file'}:
                 suggest_logger.info('%s', '--- AI RESPONSE (raw) ---\n' + content_text[:50000])
@@ -6802,7 +6806,7 @@ class ItemViewSet(viewsets.ModelViewSet):
                 suggest_logger.warning('suggest_item empty content from model=%s', model_id)
                 return Response(
                     {
-                        'error': 'AI returned an empty response. Check ANTHROPIC_API_KEY and model id, then try again.',
+                        'error': 'AI returned an empty response. Check the provider API key and model id, then try again.',
                         'examples_used': examples_used,
                         'timing': timing,
                     },
@@ -6853,28 +6857,21 @@ class ItemViewSet(viewsets.ModelViewSet):
                         'allowed_categories': list(TAXONOMY_V1_CATEGORY_NAMES),
                     })
                     t_retry = _time.perf_counter()
-                    response_retry = client.messages.create(
-                        model=model_id,
-                        max_tokens=1024,
-                        system=[{'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}],
+                    response_retry = llm_complete(
+                        model_id=model_id,
+                        system=system_prompt,
                         messages=[
                             {'role': 'user', 'content': user_message_json},
                             {'role': 'assistant', 'content': content_text},
                             {'role': 'user', 'content': retry_user},
                         ],
+                        max_tokens=1024,
                         timeout=60.0,
+                        log_source='suggest_item',
+                        log_detail='POST suggest_item category retry',
                     )
                     timing['api_retry_ms'] = round((_time.perf_counter() - t_retry) * 1000, 1)
-                    log_ai_usage_from_response(
-                        'suggest_item',
-                        response_retry,
-                        model=model_id,
-                        detail='POST suggest_item category retry',
-                    )
-                    content_retry = ''
-                    for block in response_retry.content:
-                        if block.type == 'text':
-                            content_retry += block.text
+                    content_retry = response_retry.text
                     out_retry, parsed_retry = _suggest_item_parse_suggestions_from_text(
                         content_retry, fields, allowed,
                     )
@@ -6890,13 +6887,10 @@ class ItemViewSet(viewsets.ModelViewSet):
             if low_confidence:
                 low_confidence_reason = str(parsed.get('low_confidence_reason', ''))[:500]
 
-            usage = getattr(response, 'usage', None)
-            usage_out = {}
-            if usage is not None:
-                usage_out = {
-                    'input_tokens': getattr(usage, 'input_tokens', 0),
-                    'output_tokens': getattr(usage, 'output_tokens', 0),
-                }
+            usage_out = {
+                'input_tokens': response.input_tokens,
+                'output_tokens': response.output_tokens,
+            }
 
             timing['total_ms'] = round((_time.perf_counter() - t_total) * 1000, 1)
 
@@ -6916,20 +6910,21 @@ class ItemViewSet(viewsets.ModelViewSet):
                 }
             return Response(payload)
 
-        except anthropic_lib.APIError as e:
-            suggest_logger.warning('suggest_item Anthropic error: %s', e)
+        except LLMConfigError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except LLMAPIError as e:
+            suggest_logger.warning('suggest_item LLM error: %s', e)
             detail = str(e)
-            resp = getattr(e, 'response', None)
-            if resp is not None:
-                try:
-                    detail = f'{detail} (HTTP {resp.status_code})'
-                except Exception:
-                    pass
+            if e.status_code is not None:
+                detail = f'{detail} (HTTP {e.status_code})'
             return Response(
                 {
                     'error': (
-                        'AI service error from Anthropic. '
-                        'Confirm ANTHROPIC_API_KEY and that the model id is valid for your account. '
+                        'AI service error. '
+                        'Confirm the provider API key and that the model id is valid for your account. '
                         f'Detail: {detail}'
                     ),
                 },

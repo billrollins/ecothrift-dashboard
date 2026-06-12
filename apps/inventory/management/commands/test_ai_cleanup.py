@@ -11,9 +11,14 @@ import json
 import re
 import time
 
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.core.services.llm_router import (
+    LLMConfigError,
+    llm_complete,
+    resolve_api_key,
+    resolve_provider,
+)
 from apps.inventory.models import ManifestRow, PurchaseOrder
 
 
@@ -37,13 +42,9 @@ class Command(BaseCommand):
         start_offset = options['offset']
 
         try:
-            import anthropic as anthropic_lib
-        except ImportError:
-            raise CommandError('anthropic is not installed. Run: pip install anthropic')
-
-        api_key = getattr(settings, 'ANTHROPIC_API_KEY', '')
-        if not api_key:
-            raise CommandError('ANTHROPIC_API_KEY not configured in settings.')
+            resolve_api_key(resolve_provider(model_id))
+        except LLMConfigError as e:
+            raise CommandError(str(e))
 
         try:
             order = PurchaseOrder.objects.get(pk=order_id)
@@ -60,7 +61,7 @@ class Command(BaseCommand):
             f'\nAI Cleanup Benchmark — {mode_label}'
         ))
         self.stdout.write(f'  Order:      #{order.order_number} (ID {order.id})')
-        self.stdout.write(f'  Vendor:     {order.vendor_name}')
+        self.stdout.write(f'  Vendor:     {getattr(order.vendor, "name", "") or order.vendor_name_cache or "—"}')
         self.stdout.write(f'  Total rows: {total_rows}')
         self.stdout.write(f'  Model:      {model_id}')
         self.stdout.write(f'  Batch size: {batch_size}')
@@ -84,8 +85,6 @@ class Command(BaseCommand):
             '"search_tags": "tag1, tag2", "specifications": {"key": "value"}, '
             '"reasoning": "brief explanation of changes"}]'
         )
-
-        client = anthropic_lib.Anthropic(api_key=api_key)
 
         batch_reports = []
         offset = start_offset
@@ -114,36 +113,31 @@ class Command(BaseCommand):
             t0 = time.perf_counter()
             batch_data = []
             for r in batch:
+                ids = r.identifiers or {}
                 batch_data.append({
                     'row_id': r.id,
                     'description': r.description,
                     'title': r.title,
                     'brand': r.brand,
                     'model': r.model,
-                    'category': r.category,
+                    'category': r.category or (r.taxonomy or {}).get('category', ''),
                     'condition': r.condition,
-                    'upc': r.upc,
-                    'retail_value': str(r.retail_value) if r.retail_value else '',
+                    'upc': ids.get('upc') or ids.get('UPC') or '',
+                    'retail_value': str(r.unit_retail) if r.unit_retail else '',
                 })
             payload_str = json.dumps(batch_data)
             timings['prompt_build'] = time.perf_counter() - t0
 
             t0 = time.perf_counter()
             try:
-                response = client.messages.create(
-                    model=model_id,
-                    max_tokens=4096,
+                response = llm_complete(
+                    model_id=model_id,
                     system=system_prompt,
-                    messages=[{'role': 'user', 'content': payload_str}],
+                    user=payload_str,
+                    max_tokens=4096,
                     timeout=90.0,
-                )
-                from apps.core.services.ai_usage_log import log_ai_usage_from_response
-
-                log_ai_usage_from_response(
-                    'ai_cleanup_rows',
-                    response,
-                    model=model_id,
-                    detail=f'test_ai_cleanup batch={batch_num}',
+                    log_source='ai_cleanup_rows',
+                    log_detail=f'test_ai_cleanup batch={batch_num}',
                 )
             except Exception as e:
                 timings['api_call'] = time.perf_counter() - t0
@@ -155,14 +149,11 @@ class Command(BaseCommand):
                 continue
             timings['api_call'] = time.perf_counter() - t0
 
-            input_tokens = getattr(response.usage, 'input_tokens', 0)
-            output_tokens = getattr(response.usage, 'output_tokens', 0)
+            input_tokens = response.input_tokens
+            output_tokens = response.output_tokens
 
             t0 = time.perf_counter()
-            content_text = ''
-            for block in response.content:
-                if block.type == 'text':
-                    content_text += block.text
+            content_text = response.text
 
             rows_updated = 0
             json_match = re.search(r'\[[\s\S]*\]', content_text)

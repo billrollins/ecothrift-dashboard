@@ -19,12 +19,9 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.core.services.llm_router import LLMAPIError, is_provider_configured, llm_complete
 from apps.inventory.category_research_paths import category_research_model_compare
-from apps.inventory.management.commands.categorize_category_bins import (
-    TAXONOMY_INPUT_FIELDS,
-    _import_anthropic,
-    get_anthropic_client,
-)
+from apps.inventory.management.commands.categorize_category_bins import TAXONOMY_INPUT_FIELDS
 from apps.inventory.services.category_taxonomy import (
     build_categorization_system_prompt,
     extract_json_object,
@@ -60,10 +57,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        client = get_anthropic_client()
-        if client is None:
-            raise CommandError('ANTHROPIC_API_KEY is not configured.')
-
         tax_path = Path(options['taxonomy'])
         if not tax_path.is_file():
             raise CommandError(f'Taxonomy not found: {tax_path}')
@@ -93,6 +86,10 @@ class Command(BaseCommand):
         else:
             model_ids = [m[0] for m in DEFAULT_MODELS]
 
+        for mid in model_ids:
+            if not is_provider_configured(mid):
+                raise CommandError(f'API key is not configured for model {mid!r}.')
+
         base = Path(settings.BASE_DIR)
         out_dir = category_research_model_compare(base)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -120,8 +117,6 @@ class Command(BaseCommand):
             + '\n```\n',
             encoding='utf-8',
         )
-
-        anthropic_mod = _import_anthropic()
 
         extra_out = [
             'claude_model',
@@ -159,30 +154,21 @@ class Command(BaseCommand):
                 )
 
                 try:
-                    response = client.messages.create(
-                        model=model_id,
-                        max_tokens=8192,
+                    response = llm_complete(
+                        model_id=model_id,
                         system=system_prompt,
-                        messages=[{'role': 'user', 'content': user_content}],
+                        user=user_content,
+                        max_tokens=8192,
+                        log_source='compare_category_taxonomy_models',
+                        log_detail=f'batch start={start}',
                     )
-                    from apps.core.services.ai_usage_log import log_ai_usage_from_response
-
-                    log_ai_usage_from_response(
-                        'compare_category_taxonomy_models',
-                        response,
-                        model=model_id,
-                        detail=f'batch start={start}',
-                    )
-                except anthropic_mod.APIError as e:
+                except LLMAPIError as e:
                     raise CommandError(f'{model_id} API error: {e}') from e
 
-                text = ''
-                for block in response.content:
-                    if block.type == 'text':
-                        text += block.text
+                text = response.text
 
-                usage_in += response.usage.input_tokens
-                usage_out += response.usage.output_tokens
+                usage_in += response.input_tokens
+                usage_out += response.output_tokens
 
                 try:
                     parsed = extract_json_object(text)

@@ -53,6 +53,16 @@ def build_processing_row_search_string(row: Any) -> str:
     rn = int(g('row_number') or 0)
     parts: list[str] = [str(rn), f'row{rn}']
 
+    # P9 split sub rows: searching the PARENT row number should surface the family.
+    if not isinstance(row, Mapping) and getattr(row, 'split_parent_id', None):
+        parent = getattr(row, 'split_parent', None)
+        parent_rn = getattr(parent, 'row_number', None) if parent is not None else None
+        if parent_rn:
+            seq = getattr(row, 'split_seq', None)
+            parts.extend([str(int(parent_rn)), f'row{int(parent_rn)}'])
+            if seq:
+                parts.append(f'{int(parent_rn)}.{int(seq)}')
+
     for fname in (
         'title',
         'brand',

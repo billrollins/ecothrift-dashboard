@@ -227,14 +227,8 @@ def _llm_classify(title: str, brand: Optional[str], model: Optional[str]) -> Opt
     Only called when both rule-based and ML methods fail or have low confidence.
     """
     try:
-        import anthropic
-        from django.conf import settings
+        from apps.core.services.llm_router import LLMConfigError, llm_chat_text
 
-        api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
-        if not api_key:
-            return None
-
-        client = anthropic.Anthropic(api_key=api_key)
         prompt = (
             f'You are a thrift store inventory classifier. '
             f'Classify this item into ONE of these categories:\n'
@@ -249,28 +243,18 @@ def _llm_classify(title: str, brand: Optional[str], model: Optional[str]) -> Opt
             '\n\nReply with ONLY the category path in the format: "Parent > Subcategory". '
             'No explanation.'
         )
-        _model_id = getattr(settings, 'AI_MODEL_FAST', None) or 'claude-haiku-4-5'
-        message = client.messages.create(
-            model=_model_id,
-            max_tokens=50,
-            messages=[
-                {
-                    'role': 'user',
-                    'content': [
-                        {'type': 'text', 'text': prompt, 'cache_control': {'type': 'ephemeral'}}
-                    ],
-                }
-            ],
-        )
-        from apps.core.services.ai_usage_log import log_ai_usage_from_response
-
-        log_ai_usage_from_response(
-            'inventory_llm_classify',
-            message,
-            model=_model_id,
-            detail='categorizer._llm_classify',
-        )
-        result = message.content[0].text.strip()
+        try:
+            text, _model_used = llm_chat_text(
+                purpose='INVENTORY_CLASSIFY',
+                system='',
+                user=prompt,
+                max_tokens=50,
+                log_source='inventory_llm_classify',
+                log_detail='categorizer._llm_classify',
+            )
+        except LLMConfigError:
+            return None
+        result = text.strip()
         if ' > ' in result:
             parent, category = result.split(' > ', 1)
             return category.strip(), parent.strip()

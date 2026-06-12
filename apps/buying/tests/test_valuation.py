@@ -224,28 +224,19 @@ class EstimateBatchNoTitleEchoTests(TestCase):
         dist["Health, beauty & personal care"] = 100.0
         payload = [{"auction_id": a.pk, "distribution": dist}]
 
-        class FakeTextBlock:
-            type = "text"
+        from apps.core.services.llm_router import LLMResult
 
-            def __init__(self, text: str):
-                self.text = text
-
-        class FakeResponse:
-            def __init__(self):
-                self.content = [FakeTextBlock(json.dumps(payload))]
-                self.usage = None
-                self.model = "claude-haiku-4-5-20251001"
-
-        class FakeMessages:
-            def create(self, **kwargs):
-                return FakeResponse()
-
-        class FakeClient:
-            messages = FakeMessages()
+        fake_result = LLMResult(
+            text=json.dumps(payload),
+            model_used="claude-haiku-4-5-20251001",
+        )
 
         with patch(
-            "apps.buying.services.ai_title_category_estimate.get_anthropic_client",
-            return_value=FakeClient(),
+            "apps.buying.services.ai_title_category_estimate.is_provider_configured",
+            return_value=True,
+        ), patch(
+            "apps.buying.services.ai_title_category_estimate.llm_complete",
+            return_value=fake_result,
         ):
             with patch(
                 "apps.buying.services.ai_title_category_estimate.recompute_auction_valuation"

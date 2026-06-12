@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from apps.buying.models import Auction, CategoryMapping, ManifestRow
@@ -78,7 +77,10 @@ def process_manifest_upload(
 
     if template is None:
         stub = create_template_stub(marketplace, columns)
-        if getattr(settings, 'ANTHROPIC_API_KEY', None) and propose_manifest_template_with_ai(
+        from apps.core.services.llm_router import ai_model, is_provider_configured
+
+        ai_ok = is_provider_configured(ai_model('MANIFEST_TEMPLATE'))
+        if ai_ok and propose_manifest_template_with_ai(
             stub,
             marketplace,
             columns,
@@ -93,7 +95,8 @@ def process_manifest_upload(
                 {
                     'detail': (
                         'Unknown manifest format. A template stub was created for review. '
-                        'Configure the template in admin or re-upload after setting ANTHROPIC_API_KEY.'
+                        'Configure the template in admin or re-upload after setting the AI API key '
+                        'for the configured AI_MODEL_MANIFEST_TEMPLATE provider.'
                     ),
                     'code': 'unknown_template',
                     'template_status': 'unknown',

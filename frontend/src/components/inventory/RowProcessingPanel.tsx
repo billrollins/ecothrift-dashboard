@@ -95,7 +95,7 @@ export function RowProcessingPanel({
     }
     const seen = new Set<number>();
     for (const r of rows) {
-      if (!expectedRowIds.has(r.row_id)) return `Unknown row_id ${r.row_id} — not a preprocessing row for this order.`;
+      if (!expectedRowIds.has(r.row_id)) return `Unknown row_id ${r.row_id} — not a staged row for this order.`;
       if (seen.has(r.row_id)) return `Duplicate row_id ${r.row_id}.`;
       seen.add(r.row_id);
       const expRn = rowNumberById[r.row_id];
@@ -103,7 +103,7 @@ export function RowProcessingPanel({
         return `row_id ${r.row_id}: CSV row_number ${r.row_number} does not match staged row ${expRn}.`;
       }
     }
-    if (seen.size !== expectedRowIds.size) return 'Some preprocessing rows are missing from the CSV.';
+    if (seen.size !== expectedRowIds.size) return 'Some staged rows are missing from the CSV.';
     return null;
   };
 

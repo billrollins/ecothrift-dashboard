@@ -19,6 +19,7 @@ from apps.inventory.models import (
     ProcessingBatch,
     ProcessingDataBuild,
     ProcessingRow,
+    Product,
     PurchaseOrder,
 )
 from apps.inventory.layer_helpers import effective_taxonomy_category_for_row
@@ -37,6 +38,7 @@ _TERMINAL_ITEM_STATUSES_FROZEN = frozenset({'sold', 'scrapped', 'lost'})
 PREPROCESSING_PROJECT_TO_BOOKMARK_FIELDS = (
     'id',
     'manifest_row_id',
+    'final_matched_product_id',
     'row_number',
     'purchase_order_id',
     'quantity',
@@ -128,6 +130,7 @@ def load_preprocessing_values_for_finalize(order: PurchaseOrder) -> Iterable[dic
         .only(
             'id',
             'manifest_row_id',
+            'final_matched_product_id',
             'row_number',
             'purchase_order_id',
             'quantity',
@@ -180,6 +183,7 @@ def load_preprocessing_values_for_finalize(order: PurchaseOrder) -> Iterable[dic
         out.append({
             'id': row.id,
             'manifest_row_id': row.manifest_row_id,
+            'final_matched_product_id': row.final_matched_product_id,
             'row_number': row.row_number,
             'purchase_order_id': row.purchase_order_id,
             'quantity': row.quantity or (mr.quantity if mr is not None else 1),
@@ -231,6 +235,7 @@ def finalize_preprocessing_to_bookmarks(
                 purchase_order_id=order.id,
                 preprocessing_row_id=r.get('id'),
                 manifest_row_id=r.get('manifest_row_id'),
+                matched_product_id=r.get('final_matched_product_id'),
                 row_number=int(r['row_number']),
                 quantity=qty,
                 unit_retail=r.get('unit_retail'),
@@ -256,8 +261,12 @@ def finalize_preprocessing_to_bookmarks(
             ),
         )
 
-    for obj in objs:
-        obj.search_string = build_processing_row_search_string(obj)
+    product_ids = {o.matched_product_id for o in objs if o.matched_product_id}
+    products_by_id = (
+        {p.id: p for p in Product.objects.filter(pk__in=product_ids)}
+        if product_ids else {}
+    )
+    assign_search_strings_for_instances(objs, products_by_id=products_by_id)
 
     now = timezone.now()
 
@@ -814,7 +823,10 @@ def process_processing_data_build_chunk(order: PurchaseOrder, user) -> dict[str,
 
                 for bk, mr in zip(chunk_bks, manifest_objs):
                     bk.manifest_row_id = mr.pk
-                    bk.matched_product_id = mr.matched_product_id
+                    # One-way legacy bootstrap only (P6): never clobber the
+                    # bookmark's decided match with the fresh row's empty FK.
+                    if bk.matched_product_id is None and mr.matched_product_id:
+                        bk.matched_product_id = mr.matched_product_id
 
                 ProcessingRow.objects.bulk_update(
                     chunk_bks,

@@ -12,42 +12,34 @@ export function processingQueueVirtualTotalHeight(rowCount: number): number {
   return Math.max(0, rowCount) * PROCESSING_QUEUE_TABLE_ROW_HEIGHT;
 }
 
-/** Column width bounds (px) for content-aware layout — see processingQueueColumnLayout.ts */
+/** Minimum px to show a full currency cell ($999,999.99) without ellipsis. */
+export const PROCESSING_QUEUE_MONEY_COL_MIN = 88;
+
+/** Floor widths (px) when the viewport is too narrow for measured content. */
 export const PROCESSING_QUEUE_COL_MIN = {
   rowNum: 36,
   brand: 72,
   title: 120,
   category: 96,
-  qty: 56,
-  retail: 56,
-  price: 56,
+  qty: 72,
+  retail: PROCESSING_QUEUE_MONEY_COL_MIN,
+  extRetail: PROCESSING_QUEUE_MONEY_COL_MIN,
+  price: PROCESSING_QUEUE_MONEY_COL_MIN,
   condition: 80,
   dispatch: 72,
   status: 72,
 } as const;
 
-export const PROCESSING_QUEUE_COL_MAX = {
-  rowNum: 52,
-  brand: 140,
-  title: 480,
-  category: 200,
-  qty: 88,
-  retail: 88,
-  price: 88,
-  condition: 140,
-  dispatch: 120,
-  status: 120,
-} as const;
-
 /** Static defaults when rows or container width are unavailable (matches prior hardcoded layout). */
 export const PROCESSING_QUEUE_COL_DEFAULTS = {
   rowNum: 42,
-  brand: 108,
+  brand: 80,
   title: 320,
   category: 148,
-  qty: 76,
-  retail: 78,
-  price: 78,
+  qty: 96,
+  retail: 92,
+  extRetail: 96,
+  price: 92,
   condition: 112,
   dispatch: 104,
   status: 86,
@@ -56,6 +48,9 @@ export const PROCESSING_QUEUE_COL_DEFAULTS = {
 export const PROCESSING_QUEUE_SORT_ICON_PX = 14;
 export const PROCESSING_QUEUE_ADDED_CHIP_PX = 36;
 export const PROCESSING_QUEUE_DUP_CHIP_PX = 28;
+export const PROCESSING_QUEUE_PEER_CHIP_PX = 44;
+export const PROCESSING_QUEUE_PRODUCTS_CHIP_PX = 52;
+export const PROCESSING_QUEUE_CHECKBOX_COL_PX = 48;
 export const PROCESSING_QUEUE_CHIP_PAD_PX = 16;
 export const PROCESSING_QUEUE_CELL_PAD_PX = 18;
 export const PROCESSING_QUEUE_ROW_NUM_PAD_PX = 24;

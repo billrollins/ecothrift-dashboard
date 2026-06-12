@@ -11,7 +11,8 @@ function renderEditor(ui: ReactElement) {
 
 describe('BucketFieldEditor', () => {
   it('does not save when subkey fails regex validation', async () => {
-    const user = userEvent.setup();
+    // delay: null removes per-event waits — this test hit the 5s timeout on cold runs.
+    const user = userEvent.setup({ delay: null });
     const onSave = vi.fn();
     renderEditor(
       <BucketFieldEditor
@@ -46,7 +47,8 @@ describe('BucketFieldEditor', () => {
   });
 
   it('saves valid custom subkeys with trimmed formulas', async () => {
-    const user = userEvent.setup();
+    // delay: null removes per-event waits — this test hit the 5s timeout on cold runs.
+    const user = userEvent.setup({ delay: null });
     const onSave = vi.fn();
     renderEditor(
       <BucketFieldEditor

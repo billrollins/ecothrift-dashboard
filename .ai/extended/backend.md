@@ -1,12 +1,17 @@
-<!-- Last updated: 2026-05-06 (`ProcessingRow.shelf_price` workspace **`price`** SSOT — **`CHANGELOG [Unreleased]`**; **`v2.23.0`** `search_string` — **`CHANGELOG [2.23.0]`**) -->
+<!-- Last updated: 2026-06-12 (Session 11 — P9 row transforms: split_parent sub rows, Item.unit_count, restart endpoint) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-06-11 Session 10 (v2.28.0) — Item Processor P7/P8:**
+- **Collapse groups (P7):** **`ProcessingRow.collapse_master`** self-FK (migration **`0059`**, SET_NULL, `related_name='collapse_members'`) — presentation + check-in distribution only, manifest untouched. **`POST …/processing-collapse-rows/`** (`processing_row_ids` ≥2 manifest-backed; `product_mode` keep/existing/new — existing/new delegate to assign-shared-product) / **`POST …/processing-uncollapse-rows/`** (`master_processing_row_id`). Check-in on the **master** fills members **in row order** (one `ProcessingCheckInBatch` per member touched; response `check_in_batch_ids`; overage → last row); followers raise on direct check-in. **`refresh_processing_rows_denorm`** overrides the master's **`queue_status` from GROUP totals** (pending/partial/checked_in/disputed — own-items status would read checked_in after fill-in-order and drop the group from `hide_checked_in`/segment filters; scoped refresh pulls the master in when only members were touched). Workspace list/patch rows carry **`collapsedGroup`** rollups (`collapse_rollups_for_order`); **`build_processing_row_detail`** for a master returns `collapsedGroup` + **all member items and batches** + group-level `status` (per-row qty fields stay own-row; client combines via `effectiveRowQty`).
+- **P8 endpoints:** **`GET /api/inventory/products/{id}/usage/`** → `{item_count, order_count}` (blast radius before editing a shared product). **`POST /api/inventory/items/`** is **quantity-aware** (`quantity` 1–10,000): workspace-enabled POs (any `ProcessingRow`) route through **`processing_add_item`** so manual adds land as a first-class **Added** queue row; other creates loop the serializer; response adds **`created_count`** + **`created_items`** (id/sku/price/title/brand/product_number per unit).
+- **Check-in cap removed (owner ruling):** no 500 clamp anywhere — `_parse_check_in_quantity` accepts up to **`MAX_CHECK_IN_QUANTITY = 10_000`** (fat-finger backstop; exceeding raises an explicit error → 400, never a silent clamp) across row check-in, group check-in, check-in-together, add-item, and `POST /items`. The UI confirms >100-unit runs ("type `PRINT <qty>`" when printing).
 
 **2026-04:** Buying — **Manifest ingestion is CSV upload only** (`upload_manifest` / `DELETE …/manifest/`). Anonymous order-process manifest pulls, staff **`pull_manifest`** REST actions, **`pull_manifests*`** / **`benchmark_manifest_pull`** management commands, and **`manifest_api_pipeline`** were removed. Historical **`ManifestPullLog`** rows may remain in the DB.
 
 **v2.14.0:** Buying — **`CategoryStats.need_score_1to99`** (daily **`compute_daily_category_stats`** / **`category_stats_sql`**); auction **`need_score`** & **`priority`** = weighted mix **1–99** (**`valuation._auction_need_from_mix`**). Inventory — **`PurchaseOrder.est_shrink`** drives **`Item.cost`**; **`recompute_all_item_costs`** for backfill. Details under **inventory** and **Item acquisition cost** sections below.
 
-**2026-04 Inventory preprocessing redesign:** `PurchaseOrderViewSet.process_manifest` seeds **`PreprocessingRow`** staging (`standard_*`). Staff download **lean cleanup CSV**, apply Grok/Excel output via **`apply-cleanup-csv`** into **`ai_*`** / **`ai_title`** (optional per-row **`ai_status`** JSON on wide import; empty/malformed → **`{}`**); **Final Review** uses **`preprocessing-review`** (**`PATCH`** clears **`ai_status`** when listing or price fields change, not for **`batch_flag`** / **`pricing_notes`** only); **`finalize-preprocessing`** runs **`snapshot_finalize_from_ai_and_standard`** then rebuilds **`ManifestRow`** from **`final_*`**. Legacy **`ai-cleanup-rows`** (Anthropic) can still mutate **`ManifestRow`** when those rows exist. `manual-review` is the canonical **post-finalize** review/pricing surface over **`ManifestRow`**. `create-items` opens Processing for existing early Items instead of duplicating inventory.
+**2026-04 Inventory preprocessing redesign:** `PurchaseOrderViewSet.process_manifest` seeds **`PreprocessingRow`** staging (`standard_*`). Staff download **lean cleanup CSV**, apply Grok/Excel output via **`apply-cleanup-csv`** into **`ai_*`** / **`ai_title`** (optional per-row **`ai_status`** JSON on wide import; empty/malformed → **`{}`**); **Final Decisions** uses **`preprocessing-review`** (**`PATCH`** clears **`ai_status`** when listing or price fields change, not for **`batch_flag`** / **`pricing_notes`** only); **`finalize-preprocessing`** runs **`snapshot_finalize_from_ai_and_standard`** then creates **`ProcessingRow`** bookmarks. Legacy **`ai-cleanup-rows`** (Anthropic) still mutates **`ManifestRow`** when invoked — **not** the shipped Step 2 path; see **Inventory AI Endpoints** below. `manual-review` is the canonical **post-finalize** review/pricing surface over **`ManifestRow`**. `create-items` opens Processing for existing early Items instead of duplicating inventory.
 
 **Timeouts (`finalize-preprocessing`):** Finalize can run tens of seconds on large manifests (staging snapshot, bulk manifest rows, product/item upserts). Keep finalize synchronous unless logs show proxy timeouts. Ops should set reverse-proxy and app-server HTTP timeouts **≥ 120s** (e.g. nginx `proxy_read_timeout`, uvicorn/gunicorn graceful limits) for staff uploading large CSVs; correlate with structured finalize duration logs before adding async jobs.
 
@@ -188,7 +193,7 @@ core.WorkLocation
 
 inventory.PurchaseOrder → inventory.Vendor, core.S3File
 inventory.ManifestRow → inventory.PurchaseOrder
-inventory.ProcessingRow → inventory.PurchaseOrder, optional FKs to **`ManifestRow`**, **`PreprocessingRow`** (audit), **`Product`** (`matched_product`)
+inventory.ProcessingRow → inventory.PurchaseOrder, optional FKs to **`ManifestRow`**, **`PreprocessingRow`** (audit), **`Product`** (`matched_product`), self (`collapse_master` P7; `split_parent` P9 sub rows — `Item.unit_count` carries units-per-tag)
 inventory.Product → inventory.Category (optional)
 inventory.VendorProductRef → inventory.Vendor, inventory.Product
 inventory.BatchGroup → inventory.Product, inventory.PurchaseOrder, inventory.ManifestRow
@@ -274,15 +279,24 @@ consignment.ConsignmentPayout → User (consignee)
 
 ## Inventory AI Endpoints — Added v1.6.0
 
-- **`POST /api/inventory/orders/:id/ai-cleanup-rows/`** — Sends manifest rows to Claude in batches for title/brand/model/specs cleanup. Accepts `model`, `batch_size`, `offset`. Returns `{ rows_processed, total_rows, offset, suggestions, model_used, has_more }`.
-- **`GET /api/inventory/orders/:id/ai-cleanup-status/`** — Returns `{ total_rows, cleaned_rows, remaining_rows }`.
-- **`POST /api/inventory/orders/:id/cancel-ai-cleanup/`** — Clears all AI-generated fields on manifest rows.
-- **`POST /api/inventory/orders/:id/suggest-formulas/`** — AI suggests expression formulas for standard fields given manifest headers and sample data; implemented via **`apps.core.services.llm_chat.llm_chat_completion_text`** (Anthropic Claude or xAI Grok per **`AI_PROVIDER`** / model id — same env keys as Django **`ecothrift/settings.py`**).
-- **`POST /api/inventory/orders/:id/match-products/`** — Fuzzy scoring (UPC, VendorRef, text similarity) + AI batch decisions.
-- **`POST /api/inventory/orders/:id/review-matches/`** — User submits accept/reject/modify decisions for match results.
-- **`GET /api/inventory/orders/:id/match-results/`** — Returns all rows with candidates, AI decisions, scores.
+### Legacy in-app cleanup — `ai-cleanup-rows` (API only; Step 2 UI removed)
 
-**Preprocessing offline cleanup CSV (inventory PO manifests)** — shipped Step 2 path on [`PreprocessingPage`](../../frontend/src/pages/inventory/PreprocessingPage.tsx):
+- **`POST /api/inventory/orders/:id/ai-cleanup-rows/`** — Anthropic batches over **`ManifestRow`** (not **`PreprocessingRow.ai_*`**). Accepts `model`, `batch_size`, `offset`, `mode`. Returns `{ rows_processed, rows_saved, total_rows, offset, has_more, timing, … }`. **Hot-path cost:** **`ensure_manifest_products_and_items(order)`** runs before each batch (full PO scan). Anthropic **`timeout=90`**; Heroku router ~**30s**. **`ai_cleanup_generation`** guard discards stale saves after undo/cancel.
+- **`GET /api/inventory/orders/:id/ai-cleanup-status/`** — `{ total_rows, cleaned_rows, remaining_rows }` (non-empty **`ai_reasoning`**).
+- **`POST /api/inventory/orders/:id/cancel-ai-cleanup/`** — Clears AI fields on staging or manifest rows; increments **`ai_cleanup_generation`**.
+
+**Benchmark (dev, PO 323, Haiku, API-only via `test_ai_cleanup`):** batch 5 ~7s, batch 10 ~13.5s, batch 25 ~20s avg API per batch. Initiative: [`preprocessing_ai_cleanup_review.md`](../initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md).
+
+### Other inventory AI (unchanged)
+
+- **`POST /api/inventory/orders/:id/suggest-formulas/`** — AI suggests expression formulas for standard fields given manifest headers and sample data; implemented via **`apps.core.services.llm_chat.llm_chat_completion_text`** (Anthropic Claude or xAI Grok per **`AI_PROVIDER`** / model id — same env keys as Django **`ecothrift/settings.py`**).
+- **`POST /api/inventory/orders/:id/match-products/`** — **410 Gone** (P6); use Final Decisions / assign shared product instead.
+- **`POST /api/inventory/orders/:id/review-matches/`** — Legacy match review (if still wired).
+- **`GET /api/inventory/orders/:id/match-results/`** — Legacy match results.
+
+### Preprocessing offline cleanup CSV — shipped Step 2 UI
+
+Contract detail: [`.ai/extended/inventory-pipeline.md`](inventory-pipeline.md) § AI Row Cleanup. Initiative review: [`preprocessing_ai_cleanup_review.md`](../initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md).
 
 - **`GET /api/inventory/orders/:id/download-cleanup-csv/`** — Pre-AI export: **`row_id`**, **`row_number`**, **`quantity`**, **`unit_retail`**, **`base_cost`**, **`ideal_price`**, then **`description`**, **`brand`**, **`model`**, **`condition`**, **`notes`**, **`identifiers_json`**, **`taxonomy_json`**, **`specifications_json`**, **`tracking_json`**, **`search_tags_json`**; **`base_cost`** / **`ideal_price`** per unit as in preprocessing-status totals.
 - **`POST /api/inventory/orders/:id/upload-cleanup-csv/`** — Multipart **`file`**: **wide** staging CSV (Grok/Excel columns per **`cleanup_csv_contract.md`**, including optional **`ai_status`**) or **narrow** header **`row_id`, `ai_title`, `ai_brand`, `ai_model`, `category`, `condition`, `proposed_price`** only; validates and updates staging **`PreprocessingRow`** or legacy **`ManifestRow`** by **`row_id`** (exact row coverage required).

@@ -157,6 +157,8 @@ export interface ProcessingWorkspaceHeaderProps {
   itemTotal: number;
   hasManifestRows: boolean;
   sessionCheckInCount: number;
+  /** Epoch ms of the first check-in this session (rate timer starts here, not page load). */
+  sessionStartedAt: number | null;
   rollups?: ProcessingWorkspaceRollupsDTO;
   addItemVisible?: boolean;
   onAddItem?: () => void;
@@ -176,6 +178,7 @@ export function ProcessingWorkspaceHeader({
   itemTotal,
   hasManifestRows,
   sessionCheckInCount,
+  sessionStartedAt,
   rollups,
   addItemVisible,
   onAddItem,
@@ -184,7 +187,6 @@ export function ProcessingWorkspaceHeader({
   closeLoading,
   onCloseClick,
 }: ProcessingWorkspaceHeaderProps) {
-  const sessionStartRef = useState(() => Date.now())[0];
   const [, tick] = useState(0);
   const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
   const [orderAnchorEl, setOrderAnchorEl] = useState<HTMLElement | null>(null);
@@ -197,9 +199,9 @@ export function ProcessingWorkspaceHeader({
   const disp = hasManifestRows && manifestTotalQty > 0 ? manifestDispositioned : itemTotal > 0 ? itemDispositioned : 0;
   const tot = hasManifestRows && manifestTotalQty > 0 ? manifestTotalQty : itemTotal > 0 ? itemTotal : 0;
   const pct = tot > 0 ? Math.round((100 * disp) / tot) : 0;
-  const elapsedMs = Date.now() - sessionStartRef;
+  const elapsedMs = sessionStartedAt != null ? Date.now() - sessionStartedAt : 0;
   const elapsedHours = Math.max(elapsedMs / 3600000, 1 / 3600);
-  const itemsPerHour = Math.round(sessionCheckInCount / elapsedHours);
+  const itemsPerHour = sessionStartedAt != null ? Math.round(sessionCheckInCount / elapsedHours) : 0;
   const disputeDeadline = formatDisputeDeadline(order.delivered_date || order.expected_delivery);
 
   const metrics = useMemo<HeaderMetric[]>(() => {
@@ -250,21 +252,25 @@ export function ProcessingWorkspaceHeader({
       {
         id: 'rate',
         label: 'Rate',
-        value: String(itemsPerHour),
-        suffix: '/hr',
+        value: sessionStartedAt != null ? String(itemsPerHour) : '—',
+        suffix: sessionStartedAt != null ? '/hr' : undefined,
         helper: `${sessionCheckInCount} this session`,
         tone: itemsPerHour >= 100 ? 'good' : sessionCheckInCount > 0 ? 'warning' : 'default',
-        detail: [`Session check-ins: ${fmtQty(sessionCheckInCount)}`, `Session elapsed: ${fmtElapsed(elapsedMs)}`, 'Target: 100 items/hr'],
+        detail: [
+          `Session check-ins: ${fmtQty(sessionCheckInCount)}`,
+          `Session elapsed: ${sessionStartedAt != null ? fmtElapsed(elapsedMs) : 'starts at first check-in'}`,
+          'Target: 100 items/hr',
+        ],
       },
       {
         id: 'elapsed',
         label: 'Elapsed',
-        value: fmtElapsed(elapsedMs),
-        helper: 'Current session',
-        detail: [`Started when this page loaded.`, `Session check-ins: ${fmtQty(sessionCheckInCount)}`],
+        value: sessionStartedAt != null ? fmtElapsed(elapsedMs) : '—',
+        helper: 'Since first check-in',
+        detail: ['Timer starts at the first check-in this session.', `Session check-ins: ${fmtQty(sessionCheckInCount)}`],
       },
     ];
-  }, [disp, elapsedMs, hasManifestRows, itemsPerHour, pct, rollups, sessionCheckInCount, tot]);
+  }, [disp, elapsedMs, hasManifestRows, itemsPerHour, pct, rollups, sessionCheckInCount, sessionStartedAt, tot]);
 
   const selectedMetric = metrics.find((m) => m.id === selectedMetricId);
 

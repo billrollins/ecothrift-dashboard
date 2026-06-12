@@ -20,7 +20,6 @@ from apps.inventory.models import (
     ProcessingDataBuild,
     ProcessingRow,
     Product,
-    ProductMergeAudit,
     PurchaseOrder,
     Vendor,
 )
@@ -408,57 +407,6 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertEqual(self.i3.status, 'lost')
         self.assertEqual(self.i3.dispute_type, 'undelivered')
 
-    def test_v28_merge_writes_audit(self):
-        before = ProductMergeAudit.objects.count()
-        r = self.client.post(
-            f'/api/inventory/orders/{self.po.id}/processing-merge-rows/',
-            {
-                'manifest_row_ids': [self.mr1.id, self.mr2.id],
-                'field_values': {
-                    'title': 'Merged Mixer',
-                    'brand': 'KitchenAid',
-                    'model': 'X',
-                    'description': '',
-                    'specs': {},
-                    'tags': '',
-                    'taxonomy': '',
-                    'category': 'Small Appliances',
-                },
-            },
-            format='json',
-        )
-        self.assertEqual(r.status_code, 200, r.data)
-        self.assertEqual(ProductMergeAudit.objects.count(), before + 1)
-        self.mr1.refresh_from_db()
-        self.mr2.refresh_from_db()
-        self.assertEqual(self.mr1.matched_product_id, self.mr2.matched_product_id)
-
-    def test_v29_merge_idempotent(self):
-        payload = {
-            'manifest_row_ids': [self.mr1.id, self.mr2.id],
-            'field_values': {
-                'title': 'Merged Mixer',
-                'brand': 'KitchenAid',
-                'model': 'X',
-                'category': 'Cat',
-            },
-        }
-        r1 = self.client.post(
-            f'/api/inventory/orders/{self.po.id}/processing-merge-rows/',
-            payload,
-            format='json',
-        )
-        self.assertEqual(r1.status_code, 200)
-        pid = self.mr1.matched_product_id
-        r2 = self.client.post(
-            f'/api/inventory/orders/{self.po.id}/processing-merge-rows/',
-            payload,
-            format='json',
-        )
-        self.assertEqual(r2.status_code, 200)
-        self.mr1.refresh_from_db()
-        self.assertEqual(self.mr1.matched_product_id, pid)
-
     def test_v30_bulk_disposition_sum_validation(self):
         po = PurchaseOrder.objects.create(
             vendor=self.vendor,
@@ -665,33 +613,6 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertEqual(self.i1.status, 'scrapped')
         self.assertEqual(self.i2.status, 'scrapped')
 
-    def test_processing_merge_rows_accepts_processing_row_ids(self):
-        pr1 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
-        pr2 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr2)
-        r = self.client.post(
-            f'/api/inventory/orders/{self.po.id}/processing-merge-rows/',
-            {
-                'processing_row_ids': [pr2.id, pr1.id],
-                'field_values': {
-                    'title': 'Merged via PR ids',
-                    'brand': 'KitchenAid',
-                    'model': 'Y',
-                    'description': '',
-                    'specs': {},
-                    'tags': '',
-                    'taxonomy': '',
-                    'category': 'Small Appliances',
-                },
-            },
-            format='json',
-        )
-        self.assertEqual(r.status_code, 200, r.data)
-        self.mr1.refresh_from_db()
-        self.mr2.refresh_from_db()
-        self.assertEqual(self.mr1.matched_product_id, self.mr2.matched_product_id)
-        wp = r.data['workspace_patch']
-        self.assertTrue(all('processing_row_id' in row for row in wp['rows']))
-
     def test_processing_bulk_disposition_accepts_processing_row_ids(self):
         payload = {
             'processing_row_ids': [
@@ -710,21 +631,6 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             format='json',
         )
         self.assertEqual(r.status_code, 200, r.data)
-
-    def test_processing_merge_rows_rejects_manifest_processing_row_conflict(self):
-        pr1 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
-        pr2 = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr2)
-        r = self.client.post(
-            f'/api/inventory/orders/{self.po.id}/processing-merge-rows/',
-            {
-                'processing_row_ids': [pr1.id, pr2.id],
-                'manifest_row_ids': [self.mr2.id],
-                'field_values': {'title': 'x', 'brand': 'b', 'model': '', 'category': ''},
-            },
-            format='json',
-        )
-        self.assertEqual(r.status_code, 400, r.data)
-        self.assertIn('match', str(r.data.get('detail', '')).lower())
 
     def test_workspace_search_finds_tracking_json_via_search_string(self):
         pr = ProcessingRow.objects.get(purchase_order=self.po, row_number=1)
@@ -1010,7 +916,8 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertEqual(pr.identifiers['upc'], '111222333')
         self.assertEqual(pr.identifiers['asin'], 'B00TEST123')
         self.assertEqual(pr.identifiers['custom_ref'], 'vendor-abc')
-        self.assertEqual(self.mr1.identifiers['upc'], '111222333')
+        # Rule 1: row-default edits never touch the manifest (vendor claim stays frozen).
+        self.assertEqual(self.mr1.identifiers['upc'], '111')
         self.assertEqual(r.data['row']['identifiers']['asin'], 'B00TEST123')
 
         r2 = self.client.patch(
@@ -1025,7 +932,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         pr.refresh_from_db()
         self.mr1.refresh_from_db()
         self.assertEqual(pr.identifiers, {'upc': '999'})
-        self.assertEqual(self.mr1.identifiers, {'upc': '999'})
+        self.assertEqual(self.mr1.identifiers['upc'], '111')
         self.assertNotIn('asin', r2.data['row']['identifiers'])
 
     def test_processing_row_patch_legacy_upc_only(self):
@@ -1042,7 +949,8 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         pr.refresh_from_db()
         self.mr2.refresh_from_db()
         self.assertEqual(pr.identifiers['upc'], '555666777')
-        self.assertEqual(self.mr2.identifiers['upc'], '555666777')
+        # Rule 1: manifest UPC untouched by row-default edits.
+        self.assertEqual(self.mr2.identifiers['upc'], '222')
 
     def test_workspace_payload_includes_rollups(self):
         r = self.client.get(f'/api/inventory/orders/{self.po.id}/processing-workspace/')
@@ -1208,7 +1116,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         product_ids = set(Item.objects.filter(purchase_order=po, manifest_row=mr).values_list('product_id', flat=True))
         self.assertEqual(product_ids, {first_product_id})
         mr.refresh_from_db()
-        self.assertEqual(mr.matched_product_id, first_product_id)
+        self.assertIsNone(mr.matched_product_id)
 
     def test_check_in_overage_beyond_manifest_qty(self):
         po = PurchaseOrder.objects.create(

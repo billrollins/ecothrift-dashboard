@@ -18,6 +18,7 @@ if _env_path.is_file():
 else:
     config = Config(RepositoryEmpty())
 
+
 # ── Security ──────────────────────────────────────────────────────────────────
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
@@ -274,32 +275,60 @@ else:
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
 
-# ── AI / LLM (Anthropic Claude + optional xAI Grok) ──────────────────────────
+# ── AI / LLM — keys and models (single source: .env / Heroku config vars) ───
 def _normalize_anthropic_model_id(model_id: str) -> str:
     """Map invalid ids (e.g. claude-haiku-4-6 does not exist; Haiku 4.x is claude-haiku-4-5)."""
     mid = (model_id or '').strip()
-    if mid.lower().startswith('grok'):
+    if mid.lower().startswith('grok') or mid.lower().startswith('gemini'):
         return mid
     if mid == 'claude-haiku-4-6':
         return 'claude-haiku-4-5'
     return mid
 
 
-ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
-# xAI Grok (OpenAI-compatible API). GROK_API_KEY is an alias for convenience.
+def _ai_model_setting(env_key: str, default: str) -> str:
+    """Read ``AI_MODEL_*`` from .env; fall back to *default* when unset or blank."""
+    raw = config(env_key, default='').strip()
+    return _normalize_anthropic_model_id(raw or default)
+
+
+# --- API keys ---
+ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='').strip()
 XAI_API_KEY = (
-    config('XAI_API_KEY', default='').strip() or config('GROK_API_KEY', default='').strip()
+    config('XAI_API_KEY', default='').strip()
+    or config('GROK_API_KEY', default='').strip()
 )
 XAI_API_BASE = config('XAI_API_BASE', default='https://api.x.ai/v1').strip()
-# Which backend to use: auto | anthropic | xai
-# auto: model id starting with "grok" → xAI; otherwise Anthropic.
+GOOGLE_API_KEY = (
+    config('GOOGLE_API_KEY', default='').strip()
+    or config('GEMINI_API_KEY', default='').strip()
+)
+GEMINI_API_KEY = GOOGLE_API_KEY  # alias
+
+# --- Provider routing (llm_chat: auto | anthropic | xai) ---
+# auto: grok-* → xAI; otherwise Anthropic. Gemini paths use ai_cleanup / dedicated callers.
 AI_PROVIDER = config('AI_PROVIDER', default='auto').strip().lower()
-# Default model for most AI calls (Claude id or Grok id, e.g. grok-3, grok-4).
+
+# --- Base defaults (fallback when a purpose-specific knob is unset) ---
 AI_MODEL = _normalize_anthropic_model_id(config('AI_MODEL', default='claude-sonnet-4-6'))
-# Cheaper/faster model for high-volume paths (when those paths support it).
 AI_MODEL_FAST = _normalize_anthropic_model_id(config('AI_MODEL_FAST', default='claude-haiku-4-5'))
-# Backward compatibility: single knob — same as AI_MODEL.
-BUYING_CATEGORY_AI_MODEL = AI_MODEL
+
+# --- Purpose-specific models (see .env.example for which feature each drives) ---
+AI_MODEL_INVENTORY_CLEANUP = _ai_model_setting('AI_MODEL_INVENTORY_CLEANUP', 'gemini-2.5-flash')
+AI_MODEL_PREPROCESSING_SUGGEST = _ai_model_setting('AI_MODEL_PREPROCESSING_SUGGEST', AI_MODEL)
+AI_MODEL_SUGGEST_ITEM = _ai_model_setting('AI_MODEL_SUGGEST_ITEM', AI_MODEL_FAST)
+AI_MODEL_SUGGEST_FINALIZATION = _ai_model_setting('AI_MODEL_SUGGEST_FINALIZATION', AI_MODEL)
+AI_MODEL_AI_CHAT = _ai_model_setting('AI_MODEL_AI_CHAT', AI_MODEL)
+AI_MODEL_MANIFEST_TEMPLATE = _ai_model_setting('AI_MODEL_MANIFEST_TEMPLATE', AI_MODEL)
+AI_MODEL_CATEGORY_AI = _ai_model_setting('AI_MODEL_CATEGORY_AI', AI_MODEL)
+AI_MODEL_KEY_MAPPING = _ai_model_setting('AI_MODEL_KEY_MAPPING', AI_MODEL)
+AI_MODEL_TITLE_CATEGORY_ESTIMATE = _ai_model_setting('AI_MODEL_TITLE_CATEGORY_ESTIMATE', AI_MODEL_FAST)
+AI_MODEL_INVENTORY_CLASSIFY = _ai_model_setting('AI_MODEL_INVENTORY_CLASSIFY', AI_MODEL_FAST)
+# Reserved — match-products endpoint is deprecated (410).
+AI_MODEL_MATCH_PRODUCTS = _ai_model_setting('AI_MODEL_MATCH_PRODUCTS', AI_MODEL)
+
+# Backward compatibility alias used by buying category AI.
+BUYING_CATEGORY_AI_MODEL = AI_MODEL_CATEGORY_AI
 
 # USD per 1M tokens (update when Anthropic changes pricing; restart required).
 AI_PRICING = {

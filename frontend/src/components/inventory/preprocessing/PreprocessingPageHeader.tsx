@@ -6,15 +6,50 @@ interface PreprocessingPageHeaderProps {
   orders: PreprocessingQueueOrder[];
   selectedOrderId: number;
   onSelectOrderId: (id: number) => void;
+  vendorName?: string;
+  orderTitle?: string;
   totalUnits: number;
   estimatedRetailLabel: string;
   onBackToOrder: () => void;
+}
+
+/** Processing-header-style fact: tiny uppercase label over an ellipsized value.
+    Hover shows the full value; with href the value is a link (e.g. to the order). */
+function HeaderFact({ label, value, maxWidth, href }: { label: string; value: string; maxWidth: number; href?: string }) {
+  if (!value) return null;
+  return (
+    <Box sx={{ minWidth: 0, maxWidth }}>
+      <Typography sx={{ fontSize: 10, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: 0.05, lineHeight: 1.2 }}>
+        {label}
+      </Typography>
+      <Typography
+        component={href ? 'a' : 'p'}
+        href={href}
+        title={value}
+        sx={{
+          display: 'block',
+          fontSize: 13,
+          color: href ? '#2D6A4F' : '#333',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          lineHeight: 1.3,
+          textDecoration: 'none',
+          '&:hover': href ? { textDecoration: 'underline' } : undefined,
+        }}
+      >
+        {value}
+      </Typography>
+    </Box>
+  );
 }
 
 export function PreprocessingPageHeader({
   orders,
   selectedOrderId,
   onSelectOrderId,
+  vendorName = '',
+  orderTitle = '',
   totalUnits,
   estimatedRetailLabel,
   onBackToOrder,
@@ -37,19 +72,19 @@ export function PreprocessingPageHeader({
         fontFamily: preprocessingFonts.sans,
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', minWidth: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', minWidth: 0, flex: 1 }}>
         <Typography component="h1" sx={{ fontSize: 18, fontWeight: 700, color: '#1B4332', m: 0 }}>
           Preprocessing
         </Typography>
         <Autocomplete
           size="small"
-          sx={{ minWidth: 280, maxWidth: '100%' }}
+          sx={{ width: 250, flexShrink: 0 }}
           options={orders}
           value={selected}
           onChange={(_e, v) => {
             if (v) onSelectOrderId(v.id);
           }}
-          getOptionLabel={(o) => `${o.order_number} — ${o.vendor_name}`}
+          getOptionLabel={(o) => o.order_number}
           isOptionEqualToValue={(a, b) => a.id === b.id}
           renderOption={(props, option) => {
             const { key, ...rest } = props as { key?: string };
@@ -83,15 +118,23 @@ export function PreprocessingPageHeader({
                   borderRadius: '6px',
                   bgcolor: '#fff',
                   fontSize: 14,
+                  fontWeight: 600,
                 },
               }}
             />
           )}
         />
+        <HeaderFact label="Vendor" value={vendorName} maxWidth={160} />
+        <HeaderFact
+          label="Load description"
+          value={orderTitle}
+          maxWidth={520}
+          href={selectedOrderId ? `/inventory/orders/${selectedOrderId}` : undefined}
+        />
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
         <Typography sx={{ fontSize: 13, color: '#888' }}>
-          {totalUnits} units · Est. {estimatedRetailLabel}
+          {Number(totalUnits ?? 0).toLocaleString()} units · Est. {estimatedRetailLabel}
         </Typography>
         <Button
           variant="outlined"

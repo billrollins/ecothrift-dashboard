@@ -12,6 +12,13 @@ export interface CheckedInHistoryRow {
   batchProductCategory?: string | null;
 }
 
+export interface ProductGroupedHistory {
+  productId: number | null;
+  productLabel: string;
+  totalQty: number;
+  historyRows: CheckedInHistoryRow[];
+}
+
 export function isCheckedInItem(it: ProcessingWorkspaceItemDTO): boolean {
   return it.status !== 'intake' && it.status !== 'processing';
 }
@@ -74,6 +81,45 @@ export function productKeyForItem(it: ProcessingWorkspaceItemDTO): string {
 
 export function distinctProductCount(items: ProcessingWorkspaceItemDTO[]): number {
   return new Set(items.map(productKeyForItem)).size;
+}
+
+function productLabelForHistoryRow(row: CheckedInHistoryRow): string {
+  const item = row.item;
+  if (item.product_title?.trim()) return item.product_title.trim();
+  if (item.product_number) return item.product_number;
+  if (item.product != null) return `Product #${item.product}`;
+  return 'Unknown product';
+}
+
+export function buildProductGroupedHistory(
+  items: ProcessingWorkspaceItemDTO[] | undefined,
+  batches: ProcessingCheckInBatchDTO[],
+): ProductGroupedHistory[] {
+  const historyRows = buildCheckedInHistoryRows(items, batches);
+  const groups = new Map<string, ProductGroupedHistory>();
+
+  for (const row of historyRows) {
+    const key = productKeyForItem(row.item);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.historyRows.push(row);
+      existing.totalQty += row.qty;
+      continue;
+    }
+    groups.set(key, {
+      productId: row.item.product ?? null,
+      productLabel: productLabelForHistoryRow(row),
+      totalQty: row.qty,
+      historyRows: [row],
+    });
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      historyRows: [...group.historyRows].sort((a, b) => b.checkedInAt.localeCompare(a.checkedInAt)),
+    }))
+    .sort((a, b) => b.totalQty - a.totalQty || a.productLabel.localeCompare(b.productLabel));
 }
 
 export function disputedItemCount(items: ProcessingWorkspaceItemDTO[]): number {

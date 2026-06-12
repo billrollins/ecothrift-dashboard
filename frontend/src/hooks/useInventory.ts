@@ -34,7 +34,6 @@ import {
   previewStandardize,
   processManifest,
   updateManifestPricing,
-  matchProducts,
   createItems,
   finalizePreprocessing,
   markOrderComplete,
@@ -65,16 +64,10 @@ import {
   detachBatchItem,
   getItemHistory,
   suggestFormulas,
-  aiCleanupRows,
   getAICleanupStatus,
   cancelAICleanup,
-  clearManifestRows,
-  getMatchResults,
-  reviewMatches,
   suggestFinalization,
   finalizeRows,
-  undoProductMatching,
-  clearPricing,
   getCleanupModels,
   addCleanupModel,
   setDefaultCleanupModel,
@@ -94,10 +87,7 @@ import { prepS1 } from '../utils/preprocessingStep1Diag';
 import { devLog } from '../utils/logger';
 import type {
   SuggestFormulasPayload,
-  AICleanupRowsPayload,
   IntakeUndoStage,
-  MatchProductsPayload,
-  ReviewMatchesPayload,
   SuggestFinalizationPayload,
   FinalizeRowsPayload,
   SuggestItemRequest,
@@ -579,7 +569,6 @@ export function useUpdateManifestPricing() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.orderId] });
-      queryClient.invalidateQueries({ queryKey: ['matchResults', variables.orderId] });
     },
   });
 }
@@ -589,21 +578,6 @@ export function useSuggestFormulas() {
     mutationFn: async ({ orderId, data }: { orderId: number; data?: SuggestFormulasPayload }) => {
       const { data: result } = await suggestFormulas(orderId, data);
       return result;
-    },
-  });
-}
-
-export function useAICleanupRows() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ orderId, data }: { orderId: number; data?: AICleanupRowsPayload }) => {
-      const { data: result } = await aiCleanupRows(orderId, data);
-      return result;
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', variables.orderId] });
-      queryClient.invalidateQueries({ queryKey: ['aiCleanupStatus', variables.orderId] });
     },
   });
 }
@@ -636,97 +610,6 @@ export function useCancelAICleanup() {
   });
 }
 
-export function useClearManifestRows() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (orderId: number) => {
-      const { data } = await clearManifestRows(orderId);
-      return data;
-    },
-    onSuccess: (_data, orderId) => {
-      queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', orderId] });
-      queryClient.invalidateQueries({ queryKey: ['aiCleanupStatus', orderId] });
-      queryClient.invalidateQueries({ queryKey: ['manualReview', orderId] });
-      queryClient.invalidateQueries({ queryKey: ['preprocessingQueue'] });
-    },
-  });
-}
-
-export function useUndoProductMatching() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (orderId: number) => {
-      const { data } = await undoProductMatching(orderId);
-      return data;
-    },
-    onSuccess: (_data, orderId) => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
-      queryClient.invalidateQueries({ queryKey: ['matchResults', orderId] });
-    },
-  });
-}
-
-export function useClearPricing() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (orderId: number) => {
-      const { data } = await clearPricing(orderId);
-      return data;
-    },
-    onSuccess: (_data, orderId) => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
-      queryClient.invalidateQueries({ queryKey: ['matchResults', orderId] });
-    },
-  });
-}
-
-export function useMatchProducts() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ orderId, data }: { orderId: number; data?: MatchProductsPayload }) => {
-      const { data: result } = await matchProducts(orderId, data);
-      return result;
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.orderId] });
-      queryClient.invalidateQueries({ queryKey: ['matchResults', variables.orderId] });
-    },
-  });
-}
-
-export function useMatchResults(orderId: number | null | undefined) {
-  return useQuery({
-    queryKey: ['matchResults', orderId],
-    queryFn: async () => {
-      if (!orderId) return null;
-      const { data } = await getMatchResults(orderId);
-      return data;
-    },
-    enabled: !!orderId,
-  });
-}
-
-export function useReviewMatches() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ orderId, data }: { orderId: number; data: ReviewMatchesPayload }) => {
-      const { data: result } = await reviewMatches(orderId, data);
-      return result;
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.orderId] });
-      queryClient.invalidateQueries({ queryKey: ['matchResults', variables.orderId] });
-    },
-  });
-}
-
 export function useSuggestFinalization() {
   return useMutation({
     mutationFn: async ({ orderId, data }: { orderId: number; data?: SuggestFinalizationPayload }) => {
@@ -747,7 +630,6 @@ export function useFinalizeRows() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.orderId] });
-      queryClient.invalidateQueries({ queryKey: ['matchResults', variables.orderId] });
     },
   });
 }
@@ -866,13 +748,22 @@ export function useUploadCleanupCsv() {
 export function useUploadCleanupCsvRows() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ orderId, rows }: { orderId: number; rows: import('../api/inventory.api').CleanupCsvApplyRowPayload[] }) => {
-      const { data } = await uploadCleanupCsvRows(orderId, rows);
+    mutationFn: async ({
+      orderId,
+      rows,
+      partial,
+    }: {
+      orderId: number;
+      rows: import('../api/inventory.api').CleanupCsvApplyRowPayload[];
+      partial?: boolean;
+    }) => {
+      const { data } = await uploadCleanupCsvRows(orderId, rows, { partial });
       return data;
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', variables.orderId] });
       queryClient.invalidateQueries({ queryKey: ['preprocessingReview', variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: ['aiCleanupStatus', variables.orderId] });
     },
   });
 }
@@ -981,6 +872,35 @@ export function useUpdatePreprocessingReview() {
     },
   });
 }
+
+export function useUpdatePreprocessingMatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      rowId,
+      finalMatchedProduct,
+      decision,
+    }: {
+      orderId: number;
+      rowId: number;
+      finalMatchedProduct: number | null;
+      /** 'unset' removes the match decision entirely (back to undecided). */
+      decision?: 'unset';
+    }) => {
+      const { data } = await updatePreprocessingReview(orderId, [
+        decision === 'unset'
+          ? { id: rowId, final_matched_product: null, match_source: '' }
+          : { id: rowId, final_matched_product: finalMatchedProduct },
+      ]);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['preprocessingReview', variables.orderId] });
+    },
+  });
+}
+
 
 export function useResetPreprocessingReviewFinal() {
   const queryClient = useQueryClient();

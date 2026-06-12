@@ -17,16 +17,14 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
-  MenuItem,
   Paper,
   Stack,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type ReactNode, type WheelEvent } from 'react';
-import { getProducts } from '../../../api/inventory.api';
+import { useProductSearch, useProductUsage } from '../../../hooks/useProductSearch';
 import { useAISuggestItem } from '../../../hooks/useInventory';
 import { preventWheelChangeNumber } from '../../../utils/formInputs';
 import type {
@@ -45,6 +43,9 @@ import {
   PROCESSING_ITEM_DISPATCH_OPTIONS,
 } from './processingItemFormOptions';
 import { formatSearchTagsCsv } from './processingGoogleQuery';
+import { effectiveRowQty } from './processingQueueCellText';
+import { isLargeCheckIn, MAX_CHECK_IN_QUANTITY } from './largeCheckIn';
+import { LargeCheckInConfirmDialog } from './LargeCheckInConfirmDialog';
 import { identifiersSummary } from './processingManifestSummary';
 import { processingTokens } from './processingTokens';
 
@@ -55,7 +56,8 @@ type FieldDensity = 'compact' | 'normal' | 'emphasized';
 const AI_FIELDS = ['title', 'brand', 'model', 'category', 'condition', 'price', 'retail_value', 'specifications', 'search_tags', 'notes'];
 const APPLYABLE_AI_FIELDS = new Set(AI_FIELDS);
 const FIELD_GRID = { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' };
-const MAX_CHECK_IN_QTY = 500;
+// Owner ruling: no low cap — large quantities confirm via LargeCheckInConfirmDialog instead.
+const MAX_CHECK_IN_QTY = MAX_CHECK_IN_QUANTITY;
 
 const FIELD_DENSITY_SX: Record<FieldDensity, { input: string; label: string; inputPy?: number }> = {
   compact: { input: '0.6875rem', label: '0.625rem' },
@@ -328,52 +330,79 @@ function FieldText({
   );
 }
 
-function FieldSelect({
+/**
+ * Buttons-first single-choice control (P8: owner wants buttons rather than dropdowns —
+ * every option visible, one click to change, no menu-open latency).
+ */
+function SegmentedButtons({
   label,
   value,
+  options,
   onChange,
   disabled,
   helperText,
-  children,
-  density = 'normal',
+  gridColumn,
 }: {
   label: string;
   value: string;
+  options: Array<{ value: string; label: string; hint?: string }>;
   onChange: (value: string) => void;
   disabled?: boolean;
   helperText?: string;
-  children: ReactNode;
-  density?: FieldDensity;
+  gridColumn?: string;
 }) {
-  const metrics = FIELD_DENSITY_SX[density];
-  const tooltipValue = helperText ? `${value}${helperText ? `\n${helperText}` : ''}` : value;
-  const field = (
-    <TextField
-      select
-      label={label}
-      size="small"
-      value={value}
-      disabled={disabled}
-      helperText={helperText}
-      onChange={(event) => onChange(event.target.value)}
-      fullWidth
-      sx={{
-        '& .MuiInputBase-input': { fontSize: metrics.input },
-        '& .MuiInputLabel-root': { fontSize: metrics.label },
-      }}
-    >
-      {children}
-    </TextField>
-  );
-
-  if (!value.trim()) return field;
-
   return (
-    <Tooltip title={tooltipValue} enterDelay={350} disableInteractive>
-      <Box component="span" sx={{ display: 'block', minWidth: 0 }}>
-        {field}
+    <Box sx={{ minWidth: 0, ...(gridColumn ? { gridColumn } : {}) }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: 'block', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: '0.62rem', mb: 0.4 }}
+      >
+        {label}
+      </Typography>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+        {options.map((option) => {
+          const active = option.value === value;
+          const btn = (
+            <Button
+              key={option.value}
+              size="small"
+              disabled={disabled}
+              onClick={() => onChange(option.value)}
+              disableElevation
+              variant={active ? 'contained' : 'outlined'}
+              color={active ? 'primary' : 'inherit'}
+              sx={{
+                px: 1.1,
+                py: 0.35,
+                minWidth: 0,
+                textTransform: 'none',
+                fontWeight: active ? 800 : 600,
+                fontSize: '0.74rem',
+                lineHeight: 1.3,
+                borderColor: active ? undefined : processingTokens.border,
+                color: active ? undefined : processingTokens.textSoft,
+                bgcolor: active ? undefined : processingTokens.surfaceRaised,
+              }}
+            >
+              {option.label}
+            </Button>
+          );
+          return option.hint ? (
+            <Tooltip key={option.value} title={option.hint} enterDelay={400} disableInteractive>
+              <span>{btn}</span>
+            </Tooltip>
+          ) : (
+            btn
+          );
+        })}
       </Box>
-    </Tooltip>
+      {helperText ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, lineHeight: 1.2 }}>
+          {helperText}
+        </Typography>
+      ) : null}
+    </Box>
   );
 }
 
@@ -422,6 +451,8 @@ export function ProcessingCheckInDialog({
   const [pCategory, setPCategory] = useState('');
   const [pUpc, setPUpc] = useState('');
   const [searchTagsCsv, setSearchTagsCsv] = useState('');
+  /** Pending large check-in awaiting confirmation; value = printLabels of the request. */
+  const [volumeConfirm, setVolumeConfirm] = useState<boolean | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, unknown> | null>(null);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiSpecs, setAiSpecs] = useState<Record<string, unknown> | null>(null);
@@ -429,19 +460,39 @@ export function ProcessingCheckInDialog({
 
   const selectedPriorProduct = priorProducts.find((product) => product.id === selectedPriorProductId) ?? null;
 
-  const { data: productsPage, isFetching: productsFetching } = useQuery({
-    queryKey: ['products', 'processing-check-in', productSearch],
-    queryFn: async () => {
-      const { data } = await getProducts({ search: productSearch.trim() || undefined, page_size: 25 });
-      return data;
-    },
-    enabled: open && productMode === 'existing',
-    staleTime: 30_000,
-  });
-  const productOptions = useMemo(() => productsPage?.results ?? [], [productsPage?.results]);
+  const { products: productOptions, isFetching: productsFetching } = useProductSearch(
+    'processing-check-in',
+    productSearch,
+    open && productMode === 'existing',
+    25,
+  );
+
+  // Blast-radius fetch only when staff pick "Edit linked" — nothing loads on dialog open.
+  const editTargetProductId =
+    open && productMode === 'edit' ? (rowLinkedProduct?.id ?? null) : null;
+  const { usage: editUsage } = useProductUsage(editTargetProductId);
+
+  const productModeOptions = useMemo(() => {
+    const options: Array<{ value: string; label: string; hint?: string }> = [
+      { value: 'new', label: 'New product', hint: 'Create a new catalog Product from the fields below.' },
+    ];
+    if (priorProducts.length) {
+      options.push({ value: 'prior', label: 'Prior from row', hint: 'Reuse a Product already checked in on this row.' });
+    }
+    options.push({ value: 'existing', label: 'Search catalog', hint: 'Pick any existing catalog Product.' });
+    if (rowLinkedProduct) {
+      options.push(
+        { value: 'keep', label: 'Keep linked', hint: `Use ${productLabel(rowLinkedProduct)} as-is.` },
+        { value: 'edit', label: 'Edit linked', hint: `Update the shared fields on ${productLabel(rowLinkedProduct)}.` },
+      );
+    }
+    return options;
+  }, [priorProducts.length, rowLinkedProduct]);
 
   const qtyValue = Math.max(1, Number.parseInt(quantity, 10) || 1);
-  const qtyLeftAfter = Math.max(0, (row.qtyRemaining ?? Math.max(0, row.qty - row.qtyDispositioned)) - qtyValue);
+  // P7 collapse: masters cap/report against the COMBINED group numbers.
+  const effQty = effectiveRowQty(row);
+  const qtyLeftAfter = Math.max(0, effQty.remaining - qtyValue);
   const salvageLocked = condition === 'salvage';
   const existingSelectionRequired = productMode === 'existing' && !selectedExistingProduct;
   const priorSelectionRequired = productMode === 'prior' && !selectedPriorProduct;
@@ -463,7 +514,12 @@ export function ProcessingCheckInDialog({
     if (!open) return;
     const defaults = seed?.batch?.defaults ?? {};
     const seedProductId = seed?.batch?.product?.id ?? null;
-    const defaultMode: CheckInProductMode = seedProductId ? 'prior' : 'new';
+    const hasLinkedProduct = Boolean(row.productId && row.product);
+    const defaultMode: CheckInProductMode = seedProductId
+      ? 'prior'
+      : hasLinkedProduct
+        ? 'keep'
+        : 'new';
 
     setQuantity('1');
     setCondition(normalizeProcessingCondition(seed?.item.condition || seed?.item.condition_label || row.condition));
@@ -475,16 +531,49 @@ export function ProcessingCheckInDialog({
     setSelectedExistingProduct(null);
     setSelectedPriorProductId(seedProductId);
     setProductSearch('');
-    setPTitle(seed?.item.product_title || seed?.batch?.product?.title || row.title || rowLinkedProduct?.title || '');
-    setPBrand(seed?.item.product_brand || seed?.batch?.product?.brand || row.brand || rowLinkedProduct?.brand || '');
-    setPModel(seed?.item.product_model || seed?.batch?.product?.model || row.model || rowLinkedProduct?.model || '');
-    setPCategory(seed?.batch?.product?.category || row.category || rowLinkedProduct?.category || '');
-    setPUpc(seed?.batch?.product?.upc || rowLinkedProduct?.upc || String((row.identifiers as { upc?: string })?.upc || ''));
+    setPTitle(
+      seed?.item.product_title
+      || seed?.batch?.product?.title
+      || (defaultMode === 'keep' ? row.product?.title : null)
+      || row.title
+      || rowLinkedProduct?.title
+      || '',
+    );
+    setPBrand(
+      seed?.item.product_brand
+      || seed?.batch?.product?.brand
+      || (defaultMode === 'keep' ? row.product?.brand : null)
+      || row.brand
+      || rowLinkedProduct?.brand
+      || '',
+    );
+    setPModel(
+      seed?.item.product_model
+      || seed?.batch?.product?.model
+      || (defaultMode === 'keep' ? row.product?.model : null)
+      || row.model
+      || rowLinkedProduct?.model
+      || '',
+    );
+    setPCategory(
+      seed?.batch?.product?.category
+      || (defaultMode === 'keep' ? row.product?.category : null)
+      || row.category
+      || rowLinkedProduct?.category
+      || '',
+    );
+    setPUpc(
+      seed?.batch?.product?.upc
+      || (defaultMode === 'keep' ? row.product?.upc : null)
+      || rowLinkedProduct?.upc
+      || String((row.identifiers as { upc?: string })?.upc || ''),
+    );
     setSearchTagsCsv(row.tags || '');
     setAiSuggestions(null);
     setAiMessage(null);
     setAiSpecs(null);
     setAiSearchTags([]);
+    setVolumeConfirm(null);
   }, [open, seed, row, rowLinkedProduct]);
 
   function switchToNewForIdentityEdit() {
@@ -630,9 +719,18 @@ export function ProcessingCheckInDialog({
     return payload;
   }
 
-  async function submit(printLabels: boolean) {
+  async function doSubmit(printLabels: boolean) {
     const ok = await onSubmit(buildPayload(), { printLabels });
     if (ok) onClose();
+  }
+
+  async function submit(printLabels: boolean) {
+    if (isLargeCheckIn(qtyValue)) {
+      // Big runs confirm intent first; printing additionally requires typing PRINT <qty>.
+      setVolumeConfirm(printLabels);
+      return;
+    }
+    await doSubmit(printLabels);
   }
 
   const suggestionEntries = aiSuggestions ?
@@ -657,7 +755,9 @@ export function ProcessingCheckInDialog({
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 1.25 }}>
           <Box sx={{ minWidth: 0, justifySelf: 'start' }}>
             <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.1 }}>
-              Row {row.rowNum} detailed check-in
+              {row.collapsedGroup ?
+                `Rows ${[row.rowNum, ...row.collapsedGroup.memberRowNumbers].join(', ')} (collapsed) detailed check-in`
+              : `Row ${row.rowNum} detailed check-in`}
             </Typography>
             <Typography variant="h6" sx={{ lineHeight: 1.15 }}>
               Create checked-in item(s)
@@ -673,7 +773,7 @@ export function ProcessingCheckInDialog({
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.75, justifySelf: 'end' }}>
             <Stack direction="row" spacing={0.75} sx={{ display: { xs: 'none', md: 'flex' } }}>
               <MetricPill label="Left after" value={qtyLeftAfter} tone={qtyLeftAfter === 0 ? 'good' : 'warning'} />
-              <MetricPill label="Prior" value={row.qtyDispositioned ?? 0} />
+              <MetricPill label="Prior" value={effQty.dispositioned} />
             </Stack>
             <IconButton aria-label="Close check-in" onClick={onClose} disabled={loading} size="small">
               <Close />
@@ -708,41 +808,37 @@ export function ProcessingCheckInDialog({
               }
             >
               <Stack spacing={1}>
-                <TextField
-                  select
-                  size="small"
+                <SegmentedButtons
                   label="Product action"
                   value={productMode}
-                  onChange={(event) => handleProductModeChange(event.target.value as CheckInProductMode)}
-                  fullWidth
-                >
-                  <MenuItem value="new">Create new Product for this check-in</MenuItem>
-                  {priorProducts.length ? <MenuItem value="prior">Use prior Product from this row</MenuItem> : null}
-                  <MenuItem value="existing">Use existing catalog Product</MenuItem>
-                  {rowLinkedProduct ? <MenuItem value="keep">Use row-linked Product without edits</MenuItem> : null}
-                  {rowLinkedProduct ? <MenuItem value="edit">Edit shared row-linked Product</MenuItem> : null}
-                </TextField>
+                  options={productModeOptions}
+                  disabled={loading}
+                  onChange={(mode) => handleProductModeChange(mode as CheckInProductMode)}
+                />
 
                 {productMode === 'prior' ? (
-                  <TextField
-                    select
-                    size="small"
-                    label="Prior Product"
-                    value={selectedPriorProductId ?? ''}
-                    onChange={(event) => {
-                      const id = Number(event.target.value);
+                  <SegmentedButtons
+                    label="Prior product"
+                    value={selectedPriorProductId != null ? String(selectedPriorProductId) : ''}
+                    options={priorProducts.map((product) => ({
+                      value: String(product.id),
+                      label: productLabel(product),
+                    }))}
+                    disabled={loading}
+                    onChange={(raw) => {
+                      const id = Number(raw);
                       const product = priorProducts.find((p) => p.id === id) ?? null;
                       setSelectedPriorProductId(product?.id ?? null);
                       if (product) fillProductFields(product);
                     }}
-                    fullWidth
-                  >
-                    {priorProducts.map((product) => (
-                      <MenuItem key={product.id} value={product.id}>
-                        {productLabel(product)}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                  />
+                ) : null}
+
+                {productMode === 'edit' && editUsage && (editUsage.item_count > 0 || editUsage.order_count > 0) ? (
+                  <Alert severity="warning" sx={{ py: 0.35 }}>
+                    Editing this shared product affects <strong>{editUsage.item_count.toLocaleString()} item{editUsage.item_count === 1 ? '' : 's'}</strong>{' '}
+                    across <strong>{editUsage.order_count.toLocaleString()} order{editUsage.order_count === 1 ? '' : 's'}</strong>.
+                  </Alert>
                 ) : null}
 
                 {productMode === 'existing' ? (
@@ -842,34 +938,33 @@ export function ProcessingCheckInDialog({
 
             <CheckInSectionCard title="Item" note="These values apply to the item(s) created by this check-in.">
               <Box sx={{ display: 'grid', gridTemplateColumns: FIELD_GRID, gap: 1 }}>
-                <FieldSelect
+                <SegmentedButtons
                   label="Condition"
                   value={condition}
+                  gridColumn="1 / -1"
+                  disabled={loading}
+                  options={PROCESSING_ITEM_CONDITION_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
                   onChange={(next) => {
                     const normalized = normalizeProcessingCondition(next);
                     setCondition(normalized);
                     if (normalized === 'salvage') setDispatch('salvage');
                   }}
-                >
-                  {PROCESSING_ITEM_CONDITION_OPTIONS.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </FieldSelect>
-                <FieldSelect
+                />
+                <SegmentedButtons
                   label="Location / dispatch"
                   value={dispatch}
-                  disabled={salvageLocked}
+                  gridColumn="1 / -1"
+                  disabled={loading || salvageLocked}
                   helperText={salvageLocked ? 'Salvage condition routes to salvage.' : undefined}
+                  options={PROCESSING_ITEM_DISPATCH_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
                   onChange={setDispatch}
-                >
-                  {PROCESSING_ITEM_DISPATCH_OPTIONS.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </FieldSelect>
+                />
                 <FieldText label="Shelf price" value={price} onChange={setPrice} />
                 <FieldText
                   label="Retail"
@@ -910,6 +1005,19 @@ export function ProcessingCheckInDialog({
           Check in & print
         </Button>
       </DialogActions>
+
+      <LargeCheckInConfirmDialog
+        open={volumeConfirm != null}
+        quantity={qtyValue}
+        printLabels={volumeConfirm === true}
+        loading={loading}
+        onCancel={() => setVolumeConfirm(null)}
+        onConfirm={() => {
+          const printLabels = volumeConfirm === true;
+          setVolumeConfirm(null);
+          void doSubmit(printLabels);
+        }}
+      />
     </Dialog>
   );
 }

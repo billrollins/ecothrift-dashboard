@@ -90,10 +90,10 @@ export interface RowUpcSource {
 
 /** Primary manifest UPC string for exact matching. */
 export function rowPrimaryUpc(row: RowUpcSource): string {
+  const fromProduct = row.product?.upc?.trim() ?? '';
   const id = row.identifiers?.upc;
   const fromId = typeof id === 'string' ? id : '';
-  const fromProduct = row.product?.upc?.trim() ?? '';
-  return (fromId || fromProduct).trim();
+  return (fromProduct || fromId).trim();
 }
 
 /**

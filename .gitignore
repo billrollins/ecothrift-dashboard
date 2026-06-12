@@ -11,6 +11,7 @@ __pycache__/
 *.egg-info/
 venv/
 .env
+.envprod
 
 # Jupyter (any directory in the repo)
 .ipynb_checkpoints/
