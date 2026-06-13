@@ -21,6 +21,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.core.services.llm_router import LLMResult
 from apps.inventory.models import (
     Item,
     ManifestRow,
@@ -31,35 +32,13 @@ from apps.inventory.models import (
 )
 
 
-class _FakeBlock:
-    type = 'text'
-
-    def __init__(self, text):
-        self.text = text
-
-
-class _FakeUsage:
-    input_tokens = 100
-    output_tokens = 100
-
-
-class _FakeResponse:
-    def __init__(self, payload):
-        self.content = [_FakeBlock(json.dumps(payload))]
-        self.usage = _FakeUsage()
-
-
-class _FakeMessages:
-    def __init__(self, responder):
-        self._responder = responder
-
-    def create(self, **kwargs):
-        return self._responder(kwargs)
-
-
-class _FakeAnthropicClient:
-    def __init__(self, responder):
-        self.messages = _FakeMessages(responder)
+def _llm_result(payload, *, model_used='claude-haiku-4-5'):
+    return LLMResult(
+        text=json.dumps(payload),
+        model_used=model_used,
+        input_tokens=100,
+        output_tokens=100,
+    )
 
 
 def _suggestion(row, **overrides):
@@ -127,10 +106,18 @@ class AiCleanupBatchTestBase(TestCase):
             **kwargs,
         )
 
-    def _patch_client(self, responder):
+    def _patch_llm(self, responder):
+        def side_effect(**kwargs):
+            out = responder(kwargs)
+            if isinstance(out, LLMResult):
+                return out
+            if isinstance(out, list):
+                return _llm_result(out)
+            raise TypeError(f'unexpected mock llm response: {type(out)!r}')
+
         return mock.patch(
-            'apps.inventory.services.ai_cleanup.create_anthropic_client',
-            return_value=_FakeAnthropicClient(responder),
+            'apps.core.services.llm_router.llm_complete',
+            side_effect=side_effect,
         )
 
     def _post_batch(self, row_ids, **extra):
@@ -148,14 +135,14 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         r2 = self._staging_row(2)
 
         def responder(kwargs):
-            payload = json.loads(kwargs['messages'][0]['content'])
+            payload = json.loads(kwargs['user'])
             self.assertEqual([p['row_id'] for p in payload], [r1.id, r2.id])
-            return _FakeResponse([
+            return [
                 _suggestion(r1),
                 _suggestion(r2, low_confidence=True, low_confidence_reason='vague row'),
-            ])
+            ]
 
-        with self._patch_client(responder):
+        with self._patch_llm(responder):
             resp = self._post_batch([r1.id, r2.id])
 
         self.assertEqual(resp.status_code, 200, resp.data)
@@ -179,9 +166,9 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
     def test_retail_suspect_flags_row_without_pricing(self):
         """A flagged retail typo must not produce a price — it would skew everything."""
         r1 = self._staging_row(1)
-        with self._patch_client(lambda kwargs: _FakeResponse([
+        with self._patch_llm(lambda kwargs: [
             _suggestion(r1, retail_suspect=True, retail_suspect_reason='looks x100 off'),
-        ])):
+        ]):
             resp = self._post_batch([r1.id])
         self.assertEqual(resp.status_code, 200, resp.data)
         r1.refresh_from_db()
@@ -196,14 +183,14 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         mr_title_before = r1.manifest_row.title
         mr_brand_before = r1.manifest_row.brand
 
-        with self._patch_client(lambda kwargs: _FakeResponse([_suggestion(r1)])):
+        with self._patch_llm(lambda kwargs: [_suggestion(r1)]):
             resp = self._post_batch([r1.id])
 
         self.assertEqual(resp.status_code, 200, resp.data)
         mr = ManifestRow.objects.get(pk=r1.manifest_row_id)
         self.assertEqual(mr.title, mr_title_before)
         self.assertEqual(mr.brand, mr_brand_before)
-        self.assertEqual(Product.objects.count(), 0)
+        self.assertEqual(Product.objects.exclude(title='Generic Product', brand='Generic').count(), 0)
         self.assertEqual(Item.objects.count(), 0)
 
     def test_generation_guard_discards_save(self):
@@ -213,9 +200,9 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
             PurchaseOrder.objects.filter(pk=self.order.pk).update(
                 ai_cleanup_generation=self.order.ai_cleanup_generation + 1,
             )
-            return _FakeResponse([_suggestion(r1)])
+            return [_suggestion(r1)]
 
-        with self._patch_client(responder):
+        with self._patch_llm(responder):
             resp = self._post_batch([r1.id])
 
         self.assertEqual(resp.status_code, 200, resp.data)
@@ -230,11 +217,11 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         r2 = self._staging_row(2)
         r3 = self._staging_row(3)
 
-        with self._patch_client(lambda kwargs: _FakeResponse([
+        with self._patch_llm(lambda kwargs: [
             _suggestion(r1),
             _suggestion(r2, title=''),
             # r3 missing entirely
-        ])):
+        ]):
             resp = self._post_batch([r1.id, r2.id, r3.id])
 
         self.assertEqual(resp.status_code, 200, resp.data)
@@ -247,9 +234,9 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
 
     def test_invalid_category_and_condition_fall_back_clean(self):
         r1 = self._staging_row(1)
-        with self._patch_client(lambda kwargs: _FakeResponse([
+        with self._patch_llm(lambda kwargs: [
             _suggestion(r1, category='Not A Real Category', condition='sparkly'),
-        ])):
+        ]):
             resp = self._post_batch([r1.id])
         self.assertEqual(resp.status_code, 200, resp.data)
         r1.refresh_from_db()
@@ -284,36 +271,25 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         )
         self.assertEqual(resp.status_code, 409)
 
-    @override_settings(XAI_API_KEY='xai-test-key')
-    def test_grok_model_routes_to_xai_provider(self):
-        """grok-* model ids route to the xAI chat-completions path, not Anthropic."""
+    def test_unsupported_cleanup_model_returns_400(self):
+        """Only the canonical cleanup models are accepted on ai-cleanup-batch."""
         r1 = self._staging_row(1)
-        with mock.patch(
-            'apps.inventory.services.ai_cleanup.call_xai_cleanup',
-            return_value=json.dumps([_suggestion(r1)]),
-        ) as xai_call:
-            resp = self.client.post(
-                f'/api/inventory/orders/{self.order.id}/ai-cleanup-batch/',
-                {'row_ids': [r1.id], 'model': 'grok-4.3'},
-                format='json',
-            )
-        self.assertEqual(resp.status_code, 200, resp.data)
-        self.assertEqual(resp.data['rows_saved'], 1)
-        self.assertEqual(resp.data['model_used'], 'grok-4.3')
-        xai_call.assert_called_once()
-        self.assertEqual(xai_call.call_args.args[0], 'grok-4.3')
-        self.assertEqual(xai_call.call_args.args[1], 'xai-test-key')
-        r1.refresh_from_db()
-        self.assertEqual(r1.ai_title, 'Clean Title 1')
+        resp = self.client.post(
+            f'/api/inventory/orders/{self.order.id}/ai-cleanup-batch/',
+            {'row_ids': [r1.id], 'model': 'grok-4.3'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertEqual(resp.data['code'], 'invalid_model')
 
-    @override_settings(GOOGLE_API_KEY='google-test-key', AI_MODEL_INVENTORY_CLEANUP='gemini-2.5-flash')
+    @override_settings(GOOGLE_API_KEY='google-test-key', AI_MODEL_INVENTORY_CLEANUP='gemini-3.1-flash-lite')
     def test_gemini_model_routes_to_google_provider(self):
-        """gemini-* model ids route to the Google generateContent path."""
+        """gemini-3.1-flash-lite is passed through llm_complete with the Google API key."""
         r1 = self._staging_row(1)
         with mock.patch(
-            'apps.inventory.services.ai_cleanup.call_google_cleanup',
-            return_value=json.dumps([_suggestion(r1)]),
-        ) as google_call:
+            'apps.core.services.llm_router.llm_complete',
+            return_value=_llm_result([_suggestion(r1)], model_used='gemini-3.1-flash-lite'),
+        ) as llm_call:
             resp = self.client.post(
                 f'/api/inventory/orders/{self.order.id}/ai-cleanup-batch/',
                 {'row_ids': [r1.id]},
@@ -321,10 +297,41 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
             )
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertEqual(resp.data['rows_saved'], 1)
-        self.assertEqual(resp.data['model_used'], 'gemini-2.5-flash')
-        google_call.assert_called_once()
-        self.assertEqual(google_call.call_args.args[0], 'gemini-2.5-flash')
-        self.assertEqual(google_call.call_args.args[1], 'google-test-key')
+        self.assertEqual(resp.data['model_used'], 'gemini-3.1-flash-lite')
+        llm_call.assert_called_once()
+        self.assertEqual(llm_call.call_args.kwargs['model_id'], 'gemini-3.1-flash-lite')
+        self.assertEqual(llm_call.call_args.kwargs['api_key'], 'google-test-key')
+        self.assertEqual(llm_call.call_args.kwargs['log_source'], 'ai_cleanup_batch')
+
+    @override_settings(GOOGLE_API_KEY='google-test-key')
+    def test_gemini_batch_logs_usage(self):
+        """Gemini cleanup batches append ai_cleanup_batch lines via llm_complete logging."""
+        r1 = self._staging_row(1)
+        google_stub = lambda **kwargs: _llm_result(
+            [_suggestion(r1)], model_used='gemini-3.1-flash-lite',
+        )
+        with mock.patch.dict(
+            'apps.core.services.llm_router._PROVIDER_CALLS',
+            {'google': google_stub},
+        ):
+            with mock.patch('apps.core.services.ai_usage_log.log_ai_usage') as log_mock:
+                resp = self.client.post(
+                    f'/api/inventory/orders/{self.order.id}/ai-cleanup-batch/',
+                    {'row_ids': [r1.id], 'model': 'gemini-3.1-flash-lite'},
+                    format='json',
+                )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        log_mock.assert_called_once()
+        self.assertEqual(log_mock.call_args[0][0], 'ai_cleanup_batch')
+        self.assertEqual(log_mock.call_args[0][1], 'gemini-3.1-flash-lite')
+        self.assertIn('requested_model=gemini-3.1-flash-lite', log_mock.call_args.kwargs['detail'])
+
+    def test_cleanup_models_lists_canonical_choices(self):
+        resp = self.client.get(f'/api/inventory/orders/{self.order.id}/ai-cleanup-models/')
+        self.assertEqual(resp.status_code, 200)
+        ids = [m['id'] for m in resp.data['models']]
+        self.assertEqual(ids, ['gemini-3.1-flash-lite', 'claude-haiku-4-5'])
+        self.assertEqual(resp.data['default'], 'claude-haiku-4-5')
 
     def test_ai_failure_returns_retryable_502(self):
         r1 = self._staging_row(1)
@@ -332,7 +339,7 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         def responder(kwargs):
             raise RuntimeError('connection reset')
 
-        with self._patch_client(responder):
+        with self._patch_llm(responder):
             resp = self._post_batch([r1.id])
         self.assertEqual(resp.status_code, 502)
         self.assertTrue(resp.data['retryable'])
@@ -350,7 +357,7 @@ class AiCleanupStatusAndCompleteTests(AiCleanupBatchTestBase):
         self.assertEqual(resp.data['uncleaned_row_ids'], [r1.id, r2.id])
         self.assertIn('generation', resp.data)
 
-        with self._patch_client(lambda kwargs: _FakeResponse([_suggestion(r1)])):
+        with self._patch_llm(lambda kwargs: [_suggestion(r1)]):
             self._post_batch([r1.id])
 
         resp = self.client.get(f'/api/inventory/orders/{self.order.id}/ai-cleanup-status/')
@@ -358,7 +365,7 @@ class AiCleanupStatusAndCompleteTests(AiCleanupBatchTestBase):
         self.assertEqual(resp.data['uncleaned_row_ids'], [r2.id])
 
     def test_complete_sets_flags_and_generates_candidates(self):
-        product = Product.objects.create(title='Known Widget', upc='012345678905')
+        product = Product.objects.create(title='Known Widget', identifiers={'upc': '012345678905'})
         r1 = self._staging_row(1, ai_identifiers={'upc': '012345678905'}, ai_title='Known Widget')
         PreprocessingRow.objects.filter(pk=r1.pk).update(ai_reasoning='AI cleanup (web batch)')
 
@@ -381,7 +388,7 @@ class AiCleanupStatusAndCompleteTests(AiCleanupBatchTestBase):
 class CancelAiCleanupTests(AiCleanupBatchTestBase):
     def test_cancel_clears_final_snapshot_match_fields_and_flags(self):
         """Cancel must clear the WHOLE cleaned state (ai_* + final_* + matches), not just ai_*."""
-        product = Product.objects.create(title='Known Widget', upc='012345678905')
+        product = Product.objects.create(title='Known Widget', identifiers={'upc': '012345678905'})
         r1 = self._staging_row(1)
         PreprocessingRow.objects.filter(pk=r1.pk).update(
             ai_title='Clean Title',

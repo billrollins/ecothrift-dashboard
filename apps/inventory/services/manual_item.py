@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Any
 
 from apps.inventory.models import Category, Product
+from apps.inventory.product_identity import (
+    identifier_value,
+    merge_identifiers,
+    merge_tags,
+    normalize_identifiers,
+    normalize_tags,
+)
 
 _SEARCH_TAG_MAX = 8
 _SEARCH_TAG_LEN = 40
@@ -14,27 +20,7 @@ _SEARCH_TAG_LEN = 40
 def normalize_search_tags(value: Any, *, max_tags: int = _SEARCH_TAG_MAX, max_len: int = _SEARCH_TAG_LEN) -> list[str]:
     """Normalize AI/form search tags: trim, dedupe case-insensitively, cap count/length."""
 
-    if value is None:
-        return []
-    if isinstance(value, str):
-        parts = [p.strip() for p in value.split(',') if p.strip()]
-    elif isinstance(value, list):
-        parts = [str(x).strip() for x in value if str(x).strip()]
-    else:
-        return []
-
-    out: list[str] = []
-    seen: set[str] = set()
-    for part in parts:
-        tag = part[:max_len]
-        key = tag.lower()
-        if not tag or key in seen:
-            continue
-        seen.add(key)
-        out.append(tag)
-        if len(out) >= max_tags:
-            break
-    return out
+    return normalize_tags(value, max_tags=max_tags, max_len=max_len)
 
 
 def build_google_query(
@@ -67,36 +53,6 @@ def build_google_query(
     return ' '.join(parts)[:200]
 
 
-def merge_search_tags_into_specifications(
-    specs: dict[str, Any] | None,
-    new_tags: list[str],
-) -> dict[str, Any]:
-    """Conservatively merge durable search tags into Product.specifications."""
-
-    merged_specs = dict(specs) if isinstance(specs, dict) else {}
-    incoming = normalize_search_tags(new_tags)
-    if not incoming:
-        return merged_specs
-
-    existing = normalize_search_tags(merged_specs.get('search_tags'))
-    if not existing:
-        merged_specs['search_tags'] = incoming
-        return merged_specs
-
-    combined = list(existing)
-    seen = {tag.lower() for tag in combined}
-    for tag in incoming:
-        key = tag.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        combined.append(tag)
-        if len(combined) >= _SEARCH_TAG_MAX:
-            break
-    merged_specs['search_tags'] = combined
-    return merged_specs
-
-
 def _clean(value: Any, max_len: int | None = None) -> str:
     text = str(value or '').strip()
     if max_len is not None:
@@ -115,7 +71,7 @@ def _fill_product_blanks(
     *,
     category: str,
     model: str,
-    upc: str,
+    identifiers: dict[str, Any] | None = None,
     search_tags: list[str] | None = None,
 ) -> None:
     """Conservative enrichment for reused products: only fill empty identity gaps."""
@@ -132,15 +88,14 @@ def _fill_product_blanks(
     if model and not product.model:
         product.model = model
         update_fields.append('model')
-    if upc and not product.upc:
-        product.upc = upc
-        update_fields.append('upc')
-    tags = normalize_search_tags(search_tags)
-    if tags:
-        merged_specs = merge_search_tags_into_specifications(product.specifications, tags)
-        if merged_specs != (product.specifications or {}):
-            product.specifications = merged_specs
-            update_fields.append('specifications')
+    merged_identifiers = merge_identifiers(product.identifiers, identifiers)
+    if merged_identifiers != (product.identifiers or {}):
+        product.identifiers = merged_identifiers
+        update_fields.append('identifiers')
+    merged_tags = merge_tags(product.tags, search_tags)
+    if merged_tags != (product.tags or []):
+        product.tags = merged_tags
+        update_fields.append('tags')
     if update_fields:
         product.save(update_fields=[*update_fields, 'updated_at'])
 
@@ -152,10 +107,9 @@ def _update_existing_product(
     brand: str,
     category: str,
     model: str,
-    upc: str,
+    identifiers: dict[str, Any],
     specifications: dict[str, Any],
     search_tags: list[str] | None = None,
-    default_price: Decimal | None,
 ) -> Product:
     """Apply explicit item-edit product fields to an already linked product."""
 
@@ -165,7 +119,6 @@ def _update_existing_product(
         ('brand', brand),
         ('category', category),
         ('model', model),
-        ('upc', upc),
     ):
         if value and getattr(product, field) != value:
             setattr(product, field, value)
@@ -179,14 +132,17 @@ def _update_existing_product(
     merged_specs = dict(product.specifications) if isinstance(product.specifications, dict) else {}
     if specifications:
         merged_specs.update(specifications)
-    tag_specs = merge_search_tags_into_specifications(merged_specs, normalize_search_tags(search_tags))
-    if tag_specs != (product.specifications or {}):
-        product.specifications = tag_specs
+    if merged_specs != (product.specifications or {}):
+        product.specifications = merged_specs
         update_fields.append('specifications')
-
-    if default_price is not None and product.default_price is None:
-        product.default_price = default_price
-        update_fields.append('default_price')
+    merged_identifiers = merge_identifiers(product.identifiers, identifiers)
+    if merged_identifiers != (product.identifiers or {}):
+        product.identifiers = merged_identifiers
+        update_fields.append('identifiers')
+    merged_tags = merge_tags(product.tags, search_tags)
+    if merged_tags != (product.tags or []):
+        product.tags = merged_tags
+        update_fields.append('tags')
     if update_fields:
         product.save(update_fields=[*dict.fromkeys(update_fields), 'updated_at'])
     return product
@@ -199,10 +155,11 @@ def find_or_create_product_for_manual_item(
     category: str = '',
     model: str = '',
     upc: str = '',
+    identifiers: dict[str, Any] | None = None,
     specifications: dict[str, Any] | None = None,
     search_tags: list[str] | str | None = None,
-    default_price: Decimal | None = None,
     existing_product: Product | None = None,
+    force_create: bool = False,
 ) -> Product:
     """Resolve the Product identity for a standalone Add Item create/update.
 
@@ -216,10 +173,11 @@ def find_or_create_product_for_manual_item(
     category = _clean(category, 200)
     model = _clean(model, 200)
     upc = _clean(upc, 100)
-    specs = merge_search_tags_into_specifications(
-        specifications if isinstance(specifications, dict) else {},
-        normalize_search_tags(search_tags),
-    )
+    title = title or 'Generic Product'
+    brand = brand or 'Generic'
+    specs = specifications if isinstance(specifications, dict) else {}
+    ids = merge_identifiers(identifiers, {'upc': upc} if upc else {})
+    tags = normalize_search_tags(search_tags)
 
     if existing_product is not None:
         return _update_existing_product(
@@ -228,21 +186,36 @@ def find_or_create_product_for_manual_item(
             brand=brand,
             category=category,
             model=model,
-            upc=upc,
+            identifiers=ids,
             specifications=specs,
-            search_tags=normalize_search_tags(search_tags),
-            default_price=default_price,
+            search_tags=tags,
         )
 
+    if force_create:
+        product = Product(
+            title=title,
+            brand=brand,
+            model=model,
+            category=category,
+            specifications=specs,
+            identifiers=ids,
+            tags=tags,
+        )
+        if category:
+            product.category_ref = _category_ref_for_name(category)
+        product.save()
+        return product
+
+    upc = identifier_value(ids, 'upc')
     if upc:
-        product = Product.objects.filter(upc__iexact=upc).first()
+        product = Product.objects.filter(identifiers__upc=upc).first()
         if product is not None:
             _fill_product_blanks(
                 product,
                 category=category,
                 model=model,
-                upc=upc,
-                search_tags=normalize_search_tags(search_tags),
+                identifiers=ids,
+                search_tags=tags,
             )
             return product
 
@@ -251,15 +224,14 @@ def find_or_create_product_for_manual_item(
         brand__iexact=brand,
         model__iexact=model,
         category__iexact=category,
-        upc__iexact=upc,
     ).first()
     if exact is not None:
         _fill_product_blanks(
             exact,
             category=category,
             model=model,
-            upc=upc,
-            search_tags=normalize_search_tags(search_tags),
+            identifiers=ids,
+            search_tags=tags,
         )
         return exact
 
@@ -268,9 +240,9 @@ def find_or_create_product_for_manual_item(
         brand=brand,
         model=model,
         category=category,
-        upc=upc,
         specifications=specs,
-        default_price=default_price,
+        identifiers=ids,
+        tags=tags,
     )
     if category:
         product.category_ref = _category_ref_for_name(category)

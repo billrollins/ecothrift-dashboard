@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.inventory.models import Item, PurchaseOrder, Vendor
+from apps.inventory.models import Item, Product, PurchaseOrder, Vendor
 from apps.inventory.views import header_signature
 
 User = get_user_model()
@@ -80,10 +80,11 @@ class PurchaseOrderManifestMetaSurfaceTests(TestCase):
 
     def test_patch_num_queries_bounded_with_many_items(self):
         """PATCH hot path: one PO row read/write, no item status Count annotations."""
+        product = Product.objects.create(title='Patch item')
         for i in range(60):
             Item.objects.create(
                 sku=f'ITM-PATCH-{i:03d}',
-                title=f'item {i}',
+                product=product,
                 purchase_order=self.po,
                 status='intake' if i % 2 == 0 else 'processing',
             )
@@ -98,7 +99,7 @@ class PurchaseOrderManifestMetaSurfaceTests(TestCase):
     def test_processing_stats_endpoint_bounded_queries(self):
         Item.objects.create(
             sku='ITM-STAT-01',
-            title='one',
+            product=Product.objects.create(title='one'),
             purchase_order=self.po,
             status='on_shelf',
         )

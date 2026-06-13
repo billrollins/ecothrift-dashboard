@@ -101,6 +101,23 @@ export function queueBrandText(row: Pick<ProcessingWorkspaceRowDTO, 'brand'>): s
   return row.brand || '—';
 }
 
+/** Hover text when display may differ from bookmark standardized fields (product-wins coalesce). */
+export function processingIdentityHoverTooltip(
+  displayed: string,
+  standardized: string | undefined,
+  fieldLabel: string,
+): string {
+  const disp = displayed.trim() || '—';
+  const std = standardized?.trim() ?? '';
+  if (!std) {
+    return disp === '—' ? '' : disp;
+  }
+  if (!disp || disp === '—' || std === disp) {
+    return `Standardized ${fieldLabel}: ${std}`;
+  }
+  return `Showing: ${disp}\nStandardized ${fieldLabel}: ${std}`;
+}
+
 export function queueCategoryText(row: Pick<ProcessingWorkspaceRowDTO, 'category'>): string {
   return row.category || '—';
 }

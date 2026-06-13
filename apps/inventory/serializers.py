@@ -748,11 +748,19 @@ class CSVTemplateSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category_ref.name', read_only=True, default=None)
+    upc = serializers.SerializerMethodField()
+
+    def get_upc(self, obj):
+        return obj.primary_upc
 
     class Meta:
         model = Product
-        fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = [
+            'id', 'product_number', 'title', 'brand', 'model', 'category', 'category_ref',
+            'category_name', 'description', 'specifications', 'identifiers', 'tags', 'upc',
+            'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'product_number', 'upc', 'created_at', 'updated_at']
 
 
 class BatchGroupSerializer(serializers.ModelSerializer):
@@ -796,50 +804,49 @@ def item_listing_category(obj: Item) -> str:
 
 
 class ItemSerializer(serializers.ModelSerializer):
+    product = serializers.PrimaryKeyRelatedField(
+        queryset=Product.objects.all(),
+        required=False,
+        allow_null=True,
+    )
     product_title = serializers.CharField(source='product.title', read_only=True, default=None)
+    product_brand = serializers.CharField(source='product.brand', read_only=True, default='')
     product_number = serializers.CharField(source='product.product_number', read_only=True, default=None)
     product_model = serializers.CharField(source='product.model', read_only=True, default='')
-    product_upc = serializers.CharField(source='product.upc', read_only=True, default='')
+    product_upc = serializers.SerializerMethodField()
     purchase_order_number = serializers.CharField(
         source='purchase_order.order_number',
         read_only=True,
         default=None,
     )
-    batch_group_number = serializers.CharField(
-        source='batch_group.batch_number',
-        read_only=True,
-        default=None,
-    )
-    batch_group_status = serializers.CharField(
-        source='batch_group.status',
-        read_only=True,
-        default=None,
-    )
     category = serializers.SerializerMethodField()
+    title = serializers.CharField(source='product.title', read_only=True, default='')
+    brand = serializers.CharField(source='product.brand', read_only=True, default='')
     model = serializers.CharField(required=False, allow_blank=True, write_only=True)
     upc = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    identifiers = serializers.JSONField(required=False, write_only=True)
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=40),
+        required=False,
+        allow_empty=True,
+        write_only=True,
+    )
     search_tags = serializers.ListField(
         child=serializers.CharField(max_length=40),
         required=False,
         allow_empty=True,
         write_only=True,
     )
-    retail_value = serializers.DecimalField(
-        source='unit_retail',
-        max_digits=10,
-        decimal_places=2,
-        required=False,
-        allow_null=True,
-    )
+    retail_value = serializers.DecimalField(source='retail', max_digits=10, decimal_places=2, required=False, allow_null=True)
 
     class Meta:
         model = Item
         fields = [
-            'id', 'sku', 'product', 'product_title', 'purchase_order', 'purchase_order_number',
-            'manifest_row', 'batch_group', 'batch_group_number', 'batch_group_status',
-            'processing_tier', 'product_number', 'product_model', 'product_upc',
-            'title', 'brand', 'category', 'model', 'upc', 'search_tags', 'price', 'retail_value', 'unit_retail', 'cost',
-            'unit_count', 'source', 'status', 'condition', 'specifications',
+            'id', 'sku', 'product', 'product_title', 'product_brand', 'purchase_order', 'purchase_order_number',
+            'manifest_row', 'product_number', 'product_model', 'product_upc',
+            'title', 'brand', 'category', 'model', 'upc', 'identifiers', 'tags', 'search_tags',
+            'price', 'retail', 'retail_value', 'cost',
+            'source', 'status', 'condition', 'specifications',
             'location', 'listed_at', 'checked_in_at', 'checked_in_by',
             'sold_at', 'sold_for', 'notes',
             'dispute_type', 'dispute_pct_loss', 'dispute_description',
@@ -865,47 +872,67 @@ class ItemSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         raw = self.initial_data if isinstance(self.initial_data, dict) else {}
-        for key in ('category', 'model', 'upc'):
+        for key in ('category', 'model', 'upc', 'identifiers', 'tags'):
             if key in raw:
-                attrs[key] = str(raw.get(key) or '').strip()
+                attrs[key] = raw.get(key) if key in {'identifiers', 'tags'} else str(raw.get(key) or '').strip()
         return attrs
 
+    def get_product_upc(self, obj):
+        product = getattr(obj, 'product', None)
+        return product.primary_upc if product is not None else ''
+
     def create(self, validated_data):
+        raw = self.initial_data if isinstance(self.initial_data, dict) else {}
         category = (validated_data.pop('category', None) or '').strip()
         model = (validated_data.pop('model', None) or '').strip()
         upc = (validated_data.pop('upc', None) or '').strip()
-        search_tags = validated_data.pop('search_tags', None)
+        identifiers = validated_data.pop('identifiers', None)
+        tags = validated_data.pop('tags', None)
+        search_tags = tags if tags is not None else validated_data.pop('search_tags', None)
         existing_product = validated_data.get('product')
         product = find_or_create_product_for_manual_item(
-            title=validated_data.get('title') or '',
-            brand=validated_data.get('brand') or '',
+            title=(str(raw.get('title') or '').strip() or (getattr(existing_product, 'title', '') if existing_product else '')),
+            brand=(str(raw.get('brand') or '').strip() or (getattr(existing_product, 'brand', '') if existing_product else 'Generic')),
             category=category,
             model=model,
             upc=upc,
+            identifiers=identifiers,
             specifications=validated_data.get('specifications') or {},
             search_tags=search_tags,
-            default_price=validated_data.get('price'),
             existing_product=existing_product,
         )
         validated_data['product'] = product
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
+        raw = self.initial_data if isinstance(self.initial_data, dict) else {}
         category = validated_data.pop('category', None)
         model = validated_data.pop('model', None)
         upc = validated_data.pop('upc', None)
-        search_tags = validated_data.pop('search_tags', None)
+        identifiers = validated_data.pop('identifiers', None)
+        tags = validated_data.pop('tags', None)
+        search_tags = tags if tags is not None else validated_data.pop('search_tags', None)
         item = super().update(instance, validated_data)
-        if category is not None or model is not None or upc is not None or search_tags is not None:
+        title = str(raw.get('title') or '').strip() if 'title' in raw else ''
+        brand = str(raw.get('brand') or '').strip() if 'brand' in raw else ''
+        if (
+            category is not None
+            or model is not None
+            or upc is not None
+            or identifiers is not None
+            or search_tags is not None
+            or title
+            or brand
+        ):
             product = find_or_create_product_for_manual_item(
-                title=item.title,
-                brand=item.brand or '',
+                title=title or (item.product.title if item.product_id else 'Generic Product'),
+                brand=brand or (item.product.brand if item.product_id else 'Generic') or 'Generic',
                 category=(category or item_listing_category(item) or '').strip(),
                 model=(model if model is not None else getattr(item.product, 'model', '') if item.product_id else ''),
-                upc=(upc if upc is not None else getattr(item.product, 'upc', '') if item.product_id else ''),
+                upc=upc or '',
+                identifiers=identifiers,
                 specifications=item.specifications or {},
                 search_tags=search_tags,
-                default_price=item.price,
                 existing_product=item.product if item.product_id else None,
             )
             if item.product_id != product.id:
@@ -926,16 +953,14 @@ class ItemPublicSerializer(serializers.ModelSerializer):
         return item_listing_category(obj)
 
     def get_estimated_retail_value(self, obj):
-        mr = getattr(obj, 'manifest_row', None)
-        if mr is not None and mr.unit_retail is not None:
-            return str(mr.unit_retail)
+        if obj.retail is not None:
+            return str(obj.retail)
         return None
 
     def get_savings_pct(self, obj):
         retail = None
-        mr = getattr(obj, 'manifest_row', None)
-        if mr is not None and mr.unit_retail is not None:
-            retail = mr.unit_retail
+        if obj.retail is not None:
+            retail = obj.retail
         if retail and retail > 0 and obj.price > 0:
             savings = ((retail - obj.price) / retail * 100)
             if savings > 0:
@@ -964,6 +989,9 @@ class ItemPublicSerializer(serializers.ModelSerializer):
             'price', 'status', 'condition', 'source',
             'estimated_retail_value', 'savings_pct', 'processing_notes',
         ]
+
+    title = serializers.CharField(source='product.title', read_only=True, default='')
+    brand = serializers.CharField(source='product.brand', read_only=True, default='')
 
 
 class ProcessingBatchSerializer(serializers.ModelSerializer):

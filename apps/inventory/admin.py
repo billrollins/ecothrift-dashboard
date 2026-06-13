@@ -49,8 +49,8 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('product_number', 'title', 'brand', 'category', 'default_price', 'is_active')
-    search_fields = ('product_number', 'title', 'brand', 'upc')
+    list_display = ('product_number', 'title', 'brand', 'category', 'is_active')
+    search_fields = ('product_number', 'title', 'brand')
     list_filter = ('is_active',)
 
 
@@ -70,9 +70,9 @@ class BatchGroupAdmin(admin.ModelAdmin):
 
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
-    list_display = ('sku', 'title', 'price', 'status', 'processing_tier', 'batch_group', 'source')
-    list_filter = ('status', 'processing_tier', 'source')
-    search_fields = ('sku', 'title')
+    list_display = ('sku', 'product', 'price', 'status', 'source')
+    list_filter = ('status', 'source')
+    search_fields = ('sku', 'product__title', 'product__brand')
 
 
 @admin.register(ProcessingBatch)

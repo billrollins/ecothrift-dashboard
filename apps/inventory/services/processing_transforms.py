@@ -4,7 +4,8 @@ P9 row transforms: Break apart / Make set / Restart row (owner spec 2026-06-12).
 Both transforms are unit-of-measure changes on a ProcessingRow:
 
 - **Break apart**: 1 unit → X subitems (10 cases of 500 plates → 5,000 plates).
-- **Make set**:  S units → 1 set   (12,000 candles → boxes of 500 for churches).
+- **Make set**: retired for multi-unit Item semantics; row quantity can be reshaped,
+  but checked-in Items remain single-unit records.
 
 Whole-row transforms rewrite the row in place; partial transforms create a SUB row
 (``split_parent`` FK) sharing the same frozen ``ManifestRow``. The manifest line is
@@ -50,7 +51,6 @@ from apps.inventory.services.processing_workspace import (
 # Fields captured before the first transform and restored verbatim by Restart row.
 TRANSFORM_SNAPSHOT_FIELDS = (
     'quantity',
-    'units_per_item',
     'unit_retail',
     'proposed_price',
     'final_price',
@@ -72,7 +72,7 @@ TRANSFORM_SNAPSHOT_FIELDS = (
     'matched_product_id',
 )
 _SNAPSHOT_DECIMAL_FIELDS = frozenset({'unit_retail', 'proposed_price', 'final_price', 'shelf_price'})
-_SNAPSHOT_INT_FIELDS = frozenset({'quantity', 'units_per_item'})
+_SNAPSHOT_INT_FIELDS = frozenset({'quantity'})
 
 # Fat-finger backstops, mirroring MAX_CHECK_IN_QUANTITY's philosophy: explicit 400, never a clamp.
 MAX_TRANSFORM_FACTOR = 100_000
@@ -165,14 +165,14 @@ def _transform_product(row: ProcessingRow, data: dict) -> tuple[Product | None, 
     product = _resolve_product_for_processing(
         {**data, 'product_mode': mode},
         matched_product=None,
-        fallback_title=row.title or row.description or f'Row {row.row_number}',
+        fallback_title=row.title or f'Row {row.row_number}',
         fallback_brand=row.brand or '',
         fallback_category=row.category or '',
         fallback_model=row.model or '',
         fallback_upc=_processing_row_upc(row),
+        fallback_identifiers=row.identifiers or {},
         fallback_specs=row.specifications or {},
         fallback_search_tags=normalize_search_tags(getattr(row, 'search_tags', None)),
-        default_price=row.shelf_price or row.final_price or row.proposed_price,
     )
     return product, (product.id if mode == 'new' else None)
 
@@ -200,7 +200,6 @@ def _create_sub_row(
     root: ProcessingRow,
     *,
     quantity: int,
-    units_per_item: int,
     unit_retail: Decimal | None,
     shelf_price: Decimal | None,
     product: Product | None,
@@ -216,7 +215,6 @@ def _create_sub_row(
         split_seq=seq,
         matched_product=product,
         quantity=quantity,
-        units_per_item=units_per_item,
         unit_retail=unit_retail,
         final_price=shelf_price,
         shelf_price=shelf_price,
@@ -257,8 +255,8 @@ def processing_break_apart_row(user, order: PurchaseOrder, data: dict) -> dict[s
     """Break N of a row's units into N×X sellable subitems (plates-out-of-cases).
 
     Whole-row (N = expected, nothing checked in) rewrites the row in place; otherwise a
-    sub row carries the N×X subitems and the root keeps the remainder — now flagged as
-    known X-packs (``units_per_item``) so leftover case check-ins report real units.
+    sub row carries the N×X subitems and the root keeps the remainder. Checked-in Items
+    remain single-unit records.
     """
     units = _parse_positive_int(data.get('units'), 'units')
     factor = _parse_positive_int(data.get('factor'), 'factor', minimum=2)
@@ -276,11 +274,10 @@ def processing_break_apart_row(user, order: PurchaseOrder, data: dict) -> dict[s
         )
         items_ct = len(attributed_items_for_processing_row(row))
         available = max(0, int(row.quantity or 0) - items_ct)
-        if units > available:
-            raise ValueError(
-                f'Only {available} of {row.quantity} unit(s) on row {row.row_number} '
-                'are still un-checked-in.',
-            )
+        # Expected is an ESTIMATE (owner ruling 2026-06-12): transforming more units
+        # than the manifest expected is allowed — the user may have received extra.
+        # Expected simply re-derives from what they actually do (EXP - x + x*factor).
+        over_expected = max(0, units - available)
         if not row.original_snapshot:
             row.original_snapshot = _snapshot_row(row)
 
@@ -293,11 +290,10 @@ def processing_break_apart_row(user, order: PurchaseOrder, data: dict) -> dict[s
         if shelf_price is None:
             shelf_price = _scaled_money(row.shelf_price, divide=factor)
 
-        in_place = units == int(row.quantity or 0) and items_ct == 0
+        in_place = units >= int(row.quantity or 0) and items_ct == 0
         sub: ProcessingRow | None = None
         if in_place:
             row.quantity = units * factor
-            row.units_per_item = 1
             row.unit_retail = unit_retail
             if shelf_price is not None:
                 row.shelf_price = shelf_price
@@ -309,19 +305,18 @@ def processing_break_apart_row(user, order: PurchaseOrder, data: dict) -> dict[s
                 order,
                 row,
                 quantity=units * factor,
-                units_per_item=1,
                 unit_retail=unit_retail,
                 shelf_price=shelf_price,
                 product=product if mode != 'keep' else row.matched_product,
             )
-            row.quantity = int(row.quantity or 0) - units
-            # Remaining originals are now KNOWN X-packs — their Items report X units.
-            row.units_per_item = factor
+            # Root keeps the remainder but never drops below what is already checked in.
+            row.quantity = max(items_ct, int(row.quantity or 0) - units)
 
         _append_transform_memo(row, {
             'op': 'break_apart',
             'units': units,
             'factor': factor,
+            'over_expected': over_expected,
             'in_place': in_place,
             'sub_row_id': sub.pk if sub is not None else None,
             'sub_row_number': int(sub.row_number) if sub is not None else None,
@@ -337,7 +332,7 @@ def processing_make_set_row(user, order: PurchaseOrder, data: dict) -> dict[str,
 
     Whole-pool (K×S = expected, nothing checked in) rewrites the row in place to K sets;
     otherwise a sub row expects the K sets and the root keeps the loose remainder.
-    Set rows stamp ``Item.unit_count = S`` at check-in: one tag, S units accounted.
+    Checked-in Items remain single-unit records; this no longer stamps unit counts.
     """
     set_size = _parse_positive_int(data.get('set_size') or data.get('setSize'), 'set_size', minimum=2)
     num_sets = _parse_positive_int(data.get('num_sets') or data.get('numSets'), 'num_sets')
@@ -356,11 +351,9 @@ def processing_make_set_row(user, order: PurchaseOrder, data: dict) -> dict[str,
         )
         items_ct = len(attributed_items_for_processing_row(row))
         available = max(0, int(row.quantity or 0) - items_ct)
-        if consumed > available:
-            raise ValueError(
-                f'{num_sets} set(s) of {set_size} needs {consumed} units but only {available} '
-                f'of {row.quantity} on row {row.row_number} are still un-checked-in.',
-            )
+        # Expected is an ESTIMATE — making more sets than the manifest expected is
+        # allowed (extra received); expected re-derives from what the user actually does.
+        over_expected = max(0, consumed - available)
         if not row.original_snapshot:
             row.original_snapshot = _snapshot_row(row)
 
@@ -373,11 +366,10 @@ def processing_make_set_row(user, order: PurchaseOrder, data: dict) -> dict[str,
         if shelf_price is None:
             shelf_price = _scaled_money(row.shelf_price, multiply=set_size)
 
-        in_place = consumed == int(row.quantity or 0) and items_ct == 0
+        in_place = consumed >= int(row.quantity or 0) and items_ct == 0
         sub: ProcessingRow | None = None
         if in_place:
             row.quantity = num_sets
-            row.units_per_item = set_size
             row.unit_retail = unit_retail
             if shelf_price is not None:
                 row.shelf_price = shelf_price
@@ -389,18 +381,19 @@ def processing_make_set_row(user, order: PurchaseOrder, data: dict) -> dict[str,
                 order,
                 row,
                 quantity=num_sets,
-                units_per_item=set_size,
                 unit_retail=unit_retail,
                 shelf_price=shelf_price,
                 product=product if mode != 'keep' else row.matched_product,
             )
-            row.quantity = int(row.quantity or 0) - consumed
+            # Root keeps the loose remainder but never drops below items already checked in.
+            row.quantity = max(items_ct, int(row.quantity or 0) - consumed)
 
         _append_transform_memo(row, {
             'op': 'make_set',
             'set_size': set_size,
             'num_sets': num_sets,
             'units': consumed,
+            'over_expected': over_expected,
             'in_place': in_place,
             'sub_row_id': sub.pk if sub is not None else None,
             'sub_row_number': int(sub.row_number) if sub is not None else None,

@@ -75,11 +75,11 @@ function chipTooltip(row: PreprocessingReviewRow, state: ChipState): string {
   if (state === 'undecided_empty') return 'No match candidates — search catalog';
   const detail = row.matched_product_detail;
   if (detail) {
-    return [detail.title, detail.brand, detail.upc].filter(Boolean).join(' · ');
+    return [detail.title, detail.brand, detail.identifiers?.upc || detail.upc].filter(Boolean).join(' · ');
   }
   const top = row.match_candidates[0]?.snapshot;
   if (top) {
-    return [top.title, top.brand, top.upc].filter(Boolean).join(' · ');
+    return [top.title, top.brand, top.identifiers?.upc].filter(Boolean).join(' · ');
   }
   return 'Product match';
 }
@@ -218,7 +218,7 @@ export function PreprocessingMatchCell({
                   >
                     <ListItemText
                       primary={`${c.snapshot?.product_number || `PRD-${c.product_id}`} — ${c.snapshot?.title || 'Product'}`}
-                      secondary={`${sourceBadge(c.source)} · score ${c.score}${c.snapshot?.default_price ? ` · ${c.snapshot.default_price}` : ''}`}
+                      secondary={`${sourceBadge(c.source)} · score ${c.score}${c.snapshot?.identifiers?.upc ? ` · ${c.snapshot.identifiers.upc}` : ''}`}
                       primaryTypographyProps={{ variant: 'body2', noWrap: true }}
                       secondaryTypographyProps={{ variant: 'caption' }}
                     />

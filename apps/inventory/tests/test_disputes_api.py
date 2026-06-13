@@ -79,8 +79,7 @@ class DisputeApiTests(TestCase):
             product=p,
             purchase_order=self.po,
             manifest_row=mr,
-            title='Line',
-            unit_retail=Decimal('5'),
+            retail=Decimal('5'),
             status='intake',
         )
         self.po.status = 'processing'
@@ -114,8 +113,7 @@ class DisputeApiTests(TestCase):
             product=p,
             purchase_order=self.po,
             manifest_row=mr,
-            title='Line2',
-            unit_retail=Decimal('5'),
+            retail=Decimal('5'),
             status='intake',
         )
         self.po.status = 'processing'

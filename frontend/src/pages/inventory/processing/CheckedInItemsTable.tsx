@@ -1,11 +1,13 @@
+import ArrowDropDown from '@mui/icons-material/ArrowDropDown';
+import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
-import OpenInNew from '@mui/icons-material/OpenInNew';
 import { memo, useMemo, useState, Fragment, type ReactNode } from 'react';
 import {
   Box,
-  Button,
   Chip,
   IconButton,
+  Menu,
+  MenuItem,
   Table,
   TableBody,
   TableCell,
@@ -13,10 +15,10 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  Tooltip,
   Typography,
   useTheme,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
 import type { ProcessingWorkspaceItemDTO, ProcessingWorkspaceProductDTO } from '../../../types/inventory.types';
 import type { CheckedInHistoryRow, ProductGroupedHistory } from './checkedInHistory';
 import {
@@ -37,6 +39,10 @@ import {
   type CheckedInSortState,
 } from './checkedInHistorySort';
 import { formatQueueMoney, itemStatusMeta, queueDispatchLabel } from './processingQueueCellText';
+import {
+  PROCESSING_ITEM_CONDITION_OPTIONS,
+  PROCESSING_ITEM_DISPATCH_OPTIONS,
+} from './processingItemFormOptions';
 import {
   PROCESSING_QUEUE_TABLE_HEAD_HEIGHT,
   PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
@@ -148,6 +154,87 @@ function CellText({
   );
 }
 
+/** Action icons must read as LIVE: tinted at rest, strong color + fill on hover. */
+const actionIconSx = (hoverColor: string) =>
+  ({
+    p: 0.4,
+    color: 'text.secondary',
+    border: '1px solid transparent',
+    borderRadius: 1,
+    transition: (theme: { transitions: { create: (p: string[]) => string } }) =>
+      theme.transitions.create(['color', 'background-color', 'border-color']),
+    '&:hover': {
+      color: hoverColor,
+      bgcolor: 'action.hover',
+      borderColor: 'currentColor',
+    },
+  }) as const;
+
+/** Inline click-to-edit enum cell (condition / dispatched-to): text + caret, menu on click. */
+function EditableEnumCell({
+  display,
+  value,
+  options,
+  ariaLabel,
+  onSave,
+}: {
+  display: string;
+  value: string;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  ariaLabel: string;
+  onSave: (value: string) => void;
+}) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  return (
+    <TableCell
+      sx={{ minWidth: 0, cursor: 'pointer' }}
+      onClick={(e) => {
+        e.stopPropagation();
+        setAnchor(e.currentTarget as HTMLElement);
+      }}
+    >
+      <Box
+        role="button"
+        aria-label={ariaLabel}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.25,
+          minWidth: 0,
+          px: 0.25,
+          borderRadius: 0.5,
+          border: '1px dashed',
+          borderColor: 'transparent',
+          '&:hover': { bgcolor: 'action.hover', borderColor: processingTokens.borderStrong },
+        }}
+      >
+        <CellText title={`${display} — click to change`}>{display}</CellText>
+        <ArrowDropDown sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0 }} />
+      </Box>
+      <Menu
+        anchorEl={anchor}
+        open={anchor != null}
+        onClose={() => setAnchor(null)}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {options.map((opt) => (
+          <MenuItem
+            key={opt.value}
+            dense
+            selected={opt.value === value}
+            onClick={() => {
+              setAnchor(null);
+              if (opt.value !== value) onSave(opt.value);
+            }}
+          >
+            {opt.label}
+          </MenuItem>
+        ))}
+      </Menu>
+    </TableCell>
+  );
+}
+
 interface CheckedInHistoryTableRowProps {
   row: CheckedInHistoryRow;
   fallbackProduct: ProcessingWorkspaceProductDTO | null;
@@ -155,8 +242,10 @@ interface CheckedInHistoryTableRowProps {
   striped: boolean;
   onSelectItemId: (itemId: number) => void;
   onReprintItems?: (items: ProcessingWorkspaceItemDTO[]) => Promise<void>;
-  onRemapBatch?: (row: CheckedInHistoryRow) => void;
-  showRemapAction?: boolean;
+  onDeleteBatch?: (row: CheckedInHistoryRow) => void;
+  onSetBatchCondition?: (row: CheckedInHistoryRow, value: string) => void;
+  onSetBatchDispatch?: (row: CheckedInHistoryRow, value: string) => void;
+  showDeleteBatchAction?: boolean;
 }
 
 const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
@@ -166,10 +255,11 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
   striped,
   onSelectItemId,
   onReprintItems,
-  onRemapBatch,
-  showRemapAction = false,
+  onDeleteBatch,
+  onSetBatchCondition,
+  onSetBatchDispatch,
+  showDeleteBatchAction = false,
 }: CheckedInHistoryTableRowProps) {
-  const navigate = useNavigate();
   const { item, qty, batchId } = row;
   const statusMeta = itemStatusMeta(item);
   const productId = checkedInProductIdText(row, fallbackProduct);
@@ -237,12 +327,28 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', ...GROUP_DIVIDER_SX }}>
         <CellText fontWeight={700}>{formatQueueMoney(item.price)}</CellText>
       </TableCell>
-      <TableCell sx={{ minWidth: 0 }}>
-        <CellText title={item.condition_label || item.condition}>{item.condition_label || item.condition}</CellText>
-      </TableCell>
-      <TableCell sx={{ minWidth: 0 }}>
-        <CellText title={queueDispatchLabel(item.dispatch)}>{queueDispatchLabel(item.dispatch)}</CellText>
-      </TableCell>
+      {onSetBatchCondition ?
+        <EditableEnumCell
+          display={item.condition_label || item.condition}
+          value={item.condition}
+          options={PROCESSING_ITEM_CONDITION_OPTIONS}
+          ariaLabel={`Change condition for this check-in (currently ${item.condition_label || item.condition})`}
+          onSave={(value) => onSetBatchCondition(row, value)}
+        />
+      : <TableCell sx={{ minWidth: 0 }}>
+          <CellText title={item.condition_label || item.condition}>{item.condition_label || item.condition}</CellText>
+        </TableCell>}
+      {onSetBatchDispatch ?
+        <EditableEnumCell
+          display={queueDispatchLabel(item.dispatch)}
+          value={item.dispatch}
+          options={PROCESSING_ITEM_DISPATCH_OPTIONS}
+          ariaLabel={`Change dispatch for this check-in (currently ${queueDispatchLabel(item.dispatch)})`}
+          onSave={(value) => onSetBatchDispatch(row, value)}
+        />
+      : <TableCell sx={{ minWidth: 0 }}>
+          <CellText title={queueDispatchLabel(item.dispatch)}>{queueDispatchLabel(item.dispatch)}</CellText>
+        </TableCell>}
       <TableCell sx={{ minWidth: 0 }}>
         <CellText title={location}>{location}</CellText>
       </TableCell>
@@ -261,33 +367,35 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
         />
       </TableCell>
       <TableCell align="right" sx={{ px: '4px !important', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
-        <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
-          {showRemapAction && batchId != null && onRemapBatch ?
-            <Button
-              size="small"
-              variant="text"
-              onClick={() => onRemapBatch(row)}
-              sx={{ minWidth: 0, px: 0.5, fontSize: '0.625rem', mr: 0.25 }}
-            >
-              Change product
-            </Button>
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25 }}>
+          {onReprintItems ?
+            <Tooltip title={`Print ${qty} label${qty === 1 ? '' : 's'}`} enterDelay={300} disableInteractive>
+              <IconButton
+                size="small"
+                aria-label={`Print ${qty} label${qty === 1 ? '' : 's'} for this check-in`}
+                onClick={() => {
+                  if (window.confirm(`Print ${qty} label${qty === 1 ? '' : 's'} for this check-in?`)) {
+                    void onReprintItems(row.items);
+                  }
+                }}
+                sx={actionIconSx('primary.main')}
+              >
+                <LocalPrintshop sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
           : null}
-          <IconButton
-            size="small"
-            aria-label={`Reprint ${item.sku}`}
-            onClick={() => void onReprintItems?.(row.items)}
-            sx={{ p: 0.35 }}
-          >
-            <LocalPrintshop sx={{ fontSize: 15 }} />
-          </IconButton>
-          <IconButton
-            size="small"
-            aria-label={`Open ${item.sku}`}
-            onClick={() => navigate(`/inventory/items/${item.id}`)}
-            sx={{ p: 0.35 }}
-          >
-            <OpenInNew sx={{ fontSize: 15 }} />
-          </IconButton>
+          {showDeleteBatchAction && batchId != null && onDeleteBatch ?
+            <Tooltip title="Delete this check-in" enterDelay={300} disableInteractive>
+              <IconButton
+                size="small"
+                aria-label={`Delete this check-in (${qty} item${qty === 1 ? '' : 's'})`}
+                onClick={() => onDeleteBatch(row)}
+                sx={actionIconSx('error.main')}
+              >
+                <DeleteOutline sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          : null}
         </Box>
       </TableCell>
     </TableRow>
@@ -364,8 +472,10 @@ export interface CheckedInItemsTableProps {
   activeItemId: number | null;
   onSelectItemId: (itemId: number) => void;
   onReprintItems?: (items: ProcessingWorkspaceItemDTO[]) => Promise<void>;
-  onRemapBatch?: (row: CheckedInHistoryRow) => void;
-  showRemapAction?: boolean;
+  onDeleteBatch?: (row: CheckedInHistoryRow) => void;
+  onSetBatchCondition?: (row: CheckedInHistoryRow, value: string) => void;
+  onSetBatchDispatch?: (row: CheckedInHistoryRow, value: string) => void;
+  showDeleteBatchAction?: boolean;
   scrollable?: boolean;
 }
 
@@ -376,8 +486,10 @@ export function CheckedInItemsTable({
   activeItemId,
   onSelectItemId,
   onReprintItems,
-  onRemapBatch,
-  showRemapAction = false,
+  onDeleteBatch,
+  onSetBatchCondition,
+  onSetBatchDispatch,
+  showDeleteBatchAction = false,
   scrollable = false,
 }: CheckedInItemsTableProps) {
   const theme = useTheme();
@@ -406,22 +518,24 @@ export function CheckedInItemsTable({
     );
   }
 
+  // All-percentage columns summing to 100 — a fixed-px trailing col on top of 100%
+  // overflowed the container (overflowX: hidden) and clipped the Actions column.
   const colgroup = (
     <colgroup>
-      <col style={{ width: '9%' }} />
+      <col style={{ width: '8%' }} />
       <col style={{ width: '4%' }} />
       <col style={{ width: '7%' }} />
+      <col style={{ width: '7%' }} />
+      <col style={{ width: '12%' }} />
+      <col style={{ width: '7%' }} />
       <col style={{ width: '8%' }} />
-      <col style={{ width: '13%' }} />
-      <col style={{ width: '8%' }} />
-      <col style={{ width: '9%' }} />
       <col style={{ width: '6%' }} />
       <col style={{ width: '6%' }} />
-      <col style={{ width: '8%' }} />
+      <col style={{ width: '7%' }} />
       <col style={{ width: '8%' }} />
       <col style={{ width: '7%' }} />
+      <col style={{ width: '6%' }} />
       <col style={{ width: '7%' }} />
-      <col style={{ width: 48 }} />
     </colgroup>
   );
 
@@ -488,8 +602,10 @@ export function CheckedInItemsTable({
                   striped={index % 2 === 1}
                   onSelectItemId={onSelectItemId}
                   onReprintItems={onReprintItems}
-                  onRemapBatch={onRemapBatch}
-                  showRemapAction={showRemapAction}
+                  onDeleteBatch={onDeleteBatch}
+                  onSetBatchCondition={onSetBatchCondition}
+                  onSetBatchDispatch={onSetBatchDispatch}
+                  showDeleteBatchAction={showDeleteBatchAction}
                 />
               ))}
             </Fragment>

@@ -60,8 +60,7 @@ class GenerateMatchCandidatesTests(ProductMatchingTestBase):
         product = Product.objects.create(
             title='Red Headband',
             brand='Acme',
-            upc='012345678905',
-            default_price=Decimal('4.99'),
+            identifiers={'upc': '012345678905'},
         )
         row = self._staging_row(
             ai_title='hdbnd red',
@@ -124,7 +123,7 @@ class GenerateMatchCandidatesTests(ProductMatchingTestBase):
         self.assertEqual(row.match_source, '')
 
     def test_staff_decision_never_overridden_on_regenerate(self):
-        upc_product = Product.objects.create(title='Red Headband', upc='012345678905')
+        upc_product = Product.objects.create(title='Red Headband', identifiers={'upc': '012345678905'})
         staff_product = Product.objects.create(title='Other Product')
         row = self._staging_row(
             ai_title='hdbnd red',
@@ -158,7 +157,7 @@ class GenerateMatchCandidatesTests(ProductMatchingTestBase):
         row.refresh_from_db()
         self.assertIsNone(row.final_matched_product_id)
 
-        product = Product.objects.create(title='Thing', upc='999')
+        product = Product.objects.create(title='Thing', identifiers={'upc': '999'})
         generate_match_candidates_for_order(self.order)
         row.refresh_from_db()
         self.assertEqual(row.final_matched_product_id, product.id)
@@ -214,7 +213,7 @@ class ReviewMatchDecisionApiTests(ProductMatchingTestBase):
 
     def test_patch_unset_removes_decision_entirely(self):
         """match_source '' + null = REMOVE match (back to undecided), not staff "new"."""
-        product = Product.objects.create(title='Red Headband', upc='012345678905')
+        product = Product.objects.create(title='Red Headband', identifiers={'upc': '012345678905'})
         row = self._staging_row(
             ai_title='hdbnd red',
             ai_identifiers={'upc': '012345678905'},
@@ -298,7 +297,7 @@ class RegenerateMatchCandidatesApiTests(ProductMatchingTestBase):
         return view(request, pk=self.order.pk)
 
     def test_regenerate_returns_summary(self):
-        Product.objects.create(title='Red Headband', upc='012345678905')
+        Product.objects.create(title='Red Headband', identifiers={'upc': '012345678905'})
         self._staging_row(
             ai_title='hdbnd red',
             ai_identifiers={'upc': '012345678905'},
@@ -311,7 +310,7 @@ class RegenerateMatchCandidatesApiTests(ProductMatchingTestBase):
         self.assertEqual(resp.data['auto_selected'], 1)
 
     def test_regenerate_respects_staff_null(self):
-        Product.objects.create(title='Red Headband', upc='012345678905')
+        Product.objects.create(title='Red Headband', identifiers={'upc': '012345678905'})
         row = self._staging_row(
             ai_title='hdbnd red',
             ai_identifiers={'upc': '012345678905'},
@@ -340,9 +339,8 @@ class ReviewSerializerHydrationTests(ProductMatchingTestBase):
         product = Product.objects.create(
             title='Red Headband',
             brand='Acme',
-            upc='012345678905',
+            identifiers={'upc': '012345678905'},
             product_number='PRD-1042',
-            default_price=Decimal('4.99'),
         )
         self._staging_row(
             ai_title='hdbnd red',
@@ -357,8 +355,7 @@ class ReviewSerializerHydrationTests(ProductMatchingTestBase):
         self.assertEqual(detail['product_number'], 'PRD-1042')
         self.assertEqual(detail['title'], 'Red Headband')
         self.assertEqual(detail['brand'], 'Acme')
-        self.assertEqual(detail['upc'], '012345678905')
-        self.assertEqual(detail['default_price'], '4.99')
+        self.assertEqual(detail['identifiers'], {'upc': '012345678905'})
 
     def test_same_product_row_numbers(self):
         product = Product.objects.create(title='Shared Widget')

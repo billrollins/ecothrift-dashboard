@@ -15,6 +15,7 @@ from typing import Any, Iterable
 from django.db.models import Count, Q, Sum
 
 from apps.inventory.models import Item, ManifestRow, ProcessingCheckInBatch, ProcessingDataBuild, ProcessingRow, PurchaseOrder, Product
+from apps.inventory.product_identity import merge_identifiers, product_upc
 from apps.inventory.services.processing_search_string import (
     assign_search_strings_for_instances,
     augment_processing_row_search_string,
@@ -158,11 +159,10 @@ def _serialize_item(it: Item) -> dict[str, Any]:
     return {
         'id': it.id,
         'sku': it.sku,
-        'unit_count': int(it.unit_count or 1),
         'condition': it.condition,
         'condition_label': condition_db_to_ui(it.condition),
         'price': _money(it.price) or '0.00',
-        'retail': _money(it.unit_retail),
+        'retail': _money(it.retail),
         'dispatch': location_to_dispatch(it.location),
         'disposition': item_disposition_ui(it.status),
         'notes': it.notes or '',
@@ -186,7 +186,6 @@ def _serialize_product(prod: Product | None) -> dict[str, Any] | None:
     if prod is None:
         return None
     specs = prod.specifications or {}
-    tags = specs.get('tags') if isinstance(specs.get('tags'), str) else ''
     return {
         'id': prod.id,
         'product_number': prod.product_number,
@@ -195,12 +194,11 @@ def _serialize_product(prod: Product | None) -> dict[str, Any] | None:
         'model': prod.model or '',
         'description': prod.description or '',
         'specs': specs if isinstance(specs, dict) else {},
-        'tags': tags,
+        'identifiers': prod.identifiers or {},
+        'tags': prod.tags or [],
         'taxonomy': '',
         'category': prod.category or '',
-        'upc': prod.upc or '',
-        'times_ordered': prod.times_ordered,
-        'total_units_received': prod.total_units_received,
+        'upc': product_upc(prod),
     }
 
 
@@ -473,7 +471,6 @@ PROCESSING_WORKSPACE_ROW_VALUE_FIELDS = (
     'collapse_master_id',
     'split_parent_id',
     'split_seq',
-    'units_per_item',
 )
 
 
@@ -551,6 +548,15 @@ def _first_nonempty_str(*values: Any) -> str:
     return ''
 
 
+def standardized_identity_from_bookmark_row(rw: dict[str, Any]) -> dict[str, str]:
+    """Bookmark-only title/brand/model from finalize — not product-coalesced."""
+    return {
+        'title': str(rw.get('title') or '').strip(),
+        'brand': str(rw.get('brand') or '').strip(),
+        'model': str(rw.get('model') or '').strip(),
+    }
+
+
 def coalesce_processing_row_identity(
     row: Any,
     product: Product | None = None,
@@ -580,11 +586,16 @@ def coalesce_processing_row_identity(
         specs = _specs_from_row_source(manifest_row)
 
     upc = _first_nonempty_str(
-        _field_from_row_source(product, 'upc') if product else '',
+        product_upc(product) if product else '',
         _upc_from_row_source(row),
         _upc_from_row_source(manifest_row) if manifest_row else '',
     )
-    identifiers: dict[str, str] = {'upc': upc} if upc else {}
+    identifiers = merge_identifiers(
+        getattr(product, 'identifiers', None) if product else None,
+        _field_from_row_source(row, 'identifiers'),
+        _field_from_row_source(manifest_row, 'identifiers') if manifest_row else None,
+        {'upc': upc} if upc else {},
+    )
 
     return {
         'title': title,
@@ -603,7 +614,8 @@ def _minimal_list_product(prod: Product) -> dict[str, Any]:
         'product_number': prod.product_number or '',
         'title': prod.title or '',
         'brand': prod.brand or '',
-        'upc': prod.upc or '',
+        'identifiers': prod.identifiers or {},
+        'upc': product_upc(prod),
     }
 
 
@@ -686,7 +698,6 @@ def _workspace_row_core_fields(
         'collapseMasterId': rw.get('collapse_master_id'),
         'splitParentId': rw.get('split_parent_id'),
         'splitSeq': rw.get('split_seq'),
-        'unitsPerItem': int(rw.get('units_per_item') or 1),
         'productId': rw.get('matched_product_id'),
         'title': display_title,
         'brand': identity['brand'],
@@ -709,6 +720,7 @@ def _workspace_row_core_fields(
         '_search_string': str(rw.get('search_string') or ''),
         '_model': identity['model'],
         '_search_tags': rw.get('search_tags'),
+        'standardizedIdentity': standardized_identity_from_bookmark_row(rw),
     }
 
 
@@ -1291,9 +1303,9 @@ def printed_items_preview(item_ids: list[int]) -> list[dict[str, Any]]:
             {
                 'id': it.id,
                 'sku': it.sku,
-                'title': it.title or (prod.title if prod else '') or it.sku,
+                'title': (prod.title if prod else '') or it.sku,
                 'price': _money(it.price) or '0.00',
-                'brand': (prod.brand if prod else '') or it.brand or '',
+                'brand': (prod.brand if prod else '') or '',
                 'product_number': prod.product_number if prod else None,
             },
         )
@@ -1551,7 +1563,6 @@ def _attach_split_family_payload(bk: ProcessingRow, row_full: dict[str, Any]) ->
                 'rowNumber': int(c.row_number),
                 'splitSeq': c.split_seq,
                 'qty': int(c.quantity or 0),
-                'unitsPerItem': int(c.units_per_item or 1),
                 'qtyDispositioned': int(c.qty_dispositioned or 0),
             }
             for c in children

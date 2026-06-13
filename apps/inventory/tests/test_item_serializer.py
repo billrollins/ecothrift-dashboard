@@ -18,8 +18,7 @@ class ItemSerializerCategoryRetailTests(TestCase):
             status='received',
         )
         item = Item.objects.create(
-            title='Widget',
-            brand='Generic',
+            product=Product.objects.create(title='Widget', brand='Generic'),
             purchase_order=order,
             price=Decimal('3.50'),
         )
@@ -34,16 +33,14 @@ class ItemSerializerCategoryRetailTests(TestCase):
             category='Toys & Games',
         )
         item = Item.objects.create(
-            title='Bubble Toy',
-            brand='Generic',
             product=product,
             price=Decimal('3.50'),
-            unit_retail=Decimal('5.99'),
+            retail=Decimal('5.99'),
         )
         data = ItemSerializer(item).data
         self.assertEqual(data['category'], 'Toys & Games')
         self.assertEqual(data['retail_value'], '5.99')
-        self.assertEqual(data['unit_retail'], '5.99')
+        self.assertEqual(data['retail'], '5.99')
 
     def test_create_persists_category_on_new_product_and_retail_value(self):
         ser = ItemSerializer(
@@ -65,8 +62,8 @@ class ItemSerializerCategoryRetailTests(TestCase):
         self.assertIsNotNone(item.product_id)
         self.assertEqual(item.product.category, 'Toys & Games')
         self.assertEqual(item.product.model, 'BUB-24')
-        self.assertEqual(item.product.upc, '123456789012')
-        self.assertEqual(item.unit_retail, Decimal('4.99'))
+        self.assertEqual(item.product.identifiers.get('upc'), '123456789012')
+        self.assertEqual(item.retail, Decimal('4.99'))
         self.assertEqual(ItemSerializer(item).data['category'], 'Toys & Games')
 
     def test_create_reuses_product_by_upc_without_rewriting_identity(self):
@@ -75,7 +72,7 @@ class ItemSerializerCategoryRetailTests(TestCase):
             brand='Old Spice',
             model='Captain 24 oz',
             category='Health & Beauty',
-            upc='012345678905',
+            identifiers={'upc': '012345678905'},
         )
         ser = ItemSerializer(
             data={
@@ -101,11 +98,9 @@ class ItemSerializerCategoryRetailTests(TestCase):
     def test_update_routes_category_model_upc_to_linked_product(self):
         product = Product.objects.create(title='Old Title', brand='Generic')
         item = Item.objects.create(
-            title='New Title',
-            brand='New Brand',
             product=product,
             price=Decimal('3.50'),
-            unit_retail=Decimal('5.99'),
+            retail=Decimal('5.99'),
         )
         ser = ItemSerializer(
             item,
@@ -113,6 +108,8 @@ class ItemSerializerCategoryRetailTests(TestCase):
                 'category': 'Toys & Games',
                 'model': 'NERF-1',
                 'upc': '999999999999',
+                'title': 'New Title',
+                'brand': 'New Brand',
             },
             partial=True,
         )
@@ -123,7 +120,7 @@ class ItemSerializerCategoryRetailTests(TestCase):
         self.assertEqual(updated.product.brand, 'New Brand')
         self.assertEqual(updated.product.category, 'Toys & Games')
         self.assertEqual(updated.product.model, 'NERF-1')
-        self.assertEqual(updated.product.upc, '999999999999')
+        self.assertEqual(updated.product.identifiers.get('upc'), '999999999999')
 
     def test_create_persists_search_tags_on_product_specifications(self):
         ser = ItemSerializer(
@@ -142,15 +139,16 @@ class ItemSerializerCategoryRetailTests(TestCase):
         self.assertTrue(ser.is_valid(), ser.errors)
         item = ser.save()
         item.refresh_from_db()
-        self.assertEqual(item.unit_retail, Decimal('8.99'))
-        self.assertEqual(item.product.specifications.get('search_tags'), ['24 fl oz', 'body wash'])
+        self.assertEqual(item.retail, Decimal('8.99'))
+        self.assertEqual(item.product.tags, ['24 fl oz', 'body wash'])
 
     def test_create_merges_search_tags_without_overwriting_existing_product_specs(self):
         product = Product.objects.create(
             title='Old Spice Captain Body Wash',
             brand='Old Spice',
-            upc='012345678905',
-            specifications={'scent': 'Captain', 'search_tags': ['body wash']},
+            identifiers={'upc': '012345678905'},
+            specifications={'scent': 'Captain'},
+            tags=['body wash'],
         )
         ser = ItemSerializer(
             data={
@@ -171,4 +169,4 @@ class ItemSerializerCategoryRetailTests(TestCase):
         product.refresh_from_db()
         self.assertEqual(item.product_id, product.id)
         self.assertEqual(product.specifications.get('scent'), 'Captain')
-        self.assertEqual(product.specifications.get('search_tags'), ['body wash', '24 fl oz'])
+        self.assertEqual(product.tags, ['body wash', '24 fl oz'])

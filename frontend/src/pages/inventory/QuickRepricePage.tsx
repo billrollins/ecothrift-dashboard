@@ -270,7 +270,7 @@ export default function QuickRepricePage() {
     try {
       const { data: item } = await markSoldItemOnShelf(blockedItem.id);
       closeSoldDialog();
-      setResolvedPreview({ sku: item.sku, title: item.title, status: item.status });
+      setResolvedPreview({ sku: item.sku, title: item.product_title || item.sku, status: item.status });
       enqueueSnackbar(`${item.sku} marked on shelf — applying discount…`, { variant: 'info' });
       try {
         await runQuickReprice(item);
@@ -322,7 +322,7 @@ export default function QuickRepricePage() {
         return;
       }
 
-      setResolvedPreview({ sku: item.sku, title: item.title, status: item.status });
+      setResolvedPreview({ sku: item.sku, title: item.product_title || item.sku, status: item.status });
 
       if (item.status === 'sold') {
         setBlockedItem(item);

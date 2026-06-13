@@ -59,8 +59,7 @@ class ProcessingValidationMatrixMarkCompleteTests(TestCase):
             sku=Item.generate_sku(),
             product=product,
             purchase_order=self.po,
-            title='Line',
-            unit_retail=Decimal('25.00'),
+            retail=Decimal('25.00'),
             status='intake',
         )
         r = self.client.post(f'/api/inventory/orders/{self.po.id}/mark-complete/')
@@ -75,8 +74,7 @@ class ProcessingValidationMatrixMarkCompleteTests(TestCase):
             sku=Item.generate_sku(),
             product=product,
             purchase_order=self.po,
-            title='Line2',
-            unit_retail=Decimal('25.00'),
+            retail=Decimal('25.00'),
             status='processing',
         )
         r = self.client.post(f'/api/inventory/orders/{self.po.id}/mark-complete/')
@@ -88,8 +86,7 @@ class ProcessingValidationMatrixMarkCompleteTests(TestCase):
             sku=Item.generate_sku(),
             product=product,
             purchase_order=self.po,
-            title='Shelf',
-            unit_retail=Decimal('25.00'),
+            retail=Decimal('25.00'),
             status='on_shelf',
         )
         r = self.client.post(f'/api/inventory/orders/{self.po.id}/mark-complete/')
@@ -104,16 +101,14 @@ class ProcessingValidationMatrixMarkCompleteTests(TestCase):
             sku=Item.generate_sku(),
             product=p1,
             purchase_order=self.po,
-            title='Good unit',
-            unit_retail=Decimal('10.00'),
+            retail=Decimal('10.00'),
             status='on_shelf',
         )
         Item.objects.create(
             sku=Item.generate_sku(),
             product=p2,
             purchase_order=self.po,
-            title='Bad unit',
-            unit_retail=Decimal('10.00'),
+            retail=Decimal('10.00'),
             status='scrapped',
         )
         r = self.client.post(f'/api/inventory/orders/{self.po.id}/mark-complete/')
@@ -128,16 +123,14 @@ class ProcessingValidationMatrixMarkCompleteTests(TestCase):
             sku=Item.generate_sku(),
             product=p1,
             purchase_order=self.po,
-            title='Shelf unit',
-            unit_retail=Decimal('10.00'),
+            retail=Decimal('10.00'),
             status='on_shelf',
         )
         Item.objects.create(
             sku=Item.generate_sku(),
             product=p2,
             purchase_order=self.po,
-            title='Lost manifest item',
-            unit_retail=Decimal('10.00'),
+            retail=Decimal('10.00'),
             status='lost',
         )
         r = self.client.post(f'/api/inventory/orders/{self.po.id}/mark-complete/')
@@ -196,8 +189,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             product=self.p1,
             purchase_order=self.po,
             manifest_row=self.mr1,
-            title='Mixer A',
-            unit_retail=Decimal('40.00'),
+            retail=Decimal('40.00'),
             price=Decimal('15.00'),
             status='intake',
             condition='good',
@@ -207,8 +199,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             product=self.p1,
             purchase_order=self.po,
             manifest_row=self.mr1,
-            title='Mixer A',
-            unit_retail=Decimal('40.00'),
+            retail=Decimal('40.00'),
             price=Decimal('15.00'),
             status='intake',
             condition='good',
@@ -218,8 +209,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             product=self.p2,
             purchase_order=self.po,
             manifest_row=self.mr2,
-            title='Mixer B',
-            unit_retail=Decimal('50.00'),
+            retail=Decimal('50.00'),
             price=Decimal('18.00'),
             status='intake',
             condition='good',
@@ -431,8 +421,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             product=p,
             purchase_order=po,
             manifest_row=mr,
-            title='Blender',
-            unit_retail=Decimal('20.00'),
+            retail=Decimal('20.00'),
             status='intake',
         )
         Item.objects.create(
@@ -440,8 +429,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             product=p,
             purchase_order=po,
             manifest_row=mr,
-            title='Blender',
-            unit_retail=Decimal('20.00'),
+            retail=Decimal('20.00'),
             status='intake',
         )
         r = self.client.post(
@@ -484,8 +472,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
                     product=p,
                     purchase_order=po,
                     manifest_row=mr,
-                    title='Kettle',
-                    unit_retail=Decimal('20.00'),
+                    retail=Decimal('20.00'),
                     status='intake',
                     condition='unknown',
                 ),
@@ -848,7 +835,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertEqual(r.data['created_count'], 3)
         items = Item.objects.filter(purchase_order=po, manifest_row=mr)
         self.assertEqual(items.count(), 3)
-        self.assertEqual(items.filter(status='on_shelf', product__upc='999111222333').count(), 3)
+        self.assertEqual(items.filter(status='on_shelf', product__identifiers__upc='999111222333').count(), 3)
         pr.refresh_from_db()
         self.assertEqual(pr.qty_dispositioned, 3)
         self.assertEqual(pr.pending_item_count, 0)
@@ -1016,7 +1003,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
             retail_value=Decimal('80.00'),
             status='processing',
         )
-        alt = Product.objects.create(title='Alternate SKU', product_number='PRD-ALT-1', upc='ALT-UPC-1')
+        alt = Product.objects.create(title='Alternate SKU', product_number='PRD-ALT-1', identifiers={'upc': 'ALT-UPC-1'})
         mr = ManifestRow.objects.create(
             purchase_order=po,
             row_number=1,
@@ -1276,12 +1263,12 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
     def test_processing_print_and_check_in_ignores_legacy_sibling_apply_payload(self):
         self.i1.status = 'intake'
         self.i1.condition = 'good'
-        self.i1.unit_retail = Decimal('40.00')
-        self.i1.save(update_fields=['status', 'condition', 'unit_retail'])
+        self.i1.retail = Decimal('40.00')
+        self.i1.save(update_fields=['status', 'condition', 'retail'])
         self.i2.status = 'intake'
         self.i2.condition = 'good'
-        self.i2.unit_retail = Decimal('40.00')
-        self.i2.save(update_fields=['status', 'condition', 'unit_retail'])
+        self.i2.retail = Decimal('40.00')
+        self.i2.save(update_fields=['status', 'condition', 'retail'])
 
         r = self.client.post(
             f'/api/inventory/items/{self.i1.id}/processing-print-and-check-in/',
@@ -1299,7 +1286,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.i2.refresh_from_db()
         self.assertEqual(self.i1.status, 'on_shelf')
         self.assertEqual(self.i1.condition, 'salvage')
-        self.assertEqual(self.i1.unit_retail, Decimal('9.00'))
+        self.assertEqual(self.i1.retail, Decimal('9.00'))
         self.assertEqual(self.i2.status, 'intake')
         self.assertEqual(self.i2.condition, 'good')
-        self.assertEqual(self.i2.unit_retail, Decimal('40.00'))
+        self.assertEqual(self.i2.retail, Decimal('40.00'))

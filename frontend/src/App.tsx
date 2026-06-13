@@ -27,6 +27,8 @@ import ReceivingOrderPage from './pages/inventory/ReceivingOrderPage';
 import PreprocessingPage from './pages/inventory/PreprocessingPage';
 import ProcessingEntryRedirect from './pages/inventory/ProcessingEntryRedirect';
 import ProcessingWorkspacePage from './pages/inventory/processing/ProcessingWorkspacePage';
+import ManageProductsPage from './pages/inventory/ManageProductsPage';
+import ManageItemsPage from './pages/inventory/ManageItemsPage';
 import ItemListPage from './pages/inventory/ItemListPage';
 import ItemDetailPage from './pages/inventory/ItemDetailPage';
 import QuickRepricePage from './pages/inventory/QuickRepricePage';
@@ -120,6 +122,9 @@ export default function App() {
         <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
         <Route path="/inventory/processing" element={<ProcessingEntryRedirect />} />
         <Route path="/inventory/processing/:id" element={<ProcessingWorkspacePage />} />
+        <Route path="/inventory/manage-products" element={<ManageProductsPage />} />
+        <Route path="/inventory/manage-items" element={<ManageItemsPage />} />
+        {/* Legacy Search items — kept for code reference until Find item ships */}
         <Route path="/inventory/items" element={<ItemListPage />} />
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
         <Route path="/inventory/inbound" element={<InboundFulfillmentPlaceholderPage />} />

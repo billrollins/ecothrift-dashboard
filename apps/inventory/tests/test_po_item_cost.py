@@ -53,8 +53,7 @@ class PoItemCostFormulaTests(TestCase):
             sku=Item.generate_sku(),
             product=p,
             purchase_order=po,
-            title="T",
-            unit_retail=Decimal("100.00"),
+            retail=Decimal("100.00"),
             cost=po.compute_item_cost(Decimal("100.00")),
         )
         c0 = it.cost
@@ -79,12 +78,11 @@ class PoItemCostFormulaTests(TestCase):
             sku=Item.generate_sku(),
             product=p,
             purchase_order=po,
-            title="Line",
-            unit_retail=Decimal("100.00"),
+            retail=Decimal("100.00"),
         )
         it.refresh_from_db()
         self.assertEqual(it.cost, po.compute_item_cost(Decimal("100.00")))
-        it.unit_retail = Decimal("200.00")
+        it.retail = Decimal("200.00")
         it.save()
         it.refresh_from_db()
         po.refresh_from_db()
@@ -112,8 +110,7 @@ class PoItemCostFormulaTests(TestCase):
             sku=Item.generate_sku(),
             product=p,
             purchase_order=po_a,
-            title="Moved",
-            unit_retail=Decimal("100.00"),
+            retail=Decimal("100.00"),
         )
         it.refresh_from_db()
         cost_on_a = it.cost
@@ -185,4 +182,4 @@ class EnsureManifestProductsItemCostsTests(TestCase):
         items = list(Item.objects.filter(purchase_order=po).order_by("id"))
         self.assertEqual(len(items), 8)
         for it in items:
-            self.assertEqual(it.cost, po.compute_item_cost(it.unit_retail))
+            self.assertEqual(it.cost, po.compute_item_cost(it.retail))

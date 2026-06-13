@@ -11,7 +11,7 @@ Workspaces (lifecycle order):
 1. **Buying** — Vendors, Auctions, Watchlist
 2. **Processing** — Orders, Preprocessing, Receiving, Processing, Finalization, Disputes
 3. **Restoration** — TARS (placeholder)
-4. **Floor** — Search items, Quick reprice
+4. **Floor** — Manage products, Manage items, Quick reprice
 5. **Cashier** — Terminal, Transactions, Search items, Drawers, Cash Management
 6. **Admin** (Manager/Admin) — Assumptions, POS setup, Users, Customers, Permissions, Settings
 
@@ -31,8 +31,8 @@ Workspaces (lifecycle order):
 ## Collapse / workspace behavior
 
 - Exactly **one workspace panel** visible at a time.
-- **Sidebar click** (Essentials or workspace panel): stay in the current workspace even when the link appears in multiple workspaces (e.g. Search items in Floor and Cashier).
-- **External URL** (bookmark, refresh, address bar): for routes shared across workspaces, select the **lowest lifecycle #** workspace (Floor before Cashier for `/inventory/items`).
+- **Sidebar click** (Essentials or workspace panel): stay in the current workspace even when the link appears in multiple workspaces.
+- **External URL** (bookmark, refresh, address bar): for routes shared across workspaces, select the **lowest lifecycle #** workspace (e.g. Floor for `/inventory/manage-items`).
 - Manual workspace choice (selector or **Alt+1..6**) persists in `ecothrift.navC.workspace.v1`.
 
 ## Checklist

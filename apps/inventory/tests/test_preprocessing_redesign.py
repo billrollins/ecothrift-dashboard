@@ -354,7 +354,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(first['items_created'], 2)
         self.assertEqual(second['items_created'], 0)
         self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 2)
-        self.assertEqual(Product.objects.count(), 1)
+        self.assertEqual(Product.objects.filter(items__purchase_order=self.order).distinct().count(), 1)
 
     def test_ensure_manifest_prefers_processing_row_match_over_manifest_legacy(self):
         """P6: ProcessingRow hint wins when ManifestRow still has a legacy matched_product."""
@@ -1128,7 +1128,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertNotIn('first_item_sku', response.data['rows'][0])
         self.assertNotIn('item_count', response.data['rows'][0])
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 0)
-        self.assertEqual(Product.objects.count(), 0)
+        self.assertEqual(Product.objects.filter(items__purchase_order=self.order).distinct().count(), 0)
         self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 0)
 
     def test_preprocessing_review_filters_search_and_missing_price(self):
@@ -1656,10 +1656,10 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(build_resp.status_code, 200, build_resp.data)
         self.assertEqual(build_resp.data['manifest_rows'], 200)
         self.assertEqual(build_resp.data['items_created'], 200)
-        self.assertEqual(build_resp.data['products_created'], 0)
+        self.assertEqual(build_resp.data['products_created'], 200)
         self.assertEqual(ManifestRow.objects.filter(purchase_order=self.order).count(), 200)
         self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 200)
-        self.assertEqual(Product.objects.count(), 0)
+        self.assertEqual(Product.objects.filter(items__purchase_order=self.order).distinct().count(), 200)
         self.assertEqual(
             ProcessingRow.objects.filter(purchase_order=self.order, manifest_row__isnull=False).count(),
             200,
@@ -1681,10 +1681,10 @@ class PreprocessingRedesignTests(TestCase):
 
         build_resp = self._build_processing_data()
         self.assertEqual(build_resp.status_code, 200, build_resp.data)
-        item = Item.objects.get(purchase_order=self.order)
-        self.assertEqual(item.title, 'Review raw manifest row 5')
+        item = Item.objects.select_related('product').get(purchase_order=self.order)
+        self.assertEqual(item.product.title, 'Review raw manifest row 5')
         self.assertEqual(item.condition, 'unknown')
-        self.assertIsNone(item.product_id)
+        self.assertIsNotNone(item.product_id)
         rules = {w.get('rule') for w in (build_resp.data.get('warnings') or [])}
         self.assertIn('missing_listing_text', rules)
         self.assertIn('invalid_condition', rules)
@@ -1708,7 +1708,7 @@ class PreprocessingRedesignTests(TestCase):
         )
         self.assertEqual(self._build_processing_data().status_code, 200)
         item = Item.objects.get(purchase_order=self.order)
-        self.assertIsNone(item.product_id)
+        self.assertIsNotNone(item.product_id)
 
         out = processing_print_and_check_in(
             self.user,

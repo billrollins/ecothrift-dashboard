@@ -93,6 +93,7 @@ from .preprocessing_summary import (
     preprocessing_status_counts_aggregate,
     summarize_preprocessing_rows_aggregate,
 )
+from apps.inventory.product_identity import identifier_value, merge_identifiers, product_upc
 from .layer_helpers import (
     TRIPLE_LAYER_SPECS,
     bulk_clear_preprocess_ai_and_final_layers,
@@ -1005,7 +1006,7 @@ def _cache_resolved_manifest_product(order, row, cache, product):
     if cache is None:
         return
     ids = row.identifiers or {}
-    upc_val = str(ids.get('upc') or '').strip()
+    upc_val = identifier_value(ids, 'upc')
     if upc_val:
         cache['upc'][upc_val] = product
     lookup_key = first_identifier_hit(ids, IDENTIFIER_LOOKUP_ORDER)
@@ -1015,13 +1016,13 @@ def _cache_resolved_manifest_product(order, row, cache, product):
     brand = _row_listing_brand(row)
     model = _row_listing_model(row)
     category = _row_listing_category(row)
-    cache['exact'][(title.lower(), brand.lower(), model.lower(), category.lower(), upc_val)] = product
+    cache['exact'][(title.lower(), brand.lower(), model.lower(), category.lower())] = product
 
 
 def _find_or_create_manifest_product(order, row, cache=None):
     """Deterministic reuse only; otherwise create a new Product for this row."""
     ids = row.identifiers or {}
-    upc_val = str(ids.get('upc') or '').strip()
+    upc_val = identifier_value(ids, 'upc')
     if cache is not None and upc_val and upc_val in cache['upc']:
         return cache['upc'][upc_val], False
 
@@ -1035,12 +1036,12 @@ def _find_or_create_manifest_product(order, row, cache=None):
     brand = _row_listing_brand(row)
     model = _row_listing_model(row)
     category = _row_listing_category(row)
-    exact_key = (title.lower(), brand.lower(), model.lower(), category.lower(), upc_val)
+    exact_key = (title.lower(), brand.lower(), model.lower(), category.lower())
     if cache is not None and exact_key in cache['exact']:
         return cache['exact'][exact_key], False
 
     if upc_val:
-        product = Product.objects.filter(upc=upc_val).first()
+        product = Product.objects.filter(identifiers__upc=upc_val).first()
         if product:
             _cache_resolved_manifest_product(order, row, cache, product)
             return product, False
@@ -1063,7 +1064,6 @@ def _find_or_create_manifest_product(order, row, cache=None):
         brand__iexact=brand,
         model__iexact=model,
         category__iexact=category,
-        upc=upc_val,
     ).first()
     if exact_product:
         _cache_resolved_manifest_product(order, row, cache, exact_product)
@@ -1075,14 +1075,14 @@ def _find_or_create_manifest_product(order, row, cache=None):
         return prod, False
 
     product = Product.objects.create(
-        title=title,
-        brand=brand,
+        title=title or (f'Generic identifier {upc_val}' if upc_val else 'Generic Product'),
+        brand=brand or 'Generic',
         model=model,
-        category=category,
+        category=category or MIXED_LOTS_UNCATEGORIZED,
         description=row.description or '',
         specifications=row.specifications or {},
-        default_price=_row_price(row),
-        upc=upc_val,
+        identifiers=merge_identifiers(ids, {'upc': upc_val} if upc_val else {}),
+        tags=row.search_tags or [],
     )
     if lookup_key:
         VendorProductRef.objects.get_or_create(
@@ -1116,15 +1116,12 @@ def _sync_manifest_items_for_row(order, row, product):
             'product': product,
             'purchase_order': order,
             'manifest_row': row,
-            'title': _row_listing_title(row),
-            'brand': _row_listing_brand(row),
             'price': desired_price,
-            'unit_retail': row_cost,
+            'retail': row_cost,
             'cost': item_cost,
             'source': 'purchased',
             'condition': _row_listing_condition(row),
             'specifications': row.specifications or {},
-            'processing_tier': 'batch' if (quantity >= 6 and desired_price < Decimal('75')) else 'individual',
         }
         for field, value in updates.items():
             if getattr(item, field) != value:
@@ -1142,17 +1139,13 @@ def _sync_manifest_items_for_row(order, row, product):
         deleted = len(extra_ids)
         Item.objects.filter(id__in=extra_ids).delete()
 
-    tier = 'batch' if (quantity >= 6 and desired_price < Decimal('75')) else 'individual'
     for _ in range(max(0, quantity - len(existing_items))):
         new_item = Item(
             product=product,
             purchase_order=order,
             manifest_row=row,
-            processing_tier=tier,
-            title=_row_listing_title(row),
-            brand=_row_listing_brand(row),
             price=desired_price,
-            unit_retail=row_cost,
+            retail=row_cost,
             cost=item_cost,
             source='purchased',
             status='intake',
@@ -1181,7 +1174,6 @@ def ensure_manifest_products_and_items(order, user=None):
     cache = {'upc': {}, 'vk': {}, 'exact': {}}
     processing_rows_to_update: list[ProcessingRow] = []
     touched_product_ids = []
-    product_last_default = {}
 
     with transaction.atomic():
         pr_by_mr_id = {
@@ -1201,7 +1193,6 @@ def ensure_manifest_products_and_items(order, user=None):
             if created_product:
                 products_created += 1
             touched_product_ids.append(product.id)
-            product_last_default[product.id] = _row_price(row)
 
             if pr is not None and pr.matched_product_id != product.id:
                 pr.matched_product_id = product.id
@@ -1215,32 +1206,6 @@ def ensure_manifest_products_and_items(order, user=None):
 
         if processing_rows_to_update:
             ProcessingRow.objects.bulk_update(processing_rows_to_update, ['matched_product_id', 'updated_at'])
-
-        touched_unique = list(dict.fromkeys(touched_product_ids))
-        times_map = {
-            r['matched_product_id']: r['c']
-            for r in ProcessingRow.objects.filter(matched_product_id__in=touched_unique)
-            .values('matched_product_id')
-            .annotate(c=Count('id'))
-        }
-        units_map = {
-            r['product_id']: r['c']
-            for r in Item.objects.filter(product_id__in=touched_unique)
-            .values('product_id')
-            .annotate(c=Count('id'))
-        }
-        ts = timezone.now()
-        products_qs = list(Product.objects.filter(id__in=touched_unique))
-        for prod in products_qs:
-            prod.times_ordered = times_map.get(prod.id, 0)
-            prod.total_units_received = units_map.get(prod.id, 0)
-            prod.default_price = product_last_default.get(prod.id)
-            prod.updated_at = ts
-        if products_qs:
-            Product.objects.bulk_update(
-                products_qs,
-                ['times_ordered', 'total_units_received', 'default_price', 'updated_at'],
-            )
 
         order.recompute_item_costs()
 
@@ -1289,16 +1254,15 @@ def sync_manifest_row_outputs_to_items(order, rows):
         if len(distinct_pids) >= 2:
             product = None
         if product:
-            upc_p = str((row.identifiers or {}).get('upc') or '').strip()
             product_updates = {
                 'title': _row_listing_title(row),
-                'brand': _row_listing_brand(row),
+                'brand': _row_listing_brand(row) or 'Generic',
                 'model': _row_listing_model(row),
-                'category': _row_listing_category(row),
+                'category': _row_listing_category(row) or MIXED_LOTS_UNCATEGORIZED,
                 'description': row.description or '',
                 'specifications': row.specifications or {},
-                'default_price': _row_price(row),
-                'upc': upc_p,
+                'identifiers': merge_identifiers(product.identifiers, row.identifiers),
+                'tags': row.search_tags or product.tags or [],
             }
             changed = []
             for field, value in product_updates.items():
@@ -1314,11 +1278,9 @@ def sync_manifest_row_outputs_to_items(order, rows):
             # so a decided-product change cannot arrive via this surface. Re-points
             # go through explicit check-in product modes or batch remap (P4).
             item_updates = {
-                'title': _row_listing_title(row),
-                'brand': _row_listing_brand(row),
                 'condition': _row_listing_condition(row),
                 'price': _row_price(row),
-                'unit_retail': row.unit_retail,
+                'retail': row.unit_retail,
                 'cost': order.compute_item_cost(row.unit_retail),
                 'specifications': row.specifications or {},
             }
@@ -1339,35 +1301,23 @@ def sync_manifest_row_outputs_to_items(order, rows):
     }
 
 
+INVENTORY_CLEANUP_MODEL_OPTIONS = (
+    {'id': 'gemini-3.1-flash-lite', 'name': 'Gemini 3.1 Flash Lite'},
+    {'id': 'claude-haiku-4-5', 'name': 'Claude Haiku 4.5'},
+)
+
+
 def _inventory_cleanup_model_settings():
-    # Resolve env-configured models at call time (not module import) so settings
+    # Resolve env-configured default at call time (not module import) so settings
     # overrides — and .env edits between server restarts in tests — take effect.
     configured_cleanup_model = ai_model('INVENTORY_CLEANUP')
-    fast_model = str(getattr(settings, 'AI_MODEL_FAST', '') or '').strip() or ai_model('AI_CHAT')
-    chat_model = ai_model('AI_CHAT')
-    models_setting = AppSetting.objects.filter(key='ai_models_inventory_cleanup').first()
-    default_setting = AppSetting.objects.filter(key='ai_default_inventory_cleanup_model').first()
-    models = []
-    raw_models = models_setting.value if models_setting else None
-    if isinstance(raw_models, list):
-        for item in raw_models:
-            if isinstance(item, dict) and item.get('id'):
-                model_id = str(item.get('id')).strip()
-                models.append({
-                    'id': model_id,
-                    'name': str(item.get('name') or model_id),
-                })
-    if not models:
-        models = [
-            {'id': configured_cleanup_model, 'name': configured_cleanup_model},
-            {'id': fast_model, 'name': fast_model},
-            {'id': chat_model, 'name': chat_model},
-        ]
+    models = [dict(m) for m in INVENTORY_CLEANUP_MODEL_OPTIONS]
+    allowed_ids = {m['id'] for m in models}
     default_model = (
-        str(default_setting.value).strip() if default_setting else configured_cleanup_model
+        configured_cleanup_model
+        if configured_cleanup_model in allowed_ids
+        else models[0]['id']
     )
-    if not any(m['id'] == default_model for m in models):
-        models.insert(0, {'id': default_model, 'name': default_model})
     return models, default_model
 
 
@@ -1461,11 +1411,11 @@ def _build_check_in_queue_from_manifest(order, user):
             product = row.matched_product
         else:
             product = Product.objects.create(
-                title=(row.description or 'Untitled Item')[:300],
-                brand=row.brand or '',
+                title=(row.title or f'Review raw manifest row {row.row_number}')[:300],
+                brand=row.brand or 'Generic',
                 model=row.model or '',
-                category=_row_listing_category(row),
-                upc=str((row.identifiers or {}).get('upc') or ''),
+                category=_row_listing_category(row) or MIXED_LOTS_UNCATEGORIZED,
+                identifiers=merge_identifiers(row.identifiers),
             )
 
         if pr is not None and pr.matched_product_id != product.id:
@@ -1475,44 +1425,17 @@ def _build_check_in_queue_from_manifest(order, user):
         quantity = row.quantity if row.quantity and row.quantity > 0 else 1
         row_cost = row.unit_retail if row.unit_retail is not None else None
         row_price = effective_manifest_row_price(row)
-        is_batch = False
-        if row_price is not None:
-            is_batch = quantity >= 6 and float(row_price) < 75
-        elif quantity >= 10:
-            is_batch = True
-        processing_tier = 'batch' if is_batch else 'individual'
-
-        batch_group = None
-        if is_batch:
-            batch_group = BatchGroup.objects.create(
-                batch_number=BatchGroup.generate_batch_number(),
-                product=product,
-                purchase_order=order,
-                manifest_row=row,
-                total_qty=quantity,
-                unit_price=row_price,
-                unit_cost=row_cost,
-                condition='unknown',
-                status='pending',
-            )
-            batch_groups_created += 1
 
         for _ in range(quantity):
-            item_price = row_price if row_price is not None else (
-                product.default_price if product.default_price is not None else Decimal('0.00')
-            )
+            item_price = row_price if row_price is not None else Decimal('0.00')
             item_cost = order.compute_item_cost(row_cost)
             item = Item.objects.create(
                 sku=Item.generate_sku(),
                 product=product,
                 purchase_order=order,
                 manifest_row=row,
-                batch_group=batch_group,
-                processing_tier=processing_tier,
-                title=(row.title or product.title or row.description or '')[:300],
-                brand=row.brand or product.brand or '',
                 price=item_price,
-                unit_retail=row_cost,
+                retail=row_cost,
                 cost=item_cost,
                 source='purchased',
                 status='intake',
@@ -1524,10 +1447,7 @@ def _build_check_in_queue_from_manifest(order, user):
                     item=item,
                     event_type='created',
                     new_value=f'po={order.order_number},row={row.row_number}',
-                    note=(
-                        f'Created from manifest row {row.row_number}'
-                        + (f' in {batch_group.batch_number}' if batch_group else '')
-                    ),
+                    note=f'Created from manifest row {row.row_number}',
                     created_by=user,
                 ),
             )
@@ -2038,15 +1958,13 @@ def build_order_delete_preview(order, include_items=True):
     """
     base_items_qs = Item.objects.filter(purchase_order=order)
     if include_items:
-        item_objects = list(base_items_qs.select_related('batch_group').order_by('id'))
+        item_objects = list(base_items_qs.select_related('product').order_by('id'))
         items_preview = [
             {
                 'id': item.id,
                 'sku': item.sku,
-                'title': item.title,
+                'title': item.product.title if item.product_id else 'Generic Product',
                 'status': item.status,
-                'processing_tier': item.processing_tier,
-                'batch_number': item.batch_group.batch_number if item.batch_group_id else '',
             }
             for item in item_objects
         ]
@@ -2060,7 +1978,6 @@ def build_order_delete_preview(order, include_items=True):
     item_history_count = ItemHistory.objects.filter(item__purchase_order=order).count()
     item_scan_count = ItemScanHistory.objects.filter(item__purchase_order=order).count()
 
-    batch_group_count = BatchGroup.objects.filter(purchase_order=order).count()
     processing_batch_count = ProcessingBatch.objects.filter(purchase_order=order).count()
     manifest_row_count = ManifestRow.objects.filter(purchase_order=order).count()
     manifest_file_count = 1 if order.manifest_id else 0
@@ -2110,12 +2027,6 @@ def build_order_delete_preview(order, include_items=True):
                 'label': 'Delete Items',
                 'description': 'Remove all Item records created from this order',
                 'count': item_count,
-            },
-            {
-                'key': 'batch_groups',
-                'label': 'Delete Batch Groups',
-                'description': 'Remove all BatchGroup records linked to this order',
-                'count': batch_group_count,
             },
             {
                 'key': 'processing_batches',
@@ -2210,6 +2121,29 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'processing_data_build',
         'processing_data_build_chunk',
         'clear_processing_data',
+        # Check-in / processing mutations: get_object() only needs the PO row.
+        # The annotated COUNT(DISTINCT) over items × manifest_rows × batch_groups
+        # took ~20s on a large PO and made quick check-in look hung.
+        'processing_row_check_in_action',
+        'processing_check_in_together_action',
+        'processing_assign_shared_product_action',
+        'processing_collapse_rows_action',
+        'processing_uncollapse_rows_action',
+        'processing_break_apart_row_action',
+        'processing_make_set_row_action',
+        'processing_restart_row_action',
+        'processing_check_in_batch_remap_product',
+        'processing_check_in_batch_delete',
+        'processing_check_in_batch_update',
+        'processing_row_set_product_action',
+        'processing_row_patch_action',
+        'processing_add_item_action',
+        'check_in_items',
+        'ai_cleanup_rows',
+        'ai_cleanup_status',
+        'ai_cleanup_batch',
+        'ai_cleanup_complete',
+        'ai_cleanup_models',
     },
 )
 
@@ -4002,8 +3936,17 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         from apps.inventory.services.ai_cleanup import resolve_cleanup_api_key
 
-        _models, configured_default = _inventory_cleanup_model_settings()
+        allowed_models, configured_default = _inventory_cleanup_model_settings()
+        allowed_ids = {m['id'] for m in allowed_models}
         model_id = str(request.data.get('model') or '') or configured_default
+        if model_id not in allowed_ids:
+            return Response(
+                {
+                    'detail': f'Unsupported cleanup model {model_id!r}. Choose one of: {sorted(allowed_ids)}.',
+                    'code': 'invalid_model',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         api_key, key_error = resolve_cleanup_api_key(model_id)
         if key_error:
             return Response({'error': key_error}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -5598,45 +5541,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 created_by=request.user,
             )
 
-        batch_groups_created = 0
-        for row in rows:
-            quantity = row.quantity if row.quantity and row.quantity > 0 else 1
-            row_price = effective_manifest_row_price(row)
-            is_batch = False
-            if row_price is not None:
-                is_batch = quantity >= 6 and float(row_price) < 75
-            elif quantity >= 10:
-                is_batch = True
-            if not is_batch:
-                continue
-            batch_group = row.batch_groups.first()
-            if not batch_group:
-                pr = pr_by_mr_id.get(row.id)
-                if pr is not None and pr.matched_product_id:
-                    product = pr.matched_product
-                else:
-                    product = row.matched_product
-                if not product:
-                    linked = row.items.select_related('product').first()
-                    if linked:
-                        product = linked.product
-                batch_group = BatchGroup.objects.create(
-                    batch_number=BatchGroup.generate_batch_number(),
-                    product=product,
-                    purchase_order=order,
-                    manifest_row=row,
-                    total_qty=quantity,
-                    unit_price=row_price,
-                    unit_cost=row.unit_retail,
-                    condition='unknown',
-                    status='pending',
-                )
-                batch_groups_created += 1
-            row.items.exclude(status__in=TERMINAL_ITEM_STATUSES).update(
-                batch_group=batch_group,
-                processing_tier='batch',
-            )
-
         if order.status == 'delivered':
             order.status = 'processing'
             order.item_count = order.items.count()
@@ -5647,7 +5551,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'items_created': ensure_summary['items_created'],
             'items_updated': ensure_summary['items_updated'],
             'item_count': order.items.count(),
-            'batch_groups_created': batch_groups_created,
+            'batch_groups_created': 0,
         })
 
     @action(detail=True, methods=['post'], url_path='check-in-items')
@@ -5655,24 +5559,15 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         """Bulk check-in selected order items and mark them shelf-ready."""
         order = self.get_object()
         item_ids = parse_id_list(request.data.get('item_ids') or [])
-        processing_tier = request.data.get('processing_tier')
-        batch_group_id = request.data.get('batch_group_id')
         selected_statuses = request.data.get('statuses') or []
 
         items_qs = order.items.exclude(status__in=['sold', 'scrapped', 'lost'])
         if item_ids:
             items_qs = items_qs.filter(id__in=item_ids)
-        if processing_tier in ['individual', 'batch']:
-            items_qs = items_qs.filter(processing_tier=processing_tier)
-        if batch_group_id:
-            try:
-                items_qs = items_qs.filter(batch_group_id=int(batch_group_id))
-            except (TypeError, ValueError):
-                pass
         if selected_statuses:
             items_qs = items_qs.filter(status__in=selected_statuses)
 
-        items = list(items_qs.select_related('batch_group'))
+        items = list(items_qs.select_related('product'))
         if not items:
             return Response(
                 {'detail': 'No items found for check-in.'},
@@ -5687,12 +5582,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if 'unit_retail' in request.data:
             ur = parse_decimal(request.data.get('unit_retail'))
             if ur is not None:
-                shared_updates['unit_retail'] = ur
+                shared_updates['retail'] = ur
         elif 'retail_value' in request.data:
             ur = parse_decimal(request.data.get('retail_value'))
             if ur is not None:
-                shared_updates['unit_retail'] = ur
-        for field in ['title', 'brand', 'condition', 'location', 'notes']:
+                shared_updates['retail'] = ur
+        for field in ['condition', 'location', 'notes']:
             if field in request.data:
                 value = request.data.get(field)
                 if value is not None:
@@ -6004,6 +5899,64 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path=r'processing-check-in-batch/(?P<batch_id>[0-9]+)/delete',
+    )
+    def processing_check_in_batch_delete(self, request, pk=None, batch_id=None):
+        from apps.inventory.processing_ops import delete_check_in_batch
+
+        order = self.get_object()
+        try:
+            batch_pk = int(str(batch_id).strip())
+        except (TypeError, ValueError):
+            return Response({'detail': 'batch_id must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(delete_check_in_batch(request.user, order, batch_pk))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path=r'processing-check-in-batch/(?P<batch_id>[0-9]+)/update',
+    )
+    def processing_check_in_batch_update(self, request, pk=None, batch_id=None):
+        from apps.inventory.processing_ops import update_check_in_batch
+
+        order = self.get_object()
+        try:
+            batch_pk = int(str(batch_id).strip())
+        except (TypeError, ValueError):
+            return Response({'detail': 'batch_id must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(update_check_in_batch(request.user, order, batch_pk, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-row-set-product')
+    def processing_row_set_product_action(self, request, pk=None):
+        from apps.inventory.processing_ops import ProcessingDataRequired, processing_row_set_product_decision
+
+        order = self.get_object()
+        raw = request.data.get('processing_row_id') or request.data.get('processingRowId')
+        if raw is None or not str(raw).strip().isdigit():
+            return Response({'detail': 'processing_row_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(
+                processing_row_set_product_decision(request.user, order, int(str(raw).strip()), request.data),
+            )
+        except ProcessingRow.DoesNotExist:
+            return Response({'detail': 'Processing row not found for this order.'}, status=status.HTTP_404_NOT_FOUND)
+        except ProcessingDataRequired as e:
+            return Response(
+                {'detail': str(e), 'code': 'processing_data_required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['patch'], url_path='processing-row-patch')
     def processing_row_patch_action(self, request, pk=None):
         from apps.inventory.processing_ops import processing_row_patch
@@ -6191,7 +6144,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated, IsStaff]
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['product_number', 'title', 'brand', 'model', 'category', 'upc']
+    search_fields = ['product_number', 'title', 'brand', 'model', 'category', 'identifiers', 'tags']
     ordering_fields = ['title', 'created_at']
 
     @action(detail=True, methods=['get'], url_path='usage')
@@ -6222,64 +6175,25 @@ class BatchGroupViewSet(viewsets.ModelViewSet):
         return BatchGroup.objects.select_related(
             'product', 'purchase_order', 'manifest_row', 'processed_by',
         ).annotate(
-            items_count=Count('items'),
-            intake_items_count=Count('items', filter=Q(items__status='intake')),
+            items_count=Value(0, output_field=IntegerField()),
+            intake_items_count=Value(0, output_field=IntegerField()),
         )
 
     @action(detail=True, methods=['post'])
     def process(self, request, pk=None):
         """Apply shared processing values to all batch items."""
-        batch = self.get_object()
-        unit_price = request.data.get('unit_price')
-        unit_cost = request.data.get('unit_cost')
-        condition = request.data.get('condition')
-        location = request.data.get('location')
-
-        update_fields = []
-        if unit_price is not None:
-            batch.unit_price = unit_price
-            update_fields.append('unit_price')
-        if unit_cost is not None:
-            batch.unit_cost = unit_cost
-            update_fields.append('unit_cost')
-        if condition:
-            batch.condition = condition
-            update_fields.append('condition')
-        if location is not None:
-            batch.location = location
-            update_fields.append('location')
-
-        batch.status = 'in_progress'
-        batch.processed_by = request.user
-        update_fields.extend(['status', 'processed_by', 'updated_at'])
-        batch.save(update_fields=update_fields)
-
-        item_ids = list(
-            batch.items.exclude(status__in=['sold', 'scrapped', 'lost']).values_list('id', flat=True),
+        return Response(
+            {'detail': 'Batch item processing is retired; process items from the item processor.'},
+            status=status.HTTP_410_GONE,
         )
-        updated_count = batch.apply_to_items()
-        if item_ids:
-            ItemHistory.objects.bulk_create(
-                [
-                    ItemHistory(
-                        item_id=item_id,
-                        event_type='batch_processed',
-                        note=f'Processed via {batch.batch_number}',
-                        created_by=request.user,
-                    )
-                    for item_id in item_ids
-                ],
-                batch_size=1000,
-            )
-
-        serializer = self.get_serializer(batch)
-        data = serializer.data
-        data['updated_items'] = updated_count
-        return Response(data)
 
     @action(detail=True, methods=['post'], url_path='check-in')
     def check_in(self, request, pk=None):
         """Check in pending items in this batch. Optional check_in_count and scrap_count for partial."""
+        return Response(
+            {'detail': 'Batch item check-in is retired; check in items from the item processor.'},
+            status=status.HTTP_410_GONE,
+        )
         batch = self.get_object()
         unit_price = request.data.get('unit_price')
         unit_cost = request.data.get('unit_cost')
@@ -6421,6 +6335,10 @@ class BatchGroupViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def detach(self, request, pk=None):
         """Detach one item from a batch into individual processing."""
+        return Response(
+            {'detail': 'Batch item detaching is retired; items are no longer batch-grouped.'},
+            status=status.HTTP_410_GONE,
+        )
         batch = self.get_object()
         item_id = request.data.get('item_id')
 
@@ -6525,23 +6443,22 @@ class ItemViewSet(viewsets.ModelViewSet):
     pagination_class = ItemListPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = [
-        'sku', 'title', 'brand', 'notes', 'location',
-        'product__title', 'product__product_number', 'product__model', 'product__upc',
-        'manifest_row__description',
+        'sku', 'notes', 'location',
+        'product__title', 'product__brand', 'product__product_number', 'product__model', 'product__identifiers',
+        'manifest_row__title',
         'manifest_row__identifiers__upc',
         'manifest_row__identifiers__sku',
         'manifest_row__identifiers__asin',
     ]
     filterset_fields = [
         'sku', 'purchase_order',
-        'processing_tier', 'batch_group',
     ]
-    ordering_fields = ['created_at', 'price', 'title', 'sku']
+    ordering_fields = ['created_at', 'price', 'sku']
     ordering = ['-created_at']
 
     def get_queryset(self):
         qs = Item.objects.select_related(
-            'product', 'purchase_order', 'manifest_row', 'batch_group',
+            'product', 'purchase_order', 'manifest_row',
         ).all()
         request = self.request
 
@@ -6651,8 +6568,8 @@ class ItemViewSet(viewsets.ModelViewSet):
                 'id': it.id,
                 'sku': it.sku,
                 'price': str(it.price),
-                'title': it.title,
-                'brand': it.brand or '',
+                'title': it.product.title,
+                'brand': it.product.brand or '',
                 'product_number': getattr(it.product, 'product_number', None) if it.product_id else None,
             }
             for it in items
@@ -6972,10 +6889,10 @@ class ItemViewSet(viewsets.ModelViewSet):
             if parsed_price is not None:
                 updates['price'] = parsed_price
         if 'unit_retail' in request.data:
-            updates['unit_retail'] = parse_decimal(request.data.get('unit_retail'))
+            updates['retail'] = parse_decimal(request.data.get('unit_retail'))
         elif 'retail_value' in request.data:
-            updates['unit_retail'] = parse_decimal(request.data.get('retail_value'))
-        for field in ['title', 'brand', 'condition', 'location', 'notes']:
+            updates['retail'] = parse_decimal(request.data.get('retail_value'))
+        for field in ['condition', 'location', 'notes']:
             if field in request.data:
                 value = request.data.get(field)
                 if value is not None:
@@ -7134,7 +7051,7 @@ def verify_present_view(request, pk):
     Logs an ItemScanHistory record with source='audit_scan'.
     """
     try:
-        item = Item.objects.get(pk=pk)
+        item = Item.objects.select_related('product').get(pk=pk)
     except Item.DoesNotExist:
         return Response({'detail': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -7146,7 +7063,7 @@ def verify_present_view(request, pk):
     )
     return Response({
         'sku': item.sku,
-        'title': item.title,
+        'title': item.product.title if item.product_id else 'Generic Product',
         'status': item.status,
         'location': item.location,
         'verified': True,
@@ -7167,7 +7084,7 @@ def quick_reprice_view(request, pk):
     Returns updated item data. Logs a price_change history event.
     """
     try:
-        item = Item.objects.get(pk=pk)
+        item = Item.objects.select_related('product').get(pk=pk)
     except Item.DoesNotExist:
         return Response({'detail': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -7229,14 +7146,14 @@ def quick_reprice_view(request, pk):
 
     return Response({
         'sku': item.sku,
-        'title': item.title,
+        'title': item.product.title if item.product_id else 'Generic Product',
         'status': item.status,
         'old_price': str(old_price),
         'new_price': str(new_price),
         'discount_amount': str(discount_amount),
         'discount_type': discount_type,
         'discount_value': str(discount_value),
-        'brand': item.brand or '',
+        'brand': (item.product.brand if item.product_id else '') or '',
         'product_number': product_number,
     })
 
@@ -7442,7 +7359,11 @@ def store_report_view(request):
     on_shelf_qs = (
         Item.objects.filter(status='on_shelf')
         .select_related('manifest_row', 'product')
-        .annotate(listing_category=listing_category)
+        .annotate(
+            listing_category=listing_category,
+            item_title=F('product__title'),
+            item_brand=F('product__brand'),
+        )
     )
     if location_filter:
         on_shelf_qs = on_shelf_qs.filter(location__icontains=location_filter)
@@ -7463,20 +7384,27 @@ def store_report_view(request):
     ).order_by('listed_at').values(
         'id',
         'sku',
-        'title',
-        'brand',
         'price',
         'listed_at',
         'location',
+        title=F('item_title'),
+        brand=F('item_brand'),
         category=F('listing_category'),
     )[:100]
 
     unpriced_items = on_shelf_qs.filter(price=0).values(
-        'id', 'sku', 'title', 'brand', 'listed_at', 'location',
+        'id', 'sku', 'listed_at', 'location',
+        title=F('item_title'),
+        brand=F('item_brand'),
     )[:50]
 
-    lost_items = Item.objects.filter(status='lost').values(
-        'id', 'sku', 'title', 'brand', 'price', 'location',
+    lost_items = Item.objects.filter(status='lost').select_related('product').annotate(
+        item_title=F('product__title'),
+        item_brand=F('product__brand'),
+    ).values(
+        'id', 'sku', 'price', 'location',
+        title=F('item_title'),
+        brand=F('item_brand'),
     )[:50]
 
     category_breakdown = on_shelf_qs.values(category=F('listing_category')).annotate(

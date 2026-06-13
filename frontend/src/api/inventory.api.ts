@@ -208,8 +208,6 @@ export interface DetachBatchItemResponse {
 }
 
 export interface CheckInItemPayload {
-  title?: string;
-  brand?: string;
   category?: string;
   condition?: string;
   location?: string;
@@ -221,8 +219,6 @@ export interface CheckInItemPayload {
 
 export interface CheckInOrderItemsPayload extends CheckInItemPayload {
   item_ids?: number[];
-  processing_tier?: 'individual' | 'batch';
-  batch_group_id?: number;
   statuses?: string[];
 }
 
@@ -236,8 +232,6 @@ export interface OrderDeletePreviewItem {
   sku: string;
   title: string;
   status: string;
-  processing_tier: 'individual' | 'batch';
-  batch_number?: string;
 }
 
 export interface OrderDeletePreviewStep {
@@ -836,8 +830,7 @@ export interface PreprocessingMatchCandidate {
   snapshot: {
     title: string;
     brand: string;
-    upc: string;
-    default_price: string | null;
+    identifiers: Record<string, string>;
     product_number: string;
   };
 }
@@ -847,8 +840,8 @@ export interface PreprocessingMatchedProductDetail {
   product_number: string;
   title: string;
   brand: string;
-  upc: string;
-  default_price: string | null;
+  identifiers: Record<string, string>;
+  upc?: string;
 }
 
 export interface MatchCandidatesSummary {
@@ -1432,6 +1425,64 @@ export function processingRemapCheckInBatchProduct(
   return api.post<ProcessingRemapBatchProductResponse>(
     `/inventory/orders/${orderId}/processing-check-in-batch/${batchId}/remap-product/`,
     payload,
+  );
+}
+
+export interface ProcessingSetRowProductResponse {
+  product_id: number;
+  row: ProcessingWorkspaceDTO['rows'][number];
+  workspace_patch: ProcessingWorkspacePatchDTO;
+}
+
+export function processingSetRowProduct(
+  orderId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: ProcessingSetRowProductResponse }> {
+  return api.post<ProcessingSetRowProductResponse>(
+    `/inventory/orders/${orderId}/processing-row-set-product/`,
+    payload,
+  );
+}
+
+export interface ProcessingUpdateCheckInBatchResponse {
+  batch_id: number;
+  items_added: number;
+  items_removed: number;
+  items_updated: number;
+  quantity: number;
+  product_id: number | null;
+  row: ProcessingWorkspaceDTO['rows'][number];
+  workspace_patch: ProcessingWorkspacePatchDTO;
+  printed_items_preview: PrintedItemPreview[];
+}
+
+export function processingUpdateCheckInBatch(
+  orderId: number,
+  batchId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: ProcessingUpdateCheckInBatchResponse }> {
+  return api.post<ProcessingUpdateCheckInBatchResponse>(
+    `/inventory/orders/${orderId}/processing-check-in-batch/${batchId}/update/`,
+    payload,
+  );
+}
+
+export interface ProcessingDeleteCheckInBatchResponse {
+  batch_id: number;
+  items_deleted: number;
+  /** Product id deleted because the batch delete left it fully orphaned, else null. */
+  product_deleted: number | null;
+  row: ProcessingWorkspaceDTO['rows'][number];
+  workspace_patch: ProcessingWorkspacePatchDTO;
+}
+
+export function processingDeleteCheckInBatch(
+  orderId: number,
+  batchId: number,
+): Promise<{ data: ProcessingDeleteCheckInBatchResponse }> {
+  return api.post<ProcessingDeleteCheckInBatchResponse>(
+    `/inventory/orders/${orderId}/processing-check-in-batch/${batchId}/delete/`,
+    {},
   );
 }
 

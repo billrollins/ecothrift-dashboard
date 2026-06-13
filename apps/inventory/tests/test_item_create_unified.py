@@ -126,7 +126,7 @@ class WorkspaceRoutedCreateTests(UnifiedItemCreateBase):
         )
 
     def test_workspace_route_reuses_existing_product_by_upc(self):
-        existing = Product.objects.create(title='Cordless Drill', brand='Acme', upc='012345678905')
+        existing = Product.objects.create(title='Cordless Drill', brand='Acme', identifiers={'upc': '012345678905'})
         resp = self._create_item(purchase_order=self.order.id, upc='012345678905')
         self.assertEqual(resp.status_code, 201, resp.data)
         row = ProcessingRow.objects.get(
@@ -149,11 +149,11 @@ class ProductUsageEndpointTests(UnifiedItemCreateBase):
             ))
         for n in range(3):
             Item.objects.create(
-                sku=f'SKU-USE-{n}', title='Widget', product=product,
+                sku=f'SKU-USE-{n}', product=product,
                 purchase_order=orders[n % 2], price=Decimal('1.00'),
             )
         # One item with no PO: counted in item_count, not order_count.
-        Item.objects.create(sku='SKU-USE-X', title='Widget', product=product, price=Decimal('1.00'))
+        Item.objects.create(sku='SKU-USE-X', product=product, price=Decimal('1.00'))
 
         resp = self.client.get(f'/api/inventory/products/{product.id}/usage/')
         self.assertEqual(resp.status_code, 200, resp.data)

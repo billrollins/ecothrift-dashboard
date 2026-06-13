@@ -61,13 +61,13 @@ export function buildItemForm(
   stickyDefaults?: { condition?: string; location?: string } | null,
 ): ProcessingFormState {
   return {
-    title: item.title || '',
-    brand: item.brand || '',
+    title: item.product_title || '',
+    brand: item.product_brand || '',
     category: item.category || '',
     condition: item.condition || stickyDefaults?.condition || 'unknown',
     location: item.location || stickyDefaults?.location || '',
     price: item.price || '',
-    retail_value: item.retail_value || '',
+    retail_value: item.retail_value || item.retail || '',
     notes: item.notes || '',
   };
 }
@@ -173,7 +173,7 @@ export function ProcessingDrawer({
   const isBatch = mode === 'batch';
   const label = isItem ? item?.sku ?? '' : batch?.batch_number ?? '';
   const titleText = isItem
-    ? item?.title || item?.product_title || 'Untitled'
+    ? item?.product_title || 'Untitled'
     : batch?.product_title || 'Batch';
   const statusChipColor = justCheckedIn ? 'success' as const : 'warning' as const;
   const statusLabel = justCheckedIn
@@ -225,7 +225,7 @@ export function ProcessingDrawer({
       {/* Scrollable form body */}
       <Box sx={{ flex: 1, overflow: 'auto', p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {/* Source context accordion */}
-        {isItem && item && (item.product_title || item.brand || item.retail_value) && (
+        {isItem && item && (item.product_title || item.product_brand || item.retail_value || item.retail) && (
           <Accordion
             expanded={sourceExpanded}
             onChange={() => setSourceExpanded(!sourceExpanded)}
@@ -252,22 +252,16 @@ export function ProcessingDrawer({
                     <Typography variant="caption">{item.product_number}</Typography>
                   </>
                 )}
-                {item.brand && (
+                {item.product_brand && (
                   <>
                     <Typography variant="caption" color="text.secondary">Brand</Typography>
-                    <Typography variant="caption">{item.brand}</Typography>
+                    <Typography variant="caption">{item.product_brand}</Typography>
                   </>
                 )}
-                {item.retail_value && (
+                {(item.retail_value || item.retail) && (
                   <>
                     <Typography variant="caption" color="text.secondary">Retail value</Typography>
-                    <Typography variant="caption">${Number.parseFloat(item.retail_value).toFixed(2)}</Typography>
-                  </>
-                )}
-                {item.batch_group_number && (
-                  <>
-                    <Typography variant="caption" color="text.secondary">Batch</Typography>
-                    <Typography variant="caption">{item.batch_group_number}</Typography>
+                    <Typography variant="caption">${Number.parseFloat(item.retail_value || item.retail || '0').toFixed(2)}</Typography>
                   </>
                 )}
               </Box>

@@ -26,7 +26,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'processing',
     label: 'Processing',
-    itemIds: ['orders', 'preprocessing', 'receiving', 'processing', 'finalization', 'disputes', 'searchItems'],
+    itemIds: ['orders', 'preprocessing', 'receiving', 'processing', 'finalization', 'disputes'],
   },
   {
     id: 'restoration',
@@ -36,12 +36,12 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'floor',
     label: 'Floor',
-    itemIds: ['searchItems', 'quickReprice'],
+    itemIds: ['manageProducts', 'manageItems', 'quickReprice'],
   },
   {
     id: 'cashier',
     label: 'Cashier',
-    itemIds: ['posTerminal', 'posTransactions', 'searchItems', 'posDrawers', 'posCash'],
+    itemIds: ['posTerminal', 'posTransactions', 'posDrawers', 'posCash'],
   },
   {
     id: 'admin',
@@ -86,7 +86,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'floor',
     label: 'Floor',
     shortLabel: 'Floor',
-    helper: 'Lookup and reprice',
+    helper: 'Manage products & items, reprice',
     icon: 'search',
   },
   {

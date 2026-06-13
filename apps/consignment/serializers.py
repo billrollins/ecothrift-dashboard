@@ -17,7 +17,7 @@ class ConsignmentAgreementSerializer(serializers.ModelSerializer):
 
 class ConsignmentItemSerializer(serializers.ModelSerializer):
     item_sku = serializers.CharField(source='item.sku', read_only=True)
-    item_title = serializers.CharField(source='item.title', read_only=True)
+    item_title = serializers.CharField(source='item.product.title', read_only=True)
     agreement_number = serializers.CharField(source='agreement.agreement_number', read_only=True)
     consignee_name = serializers.CharField(source='agreement.consignee.full_name', read_only=True)
 
@@ -58,7 +58,7 @@ class ConsignmentPayoutSerializer(serializers.ModelSerializer):
 class MyConsignmentItemSerializer(serializers.ModelSerializer):
     """Consignee's view of their items."""
     sku = serializers.CharField(source='item.sku', read_only=True)
-    title = serializers.CharField(source='item.title', read_only=True)
+    title = serializers.CharField(source='item.product.title', read_only=True)
     price = serializers.DecimalField(
         source='item.price', max_digits=10, decimal_places=2, read_only=True,
     )

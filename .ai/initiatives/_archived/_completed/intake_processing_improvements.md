@@ -1,9 +1,11 @@
-<!-- initiative: slug=intake-processing-improvements status=active updated=2026-06-12 -->
-<!-- Last updated: 2026-06-12 (Session 11 — P9 singles & sets row transforms shipped) -->
+<!-- Archived 2026-06-13: disposition=completed (P1–P9 shipped; superseded by product_item_crud_and_processing) -->
+<!-- initiative: slug=intake-processing-improvements status=completed updated=2026-06-13 -->
+<!-- Last updated: 2026-06-13 (closed — direction change; remaining work → product_item_crud_and_processing) -->
 
 # Initiative: Intake → Processing improvements
 
-**Status:** **Active** — product-identity roadmap **P1–P9 complete** (Sessions 3–11): P1–P6 shipped Sessions 3–8 (2026-06-09), Session 9 (2026-06-10) Fable post-ship audit + F1/F2, **Session 10 (2026-06-10)** shipped **P7 collapse groups** and the **P8 check-in/item UX overhaul** (buttons-first check-in, unified qty-aware add-item, quick check-in product prompt, defaults-at-top row detail), **Session 11 (2026-06-12)** shipped **P9 singles & sets** (Break apart / Make set row transforms, sub rows, `Item.unit_count`, Restart row undo). **Next:** remaining high-level work below (richer search, legacy retirement, rollups).
+**Status:** **Completed / superseded** — P1–P9 shipped (Sessions 3–11). Initiative closed 2026-06-13; owner direction reset. **Continued in:** [`product_item_crud_and_processing`](../../product_item_crud_and_processing.md).
+
 
 > **Landmark design:** [`.ai/reference/product_identity/product_identity_design.md`](../reference/product_identity/product_identity_design.md) — the binding target design for product matching/creation across intake (three rules, confidence ladder, field precedence, collapse/split, schema delta). This initiative tracks **phases and sessions** toward that design; when this file and the design doc disagree, the design doc wins (or update both deliberately).
 
@@ -389,7 +391,23 @@ _Add during sessions; not committed scope until prioritized._
 - **Verification:** `test_processing_transforms.py` (18 tests: plates whole/partial, candles partial + unit_count stamp + rollups 10,004, product_mode new, sub-row/collapse guards both ways, sibling attribution isolation, price-push scoping, restart confirm/execute/sold-block/cart-block/kept-product/no-transforms); full inventory suite **299 green**; frontend tsc + **85 tests green**.
 - **Result:** **Done — P9 gate met.** Plates (10×500 → 5,000) and candles (12,000 → 10,000 singles + 4 boxes of 500) work end-to-end with honest unit accounting and a one-click family restart. Docs: CHANGELOG `[Unreleased]`, design doc §7.5, `inventory-pipeline.md`.
 
-### Remaining high-level work
+### Remaining high-level work → moved to `product_item_crud_and_processing` (2026-06-13)
+
+Closed with this initiative. **Not completed here** — carried forward:
+
+- Processing workspace UX simplification (row-only queue; product/item CRUD-first redesign)
+- Richer processing search (deferred — v1 uses product `search_string`; semantic embeddings later)
+- Legacy path retirement (**Create Processing Data**)
+- Old/in-flight order migration
+- Rollups/reporting pass
+- Preprocessing `standard_*` cleanup
+- Product workflow: search-or-create, attach-to-row, slim check-in
+
+**Shipped in this initiative (keep):** P1–P9 product identity, collapse, check-in overhaul, break apart/make set transforms — code remains; new initiative reframes how Product/Item CRUD and processing check-in connect.
+
+---
+
+### Remaining high-level work (archived snapshot — see above)
 
 - **Processing workspace UX:** add item/line directly in `/inventory/processing/:id`; improve row/item/product editing; show/manage checked-in Items cleanly; polish expected/checked-in/remaining/overage display.
 - **Richer processing search:** expand matching across checked-in Item SKU, Product number/model/UPC, manifest identifiers, and staff-friendly shortcuts while keeping `ProcessingRow.search_string` fast.

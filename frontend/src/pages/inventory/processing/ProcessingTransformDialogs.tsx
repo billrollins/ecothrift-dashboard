@@ -15,8 +15,14 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Product, ProcessingWorkspaceRowDTO } from '../../../types/inventory.types';
 import type { ProcessingRestartSummary } from '../../../api/inventory.api';
 import { useProductSearch } from '../../../hooks/useProductSearch';
+import {
+  defaultTransformShelfPrice,
+  parseRowShelfPrice,
+  transformPriceHelperText,
+  type ProcessingTransformMode,
+} from './processingTransformPrice';
 
-export type ProcessingTransformMode = 'break_apart' | 'make_set';
+export type { ProcessingTransformMode };
 
 type TransformProductMode = 'keep' | 'existing' | 'new';
 
@@ -63,7 +69,11 @@ export function ProcessingTransformDialog({
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [newTitle, setNewTitle] = useState('');
+  const [newTitleTouched, setNewTitleTouched] = useState(false);
   const [shelfPrice, setShelfPrice] = useState('');
+  const [shelfPriceTouched, setShelfPriceTouched] = useState(false);
+
+  const rowShelfPrice = parseRowShelfPrice(row.price);
 
   const { products, isFetching } = useProductSearch(
     'processing-transform',
@@ -81,7 +91,9 @@ export function ProcessingTransformDialog({
     setSearch('');
     setSelectedProduct(null);
     setNewTitle('');
+    setNewTitleTouched(false);
     setShelfPrice('');
+    setShelfPriceTouched(false);
   }, [open, available]);
 
   const units = parsePositive(unitsRaw);
@@ -89,14 +101,42 @@ export function ProcessingTransformDialog({
   const setSize = parsePositive(setSizeRaw);
   const numSets = parsePositive(numSetsRaw);
 
+  const suggestedShelfPrice = useMemo(
+    () => defaultTransformShelfPrice(mode, rowShelfPrice, factor, setSize),
+    [mode, rowShelfPrice, factor, setSize],
+  );
+
+  useEffect(() => {
+    if (!open || shelfPriceTouched) return;
+    setShelfPrice(suggestedShelfPrice);
+  }, [open, shelfPriceTouched, suggestedShelfPrice]);
+
+  const suggestedNewTitle = useMemo(() => {
+    const base = (row.title || row.description || `Row ${row.rowNum}`).trim();
+    if (isBreakApart) return `${base} (single)`;
+    const setLabel = setSize && setSize >= 2 ? String(setSize) : (setSizeRaw.trim() || 'N');
+    return `${base} — Set of ${setLabel}`;
+  }, [isBreakApart, row.title, row.description, row.rowNum, setSize, setSizeRaw]);
+
+  useEffect(() => {
+    if (productMode !== 'new' || newTitleTouched) return;
+    setNewTitle(suggestedNewTitle);
+  }, [productMode, suggestedNewTitle, newTitleTouched]);
+
+  const resolvedNewTitle = newTitle.trim() || suggestedNewTitle.trim();
+
+  // Expected is an ESTIMATE — the user may transform more units than the manifest
+  // expected (extra received). Over-expected is a warning, never a blocker; the
+  // server re-derives Expected from what they actually do.
+  const checkedIn = Math.max(0, (row.qty ?? 0) - available);
   const math = useMemo(() => {
     if (isBreakApart) {
       if (!units || !factor || factor < 2) return null;
       const subitems = units * factor;
-      const remainder = (row.qty ?? 0) - units;
-      const inPlace = units === (row.qty ?? 0) && nothingCheckedIn;
+      const remainder = Math.max(checkedIn, (row.qty ?? 0) - units);
+      const inPlace = units >= (row.qty ?? 0) && nothingCheckedIn;
       return {
-        valid: units <= available,
+        over: Math.max(0, units - available),
         inPlace,
         line: inPlace
           ? `Entire row becomes ${subitems.toLocaleString()} subitems.`
@@ -105,23 +145,22 @@ export function ProcessingTransformDialog({
     }
     if (!setSize || setSize < 2 || !numSets) return null;
     const consumed = setSize * numSets;
-    const remainder = (row.qty ?? 0) - consumed;
-    const inPlace = consumed === (row.qty ?? 0) && nothingCheckedIn;
+    const remainder = Math.max(checkedIn, (row.qty ?? 0) - consumed);
+    const inPlace = consumed >= (row.qty ?? 0) && nothingCheckedIn;
     return {
-      valid: consumed <= available,
+      over: Math.max(0, consumed - available),
       inPlace,
       line: inPlace
         ? `Entire row becomes ${numSets.toLocaleString()} set(s) of ${setSize.toLocaleString()}.`
         : `${numSets.toLocaleString()} set(s) × ${setSize.toLocaleString()} = ${consumed.toLocaleString()} units on a new sub row · ${remainder.toLocaleString()} stay as-is.`,
     };
-  }, [isBreakApart, units, factor, setSize, numSets, row.qty, available, nothingCheckedIn]);
+  }, [isBreakApart, units, factor, setSize, numSets, row.qty, available, nothingCheckedIn, checkedIn]);
 
   const submitDisabled =
     loading
     || !math
-    || !math.valid
     || (productMode === 'existing' && !selectedProduct)
-    || (productMode === 'new' && !newTitle.trim());
+    || (productMode === 'new' && !resolvedNewTitle);
 
   async function handleSubmit() {
     const payload: Record<string, unknown> = {
@@ -136,7 +175,7 @@ export function ProcessingTransformDialog({
       payload.num_sets = numSets;
     }
     if (productMode === 'existing' && selectedProduct) payload.product_id = selectedProduct.id;
-    if (productMode === 'new') payload.title = newTitle.trim();
+    if (productMode === 'new' && resolvedNewTitle) payload.title = resolvedNewTitle;
     if (shelfPrice.trim()) payload.shelf_price = shelfPrice.trim();
     await onSubmit(payload);
   }
@@ -197,10 +236,11 @@ export function ProcessingTransformDialog({
           )}
 
           {math ? (
-            <Alert severity={math.valid ? 'info' : 'error'} sx={{ py: 0.25 }}>
-              {math.valid
-                ? math.line
-                : `That needs more units than the ${available.toLocaleString()} still un-checked-in.`}
+            <Alert severity={math.over > 0 ? 'warning' : 'info'} sx={{ py: 0.25 }}>
+              {math.line}
+              {math.over > 0
+                ? ` Uses ${math.over.toLocaleString()} more unit(s) than expected — fine if you received extra; Expected will update.`
+                : ''}
             </Alert>
           ) : null}
 
@@ -209,7 +249,11 @@ export function ProcessingTransformDialog({
             label={isBreakApart ? 'Product for the subitems' : 'Product for the sets'}
             size="small"
             value={productMode}
-            onChange={(e) => setProductMode(e.target.value as TransformProductMode)}
+            onChange={(e) => {
+              const next = e.target.value as TransformProductMode;
+              setProductMode(next);
+              if (next === 'new') setNewTitleTouched(false);
+            }}
           >
             <MenuItem value="keep">Keep current product decision</MenuItem>
             <MenuItem value="existing">Existing product</MenuItem>
@@ -233,9 +277,11 @@ export function ProcessingTransformDialog({
               label="New product title"
               size="small"
               value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder={isBreakApart ? `${row.title} (single)` : `${row.title} — Set of ${setSizeRaw || 'N'}`}
-              required
+              onChange={(e) => {
+                setNewTitleTouched(true);
+                setNewTitle(e.target.value);
+              }}
+              helperText="Pre-filled from the row — edit or submit as-is."
             />
           ) : null}
 
@@ -243,9 +289,12 @@ export function ProcessingTransformDialog({
             label={isBreakApart ? 'Price per subitem (optional)' : 'Price per set (optional)'}
             size="small"
             value={shelfPrice}
-            onChange={(e) => setShelfPrice(e.target.value)}
+            onChange={(e) => {
+              setShelfPriceTouched(true);
+              setShelfPrice(e.target.value);
+            }}
             inputProps={{ inputMode: 'decimal' }}
-            helperText="Blank = scaled from the row's current price."
+            helperText={transformPriceHelperText(mode, rowShelfPrice, factor, setSize)}
           />
         </Stack>
       </DialogContent>

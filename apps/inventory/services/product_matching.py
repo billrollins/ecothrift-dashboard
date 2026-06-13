@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.db.models.functions import Lower
+
 from apps.inventory.layer_helpers import (
     effective_preprocessing_title,
     effective_preprocessing_triple,
@@ -26,6 +28,7 @@ from apps.inventory.manifest_standard_fields import (
     first_identifier_hit,
 )
 from apps.inventory.models import PreprocessingRow, Product, PurchaseOrder, VendorProductRef
+from apps.inventory.product_identity import identifier_value
 
 MAX_CANDIDATES_PER_ROW = 5
 
@@ -38,8 +41,7 @@ def product_snapshot(product: Product) -> dict[str, Any]:
     return {
         'title': product.title or '',
         'brand': product.brand or '',
-        'upc': product.upc or '',
-        'default_price': str(product.default_price) if product.default_price is not None else None,
+        'identifiers': product.identifiers or {},
         'product_number': product.product_number or '',
     }
 
@@ -55,9 +57,7 @@ def _candidate(product: Product, score: int, source: str) -> dict[str, Any]:
 
 def _row_upc(row: PreprocessingRow) -> str:
     ids = effective_preprocessing_triple(row, 'identifiers')
-    if not isinstance(ids, dict):
-        return ''
-    return str(ids.get('upc') or '').strip()
+    return identifier_value(ids, 'upc')
 
 
 def _row_vendor_lookup_key(row: PreprocessingRow) -> str:
@@ -105,14 +105,12 @@ def generate_match_candidates_for_order(order: PurchaseOrder) -> dict[str, Any]:
     # Batched lookups: ONE case-insensitive IN query per tier via Lower() annotations.
     # NEVER per-miss queries — a 744-row PO against a 185k-product catalog must not run
     # hundreds of un-indexed iexact scans (that was ~97s per run; this is 3 scans total).
-    from django.db.models.functions import Lower
-
     products_by_upc: dict[str, Product] = {}
     if row_upcs:
-        wanted_upcs = {u.lower() for u in row_upcs.values()}
-        qs = Product.objects.annotate(_upc_lc=Lower('upc')).filter(_upc_lc__in=wanted_upcs)
+        wanted_upcs = set(row_upcs.values())
+        qs = Product.objects.filter(identifiers__upc__in=wanted_upcs)
         for p in qs.order_by('id'):
-            products_by_upc.setdefault((p.upc or '').lower(), p)
+            products_by_upc.setdefault(identifier_value(p.identifiers, 'upc'), p)
 
     products_by_vendor_key: dict[str, Product] = {}
     if row_vendor_keys and order.vendor_id:
@@ -149,7 +147,7 @@ def generate_match_candidates_for_order(order: PurchaseOrder) -> dict[str, Any]:
             candidates.append(_candidate(product, score, source))
 
         upc = row_upcs.get(row.id, '')
-        upc_product = products_by_upc.get(upc.lower()) if upc else None
+        upc_product = products_by_upc.get(upc) if upc else None
         _add(upc_product, SCORE_UPC, 'upc')
 
         vk = row_vendor_keys.get(row.id, '')

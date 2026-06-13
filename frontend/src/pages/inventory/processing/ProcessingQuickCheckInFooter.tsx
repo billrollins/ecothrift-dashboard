@@ -154,7 +154,8 @@ export function ProcessingQuickCheckInFooter({
   }, [qtyRemaining]);
 
   const qtyValue = quantity.trim() === '' ? 0 : parseCheckInQuantity(quantity);
-  const disabled = checkInLoading || qtyRemaining <= 0 || qtyValue < 1 || quickCheckInDisabled;
+  // Expected is an ESTIMATE — checking in past it is allowed (it shows as Over).
+  const disabled = checkInLoading || qtyValue < 1 || quickCheckInDisabled;
   const leftAfter = Math.max(0, qtyRemaining - qtyValue);
   const isHeader = variant === 'header';
 

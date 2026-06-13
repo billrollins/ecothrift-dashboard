@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { effectiveRowQty, queueQtyText, queueTitleText } from './processingQueueCellText';
+import { effectiveRowQty, processingIdentityHoverTooltip, queueQtyText, queueTitleText } from './processingQueueCellText';
 
 const group = {
   memberRowNumbers: [2, 3],
@@ -79,5 +79,23 @@ describe('effectiveRowQty (P7 collapse)', () => {
     const over = { ...group, totalDispositioned: 20 };
     expect(effectiveRowQty({ qty: 5, qtyDispositioned: 5, collapsedGroup: over }).overage).toBe(5);
     expect(effectiveRowQty({ qty: 5, qtyDispositioned: 5, collapsedGroup: over }).remaining).toBe(0);
+  });
+});
+
+describe('processingIdentityHoverTooltip', () => {
+  it('shows both when display differs from standardized', () => {
+    expect(processingIdentityHoverTooltip('Red Headband', 'hdbnd red', 'title')).toBe(
+      'Showing: Red Headband\nStandardized title: hdbnd red',
+    );
+  });
+
+  it('shows standardized only when values match', () => {
+    expect(processingIdentityHoverTooltip('Acme Widget', 'Acme Widget', 'title')).toBe(
+      'Standardized title: Acme Widget',
+    );
+  });
+
+  it('falls back to display when no standardized value', () => {
+    expect(processingIdentityHoverTooltip('Shelf label', undefined, 'brand')).toBe('Shelf label');
   });
 });

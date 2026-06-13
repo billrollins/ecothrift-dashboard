@@ -8,6 +8,7 @@ from django.utils import timezone
 from apps.inventory.models import (
     Item,
     ManifestRow,
+    Product,
     ProcessingDataBuild,
     ProcessingRow,
     PurchaseOrder,
@@ -152,17 +153,19 @@ class IntakePoRepairClassificationTests(TestCase):
             quantity=1,
             manifest_row=manifest_row,
         )
+        linked_product = Product.objects.create(title='Linked sold item')
+        overage_product = Product.objects.create(title='Unmanifested intake item')
         Item.objects.create(
             sku='LINKED-1',
+            product=linked_product,
             purchase_order=po,
             manifest_row=manifest_row,
-            title='Linked sold item',
             status='sold',
         )
         Item.objects.create(
             sku='OVERAGE-1',
+            product=overage_product,
             purchase_order=po,
-            title='Unmanifested intake item',
             status='intake',
         )
 

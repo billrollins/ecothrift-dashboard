@@ -1,3 +1,4 @@
+/** Legacy Search items page — not in staff nav; use Find item when shipped. Kept to reuse ItemListPanel / ItemForm. */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,

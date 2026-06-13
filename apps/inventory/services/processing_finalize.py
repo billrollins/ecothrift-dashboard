@@ -23,6 +23,8 @@ from apps.inventory.models import (
     PurchaseOrder,
 )
 from apps.inventory.layer_helpers import effective_taxonomy_category_for_row
+from apps.inventory.product_identity import merge_identifiers
+from apps.inventory.services.manual_item import find_or_create_product_for_manual_item
 from apps.inventory.services.intake_gates import raise_if_processing_blocked_by_intake
 from apps.inventory.services.processing_search_string import assign_search_strings_for_instances, build_processing_row_search_string
 from apps.inventory.services.processing_workspace import refresh_processing_rows_denorm
@@ -493,8 +495,8 @@ def _take_next_bookmark_chunk(
 
 
 def _bulk_create_chunk_items(order: PurchaseOrder, m_rows: list[ManifestRow]) -> list[Item]:
-    unit_count = sum(_safe_quantity(m.quantity) for m in m_rows)
-    skus = _next_sku_batch(unit_count)
+    total_units = sum(_safe_quantity(m.quantity) for m in m_rows)
+    skus = _next_sku_batch(total_units)
     item_objs: list[Item] = []
     sku_idx = 0
     for row in m_rows:
@@ -503,21 +505,26 @@ def _bulk_create_chunk_items(order: PurchaseOrder, m_rows: list[ManifestRow]) ->
         price = row.final_price if row.final_price is not None else row.proposed_price
         if price is None:
             price = 0
+        title = (row.title or f'Review raw manifest row {row.row_number}')[:300]
+        product = find_or_create_product_for_manual_item(
+            title=title,
+            brand=row.brand or 'Generic',
+            category=row.category or 'Mixed lots & uncategorized',
+            model=row.model or '',
+            identifiers=merge_identifiers(row.identifiers),
+            specifications=row.specifications or {},
+            search_tags=row.search_tags or [],
+        )
         for _ in range(quantity):
             sku = skus[sku_idx] if sku_idx < len(skus) else Item.generate_sku()
             sku_idx += 1
             item = Item(
                 sku=sku,
-                product=None,
+                product=product,
                 purchase_order=order,
                 manifest_row=row,
-                processing_tier='individual',
-                title=(
-                    row.title or row.description or f'Review raw manifest row {row.row_number}'
-                )[:300],
-                brand=row.brand or '',
                 price=price,
-                unit_retail=row.unit_retail,
+                retail=row.unit_retail,
                 cost=item_cost,
                 source='purchased',
                 status='intake',
@@ -609,6 +616,7 @@ def serialize_processing_data_build(order: PurchaseOrder, build: ProcessingDataB
     bookmarks_total = ProcessingRow.objects.filter(purchase_order=order).count()
     manifest_ct = ManifestRow.objects.filter(purchase_order=order).count()
     item_ct = Item.objects.filter(purchase_order=order).count()
+    product_ct = Product.objects.filter(items__purchase_order=order).distinct().count()
 
     if build is None:
         return {
@@ -626,7 +634,7 @@ def serialize_processing_data_build(order: PurchaseOrder, build: ProcessingDataB
             'manifest_rows': manifest_ct,
             'processing_row_bookmarks': bookmarks_total,
             'batch_groups_created': 0,
-            'products_created': 0,
+            'products_created': product_ct,
             'items_created': item_ct,
             'item_count': item_ct,
             'processing_batch_id': None,
@@ -658,7 +666,7 @@ def serialize_processing_data_build(order: PurchaseOrder, build: ProcessingDataB
         'processing_row_bookmarks': build.total_rows,
         'batch_groups_created': 0,
         'processing_batch_id': batch.id if batch else None,
-        'products_created': 0,
+        'products_created': product_ct,
         'items_created': item_ct,
         'item_count': item_ct,
         'rows': manifest_ct,

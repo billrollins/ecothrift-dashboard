@@ -11,6 +11,7 @@ from apps.core.models import S3File
 from apps.inventory.models import (
     Item,
     ManifestRow,
+    Product,
     PreprocessingRow,
     ProcessingRow,
     PurchaseOrder,
@@ -127,8 +128,7 @@ class IntakeUndoTests(TestCase):
         Item.objects.create(
             purchase_order=self.order,
             sku='ITM0000991',
-            title='t',
-            brand='b',
+            product=Product.objects.create(title='t', brand='b'),
             source='purchased',
             status='intake',
         )
@@ -243,8 +243,7 @@ class IntakeUndoTests(TestCase):
         Item.objects.create(
             purchase_order=self.order,
             sku='ITM0000991',
-            title='t',
-            brand='b',
+            product=Product.objects.create(title='t', brand='b'),
             source='purchased',
             status='intake',
         )

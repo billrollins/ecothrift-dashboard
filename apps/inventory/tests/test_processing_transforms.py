@@ -100,7 +100,6 @@ class BreakApartTests(ProcessingTransformTestBase):
         self.assertIsNone(resp.data['sub_processing_row_id'])
         pr.refresh_from_db()
         self.assertEqual(pr.quantity, 5000)
-        self.assertEqual(pr.units_per_item, 1)
         self.assertEqual(pr.unit_retail, Decimal('0.10'))
         self.assertEqual(pr.shelf_price, Decimal('0.04'))
         self.assertEqual(len(pr.transforms), 1)
@@ -118,9 +117,7 @@ class BreakApartTests(ProcessingTransformTestBase):
         pr.refresh_from_db()
         sub = ProcessingRow.objects.get(pk=sub_id)
         self.assertEqual(pr.quantity, 6)
-        self.assertEqual(pr.units_per_item, 500)  # leftovers are known 500-packs
         self.assertEqual(sub.quantity, 2000)
-        self.assertEqual(sub.units_per_item, 1)
         self.assertEqual(sub.split_parent_id, pr.id)
         self.assertEqual(sub.split_seq, 1)
         self.assertEqual(sub.manifest_row_id, mr.id)
@@ -128,11 +125,16 @@ class BreakApartTests(ProcessingTransformTestBase):
         # Searching the parent number finds the family.
         self.assertIn('7.1', sub.search_string)
 
-    def test_rejects_more_than_available(self):
+    def test_over_expected_allowed_expected_rederives(self):
+        # Expected is an estimate — breaking apart MORE than expected is allowed
+        # (extra received); with nothing checked in it rewrites the row in place.
         order, _mr, pr = self._order_with_row(qty=10)
         resp = self._break_apart(order, {'processing_row_id': pr.id, 'units': 11, 'factor': 500})
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('un-checked-in', resp.data['detail'])
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertIsNone(resp.data['sub_processing_row_id'])
+        pr.refresh_from_db()
+        self.assertEqual(pr.quantity, 5500)
+        self.assertEqual(pr.transforms[0]['over_expected'], 1)
 
     def test_workspace_list_carries_split_fields(self):
         order, _mr, pr = self._order_with_row(qty=10)
@@ -141,7 +143,6 @@ class BreakApartTests(ProcessingTransformTestBase):
         sub_row = next(r for r in workspace['rows'] if r['splitParentId'] == pr.id)
         self.assertEqual(sub_row['splitParentRowNumber'], 7)
         self.assertEqual(sub_row['splitSeq'], 1)
-        self.assertEqual(sub_row['unitsPerItem'], 1)
 
 
 class MakeSetTests(ProcessingTransformTestBase):
@@ -151,12 +152,11 @@ class MakeSetTests(ProcessingTransformTestBase):
         self.assertEqual(resp.status_code, 200, resp.data)
         pr.refresh_from_db()
         self.assertEqual(pr.quantity, 10)
-        self.assertEqual(pr.units_per_item, 500)
         self.assertEqual(pr.unit_retail, Decimal('50.00'))
         self.assertEqual(pr.shelf_price, Decimal('25.00'))
         self.assertEqual(pr.transforms[0]['op'], 'make_set')
 
-    def test_partial_candles_sets_and_unit_count_stamp(self):
+    def test_partial_candles_sets_create_single_unit_items(self):
         order, _mr, pr = self._order_with_row(
             qty=12000, unit_retail='1.00', shelf_price='0.50', title='Prayer candle',
         )
@@ -170,21 +170,18 @@ class MakeSetTests(ProcessingTransformTestBase):
         sub = ProcessingRow.objects.get(pk=resp.data['sub_processing_row_id'])
         pr.refresh_from_db()
         self.assertEqual(pr.quantity, 10000)
-        self.assertEqual(pr.units_per_item, 1)
         self.assertEqual(sub.quantity, 4)
-        self.assertEqual(sub.units_per_item, 500)
         self.assertEqual(sub.shelf_price, Decimal('150.00'))
 
         check = self._check_in(order, sub.id, 4)
         self.assertEqual(check.status_code, 200, check.data)
         sub_items = Item.objects.filter(pk__in=[i['id'] for i in check.data['items']])
         self.assertEqual(sub_items.count(), 4)
-        self.assertTrue(all(i.unit_count == 500 for i in sub_items))
 
         check_root = self._check_in(order, pr.id, 2)
         self.assertEqual(check_root.status_code, 200, check_root.data)
         root_items = Item.objects.filter(pk__in=[i['id'] for i in check_root.data['items']])
-        self.assertTrue(all(i.unit_count == 1 for i in root_items))
+        self.assertEqual(root_items.count(), 2)
 
         # Expected sums follow the rewritten row quantities: 10,000 singles + 4 sets.
         workspace = build_processing_workspace(order, limit=50, hide_checked_in=False)
@@ -327,7 +324,6 @@ class RestartRowTests(ProcessingTransformTestBase):
         self.assertFalse(Product.objects.filter(pk=set_product_id).exists())
         pr.refresh_from_db()
         self.assertEqual(pr.quantity, 12000)
-        self.assertEqual(pr.units_per_item, 1)
         self.assertEqual(pr.transforms, [])
         self.assertEqual(pr.original_snapshot, {})
         self.assertEqual(pr.queue_status, 'pending')
@@ -365,9 +361,9 @@ class RestartRowTests(ProcessingTransformTestBase):
             opened_at=timezone.now(),
         )
         cart = Cart.objects.create(drawer=drawer, cashier=self.user)
-        item = Item.objects.filter(purchase_order=order).first()
+        item = Item.objects.select_related('product').filter(purchase_order=order).first()
         CartLine.objects.create(
-            cart=cart, item=item, description=item.title, quantity=1, unit_price=item.price,
+            cart=cart, item=item, description=item.product.title, quantity=1, unit_price=item.price,
         )
         resp = self._restart(order, {'processing_row_id': pr.id, 'confirm': True})
         self.assertEqual(resp.status_code, 400)

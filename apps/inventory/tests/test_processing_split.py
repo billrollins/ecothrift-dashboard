@@ -277,9 +277,198 @@ class BatchRemapTests(ProcessingSplitTestBase):
         )
         self.assertEqual(Item.objects.filter(manifest_row=mr, product=product_b).count(), 0)
 
+    def test_remap_batch_new_product_always_creates_fresh_product(self):
+        order, pr, mr, product_a, _product_b = self._crayons_order()
+        before_count = Product.objects.count()
+        r1 = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr.id,
+                'quantity': 3,
+                'condition': 'good',
+                'dispatch': 'on_shelf',
+                'product_mode': 'existing',
+                'product_id': product_a.id,
+            },
+            format='json',
+        )
+        batch_id = r1.data['check_in_batch_id']
+        resp = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/remap-product/',
+            {
+                'product_mode': 'new',
+                'title': product_a.title,
+                'brand': product_a.brand,
+                'category': product_a.category,
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertNotEqual(resp.data['product_id'], product_a.id)
+        self.assertEqual(Product.objects.count(), before_count + 1)
+
+    def test_delete_check_in_batch_removes_items(self):
+        order, pr, mr, product_a, _product_b = self._crayons_order()
+        r1 = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr.id,
+                'quantity': 4,
+                'condition': 'good',
+                'dispatch': 'on_shelf',
+                'product_mode': 'existing',
+                'product_id': product_a.id,
+            },
+            format='json',
+        )
+        batch_id = r1.data['check_in_batch_id']
+        resp = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/delete/',
+            {},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data['items_deleted'], 4)
+        self.assertFalse(ProcessingCheckInBatch.objects.filter(pk=batch_id).exists())
+        self.assertEqual(Item.objects.filter(manifest_row=mr).count(), 0)
+
+    def test_update_check_in_batch_grow_shrink_and_fields(self):
+        order, pr, mr, product_a, _product_b = self._crayons_order()
+        r1 = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr.id,
+                'quantity': 4,
+                'condition': 'good',
+                'dispatch': 'on_shelf',
+                'product_mode': 'existing',
+                'product_id': product_a.id,
+            },
+            format='json',
+        )
+        batch_id = r1.data['check_in_batch_id']
+
+        # Grow 4 → 6 and change condition: 2 added, originals updated.
+        resp = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/update/',
+            {'quantity': 6, 'condition': 'like_new', 'dispatch': 'back_storage'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data['items_added'], 2)
+        self.assertEqual(resp.data['quantity'], 6)
+        self.assertEqual(len(resp.data['printed_items_preview']), 2)
+        batch = ProcessingCheckInBatch.objects.get(pk=batch_id)
+        self.assertEqual(len(batch.item_ids), 6)
+        conditions = set(
+            Item.objects.filter(pk__in=batch.item_ids).values_list('condition', flat=True),
+        )
+        self.assertEqual(conditions, {'like_new'})
+
+        # Shrink 6 → 3: newest 3 deleted.
+        resp = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/update/',
+            {'quantity': 3},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data['items_removed'], 3)
+        self.assertEqual(Item.objects.filter(manifest_row=mr).count(), 3)
+
+    def test_update_check_in_batch_edit_product_fields(self):
+        order, pr, _mr, product_a, _product_b = self._crayons_order()
+        r1 = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr.id,
+                'quantity': 2,
+                'condition': 'good',
+                'dispatch': 'on_shelf',
+                'product_mode': 'existing',
+                'product_id': product_a.id,
+            },
+            format='json',
+        )
+        batch_id = r1.data['check_in_batch_id']
+        resp = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/update/',
+            {'product_mode': 'edit', 'product_id': product_a.id, 'title': 'Crayons Set A Deluxe'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        product_a.refresh_from_db()
+        self.assertEqual(product_a.title, 'Crayons Set A Deluxe')
+        self.assertEqual(resp.data['product_id'], product_a.id)
+
+    def test_delete_check_in_batch_deletes_orphaned_product(self):
+        order, pr, _mr, _product_a, _product_b = self._crayons_order()
+        # New product created just for this batch — orphaned once its items go.
+        r1 = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr.id,
+                'quantity': 2,
+                'condition': 'good',
+                'dispatch': 'on_shelf',
+                'product_mode': 'new',
+                'title': 'Crayons one-off batch product',
+            },
+            format='json',
+        )
+        batch_id = r1.data['check_in_batch_id']
+        new_pid = ProcessingCheckInBatch.objects.get(pk=batch_id).product_id
+        self.assertIsNotNone(new_pid)
+        resp = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/delete/',
+            {},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data['product_deleted'], new_pid)
+        self.assertFalse(Product.objects.filter(pk=new_pid).exists())
+
+    def test_delete_check_in_batch_keeps_referenced_product(self):
+        order, pr, mr, product_a, _product_b = self._crayons_order()
+        # Referenced outside the batch's own row — must survive the batch delete.
+        mr.matched_product = product_a
+        mr.save(update_fields=['matched_product'])
+        r1 = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr.id,
+                'quantity': 2,
+                'condition': 'good',
+                'dispatch': 'on_shelf',
+                'product_mode': 'existing',
+                'product_id': product_a.id,
+            },
+            format='json',
+        )
+        batch_id = r1.data['check_in_batch_id']
+        resp = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/delete/',
+            {},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertIsNone(resp.data['product_deleted'])
+        self.assertTrue(Product.objects.filter(pk=product_a.id).exists())
+
+    def test_set_row_product_without_check_in(self):
+        order, pr, _mr, product_a, _product_b = self._crayons_order()
+        resp = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-row-set-product/',
+            {
+                'processing_row_id': pr.id,
+                'product_mode': 'existing',
+                'product_id': product_a.id,
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
         pr.refresh_from_db()
-        self.assertEqual(pr.distinct_product_count, 2)
-        self.assertEqual(pr.matched_product_id, product_b_prime.id)
+        self.assertEqual(pr.matched_product_id, product_a.id)
+        self.assertEqual(Item.objects.filter(manifest_row=pr.manifest_row).count(), 0)
 
     def test_crayons_scenario_totals(self):
         order, pr, mr, product_a, product_b = self._crayons_order()

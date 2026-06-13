@@ -405,14 +405,14 @@ export default function ItemForm({
   useEffect(() => {
     if (mode !== 'edit' || !item) return;
     setDraft({
-      title: item.title,
-      brand: item.brand ?? '',
+      title: item.product_title ?? '',
+      brand: item.product_brand ?? '',
       model: item.product_model ?? '',
       upc: item.product_upc ?? '',
       category: item.category ?? '',
       condition: item.condition,
       price: item.price,
-      retail_value: item.retail_value ?? item.unit_retail ?? '',
+      retail_value: item.retail_value ?? item.retail ?? '',
       source: item.source,
       specifications:
         item.specifications && Object.keys(item.specifications).length > 0
@@ -730,7 +730,7 @@ export default function ItemForm({
     const modelTrim = draft.model.trim();
     const upcTrim = draft.upc.trim();
     if (modelTrim) payload.model = modelTrim;
-    if (upcTrim) payload.upc = upcTrim;
+    if (upcTrim) payload.identifiers = { upc: upcTrim };
     if (searchTags.length > 0) payload.search_tags = searchTags;
     if (draft.source === 'purchased' && draft.purchaseOrderId) {
       payload.purchase_order = draft.purchaseOrderId;
@@ -767,7 +767,13 @@ export default function ItemForm({
       const createdItems = (item as unknown as {
         created_items?: Array<{ sku: string; price: string; title: string; brand?: string; product_number?: string | null }>;
       }).created_items ?? [
-        { sku: item.sku, price: item.price, title: item.title, brand: item.brand ?? undefined, product_number: item.product_number ?? undefined },
+        {
+          sku: item.sku,
+          price: item.price,
+          title: item.product_title ?? item.sku,
+          brand: item.product_brand ?? undefined,
+          product_number: item.product_number ?? undefined,
+        },
       ];
 
       if (printOnSave) {
@@ -885,7 +891,7 @@ export default function ItemForm({
           price: resolvedPrice || '0',
           retail_value: draft.retail_value.trim() || undefined,
           model: draft.model.trim(),
-          upc: draft.upc.trim(),
+          identifiers: draft.upc.trim() ? { upc: draft.upc.trim() } : undefined,
           source: draft.source,
           specifications,
           notes: resolvedNotes,

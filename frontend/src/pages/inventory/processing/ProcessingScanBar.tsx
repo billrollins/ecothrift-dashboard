@@ -15,6 +15,8 @@ export interface ProcessingScanBarProps {
   isFetching?: boolean;
   /** Detail mode shows a scan-next hint instead of the full placeholder. */
   mode?: 'queue' | 'detail';
+  placeholder?: string;
+  ariaLabel?: string;
 }
 
 /**
@@ -28,6 +30,8 @@ export function ProcessingScanBar({
   searchFocusSignal = 0,
   isFetching = false,
   mode = 'queue',
+  placeholder: placeholderProp,
+  ariaLabel = 'Scan or search processing queue',
 }: ProcessingScanBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -123,11 +127,12 @@ export function ProcessingScanBar({
               }
             }}
             placeholder={
-              inDetail ?
+              placeholderProp ??
+              (inDetail ?
                 'Scan next item (UPC / SKU / row #) — or type and press Enter to search the queue'
-              : 'Scan or search row #, title, UPC, SKU, brand, model, category, specs, tags...'
+              : 'Scan or search row #, title, UPC, SKU, brand, model, category, specs, tags...')
             }
-            aria-label="Scan or search processing queue"
+            aria-label={ariaLabel}
             sx={{
               flex: 1,
               minWidth: 0,

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-10 (preprocessing_ai_cleanup_review → _completed/) -->
+<!-- Last updated: 2026-06-13 (intake_processing_improvements → _completed/) -->
 # Archive index — initiatives
 
 **Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
@@ -51,6 +51,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [intake_processing_improvements.md](./_completed/intake_processing_improvements.md) | Intake → Processing product-identity roadmap **P1–P9 shipped** (Sessions 3–11: matching, Final Decisions, precedence, split/collapse, check-in UX, break apart/make set). **Superseded** by **`product_item_crud_and_processing`** — remaining backlog moved 2026-06-13. | 2026-06-13 |
 | [preprocessing_ai_cleanup_review.md](./_completed/preprocessing_ai_cleanup_review.md) | Step 2 AI cleanup review + Fable verdict + web batch implementation (`ai-cleanup-batch` pool, chunked offline apply, gthread Procfile, legacy 410); shipped **v2.28.0**. | 2026-06-10 |
 | [print_server_label_design.md](./_completed/print_server_label_design.md) | Print server label “Concept C” side-stripe design; shipped **v1.2.x**. | 2026-03-27 (migration) |
 | [print_server_label_price_layout.md](./_completed/print_server_label_price_layout.md) | Price fit scale grid, sub-dollar layout, `big_base` by digit count, fringe harness; shipped **v1.2.35–v1.2.38**. | 2026-03-28 |

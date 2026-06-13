@@ -100,11 +100,15 @@ def augment_processing_row_search_string(
 
     parts: list[str] = []
     if product is not None:
-        for attr in ('product_number', 'upc', 'model', 'title', 'brand'):
+        for attr in ('product_number', 'model', 'title', 'brand', 'category'):
             val = getattr(product, attr, None) if not isinstance(product, Mapping) else product.get(attr)
             text = str(val or '').strip()
             if text:
                 parts.append(text)
+        identifiers = getattr(product, 'identifiers', None) if not isinstance(product, Mapping) else product.get('identifiers')
+        tags = getattr(product, 'tags', None) if not isinstance(product, Mapping) else product.get('tags')
+        _append_json_values_only(identifiers, parts)
+        _append_json_values_only(tags, parts)
     for item in items or []:
         sku = getattr(item, 'sku', None) if not isinstance(item, Mapping) else item.get('sku')
         text = str(sku or '').strip()

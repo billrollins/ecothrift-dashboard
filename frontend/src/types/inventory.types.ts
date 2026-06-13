@@ -50,8 +50,6 @@ export type ItemCondition =
   | 'salvage'
   | 'unknown';
 
-export type ProcessingTier = 'individual' | 'batch';
-
 /**
  * Processing batch status choices
  */
@@ -340,10 +338,9 @@ export interface Product {
   category_name: string | null;
   description: string;
   specifications: Record<string, unknown>;
-  default_price: string | null;
-  upc: string;
-  times_ordered: number;
-  total_units_received: number;
+  identifiers: Record<string, string>;
+  tags: string[];
+  upc?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -371,25 +368,22 @@ export interface ItemStatsResponse {
 export interface Item {
   id: number;
   sku: string;
-  product: number | null;
+  product: number;
   product_title: string | null;
+  product_brand?: string;
   product_number: string | null;
   product_model?: string;
   product_upc?: string;
   purchase_order: number | null;
   purchase_order_number?: string | null;
   manifest_row: number | null;
-  batch_group: number | null;
-  batch_group_number: string | null;
-  batch_group_status: BatchGroupStatus | null;
-  processing_tier: ProcessingTier;
   title: string;
   brand: string;
   category?: string;
   price: string;
-  /** Staff API alias for ``unit_retail`` (MSRP). */
+  /** Staff API alias for Item.retail (MSRP). */
   retail_value?: string | null;
-  unit_retail?: string | null;
+  retail?: string | null;
   cost: string | null;
   source: ItemSource;
   status: ItemStatus;
@@ -418,12 +412,11 @@ export interface ProcessingWorkspaceProductDTO {
   model: string;
   description: string;
   specs: Record<string, unknown>;
-  tags: string;
+  identifiers: Record<string, string>;
+  tags: string[];
   taxonomy: string;
   category: string;
   upc: string;
-  times_ordered?: number;
-  total_units_received?: number;
 }
 
 export type ProcessingItemDisputeType =
@@ -438,8 +431,6 @@ export type ProcessingItemDisputeType =
 export interface ProcessingWorkspaceItemDTO {
   id: number;
   sku: string;
-  /** Physical units inside this sellable Item (a set tag covers N units). */
-  unit_count?: number;
   condition: string;
   condition_label: string;
   price: string;
@@ -482,6 +473,13 @@ export interface ProcessingManifestEvidenceDTO {
   unit_retail: string | null;
 }
 
+/** Bookmark title/brand/model from finalize — unchanged when a catalog product overrides display. */
+export interface ProcessingStandardizedIdentityDTO {
+  title: string;
+  brand: string;
+  model: string;
+}
+
 /** Subset returned from GET processing-workspace (no nested items/products). */
 export type ProcessingRowKind = 'manifest' | 'added';
 
@@ -517,7 +515,6 @@ export interface ProcessingSplitFamilyDTO {
     rowNumber: number;
     splitSeq: number | null;
     qty: number;
-    unitsPerItem: number;
     qtyDispositioned: number;
   }>;
   canRestart: boolean;
@@ -537,8 +534,6 @@ export interface ProcessingWorkspaceRowDTO {
   splitSeq?: number | null;
   /** Resolved parent row number so sub rows can label as `#12.1`. */
   splitParentRowNumber?: number;
-  /** Physical units inside each Item checked in from this row (set rows > 1). */
-  unitsPerItem?: number;
   /** Detail-only: transform audit trail (always the family ROOT's list). */
   transforms?: ProcessingTransformMemoDTO[];
   /** Detail-only: split family map when this row is a transform root or sub row. */
@@ -584,6 +579,8 @@ export interface ProcessingWorkspaceRowDTO {
   qtyOverage?: number;
   /** Detail-only vendor claim when a product is matched. */
   manifestEvidence?: ProcessingManifestEvidenceDTO;
+  /** Bookmark-only identity from preprocessing finalize (list + detail). */
+  standardizedIdentity?: ProcessingStandardizedIdentityDTO;
 }
 
 export interface ProcessingWorkspaceRollupsDTO {

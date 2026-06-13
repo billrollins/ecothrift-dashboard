@@ -107,49 +107,11 @@ class Command(BaseCommand):
     def _classify_items(self, dry_run, overwrite, batch_size, use_llm, stats, method_counts):
         from apps.inventory.models import Item
 
-        # Items don't have category_ref directly; we update the category text field
-        # and rely on product.category_ref for the structured data.
-        # If the item has a linked product with category_ref, copy it; otherwise classify.
-        qs = Item.objects.select_related('product__category_ref').all()
-        if not overwrite:
-            qs = qs.filter(category='')
-
-        total = qs.count()
-        self.stdout.write(f'Classifying {total} items...')
-
-        for offset in range(0, total, batch_size):
-            batch = list(qs[offset:offset + batch_size])
-            to_update = []
-            for item in batch:
-                # Prefer product's category_ref if available
-                if item.product and item.product.category_ref:
-                    item.category = item.product.category_ref.name
-                    to_update.append(item)
-                    stats['items_from_product'] += 1
-                    method_counts['product_ref'] += 1
-                    continue
-
-                result = classify_item(
-                    title=item.title,
-                    brand=item.brand or None,
-                    use_llm_fallback=use_llm,
-                )
-                method_counts[result.method] += 1
-                item.category = result.category_name
-                to_update.append(item)
-                stats['items_classified'] += 1
-
-                if dry_run:
-                    self.stdout.write(
-                        f'  [DRY] {item.sku} {item.title[:50]} -> {result.category_name} '
-                        f'({result.method})'
-                    )
-
-            if not dry_run and to_update:
-                with transaction.atomic():
-                    Item.objects.bulk_update(to_update, ['category'], batch_size=batch_size)
-
-            self.stdout.write(f'  Items: {min(offset + batch_size, total)}/{total}')
+        total = Item.objects.count()
+        stats['items_skipped_product_owned_category'] += total
+        self.stdout.write(
+            f'Skipping {total} items: Item category is derived from Product or manifest row.'
+        )
 
     def _print_summary(self, stats, method_counts, dry_run):
         prefix = '[DRY RUN] ' if dry_run else ''

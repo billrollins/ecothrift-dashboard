@@ -12,13 +12,11 @@ from apps.inventory.services.ai_listing_context import retrieve_listing_examples
 class RetrieveListingExamplesTests(TestCase):
     def test_does_not_query_item_category_column(self):
         product = Product.objects.create(
-            title='Body Wash',
+            title='Old Spice Captain Body Wash',
             brand='Old Spice',
             category='Health & Beauty',
         )
         Item.objects.create(
-            title='Old Spice Captain Body Wash',
-            brand='Old Spice',
             product=product,
             status='sold',
             sold_for=Decimal('4.99'),

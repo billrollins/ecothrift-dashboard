@@ -51,8 +51,8 @@ export default function ItemFormWithActions({
       .printLabel({
         qr_data: item.sku,
         text: `$${Number(item.price).toFixed(2)}`,
-        product_title: item.title,
-        product_brand: item.brand?.trim() || undefined,
+        product_title: item.product_title || item.sku,
+        product_brand: item.product_brand?.trim() || undefined,
         product_model: item.product_number?.trim() || undefined,
         include_text: true,
       })

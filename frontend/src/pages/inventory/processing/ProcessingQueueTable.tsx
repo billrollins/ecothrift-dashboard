@@ -22,6 +22,7 @@ import type { ProcessingWorkspaceRowDTO } from '../../../types/inventory.types';
 import {
   effectiveRowQty,
   formatQueueMoney,
+  processingIdentityHoverTooltip,
   queueBrandText,
   queueCategoryText,
   queueDispatchLabel,
@@ -153,7 +154,15 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
   const productsChip = queueProductsChipLabel(r.distinctProductCount);
   const peerLabel = queueSameProductPeerLabel(r.sameProductRowNumbers);
   const title = queueTitleText(r);
-  const titleTooltip = [`Row ${r.rowNum}`, title, r.sku ? `SKU ${r.sku}` : ''].filter(Boolean).join(' · ');
+  const brandShown = queueBrandText(r);
+  const titleStd = r.standardizedIdentity?.title;
+  const brandStd = r.standardizedIdentity?.brand;
+  const titleTooltip = [
+    `Row ${r.rowNum}`,
+    processingIdentityHoverTooltip(title, titleStd, 'title'),
+    r.sku ? `SKU ${r.sku}` : '',
+  ].filter(Boolean).join(' · ');
+  const brandTooltip = processingIdentityHoverTooltip(brandShown, brandStd, 'brand');
   const dupTitle =
     r.likelyDuplicateOf?.length ?
       `Likely same product as row ${r.likelyDuplicateOf.join(', ')}`
@@ -243,8 +252,8 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
         </Typography>
       </TableCell>
       <TableCell align="left" onClick={open}>
-        <Typography sx={{ fontSize: '0.72rem', fontWeight: 600 }} noWrap title={r.brand || undefined}>
-          {queueBrandText(r)}
+        <Typography sx={{ fontSize: '0.72rem', fontWeight: 600 }} noWrap title={brandTooltip || undefined}>
+          {brandShown}
         </Typography>
       </TableCell>
       <TableCell align="left" onClick={open} sx={{ minWidth: 0 }}>

@@ -35,7 +35,7 @@ class ProcessingIdentityTestBase(TestCase):
 
 class CoalesceHelperTests(ProcessingIdentityTestBase):
     def test_product_wins_over_row_and_manifest(self):
-        product = Product.objects.create(title='Red Headband', brand='Acme', upc='111')
+        product = Product.objects.create(title='Red Headband', brand='Acme', identifiers={'upc': '111'})
         mr = ManifestRow(
             title='hdbnd red',
             brand='VendorBrand',
@@ -58,7 +58,7 @@ class WorkspaceListDetailTests(ProcessingIdentityTestBase):
             retail_value=Decimal('500.00'),
             status='processing',
         )
-        product = Product.objects.create(title='Red Headband', brand='Acme', upc='012345678905')
+        product = Product.objects.create(title='Red Headband', brand='Acme', identifiers={'upc': '012345678905'})
         mr = ManifestRow.objects.create(
             purchase_order=order,
             row_number=1,
@@ -90,6 +90,10 @@ class WorkspaceListDetailTests(ProcessingIdentityTestBase):
         self.assertEqual(row['brand'], 'Acme')
         self.assertEqual(row['productId'], product.id)
         self.assertEqual(row['product']['title'], 'Red Headband')
+        std = row.get('standardizedIdentity')
+        self.assertIsNotNone(std)
+        self.assertEqual(std['title'], 'hdbnd red')
+        self.assertEqual(std['brand'], 'Vendor')
 
     def test_detail_coalesces_and_includes_manifest_evidence(self):
         order, product, mr, pr = self._order_with_matched_row()
@@ -101,6 +105,10 @@ class WorkspaceListDetailTests(ProcessingIdentityTestBase):
         self.assertIsNotNone(evidence)
         self.assertEqual(evidence['title'], 'hdbnd red')
         self.assertEqual(evidence['brand'], 'Vendor')
+        std = row.get('standardizedIdentity')
+        self.assertIsNotNone(std)
+        self.assertEqual(std['title'], 'hdbnd red')
+        self.assertEqual(std['brand'], 'Vendor')
 
     def test_api_list_returns_coalesced_title(self):
         order, _product, _mr, _pr = self._order_with_matched_row()

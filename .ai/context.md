@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-12 (intake Session 11 — P9 singles & sets row transforms shipped) -->
+<!-- Last updated: 2026-06-13 (product_item_crud_and_processing active; intake_processing_improvements archived) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active initiative — intake / processing:** [`intake_processing_improvements`](initiatives/intake_processing_improvements.md) — product identity **P1–P9 shipped** (Sessions 3–11): P1–P6 + Session 9 Fable audit/F1/F2 ([`fable_product_matching_audit.md`](reference/product_identity/fable_product_matching_audit.md)); **Session 10 (2026-06-10/11)** shipped **P7 collapse groups** and the **P8 check-in/item UX overhaul**; **Session 11 (2026-06-12)** shipped **P9 singles & sets** — **Break apart** / **Make set** row transforms (in-place or `#12.1` sub rows on the same frozen manifest line; `Item.unit_count` per-tag unit accounting; **Restart row** coarse undo; landmark design §7.5 amendment). **Next:** remaining high-level backlog (richer search, legacy retirement, rollups).
+- **Active initiative — Product/Item CRUD → Processing:** [`product_item_crud_and_processing`](initiatives/product_item_crud_and_processing.md) — **2026-06-13 direction reset.** Build Product + Item CRUD/search/forms first; v1 product search = token AND on `search_string`; semantic embedding search on hold. Then slim check-in and processing row integration. Supersedes remaining scope from archived [`intake_processing_improvements`](initiatives/_archived/_completed/intake_processing_improvements.md) (**P1–P9 shipped** Sessions 3–11: matching, collapse, check-in UX, break apart/make set).
 - **AI cleanup (shipped):** archived [`preprocessing_ai_cleanup_review`](initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md) — Step 2 **Run AI Cleanup** browser batch pool (`ai-cleanup-batch`/`-status`/`-complete`), chunked offline apply, gthread Procfile, legacy `ai-cleanup-rows` 410. Shipped **v2.28.0**.
 - **Blog Studio (shipped):** archived [`blog_studio`](initiatives/_archived/_completed/blog_studio.md) — Super Admin **Blog Studio** (`/blog-studio`, lazy TipTap, opens in a new window) + DB-backed public blog (`apps.blog` at `/api/blog/`). Shipped **v2.27.0**–**v2.27.2**. One-time prod ops (if not done): `python manage.py seed_initial_blog_posts` (idempotent).
 - **Parked — public site launch:** [`.ai/initiatives/_archived/_pending/public_website.md`](initiatives/_archived/_pending/public_website.md) — storefront **Phases 0–4 shipped** (**v2.26.0**, `frontend-public/` + `apps.webstore`). **Resume when:** deploy to Heroku + prod `seed_shop_categories`; wire **Helcim + email** after vendor conversations. Hostname routing: `ecothrift.us`/`www` → public SPA, `dash.*` → staff.

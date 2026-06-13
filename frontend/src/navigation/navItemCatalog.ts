@@ -57,6 +57,19 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/inventory/items',
     label: 'Search items',
     icon: 'search',
+    legacy: true,
+  },
+  manageProducts: {
+    id: 'manageProducts',
+    path: '/inventory/manage-products',
+    label: 'Manage products',
+    icon: 'store',
+  },
+  manageItems: {
+    id: 'manageItems',
+    path: '/inventory/manage-items',
+    label: 'Manage items',
+    icon: 'search',
   },
   quickReprice: {
     id: 'quickReprice',

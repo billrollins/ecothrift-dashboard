@@ -338,7 +338,7 @@ class PurchaseOrder(models.Model):
             return 0
         now = timezone.now()
         for item in items:
-            item.cost = self.compute_item_cost(item.unit_retail)
+            item.cost = self.compute_item_cost(item.retail)
             item.updated_at = now
         Item.objects.using(alias).bulk_update(items, ['cost', 'updated_at'])
         return len(items)
@@ -698,13 +698,6 @@ class ProcessingRow(models.Model):
         blank=True,
         help_text='Display ordinal for sub rows: parent #12 shows children as #12.1, #12.2 …',
     )
-    units_per_item = models.PositiveIntegerField(
-        default=1,
-        help_text=(
-            'Physical units inside each Item checked in from this row (Make set rows: set '
-            'size; Break apart leftovers: known pack size). Stamped onto Item.unit_count.'
-        ),
-    )
     transforms = models.JSONField(
         default=list,
         blank=True,
@@ -867,7 +860,7 @@ class Product(models.Model):
         blank=True,
     )
     title = models.CharField(max_length=300)
-    brand = models.CharField(max_length=200, blank=True, default='')
+    brand = models.CharField(max_length=200, default='Generic')
     model = models.CharField(max_length=200, blank=True, default='')
     category = models.CharField(max_length=200, blank=True, default='')
     category_ref = models.ForeignKey(
@@ -879,21 +872,42 @@ class Product(models.Model):
     )
     description = models.TextField(blank=True, default='')
     specifications = models.JSONField(default=dict, blank=True)
-    default_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    upc = models.CharField(max_length=100, blank=True, default='')
-    times_ordered = models.IntegerField(default=0)
-    total_units_received = models.IntegerField(default=0)
+    identifiers = models.JSONField(default=dict, blank=True)
+    tags = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['title']
+        constraints = [
+            models.CheckConstraint(
+                check=~models.Q(title=''),
+                name='inventory_product_title_nonempty',
+            ),
+            models.CheckConstraint(
+                check=~models.Q(brand=''),
+                name='inventory_product_brand_nonempty',
+            ),
+        ]
+        indexes = [
+            GinIndex(fields=['identifiers'], name='inv_product_ident_gin'),
+            GinIndex(fields=['tags'], name='inv_product_tags_gin'),
+        ]
 
     def __str__(self):
         if self.product_number:
             return f'{self.product_number} - {self.title}'
         return self.title
+
+    def identifier_value(self, key: str) -> str:
+        identifiers = self.identifiers if isinstance(self.identifiers, dict) else {}
+        value = identifiers.get(key)
+        return str(value or '').strip()
+
+    @property
+    def primary_upc(self) -> str:
+        return self.identifier_value('upc')
 
     @staticmethod
     def generate_product_number(using=None):
@@ -1036,26 +1050,12 @@ class BatchGroup(models.Model):
         super().save(*args, **kwargs)
 
     def apply_to_items(self):
-        """Apply current batch defaults to all non-terminal items."""
+        """Old batch queue updater retained only until BatchGroup routes are removed."""
         from django.utils import timezone
 
-        updates = {
-            'status': 'on_shelf',
-            'listed_at': timezone.now(),
-        }
-        if self.unit_price is not None:
-            updates['price'] = self.unit_price
-        if self.unit_cost is not None:
-            updates['unit_retail'] = self.unit_cost
-        if self.condition:
-            updates['condition'] = self.condition
-        if self.location:
-            updates['location'] = self.location
-
-        count = self.items.exclude(status__in=['sold', 'scrapped', 'lost']).update(**updates)
+        count = 0
         self.status = 'complete'
         self.processed_at = timezone.now()
-        self.total_qty = self.items.count()
         self.save(update_fields=['status', 'processed_at', 'total_qty', 'updated_at'])
         return count
 
@@ -1091,15 +1091,8 @@ class Item(models.Model):
     ]
 
     sku = models.CharField(max_length=20, unique=True)
-    unit_count = models.PositiveIntegerField(
-        default=1,
-        help_text=(
-            'Physical units contained in this sellable Item (a "set of 10" tag = 10). '
-            'One physical unit lives in exactly one active Item; unit reports sum this field.'
-        ),
-    )
     product = models.ForeignKey(
-        Product, on_delete=models.SET_NULL, null=True, blank=True,
+        Product, on_delete=models.PROTECT,
         related_name='items',
     )
     purchase_order = models.ForeignKey(
@@ -1113,22 +1106,8 @@ class Item(models.Model):
         blank=True,
         related_name='items',
     )
-    batch_group = models.ForeignKey(
-        BatchGroup,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='items',
-    )
-    processing_tier = models.CharField(
-        max_length=20,
-        choices=PROCESSING_TIER_CHOICES,
-        default='individual',
-    )
-    title = models.CharField(max_length=300)
-    brand = models.CharField(max_length=200, blank=True, default='')
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    unit_retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='purchased')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='intake')
@@ -1186,7 +1165,8 @@ class Item(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.sku} - {self.title}'
+        title = self.product.title if self.product_id else 'Generic Product'
+        return f'{self.sku} - {title}'
 
     def rebuild_search_text(self) -> str:
         """Lowercased concatenation of item + product fields for fast icontains search."""
@@ -1201,8 +1181,6 @@ class Item(models.Model):
                 cat_parts = ''
         parts = [
             self.sku or '',
-            self.title or '',
-            self.brand or '',
             cat_parts,
             self.notes or '',
             self.location or '',
@@ -1220,8 +1198,9 @@ class Item(models.Model):
                     p.title or '',
                     p.product_number or '',
                     p.model or '',
-                    p.upc or '',
+                    p.primary_upc or '',
                     p.brand or '',
+                    p.category or '',
                 ])
         text = ' '.join(parts).lower()
         return re.sub(r'\s+', ' ', text).strip()
@@ -1234,7 +1213,7 @@ class Item(models.Model):
             prior = (
                 type(self)
                 .objects.filter(pk=self.pk)
-                .values('unit_retail', 'purchase_order_id')
+                .values('retail', 'purchase_order_id')
                 .first()
             )
         if not self.sku:
@@ -1252,9 +1231,9 @@ class Item(models.Model):
             if self.purchase_order_id:
                 po_ids.add(self.purchase_order_id)
         else:
-            old_r = prior['unit_retail']
+            old_r = prior['retail']
             old_po = prior['purchase_order_id']
-            new_r = self.unit_retail
+            new_r = self.retail
             new_po = self.purchase_order_id
             if old_r != new_r or old_po != new_po:
                 if old_po:
@@ -1267,14 +1246,11 @@ class Item(models.Model):
                 po.recompute_item_costs(using=alias)
 
     @staticmethod
-    def generate_sku(using=None):
-        """Generate next SKU like ITM0001234.
+    def next_sku_number(using=None):
+        """Next free numeric SKU suffix (callers allocating a block add their offset).
 
         Only rows matching ^ITM\\d+$ participate (Postgres __regex); legacy/backfill
         SKUs do not affect the next value.
-
-        Pass ``using`` when saving to a non-default DB (e.g. ``save(using='production')``)
-        so the sequence matches that database.
         """
         qs = Item.objects.filter(sku__regex=r'^ITM\d+$')
         if using:
@@ -1282,8 +1258,16 @@ class Item(models.Model):
         agg = qs.annotate(
             _n=Cast(Substr('sku', 4), output_field=IntegerField()),
         ).aggregate(m=Max('_n'))
-        num = (agg['m'] or 0) + 1
-        return f'ITM{num:07d}'
+        return (agg['m'] or 0) + 1
+
+    @staticmethod
+    def generate_sku(using=None):
+        """Generate next SKU like ITM0001234.
+
+        Pass ``using`` when saving to a non-default DB (e.g. ``save(using='production')``)
+        so the sequence matches that database.
+        """
+        return f'ITM{Item.next_sku_number(using=using):07d}'
 
 
 class ProcessingDataBuild(models.Model):

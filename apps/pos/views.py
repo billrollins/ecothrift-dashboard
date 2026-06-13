@@ -479,7 +479,7 @@ class CartViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            item = Item.objects.get(sku=sku)
+            item = Item.objects.select_related('product').get(sku=sku)
         except Item.DoesNotExist:
             return Response(
                 {'detail': 'Item not found.', 'code': 'ITEM_NOT_FOUND'},
@@ -501,7 +501,7 @@ class CartViewSet(viewsets.ModelViewSet):
                     'code': 'ITEM_ALREADY_SOLD',
                     'item_id': item.pk,
                     'sku': item.sku,
-                    'title': item.title,
+                    'title': item.product.title,
                 },
                 status=400,
             )
@@ -514,7 +514,7 @@ class CartViewSet(viewsets.ModelViewSet):
             CartLine.objects.create(
                 cart=cart,
                 item=item,
-                description=item.title,
+                description=item.product.title,
                 quantity=1,
                 unit_price=item.price,
             )
@@ -546,7 +546,7 @@ class CartViewSet(viewsets.ModelViewSet):
         sku = (request.data.get('sku') or '').strip()
         if raw_id is not None and raw_id != '':
             try:
-                src = Item.objects.get(pk=int(raw_id))
+                src = Item.objects.select_related('product').get(pk=int(raw_id))
             except (Item.DoesNotExist, ValueError, TypeError):
                 return Response(
                     {'detail': 'Item not found.', 'code': 'ITEM_NOT_FOUND'},
@@ -554,7 +554,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 )
         elif sku:
             try:
-                src = Item.objects.get(sku=sku)
+                src = Item.objects.select_related('product').get(sku=sku)
             except Item.DoesNotExist:
                 return Response(
                     {'detail': 'Item not found.', 'code': 'ITEM_NOT_FOUND'},
@@ -580,7 +580,7 @@ class CartViewSet(viewsets.ModelViewSet):
             CartLine.objects.create(
                 cart=cart,
                 item=new_item,
-                description=new_item.title,
+                description=new_item.product.title,
                 quantity=1,
                 unit_price=new_item.price,
                 resale_source_sku=src.sku,

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-12 (intake Session 11 — P9 singles & sets row transforms shipped) -->
+<!-- Last updated: 2026-06-13 (intake_processing_improvements archived; product_item_crud_and_processing active) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [intake_processing_improvements](./intake_processing_improvements.md) | Session 11 done — P1–P9 shipped | Design: [`product_identity/`](../reference/product_identity/README.md). Session 9 audit verified P2–P6 + F1/F2 ([audit](../reference/product_identity/fable_product_matching_audit.md)). **Session 10 (2026-06-10/11):** **P7 collapse groups** + **P8 check-in/add-item overhaul**. **Session 11 (2026-06-12):** **P9 singles & sets** — Break apart / Make set row transforms (sub rows `#12.1`, `Item.unit_count` per-tag unit accounting, Restart row undo; design doc §7.5). **Next:** remaining backlog (richer search, legacy retirement, rollups). |
+| [product_item_crud_and_processing](./product_item_crud_and_processing.md) | Phase 1 — Product CRUD | **2026-06-13 direction reset.** Canonical Product + Item pages/forms first; simple product `search_string` search + AI suggest; then slim check-in and processing row integration. Semantic embedding search on hold. Supersedes remaining scope from archived [intake_processing_improvements](./_archived/_completed/intake_processing_improvements.md) (P1–P9 already shipped). |
 
 **Parked (off this index):** [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.
 

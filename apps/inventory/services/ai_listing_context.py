@@ -13,6 +13,7 @@ from django.db.models import CharField, F, Q, Value
 from django.db.models.functions import Coalesce
 
 from apps.inventory.models import Item
+from apps.inventory.product_identity import identifier_value
 
 
 def _annotate_listing_category(qs):
@@ -67,7 +68,7 @@ def retrieve_listing_examples_for_prompt(
     sold_qs = _narrow_by_category_name(sold_qs, category_name)
 
     if brand and brand.strip():
-        bq = sold_qs.filter(brand__icontains=brand.strip())
+        bq = sold_qs.filter(product__brand__icontains=brand.strip())
         if bq.count() >= 2:
             sold_qs = bq
 
@@ -82,14 +83,14 @@ def retrieve_listing_examples_for_prompt(
         .order_by('-sold_at')
         .values(
             'sku',
-            'title',
-            'brand',
+            'product__title',
+            'product__brand',
             'listing_category',
             'condition',
             'sold_for',
             'sold_at',
             'product__model',
-            'product__upc',
+            'product__identifiers',
         )[:5]
     )
 
@@ -101,13 +102,13 @@ def retrieve_listing_examples_for_prompt(
         .select_related('product')
         .values(
             'sku',
-            'title',
-            'brand',
+            'product__title',
+            'product__brand',
             'listing_category',
             'condition',
             'created_at',
             'product__model',
-            'product__upc',
+            'product__identifiers',
         )[:3]
     )
 
@@ -121,13 +122,13 @@ def retrieve_listing_examples_for_prompt(
         seen.add(sku)
         ex: dict[str, Any] = {
             'kind': 'sold' if 'sold_for' in row else 'recent',
-            'title': _truncate(row.get('title') or '', title_max),
-            'brand': _truncate(str(row.get('brand') or ''), 80),
+            'title': _truncate(row.get('product__title') or '', title_max),
+            'brand': _truncate(str(row.get('product__brand') or ''), 80),
             'category': _truncate(str(row.get('listing_category') or ''), 80),
             'condition': row.get('condition') or 'unknown',
         }
         model = _truncate(str(row.get('product__model') or ''), 80)
-        upc = _truncate(str(row.get('product__upc') or ''), 32)
+        upc = _truncate(identifier_value(row.get('product__identifiers'), 'upc'), 32)
         if model:
             ex['model'] = model
         if upc:

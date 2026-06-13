@@ -37,6 +37,15 @@ export interface LocalPrintResponse {
   error?: string;
 }
 
+export interface LocalPrintBatchResponse {
+  success: boolean;
+  message: string;
+  requested: number;
+  printed: number;
+  failed: number;
+  errors: string[];
+}
+
 /** Persisted on the print server (`settings.json`); matches `PrinterSettings` in `printserver/models.py`. */
 export type LabelSizePreset = '3x2' | '1.5x1';
 
@@ -119,6 +128,30 @@ class LocalPrintService {
       method: 'POST',
       body: JSON.stringify(request),
     }, this.printTimeout);
+  }
+
+  /**
+   * One HTTP call for a whole batch of labels. Throws when the print server
+   * predates `/print/labels` (older installed exe) so callers can fall back
+   * to per-label printing.
+   */
+  async printLabelBatch(labels: LocalPrintRequest[]): Promise<LocalPrintBatchResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.printTimeout);
+    try {
+      const response = await fetch(`${this.baseUrl}/print/labels`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labels }),
+      });
+      if (!response.ok) {
+        throw new Error(`Batch label endpoint unavailable (${response.status})`);
+      }
+      return (await response.json()) as LocalPrintBatchResponse;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   async printTest(): Promise<LocalPrintResponse> {

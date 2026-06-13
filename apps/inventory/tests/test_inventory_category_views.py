@@ -42,8 +42,6 @@ class InventoryCategoryViewTests(TestCase):
             category='Toys & Games',
         )
         Item.objects.create(
-            title='Product Category Item',
-            brand='Generic',
             product=product,
             purchase_order=self.po,
             status='on_shelf',
@@ -60,9 +58,12 @@ class InventoryCategoryViewTests(TestCase):
             category='Health & Beauty',
             unit_retail=Decimal('8.99'),
         )
-        Item.objects.create(
+        manifest_product = Product.objects.create(
             title='Manifest Category Item',
             brand='Generic',
+        )
+        Item.objects.create(
+            product=manifest_product,
             purchase_order=self.po,
             manifest_row=manifest_row,
             status='on_shelf',
@@ -87,8 +88,6 @@ class InventoryCategoryViewTests(TestCase):
             category='Toys & Games',
         )
         Item.objects.create(
-            title='Stats Product Category',
-            brand='Generic',
             product=product,
             purchase_order=self.po,
             status='on_shelf',
@@ -104,9 +103,12 @@ class InventoryCategoryViewTests(TestCase):
             category='Toys & Games',
             unit_retail=Decimal('8.99'),
         )
-        Item.objects.create(
+        manifest_product = Product.objects.create(
             title='Stats Manifest Category',
             brand='Generic',
+        )
+        Item.objects.create(
+            product=manifest_product,
             purchase_order=self.po,
             manifest_row=manifest_row,
             status='on_shelf',

@@ -4,7 +4,6 @@ import Check from '@mui/icons-material/Check';
 import Close from '@mui/icons-material/Close';
 import FilterAlt from '@mui/icons-material/FilterAlt';
 import JoinFull from '@mui/icons-material/JoinFull';
-import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import Search from '@mui/icons-material/Search';
 import {
   Alert,
@@ -27,8 +26,13 @@ import {
   useProcessingBreakApartRow,
   useProcessingMakeSetRow,
   useProcessingRestartRow,
-  useRemapCheckInBatchProduct,
+  useProcessingSetRowProduct,
+  useProcessingDeleteCheckInBatch,
+  useProcessingUpdateCheckInBatch,
+  useProcessingPatchItem,
+  printedPreviewToLabelInputs,
 } from '../../../hooks/useProcessingWorkspace';
+import { printProcessingLabelsStaggered } from './printProcessingLabel';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import type { ProcessingRestartSummary } from '../../../api/inventory.api';
 import type {
@@ -75,8 +79,7 @@ import { ProcessingQuickCheckInFooter } from './ProcessingQuickCheckInFooter';
 import { QuickCheckInProductPrompt } from './QuickCheckInProductPrompt';
 import { LargeCheckInConfirmDialog } from './LargeCheckInConfirmDialog';
 import { isLargeCheckIn } from './largeCheckIn';
-import { effectiveRowQty, queueProductsChipLabel } from './processingQueueCellText';
-import { RemapBatchProductDialog } from './RemapBatchProductDialog';
+import { effectiveRowQty, processingIdentityHoverTooltip, queueProductsChipLabel } from './processingQueueCellText';
 import {
   ProcessingRestartRowDialog,
   ProcessingTransformDialog,
@@ -358,6 +361,7 @@ function ManifestField({
   label,
   value,
   displayValue,
+  standardizedValue,
   currency = false,
   multiline = false,
   variant = 'block',
@@ -369,6 +373,8 @@ function ManifestField({
   label: string;
   value: string;
   displayValue?: string;
+  /** Bookmark standardized value — shown on hover when display differs from finalize. */
+  standardizedValue?: string;
   currency?: boolean;
   multiline?: boolean;
   variant?: ManifestFieldVariant;
@@ -503,7 +509,7 @@ function ManifestField({
       : processingTokens.border
     : 'transparent';
 
-  const hoverTooltip = !editing && !isEmpty ? shown : '';
+  const hoverTooltip = editing ? '' : processingIdentityHoverTooltip(trimmed, standardizedValue, label.toLowerCase());
 
   const fieldShell = (
       <Box
@@ -839,13 +845,15 @@ export function ProcessingActiveCard({
   const priorCheckInsRef = useRef<HTMLDivElement | null>(null);
   const { hasRole } = useAuth();
   const isManager = hasRole('Manager') || hasRole('Admin');
-  const remapBatch = useRemapCheckInBatchProduct(orderId);
+  const setRowProduct = useProcessingSetRowProduct(orderId);
+  const deleteCheckInBatch = useProcessingDeleteCheckInBatch(orderId);
+  const updateCheckInBatch = useProcessingUpdateCheckInBatch(orderId);
   const breakApartRow = useProcessingBreakApartRow(orderId);
   const makeSetRow = useProcessingMakeSetRow(orderId);
   const restartRow = useProcessingRestartRow(orderId);
   const [transformMode, setTransformMode] = useState<ProcessingTransformMode | null>(null);
   const [restartSummary, setRestartSummary] = useState<ProcessingRestartSummary | null>(null);
-  const [remapTarget, setRemapTarget] = useState<CheckedInHistoryRow | null>(null);
+  const patchItem = useProcessingPatchItem(orderId);
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [checkInSeed, setCheckInSeed] = useState<ProcessingCheckInSeed | null>(null);
   const [identifiersModalOpen, setIdentifiersModalOpen] = useState(false);
@@ -957,7 +965,9 @@ export function ProcessingActiveCard({
         brand: row.brand || product?.brand,
         title: displayTitle,
         model: row.model || product?.model,
-        searchTags: parseSearchTagsCsv(row.tags || product?.tags),
+        searchTags: parseSearchTagsCsv(
+          Array.isArray(product?.tags) && product.tags.length ? product.tags.join(', ') : row.tags || '',
+        ),
       }),
     [row.brand, row.model, row.tags, displayTitle, product?.brand, product?.model, product?.tags],
   );
@@ -1012,13 +1022,15 @@ export function ProcessingActiveCard({
         condition: normalizeProcessingCondition(conditionUi),
         dispatch,
         retail: retail || row.unitRetail || undefined,
-        unit_retail: retail || row.unitRetail || undefined,
         price: price || row.price || undefined,
         title: displayTitle,
         brand: row.brand || product?.brand,
         model: row.model || product?.model,
         category: row.category || product?.category,
-        upc: String((row.identifiers as { upc?: string })?.upc || product?.upc || ''),
+        identifiers: {
+          ...((row.identifiers as Record<string, string> | undefined) || {}),
+          ...(product?.identifiers || {}),
+        },
         specifications: row.specs || product?.specs || undefined,
         search_tags: row.tags || undefined,
         notes: row.manifestNotes || undefined,
@@ -1098,14 +1110,96 @@ export function ProcessingActiveCard({
     />
   : null;
 
-  async function handleRemapBatch(payload: Record<string, unknown>) {
-    if (!remapTarget?.batchId) return;
+  async function handleSaveProductDecision(payload: Record<string, unknown>): Promise<boolean> {
     try {
-      await remapBatch.mutateAsync({ batchId: remapTarget.batchId, payload });
-      enqueueSnackbar('Batch product remapped.', { variant: 'success' });
-      setRemapTarget(null);
+      await setRowProduct.mutateAsync({
+        processing_row_id: row.processing_row_id,
+        ...payload,
+      });
+      enqueueSnackbar('Product decision saved on this row.', { variant: 'success' });
+      return true;
     } catch (err) {
-      enqueueSnackbar(apiErrorDetail(err, 'Batch remap failed'), { variant: 'error' });
+      enqueueSnackbar(apiErrorDetail(err, 'Could not save product'), { variant: 'error' });
+      return false;
+    }
+  }
+
+  async function handleDeleteBatch(historyRow: CheckedInHistoryRow) {
+    if (historyRow.batchId == null) return;
+    const n = historyRow.qty;
+    const productLabel = historyRow.item.product_number || product?.product_number || null;
+    const lines = [
+      `Delete this check-in batch?`,
+      ``,
+      `This removes ${n} item${n === 1 ? '' : 's'} (tag${n === 1 ? '' : 's'}) from inventory.`,
+      productLabel ?
+        `Product ${productLabel} will also be deleted if no other items or rows reference it.`
+      : `The batch product will also be deleted if nothing else references it.`,
+    ];
+    if (!window.confirm(lines.join('\n'))) {
+      return;
+    }
+    try {
+      const data = await deleteCheckInBatch.mutateAsync(historyRow.batchId);
+      enqueueSnackbar(
+        data.product_deleted ?
+          `Deleted batch — ${data.items_deleted} item(s) removed; orphaned product deleted.`
+        : `Deleted batch — ${data.items_deleted} item(s) removed.`,
+        { variant: 'success' },
+      );
+      if (activeItem && historyRow.items.some((it) => it.id === activeItem.id)) {
+        onSelectItemId(historyRow.items[0]?.id ?? 0);
+      }
+    } catch (err) {
+      enqueueSnackbar(apiErrorDetail(err, 'Could not delete batch'), { variant: 'error' });
+    }
+  }
+
+  /** Edit mode of the detailed dialog: update the clicked check-in batch in place. */
+  async function handleUpdateBatch(
+    batchId: number,
+    payload: Record<string, unknown>,
+    options: { printLabels: boolean },
+  ): Promise<boolean> {
+    try {
+      const data = await updateCheckInBatch.mutateAsync({ batchId, payload });
+      const parts: string[] = [];
+      if (data.items_added) parts.push(`${data.items_added} added`);
+      if (data.items_removed) parts.push(`${data.items_removed} removed`);
+      if (data.items_updated) parts.push(`${data.items_updated} updated`);
+      enqueueSnackbar(`Check-in saved${parts.length ? ` — ${parts.join(', ')}` : ''}.`, { variant: 'success' });
+      if (options.printLabels && data.printed_items_preview?.length) {
+        const { failed } = await printProcessingLabelsStaggered(
+          printedPreviewToLabelInputs(data.printed_items_preview),
+        );
+        if (failed > 0) enqueueSnackbar(`${failed} label(s) failed to print.`, { variant: 'warning' });
+      }
+      return true;
+    } catch (err) {
+      enqueueSnackbar(apiErrorDetail(err, 'Could not save check-in'), { variant: 'error' });
+      return false;
+    }
+  }
+
+  /** Inline condition/dispatch edit in the Prior check-ins table — applies to the whole batch. */
+  async function handleSetBatchField(
+    target: CheckedInHistoryRow,
+    field: 'condition' | 'dispatch',
+    value: string,
+  ) {
+    const editable = target.items.filter((it) => it.status === 'on_shelf');
+    const skipped = target.items.length - editable.length;
+    try {
+      for (const it of editable) {
+        await patchItem.mutateAsync({ itemId: it.id, payload: { [field]: value } });
+      }
+      enqueueSnackbar(
+        `${field === 'dispatch' ? 'Dispatch' : 'Condition'} updated on ${editable.length} item(s)`
+          + (skipped > 0 ? ` — ${skipped} skipped (not on shelf).` : '.'),
+        { variant: skipped > 0 ? 'warning' : 'success' },
+      );
+    } catch (err) {
+      enqueueSnackbar(apiErrorDetail(err, 'Could not update batch'), { variant: 'error' });
     }
   }
 
@@ -1190,13 +1284,13 @@ export function ProcessingActiveCard({
               />
             </ManifestToolbarSlot>
             <ManifestToolbarSlot sx={manifestToolbarTitleSx}>
-              <ManifestField fieldId="title" label="Title" value={row.title || ''} variant="pill" emphasis="compact" onSave={(v) => patchRow({ title: v.trim() })} />
+              <ManifestField fieldId="title" label="Title" value={row.title || ''} standardizedValue={row.standardizedIdentity?.title} variant="pill" emphasis="compact" onSave={(v) => patchRow({ title: v.trim() })} />
             </ManifestToolbarSlot>
             <ManifestToolbarSlot sx={manifestToolbarCompactFieldSx}>
-              <ManifestField fieldId="brand" label="Brand" value={row.brand || ''} variant="pill" emphasis="compact" onSave={(v) => patchRow({ brand: v })} />
+              <ManifestField fieldId="brand" label="Brand" value={row.brand || ''} standardizedValue={row.standardizedIdentity?.brand} variant="pill" emphasis="compact" onSave={(v) => patchRow({ brand: v })} />
             </ManifestToolbarSlot>
             <ManifestToolbarSlot sx={manifestToolbarCompactFieldSx}>
-              <ManifestField fieldId="model" label="Model" value={row.model || ''} variant="pill" emphasis="compact" onSave={(v) => patchRow({ model: v })} />
+              <ManifestField fieldId="model" label="Model" value={row.model || ''} standardizedValue={row.standardizedIdentity?.model} variant="pill" emphasis="compact" onSave={(v) => patchRow({ model: v })} />
             </ManifestToolbarSlot>
             <ManifestToolbarSlot sx={manifestToolbarEditablePillSlotSx}>
               <ManifestField
@@ -1365,13 +1459,6 @@ export function ProcessingActiveCard({
                 {(row.sameProductRowNumbers ?? []).join(', ')}
               </Alert>
             : null}
-            {(row.unitsPerItem ?? 1) > 1 ?
-              <Chip
-                size="small"
-                label={`Set of ${(row.unitsPerItem ?? 1).toLocaleString()} — one tag covers ${(row.unitsPerItem ?? 1).toLocaleString()} units`}
-                sx={{ mt: 0.75, height: 22, fontSize: '0.7rem', fontWeight: 700 }}
-              />
-            : null}
             {row.splitParentId != null ?
               <Alert severity="info" sx={{ mt: 0.75, py: 0.25, '& .MuiAlert-message': { py: 0.4 } }}>
                 Sub row {row.splitParentRowNumber != null && row.splitSeq != null ? `#${row.splitParentRowNumber}.${row.splitSeq}` : ''} —
@@ -1399,7 +1486,7 @@ export function ProcessingActiveCard({
               >
                 {row.splitFamily.children.length ?
                   `Split into ${row.splitFamily.children
-                    .map((c) => `#${row.splitFamily!.rootRowNumber}.${c.splitSeq ?? '?'} (${c.qty.toLocaleString()}${c.unitsPerItem > 1 ? ` × ${c.unitsPerItem.toLocaleString()}` : ''})`)
+                    .map((c) => `#${row.splitFamily!.rootRowNumber}.${c.splitSeq ?? '?'} (${c.qty.toLocaleString()})`)
                     .join(', ')} — remainder stays here.`
                 : 'This row was converted by Break apart / Make set.'}
               </Alert>
@@ -1455,30 +1542,6 @@ export function ProcessingActiveCard({
           sx={{ mb: 0, minWidth: 0 }}
           bodySx={{ p: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         >
-          {batchCount > 0 ?
-            <Stack
-              direction="row"
-              spacing={0.25}
-              flexWrap="wrap"
-              useFlexGap
-              sx={{ mb: 0.5, flexShrink: 0, px: { xs: 1.25, md: 1.5 }, pt: 1 }}
-            >
-              {checkInBatches.map((batch) => (
-                <Button
-                  key={batch.id}
-                  size="small"
-                  variant="text"
-                  startIcon={<LocalPrintshop sx={{ fontSize: 14 }} />}
-                  disabled={!batch.items.length}
-                  onClick={() => void onReprintItems?.(batch.items)}
-                  sx={{ minHeight: 24, py: 0, fontSize: '0.68rem' }}
-                >
-                  Batch #{batch.id}
-                </Button>
-              ))}
-            </Stack>
-          : null}
-
           <Paper
             variant="outlined"
             sx={{
@@ -1501,8 +1564,10 @@ export function ProcessingActiveCard({
               activeItemId={activeItem?.id ?? null}
               onSelectItemId={handleSelectPriorCheckIn}
               onReprintItems={onReprintItems}
-              onRemapBatch={isManager ? setRemapTarget : undefined}
-              showRemapAction={isManager}
+              onDeleteBatch={isManager ? (historyRow) => void handleDeleteBatch(historyRow) : undefined}
+              onSetBatchCondition={(historyRow, value) => void handleSetBatchField(historyRow, 'condition', value)}
+              onSetBatchDispatch={(historyRow, value) => void handleSetBatchField(historyRow, 'dispatch', value)}
+              showDeleteBatchAction={isManager}
               scrollable
             />
           </Paper>
@@ -1514,10 +1579,13 @@ export function ProcessingActiveCard({
       <ProcessingCheckInDialog
         open={checkInOpen}
         row={row}
-        loading={checkInLoading}
+        loading={checkInLoading || updateCheckInBatch.isPending}
+        saveProductLoading={setRowProduct.isPending}
         seed={checkInSeed}
         onClose={closeDetailedCheckIn}
         onSubmit={onCheckIn}
+        onUpdateBatch={handleUpdateBatch}
+        onSaveProduct={handleSaveProductDecision}
       />
       <QuickCheckInProductPrompt
         open={productPrompt != null}
@@ -1556,14 +1624,6 @@ export function ProcessingActiveCard({
           setVolumeConfirm(null);
           if (pending) void quickCheckInResolved(pending.printLabels, pending.quantity);
         }}
-      />
-      <RemapBatchProductDialog
-        open={remapTarget != null}
-        batchRow={remapTarget}
-        fallbackProductTitle={displayTitle}
-        loading={remapBatch.isPending}
-        onClose={() => setRemapTarget(null)}
-        onSubmit={handleRemapBatch}
       />
       {transformMode ?
         <ProcessingTransformDialog

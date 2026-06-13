@@ -4,9 +4,9 @@ from django.test import SimpleTestCase
 
 from apps.inventory.services.manual_item import (
     build_google_query,
-    merge_search_tags_into_specifications,
     normalize_search_tags,
 )
+from apps.inventory.product_identity import merge_tags
 
 
 class ManualItemSearchTagTests(SimpleTestCase):
@@ -23,10 +23,6 @@ class ManualItemSearchTagTests(SimpleTestCase):
         )
         self.assertEqual(query, 'Old Spice Captain Body Wash 24 oz body wash')
 
-    def test_merge_search_tags_preserves_existing_specs(self):
-        merged = merge_search_tags_into_specifications(
-            {'scent': 'Captain', 'search_tags': ['body wash']},
-            ['24 fl oz', 'body wash'],
-        )
-        self.assertEqual(merged['scent'], 'Captain')
-        self.assertEqual(merged['search_tags'], ['body wash', '24 fl oz'])
+    def test_merge_search_tags_preserves_existing_product_tags(self):
+        merged = merge_tags(['body wash'], ['24 fl oz', 'body wash'])
+        self.assertEqual(merged, ['body wash', '24 fl oz'])

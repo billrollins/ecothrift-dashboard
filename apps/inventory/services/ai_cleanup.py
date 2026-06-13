@@ -2,7 +2,7 @@
 
 Architecture: workspace/ai-cleanup-grok/FABLE_REVIEW_offline_vs_webui_ai_cleanup.md
 § "Fable 5 verdict" (2026-06-10). Each batch is one small HTTP request: load N staging
-rows, one Anthropic call, save ``PreprocessingRow.ai_*`` for those rows only. Never
+rows, one LLM call (routed by model slug), save ``PreprocessingRow.ai_*`` for those rows only. Never
 writes ``ManifestRow`` listing fields, never creates ``Product``/``Item`` rows —
 that was the legacy ``ai-cleanup-rows`` behavior this replaces.
 
@@ -35,12 +35,11 @@ from apps.inventory.manifest_standard_fields import slugify_formula_search_tags
 from apps.inventory.models import PreprocessingRow, PurchaseOrder
 from apps.inventory.prompts import CONDITION_VALUES
 
-# grok-4.3 handles much larger batches comfortably (1M context); pool default 25.
+# Web pool default 10 rows/batch (see frontend AI_CLEANUP_BATCH_SIZE); server cap 60 ids/request.
 MAX_BATCH_ROW_IDS = 60
-DEFAULT_BATCH_SIZE = 25
-# Fail before the ~30s Heroku router cut so the client gets a retryable error,
-# not an H12 with unknown server state.
-ANTHROPIC_REQUEST_TIMEOUT_SECONDS = 25.0
+DEFAULT_BATCH_SIZE = 10
+# gemini-3.5-flash 10-row batches run ~30–35s; 5-row ~22s. Gunicorn allows 120s (Procfile).
+ANTHROPIC_REQUEST_TIMEOUT_SECONDS = 45.0
 
 WEB_CLEANUP_REASONING = 'AI cleanup (web batch)'
 
@@ -383,13 +382,6 @@ def validate_cleanup_suggestion(
     }, ''
 
 
-def create_anthropic_client(api_key: str):
-    """Isolated for test patching; raises ImportError when anthropic is missing."""
-    import anthropic as anthropic_lib
-
-    return anthropic_lib.Anthropic(api_key=api_key)
-
-
 def model_provider(model_id: str) -> str:
     """Provider for a model id — delegates to the shared router (one implementation)."""
     from apps.core.services.llm_router import resolve_provider
@@ -405,36 +397,6 @@ def resolve_cleanup_api_key(model_id: str) -> tuple[str, str | None]:
         return resolve_api_key(model_provider(model_id)), None
     except LLMConfigError as e:
         return '', str(e)
-
-
-def call_xai_cleanup(model_id: str, api_key: str, system: str, user: str) -> str:
-    """One xAI chat-completions call via the shared router, temperature 0."""
-    from apps.core.services.llm_router import llm_complete
-
-    return llm_complete(
-        model_id=model_id,
-        api_key=api_key,
-        system=system,
-        user=user,
-        max_tokens=None,
-        temperature=0,
-        timeout=ANTHROPIC_REQUEST_TIMEOUT_SECONDS,
-    ).text
-
-
-def call_google_cleanup(model_id: str, api_key: str, system: str, user: str) -> str:
-    """One Gemini generateContent call via the shared router, temperature 0."""
-    from apps.core.services.llm_router import llm_complete
-
-    return llm_complete(
-        model_id=model_id,
-        api_key=api_key,
-        system=system,
-        user=user,
-        max_tokens=None,
-        temperature=0,
-        timeout=ANTHROPIC_REQUEST_TIMEOUT_SECONDS,
-    ).text
 
 
 def run_ai_cleanup_batch(
@@ -481,44 +443,28 @@ def run_ai_cleanup_batch(
     timing['prompt_build_ms'] = round((time.perf_counter() - t0) * 1000, 1)
 
     t0 = time.perf_counter()
-    provider = model_provider(model_id)
     user_payload = json.dumps(payload)
-    if provider == 'xai':
-        content_text = call_xai_cleanup(model_id, api_key, system_prompt, user_payload)
-        timing['api_call_ms'] = round((time.perf_counter() - t0) * 1000, 1)
-    elif provider == 'google':
-        content_text = call_google_cleanup(model_id, api_key, system_prompt, user_payload)
-        timing['api_call_ms'] = round((time.perf_counter() - t0) * 1000, 1)
-    else:
-        client = create_anthropic_client(api_key)
-        response = client.messages.create(
-            model=model_id,
-            max_tokens=8192,
-            system=system_prompt,
-            messages=[{'role': 'user', 'content': json.dumps(payload)}],
-            timeout=ANTHROPIC_REQUEST_TIMEOUT_SECONDS,
-        )
-        timing['api_call_ms'] = round((time.perf_counter() - t0) * 1000, 1)
-        try:
-            from apps.core.services.ai_usage_log import log_ai_usage_from_response
+    from apps.core.services.llm_router import llm_complete
 
-            log_ai_usage_from_response(
-                'ai_cleanup_batch',
-                response,
-                model=model_id,
-                detail=f'order={order.pk} rows={len(rows)}',
-            )
-        except Exception:  # noqa: BLE001 — usage logging must never fail a batch
-            pass
-        content_text = ''
-        for block in getattr(response, 'content', []) or []:
-            if getattr(block, 'type', '') == 'text':
-                content_text += getattr(block, 'text', '')
+    result = llm_complete(
+        model_id=model_id,
+        api_key=api_key,
+        system=system_prompt,
+        user=user_payload,
+        max_tokens=8192,
+        temperature=0,
+        timeout=ANTHROPIC_REQUEST_TIMEOUT_SECONDS,
+        log_source='ai_cleanup_batch',
+        log_detail=f'order={order.pk} rows={len(rows)} requested_model={model_id}',
+    )
+    timing['api_call_ms'] = round((time.perf_counter() - t0) * 1000, 1)
+    content_text = result.text
 
     t0 = time.perf_counter()
     # Raw response visibility for pricing/quality forensics ("what did the AI actually say?").
     logger.info(
-        'ai_cleanup_batch_response order=%s rows=%s chars=%s', order.pk, len(rows), len(content_text),
+        'ai_cleanup_batch_response order=%s model=%s rows=%s chars=%s',
+        order.pk, model_id, len(rows), len(content_text),
     )
     logger.debug('ai_cleanup_batch_response_body order=%s body=%s', order.pk, content_text[:8000])
     suggestions_by_id = {}
