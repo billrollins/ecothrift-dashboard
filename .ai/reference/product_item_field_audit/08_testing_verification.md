@@ -32,7 +32,9 @@ Coverage must prove:
 | Product category | Product create/update requires canonical Category FK; no `category_ref`; no string category writes. |
 | Manual item create | Product selected/created first; Product identifiers accepted; Product price not accepted. |
 | Item serializer | Product-backed read fields including category; no Item title/brand/category writes; `retail` accepted; `unit_retail` rejected for Item. |
-| Processing check-in | Product required; row `unit_retail` becomes Item `retail`; shelf/check-in price becomes Item `price`; N quantity creates N Items. |
+| Processing check-in | Product required; row `unit_retail` becomes Item `retail`; shelf/check-in price becomes Item `price`; N quantity creates N Items; each Item gets **`check_in_id`**; batch dual-writes legacy **`item_ids`**. |
+| Item list filter | `?batch=` / `{checkin=…}` resolves via **`Item.check_in_id`**. |
+| Staging purge | Deleting **`ProcessingRow`** leaves **`ItemCheckIn`** intact with **`processing_row_id=NULL`**. |
 | Processing transforms | No `units_per_item` / `unit_count` behavior in v1. |
 | Processing identity | Product identifiers used instead of Product UPC; row identifiers can prefill Product. |
 | AI cleanup/finalize | `ManifestRow.title` path; source taxonomy maps to canonical Category FK/name from the 19 rows; condition standard set; no description lineage. |

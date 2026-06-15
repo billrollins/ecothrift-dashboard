@@ -53,6 +53,7 @@ Rules:
 - Do not AI-adjust identifiers in preprocessing/processing.
 - Do not put internal `Item.location` in this lineage.
 - Product creation/check-in may prefill `Product.identifiers` from row source identifiers when relevant.
+- **`Item.check_in`** → **`ItemCheckIn`** is the canonical check-in event link (0063). Legacy **`ItemCheckIn.item_ids`** JSON remains during dual-write soak.
 
 ## Pricing
 

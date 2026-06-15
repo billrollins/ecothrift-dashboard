@@ -1,4 +1,5 @@
 import type { Product } from '../types/inventory.types';
+import { formatRichSearch } from './richInventorySearch';
 
 /** Structured Product identity for styled rendering in search/autocomplete. */
 export interface ProductDisplayParts {
@@ -12,6 +13,30 @@ export type ProductLike = Pick<
   Product,
   'id' | 'product_number' | 'brand' | 'title' | 'identifiers' | 'upc' | 'catalog_display_label'
 >;
+
+/** Build ProductLike display fields from flattened item list/detail columns. */
+export function productLikeFromItemFields(
+  productId: number,
+  fields: {
+    product_number?: string | null;
+    product_brand?: string | null;
+    brand?: string;
+    product_title?: string | null;
+    title?: string;
+    product_upc?: string | null;
+  },
+): ProductLike {
+  const upc = fields.product_upc?.trim() || null;
+  return {
+    id: productId,
+    product_number: fields.product_number ?? null,
+    brand: (fields.product_brand || fields.brand || '').trim(),
+    title: (fields.product_title || fields.title || '').trim(),
+    identifiers: upc ? { upc } : ({} as Record<string, string>),
+    upc: upc ?? undefined,
+    catalog_display_label: undefined,
+  };
+}
 
 export const PRODUCT_SEARCH_MIN_CHARS = 2;
 export const PRODUCT_SEARCH_DEFAULT_PAGE_SIZE = 25;
@@ -46,12 +71,7 @@ export function productSearchParams(query: string, pageSize = PRODUCT_SEARCH_DEF
   };
 }
 
-/** Search string to surface a product in Manage Products after create. */
-export function productManageCatalogSearchTerm(product: ProductLike & { title?: string }): string {
-  const productNumber = product.product_number?.trim();
-  if (productNumber) return productNumber;
-  const title = (product.title || '').trim();
-  if (title.length >= PRODUCT_SEARCH_MIN_CHARS) return title;
-  if (title) return title;
-  return `PRD-${product.id}`;
+/** Rich search string to surface a product in Manage Products after create. */
+export function productManageCatalogSearchTerm(product: ProductLike): string {
+  return formatRichSearch({ filters: { product: product.id }, entity: 'products' });
 }

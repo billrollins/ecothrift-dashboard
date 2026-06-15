@@ -1,5 +1,5 @@
 <!-- initiative: slug=product-item-crud-processing status=active updated=2026-06-15 -->
-<!-- Last updated: 2026-06-15 — v2.29.0 shipped catalog CRUD + category reset + product check-in -->
+<!-- Last updated: 2026-06-15 — Inventory Catalog v2.30.0 -->
 
 # Initiative: Product & Item CRUD → Processing check-in
 
@@ -120,6 +120,18 @@ From [`intake_processing_improvements`](./_archived/_completed/intake_processing
 #### Result
 
 Shipped **Manage Products** / **Manage Items** catalog pages, Product CRUD modal (AI suggest, stat cards, **Check in items**), migrations **`0061`–`0062`** (canonical categories, drop Product/description lineage), **`POST /api/inventory/products/{id}/check-in/`**, and post-create catalog search. Initiative phases 1–3 + partial phase 5 complete; phase 6 processing integration remains.
+
+### 2026-06-15 — ItemCheckIn normalization (0063)
+
+#### Result
+
+Normalized check-in membership: **`ProcessingCheckInBatch` → `ItemCheckIn`**, **`Item.check_in`** FK, nullable **`processing_row`** (`SET_NULL` on staging purge), durable **`manifest_row_id`**, backfill from legacy **`item_ids` JSON**, dual-write on all mutation paths, FK-based item list filter and serializer **`check_in_batch_id`**. Phase 5 JSON removal gated in [12_check_in_normalization](../reference/product_item_field_audit/12_check_in_normalization.md).
+
+### 2026-06-15 — Inventory Catalog (v2.30.0)
+
+#### Result
+
+Shipped unified **Inventory Catalog** at `/inventory/workbench` (nav **Catalog**): shared rich search, Products / Check-ins / Items tabs, in-place product/item/check-in edit and create, URL-driven selection, legacy manage URLs redirect here. **`GET /api/inventory/item-check-ins/`** catalog API; migrations **`0063`–`0065`** complete ItemCheckIn FK cleanup. Replaces separate Manage Products/Items pages.
 
 ---
 

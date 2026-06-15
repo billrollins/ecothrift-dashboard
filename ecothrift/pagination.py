@@ -30,7 +30,18 @@ def item_list_request_is_unfiltered(request) -> bool:
     if _csv_vals('status') or _csv_vals('condition') or _csv_vals('source'):
         return False
 
-    for fk in ('sku', 'purchase_order', 'category', 'processing_tier', 'batch_group'):
+    for fk in (
+        'sku',
+        'purchase_order',
+        'category',
+        'processing_tier',
+        'batch_group',
+        'product',
+        'product_id',
+        'item_check_in',
+        'checkin',
+        'ids',
+    ):
         v = qp.get(fk)
         if v is not None and str(v).strip() != '':
             return False

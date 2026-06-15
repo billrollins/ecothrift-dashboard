@@ -14,7 +14,7 @@
 - `PreprocessingRow` currently has `standard_*`, `ai_identifiers`, `final_identifiers`, `ai_tracking`, `final_tracking`, and similar source-copy/duplicate layers. These are explicit removal targets because `ManifestRow` is the standardized row.
 - `ManifestRow.description` is still used as an alternate identity source in finalize/check-in/workspace paths. Target requires Template Formula to create `ManifestRow.title` and callers to stop depending on description for identity.
 - `processing_finalize._bulk_create_chunk_items` and historical/import flows can create productless Items today. Implementation must create/link Product in those paths.
-- `processing_ops._check_in_processing_row` is the critical enforcement point: it must never create Item without Product, must write `Item.retail` from row `unit_retail`, and must write `Item.price` from shelf/check-in price.
+- `processing_ops._check_in_processing_row` is the critical enforcement point: it must never create Item without Product, must write `Item.retail` from row `unit_retail`, must write `Item.price` from shelf/check-in price, and must set **`Item.check_in`** on every created item.
 - `ProcessingRow.units_per_item` and `Item.unit_count` were added by migration `0060`; removal requires rewriting P9 transform/check-in logic, not only dropping fields.
 
 ## Frontend/API Findings To Preserve

@@ -796,18 +796,36 @@ class ProcessingRow(models.Model):
         return f'ProcessingBm {self.row_number} PO={self.purchase_order_id}'
 
 
-class ProcessingCheckInBatch(models.Model):
-    """Temporary staging group for items created together during Processing check-in."""
+class ItemCheckIn(models.Model):
+    """Group of items created together in one check-in action (processing row or catalog)."""
+
+    ORIGIN_PROCESSING = 'processing'
+    ORIGIN_PRODUCT_AD_HOC = 'product_ad_hoc'
+    ORIGIN_MANUAL = 'manual'
+    ORIGIN_CHOICES = [
+        (ORIGIN_PROCESSING, 'Processing row'),
+        (ORIGIN_PRODUCT_AD_HOC, 'Product ad hoc'),
+        (ORIGIN_MANUAL, 'Manual'),
+    ]
 
     purchase_order = models.ForeignKey(
         PurchaseOrder,
         on_delete=models.CASCADE,
-        related_name='processing_checkin_batches',
+        related_name='item_checkins',
     )
     processing_row = models.ForeignKey(
         ProcessingRow,
-        on_delete=models.CASCADE,
-        related_name='checkin_batches',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='item_checkins',
+    )
+    manifest_row = models.ForeignKey(
+        'ManifestRow',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='item_checkins',
     )
     product = models.ForeignKey(
         'Product',
@@ -816,8 +834,13 @@ class ProcessingCheckInBatch(models.Model):
         blank=True,
         related_name='+',
     )
+    origin = models.CharField(
+        max_length=20,
+        choices=ORIGIN_CHOICES,
+        default=ORIGIN_PROCESSING,
+        db_index=True,
+    )
     quantity = models.PositiveIntegerField(default=1)
-    item_ids = models.JSONField(default=list, blank=True)
     defaults_snapshot = models.JSONField(default=dict, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -827,16 +850,18 @@ class ProcessingCheckInBatch(models.Model):
         related_name='+',
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-created_at', '-id']
         indexes = [
             models.Index(fields=['purchase_order', 'processing_row']),
             models.Index(fields=['processing_row', 'created_at']),
+            models.Index(fields=['purchase_order', 'manifest_row']),
         ]
 
     def __str__(self):
-        return f'ProcessingCheckInBatch {self.pk} row={self.processing_row_id}'
+        return f'ItemCheckIn {self.pk} row={self.processing_row_id}'
 
 
 class Product(models.Model):
@@ -1113,6 +1138,13 @@ class Item(models.Model):
     )
     manifest_row = models.ForeignKey(
         ManifestRow,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='items',
+    )
+    check_in = models.ForeignKey(
+        'ItemCheckIn',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

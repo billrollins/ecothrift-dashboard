@@ -1,26 +1,22 @@
-release(v2.29.0): product catalog CRUD, category reset, product-first check-in
+release(v2.30.0): Inventory Catalog — unified search and in-place CRUD
 
-Ship Manage Products/Items catalog pages, canonical category migration
-(0061–0062), and product-first check-in from the Product modal.
+Ship the Inventory Catalog page (nav Catalog) replacing separate Manage
+Products/Items pages. One search bar, three tabs, split detail panels.
 
-## Inventory / catalog CRUD
-- Manage Products & Manage Items pages with virtualized tables and drawers
-- Product modal: AI suggest, usage stat cards, Check in items action
-- New item on Manage Items routes to Product create; post-create search on catalog
-- Product suggest API; productCatalog search helpers
+## Inventory Catalog
+- /inventory/workbench with Products, Check-ins, Items tabs
+- Rich search syntax {product=…; checkin=…} and URL state
+- Product, item, and check-in edit/create in detail panels
+- Legacy manage-products / manage-items redirect with query preserved
+- Save+print three-way dialog; ConfirmDialog modals; copyable ID chips
 
-## Product-first check-in
-- POST /api/inventory/products/{id}/check-in/
-- GET /api/inventory/products/check-in-orders/
-- ProductCheckInDialog; ProcessingCheckInBatch on processing_add_item
-- Post-check-in navigation with ids + product filters on Manage Items
+## Backend
+- GET /api/inventory/item-check-ins/ catalog API
+- Migrations 0063–0065: Item.check_in FK, drop item_ids JSON, indexes
+- ItemCheckIn pagination count isolated from Item list cache
 
-## Schema (0061–0062)
-- Product.category FK to 19 canonical categories
-- Drop Product.description and manifest/preprocessing description fields
-- Item list: ids filter, default ordering by checked_in_at desc
+## Fixes
+- Free tab switching without selection bounce
+- Retail/Price decimal input while typing
 
-## Tests
-- test_product_check_in.py, test_product_suggest.py
-
-Initiative: product_item_crud_and_processing (phases 1–3 + partial 5)
+Initiative: product_item_crud_and_processing (catalog consolidation)

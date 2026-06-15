@@ -1,4 +1,4 @@
-import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Box,
@@ -13,7 +13,7 @@ import {
   useTheme,
 } from '@mui/material';
 import type { Item } from '../../../types/inventory.types';
-import { formatCurrency } from '../../../utils/format';
+import { itemLocationLabel } from '../processing/checkedInHistoryDisplay';
 import { itemStatusMeta } from '../processing/processingQueueCellText';
 import {
   PROCESSING_QUEUE_TABLE_HEAD_HEIGHT,
@@ -21,52 +21,55 @@ import {
   readProcessingQueueTableClientWidth,
 } from '../processing/processingQueueLayout';
 import { processingHeaderGradient, processingTokens } from '../processing/processingTokens';
+import { CatalogTableColumnResizeHandle } from './catalogTableColumnControls';
+import {
+  clearStoredColumnWidths,
+  readStoredColumnWidths as readStoredWidths,
+  resizeColumnPair,
+  scaleColumnWidthsToTotal,
+  storeColumnWidths as persistColumnWidths,
+} from './catalogTableColumns';
 
-export type ItemSortField =
-  | 'sku'
-  | 'brand'
-  | 'title'
-  | 'model'
-  | 'category'
-  | 'upc'
-  | 'price'
-  | 'status';
+export type ItemSortField = 'itemNumber' | 'product' | 'checkedIn' | 'status' | 'location';
 
 type SortCycleState = { field: ItemSortField; dir: 'asc' | 'desc' } | null;
+type ItemColumnWidths = Record<ItemSortField, number>;
 
 const ITEM_CATALOG_COL = {
-  sku: 52,
-  brand: 96,
-  title: 280,
-  model: 120,
-  category: 148,
-  upc: 112,
-  price: 88,
-  status: 64,
+  itemNumber: 72,
+  product: 360,
+  checkedIn: 132,
+  status: 72,
+  location: 120,
 } as const;
+const ITEM_CATALOG_COLUMN_ORDER = ['itemNumber', 'product', 'checkedIn', 'status', 'location'] as const;
+const ITEM_CATALOG_WIDTHS_KEY = 'inventory.workbench.itemCatalog.columns.v1';
 
-function itemSkuLabel(item: Item): string {
+function formatCheckedInDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function itemNumberLabel(item: Item): string {
   return item.sku?.trim() || String(item.id);
 }
 
-function itemTitleLabel(item: Item): string {
+function productLabel(item: Item): string {
   return item.product_title?.trim() || '—';
 }
 
-function itemBrandLabel(item: Item): string {
-  return item.product_brand?.trim() || '—';
-}
-
-function itemModelLabel(item: Item): string {
-  return item.product_model?.trim() || '—';
-}
-
-function itemCategoryLabel(item: Item): string {
-  return item.category?.trim() || '—';
-}
-
-function itemUpcLabel(item: Item): string {
-  return item.product_upc?.trim() || '—';
+function locationLabel(item: Item): string {
+  return itemLocationLabel(item.location);
 }
 
 function itemStatusChipMeta(item: Item) {
@@ -77,8 +80,23 @@ function itemStatusChipMeta(item: Item) {
   });
 }
 
-function itemPriceLabel(item: Item): string {
-  return item.price != null && item.price !== '' ? formatCurrency(item.price) : '—';
+function readStoredColumnWidths(): ItemColumnWidths | null {
+  return readStoredWidths(ITEM_CATALOG_WIDTHS_KEY, ITEM_CATALOG_COLUMN_ORDER);
+}
+
+function defaultColumnWidths(totalWidth: number): ItemColumnWidths {
+  const total = Math.max(1, Math.round(totalWidth));
+  return scaleColumnWidthsToTotal(
+    {
+      itemNumber: ITEM_CATALOG_COL.itemNumber,
+      product: Math.round(total * 0.38),
+      checkedIn: ITEM_CATALOG_COL.checkedIn,
+      status: ITEM_CATALOG_COL.status,
+      location: Math.round(total * 0.18),
+    },
+    ITEM_CATALOG_COLUMN_ORDER,
+    total,
+  );
 }
 
 const tableSx = (mode: 'light' | 'dark') =>
@@ -97,6 +115,7 @@ const tableSx = (mode: 'light' | 'dark') =>
       fontSize: (theme: { typography: { pxToRem: (n: number) => string } }) => theme.typography.pxToRem(11),
       lineHeight: 1.12,
       height: PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
+      whiteSpace: 'nowrap',
     },
     '& .MuiTableCell-root + .MuiTableCell-root': {
       pl: '12px',
@@ -112,7 +131,13 @@ const tableSx = (mode: 'light' | 'dark') =>
       textTransform: 'uppercase',
       letterSpacing: '0.06em',
       color: processingTokens.textSoft,
-      overflow: 'hidden',
+      overflow: 'visible',
+    },
+    '& .MuiTableHead-root .MuiTableCell-root:not(:last-of-type)': {
+      borderRight: `1px solid ${processingTokens.borderStrong}`,
+    },
+    '& .MuiTableBody-root .MuiTableCell-root:not(:last-of-type)': {
+      borderRight: `1px solid ${processingTokens.border}`,
     },
     '& .MuiTableHead-root .MuiTableSortLabel-root': {
       color: 'inherit',
@@ -134,25 +159,31 @@ const centeredSortLabelSx = { width: '100%', justifyContent: 'center' } as const
 interface ItemCatalogRowProps {
   item: Item;
   striped: boolean;
+  selected?: boolean;
   onOpen?: (item: Item) => void;
 }
 
-const ItemCatalogRow = memo(function ItemCatalogRow({ item, striped, onOpen }: ItemCatalogRowProps) {
-  const open = () => onOpen?.(item);
-  const title = itemTitleLabel(item);
-  const brand = itemBrandLabel(item);
-  const model = itemModelLabel(item);
-  const upc = itemUpcLabel(item);
+const ItemCatalogRow = memo(function ItemCatalogRow({
+  item,
+  striped,
+  selected = false,
+  onOpen,
+}: ItemCatalogRowProps) {
+  const title = productLabel(item);
+  const location = locationLabel(item);
   const statusMeta = itemStatusChipMeta(item);
+  const checkedIn = formatCheckedInDateTime(item.checked_in_at);
 
   return (
     <TableRow
       hover
-      onClick={open}
+      selected={selected}
+      onClick={() => onOpen?.(item)}
       sx={{
         cursor: onOpen ? 'pointer' : 'default',
         height: PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
         bgcolor: (theme) => {
+          if (selected) return theme.palette.mode === 'dark' ? 'rgba(46, 125, 50, 0.18)' : 'rgba(46, 125, 50, 0.10)';
           if (striped) {
             return theme.palette.mode === 'dark' ? processingTokens.rowStripeDark : processingTokens.rowStripe;
           }
@@ -167,57 +198,22 @@ const ItemCatalogRow = memo(function ItemCatalogRow({ item, striped, onOpen }: I
       <TableCell
         align="center"
         sx={{
-          whiteSpace: 'nowrap',
           fontVariantNumeric: 'tabular-nums',
           color: 'text.secondary',
           fontFamily: processingTokens.monoFontFamily,
           fontSize: '0.72rem',
         }}
+        title={itemNumberLabel(item)}
       >
-        {itemSkuLabel(item)}
-      </TableCell>
-      <TableCell align="left">
-        <Typography sx={{ fontSize: '0.72rem', fontWeight: 600 }} noWrap title={brand !== '—' ? brand : undefined}>
-          {brand}
-        </Typography>
+        {itemNumberLabel(item)}
       </TableCell>
       <TableCell align="left" sx={{ minWidth: 0 }}>
-        <Typography
-          noWrap
-          title={title !== '—' ? title : undefined}
-          sx={{ fontSize: '0.72rem', fontWeight: 700, lineHeight: 1.1 }}
-        >
+        <Typography noWrap title={title !== '—' ? title : undefined} sx={{ fontSize: '0.72rem', fontWeight: 700, lineHeight: 1.1 }}>
           {title}
         </Typography>
       </TableCell>
-      <TableCell align="left">
-        <Typography sx={{ fontSize: '0.72rem' }} noWrap title={model !== '—' ? model : undefined}>
-          {model}
-        </Typography>
-      </TableCell>
-      <TableCell align="left">
-        <Typography sx={{ fontSize: '0.72rem' }} noWrap title={itemCategoryLabel(item)}>
-          {itemCategoryLabel(item)}
-        </Typography>
-      </TableCell>
-      <TableCell align="left">
-        <Typography
-          sx={{ fontSize: '0.72rem', fontFamily: processingTokens.monoFontFamily }}
-          noWrap
-          title={upc !== '—' ? upc : undefined}
-        >
-          {upc}
-        </Typography>
-      </TableCell>
-      <TableCell
-        align="right"
-        sx={{
-          fontVariantNumeric: 'tabular-nums',
-          whiteSpace: 'nowrap',
-          fontSize: '0.72rem',
-        }}
-      >
-        {itemPriceLabel(item)}
+      <TableCell align="left" sx={{ fontSize: '0.72rem', fontVariantNumeric: 'tabular-nums' }} title={checkedIn !== '—' ? checkedIn : undefined}>
+        {checkedIn}
       </TableCell>
       <TableCell align="center">
         <Chip
@@ -232,6 +228,9 @@ const ItemCatalogRow = memo(function ItemCatalogRow({ item, striped, onOpen }: I
           }}
         />
       </TableCell>
+      <TableCell align="left" sx={{ fontSize: '0.72rem' }} title={location !== '—' ? location : undefined}>
+        {location}
+      </TableCell>
     </TableRow>
   );
 });
@@ -239,57 +238,46 @@ const ItemCatalogRow = memo(function ItemCatalogRow({ item, striped, onOpen }: I
 export interface ItemCatalogTableProps {
   items: Item[];
   search: string;
+  selectedItemId?: number | null;
   onOpenItem?: (item: Item) => void;
+  onRegisterColumnReset?: (reset: (() => void) | null) => void;
 }
 
-export function ItemCatalogTable({ items, search, onOpenItem }: ItemCatalogTableProps) {
+export function ItemCatalogTable({
+  items,
+  search,
+  selectedItemId = null,
+  onOpenItem,
+  onRegisterColumnReset,
+}: ItemCatalogTableProps) {
   const theme = useTheme();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
-  const [sortState, setSortState] = useState<SortCycleState>(null);
+  const [sortState, setSortState] = useState<SortCycleState>({ field: 'checkedIn', dir: 'desc' });
+  const [columnWidths, setColumnWidths] = useState<ItemColumnWidths | null>(() => readStoredColumnWidths());
 
   const sortedItems = useMemo(() => {
     const copy = [...items];
-    if (sortState === null) {
-      copy.sort((a, b) => {
-        const aAt = a.checked_in_at ? Date.parse(a.checked_in_at) : 0;
-        const bAt = b.checked_in_at ? Date.parse(b.checked_in_at) : 0;
-        if (bAt !== aAt) return bAt - aAt;
-        return b.id - a.id;
-      });
-      return copy;
-    }
-    const { field, dir } = sortState;
+    const active = sortState ?? { field: 'checkedIn' as const, dir: 'desc' as const };
+    const { field, dir } = active;
     const mult = dir === 'asc' ? 1 : -1;
     copy.sort((a, b) => {
       let cmp = 0;
       switch (field) {
-        case 'sku':
-          cmp = itemSkuLabel(a).localeCompare(itemSkuLabel(b), undefined, { numeric: true });
+        case 'itemNumber':
+          cmp = itemNumberLabel(a).localeCompare(itemNumberLabel(b), undefined, { numeric: true });
           break;
-        case 'brand':
-          cmp = itemBrandLabel(a).localeCompare(itemBrandLabel(b));
+        case 'product':
+          cmp = productLabel(a).localeCompare(productLabel(b));
           break;
-        case 'title':
-          cmp = itemTitleLabel(a).localeCompare(itemTitleLabel(b));
+        case 'checkedIn':
+          cmp = (a.checked_in_at || '').localeCompare(b.checked_in_at || '');
           break;
-        case 'model':
-          cmp = itemModelLabel(a).localeCompare(itemModelLabel(b));
-          break;
-        case 'category':
-          cmp = itemCategoryLabel(a).localeCompare(itemCategoryLabel(b));
-          break;
-        case 'upc':
-          cmp = itemUpcLabel(a).localeCompare(itemUpcLabel(b));
-          break;
-        case 'price': {
-          const ap = parseFloat(a.price ?? '') || 0;
-          const bp = parseFloat(b.price ?? '') || 0;
-          cmp = ap - bp;
-          break;
-        }
         case 'status':
           cmp = itemStatusChipMeta(a).label.localeCompare(itemStatusChipMeta(b).label);
+          break;
+        case 'location':
+          cmp = locationLabel(a).localeCompare(locationLabel(b));
           break;
       }
       return cmp * mult;
@@ -329,22 +317,71 @@ export function ItemCatalogTable({ items, search, onOpenItem }: ItemCatalogTable
 
   const handleSort = (field: ItemSortField) => {
     setSortState((prev) => {
-      if (prev === null || prev.field !== field) return { field, dir: 'asc' };
+      if (prev === null || prev.field !== field) return { field, dir: field === 'checkedIn' ? 'desc' : 'asc' };
       if (prev.dir === 'asc') return { field, dir: 'desc' };
-      return null;
+      return { field: 'checkedIn', dir: 'desc' };
     });
+  };
+
+  const tableWidth = containerWidth || 740;
+
+  const effectiveColumnWidths = useMemo(
+    () => scaleColumnWidthsToTotal(columnWidths ?? defaultColumnWidths(tableWidth), ITEM_CATALOG_COLUMN_ORDER, tableWidth),
+    [columnWidths, tableWidth],
+  );
+
+  const resetColumnWidths = useCallback(() => {
+    clearStoredColumnWidths(ITEM_CATALOG_WIDTHS_KEY);
+    setColumnWidths(null);
+  }, []);
+
+  useEffect(() => {
+    onRegisterColumnReset?.(resetColumnWidths);
+    return () => onRegisterColumnReset?.(null);
+  }, [onRegisterColumnReset, resetColumnWidths]);
+
+  const startColumnResize = (
+    leftKey: ItemSortField,
+    rightKey: ItemSortField,
+    event: ReactMouseEvent<HTMLElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const next = resizeColumnPair(
+        effectiveColumnWidths,
+        leftKey,
+        rightKey,
+        moveEvent.clientX - startX,
+        tableWidth,
+        ITEM_CATALOG_COLUMN_ORDER,
+      );
+      setColumnWidths(next);
+      persistColumnWidths(ITEM_CATALOG_WIDTHS_KEY, next);
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
   };
 
   const colgroup = (
     <colgroup>
-      <col style={{ width: ITEM_CATALOG_COL.sku }} />
-      <col style={{ width: ITEM_CATALOG_COL.brand }} />
-      <col style={{ width: ITEM_CATALOG_COL.title }} />
-      <col style={{ width: ITEM_CATALOG_COL.model }} />
-      <col style={{ width: ITEM_CATALOG_COL.category }} />
-      <col style={{ width: ITEM_CATALOG_COL.upc }} />
-      <col style={{ width: ITEM_CATALOG_COL.price }} />
-      <col style={{ width: ITEM_CATALOG_COL.status }} />
+      <col style={{ width: effectiveColumnWidths.itemNumber }} />
+      <col style={{ width: effectiveColumnWidths.product }} />
+      <col style={{ width: effectiveColumnWidths.checkedIn }} />
+      <col style={{ width: effectiveColumnWidths.status }} />
+      <col style={{ width: effectiveColumnWidths.location }} />
     </colgroup>
   );
 
@@ -387,7 +424,6 @@ export function ItemCatalogTable({ items, search, onOpenItem }: ItemCatalogTable
         </Box>
       : <Table
           size="small"
-          stickyHeader
           sx={{
             ...tableSx(theme.palette.mode),
             width: containerWidth > 0 ? containerWidth : '100%',
@@ -396,79 +432,76 @@ export function ItemCatalogTable({ items, search, onOpenItem }: ItemCatalogTable
           {colgroup}
           <TableHead>
             <TableRow>
-              <TableCell align="center" onClick={() => handleSort('sku')} sx={{ cursor: 'pointer', userSelect: 'none' }}>
-                #
-              </TableCell>
-              <TableCell align="left">
+              <TableCell align="center" sx={{ position: 'relative', pr: '14px !important' }}>
                 <TableSortLabel
-                  active={sortState?.field === 'brand'}
-                  direction={sortState && sortState.field === 'brand' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('brand')}
-                  hideSortIcon={sortState?.field !== 'brand'}
-                >
-                  Brand
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="left">
-                <TableSortLabel
-                  active={sortState?.field === 'title'}
-                  direction={sortState && sortState.field === 'title' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('title')}
-                  hideSortIcon={sortState?.field !== 'title'}
-                >
-                  Title
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="left">
-                <TableSortLabel
-                  active={sortState?.field === 'model'}
-                  direction={sortState && sortState.field === 'model' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('model')}
-                  hideSortIcon={sortState?.field !== 'model'}
-                >
-                  Model
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="left">
-                <TableSortLabel
-                  active={sortState?.field === 'category'}
-                  direction={sortState && sortState.field === 'category' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('category')}
-                  hideSortIcon={sortState?.field !== 'category'}
-                >
-                  Category
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="left">
-                <TableSortLabel
-                  active={sortState?.field === 'upc'}
-                  direction={sortState && sortState.field === 'upc' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('upc')}
-                  hideSortIcon={sortState?.field !== 'upc'}
-                >
-                  UPC
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="right">
-                <TableSortLabel
-                  active={sortState?.field === 'price'}
-                  direction={sortState && sortState.field === 'price' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('price')}
-                  hideSortIcon={sortState?.field !== 'price'}
+                  active={sortState?.field === 'itemNumber'}
+                  direction={sortState?.field === 'itemNumber' ? sortState.dir : 'asc'}
+                  onClick={() => handleSort('itemNumber')}
+                  hideSortIcon={sortState?.field !== 'itemNumber'}
                   sx={centeredSortLabelSx}
                 >
-                  Price
+                  Item #
                 </TableSortLabel>
+                <CatalogTableColumnResizeHandle
+                  leftKey="itemNumber"
+                  rightKey="product"
+                  onResizePair={(left, right, event) => startColumnResize(left as ItemSortField, right as ItemSortField, event)}
+                />
               </TableCell>
-              <TableCell align="center">
+              <TableCell align="left" sx={{ position: 'relative', pr: '14px !important' }}>
+                <TableSortLabel
+                  active={sortState?.field === 'product'}
+                  direction={sortState?.field === 'product' ? sortState.dir : 'asc'}
+                  onClick={() => handleSort('product')}
+                  hideSortIcon={sortState?.field !== 'product'}
+                >
+                  Product
+                </TableSortLabel>
+                <CatalogTableColumnResizeHandle
+                  leftKey="product"
+                  rightKey="checkedIn"
+                  onResizePair={(left, right, event) => startColumnResize(left as ItemSortField, right as ItemSortField, event)}
+                />
+              </TableCell>
+              <TableCell align="left" sx={{ position: 'relative', pr: '14px !important' }}>
+                <TableSortLabel
+                  active={sortState?.field === 'checkedIn'}
+                  direction={sortState?.field === 'checkedIn' ? sortState.dir : 'desc'}
+                  onClick={() => handleSort('checkedIn')}
+                  hideSortIcon={sortState?.field !== 'checkedIn'}
+                >
+                  Checked in
+                </TableSortLabel>
+                <CatalogTableColumnResizeHandle
+                  leftKey="checkedIn"
+                  rightKey="status"
+                  onResizePair={(left, right, event) => startColumnResize(left as ItemSortField, right as ItemSortField, event)}
+                />
+              </TableCell>
+              <TableCell align="center" sx={{ position: 'relative', pr: '14px !important' }}>
                 <TableSortLabel
                   active={sortState?.field === 'status'}
-                  direction={sortState && sortState.field === 'status' ? sortState.dir : 'asc'}
+                  direction={sortState?.field === 'status' ? sortState.dir : 'asc'}
                   onClick={() => handleSort('status')}
                   hideSortIcon={sortState?.field !== 'status'}
                   sx={centeredSortLabelSx}
                 >
                   Status
+                </TableSortLabel>
+                <CatalogTableColumnResizeHandle
+                  leftKey="status"
+                  rightKey="location"
+                  onResizePair={(left, right, event) => startColumnResize(left as ItemSortField, right as ItemSortField, event)}
+                />
+              </TableCell>
+              <TableCell align="left">
+                <TableSortLabel
+                  active={sortState?.field === 'location'}
+                  direction={sortState?.field === 'location' ? sortState.dir : 'asc'}
+                  onClick={() => handleSort('location')}
+                  hideSortIcon={sortState?.field !== 'location'}
+                >
+                  Location
                 </TableSortLabel>
               </TableCell>
             </TableRow>
@@ -476,7 +509,7 @@ export function ItemCatalogTable({ items, search, onOpenItem }: ItemCatalogTable
           <TableBody>
             {paddingTop > 0 ?
               <TableRow sx={{ height: paddingTop, visibility: 'collapse', pointerEvents: 'none' }}>
-                <TableCell colSpan={8} sx={{ p: 0, border: 0, height: paddingTop }} />
+                <TableCell colSpan={5} sx={{ p: 0, border: 0, height: paddingTop }} />
               </TableRow>
             : null}
             {virtualItems.map((virtualRow) => {
@@ -486,13 +519,14 @@ export function ItemCatalogTable({ items, search, onOpenItem }: ItemCatalogTable
                   key={item.id}
                   item={item}
                   striped={virtualRow.index % 2 === 1}
+                  selected={selectedItemId === item.id}
                   onOpen={onOpenItem}
                 />
               );
             })}
             {paddingBottom > 0 ?
               <TableRow sx={{ height: paddingBottom, visibility: 'collapse', pointerEvents: 'none' }}>
-                <TableCell colSpan={8} sx={{ p: 0, border: 0, height: paddingBottom }} />
+                <TableCell colSpan={5} sx={{ p: 0, border: 0, height: paddingBottom }} />
               </TableRow>
             : null}
           </TableBody>

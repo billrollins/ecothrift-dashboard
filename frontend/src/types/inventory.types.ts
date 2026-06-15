@@ -399,6 +399,8 @@ export interface Item {
   dispute_type?: '' | 'broken' | 'undelivered';
   dispute_pct_loss?: number | null;
   dispute_description?: string;
+  /** ItemCheckIn that created this item, when known. */
+  item_check_in_id?: number | null;
 }
 
 /** Item Processor workspace (`GET …/processing-workspace/`). */
@@ -450,16 +452,51 @@ export interface ProcessingWorkspaceItemDTO {
   dispute_description: string;
 }
 
-export interface ProcessingCheckInBatchDTO {
+export interface ItemCheckInDTO {
   id: number;
   quantity: number;
-  item_ids: number[];
   items: ProcessingWorkspaceItemDTO[];
   product: ProcessingWorkspaceProductDTO | null;
   created_at: string | null;
   created_by: number | null;
   defaults: Record<string, unknown>;
   dispute_count: number;
+}
+
+/** Catalog ItemCheckIn from GET /inventory/item-check-ins/ */
+export interface ItemCheckInCatalogItem {
+  id: number;
+  sku: string;
+  status: ItemStatus;
+  condition: ItemCondition;
+  price: string;
+  location: string;
+  checked_in_at: string | null;
+}
+
+export interface ItemCheckInCatalog {
+  id: number;
+  purchase_order: number;
+  purchase_order_number: string | null;
+  purchase_order_ordered_date: string | null;
+  purchase_order_vendor_name: string | null;
+  purchase_order_description?: string | null;
+  processing_row: number | null;
+  manifest_row: number | null;
+  product: number | null;
+  product_number: string | null;
+  product_title: string;
+  product_brand: string;
+  origin: 'processing' | 'product_ad_hoc' | 'manual';
+  quantity: number;
+  defaults: Record<string, unknown>;
+  specifications: Record<string, unknown>;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  dispute_count: number;
+  item_count: number;
+  items: ItemCheckInCatalogItem[];
 }
 
 export interface ProcessingManifestEvidenceDTO {
@@ -559,7 +596,7 @@ export interface ProcessingWorkspaceRowDTO {
   /** Empty on list payloads; hydrated from processing-row-detail. */
   items?: ProcessingWorkspaceItemDTO[];
   /** Temporary processing-stage groups for items checked in together. */
-  checkInBatches?: ProcessingCheckInBatchDTO[];
+  itemCheckIns?: ItemCheckInDTO[];
   status: string;
   likelyDuplicateOf: number[];
   condition: string;

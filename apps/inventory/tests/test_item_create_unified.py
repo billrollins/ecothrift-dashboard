@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from apps.inventory.models import (
     Item,
     ManifestRow,
-    ProcessingCheckInBatch,
+    ItemCheckIn,
     ProcessingRow,
     Product,
     PurchaseOrder,
@@ -111,10 +111,10 @@ class WorkspaceRoutedCreateTests(UnifiedItemCreateBase):
             self.assertEqual(item.purchase_order_id, self.order.id)
             self.assertEqual(item.status, 'on_shelf')
 
-        batch = ProcessingCheckInBatch.objects.filter(processing_row=row).first()
-        self.assertIsNotNone(batch)
-        self.assertEqual(batch.quantity, 3)
-        self.assertEqual(batch.product_id, items.first().product_id)
+        check_in = ItemCheckIn.objects.filter(processing_row=row).first()
+        self.assertIsNotNone(check_in)
+        self.assertEqual(check_in.quantity, 3)
+        self.assertEqual(check_in.product_id, items.first().product_id)
 
     def test_create_on_non_workspace_po_skips_added_row(self):
         plain = PurchaseOrder.objects.create(

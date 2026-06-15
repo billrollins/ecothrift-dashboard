@@ -55,8 +55,8 @@ export function checkedInCategoryText(
   row: CheckedInHistoryRow,
   fallbackProduct: ProcessingWorkspaceProductDTO | null,
 ): string {
-  const fromBatch = (row.batchProductCategory || '').trim();
-  if (fromBatch) return fromBatch;
+  const fromCheckIn = (row.checkInProductCategory || '').trim();
+  if (fromCheckIn) return fromCheckIn;
   const { item } = row;
   if (item.product === fallbackProduct?.id && fallbackProduct?.category) {
     return fallbackProduct.category;

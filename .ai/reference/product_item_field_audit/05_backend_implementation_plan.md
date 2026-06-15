@@ -129,6 +129,7 @@ Required behavior:
 - Product category is assigned from canonical `ProcessingRow.category`.
 - `ProcessingRow.unit_retail` writes `Item.retail`.
 - `ProcessingRow.shelf_price` / check-in price writes `Item.price`.
+- Check-in creates **`ItemCheckIn`** + sets **`Item.check_in`** on every item ([12_check_in_normalization](./12_check_in_normalization.md)).
 - `ProcessingRow.quantity` controls how many single-unit Items are created.
 - `ProcessingRow.units_per_item` and `Item.unit_count` are removed from v1 flows.
 

@@ -29,7 +29,7 @@ import { useAISuggestItem } from '../../../hooks/useInventory';
 import { preventWheelChangeNumber } from '../../../utils/formInputs';
 import type {
   ItemCondition,
-  ProcessingCheckInBatchDTO,
+  ItemCheckInDTO,
   ProcessingWorkspaceItemDTO,
   ProcessingWorkspaceProductDTO,
   ProcessingWorkspaceRowDTO,
@@ -360,7 +360,7 @@ function SegmentedButtons({
 
 export interface ProcessingCheckInSeed {
   item: ProcessingWorkspaceItemDTO;
-  batch: ProcessingCheckInBatchDTO | null;
+  itemCheckIn: ItemCheckInDTO | null;
 }
 
 export interface ProcessingCheckInDialogProps {
@@ -371,8 +371,8 @@ export interface ProcessingCheckInDialogProps {
   seed?: ProcessingCheckInSeed | null;
   onClose: () => void;
   onSubmit: (payload: Record<string, unknown>, options: { printLabels: boolean }) => Promise<boolean>;
-  /** Edit mode: update the seeded batch in place (add/remove items, patch fields). */
-  onUpdateBatch?: (batchId: number, payload: Record<string, unknown>, options: { printLabels: boolean }) => Promise<boolean>;
+  /** Edit mode: update the seeded check-in in place (add/remove items, patch fields). */
+  onUpdateItemCheckIn?: (itemCheckInId: number, payload: Record<string, unknown>, options: { printLabels: boolean }) => Promise<boolean>;
   /** Persist product decision on the row without checking in. */
   onSaveProduct?: (payload: Record<string, unknown>) => Promise<boolean>;
 }
@@ -392,17 +392,17 @@ export function ProcessingCheckInDialog({
   seed = null,
   onClose,
   onSubmit,
-  onUpdateBatch,
+  onUpdateItemCheckIn,
   onSaveProduct,
   saveProductLoading = false,
 }: ProcessingCheckInDialogProps) {
   const rowLinkedProduct = row.product;
   const aiSuggest = useAISuggestItem();
 
-  // Edit mode: a prior check-in was clicked — this dialog EDITS that batch in place.
-  const editBatch = seed?.batch && onUpdateBatch ? seed.batch : null;
-  const isEditMode = editBatch != null;
-  const originalQty = editBatch?.quantity ?? 0;
+  // Edit mode: a prior check-in was clicked — this dialog EDITS that check-in in place.
+  const editCheckIn = seed?.itemCheckIn && onUpdateItemCheckIn ? seed.itemCheckIn : null;
+  const isEditMode = editCheckIn != null;
+  const originalQty = editCheckIn?.quantity ?? 0;
 
   const [quantity, setQuantity] = useState('1');
   const [condition, setCondition] = useState<ItemCondition>(PROCESSING_ITEM_DEFAULT_CONDITION);
@@ -480,11 +480,11 @@ export function ProcessingCheckInDialog({
 
   useEffect(() => {
     if (!open) return;
-    const defaults = seed?.batch?.defaults ?? {};
-    const seedProduct = seed?.batch?.product ?? null;
+    const defaults = seed?.itemCheckIn?.defaults ?? {};
+    const seedProduct = seed?.itemCheckIn?.product ?? null;
     const initialAttached = seedProduct ?? rowLinkedProduct ?? null;
 
-    setQuantity(editBatch ? String(editBatch.quantity) : '1');
+    setQuantity(editCheckIn ? String(editCheckIn.quantity) : '1');
     setCondition(normalizeProcessingCondition(seed?.item.condition || seed?.item.condition_label || row.condition));
     setDispatch(seed?.item.dispatch || strDefault(defaults.dispatch) || row.dispatch || 'on_shelf');
     setRetail(seed?.item.retail ?? (strDefault(defaults.retail) || row.unitRetail || ''));
@@ -508,7 +508,7 @@ export function ProcessingCheckInDialog({
     setAiMessage(null);
     setAiSpecs(null);
     setVolumeConfirm(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- editBatch derives from seed
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- editCheckIn derives from seed
   }, [open, seed, row, rowLinkedProduct]);
 
   function markProductEdited() {
@@ -674,14 +674,14 @@ export function ProcessingCheckInDialog({
   }
 
   async function submitEdit(printLabels: boolean) {
-    if (!editBatch || !onUpdateBatch) return;
+    if (!editCheckIn || !onUpdateItemCheckIn) return;
     if (qtyDelta > 0) {
       if (!window.confirm(`Add ${qtyDelta} item${qtyDelta === 1 ? '' : 's'} to this check-in?`)) return;
     } else if (qtyDelta < 0) {
       const n = -qtyDelta;
       if (!window.confirm(`Delete ${n} item${n === 1 ? '' : 's'} from this check-in? Their tags are removed from inventory.`)) return;
     }
-    const ok = await onUpdateBatch(editBatch.id, buildPayload(), { printLabels });
+    const ok = await onUpdateItemCheckIn(editCheckIn.id, buildPayload(), { printLabels });
     if (ok) onClose();
   }
 

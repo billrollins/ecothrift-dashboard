@@ -14,7 +14,7 @@ from typing import Any, Iterable
 
 from django.db.models import Count, Q, Sum
 
-from apps.inventory.models import Item, ManifestRow, ProcessingCheckInBatch, ProcessingDataBuild, ProcessingRow, PurchaseOrder, Product
+from apps.inventory.models import Item, ItemCheckIn, ManifestRow, ProcessingDataBuild, ProcessingRow, PurchaseOrder, Product
 from apps.inventory.product_identity import merge_identifiers, product_upc
 from apps.inventory.services.processing_search_string import (
     assign_search_strings_for_instances,
@@ -361,18 +361,17 @@ def _processing_row_item_ids(row: ProcessingRow | dict[str, Any]) -> list[int]:
     return out
 
 
-def _checkin_batch_item_id_map(row_ids: Iterable[int]) -> dict[int, set[int]]:
-    """Map processing_row pk → union of its check-in batches' item ids."""
+def _item_check_in_item_id_map(row_ids: Iterable[int]) -> dict[int, set[int]]:
+    """Map processing_row pk → union of its ItemCheckIn item ids via Item.check_in FK."""
     out: dict[int, set[int]] = defaultdict(set)
-    pairs = ProcessingCheckInBatch.objects.filter(
-        processing_row_id__in=list(row_ids),
-    ).values_list('processing_row_id', 'item_ids')
-    for row_id, item_ids in pairs:
-        for x in item_ids or []:
-            try:
-                out[int(row_id)].add(int(x))
-            except (TypeError, ValueError):
-                continue
+    rid_list = list(row_ids)
+    if not rid_list:
+        return out
+    for row_id, item_pk in Item.objects.filter(
+        check_in__processing_row_id__in=rid_list,
+    ).values_list('check_in__processing_row_id', 'pk'):
+        if row_id:
+            out[int(row_id)].add(int(item_pk))
     return out
 
 
@@ -402,7 +401,7 @@ def split_family_attribution(
     if not multi:
         return {}
     all_row_ids = [rid for members in multi.values() for rid, _parent in members]
-    batch_map = _checkin_batch_item_id_map(all_row_ids)
+    batch_map = _item_check_in_item_id_map(all_row_ids)
     out: dict[int, dict[str, Any]] = {}
     for mid, members in multi.items():
         root_pk = next((rid for rid, parent in members if parent is None), members[0][0])
@@ -1298,17 +1297,19 @@ def printed_items_preview(item_ids: list[int]) -> list[dict[str, Any]]:
     return out
 
 
-def _serialize_checkin_batches(row: ProcessingRow, items_by_id: dict[int, Item]) -> list[dict[str, Any]]:
-    batches = list(
-        ProcessingCheckInBatch.objects.filter(processing_row=row)
+def _serialize_item_check_ins(row: ProcessingRow, items_by_id: dict[int, Item]) -> list[dict[str, Any]]:
+    check_ins = list(
+        ItemCheckIn.objects.filter(processing_row=row)
         .select_related('product', 'created_by')
         .order_by('-created_at', '-id'),
     )
     out: list[dict[str, Any]] = []
-    for batch in batches:
-        item_ids = _processing_row_item_ids({'item_ids': batch.item_ids})
-        batch_items = [items_by_id[i] for i in item_ids if i in items_by_id]
-        prod = batch.product
+    for check_in in check_ins:
+        check_in_items = list(check_in.items.order_by('pk'))
+        batch_items = [items_by_id[i.id] for i in check_in_items if i.id in items_by_id]
+        if not batch_items:
+            batch_items = check_in_items
+        prod = check_in.product
         disputed_count = sum(
             1
             for it in batch_items
@@ -1316,14 +1317,13 @@ def _serialize_checkin_batches(row: ProcessingRow, items_by_id: dict[int, Item])
         )
         out.append(
             {
-                'id': batch.id,
-                'quantity': batch.quantity,
-                'item_ids': item_ids,
+                'id': check_in.id,
+                'quantity': check_in.quantity,
                 'items': [_serialize_item(i) for i in batch_items],
                 'product': _serialize_product(prod),
-                'created_at': batch.created_at.isoformat() if batch.created_at else None,
-                'created_by': batch.created_by_id,
-                'defaults': batch.defaults_snapshot if isinstance(batch.defaults_snapshot, dict) else {},
+                'created_at': check_in.created_at.isoformat() if check_in.created_at else None,
+                'created_by': check_in.created_by_id,
+                'defaults': check_in.defaults_snapshot if isinstance(check_in.defaults_snapshot, dict) else {},
                 'dispute_count': disputed_count,
             },
         )
@@ -1385,7 +1385,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
             'identifiers': identity['identifiers'] or (bk.identifiers if isinstance(bk.identifiers, dict) else {}),
             'tracking': bk.tracking if isinstance(bk.tracking, dict) else {},
             'items': [_serialize_item(i) for i in items],
-            'checkInBatches': _serialize_checkin_batches(bk, items_by_id),
+            'itemCheckIns': _serialize_item_check_ins(bk, items_by_id),
             'status': derive_row_queue_status(items) if items else 'checked_in',
             'condition': condition_db_to_ui(primary.condition) if primary else base['condition'],
             'price': row_price,
@@ -1399,7 +1399,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         out = {
             **base,
             'items': [],
-            'checkInBatches': [],
+            'itemCheckIns': [],
             'product': None,
         }
         out.pop('likelyDuplicateOf', None)
@@ -1413,7 +1413,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         out = {
             **base,
             'items': [],
-            'checkInBatches': [],
+            'itemCheckIns': [],
             'product': None,
         }
         out.pop('likelyDuplicateOf', None)
@@ -1462,7 +1462,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         'identifiers': row_identifiers,
         'tracking': bk.tracking if isinstance(bk.tracking, dict) else {},
         'items': [_serialize_item(i) for i in items],
-        'checkInBatches': _serialize_checkin_batches(bk, items_by_id),
+        'itemCheckIns': _serialize_item_check_ins(bk, items_by_id),
         'status': derive_row_queue_status(items),
         'condition': condition_db_to_ui(primary.condition) if primary else base['condition'],
         'price': row_price,
@@ -1490,9 +1490,9 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
 
         all_items = items + member_items
         items_by_id = {i.id: i for i in all_items}
-        batches = _serialize_checkin_batches(bk, items_by_id)
+        batches = _serialize_item_check_ins(bk, items_by_id)
         for member in member_rows:
-            batches.extend(_serialize_checkin_batches(member, items_by_id))
+            batches.extend(_serialize_item_check_ins(member, items_by_id))
         batches.sort(key=lambda b: (b['created_at'] or '', b['id']), reverse=True)
 
         group_qty = int(qty_target) + sum(int(m.quantity or 0) for m in member_rows)
@@ -1507,7 +1507,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
             'totalDispositioned': group_disp,
         }
         row_full['items'] = [_serialize_item(i) for i in all_items]
-        row_full['checkInBatches'] = batches
+        row_full['itemCheckIns'] = batches
         derived = derive_row_queue_status(all_items)
         if derived != 'disputed':
             derived = (

@@ -242,10 +242,10 @@ interface CheckedInHistoryTableRowProps {
   striped: boolean;
   onSelectItemId: (itemId: number) => void;
   onReprintItems?: (items: ProcessingWorkspaceItemDTO[]) => Promise<void>;
-  onDeleteBatch?: (row: CheckedInHistoryRow) => void;
-  onSetBatchCondition?: (row: CheckedInHistoryRow, value: string) => void;
-  onSetBatchDispatch?: (row: CheckedInHistoryRow, value: string) => void;
-  showDeleteBatchAction?: boolean;
+  onDeleteItemCheckIn?: (row: CheckedInHistoryRow) => void;
+  onSetCheckInCondition?: (row: CheckedInHistoryRow, value: string) => void;
+  onSetCheckInDispatch?: (row: CheckedInHistoryRow, value: string) => void;
+  showDeleteCheckInAction?: boolean;
 }
 
 const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
@@ -255,12 +255,12 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
   striped,
   onSelectItemId,
   onReprintItems,
-  onDeleteBatch,
-  onSetBatchCondition,
-  onSetBatchDispatch,
-  showDeleteBatchAction = false,
+  onDeleteItemCheckIn,
+  onSetCheckInCondition,
+  onSetCheckInDispatch,
+  showDeleteCheckInAction = false,
 }: CheckedInHistoryTableRowProps) {
-  const { item, qty, batchId } = row;
+  const { item, qty, itemCheckInId } = row;
   const statusMeta = itemStatusMeta(item);
   const productId = checkedInProductIdText(row, fallbackProduct);
   const brand = checkedInBrandText(row, fallbackProduct);
@@ -270,7 +270,7 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
   const location = itemLocationLabel(item.location);
   const open = () => onSelectItemId(item.id);
   const dateTitle =
-    batchId != null ? `${row.checkedInAt} · Batch #${batchId}` : row.checkedInAt;
+    itemCheckInId != null ? `${row.checkedInAt} · Check-in #${itemCheckInId}` : row.checkedInAt;
 
   return (
     <TableRow
@@ -327,24 +327,24 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', ...GROUP_DIVIDER_SX }}>
         <CellText fontWeight={700}>{formatQueueMoney(item.price)}</CellText>
       </TableCell>
-      {onSetBatchCondition ?
+      {onSetCheckInCondition ?
         <EditableEnumCell
           display={item.condition_label || item.condition}
           value={item.condition}
           options={PROCESSING_ITEM_CONDITION_OPTIONS}
           ariaLabel={`Change condition for this check-in (currently ${item.condition_label || item.condition})`}
-          onSave={(value) => onSetBatchCondition(row, value)}
+          onSave={(value) => onSetCheckInCondition(row, value)}
         />
       : <TableCell sx={{ minWidth: 0 }}>
           <CellText title={item.condition_label || item.condition}>{item.condition_label || item.condition}</CellText>
         </TableCell>}
-      {onSetBatchDispatch ?
+      {onSetCheckInDispatch ?
         <EditableEnumCell
           display={queueDispatchLabel(item.dispatch)}
           value={item.dispatch}
           options={PROCESSING_ITEM_DISPATCH_OPTIONS}
           ariaLabel={`Change dispatch for this check-in (currently ${queueDispatchLabel(item.dispatch)})`}
-          onSave={(value) => onSetBatchDispatch(row, value)}
+          onSave={(value) => onSetCheckInDispatch(row, value)}
         />
       : <TableCell sx={{ minWidth: 0 }}>
           <CellText title={queueDispatchLabel(item.dispatch)}>{queueDispatchLabel(item.dispatch)}</CellText>
@@ -384,12 +384,12 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
               </IconButton>
             </Tooltip>
           : null}
-          {showDeleteBatchAction && batchId != null && onDeleteBatch ?
+          {showDeleteCheckInAction && itemCheckInId != null && onDeleteItemCheckIn ?
             <Tooltip title="Delete this check-in" enterDelay={300} disableInteractive>
               <IconButton
                 size="small"
                 aria-label={`Delete this check-in (${qty} item${qty === 1 ? '' : 's'})`}
-                onClick={() => onDeleteBatch(row)}
+                onClick={() => onDeleteItemCheckIn(row)}
                 sx={actionIconSx('error.main')}
               >
                 <DeleteOutline sx={{ fontSize: 16 }} />
@@ -472,10 +472,10 @@ export interface CheckedInItemsTableProps {
   activeItemId: number | null;
   onSelectItemId: (itemId: number) => void;
   onReprintItems?: (items: ProcessingWorkspaceItemDTO[]) => Promise<void>;
-  onDeleteBatch?: (row: CheckedInHistoryRow) => void;
-  onSetBatchCondition?: (row: CheckedInHistoryRow, value: string) => void;
-  onSetBatchDispatch?: (row: CheckedInHistoryRow, value: string) => void;
-  showDeleteBatchAction?: boolean;
+  onDeleteItemCheckIn?: (row: CheckedInHistoryRow) => void;
+  onSetCheckInCondition?: (row: CheckedInHistoryRow, value: string) => void;
+  onSetCheckInDispatch?: (row: CheckedInHistoryRow, value: string) => void;
+  showDeleteCheckInAction?: boolean;
   scrollable?: boolean;
 }
 
@@ -486,10 +486,10 @@ export function CheckedInItemsTable({
   activeItemId,
   onSelectItemId,
   onReprintItems,
-  onDeleteBatch,
-  onSetBatchCondition,
-  onSetBatchDispatch,
-  showDeleteBatchAction = false,
+  onDeleteItemCheckIn,
+  onSetCheckInCondition,
+  onSetCheckInDispatch,
+  showDeleteCheckInAction = false,
   scrollable = false,
 }: CheckedInItemsTableProps) {
   const theme = useTheme();
@@ -595,17 +595,17 @@ export function CheckedInItemsTable({
               : null}
               {group.historyRows.map((row, index) => (
                 <CheckedInHistoryTableRow
-                  key={row.batchId != null ? `batch-${row.batchId}` : `item-${row.item.id}`}
+                  key={row.itemCheckInId != null ? `checkin-${row.itemCheckInId}` : `item-${row.item.id}`}
                   row={row}
                   fallbackProduct={fallbackProduct}
                   selected={historyRowIncludesItem(row, activeItemId)}
                   striped={index % 2 === 1}
                   onSelectItemId={onSelectItemId}
                   onReprintItems={onReprintItems}
-                  onDeleteBatch={onDeleteBatch}
-                  onSetBatchCondition={onSetBatchCondition}
-                  onSetBatchDispatch={onSetBatchDispatch}
-                  showDeleteBatchAction={showDeleteBatchAction}
+                  onDeleteItemCheckIn={onDeleteItemCheckIn}
+                  onSetCheckInCondition={onSetCheckInCondition}
+                  onSetCheckInDispatch={onSetCheckInDispatch}
+                  showDeleteCheckInAction={showDeleteCheckInAction}
                 />
               ))}
             </Fragment>

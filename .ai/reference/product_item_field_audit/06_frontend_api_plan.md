@@ -133,6 +133,7 @@ Required changes:
 - Check-in payload sends Item `retail` from row `unit_retail`.
 - Check-in payload sends Item `price` / shelf price separately.
 - Quick check-in must still create Items with Product.
+- Item list/detail: **`item_check_in_id`** read-only field maps to **`Item.check_in_id`**.
 - Remove UI for multi-unit Item creation.
 - Remove `unitsPerItem` / `unit_count` from transform dialogs and row DTOs.
 - Keep row collapse/uncollapse if it operates at row level without multi-unit Items.

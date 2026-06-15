@@ -14,7 +14,7 @@ from apps.inventory.models import (
     Item,
     ManifestRow,
     PreprocessingRow,
-    ProcessingCheckInBatch,
+    ItemCheckIn,
     ProcessingDataBuild,
     ProcessingRow,
     PurchaseOrder,
@@ -187,7 +187,7 @@ def compute_undo_preview(order: PurchaseOrder, to_stage: str) -> dict[str, Any]:
             base,
             'Cannot undo finalize while processing items exist on this order.',
         )
-    if ProcessingCheckInBatch.objects.filter(purchase_order_id=order.pk).exists():
+    if ItemCheckIn.objects.filter(purchase_order_id=order.pk).exists():
         return _blocked(
             base,
             'Cannot undo finalize — check-in batches exist on this order.',

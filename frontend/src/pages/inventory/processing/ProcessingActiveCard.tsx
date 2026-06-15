@@ -27,8 +27,8 @@ import {
   useProcessingMakeSetRow,
   useProcessingRestartRow,
   useProcessingSetRowProduct,
-  useProcessingDeleteCheckInBatch,
-  useProcessingUpdateCheckInBatch,
+  useProcessingDeleteItemCheckIn,
+  useProcessingUpdateItemCheckIn,
   useProcessingPatchItem,
   printedPreviewToLabelInputs,
 } from '../../../hooks/useProcessingWorkspace';
@@ -54,7 +54,7 @@ import { normalizeProcessingCondition } from './processingItemFormOptions';
 
 function resolveQuickCheckInProduct(row: ProcessingWorkspaceRowDTO) {
   const recentProductId =
-    row.checkInBatches?.[0]?.product?.id
+    row.itemCheckIns?.[0]?.product?.id
     ?? row.productId
     ?? row.product?.id
     ?? null;
@@ -136,7 +136,7 @@ function ProcessingRowHeader({
   qtyOverage,
   checkedInItemCount,
   distinctProducts,
-  batchCount,
+  itemCheckInCount,
   disputedCount,
   productsChipLabel,
   groupChipLabel,
@@ -151,7 +151,7 @@ function ProcessingRowHeader({
   qtyOverage: number;
   checkedInItemCount: number;
   distinctProducts: number;
-  batchCount: number;
+  itemCheckInCount: number;
   disputedCount: number;
   productsChipLabel?: string | null;
   /** P7 collapse: "⊟ Rows 1, 2, 3 as one" — tiles show COMBINED group numbers. */
@@ -218,7 +218,7 @@ function ProcessingRowHeader({
           {disputedCount > 0 ? <ManifestStatTile label="Disputed" value={disputedCount} tone="warning" size="header" /> : null}
           <ManifestStatTile label="Items" value={checkedInItemCount} size="header" />
           <ManifestStatTile label="Products" value={distinctProducts} size="header" />
-          {batchCount > 0 ? <ManifestStatTile label="Batches" value={batchCount} size="header" /> : null}
+          {itemCheckInCount > 0 ? <ManifestStatTile label="Check-ins" value={itemCheckInCount} size="header" /> : null}
           {distinctProducts >= 2 && productsChipLabel ?
             <Chip
               size="small"
@@ -846,8 +846,8 @@ export function ProcessingActiveCard({
   const { hasRole } = useAuth();
   const isManager = hasRole('Manager') || hasRole('Admin');
   const setRowProduct = useProcessingSetRowProduct(orderId);
-  const deleteCheckInBatch = useProcessingDeleteCheckInBatch(orderId);
-  const updateCheckInBatch = useProcessingUpdateCheckInBatch(orderId);
+  const deleteItemCheckIn = useProcessingDeleteItemCheckIn(orderId);
+  const updateItemCheckIn = useProcessingUpdateItemCheckIn(orderId);
   const breakApartRow = useProcessingBreakApartRow(orderId);
   const makeSetRow = useProcessingMakeSetRow(orderId);
   const restartRow = useProcessingRestartRow(orderId);
@@ -904,14 +904,14 @@ export function ProcessingActiveCard({
   const isAddedRow = row.rowKind === 'added';
   const displayTitle = row.title || (isAddedRow ? 'Added item' : 'Manifest line');
   const priorCheckIns = useMemo(() => (row.items ?? []).filter(isCheckedInItem), [row.items]);
-  const checkInBatches = row.checkInBatches ?? [];
+  const itemCheckIns = row.itemCheckIns ?? [];
   const historyRows = useMemo(
-    () => buildCheckedInHistoryRows(row.items, checkInBatches),
-    [row.items, checkInBatches],
+    () => buildCheckedInHistoryRows(row.items, itemCheckIns),
+    [row.items, itemCheckIns],
   );
   const productGroups = useMemo(
-    () => buildProductGroupedHistory(row.items, checkInBatches),
-    [row.items, checkInBatches],
+    () => buildProductGroupedHistory(row.items, itemCheckIns),
+    [row.items, itemCheckIns],
   );
   const checkedInItemCount = priorCheckIns.length;
   const distinctProducts = row.distinctProductCount ?? distinctProductCount(priorCheckIns);
@@ -946,7 +946,7 @@ export function ProcessingActiveCard({
     [productGroups],
   );
   const mixedQuickCheckInReason = 'Multiple products on this row — pick one above or use Detailed check-in.';
-  const batchCount = checkInBatches.length;
+  const checkInCount = itemCheckIns.length;
   const disputedCount = useMemo(() => disputedItemCount(priorCheckIns), [priorCheckIns]);
 
   // P7 collapse: a master's tiles/caps cover the WHOLE group (5/3/7 ⇒ Expected 15).
@@ -995,8 +995,8 @@ export function ProcessingActiveCard({
     onSelectItemId(itemId);
     const item = priorCheckIns.find((it) => it.id === itemId);
     if (!item) return;
-    const batch = checkInBatches.find((b) => b.item_ids.includes(itemId)) ?? null;
-    setCheckInSeed({ item, batch });
+    const checkIn = itemCheckIns.find((c) => c.items.some((it) => it.id === itemId)) ?? null;
+    setCheckInSeed({ item, itemCheckIn: checkIn });
     setCheckInOpen(true);
   }
 
@@ -1124,45 +1124,45 @@ export function ProcessingActiveCard({
     }
   }
 
-  async function handleDeleteBatch(historyRow: CheckedInHistoryRow) {
-    if (historyRow.batchId == null) return;
+  async function handleDeleteItemCheckIn(historyRow: CheckedInHistoryRow) {
+    if (historyRow.itemCheckInId == null) return;
     const n = historyRow.qty;
     const productLabel = historyRow.item.product_number || product?.product_number || null;
     const lines = [
-      `Delete this check-in batch?`,
+      `Delete this check-in?`,
       ``,
       `This removes ${n} item${n === 1 ? '' : 's'} (tag${n === 1 ? '' : 's'}) from inventory.`,
       productLabel ?
         `Product ${productLabel} will also be deleted if no other items or rows reference it.`
-      : `The batch product will also be deleted if nothing else references it.`,
+      : `The check-in product will also be deleted if nothing else references it.`,
     ];
     if (!window.confirm(lines.join('\n'))) {
       return;
     }
     try {
-      const data = await deleteCheckInBatch.mutateAsync(historyRow.batchId);
+      const data = await deleteItemCheckIn.mutateAsync(historyRow.itemCheckInId);
       enqueueSnackbar(
         data.product_deleted ?
-          `Deleted batch — ${data.items_deleted} item(s) removed; orphaned product deleted.`
-        : `Deleted batch — ${data.items_deleted} item(s) removed.`,
+          `Deleted check-in — ${data.items_deleted} item(s) removed; orphaned product deleted.`
+        : `Deleted check-in — ${data.items_deleted} item(s) removed.`,
         { variant: 'success' },
       );
       if (activeItem && historyRow.items.some((it) => it.id === activeItem.id)) {
         onSelectItemId(historyRow.items[0]?.id ?? 0);
       }
     } catch (err) {
-      enqueueSnackbar(apiErrorDetail(err, 'Could not delete batch'), { variant: 'error' });
+      enqueueSnackbar(apiErrorDetail(err, 'Could not delete check-in'), { variant: 'error' });
     }
   }
 
-  /** Edit mode of the detailed dialog: update the clicked check-in batch in place. */
-  async function handleUpdateBatch(
-    batchId: number,
+  /** Edit mode of the detailed dialog: update the clicked ItemCheckIn in place. */
+  async function handleUpdateItemCheckIn(
+    itemCheckInId: number,
     payload: Record<string, unknown>,
     options: { printLabels: boolean },
   ): Promise<boolean> {
     try {
-      const data = await updateCheckInBatch.mutateAsync({ batchId, payload });
+      const data = await updateItemCheckIn.mutateAsync({ itemCheckInId, payload });
       const parts: string[] = [];
       if (data.items_added) parts.push(`${data.items_added} added`);
       if (data.items_removed) parts.push(`${data.items_removed} removed`);
@@ -1181,8 +1181,8 @@ export function ProcessingActiveCard({
     }
   }
 
-  /** Inline condition/dispatch edit in the Prior check-ins table — applies to the whole batch. */
-  async function handleSetBatchField(
+  /** Inline condition/dispatch edit in the Prior check-ins table — applies to the whole check-in. */
+  async function handleSetCheckInField(
     target: CheckedInHistoryRow,
     field: 'condition' | 'dispatch',
     value: string,
@@ -1199,7 +1199,7 @@ export function ProcessingActiveCard({
         { variant: skipped > 0 ? 'warning' : 'success' },
       );
     } catch (err) {
-      enqueueSnackbar(apiErrorDetail(err, 'Could not update batch'), { variant: 'error' });
+      enqueueSnackbar(apiErrorDetail(err, 'Could not update check-in'), { variant: 'error' });
     }
   }
 
@@ -1382,7 +1382,7 @@ export function ProcessingActiveCard({
         qtyOverage={qtyOverage}
         checkedInItemCount={checkedInItemCount}
         distinctProducts={distinctProducts}
-        batchCount={batchCount}
+        itemCheckInCount={checkInCount}
         disputedCount={disputedCount}
         productsChipLabel={productsChipLabel}
         groupChipLabel={collapseGroupLabel}
@@ -1564,10 +1564,10 @@ export function ProcessingActiveCard({
               activeItemId={activeItem?.id ?? null}
               onSelectItemId={handleSelectPriorCheckIn}
               onReprintItems={onReprintItems}
-              onDeleteBatch={isManager ? (historyRow) => void handleDeleteBatch(historyRow) : undefined}
-              onSetBatchCondition={(historyRow, value) => void handleSetBatchField(historyRow, 'condition', value)}
-              onSetBatchDispatch={(historyRow, value) => void handleSetBatchField(historyRow, 'dispatch', value)}
-              showDeleteBatchAction={isManager}
+              onDeleteItemCheckIn={isManager ? (historyRow) => void handleDeleteItemCheckIn(historyRow) : undefined}
+              onSetCheckInCondition={(historyRow, value) => void handleSetCheckInField(historyRow, 'condition', value)}
+              onSetCheckInDispatch={(historyRow, value) => void handleSetCheckInField(historyRow, 'dispatch', value)}
+              showDeleteCheckInAction={isManager}
               scrollable
             />
           </Paper>
@@ -1579,12 +1579,12 @@ export function ProcessingActiveCard({
       <ProcessingCheckInDialog
         open={checkInOpen}
         row={row}
-        loading={checkInLoading || updateCheckInBatch.isPending}
+        loading={checkInLoading || updateItemCheckIn.isPending}
         saveProductLoading={setRowProduct.isPending}
         seed={checkInSeed}
         onClose={closeDetailedCheckIn}
         onSubmit={onCheckIn}
-        onUpdateBatch={handleUpdateBatch}
+        onUpdateItemCheckIn={handleUpdateItemCheckIn}
         onSaveProduct={handleSaveProductDecision}
       />
       <QuickCheckInProductPrompt

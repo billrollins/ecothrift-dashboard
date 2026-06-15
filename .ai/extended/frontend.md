@@ -1,8 +1,12 @@
-<!-- Last updated: 2026-06-15 (v2.29.0 — Manage Products/Items catalog, ProductCheckInDialog) -->
+<!-- Last updated: 2026-06-15 (v2.30.0 — Inventory Catalog page, rich search) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
-**2026-06-15 (v2.29.0) — Product/Item catalog (`frontend/src/pages/inventory/manage/`):** **`ManageProductsPage`** / **`ManageItemsPage`**; **`ProductManageDrawer`** + **`ProductCheckInDialog`**; post-create catalog search via **`productManageCatalogSearchTerm`** (`?q=` URL).
+**2026-06-15 (v2.30.0) — Inventory Catalog (`/inventory/workbench`, nav Catalog):** **`InventoryWorkbenchPage`** — shared **`ProcessingScanBar`** search, Products / Check-ins / Items tabs, split detail panels (`ProductManageDrawer`, **`ItemManagePanel`**, **`ItemCheckInManagePanel`**), rich filter syntax via **`richInventorySearch.ts`**, URL state (`tab`, `q`, `selected`). Legacy **`/inventory/manage-products`** / **`/inventory/manage-items`** redirect here.
+
+**2026-06-15 — ItemCheckIn hard cleanup (backend 0064):** Item API exposes **`item_check_in_id`**. Catalog **`ItemEditDialog`**, check-in panels, and rich search **`{checkin=…}`** map to API **`item_check_in`**. Processing workspace uses **`itemCheckIns`** with nested **`items`**.
+
+**2026-06-15 (v2.29.0) — Product/Item catalog components (`frontend/src/pages/inventory/manage/`):** **`ProductManageDrawer`** + **`ProductCheckInDialog`**; shared table/filter primitives reused by Catalog.
 
 **2026-06-11 Session 10 (v2.28.0) — Item Processor (`frontend/src/pages/inventory/processing/`):**
 - **Collapse groups (P7):** queue hides member rows unless the **Show collapsed rows** filter toggle is on (`ProcessingQueueTable.visibleRows`); masters show `⊟ title (+rows …)` and **combined** qty (cell, sort, detail tiles, check-in caps — all via **`effectiveRowQty`** in `processingQueueCellText.ts`); bulk bar **Collapse rows** / **Uncollapse** (`useProcessingCollapseRows`/`useProcessingUncollapseRows`); mixed-hint selections resolve via `AssignSharedProductDialog` `mode="collapse"`; opening a member row redirects to its master (`openDetail`); Check-in-together / assign-shared exclude collapse-involved rows.

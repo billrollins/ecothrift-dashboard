@@ -1,8 +1,7 @@
-import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Box,
-  Chip,
   Table,
   TableBody,
   TableCell,
@@ -19,38 +18,53 @@ import {
   readProcessingQueueTableClientWidth,
 } from '../processing/processingQueueLayout';
 import { processingHeaderGradient, processingTokens } from '../processing/processingTokens';
+import { CatalogTableColumnResizeHandle } from './catalogTableColumnControls';
+import {
+  clearStoredColumnWidths,
+  readStoredColumnWidths as readStoredWidths,
+  resizeColumnPair,
+  scaleColumnWidthsToTotal,
+  storeColumnWidths as persistColumnWidths,
+} from './catalogTableColumns';
 
 export type ProductSortField =
   | 'productNumber'
   | 'brand'
   | 'title'
-  | 'model'
-  | 'category'
-  | 'upc'
-  | 'active';
+  | 'model';
 
 type SortCycleState = { field: ProductSortField; dir: 'asc' | 'desc' } | null;
+type ProductColumnWidths = Record<ProductSortField, number>;
 
 const PRODUCT_CATALOG_COL = {
-  productNumber: 52,
-  brand: 96,
-  title: 280,
-  model: 120,
-  category: 148,
-  upc: 112,
-  active: 64,
+  productNumber: 88,
+  brand: 136,
+  title: 360,
+  model: 156,
 } as const;
+const PRODUCT_CATALOG_COLUMN_ORDER = ['productNumber', 'brand', 'title', 'model'] as const;
+const PRODUCT_CATALOG_WIDTHS_KEY = 'inventory.workbench.productCatalog.columns.v1';
 
 function productNumberLabel(p: Product): string {
   return p.product_number?.trim() || String(p.id);
 }
 
-function productCategoryLabel(p: Product): string {
-  return p.category_name?.trim() || '—';
+function readStoredColumnWidths(): ProductColumnWidths | null {
+  return readStoredWidths(PRODUCT_CATALOG_WIDTHS_KEY, PRODUCT_CATALOG_COLUMN_ORDER);
 }
 
-function productUpcLabel(p: Product): string {
-  return p.identifiers?.upc?.trim() || p.upc?.trim() || '—';
+function defaultColumnWidths(totalWidth: number): ProductColumnWidths {
+  const total = Math.max(1, Math.round(totalWidth));
+  return scaleColumnWidthsToTotal(
+    {
+      productNumber: PRODUCT_CATALOG_COL.productNumber,
+      brand: Math.round(total * 0.23),
+      title: Math.round(total * 0.40),
+      model: Math.round(total * 0.22),
+    },
+    PRODUCT_CATALOG_COLUMN_ORDER,
+    total,
+  );
 }
 
 const tableSx = (mode: 'light' | 'dark') =>
@@ -84,7 +98,13 @@ const tableSx = (mode: 'light' | 'dark') =>
       textTransform: 'uppercase',
       letterSpacing: '0.06em',
       color: processingTokens.textSoft,
-      overflow: 'hidden',
+      overflow: 'visible',
+    },
+    '& .MuiTableHead-root .MuiTableCell-root:not(:last-of-type)': {
+      borderRight: `1px solid ${processingTokens.borderStrong}`,
+    },
+    '& .MuiTableBody-root .MuiTableCell-root:not(:last-of-type)': {
+      borderRight: `1px solid ${processingTokens.border}`,
     },
     '& .MuiTableHead-root .MuiTableSortLabel-root': {
       color: 'inherit',
@@ -101,33 +121,34 @@ const tableSx = (mode: 'light' | 'dark') =>
     },
   }) as const;
 
-const centeredSortLabelSx = { width: '100%', justifyContent: 'center' } as const;
-
 interface ProductCatalogRowProps {
   product: Product;
   striped: boolean;
+  selected?: boolean;
   onOpen?: (product: Product) => void;
 }
 
 const ProductCatalogRow = memo(function ProductCatalogRow({
   product: p,
   striped,
+  selected = false,
   onOpen,
 }: ProductCatalogRowProps) {
   const open = () => onOpen?.(p);
   const title = p.title?.trim() || '—';
   const brand = p.brand?.trim() || '—';
   const model = p.model?.trim() || '—';
-  const upc = productUpcLabel(p);
 
   return (
     <TableRow
       hover
+      selected={selected}
       onClick={open}
       sx={{
         cursor: onOpen ? 'pointer' : 'default',
         height: PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
         bgcolor: (theme) => {
+          if (selected) return theme.palette.mode === 'dark' ? 'rgba(46, 125, 50, 0.18)' : 'rgba(46, 125, 50, 0.10)';
           if (striped) {
             return theme.palette.mode === 'dark' ? processingTokens.rowStripeDark : processingTokens.rowStripe;
           }
@@ -140,7 +161,7 @@ const ProductCatalogRow = memo(function ProductCatalogRow({
       }}
     >
       <TableCell
-        align="center"
+        align="left"
         sx={{
           whiteSpace: 'nowrap',
           fontVariantNumeric: 'tabular-nums',
@@ -170,46 +191,6 @@ const ProductCatalogRow = memo(function ProductCatalogRow({
           {model}
         </Typography>
       </TableCell>
-      <TableCell align="left">
-        <Typography sx={{ fontSize: '0.72rem' }} noWrap title={productCategoryLabel(p)}>
-          {productCategoryLabel(p)}
-        </Typography>
-      </TableCell>
-      <TableCell align="left">
-        <Typography
-          sx={{ fontSize: '0.72rem', fontFamily: processingTokens.monoFontFamily }}
-          noWrap
-          title={upc !== '—' ? upc : undefined}
-        >
-          {upc}
-        </Typography>
-      </TableCell>
-      <TableCell align="center">
-        {p.is_active ?
-          <Chip
-            size="small"
-            label="Active"
-            sx={{
-              height: 16,
-              fontSize: 8.5,
-              bgcolor: processingTokens.greenSoft,
-              color: processingTokens.accentGreen,
-              border: `1px solid rgba(46, 125, 50, 0.25)`,
-            }}
-          />
-        : <Chip
-            size="small"
-            label="Inactive"
-            variant="outlined"
-            sx={{
-              height: 16,
-              fontSize: 8.5,
-              borderColor: processingTokens.borderStrong,
-              color: processingTokens.textSoft,
-            }}
-          />
-        }
-      </TableCell>
     </TableRow>
   );
 });
@@ -217,14 +198,23 @@ const ProductCatalogRow = memo(function ProductCatalogRow({
 export interface ProductCatalogTableProps {
   products: Product[];
   search: string;
+  selectedProductId?: number | null;
   onOpenProduct?: (product: Product) => void;
+  onRegisterColumnReset?: (reset: (() => void) | null) => void;
 }
 
-export function ProductCatalogTable({ products, search, onOpenProduct }: ProductCatalogTableProps) {
+export function ProductCatalogTable({
+  products,
+  search,
+  selectedProductId = null,
+  onOpenProduct,
+  onRegisterColumnReset,
+}: ProductCatalogTableProps) {
   const theme = useTheme();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [sortState, setSortState] = useState<SortCycleState>(null);
+  const [columnWidths, setColumnWidths] = useState<ProductColumnWidths | null>(() => readStoredColumnWidths());
 
   const sortedProducts = useMemo(() => {
     const copy = [...products];
@@ -248,15 +238,6 @@ export function ProductCatalogTable({ products, search, onOpenProduct }: Product
           break;
         case 'model':
           cmp = (a.model || '').localeCompare(b.model || '');
-          break;
-        case 'category':
-          cmp = productCategoryLabel(a).localeCompare(productCategoryLabel(b));
-          break;
-        case 'upc':
-          cmp = productUpcLabel(a).localeCompare(productUpcLabel(b));
-          break;
-        case 'active':
-          cmp = Number(b.is_active) - Number(a.is_active);
           break;
       }
       return cmp * mult;
@@ -302,15 +283,64 @@ export function ProductCatalogTable({ products, search, onOpenProduct }: Product
     });
   };
 
+  const tableWidth = containerWidth || 740;
+
+  const effectiveColumnWidths = useMemo(
+    () => scaleColumnWidthsToTotal(columnWidths ?? defaultColumnWidths(tableWidth), PRODUCT_CATALOG_COLUMN_ORDER, tableWidth),
+    [columnWidths, tableWidth],
+  );
+
+  const resetColumnWidths = useCallback(() => {
+    clearStoredColumnWidths(PRODUCT_CATALOG_WIDTHS_KEY);
+    setColumnWidths(null);
+  }, []);
+
+  useEffect(() => {
+    onRegisterColumnReset?.(resetColumnWidths);
+    return () => onRegisterColumnReset?.(null);
+  }, [onRegisterColumnReset, resetColumnWidths]);
+
+  const startColumnResize = (
+    leftKey: ProductSortField,
+    rightKey: ProductSortField,
+    event: ReactMouseEvent<HTMLElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const next = resizeColumnPair(
+        effectiveColumnWidths,
+        leftKey,
+        rightKey,
+        moveEvent.clientX - startX,
+        tableWidth,
+        PRODUCT_CATALOG_COLUMN_ORDER,
+      );
+      setColumnWidths(next);
+      persistColumnWidths(PRODUCT_CATALOG_WIDTHS_KEY, next);
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
   const colgroup = (
     <colgroup>
-      <col style={{ width: PRODUCT_CATALOG_COL.productNumber }} />
-      <col style={{ width: PRODUCT_CATALOG_COL.brand }} />
-      <col style={{ width: PRODUCT_CATALOG_COL.title }} />
-      <col style={{ width: PRODUCT_CATALOG_COL.model }} />
-      <col style={{ width: PRODUCT_CATALOG_COL.category }} />
-      <col style={{ width: PRODUCT_CATALOG_COL.upc }} />
-      <col style={{ width: PRODUCT_CATALOG_COL.active }} />
+      <col style={{ width: effectiveColumnWidths.productNumber }} />
+      <col style={{ width: effectiveColumnWidths.brand }} />
+      <col style={{ width: effectiveColumnWidths.title }} />
+      <col style={{ width: effectiveColumnWidths.model }} />
     </colgroup>
   );
 
@@ -353,7 +383,6 @@ export function ProductCatalogTable({ products, search, onOpenProduct }: Product
         </Box>
       : <Table
           size="small"
-          stickyHeader
           sx={{
             ...tableSx(theme.palette.mode),
             width: containerWidth > 0 ? containerWidth : '100%',
@@ -363,13 +392,18 @@ export function ProductCatalogTable({ products, search, onOpenProduct }: Product
           <TableHead>
             <TableRow>
               <TableCell
-                align="center"
+                align="left"
                 onClick={() => handleSort('productNumber')}
-                sx={{ cursor: 'pointer', userSelect: 'none' }}
+                sx={{ cursor: 'pointer', userSelect: 'none', position: 'relative', pr: '14px !important' }}
               >
-                #
+                Prod #
+                <CatalogTableColumnResizeHandle
+                  leftKey="productNumber"
+                  rightKey="brand"
+                  onResizePair={(left, right, event) => startColumnResize(left as ProductSortField, right as ProductSortField, event)}
+                />
               </TableCell>
-              <TableCell align="left">
+              <TableCell align="left" sx={{ position: 'relative', pr: '14px !important' }}>
                 <TableSortLabel
                   active={sortState?.field === 'brand'}
                   direction={sortState && sortState.field === 'brand' ? sortState.dir : 'asc'}
@@ -378,8 +412,13 @@ export function ProductCatalogTable({ products, search, onOpenProduct }: Product
                 >
                   Brand
                 </TableSortLabel>
+                <CatalogTableColumnResizeHandle
+                  leftKey="brand"
+                  rightKey="title"
+                  onResizePair={(left, right, event) => startColumnResize(left as ProductSortField, right as ProductSortField, event)}
+                />
               </TableCell>
-              <TableCell align="left">
+              <TableCell align="left" sx={{ position: 'relative', pr: '14px !important' }}>
                 <TableSortLabel
                   active={sortState?.field === 'title'}
                   direction={sortState && sortState.field === 'title' ? sortState.dir : 'asc'}
@@ -388,6 +427,11 @@ export function ProductCatalogTable({ products, search, onOpenProduct }: Product
                 >
                   Title
                 </TableSortLabel>
+                <CatalogTableColumnResizeHandle
+                  leftKey="title"
+                  rightKey="model"
+                  onResizePair={(left, right, event) => startColumnResize(left as ProductSortField, right as ProductSortField, event)}
+                />
               </TableCell>
               <TableCell align="left">
                 <TableSortLabel
@@ -399,43 +443,12 @@ export function ProductCatalogTable({ products, search, onOpenProduct }: Product
                   Model
                 </TableSortLabel>
               </TableCell>
-              <TableCell align="left">
-                <TableSortLabel
-                  active={sortState?.field === 'category'}
-                  direction={sortState && sortState.field === 'category' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('category')}
-                  hideSortIcon={sortState?.field !== 'category'}
-                >
-                  Category
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="left">
-                <TableSortLabel
-                  active={sortState?.field === 'upc'}
-                  direction={sortState && sortState.field === 'upc' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('upc')}
-                  hideSortIcon={sortState?.field !== 'upc'}
-                >
-                  UPC
-                </TableSortLabel>
-              </TableCell>
-              <TableCell align="center">
-                <TableSortLabel
-                  active={sortState?.field === 'active'}
-                  direction={sortState && sortState.field === 'active' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('active')}
-                  hideSortIcon={sortState?.field !== 'active'}
-                  sx={centeredSortLabelSx}
-                >
-                  Status
-                </TableSortLabel>
-              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {paddingTop > 0 ?
               <TableRow sx={{ height: paddingTop, visibility: 'collapse', pointerEvents: 'none' }}>
-                <TableCell colSpan={8} sx={{ p: 0, border: 0, height: paddingTop }} />
+                <TableCell colSpan={4} sx={{ p: 0, border: 0, height: paddingTop }} />
               </TableRow>
             : null}
             {virtualItems.map((virtualRow) => {
@@ -445,13 +458,14 @@ export function ProductCatalogTable({ products, search, onOpenProduct }: Product
                   key={p.id}
                   product={p}
                   striped={virtualRow.index % 2 === 1}
+                  selected={selectedProductId === p.id}
                   onOpen={onOpenProduct}
                 />
               );
             })}
             {paddingBottom > 0 ?
               <TableRow sx={{ height: paddingBottom, visibility: 'collapse', pointerEvents: 'none' }}>
-                <TableCell colSpan={8} sx={{ p: 0, border: 0, height: paddingBottom }} />
+                <TableCell colSpan={4} sx={{ p: 0, border: 0, height: paddingBottom }} />
               </TableRow>
             : null}
           </TableBody>

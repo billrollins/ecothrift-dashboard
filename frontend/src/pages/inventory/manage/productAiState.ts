@@ -48,7 +48,7 @@ export type ProductAIAction =
 
 function emptyFieldAI(): ProductFieldAI {
   return {
-    enabled: true,
+    enabled: false,
     baseline: '',
     suggestion: null,
     viewing: 'original',
@@ -178,9 +178,9 @@ export function productAiReducer(
         specifications: stringifyJsonObject(d.specifications),
       };
       for (const k of PRODUCT_AI_FIELDS) {
-        if (!next[k].enabled) continue;
         next[k] = {
           ...next[k],
+          enabled: true,
           baseline: baselines[k],
           edited: false,
           suggestion: null,

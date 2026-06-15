@@ -27,7 +27,7 @@ from apps.inventory.models import (
     Item,
     ManifestRow,
     PreprocessingRow,
-    ProcessingCheckInBatch,
+    ItemCheckIn,
     ProcessingRow,
     Product,
     PurchaseOrder,
@@ -413,7 +413,7 @@ def _product_safe_to_delete(product: Product, *, exclude_row_ids: list[int]) -> 
         return False
     if VendorProductRef.objects.filter(product=product).exists():
         return False
-    if ProcessingCheckInBatch.objects.filter(product=product).exists():
+    if ItemCheckIn.objects.filter(product=product).exists():
         return False
     if ManifestRow.objects.filter(matched_product=product).exists():
         return False
@@ -486,7 +486,7 @@ def processing_restart_row(user, order: PurchaseOrder, data: dict) -> dict[str, 
         if not confirm:
             return {'requires_confirm': True, 'summary': summary}
 
-        ProcessingCheckInBatch.objects.filter(processing_row_id__in=family_ids).delete()
+        ItemCheckIn.objects.filter(processing_row_id__in=family_ids).delete()
         if item_ids:
             Item.objects.filter(pk__in=item_ids).delete()
         child_ids = [c.pk for c in children]

@@ -45,7 +45,7 @@ from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter, SearchFilter
 
-from ecothrift.pagination import ItemListPagination
+from ecothrift.pagination import ConfigurablePageSizePagination, ItemListPagination
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
@@ -83,7 +83,7 @@ def _validation_error_response_detail(exc):
 
 from .models import (
     Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
-    Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
+    Product, VendorProductRef, BatchGroup, Item, ItemCheckIn, ProcessingBatch,
     ItemHistory, ItemScanHistory,
     PreprocessingRow,
     ProcessingRow,
@@ -119,6 +119,7 @@ from .serializers import (
     PreprocessingReviewRowSerializer,
     VendorProductRefSerializer, BatchGroupSerializer,
     ProductSerializer, ItemSerializer, ItemPublicSerializer,
+    ItemCheckInCatalogSerializer,
     ProcessingBatchSerializer, ItemHistorySerializer,
     ReceivingAttachmentSerializer,
     ReceivingDetailSerializer,
@@ -2117,6 +2118,17 @@ class VendorViewSet(viewsets.ModelViewSet):
     filterset_fields = ['vendor_type', 'is_active']
     ordering_fields = ['name', 'code', 'created_at']
 
+    def filter_queryset(self, queryset):
+        qs = super().filter_queryset(queryset)
+        vendor_raw = (
+            self.request.query_params.get('vendor')
+            or self.request.query_params.get('id')
+            or ''
+        ).strip()
+        if vendor_raw.isdigit():
+            qs = qs.filter(pk=int(vendor_raw))
+        return qs
+
     def perform_destroy(self, instance):
         """Soft delete — set is_active=False."""
         instance.is_active = False
@@ -2177,9 +2189,9 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'processing_break_apart_row_action',
         'processing_make_set_row_action',
         'processing_restart_row_action',
-        'processing_check_in_batch_remap_product',
-        'processing_check_in_batch_delete',
-        'processing_check_in_batch_update',
+        'item_check_in_remap_product',
+        'item_check_in_delete',
+        'item_check_in_update',
         'processing_row_set_product_action',
         'processing_row_patch_action',
         'processing_add_item_action',
@@ -2234,6 +2246,17 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             d = parse_date(db)
             if d:
                 qs = qs.filter(ordered_date__lte=d)
+        order_raw = (
+            request.query_params.get('order')
+            or request.query_params.get('id')
+            or request.query_params.get('po')
+            or ''
+        ).strip()
+        if order_raw:
+            if order_raw.isdigit():
+                qs = qs.filter(pk=int(order_raw))
+            else:
+                qs = qs.filter(order_number__iexact=order_raw)
         raw = request.query_params.get('search') or request.query_params.get('q')
         if raw:
             words = [w for w in re.split(r'\s+', raw.strip()) if w]
@@ -5920,54 +5943,54 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
-        url_path=r'processing-check-in-batch/(?P<batch_id>[0-9]+)/remap-product',
+        url_path=r'item-check-ins/(?P<item_check_in_id>[0-9]+)/remap-product',
     )
-    def processing_check_in_batch_remap_product(self, request, pk=None, batch_id=None):
-        from apps.inventory.processing_ops import remap_check_in_batch_product
+    def item_check_in_remap_product(self, request, pk=None, item_check_in_id=None):
+        from apps.inventory.processing_ops import remap_item_check_in_product
 
         order = self.get_object()
         try:
-            batch_pk = int(str(batch_id).strip())
+            check_in_pk = int(str(item_check_in_id).strip())
         except (TypeError, ValueError):
-            return Response({'detail': 'batch_id must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'item_check_in_id must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            return Response(remap_check_in_batch_product(request.user, order, batch_pk, request.data))
+            return Response(remap_item_check_in_product(request.user, order, check_in_pk, request.data))
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(
         detail=True,
         methods=['post'],
-        url_path=r'processing-check-in-batch/(?P<batch_id>[0-9]+)/delete',
+        url_path=r'item-check-ins/(?P<item_check_in_id>[0-9]+)/delete',
     )
-    def processing_check_in_batch_delete(self, request, pk=None, batch_id=None):
-        from apps.inventory.processing_ops import delete_check_in_batch
+    def item_check_in_delete(self, request, pk=None, item_check_in_id=None):
+        from apps.inventory.processing_ops import delete_item_check_in
 
         order = self.get_object()
         try:
-            batch_pk = int(str(batch_id).strip())
+            check_in_pk = int(str(item_check_in_id).strip())
         except (TypeError, ValueError):
-            return Response({'detail': 'batch_id must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'item_check_in_id must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            return Response(delete_check_in_batch(request.user, order, batch_pk))
+            return Response(delete_item_check_in(request.user, order, check_in_pk))
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(
         detail=True,
         methods=['post'],
-        url_path=r'processing-check-in-batch/(?P<batch_id>[0-9]+)/update',
+        url_path=r'item-check-ins/(?P<item_check_in_id>[0-9]+)/update',
     )
-    def processing_check_in_batch_update(self, request, pk=None, batch_id=None):
-        from apps.inventory.processing_ops import update_check_in_batch
+    def item_check_in_update(self, request, pk=None, item_check_in_id=None):
+        from apps.inventory.processing_ops import update_item_check_in
 
         order = self.get_object()
         try:
-            batch_pk = int(str(batch_id).strip())
+            check_in_pk = int(str(item_check_in_id).strip())
         except (TypeError, ValueError):
-            return Response({'detail': 'batch_id must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'item_check_in_id must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            return Response(update_check_in_batch(request.user, order, batch_pk, request.data))
+            return Response(update_item_check_in(request.user, order, check_in_pk, request.data))
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -6182,6 +6205,28 @@ class ProductViewSet(viewsets.ModelViewSet):
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['product_number', 'title', 'brand', 'model', 'category__name', 'identifiers', 'tags']
     ordering_fields = ['title', 'created_at']
+
+    def filter_queryset(self, queryset):
+        qs = super().filter_queryset(queryset)
+        params = self.request.query_params
+        product_raw = (
+            params.get('product')
+            or params.get('id')
+            or params.get('product_id')
+            or ''
+        ).strip()
+        if product_raw:
+            if product_raw.isdigit():
+                qs = qs.filter(pk=int(product_raw))
+            else:
+                qs = qs.filter(product_number=product_raw)
+        category_raw = (params.get('category') or '').strip()
+        if category_raw:
+            if category_raw.isdigit():
+                qs = qs.filter(category_id=int(category_raw))
+            else:
+                qs = qs.filter(category__name__iexact=category_raw)
+        return qs
 
     def destroy(self, request, *args, **kwargs):
         product = self.get_object()
@@ -6544,7 +6589,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             'created_count': result['created_count'],
             'created_item_ids': result['created_item_ids'],
             'processing_row_id': result['processing_row_id'],
-            'check_in_batch_id': result.get('check_in_batch_id'),
+            'item_check_in_id': result.get('item_check_in_id'),
             'printed_items_preview': result.get('printed_items_preview') or [],
         }, status=status.HTTP_201_CREATED)
 
@@ -6824,6 +6869,90 @@ def _csv_query_values(request, key: str) -> list[str]:
     return out
 
 
+class ItemCheckInViewSet(viewsets.ReadOnlyModelViewSet):
+    """Searchable catalog of ItemCheckIn events for the inventory workbench."""
+
+    serializer_class = ItemCheckInCatalogSerializer
+    permission_classes = [IsAuthenticated, IsStaff]
+    pagination_class = ConfigurablePageSizePagination
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = [
+        'product__title',
+        'product__brand',
+        'product__model',
+        'product__product_number',
+        'purchase_order__order_number',
+        'items__sku',
+    ]
+    ordering_fields = ['created_at', 'id', 'quantity']
+    ordering = ['-created_at', '-id']
+
+    def get_queryset(self):
+        return (
+            ItemCheckIn.objects.select_related(
+                'purchase_order',
+                'purchase_order__vendor',
+                'product',
+                'product__category',
+                'created_by',
+            )
+            .prefetch_related('items')
+            .all()
+        )
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx['compact'] = self.action == 'list'
+        return ctx
+
+    def filter_queryset(self, queryset):
+        qs = super().filter_queryset(queryset)
+        params = self.request.query_params
+
+        product_raw = (params.get('product') or params.get('product_id') or '').strip()
+        if product_raw:
+            try:
+                qs = qs.filter(product_id=int(product_raw))
+            except (TypeError, ValueError):
+                qs = qs.none()
+
+        order_raw = (params.get('purchase_order') or params.get('order') or '').strip()
+        if order_raw:
+            try:
+                qs = qs.filter(purchase_order_id=int(order_raw))
+            except (TypeError, ValueError):
+                qs = qs.none()
+
+        origin_raw = (params.get('origin') or '').strip()
+        if origin_raw:
+            qs = qs.filter(origin=origin_raw)
+
+        check_in_raw = (params.get('item_check_in') or params.get('checkin') or params.get('id') or '').strip()
+        if check_in_raw:
+            try:
+                qs = qs.filter(pk=int(check_in_raw))
+            except (TypeError, ValueError):
+                qs = qs.none()
+
+        ids_raw = (params.get('ids') or '').strip()
+        if ids_raw:
+            id_list: list[int] = []
+            for part in ids_raw.split(','):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    id_list.append(int(part))
+                except (TypeError, ValueError):
+                    continue
+            if id_list:
+                qs = qs.filter(pk__in=id_list)
+            else:
+                qs = qs.none()
+
+        return qs
+
+
 class ItemViewSet(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
     permission_classes = [IsAuthenticated, IsStaff]
@@ -6880,28 +7009,14 @@ class ItemViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.none()
 
-        batch_raw = (
-            request.query_params.get('check_in_batch')
-            or request.query_params.get('batch')
-            or ''
-        ).strip()
-        if batch_raw:
+        check_in_raw = (request.query_params.get('item_check_in') or '').strip()
+        if check_in_raw:
             try:
-                batch_pk = int(batch_raw)
+                check_in_pk = int(check_in_raw)
             except (TypeError, ValueError):
                 qs = qs.none()
             else:
-                from apps.inventory.models import ProcessingCheckInBatch
-
-                batch_item_ids = (
-                    ProcessingCheckInBatch.objects.filter(pk=batch_pk)
-                    .values_list('item_ids', flat=True)
-                    .first()
-                )
-                if batch_item_ids:
-                    qs = qs.filter(id__in=batch_item_ids)
-                else:
-                    qs = qs.none()
+                qs = qs.filter(check_in_id=check_in_pk)
 
         status_vals = _csv_query_values(request, 'status')
         if status_vals:
@@ -6923,6 +7038,20 @@ class ItemViewSet(viewsets.ModelViewSet):
             qs = qs.filter(source__in=source_vals)
 
         return qs
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
     def perform_create(self, serializer):
         serializer.save(sku=Item.generate_sku())
@@ -7291,6 +7420,16 @@ class ItemViewSet(viewsets.ModelViewSet):
                 {'error': f'AI suggest failed: {e}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @action(detail=True, methods=['post'], url_path='remap-product')
+    def remap_product(self, request, pk=None):
+        from apps.inventory.processing_ops import remap_single_item_product
+
+        item = self.get_object()
+        try:
+            return Response(remap_single_item_product(request.user, item, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='processing-print-and-check-in')
     def processing_print_and_check_in(self, request, pk=None):

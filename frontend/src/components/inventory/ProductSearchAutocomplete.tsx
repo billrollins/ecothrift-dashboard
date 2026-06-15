@@ -4,6 +4,8 @@ import { useProductSearch } from '../../hooks/useProductSearch';
 import type { Product } from '../../types/inventory.types';
 import { PRODUCT_SEARCH_MIN_CHARS, productDisplayLabel } from '../../utils/productCatalog';
 import { ProductDisplayLine } from './ProductDisplayLine';
+import { WorkbenchSearchFieldShell } from '../../pages/inventory/workbench/WorkbenchSearchFieldShell';
+import { workbenchPaneAutocompleteInputSx } from '../../pages/inventory/workbench/workbenchSearchFieldSx';
 
 export interface ProductSearchAutocompleteProps {
   scope: string;
@@ -22,6 +24,10 @@ export interface ProductSearchAutocompleteProps {
   searchOnly?: boolean;
   /** Default helper when idle; pass empty string to hide. */
   helperText?: string;
+  /** White pane shell — matches workbench order search (product tone). */
+  paneShell?: boolean;
+  /** Amber outline when required and no value selected. */
+  highlightIfEmpty?: boolean;
 }
 
 /**
@@ -38,6 +44,8 @@ export function ProductSearchAutocomplete({
   pageSize = 25,
   searchOnly = false,
   helperText = 'Quick search — pick a product to load into the form',
+  paneShell = false,
+  highlightIfEmpty = false,
 }: ProductSearchAutocompleteProps) {
   const [inputValue, setInputValue] = useState('');
   const searchEnabled = enabled && inputValue.trim().length >= PRODUCT_SEARCH_MIN_CHARS;
@@ -50,12 +58,12 @@ export function ProductSearchAutocomplete({
     if (!enabled) setInputValue('');
   }, [enabled]);
 
-  return (
+  const autocomplete = (
     <Autocomplete
       size="small"
       fullWidth
       disabled={disabled}
-      sx={{ m: 0 }}
+      sx={{ m: 0, width: paneShell ? '100%' : undefined }}
       options={products}
       value={pinnedValue}
       loading={isFetching}
@@ -86,14 +94,18 @@ export function ProductSearchAutocomplete({
         <TextField
           {...params}
           margin="none"
-          label={label}
-          placeholder={placeholder}
+          label={paneShell ? undefined : label}
+          placeholder={paneShell ? 'Search products…' : placeholder}
+          variant={paneShell ? 'standard' : 'outlined'}
+          slotProps={paneShell ? { input: { ...params.InputProps, disableUnderline: true } } : undefined}
           helperText={
-            inputValue.trim().length > 0 && inputValue.trim().length < PRODUCT_SEARCH_MIN_CHARS
+            paneShell || !helperText ? undefined
+            : inputValue.trim().length > 0 && inputValue.trim().length < PRODUCT_SEARCH_MIN_CHARS
               ? `Type at least ${PRODUCT_SEARCH_MIN_CHARS} characters`
               : helperText || undefined
           }
           FormHelperTextProps={{ sx: { mt: 0.25, mx: 0 } }}
+          sx={paneShell ? workbenchPaneAutocompleteInputSx : undefined}
         />
       )}
       noOptionsText={
@@ -103,4 +115,14 @@ export function ProductSearchAutocomplete({
       }
     />
   );
+
+  if (paneShell) {
+    return (
+      <WorkbenchSearchFieldShell tone="product" label={label || 'Product'} required incomplete={highlightIfEmpty && !value}>
+        {autocomplete}
+      </WorkbenchSearchFieldShell>
+    );
+  }
+
+  return autocomplete;
 }

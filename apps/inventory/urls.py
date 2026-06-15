@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     VendorViewSet, CategoryViewSet, PurchaseOrderViewSet, CSVTemplateViewSet,
     ProductViewSet, VendorProductRefViewSet, BatchGroupViewSet,
-    ItemViewSet, ItemHistoryViewSet, manifest_field_metadata_view, item_lookup,
+    ItemViewSet, ItemCheckInViewSet, ItemHistoryViewSet, manifest_field_metadata_view, item_lookup,
     classify_item_view, store_report_view,
     verify_present_view, quick_reprice_view, duplicate_item_for_resale_view,
     mark_sold_item_on_shelf_view, estimate_price_view,
@@ -18,6 +18,7 @@ router.register(r'products', ProductViewSet, basename='product')
 router.register(r'product-refs', VendorProductRefViewSet, basename='vendorproductref')
 router.register(r'batch-groups', BatchGroupViewSet, basename='batchgroup')
 router.register(r'items', ItemViewSet, basename='item')
+router.register(r'item-check-ins', ItemCheckInViewSet, basename='itemcheckin')
 router.register(r'item-history', ItemHistoryViewSet, basename='itemhistory')
 
 urlpatterns = [

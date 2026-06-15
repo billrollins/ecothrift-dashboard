@@ -8,10 +8,11 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.inventory.constants import PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES
 from apps.inventory.models import (
     Category,
     Item,
-    ProcessingCheckInBatch,
+    ItemCheckIn,
     ProcessingRow,
     Product,
     PurchaseOrder,
@@ -98,7 +99,7 @@ class ProductCheckInEndpointTests(ProductCheckInBase):
         self.assertEqual(item.retail, Decimal('100.00'))
         self.assertIsNotNone(item.cost)
 
-    def test_records_processing_row_and_check_in_batch(self):
+    def test_records_processing_row_and_item_check_in(self):
         resp = self._check_in(quantity=3)
         self.assertEqual(resp.status_code, 201, resp.data)
         row = ProcessingRow.objects.get(pk=resp.data['processing_row_id'])
@@ -106,10 +107,20 @@ class ProductCheckInEndpointTests(ProductCheckInBase):
         self.assertEqual(row.matched_product_id, self.product.id)
         self.assertEqual(row.quantity, 3)
         self.assertEqual(len(row.item_ids), 3)
-        batch = ProcessingCheckInBatch.objects.get(pk=resp.data['check_in_batch_id'])
-        self.assertEqual(batch.processing_row_id, row.pk)
-        self.assertEqual(batch.product_id, self.product.id)
-        self.assertEqual(batch.quantity, 3)
+        check_in = ItemCheckIn.objects.get(pk=resp.data['item_check_in_id'])
+        self.assertEqual(check_in.processing_row_id, row.pk)
+        self.assertEqual(check_in.product_id, self.product.id)
+        self.assertEqual(check_in.quantity, 3)
+        for item in Item.objects.filter(pk__in=resp.data['created_item_ids']):
+            self.assertEqual(item.check_in_id, check_in.pk)
+
+    def test_item_check_in_membership_via_fk(self):
+        resp = self._check_in(quantity=2)
+        self.assertEqual(resp.status_code, 201, resp.data)
+        check_in = ItemCheckIn.objects.get(pk=resp.data['item_check_in_id'])
+        fk_ids = sorted(check_in.items.values_list('pk', flat=True))
+        self.assertEqual(fk_ids, sorted(resp.data['created_item_ids']))
+        self.assertEqual(check_in.quantity, len(fk_ids))
 
     def test_requires_purchase_order(self):
         resp = self._check_in(purchase_order='')
@@ -160,12 +171,12 @@ class ItemListFilterSortTests(ProductCheckInBase):
             status='sold',
         )
 
-    def test_filters_by_check_in_batch(self):
+    def test_filters_by_item_check_in(self):
         resp = self._check_in(quantity=2)
         self.assertEqual(resp.status_code, 201, resp.data)
-        batch_id = resp.data['check_in_batch_id']
-        self.assertIsNotNone(batch_id)
-        list_resp = self.client.get(f'/api/inventory/items/?batch={batch_id}')
+        check_in_id = resp.data['item_check_in_id']
+        self.assertIsNotNone(check_in_id)
+        list_resp = self.client.get(f'/api/inventory/items/?item_check_in={check_in_id}')
         self.assertEqual(list_resp.status_code, 200, list_resp.data)
         ids = {row['id'] for row in list_resp.data['results']}
         self.assertEqual(ids, set(resp.data['created_item_ids']))
@@ -189,6 +200,16 @@ class ItemListFilterSortTests(ProductCheckInBase):
         self.assertIn(self.item_new.id, ids)
         self.assertNotIn(self.other_item.id, ids)
 
+    def test_list_includes_item_check_in_id(self):
+        resp = self._check_in(quantity=2)
+        self.assertEqual(resp.status_code, 201, resp.data)
+        check_in_id = resp.data['item_check_in_id']
+        item_id = resp.data['created_item_ids'][0]
+        list_resp = self.client.get(f'/api/inventory/items/?ids={item_id}')
+        self.assertEqual(list_resp.status_code, 200, list_resp.data)
+        row = list_resp.data['results'][0]
+        self.assertEqual(row['item_check_in_id'], check_in_id)
+
     def test_default_ordering_checked_in_desc(self):
         resp = self.client.get(
             f'/api/inventory/items/?ids={self.item_old.id},{self.item_new.id}',
@@ -197,3 +218,81 @@ class ItemListFilterSortTests(ProductCheckInBase):
         ids = [row['id'] for row in resp.data['results']]
         self.assertEqual(ids[0], self.item_new.id)
         self.assertEqual(ids[1], self.item_old.id)
+
+
+class ItemCheckInNormalizationTests(ProductCheckInBase):
+    """FK check-in membership and staging-row purge behavior."""
+
+    def test_filters_items_by_item_check_in_fk(self):
+        resp = self._check_in(quantity=2)
+        self.assertEqual(resp.status_code, 201, resp.data)
+        check_in = ItemCheckIn.objects.get(pk=resp.data['item_check_in_id'])
+        items = list(check_in.items.all())
+        self.assertEqual(len(items), 2)
+        for item in items:
+            self.assertEqual(item.check_in_id, check_in.pk)
+        list_resp = self.client.get(f'/api/inventory/items/?item_check_in={check_in.pk}')
+        self.assertEqual(list_resp.status_code, 200, list_resp.data)
+        self.assertEqual(
+            {row['id'] for row in list_resp.data['results']},
+            {i.pk for i in items},
+        )
+
+    def test_processing_row_purge_leaves_check_in_intact(self):
+        resp = self._check_in(quantity=2)
+        self.assertEqual(resp.status_code, 201, resp.data)
+        check_in_id = resp.data['item_check_in_id']
+        row_id = resp.data['processing_row_id']
+        check_in = ItemCheckIn.objects.get(pk=check_in_id)
+        ProcessingRow.objects.filter(pk=row_id).delete()
+        check_in.refresh_from_db()
+        self.assertIsNone(check_in.processing_row_id)
+        self.assertEqual(check_in.items.count(), 2)
+        for item in check_in.items.all():
+            self.assertEqual(item.check_in_id, check_in.pk)
+
+
+class ProductListExactFilterTests(ProductCheckInBase):
+    def test_filters_by_exact_product_id(self):
+        other = Product.objects.create(title='Other exact filter product')
+        resp = self.client.get(f'/api/inventory/products/?product={self.product.id}')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        ids = {row['id'] for row in resp.data['results']}
+        self.assertEqual(ids, {self.product.id})
+        self.assertNotIn(other.id, ids)
+
+    def test_filters_by_category_id(self):
+        resp = self.client.get(f'/api/inventory/products/?category={self.category.id}')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        ids = {row['id'] for row in resp.data['results']}
+        self.assertIn(self.product.id, ids)
+
+
+class VendorListExactFilterTests(ProductCheckInBase):
+    def test_filters_by_exact_vendor_id(self):
+        resp = self.client.get(f'/api/inventory/vendors/?vendor={self.vendor.id}')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        ids = {row['id'] for row in resp.data['results']}
+        self.assertEqual(ids, {self.vendor.id})
+
+
+class PurchaseOrderListExactFilterTests(ProductCheckInBase):
+    def setUp(self):
+        super().setUp()
+        dash_name = next(iter(PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES))
+        self.dashboard_vendor = Vendor.objects.create(name=dash_name, code='DASH')
+        self.dashboard_order = PurchaseOrder.objects.create(
+            vendor=self.dashboard_vendor,
+            order_number='PO-DASH-FILTER',
+            ordered_date='2026-06-01',
+            purchase_cost=Decimal('100.00'),
+            retail_value=Decimal('500.00'),
+            status='processing',
+        )
+
+    def test_filters_by_exact_order_id(self):
+        resp = self.client.get(f'/api/inventory/orders/?order={self.dashboard_order.id}')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        ids = {row['id'] for row in resp.data['results']}
+        self.assertIn(self.dashboard_order.id, ids)
+        self.assertNotIn(self.misfit_order.id, ids)

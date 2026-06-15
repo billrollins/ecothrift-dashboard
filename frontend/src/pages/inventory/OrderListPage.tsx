@@ -42,6 +42,8 @@ import {
 } from '../../hooks/useInventory';
 import { formatCurrencyWhole, formatNumber } from '../../utils/format';
 import type { PurchaseOrderListRow, PurchaseOrderStatus } from '../../types/inventory.types';
+import { parseRichSearch, orderFiltersToApiParams } from '../../utils/richInventorySearch';
+
 import { isPurchaseOrderDashboardVendorName } from '../../constants/purchaseOrdersDashboard';
 
 type StatusBucket = 'all' | 'pending' | 'in_transit' | 'delivered' | 'processing' | 'complete';
@@ -180,10 +182,15 @@ export default function OrderListPage() {
   }, []);
 
   const listFilters = useMemo(() => {
+    const parsed = parseRichSearch(debouncedSearch, 'orders');
+    const rich = orderFiltersToApiParams(parsed);
     const p: Record<string, string | number> = {
       ...statusParams(statusBucket),
     };
-    if (debouncedSearch) p.search = debouncedSearch;
+    if (rich.search) p.search = rich.search;
+    if (rich.order) p.order = rich.order;
+    if (rich.vendor) p.vendor = rich.vendor;
+    if (rich.status) p.status = rich.status;
     if (vendorFilter) p.vendor = vendorFilter;
     if (dateFrom) p.ordered_date_after = format(dateFrom, 'yyyy-MM-dd');
     if (dateTo) p.ordered_date_before = format(dateTo, 'yyyy-MM-dd');
@@ -337,7 +344,7 @@ export default function OrderListPage() {
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
             <TextField
               size="small"
-              placeholder="Search order #, vendor, description…"
+              placeholder="Search order #, vendor… or filters like {order=123; vendor=5; status=processing}"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               sx={{ minWidth: 260, flex: '1 1 200px' }}

@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from apps.inventory.models import (
     Item,
     ManifestRow,
-    ProcessingCheckInBatch,
+    ItemCheckIn,
     ProcessingRow,
     Product,
     PurchaseOrder,
@@ -257,11 +257,11 @@ class BatchRemapTests(ProcessingSplitTestBase):
             },
             format='json',
         )
-        batch_id = r2.data['check_in_batch_id']
+        batch_id = r2.data['item_check_in_id']
         self.assertIsNotNone(batch_id)
 
         resp = self.client.post(
-            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/remap-product/',
+            f'/api/inventory/orders/{order.id}/item-check-ins/{batch_id}/remap-product/',
             {'product_mode': 'existing', 'product_id': product_b_prime.id},
             format='json',
         )
@@ -269,7 +269,7 @@ class BatchRemapTests(ProcessingSplitTestBase):
         self.assertEqual(resp.data['product_id'], product_b_prime.id)
         self.assertEqual(resp.data['items_updated'], 14)
 
-        batch = ProcessingCheckInBatch.objects.get(pk=batch_id)
+        batch = ItemCheckIn.objects.get(pk=batch_id)
         self.assertEqual(batch.product_id, product_b_prime.id)
         self.assertEqual(
             Item.objects.filter(manifest_row=mr, product=product_b_prime).count(),
@@ -292,14 +292,14 @@ class BatchRemapTests(ProcessingSplitTestBase):
             },
             format='json',
         )
-        batch_id = r1.data['check_in_batch_id']
+        batch_id = r1.data['item_check_in_id']
         resp = self.client.post(
-            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/remap-product/',
+            f'/api/inventory/orders/{order.id}/item-check-ins/{batch_id}/remap-product/',
             {
                 'product_mode': 'new',
                 'title': product_a.title,
                 'brand': product_a.brand,
-                'category': product_a.category,
+                'category': product_a.category.slug if product_a.category_id else '',
             },
             format='json',
         )
@@ -321,15 +321,15 @@ class BatchRemapTests(ProcessingSplitTestBase):
             },
             format='json',
         )
-        batch_id = r1.data['check_in_batch_id']
+        batch_id = r1.data['item_check_in_id']
         resp = self.client.post(
-            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/delete/',
+            f'/api/inventory/orders/{order.id}/item-check-ins/{batch_id}/delete/',
             {},
             format='json',
         )
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertEqual(resp.data['items_deleted'], 4)
-        self.assertFalse(ProcessingCheckInBatch.objects.filter(pk=batch_id).exists())
+        self.assertFalse(ItemCheckIn.objects.filter(pk=batch_id).exists())
         self.assertEqual(Item.objects.filter(manifest_row=mr).count(), 0)
 
     def test_update_check_in_batch_grow_shrink_and_fields(self):
@@ -346,11 +346,11 @@ class BatchRemapTests(ProcessingSplitTestBase):
             },
             format='json',
         )
-        batch_id = r1.data['check_in_batch_id']
+        batch_id = r1.data['item_check_in_id']
 
         # Grow 4 → 6 and change condition: 2 added, originals updated.
         resp = self.client.post(
-            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/update/',
+            f'/api/inventory/orders/{order.id}/item-check-ins/{batch_id}/update/',
             {'quantity': 6, 'condition': 'like_new', 'dispatch': 'back_storage'},
             format='json',
         )
@@ -358,16 +358,16 @@ class BatchRemapTests(ProcessingSplitTestBase):
         self.assertEqual(resp.data['items_added'], 2)
         self.assertEqual(resp.data['quantity'], 6)
         self.assertEqual(len(resp.data['printed_items_preview']), 2)
-        batch = ProcessingCheckInBatch.objects.get(pk=batch_id)
-        self.assertEqual(len(batch.item_ids), 6)
+        check_in = ItemCheckIn.objects.get(pk=batch_id)
+        self.assertEqual(check_in.items.count(), 6)
         conditions = set(
-            Item.objects.filter(pk__in=batch.item_ids).values_list('condition', flat=True),
+            check_in.items.values_list('condition', flat=True),
         )
         self.assertEqual(conditions, {'like_new'})
 
         # Shrink 6 → 3: newest 3 deleted.
         resp = self.client.post(
-            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/update/',
+            f'/api/inventory/orders/{order.id}/item-check-ins/{batch_id}/update/',
             {'quantity': 3},
             format='json',
         )
@@ -389,9 +389,9 @@ class BatchRemapTests(ProcessingSplitTestBase):
             },
             format='json',
         )
-        batch_id = r1.data['check_in_batch_id']
+        batch_id = r1.data['item_check_in_id']
         resp = self.client.post(
-            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/update/',
+            f'/api/inventory/orders/{order.id}/item-check-ins/{batch_id}/update/',
             {'product_mode': 'edit', 'product_id': product_a.id, 'title': 'Crayons Set A Deluxe'},
             format='json',
         )
@@ -415,11 +415,11 @@ class BatchRemapTests(ProcessingSplitTestBase):
             },
             format='json',
         )
-        batch_id = r1.data['check_in_batch_id']
-        new_pid = ProcessingCheckInBatch.objects.get(pk=batch_id).product_id
+        batch_id = r1.data['item_check_in_id']
+        new_pid = ItemCheckIn.objects.get(pk=batch_id).product_id
         self.assertIsNotNone(new_pid)
         resp = self.client.post(
-            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/delete/',
+            f'/api/inventory/orders/{order.id}/item-check-ins/{batch_id}/delete/',
             {},
             format='json',
         )
@@ -444,9 +444,9 @@ class BatchRemapTests(ProcessingSplitTestBase):
             },
             format='json',
         )
-        batch_id = r1.data['check_in_batch_id']
+        batch_id = r1.data['item_check_in_id']
         resp = self.client.post(
-            f'/api/inventory/orders/{order.id}/processing-check-in-batch/{batch_id}/delete/',
+            f'/api/inventory/orders/{order.id}/item-check-ins/{batch_id}/delete/',
             {},
             format='json',
         )

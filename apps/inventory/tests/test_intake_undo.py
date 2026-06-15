@@ -313,8 +313,8 @@ class IntakeUndoTests(TestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.ai_cleanup_generation, gen_before + 1)
 
-    def test_finalize_blocked_with_check_in_batches(self):
-        from apps.inventory.models import ProcessingCheckInBatch
+    def test_finalize_blocked_with_item_check_ins(self):
+        from apps.inventory.models import ItemCheckIn
 
         self._prep_with_rows()
         pr = ProcessingRow.objects.create(
@@ -323,11 +323,10 @@ class IntakeUndoTests(TestCase):
             quantity=1,
             description='bk',
         )
-        ProcessingCheckInBatch.objects.create(
+        ItemCheckIn.objects.create(
             purchase_order=self.order,
             processing_row=pr,
             quantity=1,
-            item_ids=[],
         )
         prev = compute_undo_preview(self.order, 'finalize')
         self.assertFalse(prev['safe'])

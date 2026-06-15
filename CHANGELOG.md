@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.29.0] — 2026-06-15 (Product/Item catalog CRUD, category reset, product-first check-in) -->
-<!-- Last reviewed: 2026-06-15 (v2.29.0 — manage catalog pages, migrations 0061–0062, product check-in) -->
+<!-- Line 1 release: ## [2.30.0] — 2026-06-15 (Inventory Catalog — unified search, check-in tab, ItemCheckIn normalization) -->
+<!-- Last reviewed: 2026-06-15 (v2.30.0 — Inventory Catalog page, migrations 0063–0065, rich search) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,31 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.30.0] — 2026-06-15
+
+User-facing theme: **Inventory Catalog — one search-first page for products, check-ins, and items with in-place edit/create.**
+
+### Added
+
+- **Inventory / Catalog** — staff page at `/inventory/workbench` (nav **Catalog**): shared scan-bar search, Products / Check-ins / Items tabs, split detail panels, URL state (`tab`, `q`, `selected`), and relationship navigation between records. See initiative [`product_item_crud_and_processing`](.ai/initiatives/product_item_crud_and_processing.md).
+- **Inventory / ItemCheckIn catalog API** — `GET /api/inventory/item-check-ins/` with searchable catalog serializer, filters (`product`, `item_check_in`, `search`), and dedicated pagination count (no Item list cache bleed); [`test_item_check_in_catalog.py`](apps/inventory/tests/test_item_check_in_catalog.py).
+- **Inventory / rich search** — `{product=…; checkin=…; item=…}` filter syntax, URL builders ([`richInventorySearch.ts`](frontend/src/utils/richInventorySearch.ts)), and search history per catalog.
+- **Inventory / migrations `0063`–`0065`** — `Item.check_in` FK normalization, drop `ItemCheckIn.item_ids`, index cleanup; see [12_check_in_normalization](.ai/reference/product_item_field_audit/12_check_in_normalization.md).
+- **Inventory / catalog UX** — three-way save dialog on price change (print / no print / cancel), `ConfirmDialog` replaces system confirms, copyable ID chips, column-width reset in table toolbar.
+
+### Changed
+
+- **Inventory / catalog consolidation** — replaces separate **Manage Products** / **Manage Items** pages; legacy `/inventory/manage-products` and `/inventory/manage-items` redirect into Catalog with query preserved.
+- **Navigation** — Inventory workspace third link labeled **Catalog** ([`navItemCatalog.ts`](frontend/src/navigation/navItemCatalog.ts)).
+- **Inventory / money fields** — Retail and Price accept decimal `.` while typing (`sanitizeDecimalPaste`); blur still normalizes to two decimals.
+
+### Fixed
+
+- **Inventory / Catalog tabs** — free tab switching without selection bounce; stat-card clicks filter in place without forced tab changes.
+- **Inventory / pagination** — ItemCheckIn list total count no longer reuses Item catalog cache ([`ecothrift/pagination.py`](ecothrift/pagination.py)).
 
 ---
 

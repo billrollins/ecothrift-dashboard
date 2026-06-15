@@ -10,6 +10,7 @@ import type {
   OrderForReceivingRow,
   Product,
   Item,
+  ItemCheckInCatalog,
   ItemStatsResponse,
   CSVTemplate,
   Category,
@@ -1219,7 +1220,7 @@ export interface ProcessingRowCheckInPayload {
 export interface ProcessingRowCheckInResponse {
   items: Item[];
   created_count: number;
-  check_in_batch_id?: number;
+  item_check_in_id?: number;
   workspace_patch: ProcessingWorkspacePatchDTO;
   printed_items_preview: PrintedItemPreview[];
 }
@@ -1253,7 +1254,7 @@ export interface ProcessingCheckInTogetherPayload {
 export interface ProcessingCheckInTogetherResponse {
   items: Item[];
   created_count: number;
-  check_in_batch_ids: number[];
+  item_check_in_ids: number[];
   workspace_patch: ProcessingWorkspacePatchDTO;
   printed_items_preview: PrintedItemPreview[];
 }
@@ -1404,23 +1405,39 @@ export function processingRestartRow(
   );
 }
 
-export interface ProcessingRemapBatchProductResponse {
-  batch_id: number;
+export interface ProcessingRemapItemCheckInResponse {
+  item_check_in_id: number;
   product_id: number;
   items_updated: number;
   row: ProcessingWorkspaceDTO['rows'][number];
   workspace_patch: ProcessingWorkspacePatchDTO;
 }
 
-export function processingRemapCheckInBatchProduct(
+export function processingRemapItemCheckInProduct(
   orderId: number,
-  batchId: number,
+  itemCheckInId: number,
   payload: Record<string, unknown>,
-): Promise<{ data: ProcessingRemapBatchProductResponse }> {
-  return api.post<ProcessingRemapBatchProductResponse>(
-    `/inventory/orders/${orderId}/processing-check-in-batch/${batchId}/remap-product/`,
+): Promise<{ data: ProcessingRemapItemCheckInResponse }> {
+  return api.post<ProcessingRemapItemCheckInResponse>(
+    `/inventory/orders/${orderId}/item-check-ins/${itemCheckInId}/remap-product/`,
     payload,
   );
+}
+
+export interface RemapItemProductResponse {
+  item_id: number;
+  product_id: number;
+  changed: boolean;
+  item_check_in_id: number | null;
+  item: Item;
+  workspace_patch?: ProcessingWorkspacePatchDTO;
+}
+
+export function remapItemProduct(
+  itemId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: RemapItemProductResponse }> {
+  return api.post<RemapItemProductResponse>(`/inventory/items/${itemId}/remap-product/`, payload);
 }
 
 export interface ProcessingSetRowProductResponse {
@@ -1439,8 +1456,8 @@ export function processingSetRowProduct(
   );
 }
 
-export interface ProcessingUpdateCheckInBatchResponse {
-  batch_id: number;
+export interface ProcessingUpdateItemCheckInResponse {
+  item_check_in_id: number;
   items_added: number;
   items_removed: number;
   items_updated: number;
@@ -1451,32 +1468,32 @@ export interface ProcessingUpdateCheckInBatchResponse {
   printed_items_preview: PrintedItemPreview[];
 }
 
-export function processingUpdateCheckInBatch(
+export function processingUpdateItemCheckIn(
   orderId: number,
-  batchId: number,
+  itemCheckInId: number,
   payload: Record<string, unknown>,
-): Promise<{ data: ProcessingUpdateCheckInBatchResponse }> {
-  return api.post<ProcessingUpdateCheckInBatchResponse>(
-    `/inventory/orders/${orderId}/processing-check-in-batch/${batchId}/update/`,
+): Promise<{ data: ProcessingUpdateItemCheckInResponse }> {
+  return api.post<ProcessingUpdateItemCheckInResponse>(
+    `/inventory/orders/${orderId}/item-check-ins/${itemCheckInId}/update/`,
     payload,
   );
 }
 
-export interface ProcessingDeleteCheckInBatchResponse {
-  batch_id: number;
+export interface ProcessingDeleteItemCheckInResponse {
+  item_check_in_id: number;
   items_deleted: number;
-  /** Product id deleted because the batch delete left it fully orphaned, else null. */
+  /** Product id deleted because the check-in delete left it fully orphaned, else null. */
   product_deleted: number | null;
   row: ProcessingWorkspaceDTO['rows'][number];
   workspace_patch: ProcessingWorkspacePatchDTO;
 }
 
-export function processingDeleteCheckInBatch(
+export function processingDeleteItemCheckIn(
   orderId: number,
-  batchId: number,
-): Promise<{ data: ProcessingDeleteCheckInBatchResponse }> {
-  return api.post<ProcessingDeleteCheckInBatchResponse>(
-    `/inventory/orders/${orderId}/processing-check-in-batch/${batchId}/delete/`,
+  itemCheckInId: number,
+): Promise<{ data: ProcessingDeleteItemCheckInResponse }> {
+  return api.post<ProcessingDeleteItemCheckInResponse>(
+    `/inventory/orders/${orderId}/item-check-ins/${itemCheckInId}/delete/`,
     {},
   );
 }
@@ -1677,6 +1694,7 @@ export interface ProductCheckInOrderOption {
   order_number: string;
   vendor_name: string;
   ordered_date: string | null;
+  description?: string;
   is_default: boolean;
   hint: string;
 }
@@ -1701,6 +1719,8 @@ export interface ProductCheckInPayload {
   dispatch?: string;
   location?: string;
   notes?: string;
+  specifications?: Record<string, string>;
+  status?: string;
 }
 
 export interface ProductCheckInResponse {
@@ -1709,7 +1729,7 @@ export interface ProductCheckInResponse {
   created_count: number;
   created_item_ids: number[];
   processing_row_id: number;
-  check_in_batch_id: number | null;
+  item_check_in_id: number | null;
   printed_items_preview: PrintedItemPreview[];
 }
 
@@ -1752,6 +1772,16 @@ export function getVendorProductRefs(params?: Record<string, unknown>): Promise<
 // Items CRUD
 export function getItems(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Item> }> {
   return api.get<PaginatedResponse<Item>>('/inventory/items/', { params });
+}
+
+export function getItemCheckIns(
+  params?: Record<string, unknown>,
+): Promise<{ data: PaginatedResponse<ItemCheckInCatalog> }> {
+  return api.get<PaginatedResponse<ItemCheckInCatalog>>('/inventory/item-check-ins/', { params });
+}
+
+export function getItemCheckIn(id: number): Promise<{ data: ItemCheckInCatalog }> {
+  return api.get<ItemCheckInCatalog>(`/inventory/item-check-ins/${id}/`);
 }
 
 export function getItem(id: number): Promise<{ data: Item }> {

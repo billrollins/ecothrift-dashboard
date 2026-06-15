@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
@@ -22,21 +22,22 @@ import {
   Typography,
 } from '@mui/material';
 import AutoAwesome from '@mui/icons-material/AutoAwesome';
-import ClearAllOutlinedIcon from '@mui/icons-material/ClearAllOutlined';
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import SwapHoriz from '@mui/icons-material/SwapHoriz';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
-import type { Product } from '../../../types/inventory.types';
+import { formatRichSearch, checkInRichSearch, inventoryWorkbenchItemsUrl, inventoryWorkbenchUrl } from '../../../utils/richInventorySearch';
+import { formatNumber } from '../../../utils/format';
+import type { ItemCheckInCatalog, Product } from '../../../types/inventory.types';
 import {
   createProduct,
   getCategories,
+  getItemCheckIns,
   getProduct,
   getProductUsage,
   updateProduct,
 } from '../../../api/inventory.api';
 import { KeyValueJsonField } from '../../../components/inventory/KeyValueJsonField';
-import { ProductSearchAutocomplete } from '../../../components/inventory/ProductSearchAutocomplete';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { useAISuggestProduct } from '../../../hooks/useInventory';
 import type { Category } from '../../../types/inventory.types';
@@ -62,6 +63,7 @@ import {
   IDENTIFIER_PRESET_KEYS,
 } from '../processing/processingIdentifiers';
 import { processingTokens } from '../processing/processingTokens';
+import { WorkbenchCopyableChip } from '../workbench/WorkbenchCopyableChip';
 
 interface ProductEditorState extends ProductEditorDraft {
   productId: number | null;
@@ -77,6 +79,11 @@ interface ProductManagePanelProps {
   onClose: () => void;
   /** Fired after a successful save, before the panel closes. */
   onProductSaved?: (product: Product, ctx: { created: boolean }) => void;
+  embedded?: boolean;
+  onApplyProductSearch?: (productId: number) => void;
+  onStartProductCheckIn?: (productId: number) => void;
+  onOpenProductCheckIns?: (productId: number) => void;
+  onOpenItemsForProduct?: (productId: number, status?: string) => void;
 }
 
 type SectionTone = 'identity' | 'catalog' | 'tracking';
@@ -176,6 +183,32 @@ function formatShortDate(value: string | null | undefined): string {
   if (!value) return 'No date';
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatCheckInDateTime(value: string | null | undefined): string {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return value;
+  }
+}
+
+function checkInOrderLabel(row: ItemCheckInCatalog): string {
+  return row.purchase_order_number?.trim() || (row.purchase_order ? `PO ${row.purchase_order}` : '—');
+}
+
+function productPaneIdentityLabel(state: ProductEditorState): string {
+  if (!state.productId) return 'NEW';
+  const num = state.productNumber?.trim();
+  if (num) return num;
+  return `#${state.productId}`;
 }
 
 function money(value: string | number | null | undefined): string {
@@ -347,32 +380,35 @@ function isProductDirty(
   return productStateSignature(current) !== productStateSignature(baseline);
 }
 
-export function ProductManagePanel({ open, initialProduct, onClose, onProductSaved }: ProductManagePanelProps) {
+export function ProductManagePanel({ open, initialProduct, onClose, onProductSaved, embedded = false, onApplyProductSearch, onStartProductCheckIn, onOpenProductCheckIns, onOpenItemsForProduct }: ProductManagePanelProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [state, setState] = useState<ProductEditorState>(EMPTY_EDITOR);
   const [baselineState, setBaselineState] = useState<ProductEditorState>(EMPTY_EDITOR);
-  const [error, setError] = useState('');
-  const [aiStatus, setAiStatus] = useState('');
   const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false);
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [checkInProduct, setCheckInProduct] = useState<Product | null>(null);
   const [ai, dispatchAi] = useReducer(productAiReducer, undefined, initialProductAIState);
   const suggestMutation = useAISuggestProduct();
+  const hydratedEditorKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      hydratedEditorKeyRef.current = null;
+      return;
+    }
+    const hydrateKey = initialProduct?.id != null ? `product:${initialProduct.id}` : 'new';
+    if (hydratedEditorKeyRef.current === hydrateKey) return;
+    hydratedEditorKeyRef.current = hydrateKey;
     const next = initialProduct ? productToEditor(initialProduct) : EMPTY_EDITOR;
     setState(next);
     setBaselineState(next);
-    setError('');
-    setAiStatus('');
     setConfirmLeaveOpen(false);
     setCheckInOpen(false);
     setCheckInProduct(null);
     dispatchAi({ type: 'reset' });
-  }, [open, initialProduct]);
+  }, [open, initialProduct?.id, initialProduct]);
 
   const categoriesQuery = useQuery({
     queryKey: ['categories', 'product-manage'],
@@ -390,6 +426,15 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
       return data;
     },
     enabled: open && state.productId != null,
+  });
+
+  const checkInsQuery = useQuery({
+    queryKey: ['item-check-ins', 'product-manage', state.productId],
+    queryFn: async () => (
+      await getItemCheckIns({ product: state.productId, page_size: 5, ordering: '-created_at' })
+    ).data,
+    enabled: open && state.productId != null,
+    staleTime: 30_000,
   });
 
   const isEditing = state.productId != null;
@@ -410,8 +455,7 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
   );
 
   const loadingAi = suggestMutation.isPending;
-  const anyAiEnabled = PRODUCT_AI_FIELDS.some((f) => ai[f].enabled);
-  const suggestDisabled = loadingAi || !anyAiEnabled;
+  const suggestDisabled = loadingAi;
   const canFlipAiSuggestions = hasFlippableAiSuggestions(ai);
 
   const saveMutation = useMutation({
@@ -438,12 +482,16 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
     onSuccess: async (saved) => {
       const created = state.productId == null;
       enqueueSnackbar(created ? 'Product created.' : 'Product updated.', { variant: 'success' });
+      const next = productToEditor(saved);
+      setState(next);
+      setBaselineState(next);
+      dispatchAi({ type: 'reset' });
       await queryClient.invalidateQueries({ queryKey: ['products'] });
       onProductSaved?.(saved, { created });
-      onClose();
+      if (!embedded) onClose();
     },
     onError: (err: unknown) => {
-      setError(err instanceof Error ? err.message : 'Could not save product.');
+      enqueueSnackbar(err instanceof Error ? err.message : 'Could not save product.', { variant: 'error' });
     },
   });
 
@@ -462,13 +510,6 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
     if (aiField) dispatchAi({ type: 'markEdited', field: aiField });
   };
 
-  const handleClear = () => {
-    setState(EMPTY_EDITOR);
-    setError('');
-    setAiStatus('');
-    dispatchAi({ type: 'reset' });
-  };
-
   const handleCopy = () => {
     setState((prev) => ({
       ...prev,
@@ -477,24 +518,7 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
       createdAt: '',
       updatedAt: '',
     }));
-    setError('');
-    setAiStatus('');
     dispatchAi({ type: 'reset' });
-  };
-
-  const handleSearchSelect = async (product: Product | null) => {
-    if (!product) return;
-    try {
-      const { data } = await getProduct(product.id);
-      const next = productToEditor(data);
-      setState(next);
-      setBaselineState(next);
-      setError('');
-      setAiStatus('');
-      dispatchAi({ type: 'reset' });
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not load product.');
-    }
   };
 
   const forceClose = () => {
@@ -525,6 +549,10 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
       enqueueSnackbar('Save product changes before check-in.', { variant: 'warning' });
       return;
     }
+    if (embedded && onStartProductCheckIn) {
+      onStartProductCheckIn(state.productId);
+      return;
+    }
     try {
       const { data } = await getProduct(state.productId);
       setCheckInProduct(data);
@@ -535,24 +563,17 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
   };
 
   const runSuggest = async () => {
-    const fields = PRODUCT_AI_FIELDS.filter((f) => ai[f].enabled);
-    if (fields.length === 0) {
-      enqueueSnackbar('Enable at least one field for AI assist.', { variant: 'warning' });
-      return;
-    }
-    setAiStatus('Running AI Suggest…');
     dispatchAi({ type: 'snapshot', draft });
     try {
       const result = await suggestMutation.mutateAsync({
-        fields: productAiFieldsToApiFields(fields),
+        fields: productAiFieldsToApiFields(PRODUCT_AI_FIELDS),
         context: productDraftToAiContext(draft, categories),
       });
       dispatchAi({ type: 'receive', suggestions: result.suggestions });
 
       let categoryNote = '';
       if (
-        fields.includes('categoryRef')
-        && typeof result.suggestions.category === 'string'
+        typeof result.suggestions.category === 'string'
         && result.suggestions.category.trim()
       ) {
         const mapped = mapSuggestedCategoryToCategoryRef(String(result.suggestions.category), categories);
@@ -562,20 +583,14 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
       }
 
       if (result.low_confidence) {
-        setAiStatus(
-          categoryNote
-            ? `${categoryNote} — ${result.low_confidence_reason || 'Low confidence suggestions.'}`
-            : result.low_confidence_reason || 'Low confidence suggestions.',
-        );
+        const msg = categoryNote
+          ? `${categoryNote} — ${result.low_confidence_reason || 'Low confidence suggestions.'}`
+          : result.low_confidence_reason || 'Low confidence suggestions.';
+        enqueueSnackbar(msg, { variant: 'warning' });
+      } else if (categoryNote) {
+        enqueueSnackbar(categoryNote, { variant: 'warning' });
       } else {
-        setAiStatus(
-          categoryNote
-            ? categoryNote
-            : `Suggestions ready (${result.examples_used} store examples).`,
-        );
-        if (!categoryNote) {
-          enqueueSnackbar(`Suggestions ready (${result.examples_used} store examples).`, { variant: 'success' });
-        }
+        enqueueSnackbar(`Suggestions ready (${result.examples_used} store examples).`, { variant: 'success' });
       }
     } catch (e: unknown) {
       const data = (e as { response?: { data?: { error?: string; detail?: unknown } } })?.response?.data;
@@ -590,96 +605,68 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
         detail ||
         (e instanceof Error ? e.message : '') ||
         'AI request failed';
-      setAiStatus(msg);
       enqueueSnackbar(msg, { variant: 'error' });
+      dispatchAi({ type: 'reset' });
     }
   };
 
   const renderAiAdornment = (field: ProductAIFieldName) => {
     const a = ai[field];
+    if (!a.suggestion || a.edited) return null;
     const chipSx = {
       cursor: 'pointer',
       height: 22,
-      borderColor: a.enabled ? `${processingTokens.primary}55` : 'divider',
-      color: a.enabled ? processingTokens.primaryDark : 'text.secondary',
-      bgcolor: a.enabled ? processingTokens.primarySoft : 'transparent',
-      '& .MuiChip-icon': { color: a.enabled ? processingTokens.primary : 'text.disabled' },
+      borderColor: `${processingTokens.primary}55`,
+      color: processingTokens.primaryDark,
+      bgcolor: processingTokens.primarySoft,
+      '& .MuiChip-icon': { color: processingTokens.primary },
     };
-    const chip = (label: string, onClick: () => void, active?: boolean) => (
-      <Tooltip title={productAiTooltip(field, draft, ai, categories)} placement="top">
-        <Chip
-          size="small"
-          variant="outlined"
-          icon={label === 'AI' || label === 'Orig' ? <SwapHoriz sx={{ fontSize: 16 }} /> : undefined}
-          label={label}
-          onClick={onClick}
-          sx={{
-            ...chipSx,
-            ...(active
-              ? {
-                  bgcolor: processingTokens.primarySoftStrong,
-                  borderColor: processingTokens.primary,
-                  color: processingTokens.primaryDark,
-                  fontWeight: 600,
-                }
-              : {}),
-          }}
-        />
-      </Tooltip>
-    );
-    if (loadingAi && a.enabled) {
-      return (
-        <InputAdornment position="end">
-          <CircularProgress size={16} />
-        </InputAdornment>
-      );
-    }
-    if (a.suggestion && !a.edited) {
-      return (
-        <InputAdornment position="end">
-          {chip(a.viewing === 'suggestion' ? 'AI' : 'Orig', () => dispatchAi({ type: 'flip', field }), true)}
-        </InputAdornment>
-      );
-    }
     return (
       <InputAdornment position="end">
-        {chip('AI', () => dispatchAi({ type: 'toggle', field }), a.enabled)}
+        <Tooltip title={productAiTooltip(field, draft, ai, categories)} placement="top">
+          <Chip
+            size="small"
+            variant="outlined"
+            icon={<SwapHoriz sx={{ fontSize: 16 }} />}
+            label={a.viewing === 'suggestion' ? 'AI' : 'Orig'}
+            onClick={() => dispatchAi({ type: 'flip', field })}
+            sx={{
+              ...chipSx,
+              bgcolor: processingTokens.primarySoftStrong,
+              borderColor: processingTokens.primary,
+              fontWeight: 600,
+            }}
+          />
+        </Tooltip>
       </InputAdornment>
     );
   };
 
   const renderJsonAiAdornment = (field: 'identifiers' | 'specifications') => {
     const a = ai[field];
+    if (!a.suggestion || a.edited) return null;
     const accent = JSON_ACCENTS[field];
-    const chipSx = {
-      cursor: 'pointer',
-      height: 20,
-      borderColor: a.enabled ? `${accent}66` : 'divider',
-      color: a.enabled ? accent : 'text.secondary',
-      bgcolor: a.enabled ? `${accent}12` : 'transparent',
-      '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' },
-      '& .MuiChip-icon': { color: a.enabled ? accent : 'text.disabled' },
-    };
-    const chip = (label: string, onClick: () => void, active?: boolean) => (
+    return (
       <Tooltip title={productAiTooltip(field, draft, ai, categories)} placement="top">
         <Chip
           size="small"
           variant="outlined"
-          icon={label === 'AI' || label === 'Orig' ? <SwapHoriz sx={{ fontSize: 14 }} /> : undefined}
-          label={label}
-          onClick={onClick}
+          icon={<SwapHoriz sx={{ fontSize: 14 }} />}
+          label={a.viewing === 'suggestion' ? 'AI' : 'Orig'}
+          onClick={() => dispatchAi({ type: 'flip', field })}
           sx={{
-            ...chipSx,
-            ...(active ? { bgcolor: `${accent}20`, borderColor: accent, fontWeight: 600 } : {}),
+            cursor: 'pointer',
+            height: 20,
+            borderColor: accent,
+            color: accent,
+            bgcolor: `${accent}20`,
+            fontWeight: 600,
+            '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' },
+            '& .MuiChip-icon': { color: accent },
           }}
         />
       </Tooltip>
     );
-    if (loadingAi && a.enabled) return <CircularProgress size={14} />;
-    if (a.suggestion && !a.edited) {
-      return chip(a.viewing === 'suggestion' ? 'AI' : 'Orig', () => dispatchAi({ type: 'flip', field }), true);
-    }
-    return chip('AI', () => dispatchAi({ type: 'toggle', field }), a.enabled);
   };
 
   const usage = usageQuery.data;
@@ -689,12 +676,32 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
   const hasLinkedItems = isEditing && !usageLoading && (usage?.item_count ?? 0) > 0;
   const onShelfCount = usage?.on_shelf_count ?? 0;
   const soldCount = usage?.sold_count ?? 0;
+  const checkIns = checkInsQuery.data?.results ?? [];
+  const checkInCount = checkInsQuery.data?.count ?? checkIns.length;
+  const latestCheckIn = checkIns[0] ?? null;
+  const checkInsLoading = isEditing && checkInsQuery.isFetching;
 
   const openManageItems = (status?: string) => {
     if (!state.productId) return;
-    const params = new URLSearchParams({ product: String(state.productId) });
-    if (status) params.set('status', status);
-    navigate(`/inventory/manage-items?${params.toString()}`);
+    if (onOpenItemsForProduct) {
+      onOpenItemsForProduct(state.productId, status);
+      return;
+    }
+    const filters: Record<string, string | number> = { product: state.productId };
+    if (status) filters.status = status;
+    navigate(inventoryWorkbenchItemsUrl({ filters }));
+  };
+
+  const openProductCheckIns = () => {
+    if (!state.productId) return;
+    if (onOpenProductCheckIns) {
+      onOpenProductCheckIns(state.productId);
+      return;
+    }
+    navigate(inventoryWorkbenchUrl({
+      tab: 'checkins',
+      q: checkInRichSearch({ product: state.productId }),
+    }));
   };
 
   const ordersTooltip = (
@@ -756,49 +763,23 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
     </StatTooltip>
   );
 
-  const showStatusStrip = Boolean(error || aiStatus || !isEditing || usageLoading || hasLinkedItems);
+  const checkInsTooltip = (
+    <StatTooltip>
+      <Typography variant="caption" sx={{ display: 'block', fontWeight: 800, mb: 0.5 }}>
+        Recent check-ins
+      </Typography>
+      {checkIns.length ?
+        checkIns.map((row) => (
+          <Typography key={row.id} variant="caption" sx={{ display: 'block' }}>
+            #{row.id} · {formatCheckInDateTime(row.created_at)} · {checkInOrderLabel(row)}
+          </Typography>
+        ))
+      : <Typography variant="caption">No check-ins yet.</Typography>}
+    </StatTooltip>
+  );
 
-  const statusCaption = error
-    ? error
-    : aiStatus
-      ? aiStatus
-      : !isEditing
-        ? 'Create a reusable catalog product. Inventory items can be linked after save.'
-        : usageLoading
-          ? 'Checking where this product is used...'
-          : hasLinkedItems
-            ? `Shared product: saving changes updates ${linkedItemCount} linked item${linkedItemCount === 1 ? '' : 's'} across ${linkedOrderCount} order${linkedOrderCount === 1 ? '' : 's'}.`
-            : 'No linked items yet.';
-
-  const statusColor = error
-    ? processingTokens.accentRed
-    : aiStatus && (aiStatus.includes('did not match') || suggestMutation.isError)
-      ? processingTokens.accentAmber
-      : hasLinkedItems
-        ? processingTokens.accentAmber
-        : aiStatus
-          ? processingTokens.primaryDark
-          : processingTokens.textSoft;
-
-  return (
+  const editorBody = (
     <>
-    <Dialog
-      open={open && !checkInOpen}
-      onClose={requestClose}
-      fullWidth
-      maxWidth="lg"
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          maxHeight: 'calc(100vh - 32px)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          bgcolor: editorSurface,
-          boxShadow: '0 18px 60px rgba(15, 23, 42, 0.22)',
-        },
-      }}
-    >
       <DialogTitle
         sx={{
           p: 0,
@@ -807,118 +788,50 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
           borderColor: borderSubtle,
         }}
       >
-        <Box sx={{ px: 2.75, pt: 1.75, pb: 1.25 }}>
-          <Stack spacing={1.1}>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography
-                  variant="overline"
-                  sx={{ color: processingTokens.textMute, fontWeight: 800, letterSpacing: 0.9, lineHeight: 1 }}
-                >
-                  Product catalog
-                </Typography>
-                <Typography variant="h6" component="span" sx={{ display: 'block', fontWeight: 800, color: processingTokens.textStrong, lineHeight: 1.2 }}>
-                  {isEditing ? 'Edit product details' : 'Create product details'}
-                </Typography>
-                <Typography variant="caption" sx={{ display: 'block', mt: 0.25, color: processingTokens.textMute }}>
-                  Catalog fields are shared by every inventory item linked to this product.
-                </Typography>
-              </Box>
-              <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={loadingAi ? <CircularProgress size={14} /> : <AutoAwesome sx={{ fontSize: 16 }} />}
-                  disabled={suggestDisabled}
-                  onClick={() => void runSuggest()}
-                  sx={{
-                    minWidth: 108,
-                    borderColor: `${processingTokens.primary}66`,
-                    color: processingTokens.primaryDark,
-                    bgcolor: processingTokens.primarySoft,
-                    fontWeight: 700,
-                    '&:hover': { borderColor: processingTokens.primary, bgcolor: processingTokens.primarySoftStrong },
-                  }}
-                >
-                  Suggest
-                </Button>
-                <Tooltip title="Show original values for all suggested fields">
-                  <span>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="inherit"
-                      disabled={!canFlipAiSuggestions}
-                      onClick={() => dispatchAi({ type: 'viewAll', viewing: 'original' })}
-                      sx={{ minWidth: 0, px: 1.1, borderColor: borderSubtle, bgcolor: '#fff', color: processingTokens.textSoft }}
-                    >
-                      Original
-                    </Button>
-                  </span>
-                </Tooltip>
-                <Tooltip title="Show AI values for all suggested fields">
-                  <span>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      disabled={!canFlipAiSuggestions}
-                      onClick={() => dispatchAi({ type: 'viewAll', viewing: 'suggestion' })}
-                      sx={{
-                        minWidth: 0,
-                        px: 1.1,
-                        borderColor: `${processingTokens.primary}66`,
-                        color: processingTokens.primaryDark,
-                        bgcolor: '#fff',
-                        '&:hover': { borderColor: processingTokens.primary, bgcolor: processingTokens.primarySoftStrong },
-                      }}
-                    >
-                      AI values
-                    </Button>
-                  </span>
-                </Tooltip>
-              </Stack>
-            </Box>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <ProductSearchAutocomplete
-                  scope="product-manage-modal"
-                  enabled={open}
-                  value={null}
-                  searchOnly
-                  pageSize={50}
-                  helperText=""
-                  onSelect={handleSearchSelect}
-                />
-              </Box>
-              <Button
-                size="small"
-                variant="outlined"
-                color="inherit"
-                startIcon={<ClearAllOutlinedIcon />}
-                onClick={handleClear}
-                sx={{ borderColor: borderSubtle, bgcolor: '#fff', color: processingTokens.textSoft, flexShrink: 0 }}
-              >
-                Start blank
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<ContentCopyOutlinedIcon />}
-                onClick={handleCopy}
-                disabled={!state.title.trim() && !state.productId}
-                sx={{
-                  borderColor: `${processingTokens.ecoBrown}88`,
-                  color: processingTokens.ecoBrownDark,
-                  bgcolor: '#fff',
-                  flexShrink: 0,
-                  '&:hover': { borderColor: processingTokens.ecoBrown, bgcolor: processingTokens.ecoBrownSoft },
-                }}
-              >
-                Duplicate
-              </Button>
-            </Box>
-          </Stack>
+        <Box
+          sx={{
+            px: 2.75,
+            pt: 1.75,
+            pb: 1.25,
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 1.5,
+          }}
+        >
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="h6" component="span" sx={{ display: 'block', fontWeight: 800, color: processingTokens.textStrong, lineHeight: 1.2 }}>
+              {isEditing ? 'Edit product details' : 'Create product details'}
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', mt: 0.35, color: processingTokens.textMute }}>
+              {isEditing ?
+                'Edit the product details below.'
+              : 'Fill in the product details below, then save to create.'}
+            </Typography>
+          </Box>
+          <WorkbenchCopyableChip
+            size="small"
+            label={productPaneIdentityLabel(state)}
+            copyText={isEditing ? productPaneIdentityLabel(state) : undefined}
+            variant={isEditing ? 'outlined' : 'filled'}
+            color={isEditing ? 'default' : 'primary'}
+            clickable={isEditing && Boolean(state.productId)}
+            onBadgeClick={
+              isEditing && onApplyProductSearch && state.productId ?
+                () => onApplyProductSearch(state.productId!)
+              : undefined
+            }
+            sx={{
+              height: 22,
+              fontFamily: processingTokens.monoFontFamily,
+              fontWeight: 800,
+              fontSize: '0.72rem',
+              letterSpacing: 0.4,
+              ...(isEditing
+                ? { borderColor: borderSubtle, color: processingTokens.textSoft, bgcolor: headerSubtle }
+                : {}),
+            }}
+          />
         </Box>
 
         <Box
@@ -937,14 +850,25 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
         >
           <ProductStatCell
             label="# Orders"
-            value={usageLoading ? '...' : String(linkedOrderCount)}
+            value={usageLoading ? '...' : formatNumber(linkedOrderCount)}
             helper="Linked POs"
             tone={linkedOrderCount ? 'default' : 'muted'}
             tooltip={ordersTooltip}
           />
           <ProductStatCell
+            label="# Check-ins"
+            value={checkInsLoading ? '...' : formatNumber(checkInCount)}
+            helper={latestCheckIn ?
+              `#${formatNumber(latestCheckIn.id)} · ${formatCheckInDateTime(latestCheckIn.created_at)}`
+            : checkInCount ? 'Click to view'
+            : 'No check-ins yet'}
+            tone={checkInCount ? 'default' : 'muted'}
+            tooltip={checkInsTooltip}
+            onClick={isEditing ? openProductCheckIns : undefined}
+          />
+          <ProductStatCell
             label="# Items"
-            value={usageLoading ? '...' : String(linkedItemCount)}
+            value={usageLoading ? '...' : formatNumber(linkedItemCount)}
             helper="Click to view"
             tone={hasLinkedItems ? 'warning' : 'default'}
             tooltip={itemsTooltip}
@@ -952,7 +876,7 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
           />
           <ProductStatCell
             label="On Shelf"
-            value={usageLoading ? '...' : String(onShelfCount)}
+            value={usageLoading ? '...' : formatNumber(onShelfCount)}
             helper="Click to view"
             tone={onShelfCount ? 'good' : 'muted'}
             tooltip={onShelfTooltip}
@@ -960,32 +884,13 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
           />
           <ProductStatCell
             label="# Sold"
-            value={usageLoading ? '...' : `${soldCount} (${money(usage?.avg_sold_price)})`}
-            helper="Avg sold price"
+            value={usageLoading ? '...' : `${formatNumber(soldCount)} (${money(usage?.avg_sold_price)})`}
+            helper="Click to view"
             tone={soldCount ? 'default' : 'muted'}
             tooltip={soldTooltip}
+            onClick={isEditing ? () => openManageItems('sold') : undefined}
           />
         </Box>
-
-        {(showStatusStrip) && (
-          <Typography
-            variant="caption"
-            sx={{
-              display: 'block',
-              px: 2.75,
-              py: 0.75,
-              minHeight: 26,
-              lineHeight: '18px',
-              fontWeight: error || hasLinkedItems ? 700 : 500,
-              color: statusColor,
-              bgcolor: error ? processingTokens.redSoft : hasLinkedItems ? processingTokens.amberSoft : headerSurface,
-              borderTop: 1,
-              borderColor: error ? '#f5b7b1' : hasLinkedItems ? `${processingTokens.accentAmber}33` : borderSubtle,
-            }}
-          >
-            {statusCaption}
-          </Typography>
-        )}
       </DialogTitle>
 
       <DialogContent
@@ -1000,6 +905,83 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
           },
         }}
       >
+        <Stack
+          direction="row"
+          spacing={0.75}
+          alignItems="center"
+          flexWrap="wrap"
+          useFlexGap
+          sx={{ mb: 1.25 }}
+        >
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<ContentCopyOutlinedIcon />}
+            onClick={handleCopy}
+            disabled={!state.title.trim() && !state.productId}
+            sx={{
+              borderColor: `${processingTokens.ecoBrown}88`,
+              color: processingTokens.ecoBrownDark,
+              bgcolor: '#fff',
+              flexShrink: 0,
+              '&:hover': { borderColor: processingTokens.ecoBrown, bgcolor: processingTokens.ecoBrownSoft },
+            }}
+          >
+            Duplicate
+          </Button>
+          <Box sx={{ flex: 1, minWidth: 8 }} />
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={loadingAi ? <CircularProgress size={14} /> : <AutoAwesome sx={{ fontSize: 16 }} />}
+            disabled={suggestDisabled}
+            onClick={() => void runSuggest()}
+            sx={{
+              minWidth: 108,
+              borderColor: `${processingTokens.primary}66`,
+              color: processingTokens.primaryDark,
+              bgcolor: processingTokens.primarySoft,
+              fontWeight: 700,
+              '&:hover': { borderColor: processingTokens.primary, bgcolor: processingTokens.primarySoftStrong },
+            }}
+          >
+            Suggest
+          </Button>
+          <Tooltip title="Show original values for all suggested fields">
+            <span>
+              <Button
+                size="small"
+                variant="outlined"
+                color="inherit"
+                disabled={!canFlipAiSuggestions}
+                onClick={() => dispatchAi({ type: 'viewAll', viewing: 'original' })}
+                sx={{ minWidth: 0, px: 1.1, borderColor: borderSubtle, bgcolor: '#fff', color: processingTokens.textSoft }}
+              >
+                Original
+              </Button>
+            </span>
+          </Tooltip>
+          <Tooltip title="Show AI values for all suggested fields">
+            <span>
+              <Button
+                size="small"
+                variant="outlined"
+                disabled={!canFlipAiSuggestions}
+                onClick={() => dispatchAi({ type: 'viewAll', viewing: 'suggestion' })}
+                sx={{
+                  minWidth: 0,
+                  px: 1.1,
+                  borderColor: `${processingTokens.primary}66`,
+                  color: processingTokens.primaryDark,
+                  bgcolor: '#fff',
+                  '&:hover': { borderColor: processingTokens.primary, bgcolor: processingTokens.primarySoftStrong },
+                }}
+              >
+                AI values
+              </Button>
+            </span>
+          </Tooltip>
+        </Stack>
         <Box
           sx={{
             p: 2,
@@ -1171,7 +1153,47 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
           </Button>
         </Stack>
       </DialogActions>
+    </>
+  );
+
+  const editorSurfaceNode = embedded ? (
+    <Box
+      sx={{
+        height: '100%',
+        minHeight: 0,
+        display: open && !checkInOpen ? 'flex' : 'none',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        bgcolor: editorSurface,
+      }}
+    >
+      {editorBody}
+    </Box>
+  ) : (
+    <Dialog
+      open={open && !checkInOpen}
+      onClose={requestClose}
+      fullWidth
+      maxWidth="lg"
+      PaperProps={{
+        sx: {
+          borderRadius: 3,
+          maxHeight: 'calc(100vh - 32px)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          bgcolor: editorSurface,
+          boxShadow: '0 18px 60px rgba(15, 23, 42, 0.22)',
+        },
+      }}
+    >
+      {editorBody}
     </Dialog>
+  );
+
+  return (
+    <>
+    {editorSurfaceNode}
 
     <ConfirmDialog
       open={confirmLeaveOpen}

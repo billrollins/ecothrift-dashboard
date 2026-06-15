@@ -35,6 +35,7 @@
 | [`09_ready_to_code_gate.md`](./09_ready_to_code_gate.md) | Final checklist that must be true before implementation starts. |
 | [`10_audit_followups.md`](./10_audit_followups.md) | Consolidated backend/frontend/migration audit follow-ups that must stay in implementation scope. |
 | [`11_category_unification_description_removal_plan.md`](./11_category_unification_description_removal_plan.md) | 2026-06-14 reset plan for one canonical category system and full Product description removal. |
+| [`12_check_in_normalization.md`](./12_check_in_normalization.md) | ItemCheckIn FK normalization (0063), dual-write soak, Phase 5 JSON removal gate. |
 
 ## Coding Readiness
 

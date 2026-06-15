@@ -5,7 +5,7 @@ import {
   distinctProductCount,
   disputedItemCount,
 } from './checkedInHistory';
-import type { ProcessingCheckInBatchDTO, ProcessingWorkspaceItemDTO } from '../../../types/inventory.types';
+import type { ItemCheckInDTO, ProcessingWorkspaceItemDTO } from '../../../types/inventory.types';
 
 function item(partial: Partial<ProcessingWorkspaceItemDTO> & Pick<ProcessingWorkspaceItemDTO, 'id' | 'sku'>): ProcessingWorkspaceItemDTO {
   return {
@@ -29,17 +29,16 @@ function item(partial: Partial<ProcessingWorkspaceItemDTO> & Pick<ProcessingWork
 }
 
 describe('checkedInHistory', () => {
-  it('builds rows with batch metadata sorted newest first', () => {
+  it('builds rows with check-in metadata sorted newest first', () => {
     const items = [
       item({ id: 1, sku: 'A', checked_in_at: '2026-06-01T10:00:00Z' }),
       item({ id: 2, sku: 'B', checked_in_at: '2026-06-02T10:00:00Z', status: 'intake' }),
       item({ id: 3, sku: 'C', checked_in_at: '2026-06-03T10:00:00Z' }),
     ];
-    const batches: ProcessingCheckInBatchDTO[] = [
+    const itemCheckIns: ItemCheckInDTO[] = [
       {
         id: 9,
         quantity: 1,
-        item_ids: [3],
         items: [items[2]],
         product: null,
         created_at: '2026-06-03T10:00:00Z',
@@ -48,13 +47,13 @@ describe('checkedInHistory', () => {
         dispute_count: 0,
       },
     ];
-    const rows = buildCheckedInHistoryRows(items, batches);
+    const rows = buildCheckedInHistoryRows(items, itemCheckIns);
     expect(rows).toHaveLength(2);
     expect(rows[0]?.item.sku).toBe('C');
-    expect(rows[0]?.batchId).toBe(9);
+    expect(rows[0]?.itemCheckInId).toBe(9);
     expect(rows[0]?.qty).toBe(1);
     expect(rows[1]?.item.sku).toBe('A');
-    expect(rows[1]?.batchId).toBeNull();
+    expect(rows[1]?.itemCheckInId).toBeNull();
   });
 
   it('counts distinct products and disputes', () => {
@@ -73,11 +72,10 @@ describe('checkedInHistory', () => {
       item({ id: 2, sku: 'B', product: 11, product_title: 'Beta', checked_in_at: '2026-06-02T10:00:00Z' }),
       item({ id: 3, sku: 'C', product: 11, product_title: 'Beta', checked_in_at: '2026-06-03T10:00:00Z' }),
     ];
-    const batches: ProcessingCheckInBatchDTO[] = [
+    const itemCheckIns: ItemCheckInDTO[] = [
       {
         id: 1,
         quantity: 2,
-        item_ids: [2, 3],
         items: [items[1], items[2]],
         product: { id: 11, title: 'Beta', brand: '', model: '', specs: {}, identifiers: {}, tags: [], taxonomy: '', category: '', upc: '', product_number: 'P-11' },
         created_at: '2026-06-03T10:00:00Z',
@@ -86,7 +84,7 @@ describe('checkedInHistory', () => {
         dispute_count: 0,
       },
     ];
-    const groups = buildProductGroupedHistory(items, batches);
+    const groups = buildProductGroupedHistory(items, itemCheckIns);
     expect(groups).toHaveLength(2);
     expect(groups[0]?.productLabel).toBe('Beta');
     expect(groups[0]?.totalQty).toBe(2);

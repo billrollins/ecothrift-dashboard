@@ -15,9 +15,9 @@ from django.utils import timezone
 
 from apps.inventory.models import (
     Item,
+    ItemCheckIn,
     ItemHistory,
     ManifestRow,
-    ProcessingCheckInBatch,
     ProcessingRow,
     Product,
     ProductMergeAudit,
@@ -77,6 +77,26 @@ def _bulk_create_checked_in_items(items: list[Item]) -> list[Item]:
         item.search_text = item.rebuild_search_text()
     Item.objects.bulk_create(items, batch_size=500)
     return items
+
+
+def _sync_item_check_in_quantity(check_in: ItemCheckIn) -> None:
+    """Keep denormalized quantity in sync with Item.check_in FK membership."""
+    qty = check_in.items.count()
+    if check_in.quantity != qty:
+        check_in.quantity = qty
+        check_in.save(update_fields=['quantity', 'updated_at'])
+
+
+def _items_for_item_check_in(
+    check_in: ItemCheckIn,
+    order: PurchaseOrder,
+    *,
+    for_update: bool = False,
+) -> list[Item]:
+    qs = check_in.items.filter(purchase_order=order).order_by('pk')
+    if for_update:
+        qs = qs.select_for_update()
+    return list(qs)
 
 
 class ProcessingDataRequired(ValueError):
@@ -236,7 +256,7 @@ def _latest_check_in_product_for_row(row: ProcessingRow) -> Product | None:
     """Most recent Product used when checking in this processing row."""
 
     batch = (
-        ProcessingCheckInBatch.objects.filter(processing_row=row)
+        ItemCheckIn.objects.filter(processing_row=row)
         .select_related('product')
         .order_by('-created_at', '-id')
         .first()
@@ -399,7 +419,7 @@ def _check_in_processing_row(
     *,
     enforce_mixed_guard: bool = True,
     allow_latest_batch_prefill: bool = True,
-) -> tuple[list[Item], ProcessingCheckInBatch]:
+) -> tuple[list[Item], ItemCheckIn]:
     """Check in units on a locked ProcessingRow. Caller must hold row lock inside transaction."""
 
     quantity = _parse_check_in_quantity(data.get('quantity'))
@@ -471,11 +491,30 @@ def _check_in_processing_row(
     item_retail = retail if retail is not None else row.unit_retail
     now = timezone.now()
     unit_cost = order.compute_item_cost(item_retail)
+    batch = ItemCheckIn.objects.create(
+        purchase_order=order,
+        processing_row=row,
+        manifest_row=row.manifest_row,
+        product=product,
+        origin=ItemCheckIn.ORIGIN_PROCESSING,
+        quantity=0,
+        defaults_snapshot={
+            'condition': cond_db,
+            'dispatch': dispatch,
+            'location': location,
+            'price': str(item_price) if item_price is not None else None,
+            'retail': str(item_retail) if item_retail is not None else None,
+            'notes': notes,
+            'specifications': specs or row.specifications or {},
+        },
+        created_by=user,
+    )
     items = _bulk_create_checked_in_items([
         Item(
             product=product,
             purchase_order=order,
             manifest_row=row.manifest_row,
+            check_in=batch,
             price=item_price,
             retail=item_retail,
             cost=unit_cost,
@@ -491,6 +530,7 @@ def _check_in_processing_row(
         )
         for _ in range(quantity)
     ])
+    _sync_item_check_in_quantity(batch)
     histories = [
         ItemHistory(
             item=item,
@@ -506,22 +546,6 @@ def _check_in_processing_row(
         ItemHistory.objects.bulk_create(histories)
     if item_price is not None:
         push_shelf_price_to_bookmark(order.id, row.manifest_row_id, item_price, processing_row_id=row.pk)
-    batch = ProcessingCheckInBatch.objects.create(
-        purchase_order=order,
-        processing_row=row,
-        product=product,
-        quantity=len(items),
-        item_ids=[item.id for item in items],
-        defaults_snapshot={
-            'condition': cond_db,
-            'dispatch': dispatch,
-            'location': location,
-            'price': str(item_price) if item_price is not None else None,
-            'retail': str(item_retail) if item_retail is not None else None,
-            'notes': notes,
-        },
-        created_by=user,
-    )
     return items, batch
 
 
@@ -534,7 +558,7 @@ def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, 
     """
 
     all_items: list[Item] = []
-    batches: list[ProcessingCheckInBatch] = []
+    batches: list[ItemCheckIn] = []
     touched_ids: list[int] = []
 
     with transaction.atomic():
@@ -609,8 +633,8 @@ def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, 
     return {
         'items': ItemSerializer(all_items, many=True).data,
         'created_count': len(all_items),
-        'check_in_batch_id': batches[0].id if batches else None,
-        'check_in_batch_ids': [b.id for b in batches],
+        'item_check_in_id': batches[0].id if batches else None,
+        'item_check_in_ids': [b.id for b in batches],
         'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched_ids or [processing_row_id]),
         'printed_items_preview': printed_items_preview([item.id for item in all_items]),
     }
@@ -662,7 +686,7 @@ def processing_check_in_together(user, order: PurchaseOrder, data: dict) -> dict
         'notes': data.get('notes') or '',
     }
 
-    batch_ids: list[int] = []
+    check_in_ids: list[int] = []
     all_items: list[Item] = []
     touched_ids: list[int] = []
 
@@ -710,14 +734,14 @@ def processing_check_in_together(user, order: PurchaseOrder, data: dict) -> dict
                 allow_latest_batch_prefill=False,
             )
             all_items.extend(items)
-            batch_ids.append(batch.id)
+            check_in_ids.append(batch.id)
             touched_ids.append(int(row.id))
 
     refresh_processing_rows_denorm(order, processing_row_ids=touched_ids)
     return {
         'items': ItemSerializer(all_items, many=True).data,
         'created_count': len(all_items),
-        'check_in_batch_ids': batch_ids,
+        'item_check_in_ids': check_in_ids,
         'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched_ids),
         'printed_items_preview': printed_items_preview([item.id for item in all_items]),
     }
@@ -908,57 +932,61 @@ def processing_uncollapse_rows(user, order: PurchaseOrder, data: dict) -> dict:
     }
 
 
-def remap_check_in_batch_product(
+def remap_item_check_in_product(
     user,
     order: PurchaseOrder,
-    batch_id: int,
+    item_check_in_id: int,
     data: dict,
 ) -> dict:
-    """Re-point all Items in a check-in batch to a different Product (atomic)."""
+    """Re-point all Items in an ItemCheckIn to a different Product (atomic)."""
 
     with transaction.atomic():
-        batch = (
-            ProcessingCheckInBatch.objects.select_for_update()
-            .filter(pk=batch_id, purchase_order=order)
+        check_in = (
+            ItemCheckIn.objects.select_for_update()
+            .filter(pk=item_check_in_id, purchase_order=order)
             .first()
         )
-        if batch is None:
-            raise ValueError('Check-in batch not found for this order.')
-        row = (
-            ProcessingRow.objects.select_for_update()
-            .get(pk=batch.processing_row_id, purchase_order=order)
-        )
-        matched = Product.objects.filter(pk=batch.product_id).first() if batch.product_id else None
+        if check_in is None:
+            raise ValueError('Item check-in not found for this order.')
+        row = None
+        if check_in.processing_row_id:
+            row = (
+                ProcessingRow.objects.select_for_update()
+                .get(pk=check_in.processing_row_id, purchase_order=order)
+            )
+        matched = Product.objects.filter(pk=check_in.product_id).first() if check_in.product_id else None
 
-        item_ids = [int(x) for x in (batch.item_ids or []) if str(x).strip().isdigit()]
-        if not item_ids:
-            raise ValueError('Batch has no items to remap.')
+        items = _items_for_item_check_in(check_in, order, for_update=True)
+        if not items:
+            raise ValueError('Check-in has no items to remap.')
 
-        items = list(
-            Item.objects.select_for_update()
-            .filter(pk__in=item_ids, purchase_order=order),
-        )
-        if len(items) != len(item_ids):
-            raise ValueError('Batch items must belong to this order.')
-
-        expected_mr = row.manifest_row_id
+        expected_mr = check_in.manifest_row_id or (row.manifest_row_id if row else None)
         for item in items:
             if expected_mr is not None and item.manifest_row_id != expected_mr:
-                raise ValueError('Batch items must belong to the same manifest row.')
-            if expected_mr is None and item.pk not in set(_processing_row_item_ids(row)):
-                raise ValueError('Batch items must belong to this processing row.')
+                raise ValueError('Check-in items must belong to the same manifest row.')
+            if row is not None and expected_mr is None and item.pk not in set(_processing_row_item_ids(row)):
+                raise ValueError('Check-in items must belong to this processing row.')
+
+        fallback_title = (row.title if row else None) or (items[0].product.title if items and items[0].product_id else f'Check-in {check_in.pk}')
+        fallback_brand = (row.brand if row else '') or (items[0].product.brand if items and items[0].product_id else '')
+        fallback_category = (row.category if row else '') or ''
+        fallback_model = (row.model if row else '') or (items[0].product.model if items and items[0].product_id else '')
+        fallback_upc = _processing_row_upc(row) if row else ''
+        fallback_identifiers = (row.identifiers if row else {}) or {}
+        fallback_specs = (row.specifications if row else {}) or (items[0].specifications if items else {})
+        fallback_search_tags = normalize_search_tags(getattr(row, 'search_tags', None) if row else None)
 
         product = _resolve_product_for_processing(
             data,
             matched_product=matched,
-            fallback_title=row.title or f'Row {row.row_number}',
-            fallback_brand=row.brand or '',
-            fallback_category=row.category or '',
-            fallback_model=row.model or '',
-            fallback_upc=_processing_row_upc(row),
-            fallback_identifiers=row.identifiers or {},
-            fallback_specs=row.specifications or {},
-            fallback_search_tags=normalize_search_tags(getattr(row, 'search_tags', None)),
+            fallback_title=fallback_title,
+            fallback_brand=fallback_brand,
+            fallback_category=fallback_category,
+            fallback_model=fallback_model,
+            fallback_upc=fallback_upc,
+            fallback_identifiers=fallback_identifiers,
+            fallback_specs=fallback_specs,
+            fallback_search_tags=fallback_search_tags,
         )
 
         histories: list[ItemHistory] = []
@@ -974,27 +1002,141 @@ def remap_check_in_batch_product(
                     event_type='note',
                     old_value=str(old_pid or ''),
                     new_value=str(product.id),
-                    note='Product remapped via Item Processor batch remap',
+                    note='Product remapped via Item Processor check-in remap',
                     created_by=user,
                 ),
             )
 
-        batch.product = product
-        batch.save(update_fields=['product'])
+        check_in.product = product
+        check_in.save(update_fields=['product'])
 
         if histories:
             ItemHistory.objects.bulk_create(histories)
 
-    refresh_processing_rows_denorm(order, processing_row_ids=[row.pk])
+    touched_row_ids = [row.pk] if row is not None else []
+    if touched_row_ids:
+        refresh_processing_rows_denorm(order, processing_row_ids=touched_row_ids)
     from apps.inventory.services.processing_workspace import build_processing_row_detail
 
-    detail = build_processing_row_detail(order, processing_row_id=row.pk)
+    detail = build_processing_row_detail(order, processing_row_id=row.pk) if row is not None else {'row': None}
     return {
-        'batch_id': batch.id,
+        'item_check_in_id': check_in.id,
         'product_id': product.id,
         'items_updated': len(items),
         'row': detail['row'],
-        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[row.pk]),
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched_row_ids),
+    }
+
+
+def remap_single_item_product(user, item: Item, data: dict) -> dict:
+    """Re-point one Item to a different Product (check-in correction for a single unit)."""
+
+    if item.status == 'sold' or item.sold_at:
+        raise ValueError('Sold items cannot be remapped.')
+    if item.status in ('scrapped', 'lost'):
+        raise ValueError('Terminal items cannot be remapped.')
+
+    with transaction.atomic():
+        Item.objects.select_for_update().filter(pk=item.pk).first()
+        item = Item.objects.select_related(
+            'product', 'product__category', 'purchase_order', 'manifest_row',
+        ).get(pk=item.pk)
+        check_in = None
+        row = None
+        if item.check_in_id:
+            ItemCheckIn.objects.select_for_update().filter(pk=item.check_in_id).first()
+            check_in = ItemCheckIn.objects.select_related('processing_row').get(
+                pk=item.check_in_id,
+                purchase_order_id=item.purchase_order_id,
+            )
+            row = check_in.processing_row
+        matched = item.product
+
+        fallback_title = (
+            (item.product.title if item.product_id else '')
+            or (row.title if row else '')
+            or (item.manifest_row.title if item.manifest_row_id else '')
+            or f'Item {item.sku}'
+        )
+        fallback_brand = (
+            (item.product.brand if item.product_id else '')
+            or (row.brand if row else '')
+            or ''
+        )
+        fallback_category = (
+            (item.product.category.name if item.product_id and item.product.category_id else '')
+            or (row.category if row else '')
+            or ''
+        )
+        fallback_model = (
+            (item.product.model if item.product_id else '')
+            or (row.model if row else '')
+            or ''
+        )
+        fallback_upc = _processing_row_upc(row) if row else ''
+        fallback_identifiers = (row.identifiers if row else {}) or {}
+        fallback_specs = item.specifications or (row.specifications if row else {}) or {}
+        fallback_search_tags = normalize_search_tags(getattr(row, 'search_tags', None) if row else None)
+
+        product = _resolve_product_for_processing(
+            data,
+            matched_product=matched,
+            fallback_title=fallback_title,
+            fallback_brand=fallback_brand,
+            fallback_category=fallback_category,
+            fallback_model=fallback_model,
+            fallback_upc=fallback_upc,
+            fallback_identifiers=fallback_identifiers,
+            fallback_specs=fallback_specs,
+            fallback_search_tags=fallback_search_tags,
+        )
+
+        old_pid = item.product_id
+        changed = old_pid != product.id
+        if changed:
+            item.product = product
+            item.save(update_fields=['product', 'search_text', 'updated_at'])
+            ItemHistory.objects.create(
+                item=item,
+                event_type='note',
+                old_value=str(old_pid or ''),
+                new_value=str(product.id),
+                note='Product corrected via item edit (check-in correction)',
+                created_by=user,
+            )
+
+        if check_in is not None:
+            siblings = _items_for_item_check_in(check_in, item.purchase_order, for_update=True)
+            product_ids = {s.product_id for s in siblings if s.product_id}
+            if len(product_ids) == 1:
+                shared_pid = next(iter(product_ids))
+                if check_in.product_id != shared_pid:
+                    check_in.product_id = shared_pid
+                    check_in.save(update_fields=['product', 'updated_at'])
+
+    touched_row_ids: list[int] = []
+    po = item.purchase_order
+    if check_in is not None and check_in.processing_row_id:
+        touched_row_ids = [int(check_in.processing_row_id)]
+    elif item.manifest_row_id and po is not None:
+        touched_row_ids = processing_row_ids_for_manifest_rows(po, {item.manifest_row_id})
+
+    if po is not None and touched_row_ids:
+        refresh_processing_rows_denorm(po, processing_row_ids=touched_row_ids)
+
+    item.refresh_from_db()
+    workspace_patch = (
+        build_workspace_patch(po, touched_processing_row_ids=touched_row_ids)
+        if po is not None and touched_row_ids
+        else None
+    )
+    return {
+        'item_id': item.id,
+        'product_id': product.id,
+        'changed': changed,
+        'item_check_in_id': check_in.id if check_in else None,
+        'item': ItemSerializer(item).data,
+        'workspace_patch': workspace_patch,
     }
 
 
@@ -1070,127 +1212,156 @@ def processing_row_set_product_decision(
     }
 
 
-def delete_check_in_batch(user, order: PurchaseOrder, batch_id: int) -> dict:
-    """Delete one check-in batch and its Items (undo a mistaken batch).
+def delete_item_check_in(user, order: PurchaseOrder, item_check_in_id: int) -> dict:
+    """Delete one ItemCheckIn and its Items (undo a mistaken check-in).
 
-    The batch's Product is also deleted when the item deletion leaves it fully
-    orphaned (no items, rows, manifest lines, vendor refs, or other batches).
+    The check-in's Product is also deleted when the item deletion leaves it fully
+    orphaned (no items, rows, manifest lines, vendor refs, or other check-ins).
     """
 
     with transaction.atomic():
-        batch = (
-            ProcessingCheckInBatch.objects.select_for_update()
-            .filter(pk=batch_id, purchase_order=order)
+        check_in = (
+            ItemCheckIn.objects.select_for_update()
+            .filter(pk=item_check_in_id, purchase_order=order)
             .first()
         )
-        if batch is None:
-            raise ValueError('Check-in batch not found for this order.')
-        row = (
-            ProcessingRow.objects.select_for_update()
-            .get(pk=batch.processing_row_id, purchase_order=order)
-        )
-        batch_product_id = batch.product_id
+        if check_in is None:
+            raise ValueError('Item check-in not found for this order.')
+        row = None
+        if check_in.processing_row_id:
+            row = (
+                ProcessingRow.objects.select_for_update()
+                .get(pk=check_in.processing_row_id, purchase_order=order)
+            )
+        check_in_product_id = check_in.product_id
 
-        item_ids = [int(x) for x in (batch.item_ids or []) if str(x).strip().isdigit()]
-        if not item_ids:
-            batch.delete()
+        items = _items_for_item_check_in(check_in, order, for_update=True)
+        item_pks = [i.pk for i in items]
+        if not item_pks:
+            check_in.delete()
         else:
-            items = list(Item.objects.select_for_update().filter(pk__in=item_ids, purchase_order=order))
-            if len(items) != len(item_ids):
-                raise ValueError('Batch items must belong to this order.')
             sold = [i for i in items if i.status == 'sold' or i.sold_at]
             if sold:
                 raise ValueError(
-                    f'{len(sold)} item(s) in this batch are sold — delete is blocked.',
+                    f'{len(sold)} item(s) in this check-in are sold — delete is blocked.',
                 )
             from apps.pos.models import CartLine
 
-            if CartLine.objects.filter(item_id__in=item_ids).exists():
-                raise ValueError('Items in this batch are referenced by POS carts — delete is blocked.')
+            if CartLine.objects.filter(item_id__in=item_pks).exists():
+                raise ValueError('Items in this check-in are referenced by POS carts — delete is blocked.')
 
-            Item.objects.filter(pk__in=item_ids).delete()
-            batch.delete()
+            Item.objects.filter(pk__in=item_pks).delete()
+            check_in.delete()
 
         product_deleted = None
-        if batch_product_id:
+        if check_in_product_id:
             from apps.inventory.services.processing_transforms import _product_safe_to_delete
 
-            # The row's own denorm hint (recomputed from this batch) doesn't count as a
-            # reference — same precedent as restart_row. PreprocessingRow decisions,
-            # other rows/batches/items/manifest lines/vendor refs all keep the product.
-            product = Product.objects.filter(pk=batch_product_id).first()
-            if product is not None and _product_safe_to_delete(product, exclude_row_ids=[row.pk]):
+            product = Product.objects.filter(pk=check_in_product_id).first()
+            exclude_row_ids = [row.pk] if row is not None else []
+            if product is not None and _product_safe_to_delete(product, exclude_row_ids=exclude_row_ids):
                 product.delete()
-                product_deleted = batch_product_id
+                product_deleted = check_in_product_id
 
-    refresh_processing_rows_denorm(order, processing_row_ids=[row.pk])
+    touched_row_ids = [row.pk] if row is not None else []
+    if touched_row_ids:
+        refresh_processing_rows_denorm(order, processing_row_ids=touched_row_ids)
     from apps.inventory.services.processing_workspace import build_processing_row_detail
 
-    detail = build_processing_row_detail(order, processing_row_id=row.pk)
+    detail = build_processing_row_detail(order, processing_row_id=row.pk) if row is not None else {'row': None}
     return {
-        'batch_id': batch_id,
-        'items_deleted': len(item_ids),
+        'item_check_in_id': item_check_in_id,
+        'items_deleted': len(item_pks),
         'product_deleted': product_deleted,
         'row': detail['row'],
-        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[row.pk]),
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched_row_ids),
     }
 
 
-def update_check_in_batch(user, order: PurchaseOrder, batch_id: int, data: dict) -> dict:
-    """Edit one prior check-in batch in place (owner spec 2026-06-12).
+def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data: dict) -> dict:
+    """Edit one prior ItemCheckIn in place (owner spec 2026-06-12).
 
-    Clicking a prior check-in EDITS that batch — it never creates a new one:
+    Clicking a prior check-in EDITS that event — it never creates a new one:
     - ``quantity`` greater than current ADDS items (bulk, same product/defaults);
       smaller DELETES the newest items (sold / POS-cart items block the shrink).
     - ``condition`` / ``dispatch`` / ``price`` / ``retail`` / ``notes`` apply to
-      every remaining item in the batch.
-    - ``product_mode`` existing/new re-points the batch (remap); ``edit`` updates
-      the batch product's catalog fields in place.
+      every remaining item in the check-in.
+    - ``product_mode`` existing/new re-points the check-in (remap); ``edit`` updates
+      the check-in product's catalog fields in place.
     """
 
     with transaction.atomic():
-        batch = (
-            ProcessingCheckInBatch.objects.select_for_update()
-            .filter(pk=batch_id, purchase_order=order)
+        check_in = (
+            ItemCheckIn.objects.select_for_update()
+            .filter(pk=item_check_in_id, purchase_order=order)
             .first()
         )
-        if batch is None:
-            raise ValueError('Check-in batch not found for this order.')
-        row = (
-            ProcessingRow.objects.select_for_update()
-            .get(pk=batch.processing_row_id, purchase_order=order)
-        )
-        row = (
-            ProcessingRow.objects.select_related('manifest_row', 'matched_product')
-            .get(pk=row.pk)
-        )
+        if check_in is None:
+            raise ValueError('Item check-in not found for this order.')
+        row = None
+        if check_in.processing_row_id:
+            row = (
+                ProcessingRow.objects.select_for_update()
+                .get(pk=check_in.processing_row_id, purchase_order=order)
+            )
+            row = (
+                ProcessingRow.objects.select_related('manifest_row', 'matched_product')
+                .get(pk=row.pk)
+            )
 
-        item_ids = [int(x) for x in (batch.item_ids or []) if str(x).strip().isdigit()]
-        items = list(
-            Item.objects.select_for_update()
-            .filter(pk__in=item_ids, purchase_order=order)
-            .order_by('pk'),
-        )
-        if len(items) != len(item_ids):
-            raise ValueError('Batch items must belong to this order.')
+        items = _items_for_item_check_in(check_in, order, for_update=True)
 
         histories: list[ItemHistory] = []
+        original_order_id = order.pk
+
+        # --- Purchase order reassignment -------------------------------------------
+        new_po_raw = data.get('purchase_order') if 'purchase_order' in data else data.get('purchase_order_id')
+        if new_po_raw not in (None, ''):
+            try:
+                new_po_id = int(new_po_raw)
+            except (TypeError, ValueError) as e:
+                raise ValueError('purchase_order must be an integer') from e
+            if new_po_id != check_in.purchase_order_id:
+                new_order = PurchaseOrder.objects.filter(pk=new_po_id).first()
+                if new_order is None:
+                    raise ValueError('Purchase order not found.')
+                if check_in.processing_row_id:
+                    pr_po_id = (
+                        ProcessingRow.objects.filter(pk=check_in.processing_row_id)
+                        .values_list('purchase_order_id', flat=True)
+                        .first()
+                    )
+                    if pr_po_id != new_po_id:
+                        check_in.processing_row = None
+                check_in.purchase_order = new_order
+                order = new_order
+                for item in items:
+                    item.purchase_order = new_order
+                    item.save(update_fields=['purchase_order', 'updated_at'], defer_po_cost_recompute=True)
 
         # --- Product: keep / existing / new / edit ---------------------------------
-        product = Product.objects.filter(pk=batch.product_id).first() if batch.product_id else None
+        product = Product.objects.filter(pk=check_in.product_id).first() if check_in.product_id else None
         product_mode = str(data.get('product_mode') or '').strip().lower()
         if product_mode in ('existing', 'new', 'edit'):
+            fallback_title = (row.title if row else None) or (product.title if product else f'Check-in {check_in.pk}')
+            fallback_brand = (row.brand if row else '') or (product.brand if product else '')
+            fallback_category = (row.category if row else '') or (product.category.name if product and product.category_id else '')
+            fallback_model = (row.model if row else '') or (product.model if product else '')
+            fallback_upc = _processing_row_upc(row) if row else ''
+            fallback_identifiers = (row.identifiers if row else {}) or (product.identifiers if product else {})
+            fallback_specs = (row.specifications if row else {}) or {}
+            fallback_search_tags = normalize_search_tags(getattr(row, 'search_tags', None) if row else None)
             product = _resolve_product_for_processing(
                 data,
                 matched_product=product,
-                fallback_title=row.title or f'Row {row.row_number}',
-                fallback_brand=row.brand or '',
-                fallback_category=row.category or '',
-                fallback_model=row.model or '',
-                fallback_upc=_processing_row_upc(row),
-                fallback_identifiers=row.identifiers or {},
-                fallback_specs=row.specifications or {},
-                fallback_search_tags=normalize_search_tags(getattr(row, 'search_tags', None)),
+                fallback_title=fallback_title,
+                fallback_brand=fallback_brand,
+                fallback_category=fallback_category,
+                fallback_model=fallback_model,
+                fallback_upc=fallback_upc,
+                fallback_identifiers=fallback_identifiers,
+                fallback_specs=fallback_specs,
+                fallback_search_tags=fallback_search_tags,
             )
             for item in items:
                 if item.product_id == product.id:
@@ -1201,13 +1372,13 @@ def update_check_in_batch(user, order: PurchaseOrder, batch_id: int, data: dict)
                         event_type='note',
                         old_value=str(item.product_id or ''),
                         new_value=str(product.id),
-                        note='Product changed via check-in batch edit',
+                        note='Product changed via check-in edit',
                         created_by=user,
                     ),
                 )
                 item.product = product
-            if batch.product_id != (product.id if product else None):
-                batch.product = product
+            if check_in.product_id != (product.id if product else None):
+                check_in.product = product
 
         # --- Item field updates (only keys present in the payload) -----------------
         updates: dict[str, Any] = {}
@@ -1221,8 +1392,16 @@ def update_check_in_batch(user, order: PurchaseOrder, batch_id: int, data: dict)
                 updates['retail'] = r
         if 'condition' in data:
             updates['condition'] = _resolve_condition_db(data.get('condition'))
+        if 'status' in data:
+            st = str(data.get('status') or '').strip()
+            allowed_status = {c[0] for c in Item.STATUS_CHOICES}
+            if st in allowed_status:
+                updates['status'] = st
         if 'notes' in data:
             updates['notes'] = str(data.get('notes') or '')
+        if 'specifications' in data:
+            specs = data.get('specifications')
+            updates['specifications'] = specs if isinstance(specs, dict) else {}
         eff_condition = updates.get('condition', items[0].condition if items else 'good')
         dispatch = str(data.get('dispatch') or '') if 'dispatch' in data else None
         if dispatch is not None or updates.get('condition') == 'salvage':
@@ -1247,7 +1426,7 @@ def update_check_in_batch(user, order: PurchaseOrder, batch_id: int, data: dict)
                             event_type=history_event_type_for_field(field),
                             old_value='' if old_value is None else str(old_value),
                             new_value='' if new_value is None else str(new_value),
-                            note='Edited via check-in batch edit',
+                            note='Edited via check-in edit',
                             created_by=user,
                         ),
                     )
@@ -1265,9 +1444,18 @@ def update_check_in_batch(user, order: PurchaseOrder, batch_id: int, data: dict)
             if new_qty > current:
                 template = items[-1] if items else None
                 now = timezone.now()
-                price_val = updates.get('price', template.price if template else (row.shelf_price or Decimal('0.00')))
-                retail_val = updates.get('retail', template.retail if template else row.unit_retail)
+                row_retail = row.unit_retail if row else None
+                row_shelf = row.shelf_price if row else None
+                row_specs = (
+                    updates.get('specifications')
+                    or (template.specifications if template and isinstance(template.specifications, dict) else {})
+                    or (row.specifications if row else {})
+                )
+                row_manifest = row.manifest_row if row else check_in.manifest_row
+                price_val = updates.get('price', template.price if template else (row_shelf or Decimal('0.00')))
+                retail_val = updates.get('retail', template.retail if template else row_retail)
                 cond_val = updates.get('condition', template.condition if template else 'good')
+                status_val = updates.get('status', template.status if template else 'on_shelf')
                 loc_val = updates.get('location', template.location if template else 'on_shelf')
                 notes_val = updates.get('notes', template.notes if template else '')
                 unit_cost = order.compute_item_cost(retail_val)
@@ -1275,18 +1463,19 @@ def update_check_in_batch(user, order: PurchaseOrder, batch_id: int, data: dict)
                     Item(
                         product=product,
                         purchase_order=order,
-                        manifest_row=row.manifest_row,
+                        manifest_row=row_manifest,
+                        check_in=check_in,
                         price=price_val,
                         retail=retail_val,
                         cost=unit_cost,
                         source='purchased',
-                        status='on_shelf',
+                        status=status_val,
                         condition=cond_val,
                         location=loc_val,
                         listed_at=now,
                         checked_in_at=now,
                         checked_in_by=user,
-                        specifications=row.specifications or {},
+                        specifications=row_specs or {},
                         notes=notes_val,
                     )
                     for _ in range(new_qty - current)
@@ -1297,12 +1486,11 @@ def update_check_in_batch(user, order: PurchaseOrder, batch_id: int, data: dict)
                         event_type='status_change',
                         old_value='',
                         new_value='on_shelf',
-                        note='Added via check-in batch edit',
+                        note='Added via check-in edit',
                         created_by=user,
                     )
                     for item in added_items
                 )
-                item_ids = item_ids + [i.pk for i in added_items]
             elif new_qty < current:
                 to_remove = items[new_qty:]
                 blocked = [i for i in to_remove if i.status == 'sold' or i.sold_at]
@@ -1317,43 +1505,55 @@ def update_check_in_batch(user, order: PurchaseOrder, batch_id: int, data: dict)
                     raise ValueError('Items that would be removed are referenced by POS carts.')
                 Item.objects.filter(pk__in=remove_ids).delete()
                 removed_ids = remove_ids
-                item_ids = [pk for pk in item_ids if pk not in set(remove_ids)]
+                items = items[:new_qty]
 
-        batch.item_ids = item_ids
-        batch.quantity = len(item_ids)
-        snapshot = dict(batch.defaults_snapshot or {})
+        _sync_item_check_in_quantity(check_in)
+        snapshot = dict(check_in.defaults_snapshot or {})
         for key, src in (
             ('condition', updates.get('condition')),
+            ('status', updates.get('status')),
             ('location', updates.get('location')),
             ('price', str(updates['price']) if updates.get('price') is not None else None),
             ('retail', str(updates['retail']) if updates.get('retail') is not None else None),
             ('notes', updates.get('notes')),
+            ('specifications', updates.get('specifications')),
         ):
             if src is not None:
                 snapshot[key] = src
         if dispatch:
             snapshot['dispatch'] = dispatch
-        batch.defaults_snapshot = snapshot
-        batch.save()
+        check_in.defaults_snapshot = snapshot
+        check_in.save()
 
         if histories:
             ItemHistory.objects.bulk_create(histories)
-        if updates.get('price') is not None and row.manifest_row_id:
-            push_shelf_price_to_bookmark(order.id, row.manifest_row_id, updates['price'], processing_row_id=row.pk)
+        manifest_row_id = row.manifest_row_id if row else check_in.manifest_row_id
+        if updates.get('price') is not None and manifest_row_id:
+            push_shelf_price_to_bookmark(
+                order.id,
+                manifest_row_id,
+                updates['price'],
+                processing_row_id=row.pk if row else None,
+            )
 
-    refresh_processing_rows_denorm(order, processing_row_ids=[row.pk])
+    touched_row_ids = [row.pk] if row is not None else []
+    if touched_row_ids:
+        refresh_processing_rows_denorm(order, processing_row_ids=touched_row_ids)
+    if original_order_id != order.pk:
+        refresh_processing_rows_denorm(PurchaseOrder.objects.get(pk=original_order_id), processing_row_ids=[])
     from apps.inventory.services.processing_workspace import build_processing_row_detail
 
-    detail = build_processing_row_detail(order, processing_row_id=row.pk)
+    detail = build_processing_row_detail(order, processing_row_id=row.pk) if row is not None else {'row': None}
     return {
-        'batch_id': batch.id,
+        'item_check_in_id': check_in.id,
+        'purchase_order_id': check_in.purchase_order_id,
         'items_added': len(added_items),
         'items_removed': len(removed_ids),
         'items_updated': items_updated,
-        'quantity': batch.quantity,
-        'product_id': batch.product_id,
+        'quantity': check_in.quantity,
+        'product_id': check_in.product_id,
         'row': detail['row'],
-        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[row.pk]),
+        'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched_row_ids),
         'printed_items_preview': printed_items_preview([i.pk for i in added_items]),
     }
 
@@ -1796,6 +1996,10 @@ def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
     else:
         location = dispatch_to_location(str(dispatch))
 
+    status_raw = str(data.get('status') or 'on_shelf').strip()
+    allowed_status = {c[0] for c in Item.STATUS_CHOICES}
+    item_status = status_raw if status_raw in allowed_status else 'on_shelf'
+
     if not title:
         raise ValueError('title is required')
 
@@ -1819,16 +2023,64 @@ def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
         item_price = price or Decimal('0.00')
         item_retail = retail
         unit_cost = order.compute_item_cost(item_retail)
+
+        identifiers = merge_identifiers(product.identifiers, identifiers)
+
+        pr = ProcessingRow.objects.create(
+            purchase_order=order,
+            row_number=_next_processing_row_number(order),
+            row_kind=ProcessingRow.ROW_KIND_ADDED,
+            manifest_row=None,
+            matched_product=product,
+            quantity=quantity,
+            item_ids=[],
+            title=product.title or title,
+            brand=product.brand or brand,
+            model=product.model or model,
+            category=product.category.name if product.category_id else category,
+            unit_retail=item_retail,
+            shelf_price=item_price,
+            final_price=item_price,
+            identifiers=identifiers,
+            search_tags=search_tags,
+            notes=notes,
+            condition=cond_db,
+            queue_status='checked_in',
+            qty_dispositioned=0,
+            pending_item_count=0,
+            has_on_shelf_unit=True,
+            list_dispatch=location_to_dispatch(location),
+            list_sku='',
+        )
+        batch = ItemCheckIn.objects.create(
+            purchase_order=order,
+            processing_row=pr,
+            product=product,
+            origin=ItemCheckIn.ORIGIN_PRODUCT_AD_HOC,
+            quantity=0,
+            defaults_snapshot={
+                'condition': cond_db,
+                'dispatch': location_to_dispatch(location),
+                'location': location,
+                'price': str(item_price) if item_price is not None else None,
+                'retail': str(item_retail) if item_retail is not None else None,
+                'notes': notes,
+                'specifications': specs,
+                'status': item_status,
+            },
+            created_by=user,
+        )
         items = _bulk_create_checked_in_items([
             Item(
                 product=product,
                 purchase_order=order,
                 manifest_row=None,
+                check_in=batch,
                 price=item_price,
                 retail=item_retail,
                 cost=unit_cost,
                 source='purchased',
-                status='on_shelf',
+                status=item_status,
                 condition=cond_db,
                 location=location,
                 listed_at=now,
@@ -1839,6 +2091,11 @@ def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
             )
             for _ in range(quantity)
         ])
+        _sync_item_check_in_quantity(batch)
+        pr.item_ids = [i.id for i in items]
+        pr.qty_dispositioned = len(items)
+        pr.list_sku = items[0].sku if items else ''
+        pr.save(update_fields=['item_ids', 'qty_dispositioned', 'list_sku', 'updated_at'])
         histories.extend(
             ItemHistory(
                 item=item,
@@ -1854,51 +2111,6 @@ def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
         if histories:
             ItemHistory.objects.bulk_create(histories)
 
-        identifiers = merge_identifiers(product.identifiers, identifiers)
-
-        pr = ProcessingRow.objects.create(
-            purchase_order=order,
-            row_number=_next_processing_row_number(order),
-            row_kind=ProcessingRow.ROW_KIND_ADDED,
-            manifest_row=None,
-            matched_product=product,
-            quantity=quantity,
-            item_ids=[i.id for i in items],
-            title=product.title or title,
-            brand=product.brand or brand,
-            model=product.model or model,
-            category=product.category.name if product.category_id else category,
-            unit_retail=item_retail,
-            shelf_price=item_price,
-            final_price=item_price,
-            identifiers=identifiers,
-            search_tags=search_tags,
-            notes=notes,
-            condition=cond_db,
-            queue_status='checked_in',
-            qty_dispositioned=len(items),
-            pending_item_count=0,
-            has_on_shelf_unit=True,
-            list_dispatch=location_to_dispatch(location),
-            list_sku=items[0].sku if items else '',
-        )
-        batch = ProcessingCheckInBatch.objects.create(
-            purchase_order=order,
-            processing_row=pr,
-            product=product,
-            quantity=len(items),
-            item_ids=[item.id for item in items],
-            defaults_snapshot={
-                'condition': cond_db,
-                'dispatch': location_to_dispatch(location),
-                'location': location,
-                'price': str(item_price) if item_price is not None else None,
-                'retail': str(item_retail) if item_retail is not None else None,
-                'notes': notes,
-            },
-            created_by=user,
-        )
-
     refresh_processing_rows_denorm(order, processing_row_ids=[pr.pk])
     from apps.inventory.services.processing_workspace import build_processing_row_detail
 
@@ -1912,7 +2124,7 @@ def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
         'created_items': item_payload,
         'created_item_ids': created_item_ids,
         'processing_row_id': pr.pk,
-        'check_in_batch_id': batch.pk,
+        'item_check_in_id': batch.pk,
         'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[pr.pk]),
         'printed_items_preview': printed_items_preview(created_item_ids),
     }
@@ -1933,6 +2145,7 @@ def product_check_in_order_options(*, search: str = '', limit: int = 25) -> list
             'order_number': po.order_number or f'PO #{po.pk}',
             'vendor_name': po.vendor.name if po.vendor_id else '',
             'ordered_date': po.ordered_date.isoformat() if po.ordered_date else None,
+            'description': (po.description or '').strip(),
             'is_default': is_default,
             'hint': hint,
         })
@@ -2010,7 +2223,7 @@ def product_check_in(user, product: Product, data: dict) -> dict:
         'created_count': result['created_count'],
         'created_item_ids': result['created_item_ids'],
         'processing_row_id': result['processing_row_id'],
-        'check_in_batch_id': result.get('check_in_batch_id'),
+        'item_check_in_id': result.get('item_check_in_id'),
         'printed_items_preview': result.get('printed_items_preview') or [],
     }
 

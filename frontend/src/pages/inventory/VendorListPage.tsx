@@ -20,6 +20,8 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { useVendors, useCreateVendor } from '../../hooks/useInventory';
+import { parseRichSearch, vendorFiltersToApiParams } from '../../utils/richInventorySearch';
+
 import type { Vendor, VendorType } from '../../types/inventory.types';
 
 const VENDOR_TYPES: VendorType[] = ['liquidation', 'retail', 'direct', 'other'];
@@ -40,9 +42,14 @@ export default function VendorListPage() {
   });
 
   const params = useMemo(() => {
+    const parsed = parseRichSearch(search, 'vendors');
     const p: Record<string, string> = {};
-    if (search) p.search = search;
-    if (typeFilter) p.vendor_type = typeFilter;
+    const rich = vendorFiltersToApiParams(parsed);
+    if (rich.search) p.search = rich.search;
+    if (rich.vendor) p.vendor = rich.vendor;
+    if (rich.vendor_type) p.vendor_type = rich.vendor_type;
+    else if (typeFilter) p.vendor_type = typeFilter;
+    if (rich.is_active) p.is_active = rich.is_active;
     return p;
   }, [search, typeFilter]);
 
@@ -107,7 +114,7 @@ export default function VendorListPage() {
           <TextField
             fullWidth
             size="small"
-            placeholder="Search vendors..."
+            placeholder="Search vendors… or filters like {vendor=123; type=liquidation; active=true}"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             slotProps={{

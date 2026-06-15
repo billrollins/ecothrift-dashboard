@@ -1,5 +1,16 @@
 import { formatConditionLabel, ITEM_CONDITIONS } from '../../../constants/inventory.constants';
-import type { ItemCondition } from '../../../types/inventory.types';
+import type { ItemCondition, ItemStatus } from '../../../types/inventory.types';
+
+export function formatItemStatusLabel(status: string): string {
+  return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export const PROCESSING_ITEM_STATUS_OPTIONS: Array<{ value: ItemStatus; label: string }> = (
+  ['intake', 'processing', 'on_shelf', 'sold', 'returned', 'scrapped', 'lost'] as ItemStatus[]
+).map((value) => ({
+  value,
+  label: formatItemStatusLabel(value),
+}));
 
 export const PROCESSING_ITEM_CONDITION_OPTIONS = ITEM_CONDITIONS.filter((condition) => condition !== 'unknown').map(
   (value) => ({
@@ -17,6 +28,18 @@ export const PROCESSING_ITEM_DISPATCH_OPTIONS: Array<{ value: string; label: str
   { value: 'online_sales', label: 'Online sales' },
   { value: 'salvage', label: 'Salvage' },
 ];
+
+export function normalizeProcessingDispatch(raw: string | null | undefined): string {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return 'on_shelf';
+  const key = trimmed.toLowerCase().replace(/\s+/g, '_');
+  const byValue = PROCESSING_ITEM_DISPATCH_OPTIONS.find((option) => option.value === key);
+  if (byValue) return byValue.value;
+  const byLabel = PROCESSING_ITEM_DISPATCH_OPTIONS.find(
+    (option) => option.label.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return byLabel?.value ?? 'on_shelf';
+}
 
 export function normalizeProcessingCondition(raw: string | null | undefined): ItemCondition {
   const value = String(raw || '').trim();

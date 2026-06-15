@@ -11,7 +11,7 @@ from rest_framework.test import APIClient
 from apps.inventory.models import (
     Item,
     ManifestRow,
-    ProcessingCheckInBatch,
+    ItemCheckIn,
     ProcessingRow,
     Product,
     PurchaseOrder,
@@ -320,7 +320,7 @@ class RestartRowTests(ProcessingTransformTestBase):
 
         self.assertFalse(ProcessingRow.objects.filter(pk=sub.id).exists())
         self.assertFalse(Item.objects.filter(purchase_order=order).exists())
-        self.assertFalse(ProcessingCheckInBatch.objects.filter(purchase_order=order).exists())
+        self.assertFalse(ItemCheckIn.objects.filter(purchase_order=order).exists())
         self.assertFalse(Product.objects.filter(pk=set_product_id).exists())
         pr.refresh_from_db()
         self.assertEqual(pr.quantity, 12000)

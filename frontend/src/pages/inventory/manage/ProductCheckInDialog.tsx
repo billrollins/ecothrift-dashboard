@@ -36,6 +36,7 @@ import {
   PROCESSING_ITEM_DEFAULT_CONDITION,
   PROCESSING_ITEM_DISPATCH_OPTIONS,
 } from '../processing/processingItemFormOptions';
+import { manageItemsSearchUrl } from '../../../utils/richInventorySearch';
 import { processingTokens } from '../processing/processingTokens';
 
 const LS_PRINT_ON_CHECKIN = 'productCheckIn.printLabels';
@@ -192,17 +193,16 @@ export function ProductCheckInDialog({
       } else {
         enqueueSnackbar(`Checked in ${data.created_count} item(s)`, { variant: 'success' });
       }
-      const params = new URLSearchParams();
-      params.set('product', String(product.id));
-      if (data.check_in_batch_id) {
-        params.set('batch', String(data.check_in_batch_id));
+      const filters: Record<string, string | number> = { product: product.id };
+      if (data.item_check_in_id) {
+        filters.checkin = data.item_check_in_id;
       } else if (
         data.created_item_ids.length > 0
         && data.created_item_ids.length <= MAX_IDS_IN_URL
       ) {
-        params.set('ids', data.created_item_ids.join(','));
+        filters.ids = data.created_item_ids.join(',');
       }
-      navigate(`/inventory/manage-items?${params.toString()}`);
+      navigate(manageItemsSearchUrl({ filters }));
       onClose();
     } catch (err: unknown) {
       const detail =

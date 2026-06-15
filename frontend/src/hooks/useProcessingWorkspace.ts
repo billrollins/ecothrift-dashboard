@@ -19,14 +19,14 @@ import {
   processingRestartRow,
   processingUncollapseRows,
   processingPatchItem,
-  processingUpdateCheckInBatch,
+  processingUpdateItemCheckIn,
   processingPrintAndCheckIn,
   processingPrintMultiple,
   processingRowCheckIn,
   processingCheckInTogether,
-  processingRemapCheckInBatchProduct,
+  processingRemapItemCheckInProduct,
   processingSetRowProduct,
-  processingDeleteCheckInBatch,
+  processingDeleteItemCheckIn,
   processingRowPatch,
   processingAddItem,
   runProcessingDataBuildChunk,
@@ -307,11 +307,11 @@ export function useProcessingRestartRow(orderId: number) {
   });
 }
 
-export function useRemapCheckInBatchProduct(orderId: number) {
+export function useRemapItemCheckInProduct(orderId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ batchId, payload }: { batchId: number; payload: Record<string, unknown> }) => {
-      const { data } = await processingRemapCheckInBatchProduct(orderId, batchId, payload);
+    mutationFn: async ({ itemCheckInId, payload }: { itemCheckInId: number; payload: Record<string, unknown> }) => {
+      const { data } = await processingRemapItemCheckInProduct(orderId, itemCheckInId, payload);
       return data;
     },
     onSuccess: (data) => {
@@ -355,22 +355,22 @@ export function useProcessingSetRowProduct(orderId: number) {
   });
 }
 
-export function useProcessingUpdateCheckInBatch(orderId: number) {
+export function useProcessingUpdateItemCheckIn(orderId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ batchId, payload }: { batchId: number; payload: Record<string, unknown> }) => {
-      const { data } = await processingUpdateCheckInBatch(orderId, batchId, payload);
+    mutationFn: async ({ itemCheckInId, payload }: { itemCheckInId: number; payload: Record<string, unknown> }) => {
+      const { data } = await processingUpdateItemCheckIn(orderId, itemCheckInId, payload);
       return data;
     },
     onSuccess: (data) => applyRowProductMutationResult(qc, orderId, data),
   });
 }
 
-export function useProcessingDeleteCheckInBatch(orderId: number) {
+export function useProcessingDeleteItemCheckIn(orderId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (batchId: number) => {
-      const { data } = await processingDeleteCheckInBatch(orderId, batchId);
+    mutationFn: async (itemCheckInId: number) => {
+      const { data } = await processingDeleteItemCheckIn(orderId, itemCheckInId);
       return data;
     },
     onSuccess: (data) => applyRowProductMutationResult(qc, orderId, data),

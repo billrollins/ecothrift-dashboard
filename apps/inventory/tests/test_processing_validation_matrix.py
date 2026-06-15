@@ -16,7 +16,7 @@ from rest_framework.test import APIClient
 from apps.inventory.models import (
     Item,
     ManifestRow,
-    ProcessingCheckInBatch,
+    ItemCheckIn,
     ProcessingDataBuild,
     ProcessingRow,
     Product,
@@ -1242,23 +1242,23 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         )
         self.assertEqual(r.status_code, 200, r.data)
         self.assertEqual(r.data['created_count'], 2)
-        self.assertIsNotNone(r.data.get('check_in_batch_id'))
-        batch = ProcessingCheckInBatch.objects.get(pk=r.data['check_in_batch_id'])
-        self.assertEqual(batch.processing_row_id, pr.id)
-        self.assertEqual(batch.quantity, 2)
-        self.assertEqual(len(batch.item_ids), 2)
-        self.assertEqual(batch.defaults_snapshot['condition'], 'good')
+        self.assertIsNotNone(r.data.get('item_check_in_id'))
+        check_in = ItemCheckIn.objects.get(pk=r.data['item_check_in_id'])
+        self.assertEqual(check_in.processing_row_id, pr.id)
+        self.assertEqual(check_in.quantity, 2)
+        self.assertEqual(check_in.items.count(), 2)
+        self.assertEqual(check_in.defaults_snapshot['condition'], 'good')
 
         detail = self.client.get(
             f'/api/inventory/orders/{self.po.id}/processing-row-detail/',
             {'processing_row_id': pr.pk},
         )
         self.assertEqual(detail.status_code, 200, detail.data)
-        batches = detail.data['row'].get('checkInBatches') or []
-        self.assertEqual(len(batches), 1)
-        self.assertEqual(batches[0]['id'], batch.id)
-        self.assertEqual(batches[0]['quantity'], 2)
-        self.assertEqual(len(batches[0]['items']), 2)
+        item_check_ins = detail.data['row'].get('itemCheckIns') or []
+        self.assertEqual(len(item_check_ins), 1)
+        self.assertEqual(item_check_ins[0]['id'], check_in.id)
+        self.assertEqual(item_check_ins[0]['quantity'], 2)
+        self.assertEqual(len(item_check_ins[0]['items']), 2)
 
     def test_processing_print_and_check_in_ignores_legacy_sibling_apply_payload(self):
         self.i1.status = 'intake'

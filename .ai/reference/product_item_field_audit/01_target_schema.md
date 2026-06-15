@@ -61,6 +61,7 @@
 | `specifications` | Item-level JSON specs/snapshot. |
 | `listed_at` | Listing/check-in lifecycle timestamp. |
 | `checked_in_at` / `checked_in_by` | Check-in audit fields. |
+| `check_in` | FK to **`ItemCheckIn`** (nullable). Canonical membership for which check-in event created this item. Shipped **`0063`**. |
 | `sold_at` / `sold_for` | Sale lifecycle fields. |
 | `notes` | Item notes. |
 | `dispute_type`, `dispute_pct_loss`, `dispute_description` | Dispute fields. |
@@ -167,6 +168,20 @@ Target also removes identifier/tracking/taxonomy AI/final adjustment fields wher
 | `notes` | Row notes; can feed Item notes. |
 | `specifications` | Row specs; can feed Product/Item specs. |
 | `matched_product` | Product match/selection source for check-in. |
+
+## ItemCheckIn (shipped 0063–0064)
+
+Renamed from `ProcessingCheckInBatch`. One row per physical check-in event. Membership is **`Item.check_in`** FK only (**`item_ids` JSON removed in 0064**).
+
+| Field | Target notes |
+|-------|--------------|
+| `purchase_order` | Owning PO. |
+| `processing_row` | Nullable staging bookmark (`SET_NULL` on purge). |
+| `manifest_row` | Durable manifest lineage when applicable. |
+| `product` | Product snapshot for the check-in. |
+| `quantity` | Denormalized count (synced from FK items). |
+| `defaults_snapshot` | Condition/dispatch/price defaults applied at check-in. |
+| `origin` | `processing` \| `product_ad_hoc` \| `manual`. |
 
 ### Retire
 

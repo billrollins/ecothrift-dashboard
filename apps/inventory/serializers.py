@@ -2,7 +2,7 @@ from rest_framework import serializers
 from apps.core.serializers import S3FileSerializer
 from .models import (
     Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
-    Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
+    Product, VendorProductRef, BatchGroup, Item, ItemCheckIn, ProcessingBatch,
     ItemHistory, ItemScanHistory,
     PreprocessingRow,
     ProcessingRow,
@@ -833,6 +833,7 @@ class ItemSerializer(serializers.ModelSerializer):
         write_only=True,
     )
     retail_value = serializers.DecimalField(source='retail', max_digits=10, decimal_places=2, required=False, allow_null=True)
+    item_check_in_id = serializers.IntegerField(source='check_in_id', read_only=True, allow_null=True)
 
     class Meta:
         model = Item
@@ -840,7 +841,7 @@ class ItemSerializer(serializers.ModelSerializer):
             'id', 'sku', 'product', 'product_title', 'product_brand', 'purchase_order', 'purchase_order_number',
             'manifest_row', 'product_number', 'product_model', 'product_upc',
             'title', 'brand', 'category', 'model', 'upc', 'identifiers', 'tags', 'search_tags',
-            'price', 'retail', 'retail_value', 'cost',
+            'price', 'retail', 'retail_value', 'cost', 'item_check_in_id',
             'source', 'status', 'condition', 'specifications',
             'location', 'listed_at', 'checked_in_at', 'checked_in_by',
             'sold_at', 'sold_for', 'notes',
@@ -851,6 +852,7 @@ class ItemSerializer(serializers.ModelSerializer):
             'id',
             'sku',
             'cost',
+            'item_check_in_id',
             'listed_at',
             'checked_in_at',
             'checked_in_by',
@@ -1202,3 +1204,118 @@ class OrderForReceivingListSerializer(PurchaseOrderListSerializer):
         except Receiving.DoesNotExist:
             return False
         return rec.completed_at is not None
+
+
+class ItemCheckInCatalogItemSerializer(serializers.Serializer):
+    """Compact item row nested under catalog ItemCheckIn detail."""
+
+    id = serializers.IntegerField()
+    sku = serializers.CharField()
+    status = serializers.CharField()
+    condition = serializers.CharField()
+    price = serializers.CharField()
+    location = serializers.CharField()
+    checked_in_at = serializers.DateTimeField(allow_null=True)
+
+
+class ItemCheckInCatalogSerializer(serializers.ModelSerializer):
+    """Catalog list/detail for ItemCheckIn workbench lookups."""
+
+    purchase_order_number = serializers.CharField(
+        source='purchase_order.order_number',
+        read_only=True,
+        default=None,
+    )
+    purchase_order_ordered_date = serializers.DateField(
+        source='purchase_order.ordered_date',
+        read_only=True,
+        default=None,
+    )
+    purchase_order_vendor_name = serializers.CharField(
+        source='purchase_order.vendor.name',
+        read_only=True,
+        default=None,
+    )
+    purchase_order_description = serializers.CharField(
+        source='purchase_order.description',
+        read_only=True,
+        default='',
+    )
+    product_number = serializers.CharField(source='product.product_number', read_only=True, default=None)
+    product_title = serializers.CharField(source='product.title', read_only=True, default='')
+    product_brand = serializers.CharField(source='product.brand', read_only=True, default='')
+    defaults = serializers.JSONField(source='defaults_snapshot', read_only=True)
+    specifications = serializers.SerializerMethodField()
+    dispute_count = serializers.SerializerMethodField()
+    item_count = serializers.SerializerMethodField()
+    items = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ItemCheckIn
+        fields = [
+            'id',
+            'purchase_order',
+            'purchase_order_number',
+            'purchase_order_ordered_date',
+            'purchase_order_vendor_name',
+            'purchase_order_description',
+            'processing_row',
+            'manifest_row',
+            'product',
+            'product_number',
+            'product_title',
+            'product_brand',
+            'origin',
+            'quantity',
+            'defaults',
+            'specifications',
+            'created_by',
+            'created_at',
+            'updated_at',
+            'dispute_count',
+            'item_count',
+            'items',
+        ]
+        read_only_fields = fields
+
+    def _check_in_items(self, obj):
+        prefetched = getattr(obj, '_prefetched_objects_cache', None)
+        if prefetched and 'items' in prefetched:
+            return list(obj.items.all())
+        return list(obj.items.order_by('pk'))
+
+    def get_dispute_count(self, obj):
+        return sum(
+            1
+            for it in self._check_in_items(obj)
+            if it.status in ('scrapped', 'lost') or it.dispute_type or it.dispute_pct_loss
+        )
+
+    def get_item_count(self, obj):
+        return len(self._check_in_items(obj))
+
+    def get_specifications(self, obj):
+        items = self._check_in_items(obj)
+        if items:
+            specs = items[0].specifications
+            return specs if isinstance(specs, dict) else {}
+        defaults = obj.defaults_snapshot if isinstance(obj.defaults_snapshot, dict) else {}
+        raw = defaults.get('specifications')
+        return raw if isinstance(raw, dict) else {}
+
+    def get_items(self, obj):
+        if self.context.get('compact'):
+            return []
+        out = []
+        for it in self._check_in_items(obj):
+            out.append({
+                'id': it.id,
+                'sku': it.sku,
+                'status': it.status,
+                'condition': it.condition,
+                'price': str(it.price),
+                'location': it.location or '',
+                'checked_in_at': it.checked_in_at,
+            })
+        return out
+

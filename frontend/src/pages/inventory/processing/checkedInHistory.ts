@@ -1,15 +1,15 @@
-import type { ProcessingCheckInBatchDTO, ProcessingWorkspaceItemDTO } from '../../../types/inventory.types';
+import type { ItemCheckInDTO, ProcessingWorkspaceItemDTO } from '../../../types/inventory.types';
 
 export interface CheckedInHistoryRow {
   item: ProcessingWorkspaceItemDTO;
-  /** All items represented by this row (batch members or a single item). */
+  /** All items represented by this row (check-in members or a single item). */
   items: ProcessingWorkspaceItemDTO[];
   qty: number;
-  batchId: number | null;
-  batchCreatedAt: string | null;
+  itemCheckInId: number | null;
+  itemCheckInCreatedAt: string | null;
   checkedInAt: string;
-  /** Category from batch product when checked in as a batch. */
-  batchProductCategory?: string | null;
+  /** Category from check-in product when checked in as a group. */
+  checkInProductCategory?: string | null;
 }
 
 export interface ProductGroupedHistory {
@@ -25,45 +25,48 @@ export function isCheckedInItem(it: ProcessingWorkspaceItemDTO): boolean {
 
 export function buildCheckedInHistoryRows(
   items: ProcessingWorkspaceItemDTO[] | undefined,
-  batches: ProcessingCheckInBatchDTO[],
+  itemCheckIns: ItemCheckInDTO[],
 ): CheckedInHistoryRow[] {
   const checkedIn = (items ?? []).filter(isCheckedInItem);
   const checkedInById = new Map(checkedIn.map((item) => [item.id, item]));
-  const batchedItemIds = new Set<number>();
+  const groupedItemIds = new Set<number>();
   const rows: CheckedInHistoryRow[] = [];
 
-  const sortedBatches = [...batches].sort((a, b) => {
+  const sortedCheckIns = [...itemCheckIns].sort((a, b) => {
     const ta = a.created_at || '';
     const tb = b.created_at || '';
     return tb.localeCompare(ta) || b.id - a.id;
   });
 
-  for (const batch of sortedBatches) {
-    const batchItems = batch.item_ids
-      .map((id) => checkedInById.get(id))
-      .filter((item): item is ProcessingWorkspaceItemDTO => item != null);
-    if (!batchItems.length) continue;
-    batchItems.forEach((item) => batchedItemIds.add(item.id));
-    const primary = batchItems[0];
+  for (const checkIn of sortedCheckIns) {
+    const checkInItems = checkIn.items?.length
+      ? checkIn.items
+      : [];
+    const resolvedItems = checkInItems.length
+      ? checkInItems
+      : [];
+    if (!resolvedItems.length) continue;
+    resolvedItems.forEach((item) => groupedItemIds.add(item.id));
+    const primary = resolvedItems[0];
     rows.push({
       item: primary,
-      items: batchItems,
-      qty: batch.quantity ?? batchItems.length,
-      batchId: batch.id,
-      batchCreatedAt: batch.created_at,
-      checkedInAt: batch.created_at || primary.checked_in_at || primary.created_at || '',
-      batchProductCategory: batch.product?.category || null,
+      items: resolvedItems,
+      qty: checkIn.quantity ?? resolvedItems.length,
+      itemCheckInId: checkIn.id,
+      itemCheckInCreatedAt: checkIn.created_at,
+      checkedInAt: checkIn.created_at || primary.checked_in_at || primary.created_at || '',
+      checkInProductCategory: checkIn.product?.category || null,
     });
   }
 
   for (const item of checkedIn) {
-    if (batchedItemIds.has(item.id)) continue;
+    if (groupedItemIds.has(item.id)) continue;
     rows.push({
       item,
       items: [item],
       qty: 1,
-      batchId: null,
-      batchCreatedAt: null,
+      itemCheckInId: null,
+      itemCheckInCreatedAt: null,
       checkedInAt: item.checked_in_at || item.created_at || '',
     });
   }
@@ -93,9 +96,9 @@ function productLabelForHistoryRow(row: CheckedInHistoryRow): string {
 
 export function buildProductGroupedHistory(
   items: ProcessingWorkspaceItemDTO[] | undefined,
-  batches: ProcessingCheckInBatchDTO[],
+  itemCheckIns: ItemCheckInDTO[],
 ): ProductGroupedHistory[] {
-  const historyRows = buildCheckedInHistoryRows(items, batches);
+  const historyRows = buildCheckedInHistoryRows(items, itemCheckIns);
   const groups = new Map<string, ProductGroupedHistory>();
 
   for (const row of historyRows) {

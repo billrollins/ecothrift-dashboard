@@ -36,15 +36,15 @@ function item(partial: Partial<ProcessingWorkspaceItemDTO> & Pick<ProcessingWork
 
 function historyRow(
   partial: Partial<ProcessingWorkspaceItemDTO> & Pick<ProcessingWorkspaceItemDTO, 'id' | 'sku'>,
-  batchId: number | null = null,
+  itemCheckInId: number | null = null,
 ): CheckedInHistoryRow {
   const rowItem = item(partial);
   return {
     item: rowItem,
     items: [rowItem],
     qty: 1,
-    batchId,
-    batchCreatedAt: batchId != null ? '2026-06-01T12:00:00Z' : null,
+    itemCheckInId,
+    itemCheckInCreatedAt: itemCheckInId != null ? '2026-06-01T12:00:00Z' : null,
     checkedInAt: rowItem.checked_in_at || rowItem.created_at || '',
   };
 }
@@ -95,8 +95,8 @@ describe('checkedInHistorySort', () => {
   });
 });
 
-describe('buildCheckedInHistoryRows batch grouping', () => {
-  it('groups batch items into one row with batch quantity', () => {
+describe('buildCheckedInHistoryRows check-in grouping', () => {
+  it('groups check-in items into one row with check-in quantity', () => {
     const items = [
       item({ id: 1, sku: 'A', checked_in_at: '2026-06-01T10:00:00Z' }),
       item({ id: 2, sku: 'B', checked_in_at: '2026-06-01T10:00:00Z' }),
@@ -106,8 +106,7 @@ describe('buildCheckedInHistoryRows batch grouping', () => {
       {
         id: 9,
         quantity: 2,
-        item_ids: [1, 2],
-        items,
+        items: [items[0], items[1]],
         product: null,
         created_at: '2026-06-01T10:00:00Z',
         created_by: null,

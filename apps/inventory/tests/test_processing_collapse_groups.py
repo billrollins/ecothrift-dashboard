@@ -97,7 +97,7 @@ class CollapseGroupTests(CollapseGroupTestBase):
         resp = self._check_in(self.rows[0].id, 10)
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertEqual(resp.data['created_count'], 10)
-        self.assertEqual(len(resp.data['check_in_batch_ids']), 3)
+        self.assertEqual(len(resp.data['item_check_in_ids']), 3)
 
         per_row = {
             r.manifest_row_id: Item.objects.filter(manifest_row_id=r.manifest_row_id).count()
@@ -200,7 +200,7 @@ class CollapseGroupTests(CollapseGroupTestBase):
         self.assertEqual(row['collapsedGroup']['totalDispositioned'], 10)
         self.assertEqual(row['collapsedGroup']['memberRowNumbers'], [2, 3])
         self.assertEqual(len(row['items']), 10)  # 5 + 3 + 2 across the group
-        self.assertEqual(len(row['checkInBatches']), 3)  # one batch per member touched
+        self.assertEqual(len(row['itemCheckIns']), 3)  # one check-in per member touched
         self.assertEqual(row['status'], 'partial')
 
     def test_check_in_quantity_above_500_allowed(self):

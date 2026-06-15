@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { LoadingScreen } from './components/feedback/LoadingScreen';
 import MainLayout from './components/layout/MainLayout';
@@ -27,8 +27,8 @@ import ReceivingOrderPage from './pages/inventory/ReceivingOrderPage';
 import PreprocessingPage from './pages/inventory/PreprocessingPage';
 import ProcessingEntryRedirect from './pages/inventory/ProcessingEntryRedirect';
 import ProcessingWorkspacePage from './pages/inventory/processing/ProcessingWorkspacePage';
-import ManageProductsPage from './pages/inventory/ManageProductsPage';
-import ManageItemsPage from './pages/inventory/ManageItemsPage';
+import InventoryWorkbenchPage from './pages/inventory/InventoryWorkbenchPage';
+import { inventoryWorkbenchUrl, legacyItemParamsToRichSearch } from './utils/richInventorySearch';
 import ItemListPage from './pages/inventory/ItemListPage';
 import ItemDetailPage from './pages/inventory/ItemDetailPage';
 import QuickRepricePage from './pages/inventory/QuickRepricePage';
@@ -83,6 +83,18 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function LegacyManageProductsRedirect() {
+  const [searchParams] = useSearchParams();
+  const q = (searchParams.get('q') || searchParams.get('search') || '').trim() || undefined;
+  return <Navigate to={inventoryWorkbenchUrl({ q })} replace />;
+}
+
+function LegacyManageItemsRedirect() {
+  const [searchParams] = useSearchParams();
+  const q = (searchParams.get('q') || legacyItemParamsToRichSearch(searchParams) || '').trim() || undefined;
+  return <Navigate to={inventoryWorkbenchUrl({ tab: 'items', q })} replace />;
+}
+
 function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user?.is_superuser) return <Navigate to="/dashboard" replace />;
@@ -122,8 +134,9 @@ export default function App() {
         <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
         <Route path="/inventory/processing" element={<ProcessingEntryRedirect />} />
         <Route path="/inventory/processing/:id" element={<ProcessingWorkspacePage />} />
-        <Route path="/inventory/manage-products" element={<ManageProductsPage />} />
-        <Route path="/inventory/manage-items" element={<ManageItemsPage />} />
+        <Route path="/inventory/workbench" element={<InventoryWorkbenchPage />} />
+        <Route path="/inventory/manage-products" element={<LegacyManageProductsRedirect />} />
+        <Route path="/inventory/manage-items" element={<LegacyManageItemsRedirect />} />
         {/* Legacy Search items — kept for code reference until Find item ships */}
         <Route path="/inventory/items" element={<ItemListPage />} />
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
