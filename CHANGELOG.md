@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.28.0] — 2026-06-10 (Intake product identity + web AI cleanup) -->
-<!-- Last reviewed: 2026-06-10 (v2.28.0 cut — product identity P1–P6 + audit fixes + web batch cleanup) -->
+<!-- Line 1 release: ## [2.29.0] — 2026-06-15 (Product/Item catalog CRUD, category reset, product-first check-in) -->
+<!-- Last reviewed: 2026-06-15 (v2.29.0 — manage catalog pages, migrations 0061–0062, product check-in) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,7 +10,40 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.29.0] — 2026-06-15
+
+User-facing theme: **Product and Item catalog CRUD pages, canonical category reset, and product-first check-in from Manage Products.**
+
+### Added
+
+- **Inventory / Manage Products & Manage Items** — staff catalog pages at `/inventory/manage-products` and `/inventory/manage-items` with virtualized tables, scan-bar search, and CRUD drawers (`ProductManageDrawer`, `ItemManageDrawer`); Product modal adds AI suggest, stat cards (# Orders / # Items / On shelf / # Sold with tooltips), and **Check in items** for saved products.
+- **Inventory / product-first check-in** — `POST /api/inventory/products/{id}/check-in/` locks catalog identity and creates on-shelf Items via `processing_add_item`; `GET /api/inventory/products/check-in-orders/` lists misfit default + manual check-in POs; `ProductCheckInDialog` with quantity, PO select, item fields, and print; post-check-in navigation to Manage Items with `ids` + `product` filters. See initiative [`product_item_crud_and_processing`](.ai/initiatives/product_item_crud_and_processing.md).
+- **Inventory / product suggest** — `POST /api/inventory/products/suggest/` for AI-assisted Product CRUD copy (structured JSON).
+- **Inventory / migrations `0061`–`0062`** — product identity cleanup (`0061`); canonical 19-category `Product.category` FK, drop `Product.description` and preprocessing/manifest description columns (`0062`); `canonical_categories.py` helper.
+- **Inventory / item catalog filters** — `GET /api/inventory/items/?ids=1,2,3` exact batch filter; default ordering `-checked_in_at`, `-created_at`.
+- **Inventory / tests** — [`test_product_check_in.py`](apps/inventory/tests/test_product_check_in.py), [`test_product_suggest.py`](apps/inventory/tests/test_product_suggest.py); `processing_add_item` now records `ProcessingCheckInBatch` for added-row check-ins.
+
+### Changed
+
+- **Inventory / category unification** — single flat `Category` table (19 `TAXONOMY_V1` names); `Product.category` FK replaces string/`category_ref`; Item category derived from product; preprocessing finalize and AI cleanup use canonical category names only.
+- **Inventory / Manage Items entry** — **New item** opens Product create (not standalone item drawer); after product create, Manage Products opens with search prefilled to the new product number/title (`productManageCatalogSearchTerm`).
+- **Inventory / detailed check-in dialog redesign + true batch editing (owner spec)** — dialog is **Product · Item · buttons**; prior check-in row click **edits** the batch via `POST …/processing-check-in-batch/{id}/update/`; AI suggest auto-applies with per-field **AI ⇄ original** toggles.
+- **Inventory / check-in performance** — slim PO fetch for processing mutations (~20s → ~0.2s on large POs); `_bulk_create_checked_in_items` + batch `POST /print/labels` on the print server.
+- **Inventory / Prior check-ins table** — inline condition/dispatch edit; Print/Delete only; Expected treated as estimate (over-check-in allowed).
+- **Navigation** — Slot C catalog entries for manage-products / manage-items ([`navItemCatalog.ts`](frontend/src/navigation/navItemCatalog.ts)).
+
+### Documentation
+
+- **Product/Item field audit** — planning pack updated through category-unification reset ([`11_category_unification_description_removal_plan.md`](.ai/reference/product_item_field_audit/11_category_unification_description_removal_plan.md)).
+
+---
+
+## [2.28.0] — 2026-06-12
+
+### Changed
+
+- **AI / universal LLM router** — every AI call site now routes through [`apps/core/services/llm_router.py`](apps/core/services/llm_router.py): model resolved per purpose from `.env` (`AI_MODEL_<PURPOSE>`), provider inferred from the model id (`grok-*` → xAI, `gemini-*` → Google, else Anthropic), API key resolved per provider with a clear `LLMConfigError` when missing. Gemini now works for **all** features (previously cleanup-only); chat proxy, suggest item/finalization/formulas, legacy cleanup, buying services (category AI, key mapping, manifest template, title estimate), classifier, and benchmark commands migrated off direct Anthropic SDK use. `llm_chat.py` consolidated into the router; usage logging now covers xAI/Gemini calls. Router tests: [`apps/core/tests/test_llm_router.py`](apps/core/tests/test_llm_router.py).
+- **Deploy / env sync** — single entry point `scripts\deploy\env\sync_to_heroku.bat` pushes the repo-root `.envprod` (prod mirror) to Heroku Config Vars: fixed Windows Heroku CLI resolution (`heroku.cmd` vs unix shim), added a prod-sanity guard (refuses dev `DEBUG`/`ALLOWED_HOSTS`/`ENVIRONMENT` values), corrected dry-run secret masking, removed duplicate legacy sync scripts; `.env` / `.envprod` restructured (env-specific top, shared section below).
 
 ### Documentation / steering
 

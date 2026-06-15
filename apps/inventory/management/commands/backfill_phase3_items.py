@@ -275,14 +275,7 @@ class Command(BaseCommand):
 
         v1_code_to_product_id: dict[str, int] = {}
         v2_id_to_product_id: dict[int, int] = {}
-        for p in Product.objects.using(db).filter(description__startswith="BACKFILL:").iterator(chunk_size=2000):
-            desc = (p.description or "").strip()
-            m1 = V1_PRODUCT_TAG.match(desc)
-            if m1:
-                v1_code_to_product_id[m1.group(1)] = p.pk
-            m2 = V2_PRODUCT_TAG.match(desc)
-            if m2:
-                v2_id_to_product_id[int(m2.group(1))] = p.pk
+        # Newer backfills should resolve Products via identifiers/product numbers.
 
         product_ids: set[int] = set(v1_code_to_product_id.values()) | set(v2_id_to_product_id.values())
         product_cache: dict[int, dict[str, str]] = {}

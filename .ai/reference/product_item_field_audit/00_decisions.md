@@ -9,19 +9,22 @@
 - No reading retired fields to preserve old behavior.
 - No field that exists only to preserve the old model shape.
 - No `Product.default_price` or any Product price source.
+- No `Product.description`.
+- No compatibility aliases for removed category or description fields.
 
 ## Product Decisions
 
 | Topic | Decision |
 |-------|----------|
-| Product identity | Product owns `title`, `brand`, `model`, canonical `category`, `description`, `specifications`, `identifiers`, `tags`, and `is_active`. |
+| Product identity | Product owns `title`, `brand`, `model`, canonical `category` FK, `specifications`, `identifiers`, `tags`, and `is_active`. Product does not own description. |
+| Product category | `Product.category` is a required FK to `inventory.Category`. The old Product string `category` and `category_ref` are removed. |
 | Product price | Product owns no price. Shelf/tag price is row/check-in/Item only. |
 | `default_price` | Remove fully from model, serializers, services, tests, and frontend. |
 | `upc` | Move from flat `Product.upc` to `Product.identifiers['upc']`. Drop flat column after callers move. |
 | `times_ordered` | Stop surfacing; recompute/report only if needed. Drop candidate. |
 | `total_units_received` | Stop surfacing; recompute/report only if needed. Drop candidate. |
 | `product_number` | Keep as human-readable Product system ID. |
-| `description` | Manual/catalog detail only. It is not sourced from manifest description. |
+| `description` | Remove fully. Product has no description field, no API/type/UI field, and no prompt/context use. |
 | `tags` | Product-owned search aid. AI may suggest tags. |
 | Product search | Use indexed Product fields, identifiers JSON values, and tags. Do not add `Product.search_string` unless profiling proves it necessary. |
 | Product delete | `Item.product` uses `PROTECT`; Product cannot be deleted while Items exist. Product merge/reassign is required before delete. |
@@ -34,6 +37,7 @@
 | `Item.product` | Required. Target: `NOT NULL` FK with `on_delete=PROTECT`. |
 | `Item.title` | Drop column. Serializer/UI read Product title. |
 | `Item.brand` | Drop column. Serializer/UI read Product brand. |
+| `Item.category` | Drop/avoid owned column. Serializer/UI read Product category from `Item.product.category`. |
 | `Item.unit_retail` | Rename target Item endpoint to `Item.retail`. Upstream field remains `unit_retail` while quantity exists. |
 | `Item.price` | Shelf/tag price. Separate from `retail`. Set from `ProcessingRow.shelf_price` / final price path / explicit check-in price. |
 | `Item.unit_count` | Remove. Every Item represents exactly one physical unit. |
@@ -53,7 +57,8 @@
 | Processing fields | `ProcessingRow` has plain field names used by processing/check-in. |
 | Title | Template Formula creates `ManifestRow.title`; remove canonical `ManifestRow.description`. |
 | Category source | Source category-like columns map into `ManifestRow.taxonomy` JSON. |
-| Canonical category | `PreprocessingRow.ai_category`, `final_category`, `ProcessingRow.category`, and `Product.category` must be canonical EcoThrift categories. |
+| Canonical category | `inventory.Category` is the single runtime category source and contains the 19 prior taxonomy v1 names. `PreprocessingRow.ai_category`, `final_category`, `ProcessingRow.category`, and `Product.category` resolve to those rows. |
+| Description lineage | Remove `Product.description`, `ManifestRow.description`, `PreprocessingRow.standard_description`, `ai_description`, `final_description`, and `ProcessingRow.description`. Use `title`, `notes`, `specifications`, `identifiers`, and `tags` as appropriate. |
 | Identifiers | Source ID/tracking-like columns map into `ManifestRow.identifiers` JSON. |
 | Tracking bucket | No separate `ManifestRow.tracking` target. Tracking-like source fields are absorbed into `identifiers`. |
 | Quantity | `Raw.quantity > ManifestRow.quantity > PreprocessingRow.quantity > ProcessingRow.quantity`; Item has no quantity field. |
@@ -62,10 +67,10 @@
 ## Backfill Decisions
 
 - Existing `Item` rows with `product_id IS NULL` must be attached to a Product before constraints.
-- Reuse exact Product matches by identifiers first, then normalized `title + brand + model + category`.
+- Reuse exact Product matches by identifiers first, then normalized `title + brand + model + category_id`.
 - Create rough Products from meaningful Item identity when no exact Product exists.
 - Attach meaningless identity rows to a pre-created Generic Product.
-- Generic Product is `title = Generic Product`, `brand = Generic`, `category = Mixed lots & uncategorized`, `is_active = true`.
+- Generic Product is `title = Generic Product`, `brand = Generic`, `category = inventory.Category("Mixed lots & uncategorized")`, `is_active = true`.
 - Invalid condition values map to `unknown` before constraints.
 - Missing historical data is resolved with approved Generic/default values and logged; implementation does not stop for unbackfillable dirty data.
 - If check-in can create Items without Product, fix that implementation path immediately and add a regression test.

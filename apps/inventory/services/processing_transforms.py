@@ -224,7 +224,6 @@ def _create_sub_row(
         model=root.model,
         category=root.category,
         condition=root.condition,
-        description=root.description,
         notes=root.notes,
         identifiers=copy.deepcopy(root.identifiers) if isinstance(root.identifiers, dict) else {},
         taxonomy=copy.deepcopy(root.taxonomy) if isinstance(root.taxonomy, dict) else {},

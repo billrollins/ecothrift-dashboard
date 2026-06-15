@@ -79,7 +79,7 @@ describe('checkedInHistory', () => {
         quantity: 2,
         item_ids: [2, 3],
         items: [items[1], items[2]],
-        product: { id: 11, title: 'Beta', brand: '', model: '', description: '', specs: {}, identifiers: {}, tags: [], taxonomy: '', category: '', upc: '', product_number: 'P-11' },
+        product: { id: 11, title: 'Beta', brand: '', model: '', specs: {}, identifiers: {}, tags: [], taxonomy: '', category: '', upc: '', product_number: 'P-11' },
         created_at: '2026-06-03T10:00:00Z',
         created_by: null,
         defaults: {},

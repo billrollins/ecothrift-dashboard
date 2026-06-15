@@ -38,7 +38,7 @@ from apps.inventory.management.command_db import (
 from apps.inventory.management.commands.backfill_phase1_vendors_pos import (
     parse_description_metadata,
 )
-from apps.inventory.models import Item, Product, PurchaseOrder
+from apps.inventory.models import Category, Item, Product, PurchaseOrder
 
 TAXONOMY_SET = frozenset(TAXONOMY_V1_CATEGORY_NAMES)
 BATCH_SIZE = 2000
@@ -562,14 +562,15 @@ class Command(BaseCommand):
         self.stdout.write("Pass 5: set Product.category from item histogram…")
         self.stdout.flush()
 
-        prod_qs = Product.objects.using(db).filter(description__startswith="BACKFILL:v1:")
+        prod_qs = Product.objects.using(db).none()
         prod_updated = 0
         for p in prod_qs.iterator(chunk_size=bs):
             mode = _mode_from_counter(product_item_cats.get(p.pk, Counter())) or MIXED_LOTS_UNCATEGORIZED
             if dry_run:
                 prod_updated += 1
             else:
-                Product.objects.using(db).filter(pk=p.pk).update(category=mode)
+                category_obj, _ = Category.objects.using(db).get_or_create(name=mode)
+                Product.objects.using(db).filter(pk=p.pk).update(category=category_obj)
                 prod_updated += 1
             if prod_updated % 2000 == 0:
                 self.stdout.write(f"  Pass 5 products updated: {prod_updated:,}…")
@@ -594,8 +595,7 @@ class Command(BaseCommand):
 
         prod_qs = (
             Product.objects.using(db)
-            .filter(description__startswith="BACKFILL:v2:")
-            .exclude(category__in=TAXONOMY_LIST)
+            .none()
             .annotate(ic=Count("items"))
         )
         total = prod_qs.count()
@@ -766,7 +766,8 @@ class Command(BaseCommand):
         pu = 0
         if not dry_run:
             for pid, cat in product_updates.items():
-                Product.objects.using(db).filter(pk=pid).update(category=cat)
+                category_obj, _ = Category.objects.using(db).get_or_create(name=cat)
+                Product.objects.using(db).filter(pk=pid).update(category=category_obj)
                 pu += 1
         else:
             pu = len(product_updates)
@@ -774,7 +775,7 @@ class Command(BaseCommand):
         v2_need_prop = Item.objects.using(db).filter(
             notes__startswith="BACKFILL:v2:",
             product__isnull=False,
-            product__category__in=TAXONOMY_LIST,
+            product__category__name__in=TAXONOMY_LIST,
         ).filter(Q(category="") | ~Q(category__in=TAXONOMY_LIST))
         if dry_run:
             iu = v2_need_prop.count()
@@ -782,7 +783,7 @@ class Command(BaseCommand):
             iu = 0
             chunk: list[Item] = []
             for item in v2_need_prop.select_related("product").iterator(chunk_size=1000):
-                item.category = item.product.category
+                item.category = item.product.category.name if item.product.category_id else ""
                 chunk.append(item)
                 if len(chunk) >= 2000:
                     Item.objects.using(db).bulk_update(chunk, ["category"])

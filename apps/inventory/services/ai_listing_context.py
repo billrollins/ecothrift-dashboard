@@ -22,7 +22,7 @@ def _annotate_listing_category(qs):
     return qs.select_related('product', 'manifest_row').annotate(
         listing_category=Coalesce(
             F('manifest_row__category'),
-            F('product__category'),
+            F('product__category__name'),
             Value(''),
             output_field=CharField(),
         )
@@ -36,7 +36,7 @@ def _narrow_by_category_name(qs, category_name: str | None):
     if not first:
         return qs
     return qs.filter(
-        Q(manifest_row__category__icontains=first) | Q(product__category__icontains=first),
+        Q(manifest_row__category__icontains=first) | Q(product__category__name__icontains=first),
     )
 
 

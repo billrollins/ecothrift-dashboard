@@ -192,12 +192,11 @@ def _serialize_product(prod: Product | None) -> dict[str, Any] | None:
         'title': prod.title,
         'brand': prod.brand or '',
         'model': prod.model or '',
-        'description': prod.description or '',
         'specs': specs if isinstance(specs, dict) else {},
         'identifiers': prod.identifiers or {},
         'tags': prod.tags or [],
         'taxonomy': '',
-        'category': prod.category or '',
+        'category': prod.category.name if prod.category_id else '',
         'upc': product_upc(prod),
     }
 
@@ -455,7 +454,6 @@ PROCESSING_WORKSPACE_ROW_VALUE_FIELDS = (
     'model',
     'category',
     'condition',
-    'description',
     'identifiers',
     'search_tags',
     'search_string',
@@ -573,11 +571,6 @@ def coalesce_processing_row_identity(
         )
 
     title = tier('title')
-    if not title:
-        desc = _field_from_row_source(row, 'description')
-        if not desc and manifest_row is not None:
-            desc = _field_from_row_source(manifest_row, 'description')
-        title = desc[:80] if desc else ''
 
     specs = _specs_from_row_source(product) if product else {}
     if not specs:
@@ -602,7 +595,6 @@ def coalesce_processing_row_identity(
         'brand': tier('brand'),
         'model': tier('model'),
         'category': tier('category'),
-        'description': tier('description'),
         'specifications': specs,
         'identifiers': identifiers,
     }
@@ -647,7 +639,6 @@ def _manifest_evidence(mr: ManifestRow) -> dict[str, Any]:
     return {
         'title': mr.title or '',
         'brand': mr.brand or '',
-        'description': mr.description or '',
         'quantity': int(mr.quantity or 1),
         'unit_retail': _money(mr.unit_retail),
     }
@@ -682,8 +673,6 @@ def _workspace_row_core_fields(
     else:
         identifiers_out = {}
 
-    listing_desc = str(rw.get('description') or '').strip()
-
     list_price = _workspace_price_from_bookmark_row(rw)
     cond_ui = condition_db_to_ui(str(rw.get('condition') or ''))
 
@@ -716,7 +705,6 @@ def _workspace_row_core_fields(
         'price': list_price,
         'dispatch': str(rw.get('list_dispatch') or 'on_shelf') or 'on_shelf',
         'sku': sku_val if sku_val else None,
-        '_listing_desc': listing_desc,
         '_search_string': str(rw.get('search_string') or ''),
         '_model': identity['model'],
         '_search_tags': rw.get('search_tags'),
@@ -762,7 +750,6 @@ def serialize_processing_workspace_row_values(
     else:
         tags_str = str(stags or '')
 
-    listing_desc = core.pop('_listing_desc')
     search_string = core.pop('_search_string')
     model = core.pop('_model')
     identity = coalesce_processing_row_identity(rw, product, manifest_row=manifest_row)
@@ -771,7 +758,6 @@ def serialize_processing_workspace_row_values(
         **core,
         'product': _serialize_product(product) if product else None,
         'model': model,
-        'description': identity['description'] or listing_desc,
         'specs': identity['specifications'],
         'tags': tags_str,
         'taxonomy': '',
@@ -1386,7 +1372,6 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
             'title': identity['title'],
             'brand': identity['brand'],
             'model': identity['model'],
-            'description': identity['description'] or bk.description or '',
             'specs': identity['specifications'],
             'tags': tags_str,
             'taxonomy': str((bk.taxonomy or {}).get('path') or (bk.taxonomy or {}).get('category') or ''),
@@ -1464,7 +1449,6 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         'title': identity['title'],
         'brand': identity['brand'],
         'model': identity['model'],
-        'description': identity['description'] or bk.description or mr.description or '',
         'specs': identity['specifications'],
         'tags': tags_str,
         'taxonomy': str((bk.taxonomy or {}).get('path') or (bk.taxonomy or {}).get('category') or ''),

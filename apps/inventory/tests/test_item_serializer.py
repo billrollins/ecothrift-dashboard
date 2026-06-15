@@ -4,11 +4,15 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from apps.inventory.models import Item, Product, PurchaseOrder, Vendor
+from apps.inventory.models import Category, Item, Product, PurchaseOrder, Vendor
 from apps.inventory.serializers import ItemSerializer
 
 
 class ItemSerializerCategoryRetailTests(TestCase):
+    def _category(self, name):
+        category, _ = Category.objects.get_or_create(name=name)
+        return category
+
     def test_retrieve_includes_purchase_order_number(self):
         vendor = Vendor.objects.create(name='Acme Liquidators', code='ACME')
         order = PurchaseOrder.objects.create(
@@ -30,7 +34,7 @@ class ItemSerializerCategoryRetailTests(TestCase):
         product = Product.objects.create(
             title='Bubble Toy',
             brand='Generic',
-            category='Toys & Games',
+            category=self._category('Toys & games'),
         )
         item = Item.objects.create(
             product=product,
@@ -38,7 +42,7 @@ class ItemSerializerCategoryRetailTests(TestCase):
             retail=Decimal('5.99'),
         )
         data = ItemSerializer(item).data
-        self.assertEqual(data['category'], 'Toys & Games')
+        self.assertEqual(data['category'], 'Toys & games')
         self.assertEqual(data['retail_value'], '5.99')
         self.assertEqual(data['retail'], '5.99')
 
@@ -60,18 +64,18 @@ class ItemSerializerCategoryRetailTests(TestCase):
         item = ser.save()
         item.refresh_from_db()
         self.assertIsNotNone(item.product_id)
-        self.assertEqual(item.product.category, 'Toys & Games')
+        self.assertEqual(item.product.category.name, 'Toys & games')
         self.assertEqual(item.product.model, 'BUB-24')
         self.assertEqual(item.product.identifiers.get('upc'), '123456789012')
         self.assertEqual(item.retail, Decimal('4.99'))
-        self.assertEqual(ItemSerializer(item).data['category'], 'Toys & Games')
+        self.assertEqual(ItemSerializer(item).data['category'], 'Toys & games')
 
     def test_create_reuses_product_by_upc_without_rewriting_identity(self):
         product = Product.objects.create(
             title='Old Spice Body Wash',
             brand='Old Spice',
             model='Captain 24 oz',
-            category='Health & Beauty',
+            category=self._category('Health, beauty & personal care'),
             identifiers={'upc': '012345678905'},
         )
         ser = ItemSerializer(
@@ -118,7 +122,7 @@ class ItemSerializerCategoryRetailTests(TestCase):
         updated.product.refresh_from_db()
         self.assertEqual(updated.product.title, 'New Title')
         self.assertEqual(updated.product.brand, 'New Brand')
-        self.assertEqual(updated.product.category, 'Toys & Games')
+        self.assertEqual(updated.product.category.name, 'Toys & games')
         self.assertEqual(updated.product.model, 'NERF-1')
         self.assertEqual(updated.product.identifiers.get('upc'), '999999999999')
 

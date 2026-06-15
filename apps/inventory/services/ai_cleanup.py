@@ -129,7 +129,7 @@ def apply_cleanup_values_to_staging_row(row: PreprocessingRow, values: dict[str,
     endpoint and the offline CSV apply share one write contract. ``values`` keys:
     ``title``/``brand``/``model``/``category`` (str), ``condition`` (normalized DB value
     or ''), ``proposed_price`` (Decimal | None), ``search_tags`` (list | None),
-    ``specifications`` (dict | None), ``description``/``notes`` (str), ``ai_status``
+    ``specifications`` (dict | None), ``notes`` (str), ``ai_status``
     (dict), ``reasoning`` (str). Caller wraps in a transaction and snapshots final_*.
     """
 
@@ -151,10 +151,6 @@ def apply_cleanup_values_to_staging_row(row: PreprocessingRow, values: dict[str,
         'ai_status',
     })
 
-    description = str(values.get('description') or '').strip()
-    if description:
-        row.ai_description = description
-        update_fields.add('ai_description')
     notes = str(values.get('notes') or '').strip()
     if notes:
         row.ai_notes = notes
@@ -236,25 +232,25 @@ def cleanup_batch_system_prompt() -> str:
         'Allowed categories:\n'
         + '\n'.join(f'- {name}' for name in TAXONOMY_V1_CATEGORY_NAMES)
         + '\n\nGold examples (input -> output):\n'
-        '{"row_id": 1, "description": "LEGO Star Wars Millennium Falcon 75257", "brand": "LEGO", '
+        '{"row_id": 1, "title": "LEGO Star Wars Millennium Falcon 75257", "brand": "LEGO", '
         '"quantity": 3, "unit_retail": "159.99"} -> {"row_id": 1, "title": "LEGO Star Wars Millennium Falcon Set", '
         '"brand": "LEGO", "model": "75257", "category": "Toys & games", "condition": "new", '
         '"retail_suspect": false, "retail_suspect_reason": "", "m_resale": 0.95, "m_saleability": 1.0, '
         '"search_tags": ["lego", "star-wars", "building-set"], "low_confidence": false, "low_confidence_reason": ""}'
         '  // hot resale brand: sells near claimed retail\n'
-        '{"row_id": 2, "description": "Hydraulic pallet truck replacement seal kit", "brand": "", '
+        '{"row_id": 2, "title": "Hydraulic pallet truck replacement seal kit", "brand": "", '
         '"quantity": 4, "unit_retail": "89.00"} -> {"row_id": 2, "title": "Pallet Jack Hydraulic Seal Kit", '
-        '"brand": "", "model": "", "category": "Tools & home improvement", "condition": "new", '
+        '"brand": "", "model": "", "category": "Tools & hardware", "condition": "new", '
         '"retail_suspect": false, "retail_suspect_reason": "", "m_resale": 0.40, "m_saleability": 0.20, '
         '"search_tags": ["pallet-jack", "seal-kit", "hydraulic", "parts"], "low_confidence": false, '
         '"low_confidence_reason": ""}  // industrial bare part: tiny thrift buyer pool\n'
-        '{"row_id": 3, "description": "cenozo Modern LED Acrylic Ball Chandelier 90W", "brand": "cenozo", '
+        '{"row_id": 3, "title": "cenozo Modern LED Acrylic Ball Chandelier 90W", "brand": "cenozo", '
         '"quantity": 1, "unit_retail": "700.70"} -> {"row_id": 3, "title": "Cenozo LED Dimmable Acrylic Ball Chandelier", '
         '"brand": "cenozo", "model": "", "category": "Home décor & lighting", "condition": "used_good", '
         '"retail_suspect": false, "retail_suspect_reason": "", "m_resale": 0.12, "m_saleability": 0.90, '
         '"search_tags": ["chandelier", "led", "dimmable", "ceiling-light"], "low_confidence": false, '
         '"low_confidence_reason": ""}  // no-name luxury markup: real value is a small fraction of claimed retail\n'
-        '{"row_id": 4, "description": "Bic Soleil razors 4ct", "brand": "Bic", '
+        '{"row_id": 4, "title": "Bic Soleil razors 4ct", "brand": "Bic", '
         '"quantity": 72, "unit_retail": "699.00"} -> {"row_id": 4, "title": "Bic Soleil Disposable Razors 4-Pack", '
         '"brand": "Bic", "model": "", "category": "Health, beauty & personal care", "condition": "new", '
         '"retail_suspect": true, "retail_suspect_reason": "razor 4-pack listed at $699 — likely x100 typo", '
@@ -275,7 +271,7 @@ def build_cleanup_batch_payload(order: PurchaseOrder, rows: list[PreprocessingRo
         taxonomy = getattr(source, 'taxonomy', row.standard_taxonomy) or {}
         payload.append({
             'row_id': row.id,
-            'description': getattr(source, 'description', row.standard_description) or '',
+            'title': getattr(source, 'title', '') or '',
             'brand': getattr(source, 'brand', row.standard_brand) or '',
             'model': getattr(source, 'model', row.standard_model) or '',
             'category': str(taxonomy.get('category') or ''),

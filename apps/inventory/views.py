@@ -12,11 +12,13 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.http import HttpResponse
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.db.models import (
     Avg,
     Case,
     CharField,
     Count,
+    DecimalField,
     F,
     Max,
     Prefetch,
@@ -47,6 +49,7 @@ from ecothrift.pagination import ItemListPagination
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
+from apps.inventory.canonical_categories import canonical_category_name
 
 from apps.core.ai_config import ai_model
 from apps.core.logging import get_logger
@@ -133,7 +136,15 @@ from apps.inventory.services.receiving import (
 from apps.inventory.services.manifest_meta import compute_category_count
 from .cleanup_condition import normalize_cleanup_condition
 from .cleanup_csv_validate import validate_cleanup_row_values
-from .prompts import CONDITION_VALUES, FEW_SHOT_ADD_ITEM, LISTING_STANDARDS, OUTPUT_SCHEMA_HINT
+from .prompts import (
+    CONDITION_VALUES,
+    FEW_SHOT_ADD_ITEM,
+    FEW_SHOT_SUGGEST_PRODUCT,
+    LISTING_STANDARDS,
+    OUTPUT_SCHEMA_HINT,
+    PRODUCT_CATALOG_STANDARDS,
+    PRODUCT_OUTPUT_SCHEMA_HINT,
+)
 from .services.ai_cleanup import (
     AiCleanupBatchError,
     apply_cleanup_values_to_staging_row,
@@ -429,7 +440,6 @@ PREPROCESSING_REVIEW_EDITABLE_FIELDS = (
     'model',
     'category',
     'condition',
-    'description',
     'search_tags',
     'notes',
     'pricing_notes',
@@ -442,7 +452,6 @@ _PREPROCESSING_REVIEW_AI_STATUS_CLEAR_FIELDS = frozenset({
     'final_model',
     'final_category',
     'final_condition',
-    'final_description',
     'final_notes',
     'final_search_tags',
     'final_specifications',
@@ -492,7 +501,6 @@ def _logical_aliases_from_final_update_fields(update_fields: list[str]) -> set[s
         'final_model': 'model',
         'final_category': 'category',
         'final_condition': 'condition',
-        'final_description': 'description',
         'final_notes': 'notes',
         'final_search_tags': 'search_tags',
         'final_specifications': 'specifications',
@@ -577,12 +585,8 @@ def build_preprocessing_review_queryset(order, query_params):
     if search_term:
         st = search_term
         rows_qs = rows_qs.filter(
-            Q(standard_description__icontains=st)
-            | Q(manifest_row__description__icontains=st)
-            | Q(manifest_row__title__icontains=st)
+            Q(manifest_row__title__icontains=st)
             | Q(manifest_row__category__icontains=st)
-            | Q(ai_description__icontains=st)
-            | Q(final_description__icontains=st)
             | Q(standard_brand__icontains=st)
             | Q(manifest_row__brand__icontains=st)
             | Q(ai_brand__icontains=st)
@@ -689,7 +693,6 @@ def update_preprocessing_review_rows(order, rows_payload):
             'final_model',
             'final_category',
             'final_condition',
-            'final_description',
             'final_notes',
         ):
             if fk not in row_data:
@@ -709,9 +712,6 @@ def update_preprocessing_review_rows(order, rows_payload):
                 norm_c = normalize_cleanup_condition(raw_c) or raw_c
                 row.final_condition = norm_c
                 edited_aliases.add('condition')
-            elif fk == 'final_description':
-                row.final_description = str(val or '')
-                edited_aliases.add('description')
             elif fk == 'final_notes':
                 row.final_notes = str(val or '')
                 edited_aliases.add('notes')
@@ -722,7 +722,6 @@ def update_preprocessing_review_rows(order, rows_payload):
         skip_legacy_brand = 'final_brand' in update_fields
         skip_legacy_model = 'final_model' in update_fields
         skip_legacy_condition = 'final_condition' in update_fields
-        skip_legacy_description = 'final_description' in update_fields
         skip_legacy_notes = 'final_notes' in update_fields
 
         for field in PREPROCESSING_REVIEW_EDITABLE_FIELDS:
@@ -737,8 +736,6 @@ def update_preprocessing_review_rows(order, rows_payload):
             if field == 'model' and skip_legacy_model:
                 continue
             if field == 'condition' and skip_legacy_condition:
-                continue
-            if field == 'description' and skip_legacy_description:
                 continue
             if field == 'notes' and skip_legacy_notes:
                 continue
@@ -775,10 +772,6 @@ def update_preprocessing_review_rows(order, rows_payload):
                 row.final_condition = norm_c
                 update_fields.append('final_condition')
                 edited_aliases.add('condition')
-            elif field == 'description':
-                row.final_description = str(row_data.get(field) or '')
-                update_fields.append('final_description')
-                edited_aliases.add('description')
             elif field == 'notes':
                 row.final_notes = str(row_data.get(field) or '')
                 update_fields.append('final_notes')
@@ -861,13 +854,9 @@ def _row_listing_title(row):
         t = effective_preprocessing_title(row).strip()
         if t:
             return t[:300]
-        desc = effective_preprocessing_triple(row, 'description')
-        if str(desc or '').strip():
-            return str(desc)[:300]
         return 'Untitled Item'
     return (
         getattr(row, 'title', '')
-        or row.description
         or 'Untitled Item'
     )[:300]
 
@@ -939,7 +928,7 @@ WIDE_JSON_CLEANUP_KEYS = frozenset({
     'identifiers_json', 'taxonomy_json', 'specifications_json', 'tracking_json', 'search_tags_json',
 })
 
-_CLEANUP_STAGING_WIDE_SIGNAL_KEYS = WIDE_JSON_CLEANUP_KEYS.union({'description', 'notes'})
+_CLEANUP_STAGING_WIDE_SIGNAL_KEYS = WIDE_JSON_CLEANUP_KEYS.union({'title', 'notes'})
 
 
 def _cleanup_norm_has_non_empty(norm: dict, keys: frozenset | set) -> bool:
@@ -1059,11 +1048,13 @@ def _find_or_create_manifest_product(order, row, cache=None):
             _cache_resolved_manifest_product(order, row, cache, ref.product)
             return ref.product, False
 
+    category_obj, _ = Category.objects.get_or_create(name=canonical_category_name(category))
+
     exact_product = Product.objects.filter(
         title__iexact=title,
         brand__iexact=brand,
         model__iexact=model,
-        category__iexact=category,
+        category=category_obj,
     ).first()
     if exact_product:
         _cache_resolved_manifest_product(order, row, cache, exact_product)
@@ -1078,8 +1069,7 @@ def _find_or_create_manifest_product(order, row, cache=None):
         title=title or (f'Generic identifier {upc_val}' if upc_val else 'Generic Product'),
         brand=brand or 'Generic',
         model=model,
-        category=category or MIXED_LOTS_UNCATEGORIZED,
-        description=row.description or '',
+        category=category_obj,
         specifications=row.specifications or {},
         identifiers=merge_identifiers(ids, {'upc': upc_val} if upc_val else {}),
         tags=row.search_tags or [],
@@ -1090,7 +1080,7 @@ def _find_or_create_manifest_product(order, row, cache=None):
             vendor_item_number=lookup_key,
             defaults={
                 'product': product,
-                'vendor_description': row.description[:500],
+                'vendor_description': (row.title or '')[:500],
                 'last_unit_cost': row.unit_retail,
             },
         )
@@ -1254,12 +1244,14 @@ def sync_manifest_row_outputs_to_items(order, rows):
         if len(distinct_pids) >= 2:
             product = None
         if product:
+            category_obj, _ = Category.objects.get_or_create(
+                name=canonical_category_name(_row_listing_category(row) or MIXED_LOTS_UNCATEGORIZED),
+            )
             product_updates = {
                 'title': _row_listing_title(row),
                 'brand': _row_listing_brand(row) or 'Generic',
                 'model': _row_listing_model(row),
-                'category': _row_listing_category(row) or MIXED_LOTS_UNCATEGORIZED,
-                'description': row.description or '',
+                'category': category_obj,
                 'specifications': row.specifications or {},
                 'identifiers': merge_identifiers(product.identifiers, row.identifiers),
                 'tags': row.search_tags or product.tags or [],
@@ -1678,6 +1670,61 @@ def _suggest_item_parse_suggestions_from_text(
     return out, parsed
 
 
+def _suggest_product_parse_suggestions_from_text(
+    content_text: str,
+    fields: list,
+    allowed: set,
+) -> tuple[dict | None, dict | None]:
+    """Parse Product AI JSON; returns (suggestions_dict, full_parsed_dict) or (None, None)."""
+    from apps.inventory.services.manual_item import normalize_search_tags
+    if not (content_text or '').strip():
+        return None, None
+    stripped = content_text.strip()
+    if stripped.startswith('```'):
+        stripped = re.sub(r'^```(?:json)?\s*', '', stripped, count=1, flags=re.IGNORECASE)
+        stripped = re.sub(r'\s*```\s*$', '', stripped, count=1)
+
+    parsed = None
+    start = stripped.find('{')
+    if start >= 0:
+        try:
+            decoder = json.JSONDecoder()
+            parsed, _end = decoder.raw_decode(stripped, start)
+        except json.JSONDecodeError:
+            return None, None
+    if not isinstance(parsed, dict):
+        return None, None
+
+    raw_suggestions = parsed.get('suggestions') if isinstance(parsed, dict) else None
+    if not isinstance(raw_suggestions, dict):
+        loose = {k: parsed[k] for k in allowed if k in parsed}
+        if loose:
+            raw_suggestions = loose
+    if not isinstance(raw_suggestions, dict):
+        return None, None
+
+    out: dict = {}
+    for key in fields:
+        if key not in raw_suggestions:
+            continue
+        val = raw_suggestions[key]
+        if key in ('identifiers', 'specifications'):
+            if isinstance(val, dict):
+                clean = {str(k).strip(): str(v).strip() for k, v in val.items() if k is not None and str(v).strip()}
+                out[key] = clean
+            continue
+        if key == 'tags':
+            out[key] = normalize_search_tags(val, max_tags=20, max_len=40)
+            continue
+        if key == 'model':
+            out[key] = str(val).strip()[:200] if val is not None else ''
+            continue
+        if key in ('title', 'brand', 'category'):
+            out[key] = str(val).strip() if val is not None else ''
+
+    return out, parsed
+
+
 def normalize_row(raw, row_number, column_mappings):
     flat_out: dict = {}
     identifiers: dict[str, str] = {}
@@ -1746,11 +1793,11 @@ def normalize_row(raw, row_number, column_mappings):
     if not isinstance(search_tags_val, list):
         search_tags_val = slugify_formula_search_tags(str(search_tags_val or ''))
 
+    title = str(flat_out.get('title') or flat_out.get('description') or '').strip()
     return {
         'row_number': row_number,
         'quantity': parse_int(qty, default=1),
-        'description': str(flat_out.get('description') or '').strip(),
-        'title': str(flat_out.get('title') or '').strip(),
+        'title': title,
         'brand': str(flat_out.get('brand') or '').strip(),
         'model': str(flat_out.get('model') or '').strip(),
         'condition': str(flat_out.get('condition') or '').strip(),
@@ -1788,7 +1835,6 @@ def upsert_manifest_row_from_standardized_data(order, row_data, *, pricing):
 
     defaults = {
         'quantity': row_data.get('quantity', 1),
-        'description': str(row_data.get('description') or ''),
         'title': str(row_data.get('title') or '')[:300],
         'brand': str(row_data.get('brand') or '')[:200],
         'model': str(row_data.get('model') or '')[:200],
@@ -2078,12 +2124,11 @@ class VendorViewSet(viewsets.ModelViewSet):
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
-    queryset = Category.objects.select_related('parent').all()
+    queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated, IsStaff]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ['name', 'slug']
-    filterset_fields = ['parent']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
 
@@ -3120,7 +3165,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
                 sr.manifest_row = manifest_row
                 sr.quantity = row_data.get('quantity', 1)
-                sr.standard_description = row_data.get('description', '')
                 sr.standard_brand = row_data.get('brand', '')
                 sr.standard_model = row_data.get('model', '')
                 sr.standard_condition = row_data.get('condition', '')
@@ -3152,7 +3196,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     [
                         'quantity',
                         'manifest_row',
-                        'standard_description',
                         'standard_brand',
                         'standard_model',
                         'standard_condition',
@@ -3569,7 +3612,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     'row_number': r.row_number,
                     'item_id': first_item.id if first_item else None,
                     'sku': first_item.sku if first_item else '',
-                    'description': r.description,
                     'title': r.title,
                     'brand': r.brand,
                     'model': r.model,
@@ -4099,7 +4141,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'unit_retail',
             'base_cost',
             'ideal_price',
-            'description',
+            'title',
             'brand',
             'model',
             'condition',
@@ -4128,7 +4170,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     'unit_retail': source.unit_retail or '',
                     'base_cost': base_cost or '',
                     'ideal_price': ideal_price or '',
-                    'description': getattr(source, 'description', row.standard_description),
+                    'title': getattr(source, 'title', ''),
                     'brand': getattr(source, 'brand', row.standard_brand),
                     'model': getattr(source, 'model', row.standard_model),
                     'condition': getattr(source, 'condition', row.standard_condition),
@@ -4148,7 +4190,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     'unit_retail': row.unit_retail or '',
                     'base_cost': base_cost or '',
                     'ideal_price': ideal_price or '',
-                    'description': row.description,
+                    'title': row.title,
                     'brand': row.brand,
                     'model': row.model,
                     'condition': row.condition,
@@ -4331,10 +4373,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     _reject(idx, row_id=row_id, reason='missing_row_keys', detail=missing[:20])
                     continue
 
-            extra_description = ''
             extra_notes = ''
             if staging_wide:
-                extra_description = str(norm.get('description') or '').strip()
                 extra_notes = str(norm.get('notes') or '').strip()
 
             category = str(norm.get('category') or '').strip()
@@ -4365,7 +4405,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 display_title=display_title,
                 condition_raw=condition_raw,
                 proposed_price_raw=proposed_price_raw,
-                extra_description=extra_description,
+                extra_description='',
                 brand_for_soft=brand_soft,
                 category_for_soft=category,
                 block_on_quality=not staging_wide,
@@ -4421,7 +4461,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'proposed_price': proposed_price,
                 'parsed_specs': parsed_specs,
                 'parsed_search_tags': parsed_search_tags,
-                'extra_description': extra_description,
                 'extra_notes': extra_notes,
                 'ai_status': ai_status_obj,
             })
@@ -4461,7 +4500,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                         'category': pl['category'],
                         'condition': pl['condition'],
                         'proposed_price': pl['proposed_price'],
-                        'description': pl['extra_description'] if staging_wide else '',
                         'notes': pl['extra_notes'] if staging_wide else '',
                         'specifications': pl['parsed_specs'] if staging_wide and isinstance(pl['parsed_specs'], dict) else None,
                         'search_tags': pl['parsed_search_tags'] if staging_wide and isinstance(pl['parsed_search_tags'], list) else None,
@@ -4917,8 +4955,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             search_term = str(request.query_params.get('search') or '').strip().lower()
             if search_term:
                 q = (
-                    Q(description__icontains=search_term)
-                    | Q(title__icontains=search_term)
+                    Q(title__icontains=search_term)
                     | Q(brand__icontains=search_term)
                     | Q(model__icontains=search_term)
                     | Q(taxonomy__category__icontains=search_term)
@@ -5294,7 +5331,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             rows_data.append({
                 'row_id': r.id,
                 'title': r.title or '',
-                'description': r.description,
                 'brand': r.brand or '',
                 'model': r.model or '',
                 'category': _row_listing_category(r),
@@ -5386,14 +5422,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 continue
 
             category_name = None
-            if row.matched_product and row.matched_product.category_ref:
-                category_name = row.matched_product.category_ref.name
+            if row.matched_product and row.matched_product.category:
+                category_name = row.matched_product.category.name
             else:
                 cat_tx = _row_listing_category(row)
                 category_name = cat_tx if cat_tx else None
 
             result = do_estimate(
-                title=row.title or row.description or '',
+                title=row.title or '',
                 brand=row.brand or None,
                 model_name=row.model or None,
                 category_name=category_name,
@@ -6140,26 +6176,377 @@ class CSVTemplateViewSet(viewsets.ModelViewSet):
 
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.select_related('category_ref').all()
+    queryset = Product.objects.select_related('category').all()
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated, IsStaff]
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['product_number', 'title', 'brand', 'model', 'category', 'identifiers', 'tags']
+    search_fields = ['product_number', 'title', 'brand', 'model', 'category__name', 'identifiers', 'tags']
     ordering_fields = ['title', 'created_at']
+
+    def destroy(self, request, *args, **kwargs):
+        product = self.get_object()
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            item_count = Item.objects.filter(product_id=product.pk).count()
+            return Response(
+                {
+                    'detail': (
+                        f'Cannot delete product {product.product_number or product.pk}; '
+                        f'{item_count} item{"s" if item_count != 1 else ""} still reference it.'
+                    ),
+                    'item_count': item_count,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     @action(detail=True, methods=['get'], url_path='usage')
     def usage(self, request, pk=None):
         """Blast radius for editing this catalog product: how many Items across how many POs share it."""
         product = self.get_object()
-        agg = Item.objects.filter(product_id=product.pk).aggregate(
+        item_qs = Item.objects.filter(product_id=product.pk)
+        agg = item_qs.aggregate(
             item_count=Count('id'),
             order_count=Count('purchase_order_id', distinct=True),
         )
+        item_count = agg['item_count'] or 0
+
+        recent_orders = [
+            {
+                'order_number': row['order_number'] or f"PO #{row['id']}",
+                'ordered_date': row['ordered_date'].isoformat() if row['ordered_date'] else None,
+            }
+            for row in (
+                PurchaseOrder.objects
+                .filter(items__product_id=product.pk)
+                .distinct()
+                .order_by('-ordered_date', '-id')
+                .values('id', 'order_number', 'ordered_date')[:5]
+            )
+        ]
+
+        status_counts = []
+        status_labels = dict(Item.STATUS_CHOICES)
+        for row in item_qs.values('status').annotate(count=Count('id')).order_by('status'):
+            count = row['count'] or 0
+            status_counts.append({
+                'status': row['status'] or '',
+                'label': status_labels.get(row['status'], row['status'] or 'Unknown'),
+                'count': count,
+                'pct': round((count / item_count * 100), 1) if item_count else 0,
+            })
+
+        on_shelf_total = item_qs.filter(status='on_shelf').count()
+        on_shelf_locations = []
+        for row in (
+            item_qs.filter(status='on_shelf')
+            .values('location')
+            .annotate(count=Count('id'))
+            .order_by('-count', 'location')[:8]
+        ):
+            count = row['count'] or 0
+            location = str(row['location'] or '').strip() or 'No location'
+            on_shelf_locations.append({
+                'location': location,
+                'count': count,
+                'pct': round((count / on_shelf_total * 100), 1) if on_shelf_total else 0,
+            })
+
+        sold_qs = item_qs.filter(status='sold')
+        sold_agg = sold_qs.aggregate(
+            sold_count=Count('id'),
+            avg_sold_price=Avg('sold_for'),
+            avg_cost=Avg('cost'),
+            avg_profit=Avg(
+                ExpressionWrapper(
+                    F('sold_for') - F('cost'),
+                    output_field=DecimalField(max_digits=10, decimal_places=2),
+                ),
+            ),
+        )
         return Response({
             'product_id': product.pk,
-            'item_count': agg['item_count'] or 0,
+            'item_count': item_count,
             'order_count': agg['order_count'] or 0,
+            'recent_orders': recent_orders,
+            'status_counts': status_counts,
+            'on_shelf_count': on_shelf_total,
+            'on_shelf_locations': on_shelf_locations,
+            'sold_count': sold_agg['sold_count'] or 0,
+            'avg_sold_price': str(sold_agg['avg_sold_price']) if sold_agg['avg_sold_price'] is not None else None,
+            'avg_cost': str(sold_agg['avg_cost']) if sold_agg['avg_cost'] is not None else None,
+            'avg_profit': str(sold_agg['avg_profit']) if sold_agg['avg_profit'] is not None else None,
         })
+
+    @action(detail=False, methods=['post'], url_path='suggest')
+    def suggest_product(self, request):
+        """AI-assisted catalog copy for Product CRUD (structured JSON)."""
+        import json as json_lib
+        import time as _time
+
+        from apps.core.services.llm_router import LLMAPIError, LLMConfigError, llm_complete
+
+        t_total = _time.perf_counter()
+        timing: dict = {}
+
+        try:
+            fields = request.data.get('fields') or []
+            context = request.data.get('context') or {}
+            model_id = ai_model('SUGGEST_PRODUCT', request.data.get('model'))
+
+            if not isinstance(fields, list) or not fields:
+                return Response(
+                    {'error': 'fields must be a non-empty list of field names.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            allowed = {
+                'title', 'brand', 'model', 'category', 'tags', 'identifiers', 'specifications',
+            }
+            fields = [f for f in fields if f in allowed]
+            if not fields:
+                return Response(
+                    {'error': 'No valid fields requested.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            title = (context.get('title') or '')[:500]
+            brand = (context.get('brand') or '')[:200]
+            category = (context.get('category') or '')[:200]
+            model_ctx = (context.get('model') or '')[:200]
+
+            category_options = context.get('category_options') or []
+            if not isinstance(category_options, list):
+                category_options = []
+            category_option_set = {
+                str(x).strip() for x in category_options if str(x).strip()
+            }
+
+            t0 = _time.perf_counter()
+            store_examples, examples_used = retrieve_listing_examples_for_prompt(
+                title, brand or None, category or None, None,
+            )
+            timing['db_ms'] = round((_time.perf_counter() - t0) * 1000, 1)
+
+            draft_keys = ['title', 'brand', 'model', 'category', 'tags', 'identifiers', 'specifications']
+            user_payload = {
+                'requested_fields': fields,
+                'draft': {k: context.get(k, '' if k not in ('tags',) else []) for k in draft_keys},
+                'allowed_categories': sorted(category_option_set),
+                'store_examples': store_examples,
+            }
+
+            category_lines = '\n'.join(f'- {name}' for name in sorted(category_option_set))
+            system_prompt = (
+                PRODUCT_CATALOG_STANDARDS
+                + '\n\n'
+                + 'If you return a suggestion for "category", it MUST be exactly one of these strings:\n'
+                + (category_lines or '- (no categories provided — omit category)')
+                + '\n\n'
+                + FEW_SHOT_SUGGEST_PRODUCT
+                + '\n'
+                + PRODUCT_OUTPUT_SCHEMA_HINT
+                + '\n\n'
+                + 'The user message is JSON with requested_fields, draft, allowed_categories, and store_examples. '
+                'store_examples are for style only; do not copy SKUs/prices as facts about the draft product.'
+            )
+
+            user_message_json = json_lib.dumps(user_payload)
+            user_message_json_pretty = json_lib.dumps(user_payload, indent=2)
+            if suggest_logger.active_targets() & {'django', 'file'}:
+                prompt_blob = (
+                    f'\n[suggest_product] model={model_id!r}\n'
+                    f'--- SYSTEM PROMPT ({len(system_prompt)} chars) ---\n'
+                    f'{system_prompt}\n'
+                    f'--- USER MESSAGE ---\n'
+                    f'{user_message_json_pretty}\n'
+                    f'--- END suggest_product ---\n'
+                )
+                suggest_logger.info('%s', prompt_blob)
+
+            t0 = _time.perf_counter()
+            response = llm_complete(
+                model_id=model_id,
+                system=system_prompt,
+                user=user_message_json,
+                max_tokens=1024,
+                timeout=60.0,
+                log_source='suggest_product',
+                log_detail='POST suggest_product',
+            )
+            timing['api_ms'] = round((_time.perf_counter() - t0) * 1000, 1)
+
+            content_text = response.text
+
+            if suggest_logger.active_targets() & {'django', 'file'}:
+                suggest_logger.info('%s', '--- AI RESPONSE (raw) ---\n' + content_text[:50000])
+
+            if not (content_text or '').strip():
+                suggest_logger.warning('suggest_product empty content from model=%s', model_id)
+                return Response(
+                    {
+                        'error': 'AI returned an empty response. Check the provider API key and model id, then try again.',
+                        'examples_used': examples_used,
+                        'timing': timing,
+                    },
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+            out, parsed = _suggest_product_parse_suggestions_from_text(content_text, fields, allowed)
+            if not isinstance(parsed, dict) or out is None:
+                suggest_logger.warning(
+                    'suggest_product could not parse suggestions JSON; model=%s content_len=%s preview=%s',
+                    model_id,
+                    len(content_text),
+                    content_text[:800],
+                )
+                return Response(
+                    {
+                        'error': 'Could not parse AI response as JSON. Try again or pick another model.',
+                        'examples_used': examples_used,
+                        'timing': timing,
+                    },
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+            if 'category' in fields and 'category' in out and category_option_set:
+                cv = str(out['category']).strip()
+                if cv and cv not in category_option_set:
+                    retry_user = json.dumps({
+                        'instruction': (
+                            'Your previous answer used category %r which is not allowed. '
+                            'Return ONLY a JSON object with the same structure as required before, '
+                            'but category must be exactly one of the strings in allowed_categories.'
+                        ) % (cv,),
+                        'allowed_categories': sorted(category_option_set),
+                    })
+                    t_retry = _time.perf_counter()
+                    response_retry = llm_complete(
+                        model_id=model_id,
+                        system=system_prompt,
+                        messages=[
+                            {'role': 'user', 'content': user_message_json},
+                            {'role': 'assistant', 'content': content_text},
+                            {'role': 'user', 'content': retry_user},
+                        ],
+                        max_tokens=1024,
+                        timeout=60.0,
+                        log_source='suggest_product',
+                        log_detail='POST suggest_product category retry',
+                    )
+                    timing['api_retry_ms'] = round((_time.perf_counter() - t_retry) * 1000, 1)
+                    content_retry = response_retry.text
+                    out_retry, parsed_retry = _suggest_product_parse_suggestions_from_text(
+                        content_retry, fields, allowed,
+                    )
+                    if out_retry is not None and isinstance(parsed_retry, dict):
+                        out = out_retry
+                        parsed = parsed_retry
+
+            low_confidence = parsed.get('low_confidence', False) is True
+            low_confidence_reason = ''
+            if low_confidence:
+                low_confidence_reason = str(parsed.get('low_confidence_reason', ''))[:500]
+
+            usage_out = {
+                'input_tokens': response.input_tokens,
+                'output_tokens': response.output_tokens,
+            }
+
+            timing['total_ms'] = round((_time.perf_counter() - t_total) * 1000, 1)
+
+            payload = {
+                'suggestions': out,
+                'low_confidence': low_confidence,
+                'low_confidence_reason': low_confidence_reason,
+                'usage': usage_out,
+                'examples_used': examples_used,
+                'timing': timing,
+            }
+            if suggest_logger.should_log_browser():
+                payload['debug'] = {
+                    'model': model_id,
+                    'system_prompt': system_prompt,
+                    'user_message': user_message_json_pretty,
+                }
+            return Response(payload)
+
+        except LLMConfigError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except LLMAPIError as e:
+            suggest_logger.warning('suggest_product LLM error: %s', e)
+            detail = str(e)
+            if e.status_code is not None:
+                detail = f'{detail} (HTTP {e.status_code})'
+            return Response(
+                {
+                    'error': (
+                        'AI service error. '
+                        'Confirm the provider API key and that the model id is valid for your account. '
+                        f'Detail: {detail}'
+                    ),
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        except json_lib.JSONDecodeError as e:
+            return Response(
+                {'error': f'Failed to parse AI response: {e}'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        except Exception as e:
+            suggest_logger.exception('suggest_product unexpected error')
+            return Response(
+                {'error': f'AI suggest failed: {e}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=False, methods=['get'], url_path='check-in-orders')
+    def check_in_orders(self, request):
+        """Preferred purchase orders for product-first check-in (misfit default, manual adds, search)."""
+        from apps.inventory.processing_ops import product_check_in_order_options
+
+        raw_limit = request.query_params.get('limit') or '25'
+        try:
+            limit = max(1, min(50, int(raw_limit)))
+        except (TypeError, ValueError):
+            limit = 25
+        search = (request.query_params.get('search') or request.query_params.get('q') or '').strip()
+        orders = product_check_in_order_options(search=search, limit=limit)
+        return Response({'orders': orders})
+
+    @action(detail=True, methods=['post'], url_path='check-in')
+    def check_in(self, request, pk=None):
+        """Create on-shelf items for a locked catalog product on a selected purchase order."""
+        from apps.inventory.processing_ops import MAX_CHECK_IN_QUANTITY, product_check_in
+
+        product = self.get_object()
+        data = request.data if isinstance(request.data, dict) else {}
+        try:
+            quantity = int(data.get('quantity') or 1)
+        except (TypeError, ValueError):
+            quantity = 1
+        if quantity < 1:
+            return Response({'detail': 'quantity must be at least 1'}, status=status.HTTP_400_BAD_REQUEST)
+        if quantity > MAX_CHECK_IN_QUANTITY:
+            return Response(
+                {'detail': f'Quantity {quantity:,} exceeds the {MAX_CHECK_IN_QUANTITY:,} per-action safety limit.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            result = product_check_in(request.user, product, {**data, 'quantity': quantity})
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'product_id': result['product_id'],
+            'purchase_order_id': result['purchase_order_id'],
+            'created_count': result['created_count'],
+            'created_item_ids': result['created_item_ids'],
+            'processing_row_id': result['processing_row_id'],
+            'check_in_batch_id': result.get('check_in_batch_id'),
+            'printed_items_preview': result.get('printed_items_preview') or [],
+        }, status=status.HTTP_201_CREATED)
 
 
 class BatchGroupViewSet(viewsets.ModelViewSet):
@@ -6453,8 +6840,8 @@ class ItemViewSet(viewsets.ModelViewSet):
     filterset_fields = [
         'sku', 'purchase_order',
     ]
-    ordering_fields = ['created_at', 'price', 'sku']
-    ordering = ['-created_at']
+    ordering_fields = ['created_at', 'checked_in_at', 'price', 'sku', 'id']
+    ordering = ['-checked_in_at', '-created_at']
 
     def get_queryset(self):
         qs = Item.objects.select_related(
@@ -6477,9 +6864,55 @@ class ItemViewSet(viewsets.ModelViewSet):
                     dt = timezone.make_aware(dt, timezone.get_current_timezone())
                 qs = qs.filter(updated_at__gte=dt)
 
+        ids_raw = (request.query_params.get('ids') or '').strip()
+        if ids_raw:
+            id_list: list[int] = []
+            for part in ids_raw.split(','):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    id_list.append(int(part))
+                except (TypeError, ValueError):
+                    continue
+            if id_list:
+                qs = qs.filter(id__in=id_list)
+            else:
+                qs = qs.none()
+
+        batch_raw = (
+            request.query_params.get('check_in_batch')
+            or request.query_params.get('batch')
+            or ''
+        ).strip()
+        if batch_raw:
+            try:
+                batch_pk = int(batch_raw)
+            except (TypeError, ValueError):
+                qs = qs.none()
+            else:
+                from apps.inventory.models import ProcessingCheckInBatch
+
+                batch_item_ids = (
+                    ProcessingCheckInBatch.objects.filter(pk=batch_pk)
+                    .values_list('item_ids', flat=True)
+                    .first()
+                )
+                if batch_item_ids:
+                    qs = qs.filter(id__in=batch_item_ids)
+                else:
+                    qs = qs.none()
+
         status_vals = _csv_query_values(request, 'status')
         if status_vals:
             qs = qs.filter(status__in=status_vals)
+
+        product_raw = (request.query_params.get('product') or request.query_params.get('product_id') or '').strip()
+        if product_raw:
+            try:
+                qs = qs.filter(product_id=int(product_raw))
+            except (TypeError, ValueError):
+                qs = qs.none()
 
         condition_vals = _csv_query_values(request, 'condition')
         if condition_vals:
@@ -6601,7 +7034,7 @@ class ItemViewSet(viewsets.ModelViewSet):
         if category_raw:
             category_block = _item_stats_payload(
                 Item.objects.filter(
-                    Q(product__category=category_raw) | Q(manifest_row__category=category_raw),
+                    Q(product__category__name=category_raw) | Q(manifest_row__category=category_raw),
                 ),
                 category_raw,
             )
@@ -7313,7 +7746,7 @@ def classify_item_view(request):
     """Classify an item into a Category using the tiered classifier.
 
     Body: { title, brand?, model?, use_llm? }
-    Returns: { category_id, category_name, parent_name, confidence, method }
+    Returns: { category_id, category_name, confidence, method }
     """
     from .services.categorizer import classify_item
 
@@ -7329,7 +7762,6 @@ def classify_item_view(request):
     return Response({
         'category_id': result.category_id,
         'category_name': result.category_name,
-        'parent_name': result.parent_name,
         'confidence': result.confidence,
         'method': result.method,
     })
@@ -7352,7 +7784,7 @@ def store_report_view(request):
 
     listing_category = Case(
         When(manifest_row__category__gt='', then=F('manifest_row__category')),
-        When(product__category__gt='', then=F('product__category')),
+        When(product__category__isnull=False, then=F('product__category__name')),
         default=Value(''),
         output_field=CharField(),
     )

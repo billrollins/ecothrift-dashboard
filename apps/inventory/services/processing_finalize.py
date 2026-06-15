@@ -51,7 +51,6 @@ PREPROCESSING_PROJECT_TO_BOOKMARK_FIELDS = (
     'pricing_notes',
     'batch_flag',
     'ai_reasoning',
-    'final_description',
     'final_title',
     'final_brand',
     'final_model',
@@ -110,13 +109,12 @@ def validate_preprocessing_value_rows_for_finalize(
             add_err(rn, 'missing_price')
             continue
         title = str(row.get('final_title') or '').strip()
-        desc = str(row.get('final_description') or '').strip()
-        if not title and not desc:
-            add_err(rn, 'missing_title_or_description')
+        if not title:
+            add_err(rn, 'missing_title')
 
     if errs:
         raise ValidationError({
-            'detail': 'All staging rows must have a listing title/description and a price.',
+            'detail': 'All staging rows must have a listing title and a price.',
             'code': 'validation_failed',
             'errors': errs,
         })
@@ -143,7 +141,6 @@ def load_preprocessing_values_for_finalize(order: PurchaseOrder) -> Iterable[dic
             'pricing_notes',
             'batch_flag',
             'ai_reasoning',
-            'final_description',
             'final_title',
             'final_brand',
             'final_model',
@@ -164,7 +161,6 @@ def load_preprocessing_values_for_finalize(order: PurchaseOrder) -> Iterable[dic
             'manifest_row__pricing_notes',
             'manifest_row__batch_flag',
             'manifest_row__ai_reasoning',
-            'manifest_row__description',
             'manifest_row__title',
             'manifest_row__brand',
             'manifest_row__model',
@@ -196,7 +192,6 @@ def load_preprocessing_values_for_finalize(order: PurchaseOrder) -> Iterable[dic
             'pricing_notes': row.pricing_notes or (mr.pricing_notes if mr is not None else ''),
             'batch_flag': row.batch_flag or (bool(mr.batch_flag) if mr is not None else False),
             'ai_reasoning': row.ai_reasoning or (mr.ai_reasoning if mr is not None else ''),
-            'final_description': row.final_description or (mr.description if mr is not None else ''),
             'final_title': row.final_title or (mr.title if mr is not None else ''),
             'final_brand': row.final_brand or (mr.brand if mr is not None else ''),
             'final_model': row.final_model or (mr.model if mr is not None else ''),
@@ -247,7 +242,6 @@ def finalize_preprocessing_to_bookmarks(
                 pricing_notes=r.get('pricing_notes') or '',
                 batch_flag=bool(r.get('batch_flag')),
                 ai_reasoning=r.get('ai_reasoning') or '',
-                description=str(r.get('final_description') or ''),
                 title=str(r.get('final_title') or '')[:300],
                 brand=str(r.get('final_brand') or '')[:200],
                 model=str(r.get('final_model') or '')[:200],
@@ -305,11 +299,10 @@ def _safe_condition(raw: Any) -> str:
 
 def _listing_text_or_placeholder(bk: ProcessingRow) -> tuple[str, str]:
     title = str(bk.title or '').strip()
-    desc = str(bk.description or '').strip()
-    if title or desc:
-        return title[:300], desc
+    if title:
+        return title[:300], ''
     placeholder = f'Review raw manifest row {bk.row_number}'
-    return placeholder[:300], placeholder
+    return placeholder[:300], ''
 
 
 def _next_sku_batch(count: int) -> list[str]:
@@ -414,11 +407,11 @@ def _condition_for_manifest(raw: Any, rn: int, chunk_warnings: list[dict[str, An
 
 
 def _maybe_warn_missing_listing(bk: ProcessingRow, rn: int, chunk_warnings: list[dict[str, Any]]) -> None:
-    if not str(bk.title or '').strip() and not str(bk.description or '').strip():
+    if not str(bk.title or '').strip():
         chunk_warnings.append({
             'row_number': rn,
             'rule': 'missing_listing_text',
-            'message': 'Missing title/description; placeholder text used.',
+            'message': 'Missing title; placeholder text used.',
         })
 
 
@@ -438,14 +431,13 @@ def _manifest_objects_for_bookmarks(
             stags = list(stags)
         else:
             stags = _normalize_manifest_search_tags(stags)
-        title, desc = _listing_text_or_placeholder(bk)
+        title, _desc = _listing_text_or_placeholder(bk)
 
         manifest_objs.append(
             ManifestRow(
                 purchase_order=order,
                 row_number=rn,
                 quantity=qty,
-                description=desc,
                 title=title,
                 brand=str(bk.brand or ''),
                 model=str(bk.model or ''),

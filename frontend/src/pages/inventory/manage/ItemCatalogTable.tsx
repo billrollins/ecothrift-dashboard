@@ -251,7 +251,12 @@ export function ItemCatalogTable({ items, search, onOpenItem }: ItemCatalogTable
   const sortedItems = useMemo(() => {
     const copy = [...items];
     if (sortState === null) {
-      copy.sort((a, b) => b.id - a.id);
+      copy.sort((a, b) => {
+        const aAt = a.checked_in_at ? Date.parse(a.checked_in_at) : 0;
+        const bAt = b.checked_in_at ? Date.parse(b.checked_in_at) : 0;
+        if (bAt !== aAt) return bAt - aAt;
+        return b.id - a.id;
+      });
       return copy;
     }
     const { field, dir } = sortState;

@@ -12,6 +12,10 @@ Coverage must prove:
 
 - Product has no price behavior.
 - Product identifiers replace flat UPC.
+- `inventory.Category` contains exactly the 19 canonical rows and is the only runtime category source.
+- Product `category` is a canonical Category FK.
+- Item category is Product-backed.
+- Product description and canonical description lineage are fully removed.
 - Item identity reads from Product.
 - Item creation requires Product.
 - Item retail and Item price are separate.
@@ -24,12 +28,14 @@ Coverage must prove:
 | Test area | Required coverage |
 |-----------|-------------------|
 | Product matching | Identifier-based UPC match; no `default_price` in snapshot; match details expose identifiers. |
+| Category migration/seed | Exactly 19 `inventory.Category` rows; names match the prior taxonomy v1 list; non-19 existing categories map deterministically. |
+| Product category | Product create/update requires canonical Category FK; no `category_ref`; no string category writes. |
 | Manual item create | Product selected/created first; Product identifiers accepted; Product price not accepted. |
-| Item serializer | Product-backed read fields; no Item title/brand writes; `retail` accepted; `unit_retail` rejected for Item. |
+| Item serializer | Product-backed read fields including category; no Item title/brand/category writes; `retail` accepted; `unit_retail` rejected for Item. |
 | Processing check-in | Product required; row `unit_retail` becomes Item `retail`; shelf/check-in price becomes Item `price`; N quantity creates N Items. |
 | Processing transforms | No `units_per_item` / `unit_count` behavior in v1. |
 | Processing identity | Product identifiers used instead of Product UPC; row identifiers can prefill Product. |
-| AI cleanup/finalize | `ManifestRow.title` path; taxonomy informs canonical `ai_category`; condition standard set. |
+| AI cleanup/finalize | `ManifestRow.title` path; source taxonomy maps to canonical Category FK/name from the 19 rows; condition standard set; no description lineage. |
 | POS | Cart line description uses Product title; queryset joins Product where needed. |
 | Reports | Stale/unpriced/Item reports read Product-backed identity. |
 | Migration tests/checks | UPC copy to identifiers; null-product Item backfill; Product title/brand constraints. |
@@ -51,7 +57,8 @@ Known files likely touched:
 | Test area | Required coverage |
 |-----------|-------------------|
 | Product catalog table | No price column; identifiers/tags display/search payloads. |
-| Item catalog table | Product-backed title/brand display and sort behavior. |
+| Product modal | Category dropdown uses the 19 canonical Category rows; no description field. |
+| Item catalog table | Product-backed title/brand/category display and sort behavior. |
 | Item form | Requires/selects Product first; sends Item fields only; sends `retail`. |
 | Processing check-in dialog | Product modes; retail vs price payload; no `unit_count`. |
 | Processing transforms | Remove `unitsPerItem` expectations. |
@@ -73,6 +80,8 @@ Run after caller rewrites and before field drops. Exclude migrations and plannin
 
 Product old fields:
 
+- `description`
+- `category_ref`
 - `default_price`
 - `Product.upc`
 - `product__upc`
@@ -80,12 +89,21 @@ Product old fields:
 - `times_ordered`
 - `total_units_received`
 
+Category old/drift checks:
+
+- `TAXONOMY_V1_CATEGORY_NAMES` runtime choice usage outside seed/tests
+- hierarchy seeding in `seed_categories`
+- Product string category writes
+- Item-owned category writes
+
 Item old fields:
 
 - `Item.title`
 - `item.title`
 - `Item.brand`
 - `item.brand`
+- `Item.category`
+- `item.category` owned writes
 - `unit_count`
 - `unit_retail` in Item-owned contexts
 - `processing_tier`
@@ -97,6 +115,9 @@ Processing/Manifest old concepts:
 - `units_per_item`
 - `unitsPerItem`
 - `ManifestRow.description`
+- `ProcessingRow.description`
+- `ai_description`
+- `final_description`
 - separate `tracking` target usage
 - `standard_*` fields on `PreprocessingRow`
 - `ai_identifiers`, `final_identifiers`, `ai_tracking`, `final_tracking`
@@ -106,7 +127,8 @@ Expected:
 
 - Row-level `unit_retail` remains for `ManifestRow`, `PreprocessingRow`, and `ProcessingRow`.
 - `title`/`brand` remain on Product, ManifestRow, PreprocessingRow, and ProcessingRow.
-- `description` can remain on Product as manual/catalog detail.
+- `description` does not remain on Product, ManifestRow, PreprocessingRow, or ProcessingRow.
+- `TAXONOMY_V1_CATEGORY_NAMES` may remain only as a seed/test source for the 19 `inventory.Category` rows.
 - Historical migrations may still contain old fields.
 
 ## Data Checks
@@ -115,10 +137,13 @@ Before constraints:
 
 - Products with blank/null title: `0`.
 - Products with blank/null brand: `0`.
+- `inventory.Category` canonical row count: `19`.
+- Products with null/noncanonical category: `0`.
 - Items with null product: `0`.
 - Products with flat UPC not copied to identifiers: `0`.
 - Items with invalid condition: `0`.
-- Rows with non-canonical final category after AI/finalize: `0` or intentionally mapped.
+- Rows with non-canonical final category after AI/finalize: `0`.
+- Description columns on Product/ManifestRow/PreprocessingRow/ProcessingRow final schema: absent.
 
 Before field drops:
 
@@ -132,7 +157,7 @@ Before field drops:
 | Phase | Checks |
 |-------|--------|
 | 0 — Design freeze | Owner approves decisions/schema/lineage/migration order. |
-| 1 — Add new sources | Migration applies; UPCs copied to identifiers; Product search smoke test by UPC/title/brand/category/tags. |
+| 1 — Add new sources | Category seed/mapping applies; migration applies; UPCs copied to identifiers; Product search smoke test by UPC/title/brand/category/tags. |
 | 2 — Rewrite callers | Targeted backend tests pass; frontend typecheck/tests pass for changed areas; grep shows no new writes to retired fields. |
 | 3 — Backfill/constrain | Null-product Item count is `0`; constraints apply cleanly; POS smoke test passes. |
 | 4 — Drop old fields | App-code grep clean; migrations apply from clean DB and current DB; targeted tests pass. |
@@ -159,13 +184,16 @@ If this repo uses different exact commands at implementation time, use the packa
 ## Manual Smoke Tests
 
 - Create Product with identifiers and tags.
-- Search Product by title, brand, model, category, UPC, and tag.
+- Create Product with one of the 19 canonical categories.
+- Search Product by title, brand, model, canonical category, UPC, and tag.
 - Create Item by selecting existing Product.
+- Confirm Item category display is Product-backed.
 - Check in ProcessingRow with quantity > 1 and confirm it creates one Item per unit.
 - Confirm checked-in Items display Product-backed title/brand.
 - Print label and confirm Product title/brand plus Item price.
 - Add Item manually and confirm Product is required.
 - Attempt Product delete with Items and confirm it is blocked.
+- Confirm Product create/edit has no description field.
 
 ## Done Criteria
 

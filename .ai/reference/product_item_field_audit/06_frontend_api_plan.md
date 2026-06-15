@@ -16,7 +16,6 @@ Keep/send:
 - `brand`
 - `model`
 - `category`
-- `description`
 - `specifications`
 - `identifiers`
 - `tags`
@@ -24,12 +23,22 @@ Keep/send:
 
 Remove from target write/read contract:
 
+- `description`
+- `category_ref`
+- Product string category labels as write fields
 - `default_price`
 - flat `upc`
 - `times_ordered`
 - `total_units_received`
 
 Do not add a flat UPC write path. Display UPC-like values from `identifiers`.
+
+Category contract:
+
+- `category` is the canonical `inventory.Category` ID/FK.
+- Product read DTO may expose `category_name` for display.
+- Product write payload sends the Category ID only.
+- Category options come from the 19 canonical `inventory.Category` rows.
 
 ### Item DTO
 
@@ -55,6 +64,7 @@ Remove from target write/read contract:
 
 - Item-owned `title`
 - Item-owned `brand`
+- Item-owned `category`
 - `unit_retail` as an Item field
 - `unit_count`
 - `processing_tier`
@@ -79,10 +89,12 @@ Required changes:
 - Search bar keeps the same UX.
 - Product search calls `search` against the new backend token-AND search.
 - Display identifiers and tags in a compact way.
+- Display category from the canonical Product category FK/name.
 - Remove Product price column/sort.
 - Remove flat UPC as a primary column unless shown as read-only `identifiers.upc`.
 - Remove stats columns if they exist.
-- Product edit/create form edits `identifiers` and tags.
+- Product edit/create form edits canonical category, `identifiers`, and tags.
+- Product edit/create form does not include description.
 
 ## Item Page / Table
 
@@ -143,10 +155,10 @@ Used by:
 
 Fields:
 
-- Product identity: title, brand, model, category
+- Product identity: title, brand, model, canonical category
 - identifiers JSON editor or key/value editor
 - tags editor
-- optional Product description/specifications
+- specifications
 
 No Product price field.
 
@@ -176,9 +188,10 @@ Required changes:
 
 - Add `Product.identifiers`.
 - Add Product tags.
-- Remove Product `default_price` and flat `upc` from write types.
+- Remove Product `description`, `category_ref`, `default_price`, and flat `upc` from write types.
+- Represent Product `category` as the canonical Category ID/FK plus read-only display label fields if needed.
 - Add Item `retail`.
-- Remove Item `unit_retail`, `unit_count`, `processing_tier`, `batch_group` from final Item types.
+- Remove Item `unit_retail`, owned category, `unit_count`, `processing_tier`, `batch_group` from final Item types.
 - Keep row-level `unit_retail` on ProcessingRow types.
 - Represent Product-backed Item display fields explicitly.
 
@@ -195,6 +208,8 @@ Required changes:
 ## Frontend Done Criteria
 
 - No frontend create/update request sends Product `default_price`.
+- No frontend create/update request sends Product `description` or `category_ref`.
+- No frontend create/update request sends Item-owned category.
 - No frontend create/update request sends Item-owned `title` or `brand`.
 - No frontend Item payload sends Item `unit_retail`.
 - No frontend code depends on `unit_count` or `unitsPerItem`.

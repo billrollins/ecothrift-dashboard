@@ -17,7 +17,7 @@
 
 - `product_number` (stable, human-readable Product system ID)
 - `title`, `brand`, `model`, `category`
-- `description` (manual/catalog detail only; no ManifestRow description lineage)
+- no `description`; Product description is removed everywhere
 - `specifications` (JSON)
 - `tags` (AI-suggested/search aid; name can be `tags` / `search_tags`, final schema TBD)
 - `is_active`
@@ -56,7 +56,7 @@
 | # | Topic | Decision |
 |---|-------|----------|
 | 1 | `default_price` | Remove fully. Product has no price source. |
-| 2 | Canonical category representation | `PreprocessingRow.ai_category` through `Product.category` must be canonical. Recommended: validate against the `Category` table / category key set; defer full FK/string consolidation if needed. |
+| 2 | Canonical category representation | One runtime source: `inventory.Category`, seeded to the 19 prior `TAXONOMY_V1_CATEGORY_NAMES`. `Product.category` is a FK. Remove Product string category, `category_ref`, and Item-owned category. |
 | 3 | `is_active` in Manage Products table | Keep. |
 | 4 | `Item.cost` | Defer; computed/view later. |
 | 5 | BatchGroup + `BatchGroupViewSet` | Remove with old batch fields. |
@@ -89,7 +89,7 @@
 | `Item.price` | `NOT NULL`; set at check-in | Product has no price source |
 | `Item.retail` | Rename from `unit_retail` | Retail/MSRP; separate from shelf/tag `price` |
 | `Item.unit_count` | Drop column | Every Item represents exactly 1 physical unit for now |
-| Canonical category | `PreprocessingRow.ai_category` must be populated and valid; `final_category`, `ProcR.category`, and `Prod.category` remain canonical | Recommended implementation: validate against `Category` table / allowed category key set; use FK where practical |
+| Canonical category | `PreprocessingRow.ai_category` must resolve to one of the 19 `inventory.Category` rows; `final_category`, `ProcR.category`, and `Prod.category` remain canonical Category references | Implementation fixed: use `inventory.Category` as the runtime source and `Product.category` FK |
 | Condition | `PreprocessingRow.ai_condition`, `final_condition`, `ProcR.condition`, and `Item.condition` must be in the standard condition set | Use existing allowed condition enum / constraint from AI cleanup onward |
 
 ### Corrected identity lineage (`>` = informs / feeds next stage)
@@ -167,7 +167,7 @@ Owner direction: this can be simple and ugly if needed. For every existing `Item
 ### Description vs title at standardize
 
 - **Owner decision:** Option B. Template Formula creates a **Title**, not a Description. `ManifestRow` keeps `title`; canonical design removes `ManifestRow.description`.
-- `Product.description` can remain a manually curated catalog detail, but it is not part of the manifest-to-product identity lineage.
+- `Product.description` is removed. Use `title`, `notes`, `specifications`, `identifiers`, or `tags` instead of preserving catalog description.
 
 ---
 
@@ -182,7 +182,7 @@ Legend: `Raw` = mapped CSV · `MR` = ManifestRow · `PR` = PreprocessingRow · `
 | title | `Raw.description(req)\|Raw.title(opt) > MR.description\|MR.title > PR.ai_title > PR.final_title > ProcR.title > Prod.title > Item.title` | `Raw.title > MR.title > PR.ai_title > PR.final_title > ProcR.title > Prod.title` (Item reads Prod; drop Item.title) |
 | brand | `Raw.brand > MR.brand > PR.ai_brand > PR.final_brand > ProcR.brand > Prod.brand > Item.brand` | `Raw.brand > MR.brand > PR.ai_brand > PR.final_brand > ProcR.brand > Prod.brand` (drop Item.brand) |
 | model | `Raw.model > MR.model > PR.ai_model > PR.final_model > ProcR.model > Prod.model` | same |
-| description | current code has description fields, but target removes manifest/preprocessing description lineage | removed from manifest/preprocessing lineage; `Product.description` is manual/catalog detail only |
+| description | current code has Product/manifest/preprocessing/processing description fields | removed everywhere; no Product description and no canonical description lineage |
 
 ### Classification
 
@@ -389,7 +389,7 @@ Legend: `Raw` = mapped CSV · `MR` = ManifestRow · `PR` = PreprocessingRow · `
 | **2 — Rewrite callers** | Dedup, matching, serializers, frontend tables/forms; Item title/brand virtual from Product | Tests green; no old-field reads in app code |
 | **3 — Remove old writes/columns** | Remove Item.title/brand, Item.unit_count, retired stats, and every `default_price` path | No retired Product/Item fields in app code |
 | **4 — Constraints** | Backfill Item.product; NOT NULL/PROTECT; Product title/brand constraints; rename `Item.unit_retail` to `retail` | Migration applies cleanly |
-| **5 — Drop old fields** | Drop columns: upc, Item.title/brand/unit_count, processing_tier, batch_group, stats columns, ManifestRow.description | No reader references remain |
+| **5 — Drop old fields** | Drop columns: Product description/string category/category_ref/upc, Item title/brand/category/unit_count, processing_tier, batch_group, stats columns, ManifestRow/PreprocessingRow/ProcessingRow description fields | No reader references remain |
 
 ---
 
@@ -441,6 +441,8 @@ Legend: `Raw` = mapped CSV · `MR` = ManifestRow · `PR` = PreprocessingRow · `
 | 2026-06-13 | `Item.unit_count` removed | **Owner decision** | Every Item represents exactly 1 unit |
 | 2026-06-13 | Brand only on Product/staging/ManifestRows | **Owner decision** | No `Item.brand` |
 | 2026-06-13 | Category lineage corrected | **Owner decision** | `MR.taxonomy` stores source category fields; `PR.ai_category` and later fields are canonical |
+| 2026-06-14 | Category source reset | **Owner decision** | Categories have one purpose: Product categories. Runtime source is `inventory.Category`, seeded to the 19 prior taxonomy v1 names. Product has `category` FK only. |
+| 2026-06-14 | Product description removed | **Owner decision** | Remove `Product.description` and Product/manifest/preprocessing/processing description lineage with no legacy compromise. |
 | 2026-06-13 | Identifier source JSON | **Owner direction** | Manifest ID/tracking-like source fields go to `MR.identifiers`; not AI-adjusted in preprocessing/processing; Product identifiers can be prefilled on Product creation |
 | 2026-06-13 | Product search implementation | **Owner direction** | Prefer indexed field/JSON/tag search; no Product `search_string` unless profiling proves it necessary |
 | 2026-06-13 | Preprocessing layer model | **Owner decision** | `ManifestRow` is standardized; `PreprocessingRow` has `ai_*` and `final_*` only |

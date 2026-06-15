@@ -6,6 +6,9 @@
 
 - Product old-field writes are still centralized in manifest build/sync, manual item resolution, processing check-in, transforms, serializers, matching, search, admin, and import/backfill commands.
 - `ProductSerializer` currently uses broad model exposure; make affected serializers explicit before fields are dropped.
+- Category is currently split between the 19-name taxonomy constants and the hierarchical `inventory.Category` table. Target requires one runtime source: `inventory.Category` seeded to the 19 names.
+- Current Product has both a string `category` and `category_ref`; final target has only `Product.category` FK.
+- Current Product/processing description surfaces must be removed completely, not hidden.
 - `Product.tags` does not exist yet. Current search tags are mixed into specifications or row payloads; implementation must create Product-owned tags and move callers deliberately.
 - `Product.identifiers` does not exist yet. Existing row identifier JSON can prefill Product identifiers, but Product lookup/search/matching still depend on flat `upc`.
 - `PreprocessingRow` currently has `standard_*`, `ai_identifiers`, `final_identifiers`, `ai_tracking`, `final_tracking`, and similar source-copy/duplicate layers. These are explicit removal targets because `ManifestRow` is the standardized row.
@@ -18,7 +21,9 @@
 
 - `frontend/src/types/inventory.types.ts` and `frontend/src/api/inventory.api.ts` still expose retired Product/Item fields and need to be cleaned in the same slices as backend serializers.
 - Manage Products currently shows Product Price and flat UPC; Price must be removed and UPC must be displayed from `identifiers`.
+- Product manage/create/edit currently must not keep Product `description`, `category_ref`, or non-19 category options.
 - Item form create/update still writes Item identity and flat UPC. Target requires Product selection/create first, Product identifiers/tags on Product payloads, and Item-only fields on Item payloads.
+- Item category displays must be Product-backed, not Item-owned.
 - `ItemCatalogTable` must read Product-backed title/brand only; it currently has a brand path that can miss `product_brand`.
 - Processing quick and detailed check-in still send flat `upc`, dual retail keys, and row/search tag naming. Target: Product `identifiers`, Product `tags`, Item `retail`, row `unit_retail`.
 - Print/label paths must use Product-backed title/brand and Item price/retail. Do not depend on Item title/brand columns.
@@ -35,15 +40,18 @@
 - `apps/buying/services/category_stats_sql.py` reads `Item.unit_retail`; update to `Item.retail` when the Item field is renamed.
 - Printserver is safe if the API continues to provide Product-backed `product_title` / `product_brand`.
 - Tests that expect productless Items, flat UPC, `default_price`, `ManifestRow.description`, `unit_count`, or `units_per_item` must be rewritten with the implementation slice that changes the behavior.
+- Tests/fixtures that expect Product `description`, Product `category_ref`, hierarchical Category rows, or Item-owned category must be rewritten with the reset slice.
 
 ## Highest-Risk Sequencing Traps
 
 1. Dropping `Product.upc` before `Product.identifiers` exists, data is copied, and dedup/search/matching are rewritten.
 2. Enforcing `Item.product NOT NULL` before automatic Generic/default backfill and product-creating import paths are in place.
-3. Dropping `ManifestRow.description` before Template Formula/title migration and caller rewrites.
-4. Dropping `units_per_item` / `unit_count` before P9 transform and check-in logic are rewritten.
-5. Dropping `Product.default_price` while SQL scripts, Product tables, serializers, matching snapshots, or Product create paths still reference it.
-6. Leaving broad serializer field lists in place while model fields are being removed.
+3. Seeding the 19 canonical Category rows without first mapping existing non-19 `Category` rows and Product/Processing category strings.
+4. Renaming/dropping Product category fields before callers are rewritten from `category_ref`/string category to FK category.
+5. Dropping `ManifestRow.description` / Product description lineage before Template Formula/title migration and caller rewrites.
+6. Dropping `units_per_item` / `unit_count` before P9 transform and check-in logic are rewritten.
+7. Dropping `Product.default_price` while SQL scripts, Product tables, serializers, matching snapshots, or Product create paths still reference it.
+8. Leaving broad serializer field lists in place while model fields are being removed.
 
 ## Implementation Rule
 

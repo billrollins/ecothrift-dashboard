@@ -38,11 +38,6 @@ export function previewCondition(row: PreprocessingReviewRow): string {
   return String(row.standard_condition ?? '').trim();
 }
 
-export function previewDescription(row: PreprocessingReviewRow): string {
-  if (mStr(row.ai_description)) return String(row.ai_description).trim();
-  return String(row.standard_description ?? '').trim();
-}
-
 export function previewNotes(row: PreprocessingReviewRow): string {
   if (mStr(row.ai_notes)) return String(row.ai_notes).trim();
   return String(row.standard_notes ?? '').trim();
@@ -62,8 +57,3 @@ export function previewSearchTags(row: PreprocessingReviewRow): string[] {
   return [];
 }
 
-export function truncateStdTitleHint(row: PreprocessingReviewRow): string {
-  const d = String(row.standard_description ?? '').trim();
-  if (!d) return '—';
-  return d.length > 120 ? `${d.slice(0, 117)}…` : d;
-}

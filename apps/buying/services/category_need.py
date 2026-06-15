@@ -21,7 +21,8 @@ def taxonomy_bucket_for_item(item) -> str:
     _TAXONOMY_SET = frozenset(NAMES)
     if item.product_id:
         try:
-            pc = (item.product.category or '').strip()
+            category = item.product.category
+            pc = (category.name if category else '').strip()
             if pc in _TAXONOMY_SET:
                 return pc
         except Product.DoesNotExist:

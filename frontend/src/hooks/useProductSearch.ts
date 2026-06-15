@@ -1,20 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { getProducts, getProductUsage } from '../api/inventory.api';
+import { productSearchParams } from '../utils/productCatalog';
 import { useDebouncedValue } from './useDebouncedValue';
 
 export function useProductSearch(scope: string, search: string, enabled: boolean, pageSize = 25) {
   // Debounce so fast typists get ONE request per pause, not one per keystroke.
   const trimmed = useDebouncedValue(search.trim(), 250);
   const { data, isFetching } = useQuery({
-    queryKey: ['products', scope, trimmed],
+    queryKey: ['products', scope, trimmed, pageSize],
     queryFn: async () => {
-      const { data: page } = await getProducts({
-        search: trimmed || undefined,
-        page_size: pageSize,
-      });
+      const { data: page } = await getProducts(productSearchParams(trimmed, pageSize));
       return page;
     },
-    enabled,
+    enabled: enabled && trimmed.length > 0,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
   });

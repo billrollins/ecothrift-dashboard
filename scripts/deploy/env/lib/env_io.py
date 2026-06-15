@@ -33,6 +33,8 @@ def parse_env_file(path: Path) -> dict[str, str]:
 
 def mask_value(key: str, value: str) -> str:
     upper = key.upper()
+    if upper.startswith('AI_MODEL'):  # model ids are not secrets ('KEY_MAPPING' false-positive)
+        return value
     if any(token in upper for token in ('KEY', 'SECRET', 'PASSWORD', 'TOKEN')):
         return '***' if value else '(empty)'
     if len(value) > 60:

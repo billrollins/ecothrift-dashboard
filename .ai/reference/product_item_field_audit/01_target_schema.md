@@ -12,8 +12,7 @@
 | `title` | Canonical Product title. Required, non-empty. |
 | `brand` | Canonical Product brand. Required, default `Generic` when unknown. |
 | `model` | Canonical Product model. Blank allowed. |
-| `category` | Canonical EcoThrift category. Validation should use the Category table / approved key set. |
-| `description` | Manual/catalog detail only. Not part of manifest identity lineage. |
+| `category` | Required FK to `inventory.Category`. The table is seeded to the 19 canonical categories from the prior `TAXONOMY_V1_CATEGORY_NAMES`. |
 | `specifications` | Product-level JSON specs. |
 | `tags` | Product-owned search aid; JSON/list. AI can suggest. |
 | `is_active` | Product catalog visibility flag. |
@@ -29,6 +28,9 @@
 | Field | Replacement |
 |-------|-------------|
 | `upc` | `identifiers['upc']` |
+| old string `category` | `category` FK to `inventory.Category` after deterministic mapping to the 19 canonical rows. |
+| `category_ref` | `category` FK to `inventory.Category`. Do not preserve the legacy name. |
+| `description` | None. Product description is removed everywhere. Use `title`, `notes`, `specifications`, `identifiers`, or `tags` as appropriate. |
 | `default_price` | None. Product has no price source. |
 | `times_ordered` | Recompute/report if needed. No canonical Product column. |
 | `total_units_received` | Recompute/report if needed. No canonical Product column. |
@@ -37,6 +39,7 @@
 
 - `title` is `NOT NULL` and non-empty.
 - `brand` is `NOT NULL`; unknown brand is `Generic`.
+- `category_id` is `NOT NULL` and points to one of the 19 canonical `inventory.Category` rows.
 - `product_number` remains unique.
 - Product delete is blocked by `Item.product PROTECT` while Items exist.
 
@@ -68,6 +71,7 @@
 |-------|-------------|
 | `title` | `item.product.title` through serializer/API virtual read field if needed. |
 | `brand` | `item.product.brand` through serializer/API virtual read field if needed. |
+| `category` | `item.product.category` through serializer/API virtual read field if needed. |
 | `unit_retail` | Rename to `retail`. |
 | `unit_count` | None. Every Item is one physical unit. |
 | `processing_tier` | None. Old batch artifact. |
@@ -102,7 +106,7 @@
 
 | Field | Target |
 |-------|--------|
-| canonical `description` lineage | Use `title`. Product description remains manual/catalog only. |
+| canonical `description` lineage | Use `title` for identity and `notes` for notes. Product description does not exist. |
 | separate `tracking` bucket | Use `identifiers` for tracking-like source fields. |
 
 ## PreprocessingRow
@@ -120,7 +124,7 @@
 - `ai_title` / `final_title`
 - `ai_brand` / `final_brand`
 - `ai_model` / `final_model`
-- `ai_category` / `final_category`
+- `ai_category` / `final_category` as canonical `inventory.Category` references or immediately resolved canonical category IDs.
 - `ai_condition` / `final_condition`
 - `ai_notes` / `final_notes`
 - `ai_specifications` / `final_specifications`
@@ -153,7 +157,7 @@ Target also removes identifier/tracking/taxonomy AI/final adjustment fields wher
 
 | Field | Target notes |
 |-------|--------------|
-| `title`, `brand`, `model`, `category` | Plain processing fields from final preprocessing values. Product creation/matching source. |
+| `title`, `brand`, `model`, `category` | Processing fields from final preprocessing values. `category` resolves to the canonical `inventory.Category` row used by Product creation/matching. |
 | `condition` | Plain processing condition; standard set. |
 | `quantity` | Row quantity; controls number of Items checked in. |
 | `unit_retail` | Row retail/MSRP; pre-fills `Item.retail`. |
@@ -169,3 +173,4 @@ Target also removes identifier/tracking/taxonomy AI/final adjustment fields wher
 | Field | Replacement |
 |-------|-------------|
 | `units_per_item` | None in v1. Quantity becomes one Item per unit. |
+| `description` | None. Use `title`, `notes`, and `specifications`. |

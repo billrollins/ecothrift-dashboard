@@ -8,12 +8,13 @@ Pinned **Essentials:** Dashboard, Employees.
 
 Workspaces (lifecycle order):
 
-1. **Buying** — Vendors, Auctions, Watchlist
-2. **Processing** — Orders, Preprocessing, Receiving, Processing, Finalization, Disputes
+1. **Buying** — Auctions, Watchlist, Preprocessing
+2. **Processing** — Receiving, Processing, Finalization, Disputes
 3. **Restoration** — TARS (placeholder)
-4. **Floor** — Manage products, Manage items, Quick reprice
-5. **Cashier** — Terminal, Transactions, Search items, Drawers, Cash Management
-6. **Admin** (Manager/Admin) — Assumptions, POS setup, Users, Customers, Permissions, Settings
+4. **Inventory** — Vendors, Orders, Products, Items
+5. **Floor Ops** — Quick reprice *(more coming)*
+6. **Cashier** — Terminal, Transactions, Drawers, Cash Management
+7. **Admin** (Manager/Admin) — Assumptions, POS setup, Web store, Web orders, Users, Customers, Permissions, Settings
 
 ## Shared data
 
@@ -32,8 +33,8 @@ Workspaces (lifecycle order):
 
 - Exactly **one workspace panel** visible at a time.
 - **Sidebar click** (Essentials or workspace panel): stay in the current workspace even when the link appears in multiple workspaces.
-- **External URL** (bookmark, refresh, address bar): for routes shared across workspaces, select the **lowest lifecycle #** workspace (e.g. Floor for `/inventory/manage-items`).
-- Manual workspace choice (selector or **Alt+1..6**) persists in `ecothrift.navC.workspace.v1`.
+- **External URL** (bookmark, refresh, address bar): for routes shared across workspaces, select the **lowest lifecycle #** workspace (e.g. Inventory for `/inventory/manage-items`).
+- Manual workspace choice (selector or **Alt+1..N**) persists in `ecothrift.navC.workspace.v1`.
 
 ## Checklist
 

@@ -30,8 +30,6 @@ class VendorSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    parent_name = serializers.CharField(source='parent.name', read_only=True, default=None)
-
     class Meta:
         model = Category
         fields = '__all__'
@@ -217,7 +215,6 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
     ideal_delta_pct = serializers.SerializerMethodField()
     category = serializers.SerializerMethodField()
 
-    description = serializers.SerializerMethodField()
     title = serializers.SerializerMethodField()
     brand = serializers.SerializerMethodField()
     model = serializers.SerializerMethodField()
@@ -239,7 +236,6 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
             'id',
             'row_number',
             # Effective (coalesced) aliases for legacy UI paths
-            'description',
             'title',
             'brand',
             'model',
@@ -252,9 +248,6 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
             'search_tags',
             'category',
             # Triple layers (explicit)
-            'standard_description',
-            'ai_description',
-            'final_description',
             'ai_title',
             'final_title',
             'ai_category',
@@ -306,9 +299,6 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
             'set_price',
             'ideal_delta_pct',
         ]
-
-    def get_description(self, obj):
-        return str(effective_preprocessing_triple(obj, 'description') or '')
 
     def get_title(self, obj):
         return effective_preprocessing_title(obj)
@@ -412,7 +402,6 @@ class PreprocessingReviewRowMinimalSerializer(PreprocessingReviewRowSerializer):
             'pricing_stage',
             'pricing_notes',
             'batch_flag',
-            'description',
             'title',
             'brand',
             'model',
@@ -437,7 +426,6 @@ class PreprocessingReviewRowMinimalSerializer(PreprocessingReviewRowSerializer):
             'ai_brand',
             'ai_model',
             'ai_condition',
-            'standard_description',
             'standard_brand',
             'standard_model',
             'standard_condition',
@@ -747,8 +735,9 @@ class CSVTemplateSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category_ref.name', read_only=True, default=None)
+    category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     upc = serializers.SerializerMethodField()
+    catalog_display_label = serializers.CharField(read_only=True)
 
     def get_upc(self, obj):
         return obj.primary_upc
@@ -756,11 +745,14 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'product_number', 'title', 'brand', 'model', 'category', 'category_ref',
-            'category_name', 'description', 'specifications', 'identifiers', 'tags', 'upc',
-            'is_active', 'created_at', 'updated_at',
+            'id', 'product_number', 'title', 'brand', 'model', 'category',
+            'category_name', 'specifications', 'identifiers', 'tags', 'upc',
+            'catalog_display_label', 'is_active', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'product_number', 'upc', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'product_number', 'upc', 'catalog_display_label', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'category': {'required': False},
+        }
 
 
 class BatchGroupSerializer(serializers.ModelSerializer):
@@ -786,8 +778,15 @@ class BatchGroupSerializer(serializers.ModelSerializer):
 
 
 def item_listing_category(obj: Item) -> str:
-    """Category for staff item APIs — product, then manifest flat/taxonomy."""
+    """Category for staff item APIs — Product category, then manifest fallback."""
 
+    if obj.product_id:
+        prod = getattr(obj, 'product', None)
+        if prod is not None:
+            category = getattr(prod, 'category', None)
+            name = getattr(category, 'name', '')
+            if name:
+                return str(name).strip()
     mr = getattr(obj, 'manifest_row', None)
     if mr is not None:
         flat = str(getattr(mr, 'category', None) or '').strip()
@@ -796,10 +795,6 @@ def item_listing_category(obj: Item) -> str:
         c = str((mr.taxonomy or {}).get('category') or '').strip()
         if c:
             return c
-    if obj.product_id:
-        prod = getattr(obj, 'product', None)
-        if prod is not None:
-            return str(prod.category or '').strip()
     return ''
 
 

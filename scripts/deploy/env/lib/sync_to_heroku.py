@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -34,11 +35,24 @@ SKIP_KEYS = frozenset(
 BATCH_SIZE = 20
 
 
-def run_heroku_config_set(app: str, pairs: dict[str, str]) -> None:
+def heroku_cli() -> str:
+    """Full path to a Windows-executable Heroku CLI entry point.
+
+    PATH carries both an extensionless unix shim and heroku.cmd; bare
+    'heroku' resolves to the shim, which CreateProcess cannot run."""
+    for name in ('heroku.cmd', 'heroku.exe', 'heroku.bat', 'heroku'):
+        path = shutil.which(name)
+        if path:
+            return path
+    print('ERROR: Heroku CLI not found on PATH. Install it or restart the shell.', file=sys.stderr)
+    raise SystemExit(1)
+
+
+def run_heroku_config_set(heroku: str, app: str, pairs: dict[str, str]) -> None:
     items = list(pairs.items())
     for i in range(0, len(items), BATCH_SIZE):
         chunk = items[i : i + BATCH_SIZE]
-        args = ['heroku', 'config:set', *[f'{k}={v}' for k, v in chunk], '-a', app]
+        args = [heroku, 'config:set', *[f'{k}={v}' for k, v in chunk], '-a', app]
         subprocess.run(args, check=True)
 
 
@@ -55,6 +69,22 @@ def main() -> int:
         return 1
 
     raw = parse_env_file(env_path)
+
+    # Prod-sanity guard: .envprod must carry production values in its top section.
+    problems = []
+    if raw.get('DEBUG', '').strip().lower() in ('true', '1', 'yes'):
+        problems.append('DEBUG must be False in .envprod')
+    hosts = raw.get('ALLOWED_HOSTS', '')
+    if 'localhost' in hosts or 'testserver' in hosts:
+        problems.append('ALLOWED_HOSTS contains localhost/testserver (dev values)')
+    if raw.get('ENVIRONMENT', '').strip().lower() == 'development':
+        problems.append('ENVIRONMENT is development')
+    if problems:
+        print('ERROR: .envprod still has dev values — fix before syncing:', file=sys.stderr)
+        for prob in problems:
+            print(f'  - {prob}', file=sys.stderr)
+        return 1
+
     skipped: list[str] = []
     pairs: dict[str, str] = {}
     for key, value in sorted(raw.items()):
@@ -81,14 +111,15 @@ def main() -> int:
         print('\nDry run — no changes made.')
         return 0
 
+    heroku = heroku_cli()
     try:
-        subprocess.run(['heroku', 'auth:whoami'], check=True, capture_output=True, text=True)
+        subprocess.run([heroku, 'auth:whoami'], check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError:
         print('ERROR: Not logged into Heroku CLI. Run: heroku login', file=sys.stderr)
         return 1
 
     try:
-        run_heroku_config_set(args.app, pairs)
+        run_heroku_config_set(heroku, args.app, pairs)
     except subprocess.CalledProcessError as exc:
         print(f'ERROR: heroku config:set failed (exit {exc.returncode})', file=sys.stderr)
         return exc.returncode or 1

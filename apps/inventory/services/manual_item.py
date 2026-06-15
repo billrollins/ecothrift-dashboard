@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from apps.inventory.models import Category, Product
+from apps.inventory.canonical_categories import canonical_category_name
 from apps.inventory.product_identity import (
     identifier_value,
     merge_identifiers,
@@ -60,10 +61,10 @@ def _clean(value: Any, max_len: int | None = None) -> str:
     return text
 
 
-def _category_ref_for_name(category: str) -> Category | None:
-    if not category:
-        return None
-    return Category.objects.filter(name__iexact=category).first()
+def _category_for_name(category: str) -> Category:
+    canonical = canonical_category_name(category)
+    obj, _ = Category.objects.get_or_create(name=canonical)
+    return obj
 
 
 def _fill_product_blanks(
@@ -77,14 +78,11 @@ def _fill_product_blanks(
     """Conservative enrichment for reused products: only fill empty identity gaps."""
 
     update_fields: list[str] = []
-    if category and not product.category:
-        product.category = category
-        update_fields.append('category')
-        if product.category_ref_id is None:
-            ref = _category_ref_for_name(category)
-            if ref is not None:
-                product.category_ref = ref
-                update_fields.append('category_ref')
+    if category:
+        ref = _category_for_name(category)
+        if product.category_id != ref.id:
+            product.category = ref
+            update_fields.append('category')
     if model and not product.model:
         product.model = model
         update_fields.append('model')
@@ -117,17 +115,16 @@ def _update_existing_product(
     for field, value in (
         ('title', title),
         ('brand', brand),
-        ('category', category),
         ('model', model),
     ):
         if value and getattr(product, field) != value:
             setattr(product, field, value)
             update_fields.append(field)
-    if category and product.category_ref_id is None:
-        ref = _category_ref_for_name(category)
-        if ref is not None:
-            product.category_ref = ref
-            update_fields.append('category_ref')
+    if category:
+        ref = _category_for_name(category)
+        if product.category_id != ref.id:
+            product.category = ref
+            update_fields.append('category')
 
     merged_specs = dict(product.specifications) if isinstance(product.specifications, dict) else {}
     if specifications:
@@ -171,6 +168,7 @@ def find_or_create_product_for_manual_item(
     title = _clean(title, 300)
     brand = _clean(brand, 200)
     category = _clean(category, 200)
+    category_obj = _category_for_name(category)
     model = _clean(model, 200)
     upc = _clean(upc, 100)
     title = title or 'Generic Product'
@@ -184,7 +182,7 @@ def find_or_create_product_for_manual_item(
             existing_product,
             title=title,
             brand=brand,
-            category=category,
+            category=category_obj.name,
             model=model,
             identifiers=ids,
             specifications=specs,
@@ -196,13 +194,11 @@ def find_or_create_product_for_manual_item(
             title=title,
             brand=brand,
             model=model,
-            category=category,
+            category=category_obj,
             specifications=specs,
             identifiers=ids,
             tags=tags,
         )
-        if category:
-            product.category_ref = _category_ref_for_name(category)
         product.save()
         return product
 
@@ -223,7 +219,7 @@ def find_or_create_product_for_manual_item(
         title__iexact=title,
         brand__iexact=brand,
         model__iexact=model,
-        category__iexact=category,
+        category=category_obj,
     ).first()
     if exact is not None:
         _fill_product_blanks(
@@ -239,12 +235,10 @@ def find_or_create_product_for_manual_item(
         title=title,
         brand=brand,
         model=model,
-        category=category,
+        category=category_obj,
         specifications=specs,
         identifiers=ids,
         tags=tags,
     )
-    if category:
-        product.category_ref = _category_ref_for_name(category)
     product.save()
     return product

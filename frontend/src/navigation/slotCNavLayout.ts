@@ -8,7 +8,7 @@ export interface SlotCWorkspaceMeta {
   icon: NavIconKey;
 }
 
-/** Lifecycle order: source → ingest → restore → merchandise → sell → manage. */
+/** Lifecycle order: source → prep → ingest → restore → records → floor ops → sell → manage. */
 export const SLOT_C_DEFAULT_WORKSPACE_ID = 'buying';
 
 /** Workspace-first groups for staff sidebar (presentation only). */
@@ -21,12 +21,12 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'buying',
     label: 'Buying',
-    itemIds: ['vendors', 'auctions', 'watchlist'],
+    itemIds: ['auctions', 'watchlist', 'preprocessing'],
   },
   {
     id: 'processing',
     label: 'Processing',
-    itemIds: ['orders', 'preprocessing', 'receiving', 'processing', 'finalization', 'disputes'],
+    itemIds: ['receiving', 'processing', 'finalization', 'disputes'],
   },
   {
     id: 'restoration',
@@ -34,9 +34,14 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     itemIds: ['tars'],
   },
   {
-    id: 'floor',
-    label: 'Floor',
-    itemIds: ['manageProducts', 'manageItems', 'quickReprice'],
+    id: 'inventory',
+    label: 'Inventory',
+    itemIds: ['vendors', 'orders', 'manageProducts', 'manageItems'],
+  },
+  {
+    id: 'floorOps',
+    label: 'Floor Ops',
+    itemIds: ['quickReprice'],
   },
   {
     id: 'cashier',
@@ -56,7 +61,8 @@ export const SLOT_C_ESSENTIALS_GROUP_ID = 'essentials';
 /** Stale bake-off workspace ids → lifecycle ids. */
 export const SLOT_C_WORKSPACE_ID_MIGRATION: Record<string, string> = {
   inbound: 'processing',
-  catalog: 'floor',
+  catalog: 'inventory',
+  floor: 'inventory',
   store: 'cashier',
 };
 
@@ -65,14 +71,14 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'buying',
     label: 'Buying',
     shortLabel: 'Buying',
-    helper: 'Vendors and auctions',
+    helper: 'Auctions and manifest prep',
     icon: 'gavel',
   },
   {
     id: 'processing',
     label: 'Processing',
     shortLabel: 'Processing',
-    helper: 'Ingest pipeline',
+    helper: 'Receive through close-out',
     icon: 'localShipping',
   },
   {
@@ -83,11 +89,18 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     icon: 'build',
   },
   {
-    id: 'floor',
-    label: 'Floor',
+    id: 'inventory',
+    label: 'Inventory',
+    shortLabel: 'Inventory',
+    helper: 'Vendors, orders, products, items',
+    icon: 'inventory',
+  },
+  {
+    id: 'floorOps',
+    label: 'Floor Ops',
     shortLabel: 'Floor',
-    helper: 'Manage products & items, reprice',
-    icon: 'search',
+    helper: 'Shelf and floor tasks',
+    icon: 'storefront',
   },
   {
     id: 'cashier',

@@ -1,4 +1,5 @@
-import { Box, Typography } from '@mui/material';
+import { Box, Stack, Typography } from '@mui/material';
+import type { ReactNode } from 'react';
 import { processingTokens } from '../processing/processingTokens';
 
 export interface CatalogFilterRowProps {
@@ -8,6 +9,7 @@ export interface CatalogFilterRowProps {
   isFetching?: boolean;
   /** Plural noun for the count line, e.g. "products" or "items". */
   entityPlural: string;
+  filterChips?: ReactNode;
 }
 
 export function CatalogFilterRow({
@@ -16,6 +18,7 @@ export function CatalogFilterRow({
   search,
   isFetching = false,
   entityPlural,
+  filterChips,
 }: CatalogFilterRowProps) {
   const q = search.trim();
   const capped = totalCount > shownCount;
@@ -60,6 +63,11 @@ export function CatalogFilterRow({
         {summary}
         {isFetching ? ' · searching…' : null}
       </Typography>
+      {filterChips ?
+        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5, ml: 'auto' }}>
+          {filterChips}
+        </Stack>
+      : null}
     </Box>
   );
 }

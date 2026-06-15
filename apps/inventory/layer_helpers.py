@@ -19,7 +19,6 @@ def is_meaningful(value: Any, field_kind: FieldKind) -> bool:
 
 # Base field name → kind for triple-layer cols (excluding title-only ai/final).
 TRIPLE_LAYER_SPECS: dict[str, FieldKind] = {
-    'description': 'str',
     'brand': 'str',
     'model': 'str',
     'condition': 'str',
@@ -36,8 +35,6 @@ def _manifest_row_standard_value(sr, field_base: str) -> Any:
     mr = getattr(sr, 'manifest_row', None)
     if mr is None:
         return None
-    if field_base == 'description':
-        return getattr(mr, 'description', '')
     if field_base in {'brand', 'model', 'condition', 'notes'}:
         return getattr(mr, field_base, '')
     if field_base in {'identifiers', 'taxonomy', 'specifications', 'tracking', 'search_tags'}:
@@ -57,9 +54,6 @@ def preprocessing_standard_value(sr, field_base: str) -> Any:
 
 def preprocessing_row_has_final(sr) -> bool:
     """True when any final_* field is populated (cleanup upload or finalize snapshot)."""
-    fd = getattr(sr, 'final_description', None)
-    if is_meaningful(fd, 'str'):
-        return True
     ft = getattr(sr, 'final_title', None)
     if is_meaningful(ft, 'str'):
         return True
@@ -67,8 +61,6 @@ def preprocessing_row_has_final(sr) -> bool:
     if is_meaningful(fc, 'str'):
         return True
     for base, kind in TRIPLE_LAYER_SPECS.items():
-        if base == 'description':
-            continue
         v = getattr(sr, f'final_{base}', None)
         if is_meaningful(v, kind):
             return True
@@ -83,13 +75,15 @@ def coalesce_final_value(ai_val: Any, standard_val: Any, field_base: str) -> Any
 
 
 def coalesce_final_title_from_row(sr) -> str:
-    """Prefer meaningful ai_title; else first ~300 chars of standard_description."""
+    """Prefer meaningful ai_title; else ManifestRow.title."""
     ai_t = getattr(sr, 'ai_title', '') or ''
     if is_meaningful(ai_t, 'str'):
         return ai_t[:300]
-    std_d = getattr(sr, 'standard_description', '') or ''
-    if is_meaningful(std_d, 'str'):
-        return std_d[:300]
+    mr = getattr(sr, 'manifest_row', None)
+    if mr is not None:
+        mt = getattr(mr, 'title', '') or ''
+        if is_meaningful(mt, 'str'):
+            return mt[:300]
     return ''
 
 
@@ -163,12 +157,6 @@ def effective_preprocessing_title(sr) -> str:
         mt = getattr(mr, 'title', '') or ''
         if is_meaningful(mt, 'str'):
             return mt[:300]
-        md = getattr(mr, 'description', '') or ''
-        if is_meaningful(md, 'str'):
-            return md[:300]
-    std_d = getattr(sr, 'standard_description', '') or ''
-    if is_meaningful(std_d, 'str'):
-        return std_d[:300]
     return ''
 
 
@@ -231,7 +219,6 @@ def effective_taxonomy_category_for_row(row) -> str:
 def bulk_clear_preprocess_standard_layer(qs):
     """Undo standardize: clear standard_* structured fields (retain raw_row)."""
     qs.update(
-        standard_description='',
         standard_brand='',
         standard_model='',
         standard_condition='',
@@ -247,7 +234,6 @@ def bulk_clear_preprocess_standard_layer(qs):
 def bulk_clear_preprocess_ai_and_final_layers(qs):
     """Re-standardize: clear ai_* structured defaults and reset final_* to NULL."""
     qs.update(
-        ai_description='',
         ai_condition='',
         ai_notes='',
         ai_identifiers={},
@@ -259,7 +245,6 @@ def bulk_clear_preprocess_ai_and_final_layers(qs):
         ai_brand='',
         ai_model='',
         ai_category='',
-        final_description=None,
         final_title=None,
         final_category=None,
         final_brand=None,

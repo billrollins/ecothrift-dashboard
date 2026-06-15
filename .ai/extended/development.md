@@ -128,12 +128,13 @@ Defined in `.env` (gitignored):
 | `AWS_STORAGE_BUCKET_NAME` | S3 bucket name | — |
 | `AWS_S3_REGION_NAME` | S3 region | `us-east-2` |
 | `ALLOWED_HOSTS` | Comma-separated hosts | `localhost,127.0.0.1` |
-| `ANTHROPIC_API_KEY` | Anthropic API key (Claude — buying 4.1B, inventory AI, `apps/ai`, etc.) | — |
-| `AI_MODEL` | Default model id for Anthropic paths (`ecothrift/settings.py`; Grok ids allowed where **`llm_chat`** is wired, e.g. **`suggest-formulas`**) | see `settings.py` |
-| `AI_MODEL_FAST` | Optional faster/cheaper model id where used | see `settings.py` |
-| `XAI_API_KEY` | xAI Grok API key (**`GROK_API_KEY`** is an alias) | — |
+| `ANTHROPIC_API_KEY` | Anthropic API key (used when a model id is `claude-*`) | — |
+| `XAI_API_KEY` | xAI Grok API key (**`GROK_API_KEY`** is an alias; used for `grok-*` ids) | — |
+| `GOOGLE_API_KEY` | Google Gemini API key (**`GEMINI_API_KEY`** is an alias; used for `gemini-*` ids) | — |
 | `XAI_API_BASE` | OpenAI-compatible base URL for Grok | `https://api.x.ai/v1` |
-| `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI), `anthropic`, or `xai` | `auto` |
+| `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI, `gemini*` → Google, else Anthropic), or force `anthropic` / `xai` / `google` | `auto` |
+| `AI_MODEL` / `AI_MODEL_FAST` | Base fallback model ids (`ecothrift/settings.py`) | see `settings.py` |
+| `AI_MODEL_<PURPOSE>` | Per-feature model id (e.g. `AI_MODEL_SUGGEST_ITEM`, `AI_MODEL_INVENTORY_CLEANUP`); **any provider's id works for every purpose** — all call sites route via `apps/core/services/llm_router.py` | falls back to `AI_MODEL` / `AI_MODEL_FAST` |
 | `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs logged to **`workspace/logs/ai_usage.jsonl`** | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest | `false` |
 | `BSTOCK_AUTH_TOKEN` | Fallback JWT if `workspace/.bstock_token` is missing (from `python manage.py bstock_token` or DevTools) | — |

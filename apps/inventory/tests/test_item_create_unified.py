@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 from apps.inventory.models import (
     Item,
     ManifestRow,
+    ProcessingCheckInBatch,
     ProcessingRow,
     Product,
     PurchaseOrder,
@@ -110,6 +111,11 @@ class WorkspaceRoutedCreateTests(UnifiedItemCreateBase):
             self.assertEqual(item.purchase_order_id, self.order.id)
             self.assertEqual(item.status, 'on_shelf')
 
+        batch = ProcessingCheckInBatch.objects.filter(processing_row=row).first()
+        self.assertIsNotNone(batch)
+        self.assertEqual(batch.quantity, 3)
+        self.assertEqual(batch.product_id, items.first().product_id)
+
     def test_create_on_non_workspace_po_skips_added_row(self):
         plain = PurchaseOrder.objects.create(
             vendor=self.vendor,
@@ -166,3 +172,14 @@ class ProductUsageEndpointTests(UnifiedItemCreateBase):
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertEqual(resp.data['item_count'], 0)
         self.assertEqual(resp.data['order_count'], 0)
+
+    def test_delete_product_with_items_returns_friendly_400(self):
+        product = Product.objects.create(title='Protected Widget')
+        Item.objects.create(sku='SKU-PROTECT-1', product=product, price=Decimal('1.00'))
+
+        resp = self.client.delete(f'/api/inventory/products/{product.id}/')
+
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertEqual(resp.data['item_count'], 1)
+        self.assertIn('Cannot delete product', resp.data['detail'])
+        self.assertTrue(Product.objects.filter(pk=product.pk).exists())

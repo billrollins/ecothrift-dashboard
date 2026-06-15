@@ -97,7 +97,7 @@ export function ManualReviewPanel({
     const next: Record<number, RowState> = {};
     for (const row of rows) {
       next[row.id] = {
-        title: row.title || row.description || '',
+        title: row.title || '',
         brand: row.brand || '',
         model: row.model || '',
         category: row.category || '',
@@ -352,13 +352,10 @@ export function ManualReviewPanel({
                     </TableCell>
                     <TableCell sx={{ maxWidth: 280 }}>
                       {readOnly ? (
-                        <Typography variant="body2">{s.title || row.description || '—'}</Typography>
+                        <Typography variant="body2">{s.title || '—'}</Typography>
                       ) : (
                         <TextField size="small" fullWidth value={s.title} onChange={(e) => setField(row.id, 'title', e.target.value)} />
                       )}
-                      <Typography variant="caption" color="text.secondary" display="block" noWrap title={row.description}>
-                        {row.description}
-                      </Typography>
                     </TableCell>
                     <TableCell>
                       {readOnly ? (

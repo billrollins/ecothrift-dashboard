@@ -4,6 +4,7 @@ import re
 import django.db.models.deletion
 from django.contrib.postgres.indexes import GinIndex
 from django.db import migrations, models
+from django.utils import timezone
 
 
 logger = logging.getLogger(__name__)
@@ -71,25 +72,57 @@ def forwards(apps, schema_editor):
         'rough_products_created': 0,
     }
 
-    for product in Product.objects.all().iterator():
-        changed = []
-        identifiers = product.identifiers if isinstance(product.identifiers, dict) else {}
-        upc = str(getattr(product, 'upc', '') or '').strip()
-        merged_identifiers = _merge_identifiers(identifiers, {'upc': upc} if upc else {})
-        if merged_identifiers != identifiers:
-            product.identifiers = merged_identifiers
-            changed.append('identifiers')
-            if upc:
-                counts['upcs_migrated'] += 1
-        if not str(product.title or '').strip():
-            product.title = 'Generic Product'
-            changed.append('title')
-        if not str(product.brand or '').strip():
-            product.brand = 'Generic'
-            changed.append('brand')
-        if changed:
-            product.save(update_fields=[*dict.fromkeys(changed), 'updated_at'])
-            counts['products_normalized'] += 1
+    def next_product_numbers(count):
+        if count <= 0:
+            return []
+        with schema_editor.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT COALESCE(MAX(SUBSTRING(product_number FROM 5)::integer), 0)
+                FROM inventory_product
+                WHERE product_number ~ '^PRD-[0-9]+$'
+                """
+            )
+            start = cursor.fetchone()[0] or 0
+        return [f'PRD-{number:05d}' for number in range(start + 1, start + count + 1)]
+
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE inventory_product
+            SET
+                identifiers = COALESCE(identifiers, '{}'::jsonb) || jsonb_build_object(
+                    'upc',
+                    CASE
+                        WHEN regexp_replace(btrim(upc), '[^0-9]', '', 'g') != ''
+                        THEN regexp_replace(btrim(upc), '[^0-9]', '', 'g')
+                        ELSE btrim(upc)
+                    END
+                ),
+                updated_at = NOW()
+            WHERE btrim(COALESCE(upc, '')) != ''
+              AND NOT (COALESCE(identifiers, '{}'::jsonb) ? 'upc')
+            """
+        )
+        counts['upcs_migrated'] = cursor.rowcount
+
+        cursor.execute(
+            """
+            UPDATE inventory_product
+            SET title = 'Generic Product', updated_at = NOW()
+            WHERE title IS NULL OR btrim(title) = ''
+            """
+        )
+        normalized_titles = cursor.rowcount
+
+        cursor.execute(
+            """
+            UPDATE inventory_product
+            SET brand = 'Generic', updated_at = NOW()
+            WHERE brand IS NULL OR btrim(brand) = ''
+            """
+        )
+        counts['products_normalized'] = normalized_titles + cursor.rowcount
 
     generic_product, _ = Product.objects.get_or_create(
         title='Generic Product',
@@ -103,62 +136,92 @@ def forwards(apps, schema_editor):
             'is_active': True,
         },
     )
+    generic_changed = []
     if generic_product.category_ref_id is None:
         generic_product.category_ref = category_ref
-        generic_product.save(update_fields=['category_ref', 'updated_at'])
+        generic_changed.append('category_ref')
+    if not generic_product.product_number:
+        generic_product.product_number = next_product_numbers(1)[0]
+        generic_changed.append('product_number')
+    if generic_changed:
+        generic_product.save(update_fields=[*generic_changed, 'updated_at'])
 
-    def exact_identifier_product(identifiers):
-        upc = _norm_identifier_value('upc', identifiers.get('upc') if isinstance(identifiers, dict) else '')
-        if upc:
-            hit = Product.objects.filter(identifiers__upc=upc).order_by('id').first()
-            if hit:
-                return hit
-        return None
+    def identity_key(title, brand, model, category):
+        return (
+            str(title or '').strip().lower(),
+            str(brand or '').strip().lower(),
+            str(model or '').strip().lower(),
+            str(category or '').strip().lower(),
+        )
 
-    def exact_identity_product(title, brand, model, category):
+    product_by_identity = {}
+    for product_id, title, brand, model, category in Product.objects.values_list(
+        'id',
+        'title',
+        'brand',
+        'model',
+        'category',
+    ).iterator():
+        key = identity_key(title, brand, model, category)
+        product_by_identity.setdefault(key, product_id)
+
+    null_item_rows = list(
+        Item.objects.filter(product_id__isnull=True)
+        .order_by('id')
+        .values_list('id', 'title', 'brand')
+    )
+    missing_keys = []
+    seen_missing_keys = set()
+    for _item_id, raw_title, raw_brand in null_item_rows:
+        title = str(raw_title or '').strip()
         if not title:
-            return None
-        return Product.objects.filter(
-            title__iexact=title,
-            brand__iexact=brand,
-            model__iexact=model,
-            category__iexact=category,
-        ).order_by('id').first()
+            continue
+        brand = str(raw_brand or '').strip() or 'Generic'
+        key = identity_key(title[:300], brand[:200], '', GENERIC_CATEGORY)
+        if key in product_by_identity or key in seen_missing_keys:
+            continue
+        missing_keys.append((key, title[:300], brand[:200]))
+        seen_missing_keys.add(key)
 
-    null_items = Item.objects.filter(product_id__isnull=True).order_by('id')
-    for item in null_items.iterator():
-        title = str(getattr(item, 'title', '') or '').strip()
-        brand = str(getattr(item, 'brand', '') or '').strip() or 'Generic'
-        model = ''
-        category = GENERIC_CATEGORY
-        identifiers = {}
-        product = exact_identifier_product(identifiers)
-        bucket = ''
-        if product:
-            bucket = 'null_items_exact_identifier'
-        if product is None:
-            product = exact_identity_product(title, brand, model, category)
-            if product:
-                bucket = 'null_items_exact_identity'
-        if product is None and title:
-            product = Product.objects.create(
-                title=title[:300],
-                brand=brand[:200],
-                model=model,
-                category=category,
-                category_ref=category_ref,
-                identifiers=identifiers,
-                tags=[],
-            )
-            counts['rough_products_created'] += 1
-            bucket = 'rough_products_created'
-        if product is None:
-            product = generic_product
-            bucket = 'null_items_generic'
-        item.product = product
-        item.save(update_fields=['product', 'updated_at'])
-        if bucket in counts:
-            counts[bucket] += 1
+    now = timezone.now()
+    product_numbers = next_product_numbers(len(missing_keys))
+    created_products = [
+        Product(
+            product_number=product_number,
+            title=title,
+            brand=brand,
+            model='',
+            category=GENERIC_CATEGORY,
+            category_ref=category_ref,
+            identifiers={},
+            tags=[],
+            created_at=now,
+            updated_at=now,
+        )
+        for product_number, (_key, title, brand) in zip(product_numbers, missing_keys)
+    ]
+    Product.objects.bulk_create(created_products, batch_size=1000)
+    counts['rough_products_created'] = len(created_products)
+    for (key, _title, _brand), product in zip(missing_keys, created_products):
+        product_by_identity[key] = product.id
+
+    items_to_update = []
+    for item_id, raw_title, raw_brand in null_item_rows:
+        title = str(raw_title or '').strip()
+        if title:
+            brand = str(raw_brand or '').strip() or 'Generic'
+            key = identity_key(title[:300], brand[:200], '', GENERIC_CATEGORY)
+            product_id = product_by_identity.get(key) or generic_product.id
+            if product_id == generic_product.id:
+                counts['null_items_generic'] += 1
+            else:
+                counts['null_items_exact_identity'] += 1
+        else:
+            product_id = generic_product.id
+            counts['null_items_generic'] += 1
+        items_to_update.append(Item(id=item_id, product_id=product_id, updated_at=now))
+
+    Item.objects.bulk_update(items_to_update, ['product', 'updated_at'], batch_size=1000)
 
     logger.warning('Product/Item field cleanup backfill counts: %s', counts)
 

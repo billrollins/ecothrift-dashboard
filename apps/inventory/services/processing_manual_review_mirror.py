@@ -44,7 +44,6 @@ def mirror_manifest_rows_into_processing_bookmarks(
         pr.model = str(mr.model or '')[:200]
         pr.category = str(mr.category or '')[:200]
         pr.condition = str(mr.condition or '')[:20]
-        pr.description = str(mr.description or '')
         pr.notes = str(mr.notes or '')
         pr.pricing_notes = str(mr.pricing_notes or '')
         pr.batch_flag = bool(mr.batch_flag)
@@ -76,7 +75,6 @@ def mirror_manifest_rows_into_processing_bookmarks(
                 'model',
                 'category',
                 'condition',
-                'description',
                 'notes',
                 'pricing_notes',
                 'batch_flag',

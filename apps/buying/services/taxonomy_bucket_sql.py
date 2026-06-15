@@ -28,7 +28,10 @@ def taxonomy_bucket_case_sql(
     """
     in_list = ", ".join(_sql_literal(n) for n in TAXONOMY_V1_CATEGORY_NAMES)
     mixed = _sql_literal(MIXED_LOTS_UNCATEGORIZED)
-    pcat = f"TRIM(COALESCE({product_alias}.category, ''))"
+    pcat = (
+        f"TRIM(COALESCE((SELECT c.name FROM inventory_category c "
+        f"WHERE c.id = {product_alias}.category_id), ''))"
+    )
     mcat = f"TRIM(COALESCE({manifest_row_alias}.category, ''))"
     return f"""CASE
   WHEN {product_alias}.id IS NOT NULL AND {pcat} IN ({in_list}) THEN {pcat}

@@ -29,8 +29,6 @@ The deploy script **`scripts/deploy/env/sync_to_heroku.bat`** pushes **`.envprod
 4. **`--dry-run`** prints var names and masked values; no Heroku changes.
 5. Live sync asks `Y/N` confirmation, then runs `heroku config:set` in batches.
 
-Legacy forwarder (same behavior): `scripts\deploy\sync_envprod_to_heroku.bat`
-
 ## Folder layout
 
 ```
@@ -103,17 +101,18 @@ See `.env.example` at repo root for a one-line pointer.
 
 Relevant settings block: `ecothrift/settings.py` — `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `GOOGLE_API_KEY`, `AI_MODEL*`, AWS, B-Stock.
 
-## AI provider routing (review gap — not fully unified)
+## AI provider routing (unified — llm_router)
 
-**Inventory cleanup** (`apps/inventory/services/ai_cleanup.py`) routes by model id:
+**All AI features** route through `apps/core/services/llm_router.py` by model id:
 
-- `grok-*` → xAI (`XAI_API_KEY`)
-- `gemini-*` → Google (`GOOGLE_API_KEY`)
+- `grok-*` → xAI (`XAI_API_KEY`, alias `GROK_API_KEY`)
+- `gemini-*` → Google (`GOOGLE_API_KEY`, alias `GEMINI_API_KEY`)
 - else → Anthropic (`ANTHROPIC_API_KEY`)
 
-**Most other AI features** still call the Anthropic SDK directly or use `apps/core/services/llm_chat.py` (Anthropic + xAI only, **no Gemini**).
-
-So changing a non-cleanup `AI_MODEL_*` from `grok-*` to `gemini-*` in `.envprod` will **not** work until a universal router is implemented (planned Fable task: single `llm_router` + migrate call sites).
+`AI_PROVIDER=auto` (default) keeps that inference; setting it to `anthropic` / `xai` /
+`google` force-overrides for every call. Every `AI_MODEL_<PURPOSE>` knob therefore
+accepts any provider's model id — a missing key fails fast with `LLMConfigError`
+(HTTP 503 from API endpoints), never a silent wrong-provider call.
 
 ## Related files (outside `env/`)
 
@@ -132,7 +131,7 @@ So changing a non-cleanup `AI_MODEL_*` from `grok-*` to `gemini-*` in `.envprod`
 2. **Secret handling** — dry-run masks keys; confirm no logging of raw secrets.
 3. **Parity** — `.envprod` top section matches what Heroku actually needs (`DJANGO_SETTINGS_MODULE`, `ALLOWED_HOSTS`, …).
 4. **AI config** — document whether to slim `.envprod` to 3 model lines; remove dead `VITE_PUBLIC_*` vars if still present in user files.
-5. **Universal LLM router** — separate initiative: all AI call sites should use `ai_model()` + one provider router (Gemini/Grok/Claude) so `.envprod` model changes work everywhere.
+5. **Universal LLM router** — DONE: every AI call site routes via `apps/core/services/llm_router.py` (`ai_model()` purpose lookup + provider by model id), so `.envprod` model changes work everywhere.
 6. **Deploy integration** — should `4_deploy_careful.bat` optionally run sync before/after push? Currently manual.
 
 ## History (why this exists)

@@ -1,5 +1,5 @@
-<!-- initiative: slug=product-item-crud-processing status=active updated=2026-06-13 -->
-<!-- Last updated: 2026-06-13 — new direction; processing UX follows perfect Product/Item CRUD -->
+<!-- initiative: slug=product-item-crud-processing status=active updated=2026-06-15 -->
+<!-- Last updated: 2026-06-15 — v2.29.0 shipped catalog CRUD + category reset + product check-in -->
 
 # Initiative: Product & Item CRUD → Processing check-in
 
@@ -110,6 +110,16 @@ From [`intake_processing_improvements`](./_archived/_completed/intake_processing
 - Processing queue is row-only with collapse as sole bulk action.
 - Product v1 search uses token AND across Product fields, identifiers, and tags.
 - Semantic search integration path documented; not blocking v1.
+
+---
+
+## Sessions
+
+### 2026-06-15 — v2.29.0 catalog CRUD + product check-in
+
+#### Result
+
+Shipped **Manage Products** / **Manage Items** catalog pages, Product CRUD modal (AI suggest, stat cards, **Check in items**), migrations **`0061`–`0062`** (canonical categories, drop Product/description lineage), **`POST /api/inventory/products/{id}/check-in/`**, and post-create catalog search. Initiative phases 1–3 + partial phase 5 complete; phase 6 processing integration remains.
 
 ---
 

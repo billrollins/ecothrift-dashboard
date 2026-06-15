@@ -8,7 +8,7 @@ from django.test import TestCase
 from apps.buying.services.category_need import taxonomy_bucket_for_item
 from apps.buying.services.taxonomy_bucket_sql import taxonomy_bucket_case_sql
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED
-from apps.inventory.models import Item, ManifestRow, Product, PurchaseOrder, Vendor
+from apps.inventory.models import Category, Item, ManifestRow, Product, PurchaseOrder, Vendor
 
 
 def _bucket_from_sql(item_id: int) -> str:
@@ -50,27 +50,30 @@ class TaxonomyBucketSqlParityTests(TestCase):
             ),
         )
 
+    def _category(self, name: str) -> Category:
+        category, _ = Category.objects.get_or_create(name=name.strip())
+        return category
+
     def test_product_category_in_taxonomy(self):
-        prod = Product.objects.create(title='p', category='Electronics')
-        it = Item.objects.create(sku='ITMTBKT01', title='t', product=prod, purchase_order=self.po)
+        prod = Product.objects.create(title='p', category=self._category('Electronics'))
+        it = Item.objects.create(sku='ITMTBKT01', product=prod, purchase_order=self.po)
         self._assert_parity(it)
 
     def test_product_category_trims_like_python_strip(self):
-        prod = Product.objects.create(title='p', category='  Electronics  ')
-        it = Item.objects.create(sku='ITMTBKT02', title='t', product=prod, purchase_order=self.po)
+        prod = Product.objects.create(title='p', category=self._category('Electronics'))
+        it = Item.objects.create(sku='ITMTBKT02', product=prod, purchase_order=self.po)
         self._assert_parity(it)
 
     def test_manifest_row_fallback_when_product_not_in_taxonomy(self):
         mr = ManifestRow.objects.create(
             purchase_order=self.po,
             row_number=1,
-            description='d',
+            title='d',
             category='Electronics',
         )
-        prod = Product.objects.create(title='p', category='not-a-taxonomy-label')
+        prod = Product.objects.create(title='p', category=self._category('Mixed lots & uncategorized'))
         it = Item.objects.create(
             sku='ITMTBKT03',
-            title='t',
             product=prod,
             manifest_row=mr,
             purchase_order=self.po,
@@ -81,13 +84,12 @@ class TaxonomyBucketSqlParityTests(TestCase):
         mr = ManifestRow.objects.create(
             purchase_order=self.po,
             row_number=2,
-            description='d',
+            title='d',
             category='Books & media',
         )
-        prod = Product.objects.create(title='p2', category='Electronics')
+        prod = Product.objects.create(title='p2', category=self._category('Electronics'))
         it = Item.objects.create(
             sku='ITMTBKT04',
-            title='t',
             product=prod,
             manifest_row=mr,
             purchase_order=self.po,
@@ -98,13 +100,12 @@ class TaxonomyBucketSqlParityTests(TestCase):
         mr = ManifestRow.objects.create(
             purchase_order=self.po,
             row_number=3,
-            description='d',
+            title='d',
             category='unknown-cat',
         )
-        prod = Product.objects.create(title='p3', category='also-unknown')
+        prod = Product.objects.create(title='p3', category=self._category('Mixed lots & uncategorized'))
         it = Item.objects.create(
             sku='ITMTBKT05',
-            title='t',
             product=prod,
             manifest_row=mr,
             purchase_order=self.po,
@@ -112,6 +113,7 @@ class TaxonomyBucketSqlParityTests(TestCase):
         self._assert_parity(it)
         self.assertEqual(taxonomy_bucket_for_item(it), MIXED_LOTS_UNCATEGORIZED)
 
-    def test_no_product_manifest_row_falls_back_to_mixed(self):
-        it = Item.objects.create(sku='ITMTBKT06', title='t', purchase_order=self.po)
+    def test_mixed_product_without_manifest_row_falls_back_to_mixed(self):
+        prod = Product.objects.create(title='p6', category=self._category(MIXED_LOTS_UNCATEGORIZED))
+        it = Item.objects.create(sku='ITMTBKT06', product=prod, purchase_order=self.po)
         self._assert_parity(it)

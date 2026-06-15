@@ -7,8 +7,11 @@
  * Mirrors runPool() + per-batch retry from the offline Grok harness.
  */
 
-// grok-4.3 comfortably handles large batches; server cap is 60 ids/request.
-export const AI_CLEANUP_BATCH_SIZE = 25;
+// Smaller batches stay under the 25s API timeout for slower models (e.g. gemini-3.5-flash).
+export const AI_CLEANUP_DEFAULT_BATCH_SIZE = 10;
+export const AI_CLEANUP_BATCH_SIZE_OPTIONS = [5, 10, 20] as const;
+/** @deprecated Use AI_CLEANUP_DEFAULT_BATCH_SIZE — kept for tests/imports */
+export const AI_CLEANUP_BATCH_SIZE = AI_CLEANUP_DEFAULT_BATCH_SIZE;
 export const AI_CLEANUP_DEFAULT_CONCURRENCY = 4;
 export const AI_CLEANUP_MAX_CONCURRENCY = 8;
 export const AI_CLEANUP_MAX_BATCH_RETRIES = 2;
@@ -136,6 +139,55 @@ export async function runCleanupPool(
 
   report();
   await Promise.all(Array.from({ length: workers }, () => worker()));
+
+  // One salvage pass for likely-transient failures (timeouts/502s), not hard errors.
+  const salvageable = failedBatches.some((f) =>
+    /timeout|timed out|502|503|gateway|network|reset|econnreset/i.test(f.error),
+  );
+  if (!stoppedByGeneration && !stoppedByPause && failedBatches.length > 0 && salvageable) {
+    const salvageIds = failedBatches.flatMap((f) => f.rowIds);
+    failedBatches.length = 0;
+    const salvageBatches = partitionRowIds(salvageIds);
+    for (const rowIds of salvageBatches) {
+      if (isPaused()) {
+        stoppedByPause = true;
+        failedBatches.push({ rowIds, error: 'paused during salvage' });
+        continue;
+      }
+      let lastError = '';
+      let settled = false;
+      for (let attempt = 0; attempt <= AI_CLEANUP_MAX_BATCH_RETRIES && !settled; attempt += 1) {
+        try {
+          const result = await runBatch(rowIds);
+          if (result.cancelled) {
+            stopAll = true;
+            stoppedByGeneration = true;
+            return {
+              completed: false,
+              stoppedByGeneration: true,
+              stoppedByPause: false,
+              rowsSaved,
+              rowsDiscarded,
+              failedBatches,
+            };
+          }
+          rowsSaved += result.rowsSaved;
+          rowsDiscarded += result.discarded;
+          settled = true;
+        } catch (err: unknown) {
+          lastError = err instanceof Error ? err.message : String(err);
+          if (attempt < AI_CLEANUP_MAX_BATCH_RETRIES) {
+            await doSleep(1000 * 2 ** attempt);
+          }
+        }
+      }
+      if (!settled) {
+        failedBatches.push({ rowIds, error: lastError || 'unknown error' });
+      }
+      batchesDone += 1;
+      report();
+    }
+  }
 
   return {
     // A late pause click after the last batch was claimed still counts as completed.

@@ -1,5 +1,5 @@
 """
-Seed the Category taxonomy from the approved hierarchy in the categorizer's KEYWORD_RULES.
+Seed the canonical Product categories.
 
 Usage:
     python manage.py seed_categories
@@ -9,7 +9,7 @@ Usage:
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from apps.inventory.services.categorizer import KEYWORD_RULES
+from apps.inventory.canonical_categories import CANONICAL_CATEGORY_NAMES
 
 
 SPEC_TEMPLATES = {
@@ -68,7 +68,7 @@ class Command(BaseCommand):
             '--clear',
             action='store_true',
             default=False,
-            help='Delete existing categories before seeding (WARNING: unlinks all category_ref FKs).',
+            help='Delete existing categories before seeding (WARNING: only safe before Products reference categories).',
         )
 
     def handle(self, *args, **options):
@@ -78,46 +78,18 @@ class Command(BaseCommand):
             count, _ = Category.objects.all().delete()
             self.stdout.write(self.style.WARNING(f'Deleted {count} existing categories.'))
 
-        # Build unique (parent, category) pairs from KEYWORD_RULES
-        pairs: list[tuple[str, str]] = []
-        seen: set[tuple[str, str]] = set()
-        for _, category, parent in KEYWORD_RULES:
-            key = (parent, category)
-            if key not in seen:
-                seen.add(key)
-                pairs.append(key)
-
-        parents_created = 0
-        children_created = 0
+        categories_created = 0
 
         with transaction.atomic():
-            for parent_name, category_name in pairs:
-                parent, p_created = Category.objects.get_or_create(
-                    name=parent_name,
-                    defaults={'parent': None, 'spec_template': []},
-                )
-                if p_created:
-                    parents_created += 1
-
+            for category_name in CANONICAL_CATEGORY_NAMES:
                 spec = SPEC_TEMPLATES.get(category_name, [])
-                child, c_created = Category.objects.get_or_create(
+                _category, created = Category.objects.get_or_create(
                     name=category_name,
-                    defaults={'parent': parent, 'spec_template': spec},
+                    defaults={'spec_template': spec},
                 )
-                if c_created:
-                    children_created += 1
-                elif child.parent is None:
-                    child.parent = parent
-                    child.save(update_fields=['parent'])
-
-            # Seed catch-all
-            misc, _ = Category.objects.get_or_create(
-                name='Miscellaneous', defaults={'parent': None},
-            )
-            Category.objects.get_or_create(
-                name='General Merchandise', defaults={'parent': misc},
-            )
+                if created:
+                    categories_created += 1
 
         self.stdout.write(self.style.SUCCESS(
-            f'Seeded {parents_created} parent categories and {children_created} subcategories.'
+            f'Seeded {categories_created} canonical categories.'
         ))

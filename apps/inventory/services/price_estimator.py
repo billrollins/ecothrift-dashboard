@@ -151,7 +151,7 @@ def _find_comparables(
             from django.db.models import Q
 
             qs = qs.filter(
-                Q(manifest_row__category__icontains=first) | Q(product__category__icontains=first),
+                Q(manifest_row__category__icontains=first) | Q(product__category__name__icontains=first),
             )
 
     # Further narrow by brand

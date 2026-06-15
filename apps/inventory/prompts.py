@@ -63,6 +63,61 @@ Example output JSON:
 {"suggestions": {"title": "Miscellaneous item (unclear draft)", "brand": "", "model": "", "category": "Miscellaneous", "condition": "unknown", "price": "5.00", "retail_value": "0", "search_tags": [], "google_query": "miscellaneous item unclear draft", "specifications": {}, "notes": "Title does not describe a specific product; identify item before pricing."}, "low_confidence": true, "low_confidence_reason": "The title doesn't describe a recognizable product. Try adding the item type, brand, or a short description."}
 """
 
+PRODUCT_CATALOG_STANDARDS = (
+    "You are a product catalog assistant for a thrift / resale store.\n"
+    "Improve canonical product records (shared across many inventory items), not individual shelf listings.\n"
+    "Guidelines:\n"
+    "- Title: concise catalog name — brand + product line + key identity (e.g. 'LEGO Star Wars Death Star 75419').\n"
+    "- Brand: exact manufacturer name, properly capitalized; use 'Generic' only when truly unknown.\n"
+    "- Model: manufacturer model number, size line, or set number when known; otherwise best-effort from context.\n"
+    "- Category: MUST be exactly one string from allowed_categories in the user message (name or 'Parent / Name' label).\n"
+    "- Tags: JSON array of short catalog/search tags (material, theme, size band). Use [] when identity fields suffice.\n"
+    "- Identifiers: JSON object of stable product keys (upc, asin, mpn, set_number, etc.) with string values. "
+    "Preserve user-provided keys; only normalize key spelling/casing.\n"
+    "- Specifications: JSON object of catalog attributes (color, size, material, capacity) with string values.\n"
+    "- Fix typos and formatting; do not invent facts not supported by the user context.\n"
+    "- Do NOT suggest or return: price, condition, retail value, location, status, description, notes, "
+    "item-specific facts, or any system fields.\n"
+    "- If the draft is vague, still return best-effort catalog fields and set low_confidence true.\n"
+)
+
+FEW_SHOT_SUGGEST_PRODUCT = """
+Example input draft:
+{"title": "nike shoes mens 10", "brand": "nike", "model": "", "category": "", "tags": [], "identifiers": {}, "specifications": {}}
+
+Example output JSON:
+{"suggestions": {"title": "Nike Men's Athletic Shoes", "brand": "Nike", "model": "", "category": "Footwear / Athletic", "tags": ["athletic", "mens", "size 10"], "identifiers": {}, "specifications": {"size": "10", "gender": "men's"}}, "low_confidence": false}
+
+Example input draft:
+{"title": "lego death star 75419", "brand": "", "model": "75419", "category": "", "tags": [], "identifiers": {"set_number": "75419"}, "specifications": {}}
+
+Example output JSON:
+{"suggestions": {"title": "LEGO Star Wars Death Star 75419", "brand": "LEGO", "model": "75419", "category": "Toys / Building Sets", "tags": ["Star Wars", "UCS"], "identifiers": {"set_number": "75419"}, "specifications": {"theme": "Star Wars"}}, "low_confidence": false}
+
+Example input draft (vague):
+{"title": "red thing", "brand": "", "model": "", "category": "", "tags": [], "identifiers": {}, "specifications": {}}
+
+Example output JSON:
+{"suggestions": {"title": "Miscellaneous item (unclear draft)", "brand": "Generic", "model": "", "category": "Miscellaneous", "tags": [], "identifiers": {}, "specifications": {}}, "low_confidence": true, "low_confidence_reason": "The title does not describe a recognizable product. Add item type, brand, or model."}
+"""
+
+PRODUCT_OUTPUT_SCHEMA_HINT = (
+    'Return ONLY a single JSON object with this shape. No markdown code fences, no commentary before or after:\n'
+    '{"suggestions": { ... }, "low_confidence": false}\n'
+    'Include only keys the user asked to improve (see requested_fields). '
+    'Omit keys you cannot infer from context.\n'
+    'tags must be a JSON array of short strings.\n'
+    'identifiers and specifications must be JSON objects with string values.\n'
+    'category must be exactly one allowed_categories string when returned.\n'
+    '\n'
+    'low_confidence (boolean, required):\n'
+    '  - false (default): normal suggestion with reasonable confidence.\n'
+    '  - true: the draft is so vague the suggestions are near-random guesses.\n'
+    '  - When true, also include "low_confidence_reason": a short user-facing message.\n'
+    '\n'
+    'CRITICAL: The client parses your reply as JSON only. Never answer with plain prose.'
+)
+
 OUTPUT_SCHEMA_HINT = (
     'Return ONLY a single JSON object with this shape. No markdown code fences, no commentary before or after:\n'
     '{"suggestions": { ... }, "low_confidence": false}\n'

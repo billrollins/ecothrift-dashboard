@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-06-12 (Session 11 — P9 transform dialogs + sub-row queue labels) -->
+<!-- Last updated: 2026-06-15 (v2.29.0 — Manage Products/Items catalog, ProductCheckInDialog) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-06-15 (v2.29.0) — Product/Item catalog (`frontend/src/pages/inventory/manage/`):** **`ManageProductsPage`** / **`ManageItemsPage`**; **`ProductManageDrawer`** + **`ProductCheckInDialog`**; post-create catalog search via **`productManageCatalogSearchTerm`** (`?q=` URL).
 
 **2026-06-11 Session 10 (v2.28.0) — Item Processor (`frontend/src/pages/inventory/processing/`):**
 - **Collapse groups (P7):** queue hides member rows unless the **Show collapsed rows** filter toggle is on (`ProcessingQueueTable.visibleRows`); masters show `⊟ title (+rows …)` and **combined** qty (cell, sort, detail tiles, check-in caps — all via **`effectiveRowQty`** in `processingQueueCellText.ts`); bulk bar **Collapse rows** / **Uncollapse** (`useProcessingCollapseRows`/`useProcessingUncollapseRows`); mixed-hint selections resolve via `AssignSharedProductDialog` `mode="collapse"`; opening a member row redirects to its master (`openDetail`); Check-in-together / assign-shared exclude collapse-involved rows.

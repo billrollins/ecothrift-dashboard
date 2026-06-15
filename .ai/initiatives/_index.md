@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-13 (intake_processing_improvements archived; product_item_crud_and_processing active) -->
+<!-- Last updated: 2026-06-15 (v2.29.0 catalog CRUD + product check-in shipped) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [product_item_crud_and_processing](./product_item_crud_and_processing.md) | Phase 1 — Product CRUD | **2026-06-13 direction reset.** Canonical Product + Item pages/forms first; simple product `search_string` search + AI suggest; then slim check-in and processing row integration. Semantic embedding search on hold. Supersedes remaining scope from archived [intake_processing_improvements](./_archived/_completed/intake_processing_improvements.md) (P1–P9 already shipped). |
+| [product_item_crud_and_processing](./product_item_crud_and_processing.md) | Phase 4–6 — processing integration | **v2.29.0 shipped** Manage Products/Items CRUD, category reset (`0062`), product-first check-in. Remaining: search-or-create reuse in row detail, slim processing check-in wiring. Semantic embedding search on hold. |
 
 **Parked (off this index):** [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.
 

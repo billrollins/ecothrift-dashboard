@@ -1,23 +1,26 @@
-feat(inventory): intake processing — row check-in UX and quick check-in fix
+release(v2.29.0): product catalog CRUD, category reset, product-first check-in
 
-Intake → Processing improvements (Session 1 checkpoint). Ships the north-star
-row-level check-in path for Item Processor and fixes quick check-in blocking on
-already-checked-in units.
+Ship Manage Products/Items catalog pages, canonical category migration
+(0061–0062), and product-first check-in from the Product modal.
 
-## Backend
-- `POST …/processing-row-check-in/` reuses latest `ProcessingCheckInBatch` product
-- Sync `ManifestRow.matched_product` on check-in; denorm falls back to item product
-- Migrations: manifest spine, row_kind, dispute choices, ProcessingCheckInBatch
-- Add Item / AI Suggest Product-first fixes; manual_item resolver; classifier command
+## Inventory / catalog CRUD
+- Manage Products & Manage Items pages with virtualized tables and drawers
+- Product modal: AI suggest, usage stat cards, Check in items action
+- New item on Manage Items routes to Product create; post-create search on catalog
+- Product suggest API; productCatalog search helpers
 
-## Frontend — Item Processor
-- Quick check-in always creates via row check-in (not print-and-check-in on old item)
-- Detailed check-in modal: quantity in header, product modes, AI suggest, field density
-- Row defaults toolbar, checked-in history table, queue column layout, pagination
-- Fix queue table Brand header sort-icon bleed
+## Product-first check-in
+- POST /api/inventory/products/{id}/check-in/
+- GET /api/inventory/products/check-in-orders/
+- ProductCheckInDialog; ProcessingCheckInBatch on processing_add_item
+- Post-check-in navigation with ids + product filters on Manage Items
 
-## Docs
-- Initiative: intake_processing_improvements; field matrix reference
-- `.ai/extended/inventory-pipeline.md` check-in path updated
+## Schema (0061–0062)
+- Product.category FK to 19 canonical categories
+- Drop Product.description and manifest/preprocessing description fields
+- Item list: ids filter, default ordering by checked_in_at desc
 
-See CHANGELOG [Unreleased] and `.ai/initiatives/intake_processing_improvements.md`.
+## Tests
+- test_product_check_in.py, test_product_suggest.py
+
+Initiative: product_item_crud_and_processing (phases 1–3 + partial 5)

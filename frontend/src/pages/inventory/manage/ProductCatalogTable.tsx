@@ -46,7 +46,7 @@ function productNumberLabel(p: Product): string {
 }
 
 function productCategoryLabel(p: Product): string {
-  return (p.category_name || p.category || '').trim() || '—';
+  return p.category_name?.trim() || '—';
 }
 
 function productUpcLabel(p: Product): string {

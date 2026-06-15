@@ -470,7 +470,11 @@ export function ProcessingCheckInDialog({
     setPTitle(product.title || '');
     setPBrand(product.brand || '');
     setPModel(product.model || '');
-    setPCategory(product.category || '');
+    setPCategory(
+      typeof product.category === 'number'
+        ? ('category_name' in product ? product.category_name || '' : '')
+        : product.category || '',
+    );
     setPUpc(product.identifiers?.upc || product.upc || '');
   }
 
@@ -564,7 +568,6 @@ export function ProcessingCheckInDialog({
       retail_value: retail,
       notes,
       specifications: suggestionText(aiSpecs || row.specs || rowLinkedProduct?.specs),
-      description: row.description || '',
       search_tags: searchTagsCsv || row.tags || '',
     };
     try {

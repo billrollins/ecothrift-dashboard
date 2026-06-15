@@ -116,7 +116,6 @@ class Command(BaseCommand):
                 ids = r.identifiers or {}
                 batch_data.append({
                     'row_id': r.id,
-                    'description': r.description,
                     'title': r.title,
                     'brand': r.brand,
                     'model': r.model,

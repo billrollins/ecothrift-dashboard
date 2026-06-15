@@ -155,8 +155,11 @@ Required changes:
 
 Required changes:
 
-- Decide exact implementation form for canonical categories before migrations: string choices, Category FK, or a staged migration using both with a final owner.
-- AI cleanup must never emit arbitrary vendor taxonomy into canonical category fields.
+- Canonical category implementation is fixed: runtime choices come from `inventory.Category`, seeded to the 19 names from the prior `TAXONOMY_V1_CATEGORY_NAMES`.
+- Product final target is `Product.category` FK only. Remove Product string `category` and `category_ref`.
+- Item category is Product-backed only.
+- AI cleanup must never emit arbitrary vendor taxonomy into canonical category fields; it must resolve source taxonomy to one of the 19 `inventory.Category` rows.
+- Remove Product description and the broader Product/manifest/preprocessing/processing description lineage.
 
 ## Low-Risk / Cleanup Areas
 

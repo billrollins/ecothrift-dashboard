@@ -1867,8 +1867,7 @@ def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
             title=product.title or title,
             brand=product.brand or brand,
             model=product.model or model,
-            category=product.category or category,
-            description=str(data.get('description') or product.description or ''),
+            category=product.category.name if product.category_id else category,
             unit_retail=item_retail,
             shelf_price=item_price,
             final_price=item_price,
@@ -1883,17 +1882,136 @@ def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
             list_dispatch=location_to_dispatch(location),
             list_sku=items[0].sku if items else '',
         )
+        batch = ProcessingCheckInBatch.objects.create(
+            purchase_order=order,
+            processing_row=pr,
+            product=product,
+            quantity=len(items),
+            item_ids=[item.id for item in items],
+            defaults_snapshot={
+                'condition': cond_db,
+                'dispatch': location_to_dispatch(location),
+                'location': location,
+                'price': str(item_price) if item_price is not None else None,
+                'retail': str(item_retail) if item_retail is not None else None,
+                'notes': notes,
+            },
+            created_by=user,
+        )
 
     refresh_processing_rows_denorm(order, processing_row_ids=[pr.pk])
     from apps.inventory.services.processing_workspace import build_processing_row_detail
 
     detail = build_processing_row_detail(order, processing_row_id=pr.pk)
+    item_payload = ItemSerializer(items, many=True).data
+    created_item_ids = [item.id for item in items]
     return {
         'row': detail['row'],
-        'items': ItemSerializer(items, many=True).data,
+        'items': item_payload,
         'created_count': len(items),
+        'created_items': item_payload,
+        'created_item_ids': created_item_ids,
+        'processing_row_id': pr.pk,
+        'check_in_batch_id': batch.pk,
         'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[pr.pk]),
-        'printed_items_preview': printed_items_preview([item.id for item in items]),
+        'printed_items_preview': printed_items_preview(created_item_ids),
+    }
+
+
+def product_check_in_order_options(*, search: str = '', limit: int = 25) -> list[dict]:
+    """Preferred purchase orders for product-first check-in (default misfit, then manual adds)."""
+
+    seen: set[int] = set()
+    out: list[dict] = []
+
+    def append(po: PurchaseOrder | None, *, is_default: bool = False, hint: str = '') -> None:
+        if po is None or po.pk in seen:
+            return
+        seen.add(po.pk)
+        out.append({
+            'id': po.pk,
+            'order_number': po.order_number or f'PO #{po.pk}',
+            'vendor_name': po.vendor.name if po.vendor_id else '',
+            'ordered_date': po.ordered_date.isoformat() if po.ordered_date else None,
+            'is_default': is_default,
+            'hint': hint,
+        })
+
+    misfit = (
+        PurchaseOrder.objects
+        .select_related('vendor')
+        .filter(order_number__startswith='MISFIT')
+        .order_by('-ordered_date', '-id')
+        .first()
+    )
+    append(misfit, is_default=True, hint='Default no-manifest check-in order')
+
+    added_po_ids = (
+        ProcessingRow.objects
+        .filter(row_kind=ProcessingRow.ROW_KIND_ADDED)
+        .values_list('purchase_order_id', flat=True)
+        .distinct()
+    )
+    manual_qs = (
+        PurchaseOrder.objects
+        .select_related('vendor')
+        .filter(id__in=added_po_ids)
+        .order_by('-ordered_date', '-id')
+    )
+    if misfit is not None:
+        manual_qs = manual_qs.exclude(pk=misfit.pk)
+    for po in manual_qs[:8]:
+        append(po, hint='Prior manual check-in order')
+
+    raw = (search or '').strip()
+    if raw:
+        qs = PurchaseOrder.objects.select_related('vendor').all()
+        for word in raw.split()[:5]:
+            w = word.strip()
+            if w:
+                qs = qs.filter(search_text__icontains=w.lower())
+        for po in qs.order_by('-ordered_date', '-id'):
+            append(po)
+            if len(out) >= limit:
+                break
+
+    return out[:limit]
+
+
+def product_check_in(user, product: Product, data: dict) -> dict:
+    """Check in on-shelf items for a locked catalog product (no product identity edits)."""
+
+    raw_po = data.get('purchase_order')
+    if raw_po in (None, ''):
+        raise ValueError('purchase_order is required')
+    try:
+        po_id = int(raw_po)
+    except (TypeError, ValueError) as e:
+        raise ValueError('purchase_order must be an integer') from e
+
+    order = PurchaseOrder.objects.filter(pk=po_id).first()
+    if order is None:
+        raise ValueError('Purchase order not found')
+
+    category_name = product.category.name if product.category_id else ''
+    payload = {
+        **data,
+        'product_mode': 'existing',
+        'product_id': product.pk,
+        'title': product.title or 'Product',
+        'brand': product.brand or '',
+        'model': product.model or '',
+        'category': category_name,
+    }
+    result = processing_add_item(user, order, payload)
+    return {
+        'product_id': product.pk,
+        'purchase_order_id': order.pk,
+        'created_count': result['created_count'],
+        'created_item_ids': result['created_item_ids'],
+        'processing_row_id': result['processing_row_id'],
+        'check_in_batch_id': result.get('check_in_batch_id'),
+        'printed_items_preview': result.get('printed_items_preview') or [],
     }
 
 
@@ -1918,8 +2036,6 @@ def processing_row_patch(user, order: PurchaseOrder, processing_row_id: int, dat
             row.model = str(data.get('model') or '')[:200]
         if 'category' in data:
             row.category = str(data.get('category') or '')[:200]
-        if 'description' in data:
-            row.description = str(data.get('description') or '')
         if 'notes' in data:
             row.notes = str(data.get('notes') or '')
         if 'condition' in data:

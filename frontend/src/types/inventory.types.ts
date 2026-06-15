@@ -93,7 +93,6 @@ export interface ManifestRow {
   purchase_order: number;
   row_number: number;
   quantity: number;
-  description: string;
   title: string;
   brand: string;
   model: string;
@@ -333,14 +332,13 @@ export interface Product {
   title: string;
   brand: string;
   model: string;
-  category: string;
-  category_ref: number | null;
+  category: number;
   category_name: string | null;
-  description: string;
   specifications: Record<string, unknown>;
   identifiers: Record<string, string>;
   tags: string[];
   upc?: string;
+  catalog_display_label?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -410,7 +408,6 @@ export interface ProcessingWorkspaceProductDTO {
   title: string;
   brand: string;
   model: string;
-  description: string;
   specs: Record<string, unknown>;
   identifiers: Record<string, string>;
   tags: string[];
@@ -468,7 +465,6 @@ export interface ProcessingCheckInBatchDTO {
 export interface ProcessingManifestEvidenceDTO {
   title: string;
   brand: string;
-  description: string;
   quantity: number;
   unit_retail: string | null;
 }
@@ -543,7 +539,6 @@ export interface ProcessingWorkspaceRowDTO {
   title: string;
   brand: string;
   model?: string;
-  description?: string;
   specs?: Record<string, unknown>;
   tags?: string;
   taxonomy?: string;
@@ -678,8 +673,6 @@ export interface Category {
   id: number;
   name: string;
   slug: string;
-  parent: number | null;
-  parent_name: string | null;
   spec_template: Array<Record<string, unknown>>;
   created_at: string;
   updated_at: string;

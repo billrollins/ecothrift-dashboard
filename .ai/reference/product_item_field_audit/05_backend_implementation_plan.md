@@ -10,12 +10,16 @@ Also keep [`10_audit_followups.md`](./10_audit_followups.md) open during impleme
 
 - Add `identifiers = JSONField(default=dict, blank=True)`.
 - Add `tags` as JSON/list.
+- Replace Product category implementation with `category = ForeignKey(Category, ...)`.
+- Remove Product string `category`.
+- Remove Product `category_ref`.
+- Remove Product `description`.
 - Add indexes for search fields:
   - `product_number`
   - `title`
   - `brand`
   - `model`
-  - `category`
+  - `category` FK/name joins as needed
   - identifiers JSON values where DB support allows
   - tags where DB support allows
 
@@ -24,13 +28,16 @@ Also keep [`10_audit_followups.md`](./10_audit_followups.md) open during impleme
 - Ensure `title` is the canonical standardized title field.
 - Ensure `taxonomy` JSON holds source category-like fields.
 - Ensure `identifiers` JSON holds source ID/tracking-like fields.
-- Remove target reliance on canonical `description` and separate `tracking`.
+- Remove `description` target reliance and field.
+- Remove separate `tracking`.
 
 ### PreprocessingRow
 
 - Remove source-copy layer fields after callers move to `ManifestRow`.
 - Keep AI/final layers for adjusted fields only.
 - Stop AI/final duplication of source identifiers, taxonomy, and tracking.
+- Resolve `ai_category` and `final_category` to canonical `inventory.Category` rows from the 19-name set.
+- Remove `standard_description`, `ai_description`, and `final_description`.
 - Move Product tag creation/suggestion to Product-owned `tags`.
 
 ### Item
@@ -53,8 +60,10 @@ Required behavior:
 - Normalize identifier keys and values through one helper.
 - Match UPC through `identifiers['upc']`.
 - Support additional identifiers where useful: ASIN, item number, MPN, EAN, GTIN.
-- Keep Product identity match (`title + brand + model + category`) as a later match tier.
+- Keep Product identity match (`title + brand + model + category_id`) as a later match tier.
+- Category matching uses canonical `Category` FK only.
 - Never read `Product.default_price`.
+- Never read `Product.description`.
 
 Output shape:
 
@@ -71,7 +80,7 @@ Implement token-AND search:
   - `title`
   - `brand`
   - `model`
-  - `category`
+  - `category.name`
   - identifiers JSON values
   - tags
 - AND across tokens.
@@ -116,6 +125,8 @@ Required behavior:
 - Check-in resolves/creates/selects Product before Item creation.
 - Item creation always includes Product.
 - Item title/brand are not stamped.
+- Item category is not stamped; Item category display reads Product category.
+- Product category is assigned from canonical `ProcessingRow.category`.
 - `ProcessingRow.unit_retail` writes `Item.retail`.
 - `ProcessingRow.shelf_price` / check-in price writes `Item.price`.
 - `ProcessingRow.quantity` controls how many single-unit Items are created.
@@ -131,7 +142,9 @@ Transform behavior:
 Product serializers:
 
 - Explicitly include target Product fields.
-- Remove `default_price`, flat `upc`, and retired stats from write surfaces.
+- Remove `description`, `category_ref`, string category, `default_price`, flat `upc`, and retired stats from write surfaces.
+- Expose/write Product `category` as the canonical Category FK.
+- Include read-only category display fields from the FK if useful, such as `category_name`.
 - Include `identifiers` and tags.
 - Optionally include computed convenience fields such as `upc` only as read-only derived values during API transition if necessary for current frontend update; final target should be identifiers.
 
@@ -141,10 +154,12 @@ Item serializers:
 - Rename `unit_retail` to `retail`.
 - Remove `unit_count`, `processing_tier`, `batch_group`.
 - Remove Item-owned `title`/`brand` writes.
+- Remove Item-owned category writes.
 - Include Product-backed identity read fields.
 
 ViewSets/search:
 
+- Rewrite category filters/search from string fields to canonical Category FK/name joins.
 - Rewrite `product__upc` filters/search fields to identifier-aware search.
 - Add `select_related('product')` to Item querysets that return Product-backed fields.
 - Remove `BatchGroupViewSet` when no route/UI depends on it.
@@ -183,14 +198,18 @@ Rules:
 
 Only after tests and grep checks pass:
 
-- Drop Product `upc`, `default_price`, stats fields.
-- Drop Item `title`, `brand`, `unit_count`, `processing_tier`, `batch_group`.
+- Drop Product `description`, string `category`, `category_ref`, `upc`, `default_price`, stats fields.
+- Drop Item `title`, `brand`, owned category if present, `unit_count`, `processing_tier`, `batch_group`.
 - Drop `ProcessingRow.units_per_item`.
-- Drop canonical `ManifestRow.description` usage/field if present and no non-canonical use remains.
+- Drop `ProcessingRow.description`.
+- Drop `ManifestRow.description`.
+- Drop `PreprocessingRow.standard_description`, `ai_description`, and `final_description`.
 
 ## Backend Done Criteria
 
 - No backend app-code reads/writes retired Product/Item fields.
+- Runtime category choices come from `inventory.Category`, which contains exactly the 19 canonical rows.
+- No backend app-code reads/writes Product or processing description fields.
 - Item creation cannot happen without Product.
 - Product search finds by identifiers/tags.
 - POS and reports use Product identity without N+1 query patterns.

@@ -305,8 +305,9 @@ GOOGLE_API_KEY = (
 )
 GEMINI_API_KEY = GOOGLE_API_KEY  # alias
 
-# --- Provider routing (llm_chat: auto | anthropic | xai) ---
-# auto: grok-* → xAI; otherwise Anthropic. Gemini paths use ai_cleanup / dedicated callers.
+# --- Provider routing (llm_router: auto | anthropic | xai | google) ---
+# auto: grok-* → xAI, gemini-* → Google, otherwise Anthropic. All AI call sites
+# route through apps/core/services/llm_router.py.
 AI_PROVIDER = config('AI_PROVIDER', default='auto').strip().lower()
 
 # --- Base defaults (fallback when a purpose-specific knob is unset) ---
@@ -317,6 +318,7 @@ AI_MODEL_FAST = _normalize_anthropic_model_id(config('AI_MODEL_FAST', default='c
 AI_MODEL_INVENTORY_CLEANUP = _ai_model_setting('AI_MODEL_INVENTORY_CLEANUP', 'gemini-2.5-flash')
 AI_MODEL_PREPROCESSING_SUGGEST = _ai_model_setting('AI_MODEL_PREPROCESSING_SUGGEST', AI_MODEL)
 AI_MODEL_SUGGEST_ITEM = _ai_model_setting('AI_MODEL_SUGGEST_ITEM', AI_MODEL_FAST)
+AI_MODEL_SUGGEST_PRODUCT = _ai_model_setting('AI_MODEL_SUGGEST_PRODUCT', AI_MODEL_SUGGEST_ITEM)
 AI_MODEL_SUGGEST_FINALIZATION = _ai_model_setting('AI_MODEL_SUGGEST_FINALIZATION', AI_MODEL)
 AI_MODEL_AI_CHAT = _ai_model_setting('AI_MODEL_AI_CHAT', AI_MODEL)
 AI_MODEL_MANIFEST_TEMPLATE = _ai_model_setting('AI_MODEL_MANIFEST_TEMPLATE', AI_MODEL)
@@ -349,6 +351,12 @@ AI_PRICING = {
         'output': Decimal('5.00'),
         'cache_write': Decimal('1.25'),
         'cache_read': Decimal('0.10'),
+    },
+    'gemini-3.1-flash-lite': {
+        'input': Decimal('0.25'),
+        'output': Decimal('1.50'),
+        'cache_write': Decimal('0.00'),
+        'cache_read': Decimal('0.00'),
     },
 }
 

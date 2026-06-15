@@ -17,15 +17,47 @@
 |-------|------------|
 | `Product.title` | `NOT NULL` and non-empty. |
 | `Product.brand` | `NOT NULL`; default `Generic`. |
+| `Product.category` | `NOT NULL` FK to `inventory.Category`; exactly one of the 19 canonical rows. |
 | `Item.product` | `NOT NULL`, `on_delete=PROTECT`. |
 | `Item.price` | Required. |
 | `Item.condition` | Standard condition value. |
-| `PreprocessingRow.ai_category` onward | Canonical category. |
+| `PreprocessingRow.ai_category` onward | Canonical `inventory.Category` row from the 19-name set. |
 | `PreprocessingRow.ai_condition` onward | Standard condition. |
+
+## 2026-06-14 Category + Description Reset
+
+This reset supersedes any sequence that preserves Product string `category`, Product `category_ref`, or Product `description`.
+
+Required before coding:
+
+1. Seed/map `inventory.Category` to exactly the 19 canonical names from the prior `TAXONOMY_V1_CATEGORY_NAMES`.
+2. Build a deterministic mapping from existing non-19 `Category` rows and category strings to one of the 19 rows.
+3. Backfill Product, Preprocessing, and Processing category FK fields from that mapping.
+4. Rewrite code to use canonical Category FKs.
+5. Drop Product string `category`, Product `category_ref`, Item-owned category, and non-canonical category surfaces.
+6. Remove Product/manifest/preprocessing/processing description fields and all callers.
+
+Do not use staged compatibility as a final state. Temporary columns are allowed only inside migrations.
 
 ## Migration Sequence
 
-### Step 1 — Add New Product Fields
+### Step 1 — Canonical Category Foundation
+
+Schema/data:
+
+- Ensure `inventory.Category` has exactly the 19 canonical rows.
+- Create missing canonical rows.
+- Map existing non-19 rows to canonical rows.
+- Remove hierarchy/parent-child category behavior from the target plan.
+- Default unmappable values to `Mixed lots & uncategorized` and log counts.
+
+Checks:
+
+- Category count is 19.
+- Category names exactly match the prior `TAXONOMY_V1_CATEGORY_NAMES`.
+- No active Product/Processing/Preprocessing canonical category points outside those rows after backfill.
+
+### Step 2 — Add New Product Fields
 
 Schema:
 
@@ -44,7 +76,7 @@ Checks:
 - Count Products with old UPC but no `identifiers.upc` after migration: `0`.
 - Product search/matching smoke test finds migrated UPCs through identifiers.
 
-### Step 2 — Add / Normalize Manifest Source Buckets
+### Step 3 — Add / Normalize Manifest Source Buckets
 
 Schema:
 
@@ -64,7 +96,7 @@ Checks:
 - Template Formula target list includes `title`, not canonical `description`.
 - Template Formula target list includes `taxonomy.*`, `identifiers.*`, and `specifications.*`.
 
-### Step 2B — Remove Preprocessing Source-Copy Layers
+### Step 3B — Remove Preprocessing Source-Copy Layers
 
 Rewrite callers so `PreprocessingRow` no longer needs source-copy fields:
 
@@ -82,24 +114,28 @@ Drop after callers move:
 - `ai_tracking`, `final_tracking`
 - `ai_search_tags`, `final_search_tags` unless Product tags implementation deliberately replaces this with Product-owned tags
 
-### Step 3 — Rewrite App Callers To New Fields
+### Step 4 — Rewrite App Callers To New Fields
 
 Do this before constraints/drop:
 
 - Product find/create/matching uses `Product.identifiers`.
+- Product category reads/writes `Product.category` FK to `inventory.Category`.
+- Product UI/API no longer uses `category_ref`.
+- Item category displays through `Item.product.category`.
 - Item serializers expose Product-backed identity.
 - Check-in creates Items with required Product.
 - UI sends Item `retail`, not Item `unit_retail`.
 - Row UI still sends row `unit_retail`.
 - Product UI no longer sends `default_price`.
 - Product and Item tables no longer rely on retired stats/identity columns.
+- Product/manifest/preprocessing/processing description callers are removed.
 
 Checks:
 
 - Retired-field grep checks are clean in app code before drop.
 - Full targeted backend/frontend tests pass.
 
-### Step 4 — Null-Product Item Backfill
+### Step 5 — Null-Product Item Backfill
 
 Goal: `Item.product_id IS NULL` count becomes `0`.
 
@@ -110,7 +146,7 @@ For each null-product Item, build a candidate Product identity:
 - Title: meaningful `Item.title` if present; else `Generic identifier {value}` when a meaningful identifier exists; else Generic Product.
 - Brand: meaningful `Item.brand` if present; else `Generic`.
 - Model/specifications: copy meaningful Item values if present; else blank/default.
-- Category: meaningful Item category if present and canonical; else `Mixed lots & uncategorized`.
+- Category: meaningful Item/Product/row category if it maps to one of the 19 canonical `inventory.Category` rows; else `Mixed lots & uncategorized`.
 - Identifiers: collect UPC/ASIN/MPN/SKU-like data if available.
 
 Never use:
@@ -123,7 +159,7 @@ Never use:
 #### Product Match Order
 
 1. Exact identifier match in `Product.identifiers`.
-2. Exact normalized identity match on `title + brand + model + category`.
+2. Exact normalized identity match on `title + brand + model + category_id`.
 3. Generic Product if identity has no meaningful title and no meaningful identifier.
 4. Create/reuse uniquely titled Generic identifier Product for identifier-only rows, for example `Generic UPC {upc}`.
 5. Create rough Product from Item title/brand/model/category when meaningful but unmatched.
@@ -140,7 +176,7 @@ Create one Generic Product before the backfill:
 - `identifiers`: `{}`
 - `is_active`: true
 
-If category is enforced through `Category`, create/reuse the `Mixed lots & uncategorized` Category row first.
+Create/reuse the `Mixed lots & uncategorized` Category row first and assign it as Product `category`.
 
 #### Checks
 
@@ -149,7 +185,7 @@ If category is enforced through `Category`, create/reuse the `Mixed lots & uncat
 - No Product created from Item price/retail.
 - Backfill log records counts for exact identifier matches, exact identity matches, rough Products created, Generic identifier Products created, and Generic Product assignments.
 
-### Step 5 — Rename Item Retail
+### Step 6 — Rename Item Retail
 
 Schema:
 
@@ -166,12 +202,13 @@ Checks:
 - Add Item create/edit can set `retail`.
 - Cost calculation still uses retail value.
 
-### Step 6 — Enforce Product / Item Constraints
+### Step 7 — Enforce Product / Item Constraints
 
 Schema:
 
 - `Product.title` required and non-empty.
 - `Product.brand` required.
+- `Product.category` required FK to one of the 19 `inventory.Category` rows.
 - `Item.product` required.
 - Change `Item.product` FK to `on_delete=PROTECT`.
 - Ensure `Item.condition` and row canonical condition fields use allowed values.
@@ -180,16 +217,20 @@ Data checks before migration:
 
 - Products with null/blank title: `0`.
 - Products with null/blank brand: `0` after Generic fill.
+- Products with null/noncanonical category: `0`.
 - Items with null product: `0`.
 - Items with invalid condition: `0` or explicitly mapped before constraint.
 
-### Step 7 — Drop Retired Columns
+### Step 8 — Drop Retired Columns
 
 Drop only after app-code checks pass:
 
 Product:
 
 - `upc`
+- old string `category`
+- `category_ref`
+- `description`
 - `default_price`
 - `times_ordered`
 - `total_units_received`
@@ -198,6 +239,7 @@ Item:
 
 - `title`
 - `brand`
+- `category` if present as an owned Item column
 - `unit_count`
 - `processing_tier`
 - `batch_group`
@@ -205,7 +247,9 @@ Item:
 Processing/Manifest:
 
 - `ProcessingRow.units_per_item`
-- canonical `ManifestRow.description` target usage/column if present and no non-canonical use remains
+- `ProcessingRow.description`
+- `ManifestRow.description`
+- `PreprocessingRow.standard_description`, `ai_description`, and `final_description`
 - separate tracking bucket fields if present and replaced by `identifiers`
 - retired `PreprocessingRow` source-copy and identifier/tracking/taxonomy duplicate layers
 

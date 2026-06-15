@@ -279,26 +279,13 @@ def _get_category_list_text() -> str:
 
 def _get_or_create_db_category(category_name: str, parent_name: Optional[str]):
     """
-    Look up the Category model record by name, creating parent and child if needed.
+    Look up the canonical Category model record by name.
     Returns (Category instance, created).
     """
     from apps.inventory.models import Category
+    from apps.inventory.canonical_categories import canonical_category_name
 
-    parent = None
-    if parent_name:
-        parent, _ = Category.objects.get_or_create(
-            name=parent_name,
-            defaults={'parent': None},
-        )
-
-    category, created = Category.objects.get_or_create(
-        name=category_name,
-        defaults={'parent': parent},
-    )
-    if not created and category.parent is None and parent is not None:
-        category.parent = parent
-        category.save(update_fields=['parent'])
-
+    category, created = Category.objects.get_or_create(name=canonical_category_name(category_name))
     return category, created
 
 
@@ -334,7 +321,7 @@ def classify_item(
             return CategoryResult(
                 category_id=cat.pk,
                 category_name=cat.name,
-                parent_name=parent_name,
+                parent_name=None,
                 confidence=1.0,
                 method='rules',
             )
@@ -343,7 +330,7 @@ def classify_item(
             return CategoryResult(
                 category_id=None,
                 category_name=category_name,
-                parent_name=parent_name,
+                parent_name=None,
                 confidence=1.0,
                 method='rules',
             )
@@ -358,7 +345,7 @@ def classify_item(
                 return CategoryResult(
                     category_id=cat.pk,
                     category_name=cat.name,
-                    parent_name=parent_name,
+                    parent_name=None,
                     confidence=confidence,
                     method='ml',
                 )
@@ -366,7 +353,7 @@ def classify_item(
                 return CategoryResult(
                     category_id=None,
                     category_name=category_name,
-                    parent_name=parent_name,
+                    parent_name=None,
                     confidence=confidence,
                     method='ml',
                 )
@@ -381,7 +368,7 @@ def classify_item(
                 return CategoryResult(
                     category_id=cat.pk,
                     category_name=cat.name,
-                    parent_name=parent_name,
+                    parent_name=None,
                     confidence=0.7,
                     method='llm',
                 )
@@ -389,7 +376,7 @@ def classify_item(
                 return CategoryResult(
                     category_id=None,
                     category_name=category_name,
-                    parent_name=parent_name,
+                    parent_name=None,
                     confidence=0.7,
                     method='llm',
                 )
@@ -399,16 +386,16 @@ def classify_item(
         cat, _ = _get_or_create_db_category('General Merchandise', 'Miscellaneous')
         return CategoryResult(
             category_id=cat.pk,
-            category_name='General Merchandise',
-            parent_name='Miscellaneous',
+            category_name=cat.name,
+            parent_name=None,
             confidence=0.0,
             method='default',
         )
     except Exception:
         return CategoryResult(
             category_id=None,
-            category_name='General Merchandise',
-            parent_name='Miscellaneous',
+            category_name='Mixed lots & uncategorized',
+            parent_name=None,
             confidence=0.0,
             method='default',
         )

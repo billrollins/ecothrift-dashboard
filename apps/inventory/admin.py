@@ -36,14 +36,14 @@ class CSVTemplateAdmin(admin.ModelAdmin):
 @admin.register(ManifestRow)
 class ManifestRowAdmin(admin.ModelAdmin):
     list_display = (
-        'purchase_order', 'row_number', 'description', 'quantity',
+        'purchase_order', 'row_number', 'title', 'quantity',
         'match_status', 'matched_product',
     )
 
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'parent')
+    list_display = ('name', 'slug')
     search_fields = ('name', 'slug')
 
 

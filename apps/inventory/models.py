@@ -39,13 +39,6 @@ class Vendor(models.Model):
 class Category(models.Model):
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(max_length=200, unique=True, blank=True)
-    parent = models.ForeignKey(
-        'self',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='children',
-    )
     spec_template = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -408,7 +401,6 @@ class ManifestRow(models.Model):
     )
     row_number = models.IntegerField()
     quantity = models.IntegerField(default=1)
-    description = models.TextField(blank=True, default='')
     title = models.CharField(max_length=300, blank=True, default='')
     brand = models.CharField(max_length=200, blank=True, default='')
     model = models.CharField(max_length=200, blank=True, default='')
@@ -476,7 +468,8 @@ class ManifestRow(models.Model):
         ]
 
     def __str__(self):
-        return f'Row {self.row_number}: {self.description[:50]}'
+        label = self.title or self.notes or f'row {self.row_number}'
+        return f'Row {self.row_number}: {label[:50]}'
 
 
 class PreprocessingRow(models.Model):
@@ -516,10 +509,6 @@ class PreprocessingRow(models.Model):
         blank=True,
         help_text='{"state": clean|soft_flagged|hard_flagged|recovered, "issues": [...]}',
     )
-
-    standard_description = models.TextField(blank=True, default='')
-    ai_description = models.TextField(blank=True, default='')
-    final_description = models.TextField(blank=True, null=True)
 
     ai_title = models.CharField(max_length=300, blank=True, default='')
     final_title = models.CharField(max_length=300, blank=True, null=True)
@@ -760,7 +749,6 @@ class ProcessingRow(models.Model):
     model = models.CharField(max_length=200, blank=True, default='')
     category = models.CharField(max_length=200, blank=True, default='')
     condition = models.CharField(max_length=20, blank=True, default='')
-    description = models.TextField(blank=True, default='')
     notes = models.TextField(blank=True, default='')
 
     identifiers = models.JSONField(default=dict, blank=True)
@@ -862,15 +850,11 @@ class Product(models.Model):
     title = models.CharField(max_length=300)
     brand = models.CharField(max_length=200, default='Generic')
     model = models.CharField(max_length=200, blank=True, default='')
-    category = models.CharField(max_length=200, blank=True, default='')
-    category_ref = models.ForeignKey(
+    category = models.ForeignKey(
         Category,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.PROTECT,
         related_name='products',
     )
-    description = models.TextField(blank=True, default='')
     specifications = models.JSONField(default=dict, blank=True)
     identifiers = models.JSONField(default=dict, blank=True)
     tags = models.JSONField(default=list, blank=True)
@@ -909,6 +893,28 @@ class Product(models.Model):
     def primary_upc(self) -> str:
         return self.identifier_value('upc')
 
+    def catalog_display_parts(self) -> dict[str, str]:
+        """Structured identity for search result rendering (API + staff UIs)."""
+        number = (self.product_number or '').strip() or str(self.pk)
+        brand = (self.brand or '').strip()
+        title = (self.title or '').strip()
+        return {
+            'product_number': number,
+            'brand': brand,
+            'title': title,
+            'primary_identifier': self.primary_upc,
+        }
+
+    @property
+    def catalog_display_label(self) -> str:
+        parts = self.catalog_display_parts()
+        number = parts['product_number']
+        title = parts['title']
+        brand = parts['brand']
+        if brand and brand.lower() != 'generic':
+            return f'{number} · {brand} {title}'
+        return f'{number} · {title}'
+
     @staticmethod
     def generate_product_number(using=None):
         """Generate next product number like PRD-00001.
@@ -932,6 +938,12 @@ class Product(models.Model):
         using = kwargs.get('using')
         if not self.product_number:
             self.product_number = Product.generate_product_number(using=using)
+        if not self.category_id:
+            from apps.inventory.canonical_categories import canonical_category_name
+
+            self.category, _ = Category.objects.using(using or 'default').get_or_create(
+                name=canonical_category_name(''),
+            )
         super().save(*args, **kwargs)
 
 
@@ -1200,7 +1212,7 @@ class Item(models.Model):
                     p.model or '',
                     p.primary_upc or '',
                     p.brand or '',
-                    p.category or '',
+                    p.category.name if p.category_id else '',
                 ])
         text = ' '.join(parts).lower()
         return re.sub(r'\s+', ' ', text).strip()

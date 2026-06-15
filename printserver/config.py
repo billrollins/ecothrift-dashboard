@@ -1,11 +1,18 @@
-VERSION = "1.2.38"
-RELEASE_NOTES = "Labels: big_base tiers by digit count — first fit at scale 1.0 for long prices."
+VERSION = "1.3.0"
+RELEASE_NOTES = "Batch label printing: POST /print/labels spools a whole check-in in one request."
 
 # Default URL for the public version-check endpoint on the dashboard backend.
 # Users can override this in settings.json via the /manage page (useful for local dev).
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.3.0] — 2026-06-12
+
+### Added
+- **Batch label printing:** ``POST /print/labels`` accepts a list of labels and spools them all in one request (printer resolved once; per-label failures don't stop the run). The dashboard sends one call per check-in instead of one per label.
+
+---
+
 ## [1.2.38] — 2026-03-28
 
 ### Changed

@@ -229,8 +229,7 @@ const ReviewRow = memo(function ReviewRow({
   const categoryStr = String(rowValue(row, draft, 'category') ?? '');
   const titleLayers = layerTooltipText([
     ['AI', row.ai_title],
-    ['Desc', row.description],
-    ['Std desc', row.standard_description],
+    ['Title', row.title],
   ]);
   const brandLayers = layerTooltipText([
     ['AI', row.ai_brand],
@@ -469,7 +468,7 @@ export function PreprocessingReviewTable({
     for (const r of rows) {
       map.set(
         r.id,
-        [r.row_number, r.title, r.brand, r.model, r.description, r.category, r.notes]
+        [r.row_number, r.title, r.brand, r.model, r.category, r.notes]
           .map((x) => String(x ?? '').toLowerCase())
           .join(' '),
       );

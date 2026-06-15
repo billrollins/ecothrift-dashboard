@@ -69,7 +69,6 @@ def build_processing_row_search_string(row: Any) -> str:
         'model',
         'category',
         'condition',
-        'description',
         'notes',
         'pricing_notes',
         'list_sku',
@@ -100,11 +99,15 @@ def augment_processing_row_search_string(
 
     parts: list[str] = []
     if product is not None:
-        for attr in ('product_number', 'model', 'title', 'brand', 'category'):
+        for attr in ('product_number', 'model', 'title', 'brand'):
             val = getattr(product, attr, None) if not isinstance(product, Mapping) else product.get(attr)
             text = str(val or '').strip()
             if text:
                 parts.append(text)
+        category_obj = getattr(product, 'category', None) if not isinstance(product, Mapping) else product.get('category')
+        category_text = getattr(category_obj, 'name', category_obj)
+        if category_text:
+            parts.append(str(category_text).strip())
         identifiers = getattr(product, 'identifiers', None) if not isinstance(product, Mapping) else product.get('identifiers')
         tags = getattr(product, 'tags', None) if not isinstance(product, Mapping) else product.get('tags')
         _append_json_values_only(identifiers, parts)

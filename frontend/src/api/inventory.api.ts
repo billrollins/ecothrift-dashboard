@@ -754,7 +754,6 @@ export interface PreprocessingReviewRow {
   quantity: number;
   unit_retail: string | null;
   /** Effective (coalesced) display fields */
-  description: string;
   title: string;
   brand: string;
   model: string;
@@ -778,9 +777,6 @@ export interface PreprocessingReviewRow {
   batch_flag: boolean;
   notes: string;
   final_layer_visible: boolean;
-  standard_description?: string;
-  ai_description?: string;
-  final_description?: string | null;
   ai_title?: string;
   final_title?: string | null;
   ai_category?: string;
@@ -859,7 +855,6 @@ export type PreprocessingReviewRowPatch = Partial<Pick<
   | 'model'
   | 'category'
   | 'condition'
-  | 'description'
   | 'final_price'
   | 'proposed_price'
   | 'pricing_notes'
@@ -1650,11 +1645,103 @@ export interface ProductUsage {
   item_count: number;
   /** Distinct purchase orders those items span. */
   order_count: number;
+  recent_orders?: Array<{
+    order_number: string;
+    ordered_date: string | null;
+  }>;
+  status_counts?: Array<{
+    status: string;
+    label: string;
+    count: number;
+    pct: number;
+  }>;
+  on_shelf_count?: number;
+  on_shelf_locations?: Array<{
+    location: string;
+    count: number;
+    pct: number;
+  }>;
+  sold_count?: number;
+  avg_sold_price?: string | null;
+  avg_cost?: string | null;
+  avg_profit?: string | null;
 }
 
 /** Blast radius before editing a shared product ("affects X items across Y orders"). */
 export function getProductUsage(id: number): Promise<{ data: ProductUsage }> {
   return api.get<ProductUsage>(`/inventory/products/${id}/usage/`);
+}
+
+export interface ProductCheckInOrderOption {
+  id: number;
+  order_number: string;
+  vendor_name: string;
+  ordered_date: string | null;
+  is_default: boolean;
+  hint: string;
+}
+
+export interface ProductCheckInOrdersResponse {
+  orders: ProductCheckInOrderOption[];
+}
+
+export function getProductCheckInOrders(params?: {
+  search?: string;
+  limit?: number;
+}): Promise<{ data: ProductCheckInOrdersResponse }> {
+  return api.get<ProductCheckInOrdersResponse>('/inventory/products/check-in-orders/', { params });
+}
+
+export interface ProductCheckInPayload {
+  quantity: number;
+  purchase_order: number;
+  price?: string;
+  retail?: string;
+  condition?: string;
+  dispatch?: string;
+  location?: string;
+  notes?: string;
+}
+
+export interface ProductCheckInResponse {
+  product_id: number;
+  purchase_order_id: number;
+  created_count: number;
+  created_item_ids: number[];
+  processing_row_id: number;
+  check_in_batch_id: number | null;
+  printed_items_preview: PrintedItemPreview[];
+}
+
+export function productCheckIn(
+  productId: number,
+  payload: ProductCheckInPayload,
+): Promise<{ data: ProductCheckInResponse }> {
+  return api.post<ProductCheckInResponse>(`/inventory/products/${productId}/check-in/`, payload);
+}
+
+export interface SuggestProductRequest {
+  fields: string[];
+  context: Record<string, unknown>;
+  model?: string;
+}
+
+export interface SuggestProductResponse {
+  suggestions: Record<string, unknown>;
+  low_confidence: boolean;
+  low_confidence_reason: string;
+  usage: { input_tokens: number; output_tokens: number };
+  examples_used: number;
+  timing: { db_ms: number; api_ms: number; total_ms: number };
+  debug?: {
+    model: string;
+    system_prompt: string;
+    user_message: string;
+  };
+}
+
+export function suggestProduct(data: SuggestProductRequest): Promise<{ data: SuggestProductResponse }> {
+  return api.post<SuggestProductResponse>('/inventory/products/suggest/', data);
 }
 
 // Vendor product refs

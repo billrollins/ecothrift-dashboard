@@ -112,11 +112,11 @@ export function ProcessingTransformDialog({
   }, [open, shelfPriceTouched, suggestedShelfPrice]);
 
   const suggestedNewTitle = useMemo(() => {
-    const base = (row.title || row.description || `Row ${row.rowNum}`).trim();
+    const base = (row.title || `Row ${row.rowNum}`).trim();
     if (isBreakApart) return `${base} (single)`;
     const setLabel = setSize && setSize >= 2 ? String(setSize) : (setSizeRaw.trim() || 'N');
     return `${base} — Set of ${setLabel}`;
-  }, [isBreakApart, row.title, row.description, row.rowNum, setSize, setSizeRaw]);
+  }, [isBreakApart, row.title, row.rowNum, setSize, setSizeRaw]);
 
   useEffect(() => {
     if (productMode !== 'new' || newTitleTouched) return;

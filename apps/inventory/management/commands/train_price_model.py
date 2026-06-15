@@ -170,12 +170,12 @@ class Command(BaseCommand):
         ).exclude(
             sold_for=0,
         ).select_related(
-            'manifest_row', 'product__category_ref',
+            'manifest_row', 'product__category',
         ).values(
             'title', 'brand', 'category', 'condition', 'source',
             'sold_for', 'price',
             'manifest_row__retail_value',
-            'product__category_ref__name',
+            'product__category__name',
         )
 
         data = []
@@ -185,7 +185,7 @@ class Command(BaseCommand):
                 continue
 
             category = (
-                item.get('product__category_ref__name')
+                item.get('product__category__name')
                 or item.get('category')
                 or 'unknown'
             )

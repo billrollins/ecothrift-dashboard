@@ -43,6 +43,22 @@ class LabelPrintRequest(BaseModel):
     )
 
 
+class LabelBatchPrintRequest(BaseModel):
+    """One request → many labels: the whole check-in batch spools in a single call."""
+
+    labels: list[LabelPrintRequest] = Field(..., description="Labels to print, in order")
+    printer_name: str | None = Field(None, description="Overrides per-label printer_name")
+
+
+class LabelBatchPrintResponse(BaseModel):
+    success: bool
+    message: str
+    requested: int
+    printed: int
+    failed: int
+    errors: list[str] = Field(default_factory=list, description="First few per-label errors")
+
+
 class TestPrintRequest(BaseModel):
     printer_name: str | None = None
 

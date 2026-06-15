@@ -125,11 +125,7 @@ class Command(BaseCommand):
             "manifests_skipped_no_po": 0,
         }
 
-        existing_products = set(
-            Product.objects.using(db).filter(description__startswith="BACKFILL:").values_list(
-                "description", flat=True
-            )
-        )
+        existing_products = set()
         existing_manifest_notes = set(
             ManifestRow.objects.using(db).filter(notes__startswith="BACKFILL:").values_list(
                 "notes", flat=True
@@ -246,7 +242,6 @@ class Command(BaseCommand):
                             upc=truncate(row.get("upc"), 100),
                             category=build_category_display(cat, sub),
                             default_price=to_decimal(row.get("retail_amt")),
-                            description=tag,
                             specifications=specs,
                         )
                         batch.append(p)
@@ -301,7 +296,6 @@ class Command(BaseCommand):
                             upc="",
                             category="",
                             default_price=None,
-                            description=tag,
                             specifications={},
                         )
                         batch.append(p)
@@ -389,7 +383,6 @@ class Command(BaseCommand):
                             purchase_order=po,
                             row_number=int(line),
                             quantity=max(1, int(qty)),
-                            description=desc,
                             title=truncate(desc, 300),
                             brand=truncate(row.get("brand"), 200),
                             model=truncate(row.get("model"), 200),
@@ -468,7 +461,6 @@ class Command(BaseCommand):
                             purchase_order=po,
                             row_number=int(row.get("row_number") or 0),
                             quantity=max(1, int(qty)),
-                            description=desc,
                             title=truncate(desc, 300),
                             brand=truncate(row.get("brand"), 200),
                             model=truncate(row.get("model"), 200),

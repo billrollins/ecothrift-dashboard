@@ -47,6 +47,7 @@ import {
   getItemStats,
   createItem,
   suggestItem,
+  suggestProduct,
   updateItem,
   deleteItem,
   checkInItem,
@@ -82,6 +83,9 @@ import {
   getManualReview,
   updateManualReview,
   getManifestFieldMetadata,
+  getProductCheckInOrders,
+  productCheckIn,
+  type ProductCheckInPayload,
 } from '../api/inventory.api';
 import { prepS1 } from '../utils/preprocessingStep1Diag';
 import { devLog } from '../utils/logger';
@@ -91,6 +95,7 @@ import type {
   SuggestFinalizationPayload,
   FinalizeRowsPayload,
   SuggestItemRequest,
+  SuggestProductRequest,
   CleanupModelOption,
   ManualReviewParams,
   ManualReviewRowUpdate,
@@ -1280,6 +1285,22 @@ export function useAISuggestItem() {
   });
 }
 
+export function useAISuggestProduct() {
+  return useMutation({
+    mutationFn: async (data: SuggestProductRequest) => {
+      const { data: result } = await suggestProduct(data);
+      if (result.debug) {
+        devLog.group('[suggest_product] prompt sent to AI');
+        devLog.log('model:', result.debug.model);
+        devLog.log('system_prompt:\n', result.debug.system_prompt);
+        devLog.log('user_message:\n', result.debug.user_message);
+        devLog.groupEnd();
+      }
+      return result;
+    },
+  });
+}
+
 export function useDeleteItem() {
   const queryClient = useQueryClient();
 
@@ -1369,6 +1390,43 @@ export function useDeleteCategory() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+}
+
+export function useProductCheckInOrders(search: string, enabled = true) {
+  const q = search.trim();
+  return useQuery({
+    queryKey: ['productCheckInOrders', q],
+    queryFn: async () => {
+      const { data } = await getProductCheckInOrders(q ? { search: q } : undefined);
+      return data.orders;
+    },
+    enabled,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useProductCheckIn() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      productId,
+      payload,
+    }: {
+      productId: number;
+      payload: ProductCheckInPayload;
+    }) => {
+      const { data } = await productCheckIn(productId, payload);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-usage'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
     },
   });
 }

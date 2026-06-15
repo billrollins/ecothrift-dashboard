@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -20,9 +20,10 @@ import {
   aiCleanupComplete,
   getAICleanupStatus,
 } from '../../../api/inventory.api';
-import { useAICleanupStatus, useCancelAICleanup } from '../../../hooks/useInventory';
+import { useAICleanupStatus, useCancelAICleanup, useCleanupModels } from '../../../hooks/useInventory';
 import {
-  AI_CLEANUP_BATCH_SIZE,
+  AI_CLEANUP_BATCH_SIZE_OPTIONS,
+  AI_CLEANUP_DEFAULT_BATCH_SIZE,
   AI_CLEANUP_DEFAULT_CONCURRENCY,
   partitionRowIds,
   runCleanupPool,
@@ -49,14 +50,25 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const statusQuery = useAICleanupStatus(orderId);
+  const modelsQuery = useCleanupModels(orderId);
   const cancelCleanup = useCancelAICleanup();
 
   const [runState, setRunState] = useState<RunState>('idle');
   const [concurrency, setConcurrency] = useState(AI_CLEANUP_DEFAULT_CONCURRENCY);
+  const [batchSize, setBatchSize] = useState<number>(AI_CLEANUP_DEFAULT_BATCH_SIZE);
+  const [selectedModel, setSelectedModel] = useState('');
   const [progress, setProgress] = useState<CleanupPoolProgress | null>(null);
   const [banner, setBanner] = useState<{ severity: 'success' | 'info' | 'warning' | 'error'; message: string } | null>(null);
   const pausedRef = useRef(false);
   const startedAtRef = useRef(0);
+
+  const cleanupModels = modelsQuery.data?.models ?? [];
+  const envDefaultModel = modelsQuery.data?.default ?? '';
+
+  useEffect(() => {
+    if (!envDefaultModel) return;
+    setSelectedModel((prev) => (prev && cleanupModels.some((m) => m.id === prev) ? prev : envDefaultModel));
+  }, [envDefaultModel, cleanupModels]);
 
   const status = statusQuery.data ?? null;
   const totalRows = status?.total_rows ?? 0;
@@ -76,9 +88,9 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
     if (elapsedS <= 0 || progress.rowsSaved <= 0) return null;
     const rowsPerSec = progress.rowsSaved / elapsedS;
     const batchesLeft = progress.batchesTotal - progress.batchesDone;
-    const etaS = rowsPerSec > 0 ? Math.round((batchesLeft * AI_CLEANUP_BATCH_SIZE) / rowsPerSec) : null;
+    const etaS = rowsPerSec > 0 ? Math.round((batchesLeft * batchSize) / rowsPerSec) : null;
     return { rowsPerSec, etaS };
-  }, [progress]);
+  }, [progress, batchSize]);
 
   const handleRun = async () => {
     setBanner(null);
@@ -98,14 +110,14 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
         return;
       }
 
-      const batches = partitionRowIds(uncleaned, AI_CLEANUP_BATCH_SIZE);
+      const batches = partitionRowIds(uncleaned, batchSize);
       setProgress({ batchesDone: 0, batchesTotal: batches.length, rowsSaved: 0, rowsDiscarded: 0, failedBatches: 0 });
 
       const outcome = await runCleanupPool(
         batches,
         concurrency,
         async (rowIds) => {
-          const { data } = await aiCleanupBatch(orderId, { row_ids: rowIds });
+          const { data } = await aiCleanupBatch(orderId, { row_ids: rowIds, model: selectedModel });
           return {
             rowIds,
             rowsSaved: data.rows_saved,
@@ -198,15 +210,41 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
             Run AI Cleanup
           </Typography>
           <Typography sx={{ fontSize: 13, color: '#666', fontFamily: preprocessingFonts.sans }}>
-            Cleans rows in small batches of {AI_CLEANUP_BATCH_SIZE} — progress saves as it goes, and you can pause and resume any time.
+            Cleans rows in batches — progress saves as it goes, and you can pause and resume any time.
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
           <Chip
             size="small"
             label={`${cleanedRows}/${totalRows} cleaned`}
             sx={{ bgcolor: remainingRows === 0 && totalRows > 0 ? '#D4EDDA' : '#F0F7F4', color: '#1B4332', fontWeight: 600 }}
           />
+          <TextField
+            select
+            size="small"
+            label="Model"
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            disabled={isRunning || modelsQuery.isLoading || cleanupModels.length === 0}
+            sx={{ minWidth: 200 }}
+          >
+            {cleanupModels.map((m) => (
+              <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            size="small"
+            label="Rows/batch"
+            value={batchSize}
+            onChange={(e) => setBatchSize(Number(e.target.value))}
+            disabled={isRunning}
+            sx={{ width: 108 }}
+          >
+            {AI_CLEANUP_BATCH_SIZE_OPTIONS.map((n) => (
+              <MenuItem key={n} value={n}>{n}</MenuItem>
+            ))}
+          </TextField>
           <TextField
             select
             size="small"
@@ -236,7 +274,7 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
               variant="contained"
               startIcon={remainingRows < totalRows && remainingRows > 0 ? <PlayCircleOutline /> : <AutoFixHighOutlined />}
               onClick={() => void handleRun()}
-              disabled={statusQuery.isLoading || totalRows === 0}
+              disabled={statusQuery.isLoading || modelsQuery.isLoading || !selectedModel || totalRows === 0}
               sx={{ bgcolor: '#2D6A4F', textTransform: 'none', fontWeight: 600 }}
             >
               {remainingRows < totalRows && remainingRows > 0

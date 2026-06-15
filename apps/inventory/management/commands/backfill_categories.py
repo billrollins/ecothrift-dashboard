@@ -1,11 +1,10 @@
 """
-Retroactively assign category_ref to all Item and Product records
-that currently have category_ref=None.
+Retroactively assign canonical Product.category values.
 
 Usage:
     python manage.py backfill_categories
     python manage.py backfill_categories --dry-run
-    python manage.py backfill_categories --overwrite     # re-classify even existing refs
+    python manage.py backfill_categories --overwrite     # re-classify even existing categories
     python manage.py backfill_categories --batch-size 200
 """
 
@@ -20,7 +19,7 @@ from apps.inventory.services.categorizer import classify_item
 
 
 class Command(BaseCommand):
-    help = 'Backfill category_ref on all Item and Product records using the classifier.'
+    help = 'Backfill Product.category using the canonical category classifier.'
 
     def add_arguments(self, parser):
         parser.add_argument('--dry-run', action='store_true', default=False)
@@ -28,7 +27,7 @@ class Command(BaseCommand):
             '--overwrite',
             action='store_true',
             default=False,
-            help='Re-classify items that already have category_ref set.',
+            help='Re-classify products that already have category set.',
         )
         parser.add_argument('--batch-size', type=int, default=100)
         parser.add_argument(
@@ -64,11 +63,11 @@ class Command(BaseCommand):
         self._print_summary(stats, method_counts, dry_run)
 
     def _classify_products(self, dry_run, overwrite, batch_size, use_llm, stats, method_counts):
-        from apps.inventory.models import Product
+        from apps.inventory.models import Category, Product
 
         qs = Product.objects.all()
         if not overwrite:
-            qs = qs.filter(category_ref__isnull=True)
+            qs = qs.filter(category__isnull=True)
         total = qs.count()
         self.stdout.write(f'Classifying {total} products...')
 
@@ -84,9 +83,7 @@ class Command(BaseCommand):
                 )
                 method_counts[result.method] += 1
                 if result.category_id:
-                    product.category_ref_id = result.category_id
-                    if not product.category and result.category_name:
-                        product.category = result.category_name
+                    product.category = Category.objects.get(pk=result.category_id)
                     to_update.append(product)
                     stats['products_classified'] += 1
                 else:
@@ -100,7 +97,7 @@ class Command(BaseCommand):
 
             if not dry_run and to_update:
                 with transaction.atomic():
-                    Product.objects.bulk_update(to_update, ['category_ref', 'category'], batch_size=batch_size)
+                    Product.objects.bulk_update(to_update, ['category'], batch_size=batch_size)
 
             self.stdout.write(f'  Products: {min(offset + batch_size, total)}/{total}')
 

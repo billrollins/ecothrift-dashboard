@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-06-12 (Session 11 — P9 row transforms: split_parent sub rows, Item.unit_count, restart endpoint) -->
+<!-- Last updated: 2026-06-15 (v2.29.0 — product check-in API, migrations 0061–0062, item filters) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-06-15 (v2.29.0) — Product check-in + category reset:** **`POST /api/inventory/products/{id}/check-in/`**; migrations **`0061`–`0062`**; **`ItemViewSet`** `ids` filter + **`-checked_in_at`** ordering.
 
 **2026-06-11 Session 10 (v2.28.0) — Item Processor P7/P8:**
 - **Collapse groups (P7):** **`ProcessingRow.collapse_master`** self-FK (migration **`0059`**, SET_NULL, `related_name='collapse_members'`) — presentation + check-in distribution only, manifest untouched. **`POST …/processing-collapse-rows/`** (`processing_row_ids` ≥2 manifest-backed; `product_mode` keep/existing/new — existing/new delegate to assign-shared-product) / **`POST …/processing-uncollapse-rows/`** (`master_processing_row_id`). Check-in on the **master** fills members **in row order** (one `ProcessingCheckInBatch` per member touched; response `check_in_batch_ids`; overage → last row); followers raise on direct check-in. **`refresh_processing_rows_denorm`** overrides the master's **`queue_status` from GROUP totals** (pending/partial/checked_in/disputed — own-items status would read checked_in after fill-in-order and drop the group from `hide_checked_in`/segment filters; scoped refresh pulls the master in when only members were touched). Workspace list/patch rows carry **`collapsedGroup`** rollups (`collapse_rollups_for_order`); **`build_processing_row_detail`** for a master returns `collapsedGroup` + **all member items and batches** + group-level `status` (per-row qty fields stay own-row; client combines via `effectiveRowQty`).

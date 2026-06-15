@@ -14,7 +14,7 @@ class TaxonomyBucketTests(SimpleTestCase):
     def test_product_category_exact(self):
         item = MagicMock()
         item.product_id = 1
-        item.product.category = 'Toys & games'
+        item.product.category.name = 'Toys & games'
         item.manifest_row_id = None
         self.assertEqual(taxonomy_bucket_for_item(item), 'Toys & games')
 
@@ -28,7 +28,7 @@ class TaxonomyBucketTests(SimpleTestCase):
     def test_mixed_when_unknown(self):
         item = MagicMock()
         item.product_id = 1
-        item.product.category = 'not in taxonomy'
+        item.product.category.name = 'not in taxonomy'
         item.manifest_row_id = 2
         item.manifest_row.category = 'also unknown'
         self.assertEqual(taxonomy_bucket_for_item(item), MIXED_LOTS_UNCATEGORIZED)

@@ -21,20 +21,20 @@ Important layer rule:
 | `title` | `Raw.description` or `Raw.title > ManifestRow.description` / `ManifestRow.title > PreprocessingRow.ai_title > final_title > ProcessingRow.title > Product.title > Item.title` | `Raw.title > ManifestRow.title > PreprocessingRow.ai_title > final_title > ProcessingRow.title > Product.title`; Item reads Product. Drop `Item.title`. |
 | `brand` | `Raw.brand > ManifestRow.brand > PreprocessingRow.ai_brand > final_brand > ProcessingRow.brand > Product.brand > Item.brand` | `Raw.brand > ManifestRow.brand > PreprocessingRow.ai_brand > final_brand > ProcessingRow.brand > Product.brand`; drop `Item.brand`. |
 | `model` | `Raw.model > ManifestRow.model > PreprocessingRow.ai_model > final_model > ProcessingRow.model > Product.model` | Same. |
-| `description` | Current code has manifest/preprocessing description concepts. | Remove manifest/preprocessing description lineage. `Product.description` is manual/catalog detail only. |
+| `description` | Current code has Product, manifest, preprocessing, and processing description concepts. | Remove the entire Product/manifest/preprocessing/processing description lineage. Product has no description. Use `title`, `notes`, `specifications`, `identifiers`, or `tags`. |
 
 ## Taxonomy / Category
 
 | Field | Current | Target |
 |-------|---------|--------|
 | source category fields | Raw columns vary by vendor: `department`, `gl_category`, `seller_category`, `category`, etc. | All source category-like columns map into `ManifestRow.taxonomy` JSON. If a vendor has a raw `taxonomy` column, store it as `ManifestRow.taxonomy['taxonomy']`. |
-| canonical category | Some flat category values exist at multiple stages. | `ManifestRow.taxonomy` informs `PreprocessingRow.ai_category`, which must be canonical. Then `final_category > ProcessingRow.category > Product.category` remain canonical. |
+| canonical category | Some flat category values and `Product.category_ref` exist at multiple stages. | `ManifestRow.taxonomy` informs `PreprocessingRow.ai_category`, which resolves to one of the 19 `inventory.Category` rows. Then `final_category > ProcessingRow.category > Product.category` remain canonical Category references. |
 
 Target lineage:
 
-`Raw source category columns > ManifestRow.taxonomy(JSON source fields) > PreprocessingRow.ai_category(required canonical) > PreprocessingRow.final_category > ProcessingRow.category > Product.category`
+`Raw source category columns > ManifestRow.taxonomy(JSON source fields) > PreprocessingRow.ai_category(canonical Category) > PreprocessingRow.final_category(canonical Category) > ProcessingRow.category(canonical Category) > Product.category(canonical Category FK)`
 
-Implementation decision still allowed: canonical category can be enforced by allowed string keys or Category FK where practical. The important constraint is that from `ai_category` onward, it is not raw vendor taxonomy.
+Implementation decision is now fixed: runtime canonical categories come from `inventory.Category`, seeded to the 19 prior `TAXONOMY_V1_CATEGORY_NAMES`. Product `category` is a FK. The old Product string category and `category_ref` are removed.
 
 ## Identifiers / Tracking
 
