@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.31.0] — 2026-06-16 (Processing workspace — product-linked check-ins and prior history cleanup) -->
-<!-- Last reviewed: 2026-06-16 (v2.31.0 — Processing workspace product links, migration 0066, prior check-ins table) -->
+<!-- Line 1 release: ## [2.32.0] — 2026-06-16 (Processing workspace — unmanifested lines, queue resume, and check-in UX) -->
+<!-- Last reviewed: 2026-06-16 (v2.32.0 — unmanifested add/delete, queue filters, session resume, recent rows) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,7 +10,31 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [2.31.0] — 2026-06-16
+## [2.32.0] — 2026-06-16
+
+User-facing theme: **Processing workspace unmanifested lines, faster queue resume, and tighter check-in UX.**
+
+### Added
+
+- **Inventory / unmanifested processing lines** — `POST …/processing-add-item/` creates pending `row_kind='added'` queue rows (title/brand/model only); check-in follows attach-product-then-check-in like manifest rows; manifest audit rollups exclude added lines.
+- **Inventory / delete unmanifested lines** — `POST …/processing-delete-added-row/` removes empty added rows; queue trash icon on added rows only; blocked when check-ins exist.
+- **Inventory / processing queue filters** — independent multi-chip OR filters (`open`, `partial`, `done`, `disputes`, `unmanifested`) via `segments` query param.
+- **Inventory / processing workspace resume** — sessionStorage restores queue search + open row detail per PO when navigating away and back.
+- **Inventory / processing quick recall** — scan-bar search history (10, per order) and horizontal **Recent** row chips (last 10 opened/checked-in rows); client-only, no extra API calls.
+- **Inventory / processing refresh** — **Refresh page** on row detail refetches workspace stats, row detail, and product editor caches without browser reload.
+- **Inventory / Google search shortcuts** — product editor, add-line dialog, attached product cards, and row details link to Google from title/brand/model/tags.
+
+### Changed
+
+- **Inventory / set-part check-in pricing** — check-in prefill and `processing-row-check-in` default item price/retail scale by product link ratio (`manifestUnits / checkIns`) from row bookmark values.
+- **Inventory / added-row detail UX** — removed standalone **Check in…** under Row Details; staff attach or create a product first, then check in from the product card (same as manifest rows).
+- **Inventory / Add unmanifested line dialog** — simplified to title (required), model, brand; no immediate item creation or auto-print.
+
+### Fixed
+
+- **Inventory / processing validation** — tests for added-row create/check-in/delete, multi-segment OR filter, set/part price scaling, and manifest audit isolation for unmanifested lines.
+
+---
 
 User-facing theme: **Processing workspace product-linked check-ins and a cleaner prior check-ins workflow.**
 

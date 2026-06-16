@@ -94,7 +94,7 @@ class WorkspaceRoutedCreateTests(UnifiedItemCreateBase):
     def test_create_on_workspace_po_adds_processing_row(self):
         resp = self._create_item(purchase_order=self.order.id, quantity=3)
         self.assertEqual(resp.status_code, 201, resp.data)
-        self.assertEqual(resp.data['created_count'], 3)
+        self.assertEqual(resp.data['created_count'], 0)
 
         added = ProcessingRow.objects.filter(
             purchase_order=self.order, row_kind=ProcessingRow.ROW_KIND_ADDED,
@@ -102,19 +102,26 @@ class WorkspaceRoutedCreateTests(UnifiedItemCreateBase):
         self.assertEqual(added.count(), 1)
         row = added.get()
         self.assertEqual(row.quantity, 3)
-        self.assertEqual(len(row.item_ids), 3)
-        self.assertEqual(row.queue_status, 'checked_in')
+        self.assertEqual(len(row.item_ids), 0)
+        self.assertEqual(row.queue_status, 'pending')
+        self.assertEqual(row.title, 'Cordless Drill')
+        self.assertEqual(row.brand, 'Acme')
+        self.assertEqual(Item.objects.filter(purchase_order=self.order).count(), 0)
+        self.assertFalse(ItemCheckIn.objects.filter(processing_row=row).exists())
 
-        items = Item.objects.filter(id__in=row.item_ids)
-        self.assertEqual(items.count(), 3)
-        for item in items:
-            self.assertEqual(item.purchase_order_id, self.order.id)
-            self.assertEqual(item.status, 'on_shelf')
-
-        check_in = ItemCheckIn.objects.filter(processing_row=row).first()
-        self.assertIsNotNone(check_in)
-        self.assertEqual(check_in.quantity, 3)
-        self.assertEqual(check_in.product_id, items.first().product_id)
+    def test_create_on_workspace_po_can_optionally_link_product(self):
+        resp = self._create_item(
+            purchase_order=self.order.id,
+            product_mode='new',
+            title='Optional product line',
+        )
+        self.assertEqual(resp.status_code, 201, resp.data)
+        row = ProcessingRow.objects.get(
+            purchase_order=self.order, row_kind=ProcessingRow.ROW_KIND_ADDED,
+        )
+        self.assertIsNotNone(row.matched_product_id)
+        self.assertEqual(row.queue_status, 'pending')
+        self.assertEqual(len(row.item_ids), 0)
 
     def test_create_on_non_workspace_po_skips_added_row(self):
         plain = PurchaseOrder.objects.create(
@@ -133,12 +140,18 @@ class WorkspaceRoutedCreateTests(UnifiedItemCreateBase):
 
     def test_workspace_route_reuses_existing_product_by_upc(self):
         existing = Product.objects.create(title='Cordless Drill', brand='Acme', identifiers={'upc': '012345678905'})
-        resp = self._create_item(purchase_order=self.order.id, upc='012345678905')
+        resp = self._create_item(
+            purchase_order=self.order.id,
+            upc='012345678905',
+            product_mode='edit',
+        )
         self.assertEqual(resp.status_code, 201, resp.data)
         row = ProcessingRow.objects.get(
             purchase_order=self.order, row_kind=ProcessingRow.ROW_KIND_ADDED,
         )
         self.assertEqual(row.matched_product_id, existing.id)
+        self.assertEqual(row.queue_status, 'pending')
+        self.assertEqual(len(row.item_ids), 0)
 
 
 class ProductUsageEndpointTests(UnifiedItemCreateBase):

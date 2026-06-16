@@ -48,6 +48,28 @@ export function manifestUnitsFromItemCount(
   return (qty * cfg.manifestUnits) / cfg.checkIns;
 }
 
+/** Per-item price/retail from row defaults when product uses set/part accounting. */
+export function scaleRowAmountForProductLink(
+  rowAmount: string | number | null | undefined,
+  link: ProcessingProductLinkConfig | ProcessingProductLinkDTO | undefined,
+): string {
+  if (rowAmount == null || rowAmount === '') return '';
+  const amount = Number.parseFloat(String(rowAmount));
+  if (!Number.isFinite(amount)) return '';
+  const cfg = normalizeProductLink(link);
+  const scaled = (amount * cfg.manifestUnits) / cfg.checkIns;
+  return scaled.toFixed(2);
+}
+
+export function scaleRowAmountForProductId(
+  rowAmount: string | number | null | undefined,
+  productId: number | null | undefined,
+  productLinks: ProcessingWorkspaceRowDTO['productLinks'],
+): string {
+  if (productId == null) return scaleRowAmountForProductLink(rowAmount, undefined);
+  return scaleRowAmountForProductLink(rowAmount, productLinks?.[String(productId)]);
+}
+
 export function formatManifestUnits(value: number): string {
   if (!Number.isFinite(value)) return '0';
   if (Math.abs(value - Math.round(value)) < 0.05) return String(Math.round(value));
@@ -64,9 +86,14 @@ export interface ManifestProgressDisplay {
 }
 
 export function computeManifestProgress(
-  row: Pick<ProcessingWorkspaceRowDTO, 'productLinks'>,
+  row: Pick<ProcessingWorkspaceRowDTO, 'productLinks' | 'rowKind'>,
   productGroups: Array<{ productId: number | null; totalQty: number }>,
 ): ManifestProgressDisplay {
+  if (row.rowKind === 'added') {
+    const itemCount = productGroups.reduce((sum, group) => sum + group.totalQty, 0);
+    return { manifestUnits: itemCount, itemCount, usesManifestAccounting: false };
+  }
+
   const links = row.productLinks ?? {};
   let manifestUnits = 0;
   let itemCount = 0;

@@ -1531,6 +1531,21 @@ export function processingAddItem(
   );
 }
 
+export interface ProcessingDeleteAddedRowResponse {
+  processing_row_id: number;
+  deleted_processing_row_ids: number[];
+}
+
+export function processingDeleteAddedRow(
+  orderId: number,
+  processingRowId: number,
+): Promise<{ data: ProcessingDeleteAddedRowResponse }> {
+  return api.post<ProcessingDeleteAddedRowResponse>(
+    `/inventory/orders/${orderId}/processing-delete-added-row/`,
+    { processing_row_id: processingRowId },
+  );
+}
+
 export interface ProcessingDisputePayload {
   scope: 'items' | 'manifest_row' | 'manifest_rows' | 'processing_rows';
   ids?: number[];

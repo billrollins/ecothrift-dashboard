@@ -2195,6 +2195,7 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'processing_row_set_product_action',
         'processing_row_patch_action',
         'processing_add_item_action',
+        'processing_delete_added_row_action',
         'check_in_items',
         'ai_cleanup_rows',
         'ai_cleanup_status',
@@ -5805,6 +5806,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 return default
 
         segment = str(request.query_params.get('segment') or 'all').strip() or 'all'
+        segments = str(request.query_params.get('segments') or '').strip() or None
         search = str(request.query_params.get('search') or '').strip()
         product_raw = request.query_params.get('product_id')
         product_id = None
@@ -5819,6 +5821,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 limit=_qint('limit', 25),
                 offset=_qint('offset', 0),
                 segment=segment,
+                segments=segments,
                 product_id=product_id,
                 search=search,
                 hide_checked_in=hide_checked_in,
@@ -6038,6 +6041,23 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         try:
             return Response(processing_add_item(request.user, order, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='processing-delete-added-row')
+    def processing_delete_added_row_action(self, request, pk=None):
+        from apps.inventory.processing_ops import processing_delete_added_row
+
+        order = self.get_object()
+        raw = request.data.get('processing_row_id') or request.data.get('processingRowId')
+        if raw is None or not str(raw).strip().isdigit():
+            return Response({'detail': 'processing_row_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(
+                processing_delete_added_row(request.user, order, int(str(raw).strip())),
+            )
+        except ProcessingRow.DoesNotExist:
+            return Response({'detail': 'Processing row not found for this order.'}, status=status.HTTP_404_NOT_FOUND)
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -7099,8 +7119,21 @@ class ItemViewSet(viewsets.ModelViewSet):
                 result = processing_add_item(request.user, order, payload)
             except ValueError as e:
                 return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-            body = dict(result['items'][0])
-            body['created_count'] = result['created_count']
+            row_payload = result.get('row') or {}
+            items_payload = result.get('items') or []
+            if items_payload:
+                body = dict(items_payload[0])
+            else:
+                body = {
+                    'id': None,
+                    'sku': None,
+                    'price': row_payload.get('price'),
+                    'title': row_payload.get('title') or payload.get('title'),
+                    'brand': row_payload.get('brand') or payload.get('brand') or '',
+                    'product_number': (row_payload.get('product') or {}).get('product_number'),
+                    'processing_row_id': result.get('processing_row_id'),
+                }
+            body['created_count'] = result.get('created_count', 0)
             body['created_items'] = [
                 {
                     'id': it['id'],
@@ -7110,8 +7143,9 @@ class ItemViewSet(viewsets.ModelViewSet):
                     'brand': it.get('brand') or '',
                     'product_number': it.get('product_number'),
                 }
-                for it in result['items']
+                for it in items_payload
             ]
+            body['processing_row_id'] = result.get('processing_row_id')
             return Response(body, status=status.HTTP_201_CREATED)
 
         serializer = self.get_serializer(data=data)

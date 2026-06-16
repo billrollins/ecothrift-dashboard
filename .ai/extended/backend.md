@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-06-16 (v2.31.0 — processing row product links, migration 0066) -->
+<!-- Last updated: 2026-06-16 (v2.32.0 — unmanifested processing lines, delete added row, set/part check-in scaling) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-06-16 (v2.32.0) — Unmanifested processing lines:** **`POST …/processing-add-item/`** creates pending **`row_kind='added'`** **`ProcessingRow`** rows (title/brand/model; no manifest row); check-in uses **`manifest_row_id=null`** and **`ItemCheckIn.ORIGIN_PRODUCT_AD_HOC`**. **`POST …/processing-delete-added-row/`** removes empty added rows (blocked when check-ins exist). Workspace **`segments`** query param supports multi-chip OR filters including **`unmanifested`**. Set/part product links scale default check-in price/retail via **`scale_row_amount_for_product_link`** (`manifestUnits / checkIns` from row bookmark). Manifest audit rollups exclude added rows.
 
 **2026-06-16 (v2.31.0) — Processing product links:** migration **`0066_processingrow_product_links`** persists row/check-in product linkage for processing workspace product remap and prior history flows. `processing-patch` still limits condition/dispatch/price edits to on-shelf items and rejects manual `status="sold"`; prior check-ins no longer expose Status editing.
 

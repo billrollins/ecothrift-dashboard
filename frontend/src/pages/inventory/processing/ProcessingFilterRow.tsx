@@ -1,11 +1,17 @@
 import { Box, Chip, Typography } from '@mui/material';
 import Close from '@mui/icons-material/Close';
-import type { ProcessingStatusSegment } from './processingWorkspaceFilters';
+import {
+  clickProcessingQueueFilter,
+  isProcessingQueueFilterChipActive,
+  PROCESSING_QUEUE_FILTER_CHIPS,
+  type ProcessingQueueFilterId,
+  type ProcessingQueueFilterState,
+} from './processingWorkspaceFilters';
 import { processingTokens } from './processingTokens';
 
 export interface ProcessingFilterRowProps {
-  segment: ProcessingStatusSegment;
-  onSegmentChange: (v: ProcessingStatusSegment) => void;
+  filters: ProcessingQueueFilterState;
+  onFiltersChange: (next: ProcessingQueueFilterState) => void;
   productFilterProductId: number | null;
   productFilterTitle?: string;
   onClearProductFilter: () => void;
@@ -15,23 +21,19 @@ export interface ProcessingFilterRowProps {
   filteredRowCount?: number;
 }
 
-const SEGMENTS: Array<{ id: ProcessingStatusSegment; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'open', label: 'Open' },
-  { id: 'partial', label: 'Partial' },
-  { id: 'checked_in', label: 'Done' },
-  { id: 'disputed', label: 'Disputes' },
-];
-
 export function ProcessingFilterRow({
-  segment,
-  onSegmentChange,
+  filters,
+  onFiltersChange,
   productFilterProductId,
   productFilterTitle,
   onClearProductFilter,
   totalRowCount,
   filteredRowCount,
 }: ProcessingFilterRowProps) {
+  function handleChipClick(id: ProcessingQueueFilterId | 'all') {
+    onFiltersChange(clickProcessingQueueFilter(filters, id));
+  }
+
   return (
     <Box
       sx={{
@@ -49,14 +51,14 @@ export function ProcessingFilterRow({
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-        {SEGMENTS.map((s) => {
-          const active = segment === s.id;
+        {PROCESSING_QUEUE_FILTER_CHIPS.map((chip) => {
+          const active = isProcessingQueueFilterChipActive(filters, chip.id);
           return (
             <Chip
-              key={s.id}
-              label={s.label}
+              key={chip.id}
+              label={chip.label}
               size="small"
-              onClick={() => onSegmentChange(s.id)}
+              onClick={() => handleChipClick(chip.id)}
               sx={{
                 height: 27,
                 borderRadius: 99,

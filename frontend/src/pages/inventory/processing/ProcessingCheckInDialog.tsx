@@ -37,6 +37,7 @@ import {
   normalizeProcessingCondition,
   PROCESSING_ITEM_DEFAULT_CONDITION,
 } from './processingItemFormOptions';
+import { scaleRowAmountForProductId } from './processingManifestAccounting';
 import { effectiveRowQty } from './processingQueueCellText';
 import { LargeCheckInConfirmDialog } from './LargeCheckInConfirmDialog';
 import { isLargeCheckIn, MAX_CHECK_IN_QUANTITY } from './largeCheckIn';
@@ -193,6 +194,14 @@ export function ProcessingCheckInDialog({
   const qtyDelta = isEditMode ? qtyValue - originalQty : 0;
   const effQty = effectiveRowQty(row);
   const qtyLeftAfter = Math.max(0, effQty.remaining - qtyValue);
+  const scaledRowRetail = useMemo(
+    () => scaleRowAmountForProductId(row.unitRetail, productId, row.productLinks),
+    [row.unitRetail, row.productLinks, productId],
+  );
+  const scaledRowPrice = useMemo(
+    () => scaleRowAmountForProductId(row.price, productId, row.productLinks),
+    [row.price, row.productLinks, productId],
+  );
   const salvageLocked = condition === 'salvage';
   const busy = loading || productQuery.isFetching;
 
@@ -203,12 +212,12 @@ export function ProcessingCheckInDialog({
     setCondition(normalizeProcessingCondition(seed?.item.condition || seed?.item.condition_label || row.condition));
     setStatus((seed?.item.status as ItemStatus | undefined) || 'on_shelf');
     setDispatch(seed?.item.dispatch || strDefault(defaults.dispatch) || row.dispatch || 'on_shelf');
-    setRetail(seed?.item.retail ?? (strDefault(defaults.retail) || row.unitRetail || ''));
-    setPrice(seed?.item.price ?? (strDefault(defaults.price) || row.price || ''));
+    setRetail(seed?.item.retail ?? (strDefault(defaults.retail) || scaledRowRetail || ''));
+    setPrice(seed?.item.price ?? (strDefault(defaults.price) || scaledRowPrice || ''));
     setNotes(strDefault(defaults.notes) || seed?.item.notes || row.manifestNotes || '');
     setSpecifications((defaults.specifications as Record<string, string> | undefined) ?? {});
     setVolumeConfirm(null);
-  }, [open, seed, editCheckIn, row]);
+  }, [open, seed, editCheckIn, row, scaledRowRetail, scaledRowPrice]);
 
   useEffect(() => {
     if (salvageLocked) setDispatch('salvage');

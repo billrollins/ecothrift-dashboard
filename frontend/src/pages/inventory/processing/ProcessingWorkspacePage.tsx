@@ -13,6 +13,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useMarkOrderComplete, usePurchaseOrders } from '../../../hooks/useInventory';
@@ -25,24 +26,29 @@ import {
   useProcessingUncollapseRows,
   useProcessingRowPatch,
   useProcessingAddItem,
+  useProcessingDeleteAddedRow,
   useBuildProcessingData,
   useProcessingRowDetail,
   useProcessingWorkspace,
   PROCESSING_WORKSPACE_ALL_ROWS_LIMIT,
+  refreshProcessingDetailData,
   type ProcessingWorkspaceListParams,
   printedPreviewToLabelInputs,
   useProcessingDataBuildStatus,
 } from '../../../hooks/useProcessingWorkspace';
 import type { ProcessingWorkspaceItemDTO, ProcessingWorkspaceRowDTO } from '../../../types/inventory.types';
 import {
+  DEFAULT_QUEUE_FILTER_STATE,
   isSingleScanToken,
+  queueFiltersToSegmentsParam,
   rowsMatchingExactScan,
-  type ProcessingStatusSegment,
+  type ProcessingQueueFilterState,
 } from './processingWorkspaceFilters';
 import { AddProcessingItemDialog } from './modals/AddProcessingItemDialog';
 import { ProcessingWorkspaceHeader, type ProcessingWorkspaceOrderPickRow } from './ProcessingWorkspaceHeader';
 import { ProcessingFilterRow } from './ProcessingFilterRow';
 import { ProcessingScanBar } from './ProcessingScanBar';
+import { ProcessingRecentRowsBar } from './ProcessingRecentRowsBar';
 import { ProcessingQueueTable } from './ProcessingQueueTable';
 import { ProcessingBulkActionBar } from './ProcessingBulkActionBar';
 import { CheckInTogetherDialog } from './CheckInTogetherDialog';
@@ -50,11 +56,26 @@ import { CollapseRowsDialog } from './CollapseRowsDialog';
 // import { ProcessingQueuePagination } from './ProcessingQueuePagination';
 import { ProcessingActiveCard } from './ProcessingActiveCard';
 import { printProcessingLabelsStaggered } from './printProcessingLabel';
+import { queueTitleText } from './processingQueueCellText';
+import {
+  readProcessingWorkspaceSession,
+  writeProcessingWorkspaceSession,
+} from './processingWorkspaceSession';
+import {
+  type ProcessingRecentRowEntry,
+  processingSearchHistoryKey,
+  pushProcessingRecentRow,
+  readProcessingRecentRows,
+} from './processingRecentRows';
+import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialog';
+import { apiErrorDetail } from '../../../hooks/useProductSearch';
 
 export default function ProcessingWorkspacePage() {
   const { id: idParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+  const { confirm, ConfirmDialogHost } = useWorkbenchConfirmDialog();
   const orderId = idParam && /^\d+$/.test(idParam) ? Number.parseInt(idParam, 10) : null;
 
   useEffect(() => {
@@ -63,17 +84,20 @@ export default function ProcessingWorkspacePage() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [segment, setSegment] = useState<ProcessingStatusSegment>('all');
+  const [queueFilters, setQueueFilters] = useState<ProcessingQueueFilterState>(DEFAULT_QUEUE_FILTER_STATE);
   const [detailProcessingRowId, setDetailProcessingRowId] = useState<number | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [productFilterProductId, setProductFilterProductId] = useState<number | null>(null);
   const [productFilterTitle, setProductFilterTitle] = useState<string | undefined>(undefined);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(() => new Set());
+  const [detailRefreshPending, setDetailRefreshPending] = useState(false);
   const [togetherRows, setTogetherRows] = useState<ProcessingWorkspaceRowDTO[] | null>(null);
   const [collapseDialogOpen, setCollapseDialogOpen] = useState(false);
   const [sessionCheckInCount, setSessionCheckInCount] = useState(0);
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
   const [searchFocusSignal, setSearchFocusSignal] = useState(0);
+  const [sessionHydratedForOrderId, setSessionHydratedForOrderId] = useState<number | null>(null);
+  const [recentRows, setRecentRows] = useState<ProcessingRecentRowEntry[]>([]);
 
   /** Session rate counts mutation results; the timer starts at the first check-in. */
   const recordSessionCheckIns = useCallback((count: number) => {
@@ -98,17 +122,39 @@ export default function ProcessingWorkspacePage() {
     return () => window.clearTimeout(t);
   }, [search]);
 
+  useEffect(() => {
+    if (orderId == null) {
+      setSessionHydratedForOrderId(null);
+      return;
+    }
+    const saved = readProcessingWorkspaceSession(orderId);
+    const restoredSearch = saved?.search ?? '';
+    setSearch(restoredSearch);
+    setDebouncedSearch(restoredSearch.trim());
+    setDetailProcessingRowId(saved?.detailProcessingRowId ?? null);
+    setSelectedItemId(null);
+    setDetailScrollToHistory(false);
+    setSessionHydratedForOrderId(orderId);
+    setRecentRows(readProcessingRecentRows(orderId));
+  }, [orderId]);
+
+  useEffect(() => {
+    if (orderId == null || sessionHydratedForOrderId !== orderId) return;
+    writeProcessingWorkspaceSession(orderId, { search, detailProcessingRowId });
+  }, [orderId, sessionHydratedForOrderId, search, detailProcessingRowId]);
+
   const listParams = useMemo((): ProcessingWorkspaceListParams | null => {
     if (orderId == null) return null;
     return {
       limit: PROCESSING_WORKSPACE_ALL_ROWS_LIMIT,
       offset: 0,
-      segment,
+      segment: 'all',
+      segments: queueFiltersToSegmentsParam(queueFilters),
       product_id: productFilterProductId ?? undefined,
       search: debouncedSearch,
       hide_checked_in: false,
     };
-  }, [orderId, segment, productFilterProductId, debouncedSearch]);
+  }, [orderId, queueFilters, productFilterProductId, debouncedSearch]);
 
   const { data: workspace, isLoading, isFetching, isError, error, refetch } = useProcessingWorkspace(orderId, listParams);
   /** Stable handle for callbacks that need current rows without re-creating per fetch. */
@@ -225,6 +271,7 @@ export default function ProcessingWorkspacePage() {
   const uncollapseRows = useProcessingUncollapseRows(safeOrderId);
   const rowPatch = useProcessingRowPatch(safeOrderId);
   const addItem = useProcessingAddItem(safeOrderId);
+  const deleteAddedRow = useProcessingDeleteAddedRow(safeOrderId);
   const buildProcessingDataMu = useBuildProcessingData(orderId ?? 0);
   const procBuildPoll = useProcessingDataBuildStatus(orderId, Boolean(workspace?.processingBookmarkOnly));
   const autoDrainBusyRef = useRef(false);
@@ -262,15 +309,79 @@ export default function ProcessingWorkspacePage() {
   const patchItem = useProcessingPatchItem(safeOrderId);
   const markComplete = useMarkOrderComplete();
 
+  const rememberRecentRow = useCallback(
+    (row: Pick<ProcessingWorkspaceRowDTO, 'processing_row_id' | 'rowNum' | 'title' | 'brand'>) => {
+      if (orderId == null) return;
+      setRecentRows(
+        pushProcessingRecentRow(orderId, {
+          processingRowId: row.processing_row_id,
+          rowNum: row.rowNum,
+          title: queueTitleText(row),
+        }),
+      );
+    },
+    [orderId],
+  );
+
   const openDetail = useCallback((processingRowId: number, options?: { scrollToHistory?: boolean }) => {
     // P7 collapse: a member is a dead end (check-in rejected) — open its master instead,
     // which covers the whole group. Hits scan-to-open and any filtered view.
     const target = workspaceRef.current?.rows.find((r) => r.processing_row_id === processingRowId);
     const resolvedId = target?.collapseMasterId ?? processingRowId;
+    const resolved =
+      workspaceRef.current?.rows.find((r) => r.processing_row_id === resolvedId) ?? target;
+    if (resolved) rememberRecentRow(resolved);
     setSelectedRowIds(new Set());
     setDetailProcessingRowId(resolvedId);
     setDetailScrollToHistory(Boolean(options?.scrollToHistory));
-  }, []);
+  }, [rememberRecentRow]);
+
+  const handleDeleteAddedRow = useCallback(
+    async (row: ProcessingWorkspaceRowDTO) => {
+      if (row.rowKind !== 'added') return;
+      if ((row.qtyDispositioned ?? 0) > 0) {
+        enqueueSnackbar('Remove all check-ins from this line before deleting it.', { variant: 'warning' });
+        return;
+      }
+      const title = queueTitleText(row);
+      const ok = await confirm({
+        title: 'Delete unmanifested line?',
+        message: `Remove row ${row.rowNum}${title ? ` (${title})` : ''} from the queue? This cannot be undone.`,
+        confirmLabel: 'Delete',
+        severity: 'error',
+        confirmColor: 'error',
+      });
+      if (!ok) return;
+      try {
+        await deleteAddedRow.mutateAsync(row.processing_row_id);
+        setSelectedRowIds((prev) => {
+          if (!prev.has(row.processing_row_id)) return prev;
+          const next = new Set(prev);
+          next.delete(row.processing_row_id);
+          return next;
+        });
+        if (detailProcessingRowId === row.processing_row_id) {
+          setDetailProcessingRowId(null);
+        }
+        enqueueSnackbar('Unmanifested line removed.', { variant: 'success' });
+      } catch (err) {
+        enqueueSnackbar(apiErrorDetail(err, 'Could not delete line'), { variant: 'error' });
+      }
+    },
+    [confirm, deleteAddedRow, detailProcessingRowId, enqueueSnackbar],
+  );
+
+  const handleRefreshDetail = useCallback(async () => {
+    if (orderId == null || detailProcessingRowId == null || detailRefreshPending) return;
+    setDetailRefreshPending(true);
+    try {
+      await refreshProcessingDetailData(queryClient, orderId, detailProcessingRowId);
+    } catch {
+      enqueueSnackbar('Could not refresh row.', { variant: 'error' });
+    } finally {
+      setDetailRefreshPending(false);
+    }
+  }, [orderId, detailProcessingRowId, detailRefreshPending, queryClient, enqueueSnackbar]);
 
   const clearRowSelection = useCallback(() => {
     setSelectedRowIds(new Set());
@@ -336,13 +447,15 @@ export default function ProcessingWorkspacePage() {
   }, [detailProcessingRowId, backToQueue]);
 
   const openScanMatch = useCallback((processingRowId: number) => {
+    const row = workspaceRef.current?.rows.find((r) => r.processing_row_id === processingRowId);
+    if (row) rememberRecentRow(row);
     setSelectedRowIds(new Set());
     setDetailProcessingRowId(processingRowId);
     setDetailScrollToHistory(false);
     setSearch('');
     setDebouncedSearch('');
     bumpSearchFocus();
-  }, [bumpSearchFocus]);
+  }, [bumpSearchFocus, rememberRecentRow]);
 
   const handleSearchEnter = useCallback(async () => {
     const q = search.trim();
@@ -358,7 +471,8 @@ export default function ProcessingWorkspacePage() {
         const { data } = await getProcessingWorkspace(orderId, {
           limit: 2,
           offset: 0,
-          segment,
+          segment: 'all',
+          segments: queueFiltersToSegmentsParam(queueFilters),
           product_id: productFilterProductId ?? undefined,
           search: q,
           hide_checked_in: false,
@@ -381,7 +495,7 @@ export default function ProcessingWorkspacePage() {
       setSelectedItemId(null);
       setDebouncedSearch(q);
     }
-  }, [search, orderId, detailProcessingRowId, workspace?.rows, segment, productFilterProductId, openScanMatch]);
+  }, [search, orderId, detailProcessingRowId, workspace?.rows, queueFilters, productFilterProductId, openScanMatch]);
 
   const handleCheckIn = useCallback(
     async (payload: Record<string, unknown>, options?: { printLabels?: boolean }) => {
@@ -394,6 +508,7 @@ export default function ProcessingWorkspacePage() {
         });
         const labelItems = printedPreviewToLabelInputs(data.printed_items_preview ?? []);
         recordSessionCheckIns(data.created_count);
+        rememberRecentRow(selectedRow);
         if (shouldPrint) {
           const { succeeded, failed } = await printProcessingLabelsStaggered(labelItems);
           if (failed > 0) {
@@ -415,7 +530,7 @@ export default function ProcessingWorkspacePage() {
         return false;
       }
     },
-    [selectedRow, orderId, rowCheckIn, enqueueSnackbar, bumpSearchFocus, recordSessionCheckIns],
+    [selectedRow, orderId, rowCheckIn, enqueueSnackbar, bumpSearchFocus, recordSessionCheckIns, rememberRecentRow],
   );
 
   const selectedQueueRows = useMemo(
@@ -545,9 +660,9 @@ export default function ProcessingWorkspacePage() {
       if (!items.length) return;
       const labelItems = items.map((item) => ({
         sku: item.sku,
-        title: item.product_title || selectedRow?.title || item.sku,
         price: item.price,
-        brand: item.product_brand || selectedRow?.brand || undefined,
+        product_title: item.product_title || selectedRow?.title || item.sku,
+        product_brand: item.product_brand || selectedRow?.brand || undefined,
         product_number: item.product_number ?? undefined,
       }));
       const { succeeded, failed } = await printProcessingLabelsStaggered(labelItems);
@@ -762,9 +877,19 @@ export default function ProcessingWorkspacePage() {
             search={search}
             onSearchChange={handleSearchChange}
             onSearchEnter={() => void handleSearchEnter()}
+            onHistorySelect={(q) => {
+              setSearch(q);
+              setDebouncedSearch(q.trim());
+            }}
+            historyStorageKey={orderId != null ? processingSearchHistoryKey(orderId) : undefined}
+            historyMax={10}
             searchFocusSignal={searchFocusSignal}
             isFetching={isFetching && !isLoading}
             mode="queue"
+          />
+          <ProcessingRecentRowsBar
+            rows={recentRows}
+            onOpenRow={(processingRowId) => openDetail(processingRowId)}
           />
         </Box>
       ) : null}
@@ -772,8 +897,8 @@ export default function ProcessingWorkspacePage() {
       {detailProcessingRowId == null ? (
         <Box sx={{ flexShrink: 0 }}>
           <ProcessingFilterRow
-            segment={segment}
-            onSegmentChange={setSegment}
+            filters={queueFilters}
+            onFiltersChange={setQueueFilters}
             productFilterProductId={productFilterProductId}
             productFilterTitle={productFilterTitle}
             onClearProductFilter={() => {
@@ -832,6 +957,8 @@ export default function ProcessingWorkspacePage() {
               activeItem={activeItem}
               onSelectItemId={setSelectedItemId}
               onBackToQueue={backToQueue}
+              onRefreshDetail={() => void handleRefreshDetail()}
+              detailRefreshing={detailRefreshPending}
               onCheckIn={handleCheckIn}
               checkInLoading={rowCheckIn.isPending}
               onPatchCheckedIn={handlePatchCheckedIn}
@@ -889,6 +1016,10 @@ export default function ProcessingWorkspacePage() {
                       setProductFilterProductId(row.productId);
                       setProductFilterTitle(row.product?.title);
                     }}
+                    onDeleteAddedRow={(row) => void handleDeleteAddedRow(row)}
+                    deleteAddedRowLoadingId={
+                      deleteAddedRow.isPending ? (deleteAddedRow.variables ?? null) : null
+                    }
                   />
                   <ProcessingBulkActionBar
                     selectedCount={selectedRowIds.size}
@@ -986,22 +1117,15 @@ export default function ProcessingWorkspacePage() {
 
       <AddProcessingItemDialog
         open={addUnmanifestedOpen}
-        orderId={orderId ?? 0}
         loading={addItem.isPending}
         onClose={() => setAddUnmanifestedOpen(false)}
         onSubmit={async (payload) => {
           try {
             const data = await addItem.mutateAsync(payload);
-            const labelItems = printedPreviewToLabelInputs(data.printed_items_preview ?? []);
-            const { succeeded, failed } = await printProcessingLabelsStaggered(labelItems);
             setAddUnmanifestedOpen(false);
             setDetailProcessingRowId(data.row.processing_row_id);
             bumpSearchFocus();
-            if (failed > 0) {
-              enqueueSnackbar(`Added item; printed ${succeeded}/${labelItems.length}.`, { variant: 'warning' });
-            } else {
-              enqueueSnackbar('Added item and created queue row.', { variant: 'success' });
-            }
+            enqueueSnackbar('Unmanifested line added to queue.', { variant: 'success' });
           } catch (e: unknown) {
             const detail =
               e && typeof e === 'object' && 'response' in e
@@ -1012,6 +1136,7 @@ export default function ProcessingWorkspacePage() {
           }
         }}
       />
+      {ConfirmDialogHost}
     </Box>
   );
 }

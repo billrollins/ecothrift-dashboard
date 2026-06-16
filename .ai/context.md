@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-16 (v2.31.0 — processing workspace product-linked check-ins and prior history cleanup) -->
+<!-- Last updated: 2026-06-16 (v2.32.0 — processing unmanifested lines, queue resume, recent rows) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active initiative — Product/Item CRUD → Processing:** [`product_item_crud_and_processing`](initiatives/product_item_crud_and_processing.md) — **Phases 1–3 + product-first check-in shipped v2.29.0**; **Inventory Catalog shipped v2.30.0**; **processing workspace product-linked check-ins shipped v2.31.0** (migration `0066`, prior check-ins table cleanup, inline condition/dispatch/price). Remaining: final production validation/backfill review and semantic embedding search on hold.
+- **Active initiative — Product/Item CRUD → Processing:** [`product_item_crud_and_processing`](initiatives/product_item_crud_and_processing.md) — **Phases 1–3 + product-first check-in shipped v2.29.0**; **Inventory Catalog shipped v2.30.0**; **processing workspace product-linked check-ins shipped v2.31.0** (migration `0066`); **v2.32.0** unmanifested add/delete lines, queue OR filters, session resume, recent rows/search history, set/part check-in price scaling. Remaining: final production validation/backfill review and semantic embedding search on hold.
 - **AI cleanup (shipped):** archived [`preprocessing_ai_cleanup_review`](initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md) — Step 2 **Run AI Cleanup** browser batch pool (`ai-cleanup-batch`/`-status`/`-complete`), chunked offline apply, gthread Procfile, legacy `ai-cleanup-rows` 410. Shipped **v2.28.0**.
 - **Blog Studio (shipped):** archived [`blog_studio`](initiatives/_archived/_completed/blog_studio.md) — Super Admin **Blog Studio** (`/blog-studio`, lazy TipTap, opens in a new window) + DB-backed public blog (`apps.blog` at `/api/blog/`). Shipped **v2.27.0**–**v2.27.2**. One-time prod ops (if not done): `python manage.py seed_initial_blog_posts` (idempotent).
 - **Parked — public site launch:** [`.ai/initiatives/_archived/_pending/public_website.md`](initiatives/_archived/_pending/public_website.md) — storefront **Phases 0–4 shipped** (**v2.26.0**, `frontend-public/` + `apps.webstore`). **Resume when:** deploy to Heroku + prod `seed_shop_categories`; wire **Helcim + email** after vendor conversations. Hostname routing: `ecothrift.us`/`www` → public SPA, `dash.*` → staff.

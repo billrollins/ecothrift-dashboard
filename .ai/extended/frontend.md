@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-06-16 (v2.31.0 — processing workspace prior check-ins/product links) -->
+<!-- Last updated: 2026-06-16 (v2.32.0 — processing queue resume, unmanifested lines, Google search) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-06-16 (v2.32.0) — Processing workspace queue UX:** unmanifested **Add line** dialog (title/model/brand → pending added row); trash delete on added rows only; multi-chip OR queue filters (**Unmanifested** segment); **Refresh page** refetches workspace + row detail; sessionStorage restores search + open row per PO; scan search history (10) + **Recent** row chips (10); **`ProcessingGoogleSearchButton`** on product editor, add dialog, and attached product cards; set/part check-in prefill via **`scaleRowAmountForProductId`**; added rows use attach-product-then-check-in (no standalone Check in CTA under Row Details).
 
 **2026-06-16 (v2.31.0) — Processing workspace product-linked check-ins:** `ProcessingActiveCard` / `CheckedInItemsTable` show a flat prior check-ins table with measured column layout, product cells that open the Product editor, product remap among row-attached products, inline condition/dispatch/price edits, and no Status column. Dispatch labels use canonical option labels (`Back storage`, `On shelf / floor`).
 

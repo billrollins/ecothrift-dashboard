@@ -7,7 +7,18 @@ import {
   formatProductLinkSummary,
   manifestUnitsFromItemCount,
   processingRowFieldLayerTooltip,
+  scaleRowAmountForProductLink,
 } from './processingManifestAccounting';
+
+describe('scaleRowAmountForProductLink', () => {
+  it('scales row retail/price by set or part ratio', () => {
+    expect(scaleRowAmountForProductLink('40.00', { role: 'set', checkIns: 1, manifestUnits: 10 })).toBe('400.00');
+    expect(scaleRowAmountForProductLink('15.00', { role: 'set', checkIns: 1, manifestUnits: 10 })).toBe('150.00');
+    expect(scaleRowAmountForProductLink('40.00', { role: 'part', checkIns: 10, manifestUnits: 1 })).toBe('4.00');
+    expect(scaleRowAmountForProductLink('15.00', { role: 'part', checkIns: 10, manifestUnits: 1 })).toBe('1.50');
+    expect(scaleRowAmountForProductLink('12.99', undefined)).toBe('12.99');
+  });
+});
 
 describe('manifestUnitsFromItemCount', () => {
   it('defaults to one item per row unit', () => {
@@ -31,6 +42,7 @@ describe('computeManifestProgress', () => {
   it('uses manifest accounting when a product link is configured', () => {
     const result = computeManifestProgress(
       {
+        rowKind: 'manifest',
         productLinks: {
           '42': { role: 'part', checkIns: 10, manifestUnits: 1 },
         },
@@ -40,6 +52,21 @@ describe('computeManifestProgress', () => {
     expect(result.itemCount).toBe(25);
     expect(result.manifestUnits).toBe(2.5);
     expect(result.usesManifestAccounting).toBe(true);
+  });
+
+  it('never uses manifest accounting for added rows', () => {
+    const result = computeManifestProgress(
+      {
+        rowKind: 'added',
+        productLinks: {
+          '42': { role: 'set', checkIns: 1, manifestUnits: 10 },
+        },
+      },
+      [{ productId: 42, totalQty: 4 }],
+    );
+    expect(result.itemCount).toBe(4);
+    expect(result.manifestUnits).toBe(4);
+    expect(result.usesManifestAccounting).toBe(false);
   });
 });
 

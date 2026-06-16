@@ -282,7 +282,59 @@ def push_shelf_price_to_bookmark(
 
 
 # Narrow columns loaded for GET processing-workspace / workspace_patch rows (heavy JSON omitted).
-_WORKSPACE_SEGMENTS_F = frozenset({'all', 'open', 'pending', 'partial', 'checked_in', 'disputed'})
+_WORKSPACE_SEGMENTS_F = frozenset({
+    'all', 'open', 'pending', 'partial', 'checked_in', 'done', 'disputed', 'disputes', 'unmanifested',
+})
+
+
+def _workspace_segment_filter_q(token: str) -> Q | None:
+    """Map one UI segment token to a queryset Q (OR-combined by caller)."""
+    t = (token or '').strip().lower()
+    if t in ('open', 'pending'):
+        return Q(queue_status='pending')
+    if t == 'partial':
+        return Q(queue_status='partial')
+    if t in ('checked_in', 'done'):
+        return Q(queue_status='checked_in')
+    if t in ('disputed', 'disputes'):
+        return Q(queue_status='disputed')
+    if t == 'unmanifested':
+        return Q(row_kind=ProcessingRow.ROW_KIND_ADDED)
+    return None
+
+
+def _parse_workspace_segments(*, segments: str | None, segment: str) -> list[str] | None:
+    """Active segment tokens, or None when showing all rows (no status facet filter)."""
+    raw = (segments or '').strip()
+    if raw:
+        parts = [p.strip().lower() for p in raw.split(',') if p.strip()]
+        if parts:
+            return parts
+    seg = (segment or 'all').strip().lower()
+    if seg not in _WORKSPACE_SEGMENTS_F:
+        seg = 'all'
+    if seg == 'all':
+        return None
+    # Legacy single-segment API: "open" meant not fully checked in.
+    if seg == 'open':
+        return ['open', 'partial', 'disputed']
+    return [seg]
+
+
+def _apply_workspace_segment_filters(qs, *, segments: str | None, segment: str):
+    active = _parse_workspace_segments(segments=segments, segment=segment)
+    if not active:
+        return qs
+    combined = Q()
+    matched = False
+    for tok in active:
+        sub = _workspace_segment_filter_q(tok)
+        if sub is not None:
+            combined |= sub
+            matched = True
+    if matched:
+        qs = qs.filter(combined)
+    return qs
 
 
 # Digit-only tokens with more than this many characters are treated as identifiers
@@ -327,19 +379,13 @@ def _apply_workspace_list_filters(
     qs,
     *,
     segment: str,
+    segments: str | None = None,
     product_id: int | None,
     search: str,
     hide_checked_in: bool,
 ):
     sq = (search or '').strip()
-    seg = (segment or 'all').strip().lower()
-    if seg not in _WORKSPACE_SEGMENTS_F:
-        seg = 'all'
-    if seg != 'all':
-        if seg == 'open':
-            qs = qs.exclude(queue_status='checked_in')
-        else:
-            qs = qs.filter(queue_status=seg)
+    qs = _apply_workspace_segment_filters(qs, segments=segments, segment=segment)
     if product_id is not None:
         qs = qs.filter(matched_product_id=product_id)
     if not sq and hide_checked_in:
@@ -430,6 +476,11 @@ def _items_for_family_row(row_pk: int, fam: dict[str, Any], line_items: list[Ite
 def attributed_items_for_processing_row(row: ProcessingRow) -> list[Item]:
     """Items belonging to THIS row — family-aware when the manifest line is split (P9)."""
     if row.manifest_row_id is None:
+        if row.row_kind == ProcessingRow.ROW_KIND_ADDED:
+            batch_map = _item_check_in_item_id_map([row.pk])
+            item_pks = sorted(batch_map.get(row.pk, set()))
+            if item_pks:
+                return list(Item.objects.filter(pk__in=item_pks).order_by('id'))
         item_pks = _processing_row_item_ids(row)
         if not item_pks:
             return []
@@ -839,6 +890,36 @@ def attach_product_link(row: ProcessingRow, product_id: int) -> dict[str, Any]:
     return links
 
 
+def scale_row_amount_for_product_link(
+    amount: Decimal | None,
+    product_id: int | None,
+    row: ProcessingRow,
+) -> Decimal | None:
+    """Per-item amount from row defaults using set/part accounting (manifestUnits / checkIns)."""
+    if amount is None or product_id is None:
+        return amount
+    link = effective_product_links(row).get(str(int(product_id)), _default_product_link_entry())
+    check_ins = max(1, int(link.get('checkIns') or 1))
+    manifest_units = max(1, int(link.get('manifestUnits') or 1))
+    return (amount * Decimal(manifest_units)) / Decimal(check_ins)
+
+
+def effective_row_unit_retail(row: ProcessingRow) -> Decimal | None:
+    if row.unit_retail is not None:
+        return row.unit_retail
+    mr = getattr(row, 'manifest_row', None)
+    if mr is not None and mr.unit_retail is not None:
+        return mr.unit_retail
+    return None
+
+
+def effective_row_shelf_price(row: ProcessingRow) -> Decimal | None:
+    for val in (row.shelf_price, row.final_price, row.proposed_price):
+        if val is not None:
+            return val
+    return None
+
+
 def _processing_row_item_count_for_product(row: ProcessingRow, product_id: int) -> int:
     qs = Item.objects.filter(product_id=int(product_id), purchase_order_id=row.purchase_order_id)
     if row.manifest_row_id:
@@ -1088,9 +1169,12 @@ def refresh_processing_rows_denorm(
     if product_ids:
         products_by_id = {p.id: p for p in Product.objects.filter(pk__in=product_ids)}
 
+    added_row_ids = [p.pk for p in prs if p.row_kind == ProcessingRow.ROW_KIND_ADDED]
+    check_in_item_map = _item_check_in_item_id_map(added_row_ids)
     added_item_pks: set[int] = set()
     for pr in prs:
         if pr.row_kind == ProcessingRow.ROW_KIND_ADDED:
+            added_item_pks.update(check_in_item_map.get(pr.pk, set()))
             added_item_pks.update(_processing_row_item_ids(pr))
     items_by_pk: dict[int, Item] = {}
     if added_item_pks:
@@ -1098,12 +1182,12 @@ def refresh_processing_rows_denorm(
 
     for pr in prs:
         if pr.row_kind == ProcessingRow.ROW_KIND_ADDED:
-            item_pks = _processing_row_item_ids(pr)
+            item_pks = sorted(check_in_item_map.get(pr.pk, set())) or _processing_row_item_ids(pr)
             items = [items_by_pk[i] for i in item_pks if i in items_by_pk]
             pr.item_ids = [i.id for i in items]
             if items and items[0].product_id and not pr.matched_product_id:
                 pr.matched_product_id = items[0].product_id
-            pr.queue_status = derive_row_queue_status(items) if items else 'checked_in'
+            pr.queue_status = derive_row_queue_status(items) if items else 'pending'
             pr.qty_dispositioned = row_qty_dispositioned(items) if items else 0
             pr.distinct_product_count = distinct_product_count_for_items(items)
             primary_pid = primary_product_id_for_items(items)
@@ -1378,6 +1462,7 @@ def build_processing_workspace(
     limit: int = 25,
     offset: int = 0,
     segment: str = 'all',
+    segments: str | None = None,
     product_id: int | None = None,
     search: str = '',
     hide_checked_in: bool = True,
@@ -1411,6 +1496,7 @@ def build_processing_workspace(
     filtered_qs = _apply_workspace_list_filters(
         base_qs,
         segment=segment,
+        segments=segments,
         product_id=product_id,
         search=search,
         hide_checked_in=hide_checked_in,
@@ -1517,7 +1603,10 @@ def build_workspace_patch(order: PurchaseOrder, *, touched_processing_row_ids: I
             if group:
                 row_payload['collapsedGroup'] = group
     _attach_split_parent_row_numbers(rows_out)
-    qty_agg = ProcessingRow.objects.filter(purchase_order=order).aggregate(
+    qty_agg = ProcessingRow.objects.filter(
+        purchase_order=order,
+        row_kind=ProcessingRow.ROW_KIND_MANIFEST,
+    ).aggregate(
         sum_disp=Sum('qty_dispositioned'),
     )
     return {
@@ -1614,10 +1703,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
     base = serialize_processing_workspace_row_values(rw_vals, [], product=bk.matched_product)
 
     if bk.row_kind == ProcessingRow.ROW_KIND_ADDED:
-        item_pks = _processing_row_item_ids(bk)
-        items = list(
-            Item.objects.filter(pk__in=item_pks).select_related('product').order_by('id'),
-        ) if item_pks else []
+        items = attributed_items_for_processing_row(bk)
         items_by_id = {i.id: i for i in items}
         prod = bk.matched_product
         if prod is None and items:
@@ -1652,7 +1738,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
             'tracking': bk.tracking if isinstance(bk.tracking, dict) else {},
             'items': [_serialize_item(i) for i in items],
             'itemCheckIns': _serialize_item_check_ins(bk, items_by_id),
-            'status': derive_row_queue_status(items) if items else 'checked_in',
+            'status': derive_row_queue_status(items) if items else 'pending',
             'condition': condition_db_to_ui(primary.condition) if primary else base['condition'],
             'price': row_price,
             'dispatch': location_to_dispatch(primary.location) if primary else base['dispatch'],

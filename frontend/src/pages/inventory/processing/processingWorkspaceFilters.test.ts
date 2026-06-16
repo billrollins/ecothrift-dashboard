@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildProcessingSearchBlob,
+  clickProcessingQueueFilter,
+  DEFAULT_QUEUE_FILTER_STATE,
   deriveProcessingRowStatus,
   isSingleScanToken,
   matchesProcessingSearch,
   normalizeUpcToken,
   processingWorkspaceSearchBlob,
+  queueFiltersToSegmentsParam,
   rowMatchesStatusSegment,
   rowsMatchingExactUpc,
   rowsMatchingExactSku,
@@ -104,6 +107,39 @@ describe('processingWorkspaceFilters', () => {
         'et-hidden-sku',
       );
       expect(hits).toHaveLength(0);
+    });
+  });
+
+  describe('clickProcessingQueueFilter', () => {
+    it('defaults to all mode with no active facets', () => {
+      expect(DEFAULT_QUEUE_FILTER_STATE).toEqual({ allMode: true, active: [] });
+      expect(queueFiltersToSegmentsParam(DEFAULT_QUEUE_FILTER_STATE)).toBeUndefined();
+    });
+
+    it('first facet click from all mode selects only that facet', () => {
+      const next = clickProcessingQueueFilter(DEFAULT_QUEUE_FILTER_STATE, 'open');
+      expect(next).toEqual({ allMode: false, active: ['open'] });
+      expect(queueFiltersToSegmentsParam(next)).toBe('open');
+    });
+
+    it('adds facets with OR semantics param', () => {
+      let state = clickProcessingQueueFilter(DEFAULT_QUEUE_FILTER_STATE, 'open');
+      state = clickProcessingQueueFilter(state, 'partial');
+      expect(state.active).toEqual(['open', 'partial']);
+      expect(queueFiltersToSegmentsParam(state)).toBe('open,partial');
+    });
+
+    it('all chip resets to include everything', () => {
+      let state = clickProcessingQueueFilter(DEFAULT_QUEUE_FILTER_STATE, 'open');
+      state = clickProcessingQueueFilter(state, 'partial');
+      state = clickProcessingQueueFilter(state, 'all');
+      expect(state).toEqual({ allMode: true, active: [] });
+    });
+
+    it('toggling off last facet returns to all mode', () => {
+      const onlyOpen = clickProcessingQueueFilter(DEFAULT_QUEUE_FILTER_STATE, 'open');
+      const back = clickProcessingQueueFilter(onlyOpen, 'open');
+      expect(back).toEqual({ allMode: true, active: [] });
     });
   });
 

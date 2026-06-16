@@ -2,16 +2,17 @@ import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import LinearScale from '@mui/icons-material/LinearScale';
 import Add from '@mui/icons-material/Add';
 import ArrowBack from '@mui/icons-material/ArrowBack';
+import Refresh from '@mui/icons-material/Refresh';
 import Check from '@mui/icons-material/Check';
 import Close from '@mui/icons-material/Close';
 import JoinFull from '@mui/icons-material/JoinFull';
-import Search from '@mui/icons-material/Search';
 import {
   Alert,
   Box,
   Button,
   Card,
   Chip,
+  CircularProgress,
   IconButton,
   MenuItem,
   Paper,
@@ -52,11 +53,8 @@ import { isValidCheckInPrice } from '../workbench/CheckInDetailsLayout';
 import { formatCurrency } from '../../../utils/format';
 import { preventWheelChangeNumber, sanitizeDecimalPaste } from '../../../utils/formInputs';
 import { isTaxonomyV1CategoryName, TAXONOMY_V1_CATEGORY_NAMES } from '../../../constants/taxonomyV1';
-import {
-  buildProcessingGoogleQuery,
-  googleSearchUrl,
-  parseSearchTagsCsv,
-} from './processingGoogleQuery';
+import { ProcessingGoogleSearchButton } from './ProcessingGoogleSearchButton';
+import { parseSearchTagsCsv } from './processingGoogleQuery';
 import { ProcessingCheckInDialog, type ProcessingCheckInSeed } from './ProcessingCheckInDialog';
 import { ProcessingRowSection } from './ProcessingRowSection';
 import { processingTokens } from './processingTokens';
@@ -142,6 +140,8 @@ function ProcessingRowHeader({
   productsChipLabel,
   groupChipLabel,
   onBackToQueue,
+  onRefreshDetail,
+  detailRefreshing = false,
 }: {
   qtyCheckedIn: number;
   qtyExpected: number;
@@ -156,6 +156,8 @@ function ProcessingRowHeader({
   /** P7 collapse: "⊟ Rows 1, 2, 3 as one" — tiles show COMBINED group numbers. */
   groupChipLabel?: string | null;
   onBackToQueue: () => void;
+  onRefreshDetail?: () => void;
+  detailRefreshing?: boolean;
 }) {
   const progressPct = qtyExpected > 0 ? Math.min(100, Math.round((qtyCheckedIn / qtyExpected) * 100)) : 0;
   const progressLabel = usesManifestAccounting ?
@@ -190,7 +192,10 @@ function ProcessingRowHeader({
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: 'auto 1fr', md: 'minmax(88px, 1fr) minmax(300px, 520px) minmax(88px, 1fr)' },
+          gridTemplateColumns: {
+            xs: 'auto 1fr',
+            md: 'auto minmax(108px, 168px) minmax(280px, 520px) minmax(88px, 1fr)',
+          },
           alignItems: 'center',
           columnGap: { xs: 1, md: 1.5 },
           rowGap: 0.45,
@@ -214,13 +219,53 @@ function ProcessingRowHeader({
           Queue
         </Button>
 
+        {onRefreshDetail ?
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gridColumn: { xs: '1 / -1', md: '2' },
+              gridRow: { xs: '2', md: '1' },
+              px: { xs: 0, md: 0.5 },
+            }}
+          >
+            <Button
+              size="small"
+              disabled={detailRefreshing}
+              onClick={onRefreshDetail}
+              endIcon={
+                detailRefreshing ?
+                  <CircularProgress size={14} color="inherit" />
+                : <Refresh sx={{ fontSize: 16 }} />
+              }
+              aria-label="Refresh page"
+              sx={{
+                minHeight: 28,
+                py: 0,
+                px: 0.75,
+                fontSize: '0.625rem',
+                fontWeight: 800,
+                letterSpacing: 0.55,
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+                color: processingTokens.rowStatusHeaderText,
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
+                '& .MuiButton-endIcon': { ml: 0.35 },
+              }}
+            >
+              Refresh page
+            </Button>
+          </Box>
+        : null}
+
         <Box
           sx={{
             minWidth: 0,
             width: '100%',
             justifySelf: 'center',
-            gridColumn: { xs: '1 / -1', md: '2' },
-            gridRow: { xs: '2', md: '1' },
+            gridColumn: { xs: '1 / -1', md: '3' },
+            gridRow: { xs: onRefreshDetail ? '3' : '2', md: '1' },
             px: { xs: 0.25, md: 0 },
           }}
         >
@@ -311,7 +356,7 @@ function ProcessingRowHeader({
           justifyContent={{ xs: 'flex-start', md: 'flex-end' }}
           sx={{
             justifySelf: { xs: 'start', md: 'end' },
-            gridColumn: { xs: '2', md: '3' },
+            gridColumn: { xs: '2', md: '4' },
             gridRow: { xs: '1', md: '1' },
             minWidth: 0,
           }}
@@ -1103,12 +1148,14 @@ function AttachedProductCard({
   onEditProduct,
   onLinkConfigChange,
   onRemove,
+  hideManifestAccounting = false,
 }: {
   product: AttachedRowProduct;
   onCheckIn: () => void;
   onEditProduct: () => void;
   onLinkConfigChange: (config: ProcessingProductLinkConfig) => void;
   onRemove?: () => void;
+  hideManifestAccounting?: boolean;
 }) {
   const line2 = [product.brand, product.category].filter(Boolean).join(' · ');
   const titleLine = [product.productNumber, product.title].filter(Boolean).join(' · ');
@@ -1182,11 +1229,20 @@ function AttachedProductCard({
           </Typography>
         : null}
       </Box>
+      <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+        <ProcessingGoogleSearchButton
+          brand={product.brand}
+          title={product.title}
+          model={product.model}
+          searchTags={product.tags}
+          iconSize={17}
+        />
+      </Box>
       <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: 0.1, pl: 0.25 }}>
         <Typography color="text.secondary" sx={{ fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.625rem', lineHeight: 1.15 }}>
           {statusLine}
         </Typography>
-        {product.productId != null ?
+        {product.productId != null && !hideManifestAccounting ?
           <Box onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <ProductLinkAccountingControl config={product.linkConfig} onChange={onLinkConfigChange} />
           </Box>
@@ -1235,6 +1291,9 @@ export interface ProcessingActiveCardProps {
   /** Scroll detail to prior check-ins (N-products chip from queue). */
   scrollToHistory?: boolean;
   onScrollToHistoryDone?: () => void;
+  /** Refetch workspace + row detail without leaving the page. */
+  onRefreshDetail?: () => void;
+  detailRefreshing?: boolean;
 }
 
 export function ProcessingActiveCard({
@@ -1251,6 +1310,8 @@ export function ProcessingActiveCard({
   onAddItem,
   scrollToHistory,
   onScrollToHistoryDone,
+  onRefreshDetail,
+  detailRefreshing,
 }: ProcessingActiveCardProps) {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
@@ -1460,17 +1521,6 @@ export function ProcessingActiveCard({
     row.collapsedGroup ?
       `⊟ Rows ${[row.rowNum, ...row.collapsedGroup.memberRowNumbers].join(', ')} as one`
     : null;
-  const googleQuery = useMemo(
-    () =>
-      buildProcessingGoogleQuery({
-        brand: rowBookmark.brand || product?.brand,
-        title: displayTitle,
-        model: rowBookmark.model || product?.model,
-        searchTags: parseSearchTagsCsv(row.tags || ''),
-      }),
-    [rowBookmark.brand, rowBookmark.model, row.tags, displayTitle, product?.brand, product?.model],
-  );
-  const googleHref = googleSearchUrl(googleQuery);
   const activeStatus = activeItem?.status ?? 'intake';
   const terminalDisputed = activeStatus === 'scrapped' || activeStatus === 'lost';
 
@@ -1757,7 +1807,7 @@ export function ProcessingActiveCard({
     }
   }
 
-  const rowDetailsBand = !isAddedRow ? (
+  const rowDetailsBand = (
     <Paper
       variant="outlined"
       sx={{
@@ -1794,26 +1844,14 @@ export function ProcessingActiveCard({
         >
           Row details
         </Typography>
-        {googleHref ?
-          <Tooltip title="Search on Google" enterDelay={300} disableInteractive>
-            <IconButton
-              size="small"
-              component="a"
-              href={googleHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Search on Google"
-              sx={{
-                p: 0.25,
-                ml: -0.15,
-                color: processingTokens.cardHeaderRowDetailText,
-                '&:hover': { bgcolor: 'action.hover' },
-              }}
-            >
-              <Search sx={{ fontSize: 15 }} />
-            </IconButton>
-          </Tooltip>
-        : null}
+        <ProcessingGoogleSearchButton
+          brand={rowBookmark.brand || product?.brand}
+          title={displayTitle}
+          model={rowBookmark.model || product?.model}
+          searchTags={parseSearchTagsCsv(row.tags || '')}
+          color={processingTokens.cardHeaderRowDetailText}
+          sx={{ ml: -0.15 }}
+        />
       </Box>
       <Box sx={{ minWidth: 0, px: 0.75, pb: 0.55 }}>
         <ManifestFieldNavProvider>
@@ -1915,7 +1953,7 @@ export function ProcessingActiveCard({
         </ManifestFieldNavProvider>
       </Box>
     </Paper>
-  ) : null;
+  );
 
   return (
     <Card variant="outlined" sx={{ height: '100%', width: '100%', maxWidth: '100%', minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', borderRadius: 0 }}>
@@ -1932,6 +1970,8 @@ export function ProcessingActiveCard({
         productsChipLabel={productsChipLabel}
         groupChipLabel={collapseGroupLabel}
         onBackToQueue={onBackToQueue}
+        onRefreshDetail={onRefreshDetail}
+        detailRefreshing={detailRefreshing}
       />
 
       <Box
@@ -1961,17 +2001,6 @@ export function ProcessingActiveCard({
                 sx={{ fontSize: '0.6875rem', py: 0.2 }}
               >
                 Restart row…
-              </Button>
-            : null}
-            {isAddedRow && onAddItem ?
-              <Button
-                size="small"
-                variant="outlined"
-                sx={{ fontSize: '0.6875rem', py: 0.2 }}
-                startIcon={<Add sx={{ fontSize: 14 }} />}
-                onClick={onAddItem}
-              >
-                Add unmanifested units
               </Button>
             : null}
           </Box>
@@ -2081,6 +2110,7 @@ export function ProcessingActiveCard({
                 <AttachedProductCard
                   key={attached.key}
                   product={attached}
+                  hideManifestAccounting={isAddedRow}
                   onCheckIn={() => openDetailedCheckIn(attached.productId)}
                   onEditProduct={() => {
                     if (attached.productId != null) openProductEditor(attached.productId);

@@ -19,6 +19,62 @@ export interface ProcessingSearchRowParts {
 
 export type ProcessingStatusSegment = 'all' | 'open' | 'partial' | 'checked_in' | 'disputed';
 
+/** Independent queue facet filters (multi-select OR; ``all`` mode shows every row). */
+export type ProcessingQueueFilterId = 'open' | 'partial' | 'done' | 'disputes' | 'unmanifested';
+
+export interface ProcessingQueueFilterState {
+  allMode: boolean;
+  active: ProcessingQueueFilterId[];
+}
+
+export const DEFAULT_QUEUE_FILTER_STATE: ProcessingQueueFilterState = {
+  allMode: true,
+  active: [],
+};
+
+export const PROCESSING_QUEUE_FILTER_CHIPS: Array<{ id: ProcessingQueueFilterId | 'all'; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'open', label: 'Open' },
+  { id: 'partial', label: 'Partial' },
+  { id: 'done', label: 'Done' },
+  { id: 'disputes', label: 'Disputes' },
+  { id: 'unmanifested', label: 'Unmanifested' },
+];
+
+/** Toggle one chip; ``all`` resets; first specific chip from All mode selects only that chip. */
+export function clickProcessingQueueFilter(
+  state: ProcessingQueueFilterState,
+  clicked: ProcessingQueueFilterId | 'all',
+): ProcessingQueueFilterState {
+  if (clicked === 'all') {
+    return { allMode: true, active: [] };
+  }
+  if (state.allMode) {
+    return { allMode: false, active: [clicked] };
+  }
+  const active = state.active.includes(clicked)
+    ? state.active.filter((id) => id !== clicked)
+    : [...state.active, clicked];
+  if (active.length === 0) {
+    return { allMode: true, active: [] };
+  }
+  return { allMode: false, active };
+}
+
+export function isProcessingQueueFilterChipActive(
+  state: ProcessingQueueFilterState,
+  id: ProcessingQueueFilterId | 'all',
+): boolean {
+  if (id === 'all') return state.allMode;
+  return !state.allMode && state.active.includes(id);
+}
+
+/** Comma-separated ``segments`` query param for GET processing-workspace. */
+export function queueFiltersToSegmentsParam(state: ProcessingQueueFilterState): string | undefined {
+  if (state.allMode || state.active.length === 0) return undefined;
+  return state.active.join(',');
+}
+
 /**
  * Canonical workspace row search blob — supplied by GET processing-workspace (`search_string` → `searchString`).
  * Server lowers and normalizes whitespace; do not reconstruct from listing columns on the client.

@@ -82,7 +82,7 @@ MAX_TRANSFORM_RESULT_UNITS = 1_000_000
 def _snapshot_row(row: ProcessingRow) -> dict[str, Any]:
     snap: dict[str, Any] = {}
     for field in TRANSFORM_SNAPSHOT_FIELDS:
-        val = getattr(row, field)
+        val = getattr(row, field, None)
         if isinstance(val, Decimal):
             val = str(val)
         elif isinstance(val, (dict, list)):
@@ -93,7 +93,7 @@ def _snapshot_row(row: ProcessingRow) -> dict[str, Any]:
 
 def _restore_row_from_snapshot(row: ProcessingRow, snap: dict[str, Any]) -> None:
     for field in TRANSFORM_SNAPSHOT_FIELDS:
-        if field not in snap:
+        if field not in snap or not hasattr(row, field):
             continue
         val = snap.get(field)
         if field in _SNAPSHOT_DECIMAL_FIELDS:
@@ -133,9 +133,7 @@ def _locked_row(order: PurchaseOrder, data: dict) -> ProcessingRow:
 
 
 def _guard_transformable(row: ProcessingRow) -> None:
-    if row.row_kind == ProcessingRow.ROW_KIND_ADDED:
-        raise ValueError('Added rows cannot be transformed in this version.')
-    if row.manifest_row_id is None:
+    if row.row_kind != ProcessingRow.ROW_KIND_ADDED and row.manifest_row_id is None:
         raise ValueError('Finalize preprocessing with a linked manifest row before transforming.')
     if row.split_parent_id:
         parent_rn = ProcessingRow.objects.filter(pk=row.split_parent_id).values_list(
@@ -209,7 +207,7 @@ def _create_sub_row(
         purchase_order=order,
         preprocessing_row_id=root.preprocessing_row_id,
         row_number=_next_processing_row_number(order),
-        row_kind=ProcessingRow.ROW_KIND_MANIFEST,
+        row_kind=root.row_kind,
         manifest_row_id=root.manifest_row_id,
         split_parent=root,
         split_seq=seq,

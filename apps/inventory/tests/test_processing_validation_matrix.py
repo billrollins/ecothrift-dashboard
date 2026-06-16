@@ -946,53 +946,258 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertIn('expected_qty', rollups)
         self.assertGreaterEqual(rollups['expected_qty'], 2)
 
-    def test_processing_add_item_creates_added_row_in_queue(self):
+    def test_processing_add_item_creates_pending_added_row(self):
+        before_rollups = self.client.get(
+            f'/api/inventory/orders/{self.po.id}/processing-workspace/',
+        ).data.get('rollups') or {}
+        before_expected = before_rollups.get('expected_qty', 0)
+
         r = self.client.post(
             f'/api/inventory/orders/{self.po.id}/processing-add-item/',
             {
                 'title': 'Surprise pallet find',
                 'brand': 'Generic',
+                'model': 'Mystery box',
                 'price': '12.99',
                 'retail': '24.00',
                 'condition': 'good',
-                'quantity': 1,
-                'product_mode': 'new',
+                'quantity': 2,
             },
             format='json',
         )
         self.assertEqual(r.status_code, 200, r.data)
-        self.assertEqual(r.data['created_count'], 1)
+        self.assertEqual(r.data['created_count'], 0)
+        self.assertEqual(r.data['items'], [])
         row = r.data['row']
         self.assertEqual(row.get('rowKind'), 'added')
         self.assertIsNone(row.get('manifest_row_id'))
+        self.assertEqual(row.get('title'), 'Surprise pallet find')
+        self.assertEqual(row.get('brand'), 'Generic')
+        self.assertEqual(row.get('model'), 'Mystery box')
+        self.assertEqual(row.get('status'), 'pending')
         pr = ProcessingRow.objects.get(pk=row['processing_row_id'])
         self.assertEqual(pr.row_kind, ProcessingRow.ROW_KIND_ADDED)
         self.assertIsNone(pr.manifest_row_id)
-        self.assertEqual(len(pr.item_ids), 1)
-        item = Item.objects.get(pk=pr.item_ids[0])
-        self.assertIsNone(item.manifest_row_id)
-        self.assertEqual(item.purchase_order_id, self.po.id)
+        self.assertEqual(len(pr.item_ids), 0)
+        self.assertEqual(pr.queue_status, 'pending')
+        self.assertEqual(pr.title, 'Surprise pallet find')
+        self.assertEqual(pr.brand, 'Generic')
+        self.assertEqual(pr.model, 'Mystery box')
+        self.assertEqual(Item.objects.filter(check_in__processing_row=pr).count(), 0)
 
-    def test_added_row_searchable_by_item_sku(self):
+        after = self.client.get(f'/api/inventory/orders/{self.po.id}/processing-workspace/').data
+        after_rollups = after.get('rollups') or {}
+        self.assertEqual(after_rollups.get('expected_qty'), before_expected)
+
+    def test_delete_added_row_without_check_ins(self):
+        add = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-add-item/',
+            {'title': 'Delete me', 'brand': 'Tmp'},
+            format='json',
+        )
+        self.assertEqual(add.status_code, 200, add.data)
+        pr_id = add.data['processing_row_id']
+
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-delete-added-row/',
+            {'processing_row_id': pr_id},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['processing_row_id'], pr_id)
+        self.assertEqual(r.data['deleted_processing_row_ids'], [pr_id])
+        self.assertFalse(ProcessingRow.objects.filter(pk=pr_id).exists())
+
+        ws = self.client.get(f'/api/inventory/orders/{self.po.id}/processing-workspace/').data
+        self.assertFalse(any(row['processing_row_id'] == pr_id for row in ws['rows']))
+
+    def test_delete_added_row_blocked_with_check_ins(self):
+        add = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-add-item/',
+            {'title': 'Checked in', 'quantity': 1, 'product_mode': 'new'},
+            format='json',
+        )
+        self.assertEqual(add.status_code, 200, add.data)
+        pr_id = add.data['processing_row_id']
+        check_in = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr_id,
+                'quantity': 1,
+                'product_mode': 'keep',
+                'condition': 'good',
+                'price': '5.00',
+            },
+            format='json',
+        )
+        self.assertEqual(check_in.status_code, 200, check_in.data)
+
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-delete-added-row/',
+            {'processing_row_id': pr_id},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400, r.data)
+        self.assertIn('check-ins', r.data['detail'].lower())
+        self.assertTrue(ProcessingRow.objects.filter(pk=pr_id).exists())
+
+    def test_delete_manifest_row_blocked(self):
+        pr = ProcessingRow.objects.get(manifest_row=self.mr1)
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-delete-added-row/',
+            {'processing_row_id': pr.id},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400, r.data)
+        self.assertIn('unmanifested', r.data['detail'].lower())
+
+    def test_added_row_searchable_by_title_before_check_in(self):
         add = self.client.post(
             f'/api/inventory/orders/{self.po.id}/processing-add-item/',
             {
-                'title': 'Scan test added',
+                'title': 'Scan test added unique',
                 'brand': 'ScanBrand',
-                'price': '5.00',
+                'model': 'X100',
+            },
+            format='json',
+        )
+        self.assertEqual(add.status_code, 200, add.data)
+        q = self.client.get(
+            f'/api/inventory/orders/{self.po.id}/processing-workspace/',
+            {'search': 'ScanBrand', 'hide_checked_in': 'false'},
+        )
+        self.assertEqual(q.status_code, 200, q.data)
+        self.assertTrue(any(row.get('rowKind') == 'added' for row in q.data['rows']))
+
+    def test_check_in_added_row_creates_items_without_manifest(self):
+        add = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-add-item/',
+            {
+                'title': 'Check in later',
+                'brand': 'LaterBrand',
+                'quantity': 2,
                 'product_mode': 'new',
             },
             format='json',
         )
         self.assertEqual(add.status_code, 200, add.data)
-        item = Item.objects.get(pk=add.data['items'][0]['id'])
-        q = self.client.get(
-            f'/api/inventory/orders/{self.po.id}/processing-workspace/',
-            {'search': item.sku, 'hide_checked_in': 'false'},
+        pr_id = add.data['processing_row_id']
+        before_expected = (
+            self.client.get(f'/api/inventory/orders/{self.po.id}/processing-workspace/').data
+            .get('rollups', {})
+            .get('expected_qty')
         )
-        self.assertEqual(q.status_code, 200, q.data)
-        self.assertGreaterEqual(q.data.get('row_count_filtered', 0), 1)
-        self.assertTrue(any(row.get('rowKind') == 'added' for row in q.data['rows']))
+
+        check_in = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr_id,
+                'quantity': 2,
+                'product_mode': 'keep',
+                'condition': 'good',
+                'price': '9.99',
+            },
+            format='json',
+        )
+        self.assertEqual(check_in.status_code, 200, check_in.data)
+        pr = ProcessingRow.objects.get(pk=pr_id)
+        self.assertEqual(len(pr.item_ids), 2)
+        items = Item.objects.filter(id__in=pr.item_ids)
+        self.assertEqual(items.count(), 2)
+        for item in items:
+            self.assertIsNone(item.manifest_row_id)
+        batch = ItemCheckIn.objects.get(processing_row=pr)
+        self.assertIsNone(batch.manifest_row_id)
+        self.assertEqual(batch.quantity, 2)
+
+        after_expected = (
+            self.client.get(f'/api/inventory/orders/{self.po.id}/processing-workspace/').data
+            .get('rollups', {})
+            .get('expected_qty')
+        )
+        self.assertEqual(after_expected, before_expected)
+
+    def test_break_apart_on_added_row_preserves_unmanifested_kind(self):
+        add = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-add-item/',
+            {'title': 'Transform me', 'brand': 'T', 'quantity': 10},
+            format='json',
+        )
+        pr = ProcessingRow.objects.get(pk=add.data['processing_row_id'])
+        resp = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-break-apart-row/',
+            {'processing_row_id': pr.id, 'units': 4, 'factor': 3},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        pr.refresh_from_db()
+        sub = ProcessingRow.objects.get(pk=resp.data['sub_processing_row_id'])
+        self.assertEqual(pr.row_kind, ProcessingRow.ROW_KIND_ADDED)
+        self.assertEqual(sub.row_kind, ProcessingRow.ROW_KIND_ADDED)
+        self.assertIsNone(pr.manifest_row_id)
+        self.assertIsNone(sub.manifest_row_id)
+
+    def test_set_product_on_added_row_without_manifest(self):
+        add = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-add-item/',
+            {'title': 'Gel shave', 'brand': 'Store brand', 'model': 'X'},
+            format='json',
+        )
+        self.assertEqual(add.status_code, 200, add.data)
+        pr = ProcessingRow.objects.get(pk=add.data['processing_row_id'])
+        product = Product.objects.create(title='Gel Shave', brand='Acme')
+        resp = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-row-set-product/',
+            {
+                'processing_row_id': pr.id,
+                'product_mode': 'existing',
+                'product_id': product.id,
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        pr.refresh_from_db()
+        self.assertEqual(pr.matched_product_id, product.id)
+        self.assertIn(str(product.id), pr.product_links)
+        self.assertIsNone(pr.manifest_row_id)
+
+    def test_workspace_multi_segment_or_filter(self):
+        from apps.inventory.services.processing_workspace import build_processing_workspace
+
+        added = ProcessingRow.objects.create(
+            purchase_order=self.po,
+            row_number=99,
+            row_kind=ProcessingRow.ROW_KIND_ADDED,
+            title='Added line',
+            quantity=1,
+            queue_status='pending',
+        )
+        pr1 = ProcessingRow.objects.get(manifest_row=self.mr1)
+        pr1.queue_status = 'pending'
+        pr1.save(update_fields=['queue_status'])
+        pr2 = ProcessingRow.objects.get(manifest_row=self.mr2)
+        pr2.queue_status = 'partial'
+        pr2.save(update_fields=['queue_status'])
+
+        open_only = build_processing_workspace(
+            self.po, limit=100, segments='open', hide_checked_in=False,
+        )
+        ids_open = {r['processing_row_id'] for r in open_only['rows']}
+        self.assertIn(added.id, ids_open)
+        self.assertIn(pr1.id, ids_open)
+        self.assertNotIn(pr2.id, ids_open)
+
+        open_partial = build_processing_workspace(
+            self.po, limit=100, segments='open,partial', hide_checked_in=False,
+        )
+        ids_both = {r['processing_row_id'] for r in open_partial['rows']}
+        self.assertIn(pr1.id, ids_both)
+        self.assertIn(pr2.id, ids_both)
+
+        unman = build_processing_workspace(
+            self.po, limit=100, segments='unmanifested', hide_checked_in=False,
+        )
+        self.assertEqual({r['processing_row_id'] for r in unman['rows']}, {added.id})
 
     def test_check_in_product_mode_existing_uses_chosen_product(self):
         po = PurchaseOrder.objects.create(
@@ -1295,6 +1500,73 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertEqual(item_check_ins[0]['id'], check_in.id)
         self.assertEqual(item_check_ins[0]['quantity'], 2)
         self.assertEqual(len(item_check_ins[0]['items']), 2)
+
+    def test_check_in_scales_row_retail_and_price_for_set_product_link(self):
+        pr = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
+        pr.product_links = {str(self.p1.id): {'role': 'set', 'checkIns': 1, 'manifestUnits': 10}}
+        pr.save(update_fields=['product_links', 'updated_at'])
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr.id,
+                'quantity': 1,
+                'condition': 'good',
+                'dispatch': 'on_shelf',
+                'product_mode': 'existing',
+                'product_id': self.p1.id,
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        item = Item.objects.filter(check_in_id=r.data['item_check_in_id']).first()
+        self.assertIsNotNone(item)
+        self.assertEqual(item.retail, Decimal('400.00'))
+        self.assertEqual(item.price, Decimal('150.00'))
+
+    def test_check_in_scales_row_retail_and_price_for_part_product_link(self):
+        pr = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
+        pr.product_links = {str(self.p1.id): {'role': 'part', 'checkIns': 10, 'manifestUnits': 1}}
+        pr.save(update_fields=['product_links', 'updated_at'])
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr.id,
+                'quantity': 1,
+                'condition': 'good',
+                'dispatch': 'on_shelf',
+                'product_mode': 'existing',
+                'product_id': self.p1.id,
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        item = Item.objects.filter(check_in_id=r.data['item_check_in_id']).first()
+        self.assertIsNotNone(item)
+        self.assertEqual(item.retail, Decimal('4.00'))
+        self.assertEqual(item.price, Decimal('1.50'))
+
+    def test_check_in_explicit_price_overrides_set_part_scaling(self):
+        pr = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
+        pr.product_links = {str(self.p1.id): {'role': 'set', 'checkIns': 1, 'manifestUnits': 10}}
+        pr.save(update_fields=['product_links', 'updated_at'])
+        r = self.client.post(
+            f'/api/inventory/orders/{self.po.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr.id,
+                'quantity': 1,
+                'condition': 'good',
+                'dispatch': 'on_shelf',
+                'product_mode': 'existing',
+                'product_id': self.p1.id,
+                'price': '9.99',
+                'retail': '19.99',
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        item = Item.objects.filter(check_in_id=r.data['item_check_in_id']).first()
+        self.assertEqual(item.retail, Decimal('19.99'))
+        self.assertEqual(item.price, Decimal('9.99'))
 
     def test_processing_print_and_check_in_ignores_legacy_sibling_apply_payload(self):
         self.i1.status = 'intake'

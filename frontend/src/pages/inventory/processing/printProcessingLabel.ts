@@ -2,15 +2,19 @@ import { localPrintService, type LocalPrintRequest } from '../../../services/loc
 import type { Item } from '../../../types/inventory.types';
 
 type LabelInput = Pick<Item, 'sku' | 'price'> &
-  Partial<Pick<Item, 'product_title' | 'product_brand' | 'product_number'>>;
+  Partial<Pick<Item, 'product_title' | 'product_brand' | 'product_number'>> & {
+    /** `printed_items_preview` uses `title` / `brand`; Item DTOs use `product_*`. */
+    title?: string;
+    brand?: string;
+  };
 
 function toLabelRequest(item: LabelInput, priceOverride?: string): LocalPrintRequest {
   const price = priceOverride ?? item.price;
   return {
     text: price ? `$${Number.parseFloat(String(price)).toFixed(2)}` : '$0.00',
     qr_data: item.sku,
-    product_title: item.product_title || item.sku,
-    product_brand: item.product_brand?.trim() || undefined,
+    product_title: item.product_title || item.title || item.sku,
+    product_brand: (item.product_brand || item.brand)?.trim() || undefined,
     product_model: item.product_number?.trim() || undefined,
     include_text: true,
   };

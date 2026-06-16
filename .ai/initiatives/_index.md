@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-16 — Processing workspace v2.31.0 -->
+<!-- Last updated: 2026-06-16 — Processing workspace v2.32.0 -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [product_item_crud_and_processing](./product_item_crud_and_processing.md) | Phase 4–6 — processing integration | **v2.31.0 shipped** product-linked processing check-ins, prior check-ins table cleanup, and migration `0066`. **v2.30.0** Inventory Catalog; **v2.29.0** Manage CRUD + product-first check-in; **0063–0065** ItemCheckIn FK normalization complete. Remaining: production validation/backfill review. Semantic embedding search on hold. |
+| [product_item_crud_and_processing](./product_item_crud_and_processing.md) | Phase 4–6 — processing integration | **v2.32.0 shipped** unmanifested add/delete lines, queue OR filters, session resume, recent rows/search history, set/part check-in scaling. **v2.31.0** product-linked check-ins + migration `0066`. **v2.30.0** Inventory Catalog; **v2.29.0** Manage CRUD + product-first check-in. Remaining: production validation/backfill review. Semantic embedding search on hold. |
 
 **Parked (off this index):** [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.
 

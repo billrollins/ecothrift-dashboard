@@ -15,6 +15,8 @@ export interface ProcessingScanBarProps {
   onHistorySelect?: (query: string) => void;
   /** localStorage key for recent searches; omit to disable history dropdown. */
   historyStorageKey?: string;
+  /** Max recent searches to show (default 25). */
+  historyMax?: number;
   /** Esc pressed while the input is empty (e.g. leave detail mode). */
   onEscapeEmpty?: () => void;
   searchFocusSignal?: number;
@@ -34,6 +36,7 @@ export function ProcessingScanBar({
   onSearchEnter,
   onHistorySelect,
   historyStorageKey,
+  historyMax = 25,
   onEscapeEmpty,
   searchFocusSignal = 0,
   isFetching = false,
@@ -51,8 +54,8 @@ export function ProcessingScanBar({
       setHistoryItems([]);
       return;
     }
-    setHistoryItems(readSearchHistory(historyStorageKey));
-  }, [historyStorageKey]);
+    setHistoryItems(readSearchHistory(historyStorageKey, historyMax));
+  }, [historyStorageKey, historyMax]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -76,7 +79,7 @@ export function ProcessingScanBar({
     const q = query.trim();
     if (!q) return;
     if (historyStorageKey) {
-      pushSearchHistory(historyStorageKey, q);
+      pushSearchHistory(historyStorageKey, q, historyMax);
       refreshHistory();
     }
     if (onHistorySelect) {
@@ -87,7 +90,7 @@ export function ProcessingScanBar({
     }
     setHistoryOpen(false);
     inputRef.current?.focus();
-  }, [historyStorageKey, onHistorySelect, onSearchChange, onSearchEnter, refreshHistory]);
+  }, [historyStorageKey, historyMax, onHistorySelect, onSearchChange, onSearchEnter, refreshHistory]);
 
   const visibleHistory = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -165,7 +168,7 @@ export function ProcessingScanBar({
               onChange={(e) => onSearchChange(e.target.value)}
               onFocus={() => {
                 refreshHistory();
-                if (historyStorageKey && readSearchHistory(historyStorageKey).length > 0) {
+                if (historyStorageKey && readSearchHistory(historyStorageKey, historyMax).length > 0) {
                   setHistoryOpen(true);
                 }
               }}
@@ -177,7 +180,7 @@ export function ProcessingScanBar({
                   e.preventDefault();
                   const q = search.trim();
                   if (historyStorageKey && q) {
-                    pushSearchHistory(historyStorageKey, q);
+                    pushSearchHistory(historyStorageKey, q, historyMax);
                     refreshHistory();
                   }
                   onSearchEnter?.();

@@ -63,6 +63,8 @@ import {
   IDENTIFIER_PRESET_KEYS,
 } from '../processing/processingIdentifiers';
 import { processingTokens } from '../processing/processingTokens';
+import { ProcessingGoogleSearchButton } from '../processing/ProcessingGoogleSearchButton';
+import { parseSearchTagsCsv } from '../processing/processingGoogleQuery';
 import { WorkbenchCopyableChip } from '../workbench/WorkbenchCopyableChip';
 
 interface ProductEditorState extends ProductEditorDraft {
@@ -923,7 +925,14 @@ export function ProductManagePanel({
               : 'Fill in the product details below, then save to create. Enter saves · Esc cancels.'}
             </Typography>
           </Box>
-          <WorkbenchCopyableChip
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35, flexShrink: 0 }}>
+            <ProcessingGoogleSearchButton
+              brand={brandVal}
+              title={titleVal}
+              model={modelVal}
+              searchTags={parseSearchTagsCsv(tagsVal)}
+            />
+            <WorkbenchCopyableChip
             size="small"
             label={productPaneIdentityLabel(state)}
             copyText={isEditing ? productPaneIdentityLabel(state) : undefined}
@@ -946,6 +955,7 @@ export function ProductManagePanel({
                 : {}),
             }}
           />
+          </Box>
         </Box>
 
         <Box

@@ -1,25 +1,23 @@
-release(v2.31.0): processing product-linked check-ins
+release(v2.32.0): processing unmanifested lines and queue resume UX
 
-Ship the processing workspace product-linked check-in pass: row/check-in
-product links, cleaner prior history, inline batch edits, and updated
-processing validation.
+User-facing theme: Processing workspace unmanifested lines, faster queue
+resume, and tighter check-in UX.
 
-## Processing Workspace
-- Add migration 0066 for processing row product links.
-- Rework prior check-ins into a flat measured table with product editor
-  access from ID/Brand/Title/Model/Category cells.
-- Allow prior check-in product remap among row-attached products.
-- Keep inline Condition / Dispatch / Price edits; remove Status from
-  prior check-ins.
-- Normalize dispatch labels to canonical capitalization.
+Added
+- Unmanifested add lines (row_kind=added) via POST …/processing-add-item/
+- Delete empty added rows via POST …/processing-delete-added-row/
+- Multi-chip OR queue filters including unmanifested (segments param)
+- Session resume: search + open row detail per PO (sessionStorage)
+- Scan search history (10) and Recent row chips (10), client-only
+- Refresh page on row detail without browser reload
+- Google search shortcuts on product editor, add dialog, and product cards
 
-## Backend
-- Preserve row/check-in product linkage through workspace serializers and
-  mutation patches.
-- Reject manual processing-patch status=sold; Sold remains POS-controlled.
+Changed
+- Set/part product links scale check-in price/retail from row bookmark
+- Added rows use attach-product-then-check-in (no standalone Check in CTA)
+- Simplified Add unmanifested line dialog (title, model, brand)
 
-## Tests
-- Add/extend processing split, collapse, identity, validation, queue layout,
-  manifest accounting, and prior-history layout tests.
+Tests
+- Added-row create/check-in/delete, OR filters, set/part scaling, audit isolation
 
-Initiative: product_item_crud_and_processing (processing integration)
+Initiative: product_item_crud_and_processing (Phase 4–6)

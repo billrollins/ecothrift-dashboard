@@ -139,6 +139,12 @@ Shipped unified **Inventory Catalog** at `/inventory/workbench` (nav **Catalog**
 
 Shipped processing-workspace integration for product-linked row/check-in workflows: migration **`0066_processingrow_product_links`**, attached-product selection/remap in prior check-ins, compact flat prior history table, inline condition/dispatch/price edits, Product editor access from prior history product cells, and no manual Status column in prior check-ins. Dispatch labels now use the canonical option labels; `processing-patch` rejects manual `status="sold"`.
 
+### 2026-06-16 — Processing unmanifested lines and queue resume (v2.32.0)
+
+#### Result
+
+Shipped unmanifested add/delete processing lines (`row_kind='added'`), multi-chip OR queue filters including **Unmanifested**, session resume (search + open row), scan search history + Recent row chips, row-detail **Refresh page**, Google search shortcuts on product surfaces, set/part check-in price/retail scaling from row bookmark, and attach-product-then-check-in UX for added rows (manifest audit rollups unchanged).
+
 ---
 
 ## See also

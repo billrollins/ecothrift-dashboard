@@ -267,7 +267,9 @@ def finalize_preprocessing_to_bookmarks(
     now = timezone.now()
 
     with transaction.atomic():
-        ProcessingRow.objects.filter(purchase_order=order).delete()
+        ProcessingRow.objects.filter(purchase_order=order).exclude(
+            row_kind=ProcessingRow.ROW_KIND_ADDED,
+        ).delete()
         ProcessingDataBuild.objects.filter(purchase_order_id=order.id).delete()
 
         ProcessingRow.objects.bulk_create(objs)

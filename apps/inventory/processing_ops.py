@@ -47,6 +47,9 @@ from apps.inventory.services.processing_workspace import (
     processing_row_ids_for_manifest_rows,
     push_shelf_price_to_bookmark,
     refresh_processing_rows_denorm,
+    effective_row_shelf_price,
+    effective_row_unit_retail,
+    scale_row_amount_for_product_link,
 )
 
 
@@ -446,7 +449,8 @@ def _check_in_processing_row(
     else:
         location = dispatch_to_location(dispatch)
 
-    if row.manifest_row_id is None:
+    is_added_row = row.row_kind == ProcessingRow.ROW_KIND_ADDED
+    if row.manifest_row_id is None and not is_added_row:
         raise ProcessingDataRequired('Finalize preprocessing with a linked manifest row before check-in.')
 
     search_tags = payload_search_tags or normalize_search_tags(getattr(row, 'search_tags', None))
@@ -489,16 +493,28 @@ def _check_in_processing_row(
         row.matched_product = product
         row.save(update_fields=['matched_product', 'updated_at'])
 
-    item_price = price or row.shelf_price or row.final_price or row.proposed_price or Decimal('0.00')
-    item_retail = retail if retail is not None else row.unit_retail
+    row_shelf = effective_row_shelf_price(row)
+    if price is not None:
+        item_price = price
+    else:
+        scaled_price = scale_row_amount_for_product_link(row_shelf, product.id, row)
+        item_price = scaled_price if scaled_price is not None else Decimal('0.00')
+    if retail is not None:
+        item_retail = retail
+    else:
+        item_retail = scale_row_amount_for_product_link(effective_row_unit_retail(row), product.id, row)
     now = timezone.now()
     unit_cost = order.compute_item_cost(item_retail)
+    manifest_row = row.manifest_row if not is_added_row else None
+    check_in_origin = (
+        ItemCheckIn.ORIGIN_PRODUCT_AD_HOC if is_added_row else ItemCheckIn.ORIGIN_PROCESSING
+    )
     batch = ItemCheckIn.objects.create(
         purchase_order=order,
         processing_row=row,
-        manifest_row=row.manifest_row,
+        manifest_row=manifest_row,
         product=product,
-        origin=ItemCheckIn.ORIGIN_PROCESSING,
+        origin=check_in_origin,
         quantity=0,
         defaults_snapshot={
             'condition': cond_db,
@@ -515,7 +531,7 @@ def _check_in_processing_row(
         Item(
             product=product,
             purchase_order=order,
-            manifest_row=row.manifest_row,
+            manifest_row=manifest_row,
             check_in=batch,
             price=item_price,
             retail=item_retail,
@@ -546,7 +562,7 @@ def _check_in_processing_row(
     ]
     if histories:
         ItemHistory.objects.bulk_create(histories)
-    if item_price is not None:
+    if item_price is not None and row.manifest_row_id is not None:
         push_shelf_price_to_bookmark(order.id, row.manifest_row_id, item_price, processing_row_id=row.pk)
     return items, batch
 
@@ -1156,7 +1172,7 @@ def processing_row_set_product_decision(
         )
         if row is None:
             raise ProcessingRow.DoesNotExist
-        if row.manifest_row_id is None:
+        if row.manifest_row_id is None and row.row_kind != ProcessingRow.ROW_KIND_ADDED:
             raise ProcessingDataRequired('Finalize preprocessing with a linked manifest row first.')
 
         product_mode = str(data.get('product_mode') or '').strip().lower()
@@ -1210,6 +1226,46 @@ def processing_row_set_product_decision(
         'product_id': product.id,
         'row': detail['row'],
         'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[processing_row_id]),
+    }
+
+
+def processing_delete_added_row(user, order: PurchaseOrder, processing_row_id: int) -> dict:
+    """Delete an unmanifested queue line that has no check-ins."""
+
+    deleted_ids: list[int] = []
+
+    with transaction.atomic():
+        row = (
+            ProcessingRow.objects.select_for_update()
+            .filter(pk=processing_row_id, purchase_order=order)
+            .first()
+        )
+        if row is None:
+            raise ProcessingRow.DoesNotExist
+        if row.row_kind != ProcessingRow.ROW_KIND_ADDED:
+            raise ValueError('Only unmanifested lines can be deleted from the queue.')
+
+        if row.split_parent_id:
+            members = [row]
+        else:
+            members = [row] + list(
+                ProcessingRow.objects.select_for_update()
+                .filter(split_parent_id=row.pk)
+                .order_by('row_number'),
+            )
+
+        for member in members:
+            if ItemCheckIn.objects.filter(processing_row_id=member.pk).exists():
+                raise ValueError('Remove all check-ins from this line before deleting it.')
+            if attributed_items_for_processing_row(member):
+                raise ValueError('Remove all check-ins from this line before deleting it.')
+
+        deleted_ids = [m.pk for m in members]
+        ProcessingRow.objects.filter(pk__in=deleted_ids).delete()
+
+    return {
+        'processing_row_id': processing_row_id,
+        'deleted_processing_row_ids': deleted_ids,
     }
 
 
@@ -1447,16 +1503,24 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
             if new_qty > current:
                 template = items[-1] if items else None
                 now = timezone.now()
-                row_retail = row.unit_retail if row else None
-                row_shelf = row.shelf_price if row else None
+                row_retail = effective_row_unit_retail(row) if row else None
+                row_shelf = effective_row_shelf_price(row) if row else None
+                scaled_row_retail = (
+                    scale_row_amount_for_product_link(row_retail, product.id, row)
+                    if row and product else row_retail
+                )
+                scaled_row_shelf = (
+                    scale_row_amount_for_product_link(row_shelf, product.id, row)
+                    if row and product else row_shelf
+                )
                 row_specs = (
                     updates.get('specifications')
                     or (template.specifications if template and isinstance(template.specifications, dict) else {})
                     or (row.specifications if row else {})
                 )
                 row_manifest = row.manifest_row if row else check_in.manifest_row
-                price_val = updates.get('price', template.price if template else (row_shelf or Decimal('0.00')))
-                retail_val = updates.get('retail', template.retail if template else row_retail)
+                price_val = updates.get('price', template.price if template else (scaled_row_shelf or Decimal('0.00')))
+                retail_val = updates.get('retail', template.retail if template else scaled_row_retail)
                 cond_val = updates.get('condition', template.condition if template else 'good')
                 status_val = updates.get('status', template.status if template else 'on_shelf')
                 loc_val = updates.get('location', template.location if template else 'on_shelf')
@@ -1975,7 +2039,7 @@ def processing_bulk_disposition(user, order: PurchaseOrder, data: dict) -> dict:
 
 
 def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
-    """Create Item(s) with no manifest line and a first-class added ProcessingRow."""
+    """Create a pending unmanifested ProcessingRow (no Items until row check-in)."""
 
     quantity = _parse_check_in_quantity(data.get('quantity'))
 
@@ -1994,24 +2058,14 @@ def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
     specs = specs if isinstance(specs, dict) else {}
     search_tags = normalize_search_tags(data.get('search_tags'))
 
-    if cond_db == 'salvage':
-        location = 'salvage'
-    else:
-        location = dispatch_to_location(str(dispatch))
-
-    status_raw = str(data.get('status') or 'on_shelf').strip()
-    allowed_status = {c[0] for c in Item.STATUS_CHOICES}
-    item_status = status_raw if status_raw in allowed_status else 'on_shelf'
-
     if not title:
         raise ValueError('title is required')
 
-    histories: list[ItemHistory] = []
-    now = timezone.now()
-
-    with transaction.atomic():
+    product_mode = str(data.get('product_mode') or '').strip().lower()
+    product: Product | None = None
+    if product_mode in ('new', 'existing', 'edit', 'keep'):
         product = _resolve_product_for_processing(
-            {**data, 'product_mode': data.get('product_mode') or 'new'},
+            {**data, 'product_mode': product_mode},
             matched_product=None,
             fallback_title=title,
             fallback_brand=brand,
@@ -2022,13 +2076,19 @@ def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
             fallback_specs=specs,
             fallback_search_tags=search_tags,
         )
+        if product is not None:
+            identifiers = merge_identifiers(product.identifiers, identifiers)
+            if not brand and product.brand:
+                brand = product.brand
+            if not model and product.model:
+                model = product.model
+            if not category and product.category_id:
+                category = product.category.name
 
-        item_price = price or Decimal('0.00')
-        item_retail = retail
-        unit_cost = order.compute_item_cost(item_retail)
+    item_price = price or Decimal('0.00')
+    item_retail = retail
 
-        identifiers = merge_identifiers(product.identifiers, identifiers)
-
+    with transaction.atomic():
         pr = ProcessingRow.objects.create(
             purchase_order=order,
             row_number=_next_processing_row_number(order),
@@ -2037,99 +2097,44 @@ def processing_add_item(user, order: PurchaseOrder, data: dict) -> dict:
             matched_product=product,
             quantity=quantity,
             item_ids=[],
-            title=product.title or title,
-            brand=product.brand or brand,
-            model=product.model or model,
-            category=product.category.name if product.category_id else category,
+            title=title,
+            brand=brand,
+            model=model,
+            category=category,
             unit_retail=item_retail,
-            shelf_price=item_price,
-            final_price=item_price,
+            shelf_price=item_price if item_price is not None else None,
+            final_price=item_price if item_price is not None else None,
             identifiers=identifiers,
             search_tags=search_tags,
+            specifications=specs,
             notes=notes,
             condition=cond_db,
-            queue_status='checked_in',
+            queue_status='pending',
             qty_dispositioned=0,
-            pending_item_count=0,
-            has_on_shelf_unit=True,
-            list_dispatch=location_to_dispatch(location),
+            pending_item_count=quantity,
+            has_on_shelf_unit=False,
+            list_dispatch=str(dispatch or 'on_shelf'),
             list_sku='',
         )
-        batch = ItemCheckIn.objects.create(
-            purchase_order=order,
-            processing_row=pr,
-            product=product,
-            origin=ItemCheckIn.ORIGIN_PRODUCT_AD_HOC,
-            quantity=0,
-            defaults_snapshot={
-                'condition': cond_db,
-                'dispatch': location_to_dispatch(location),
-                'location': location,
-                'price': str(item_price) if item_price is not None else None,
-                'retail': str(item_retail) if item_retail is not None else None,
-                'notes': notes,
-                'specifications': specs,
-                'status': item_status,
-            },
-            created_by=user,
-        )
-        items = _bulk_create_checked_in_items([
-            Item(
-                product=product,
-                purchase_order=order,
-                manifest_row=None,
-                check_in=batch,
-                price=item_price,
-                retail=item_retail,
-                cost=unit_cost,
-                source='purchased',
-                status=item_status,
-                condition=cond_db,
-                location=location,
-                listed_at=now,
-                checked_in_at=now,
-                checked_in_by=user,
-                specifications=specs,
-                notes=notes,
-            )
-            for _ in range(quantity)
-        ])
-        _sync_item_check_in_quantity(batch)
-        pr.item_ids = [i.id for i in items]
-        pr.qty_dispositioned = len(items)
-        pr.list_sku = items[0].sku if items else ''
-        pr.save(update_fields=['item_ids', 'qty_dispositioned', 'list_sku', 'updated_at'])
-        histories.extend(
-            ItemHistory(
-                item=item,
-                event_type='status_change',
-                old_value='',
-                new_value='on_shelf',
-                note='Added item (no manifest line) via Item Processor',
-                created_by=user,
-            )
-            for item in items
-        )
+        from apps.inventory.services.processing_search_string import build_processing_row_search_string
 
-        if histories:
-            ItemHistory.objects.bulk_create(histories)
+        pr.search_string = build_processing_row_search_string(pr)
+        pr.save(update_fields=['search_string', 'updated_at'])
 
     refresh_processing_rows_denorm(order, processing_row_ids=[pr.pk])
     from apps.inventory.services.processing_workspace import build_processing_row_detail
 
     detail = build_processing_row_detail(order, processing_row_id=pr.pk)
-    item_payload = ItemSerializer(items, many=True).data
-    created_item_ids = [item.id for item in items]
     return {
         'row': detail['row'],
-        'items': item_payload,
-        'created_count': len(items),
-        'created_items': item_payload,
-        'created_item_ids': created_item_ids,
+        'items': [],
+        'created_count': 0,
+        'created_items': [],
+        'created_item_ids': [],
         'processing_row_id': pr.pk,
-        'item_check_in_id': batch.pk,
+        'item_check_in_id': None,
         'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=[pr.pk]),
-        'printed_items_preview': printed_items_preview(created_item_ids),
+        'printed_items_preview': [],
     }
 
 

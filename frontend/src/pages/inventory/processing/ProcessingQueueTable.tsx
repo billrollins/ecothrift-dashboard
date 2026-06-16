@@ -6,6 +6,7 @@ import {
   Button,
   Checkbox,
   Chip,
+  IconButton,
   Link,
   Table,
   TableBody,
@@ -13,9 +14,11 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  Tooltip,
   Typography,
   useTheme,
 } from '@mui/material';
+import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import { Link as RouterLink } from 'react-router-dom';
 import type { PurchaseOrderStatus } from '../../../types/inventory.types';
 import type { ProcessingWorkspaceRowDTO } from '../../../types/inventory.types';
@@ -43,6 +46,7 @@ import {
   PROCESSING_QUEUE_TABLE_HEAD_HEIGHT,
   PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
   PROCESSING_QUEUE_CHECKBOX_COL_PX,
+  PROCESSING_QUEUE_DELETE_COL_PX,
   readProcessingQueueTableClientWidth,
 } from './processingQueueLayout';
 import { processingHeaderGradient, processingTokens } from './processingTokens';
@@ -78,6 +82,9 @@ export interface ProcessingQueueTableProps {
   selectedRowIds?: Set<number>;
   onToggleRow?: (processingRowId: number) => void;
   onSelectAllVisible?: (processingRowIds: number[]) => void;
+  /** Delete pending unmanifested lines (added rows only). */
+  onDeleteAddedRow?: (row: ProcessingWorkspaceRowDTO) => void;
+  deleteAddedRowLoadingId?: number | null;
 }
 
 type SortCycleState = { field: QueueSortField; dir: 'asc' | 'desc' } | null;
@@ -91,6 +98,9 @@ interface ProcessingQueueRowProps {
   onFilterProduct?: (row: ProcessingWorkspaceRowDTO) => void;
   onToggleRow?: (processingRowId: number) => void;
   selectionEnabled: boolean;
+  showDeleteCol: boolean;
+  onDeleteAddedRow?: (row: ProcessingWorkspaceRowDTO) => void;
+  deleteAddedRowLoadingId?: number | null;
 }
 
 const ProcessingQueueRow = memo(function ProcessingQueueRow({
@@ -102,6 +112,9 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
   onFilterProduct,
   onToggleRow,
   selectionEnabled,
+  showDeleteCol,
+  onDeleteAddedRow,
+  deleteAddedRowLoadingId,
 }: ProcessingQueueRowProps) {
   const meta = queueStatusMeta(r.status);
   const productsChip = queueProductsChipLabel(r.distinctProductCount);
@@ -351,6 +364,40 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
           : null}
         </Box>
       </TableCell>
+      {showDeleteCol ?
+        <TableCell align="center" padding="none" sx={{ px: '2px !important', overflow: 'visible' }}>
+          {r.rowKind === 'added' && onDeleteAddedRow ?
+            <Tooltip
+              title={
+                (r.qtyDispositioned ?? 0) > 0 ?
+                  'Remove all check-ins before deleting this line'
+                : 'Delete unmanifested line'
+              }
+              enterDelay={300}
+              disableInteractive
+            >
+              <span>
+                <IconButton
+                  size="small"
+                  aria-label={`Delete unmanifested row ${r.rowNum}`}
+                  disabled={deleteAddedRowLoadingId === r.processing_row_id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteAddedRow(r);
+                  }}
+                  sx={{
+                    p: 0.35,
+                    color: processingTokens.textSoft,
+                    '&:hover': { color: processingTokens.accentRed, bgcolor: processingTokens.redSoft },
+                  }}
+                >
+                  <DeleteOutline sx={{ fontSize: 17 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
+          : null}
+        </TableCell>
+      : null}
     </TableRow>
   );
 });
@@ -382,6 +429,16 @@ const tableSx = (mode: 'light' | 'dark') =>
       overflow: 'visible',
       textOverflow: 'clip',
       textAlign: 'center',
+    },
+    '& .MuiTableCell-deleteAction': {
+      width: PROCESSING_QUEUE_DELETE_COL_PX,
+      minWidth: PROCESSING_QUEUE_DELETE_COL_PX,
+      maxWidth: PROCESSING_QUEUE_DELETE_COL_PX,
+      pl: '2px',
+      pr: '2px',
+      py: '1px',
+      overflow: 'visible',
+      textOverflow: 'clip',
     },
     '& .MuiTableCell-root + .MuiTableCell-root': {
       pl: '12px',
@@ -429,6 +486,8 @@ export function ProcessingQueueTable({
   selectedRowIds,
   onToggleRow,
   onSelectAllVisible,
+  onDeleteAddedRow,
+  deleteAddedRowLoadingId,
 }: ProcessingQueueTableProps) {
   const theme = useTheme();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -441,10 +500,17 @@ export function ProcessingQueueTable({
     [theme.typography.fontFamily],
   );
 
-  const dataColumnWidth = Math.max(0, containerWidth - PROCESSING_QUEUE_CHECKBOX_COL_PX);
-
   // Collapsed member rows stay hidden — the master row represents the group.
   const visibleRows = useMemo(() => rows.filter((r) => !r.collapseMasterId), [rows]);
+  const showDeleteCol = useMemo(
+    () => Boolean(onDeleteAddedRow) && visibleRows.some((r) => r.rowKind === 'added'),
+    [onDeleteAddedRow, visibleRows],
+  );
+
+  const dataColumnWidth = Math.max(
+    0,
+    containerWidth - PROCESSING_QUEUE_CHECKBOX_COL_PX - (showDeleteCol ? PROCESSING_QUEUE_DELETE_COL_PX : 0),
+  );
 
   const columnLayout = useMemo(
     () => computeProcessingQueueColumnWidths(visibleRows, dataColumnWidth, measureFonts),
@@ -638,8 +704,11 @@ export function ProcessingQueueTable({
       {PROCESSING_QUEUE_COLUMN_ORDER.map((id) => (
         <col key={id} style={{ width: columnLayout.cols[id] }} />
       ))}
+      {showDeleteCol ? <col style={{ width: PROCESSING_QUEUE_DELETE_COL_PX }} /> : null}
     </colgroup>
   );
+
+  const tableColumnCount = TABLE_COLUMN_COUNT + (showDeleteCol ? 1 : 0);
 
   return (
     <Box
@@ -791,12 +860,15 @@ export function ProcessingQueueTable({
                   Status
                 </TableSortLabel>
               </TableCell>
+              {showDeleteCol ?
+                <TableCell align="center" className="MuiTableCell-deleteAction" sx={{ px: '2px !important' }} />
+              : null}
             </TableRow>
           </TableHead>
           <TableBody>
             {paddingTop > 0 ?
               <TableRow aria-hidden sx={{ height: paddingTop, pointerEvents: 'none', visibility: 'hidden' }}>
-                <TableCell colSpan={TABLE_COLUMN_COUNT} sx={{ p: 0, border: 0, height: paddingTop }} />
+                <TableCell colSpan={tableColumnCount} sx={{ p: 0, border: 0, height: paddingTop }} />
               </TableRow>
             : null}
             {virtualItems.map((virtualRow) => {
@@ -812,12 +884,15 @@ export function ProcessingQueueTable({
                   onFilterProduct={onFilterProduct}
                   onToggleRow={onToggleRow}
                   selectionEnabled={selectionEnabled}
+                  showDeleteCol={showDeleteCol}
+                  onDeleteAddedRow={onDeleteAddedRow}
+                  deleteAddedRowLoadingId={deleteAddedRowLoadingId}
                 />
               );
             })}
             {paddingBottom > 0 ?
               <TableRow aria-hidden sx={{ height: paddingBottom, pointerEvents: 'none', visibility: 'hidden' }}>
-                <TableCell colSpan={TABLE_COLUMN_COUNT} sx={{ p: 0, border: 0, height: paddingBottom }} />
+                <TableCell colSpan={tableColumnCount} sx={{ p: 0, border: 0, height: paddingBottom }} />
               </TableRow>
             : null}
           </TableBody>

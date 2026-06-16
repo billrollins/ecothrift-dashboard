@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type {
   ProcessingWorkspaceDTO,
   ProcessingWorkspacePatchDTO,
@@ -29,6 +29,7 @@ import {
   processingDeleteItemCheckIn,
   processingRowPatch,
   processingAddItem,
+  processingDeleteAddedRow,
   runProcessingDataBuildChunk,
   type ProcessingPrintAndCheckInResponse,
   type ProcessingPrintMultipleResponse,
@@ -46,7 +47,10 @@ import {
 export interface ProcessingWorkspaceListParams {
   limit: number;
   offset: number;
+  /** Legacy single segment; keep ``all`` when using multi-select ``segments``. */
   segment: string;
+  /** Comma-separated facet filters: open, partial, done, disputes, unmanifested. */
+  segments?: string;
   /** Single product facet from header card */
   product_id?: number;
   search: string;
@@ -92,6 +96,7 @@ export function useProcessingWorkspace(orderId: number | null, listParams: Proce
         limit: p.limit,
         offset: p.offset,
         segment: p.segment,
+        segments: p.segments,
         product_id: p.product_id,
         search: p.search.trim() ? p.search.trim() : undefined,
         hide_checked_in: p.hide_checked_in,
@@ -119,6 +124,22 @@ export function useProcessingRowDetail(orderId: number | null, processingRowId: 
   });
 }
 
+/** Refetch workspace list/stats and full row detail without a browser reload. */
+export async function refreshProcessingDetailData(
+  qc: QueryClient,
+  orderId: number,
+  processingRowId: number,
+): Promise<void> {
+  void qc.invalidateQueries({ queryKey: ['products', 'processing-row-editor'] });
+  void qc.invalidateQueries({ queryKey: ['products', 'processing-check-in-dialog'] });
+  await Promise.all([
+    qc.refetchQueries({ queryKey: ['processing-workspace', orderId] }),
+    qc.refetchQueries({ queryKey: ['processing-row-detail', orderId, processingRowId] }),
+    qc.refetchQueries({ queryKey: ['products', 'processing-row-editor'] }),
+    qc.refetchQueries({ queryKey: ['products', 'processing-check-in-dialog'] }),
+  ]);
+}
+
 function applyWorkspacePatch(qc: ReturnType<typeof useQueryClient>, orderId: number, patch: ProcessingWorkspacePatchDTO) {
   qc.setQueriesData<ProcessingWorkspaceDTO>(
     { queryKey: ['processing-workspace', orderId] },
@@ -141,9 +162,9 @@ function invalidateTouchedProcessingRowDetails(
 export function printedPreviewToLabelInputs(rows: PrintedItemPreview[]) {
   return rows.map((p) => ({
     sku: p.sku,
-    title: p.title,
     price: p.price,
-    brand: p.brand || undefined,
+    product_title: p.title,
+    product_brand: p.brand || undefined,
     product_number: p.product_number ?? undefined,
   }));
 }
@@ -394,6 +415,23 @@ export function useProcessingAddItem(orderId: number) {
       qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+}
+
+export function useProcessingDeleteAddedRow(orderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (processingRowId: number) => {
+      const { data } = await processingDeleteAddedRow(orderId, processingRowId);
+      return data;
+    },
+    onSuccess: (data) => {
+      for (const deletedId of data.deleted_processing_row_ids ?? [data.processing_row_id]) {
+        qc.removeQueries({ queryKey: ['processing-row-detail', orderId, deletedId] });
+      }
+      qc.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
     },
   });
 }
