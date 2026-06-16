@@ -34,12 +34,14 @@ from apps.inventory.product_identity import (
 )
 from apps.inventory.services.processing_workspace import (
     _processing_row_item_ids,
+    attach_product_link,
     attributed_items_for_processing_row,
     build_workspace_patch,
     condition_ui_to_db,
     dispatch_to_location,
     distinct_product_count_for_items,
     location_to_dispatch,
+    merge_product_links_for_rows,
     primary_product_id_for_items,
     printed_items_preview,
     processing_row_ids_for_manifest_rows,
@@ -836,8 +838,9 @@ def processing_collapse_rows(user, order: PurchaseOrder, data: dict) -> dict:
     """P7 collapse: group ≥2 manifest-backed rows under the first (master) row.
 
     Presentation + check-in distribution only — ManifestRows untouched, ProcessingRows
-    never merged. All rows end up sharing one decided product: ``product_mode`` 'keep'
-    (must already share), 'existing' (+product_id), or 'new' (created from master).
+    never merged. All attached products and prior check-ins from every row stay linked;
+    row details come from the master (earliest row). Optional ``product_mode``
+    'existing' (+product_id) or 'new' still forces one shared product on every row.
     """
 
     raw_ids = data.get('processing_row_ids') or data.get('processingRowIds') or []
@@ -867,27 +870,24 @@ def processing_collapse_rows(user, order: PurchaseOrder, data: dict) -> dict:
                 raise ValueError(f'Row {row.row_number} is already collapsed into another group.')
             if ProcessingRow.objects.filter(collapse_master=row).exclude(pk__in=row_ids).exists():
                 raise ValueError(f'Row {row.row_number} is the master of another group — uncollapse it first.')
-            if _mixed_product_row_distinct_count(row) >= 2:
-                raise ValueError(f'Row {row.row_number} has multiple products checked in — cannot collapse.')
 
         master, *members = locked
 
         product_mode = str(data.get('product_mode') or 'keep').strip().lower()
-        if product_mode == 'keep':
-            hint_ids = {r.matched_product_id for r in locked}
-            if len(hint_ids) != 1:
-                raise ValueError(
-                    'Rows have different product decisions — pick an existing product or create a new one.',
-                )
-            shared_product_id = master.matched_product_id  # may be None: "new at check-in"
-        else:
+        if product_mode in ('existing', 'new'):
             assign = processing_assign_shared_product(user, order, {**data, 'processing_row_ids': row_ids})
             shared_product_id = assign['product_id']
             for r in locked:
                 r.refresh_from_db()
+        else:
+            shared_product_id = master.matched_product_id
+            master.product_links = merge_product_links_for_rows(*locked)
 
         master.collapse_master = None
-        master.save(update_fields=['collapse_master', 'updated_at'])
+        master_update_fields = ['collapse_master', 'updated_at']
+        if product_mode not in ('existing', 'new'):
+            master_update_fields.append('product_links')
+        master.save(update_fields=master_update_fields)
         for member in members:
             member.collapse_master = master
             member.save(update_fields=['collapse_master', 'updated_at'])
@@ -1199,7 +1199,8 @@ def processing_row_set_product_decision(
             fallback_search_tags=normalize_search_tags(getattr(row, 'search_tags', None)),
         )
         row.matched_product = product
-        row.save(update_fields=['matched_product', 'updated_at'])
+        row.product_links = attach_product_link(row, product.id)
+        row.save(update_fields=['matched_product', 'product_links', 'updated_at'])
 
     refresh_processing_rows_denorm(order, processing_row_ids=[processing_row_id])
     from apps.inventory.services.processing_workspace import build_processing_row_detail
@@ -1394,6 +1395,8 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
             updates['condition'] = _resolve_condition_db(data.get('condition'))
         if 'status' in data:
             st = str(data.get('status') or '').strip()
+            if st == 'sold':
+                raise ValueError('Sold status is set through point of sale')
             allowed_status = {c[0] for c in Item.STATUS_CHOICES}
             if st in allowed_status:
                 updates['status'] = st
@@ -2275,6 +2278,35 @@ def processing_row_patch(user, order: PurchaseOrder, processing_row_id: int, dat
             elif 'upc' in ids:
                 ids.pop('upc', None)
             row.identifiers = ids
+        if 'product_links' in data or 'productLinks' in data:
+            from apps.inventory.services.processing_workspace import _serialize_product_links, _processing_row_item_count_for_product
+
+            raw_links = data.get('product_links', data.get('productLinks'))
+            new_links = _serialize_product_links(raw_links)
+            old_links = _serialize_product_links(row.product_links)
+            for key in set(old_links) - set(new_links):
+                pid = int(key)
+                if _processing_row_item_count_for_product(row, pid) > 0:
+                    raise ValueError(
+                        'Cannot remove a product that already has check-ins on this row.',
+                    )
+            row.product_links = new_links
+            if row.matched_product_id and str(int(row.matched_product_id)) not in new_links:
+                remaining = list(new_links.keys())
+                row.matched_product_id = int(remaining[-1]) if remaining else None
+        elif 'attach_product_id' in data or 'attachProductId' in data:
+            from apps.inventory.services.processing_workspace import attach_product_link
+
+            raw_pid = data.get('attach_product_id', data.get('attachProductId'))
+            try:
+                pid = int(raw_pid)
+            except (TypeError, ValueError) as e:
+                raise ValueError('attach_product_id must be an integer') from e
+            if not Product.objects.filter(pk=pid).exists():
+                raise ValueError('Product not found.')
+            row.product_links = attach_product_link(row, pid)
+            if row.matched_product_id is None:
+                row.matched_product_id = pid
 
         row.save()
 
@@ -2327,10 +2359,25 @@ def _apply_checked_in_dispute_patch(updates: dict, data: dict) -> None:
     updates['dispute_description'] = str(data.get('dispute_description') or '').strip()
 
 
+_PROCESSING_PATCH_SHELF_ONLY_KEYS = frozenset({
+    'price',
+    'unit_retail',
+    'retail',
+    'condition',
+    'dispatch',
+    'notes',
+    'disputed',
+    'dispute_type',
+    'dispute_pct_loss',
+    'dispute_description',
+})
+
+
 def processing_patch_item(user, item: Item, data: dict) -> dict:
-    """Edit item after check-in (no auto-status change)."""
-    if item.status not in ('on_shelf',):
-        raise ValueError('Edit-after-check-in applies to on-shelf items')
+    """Edit item after check-in (condition/dispatch/price on shelf; status on checked-in items)."""
+    if any(key in data for key in _PROCESSING_PATCH_SHELF_ONLY_KEYS):
+        if item.status not in ('on_shelf',):
+            raise ValueError('Edit-after-check-in applies to on-shelf items')
 
     updates = {}
     if 'price' in data:
@@ -2349,9 +2396,28 @@ def processing_patch_item(user, item: Item, data: dict) -> dict:
             updates['location'] = 'salvage'
         else:
             updates['location'] = dispatch_to_location(str(data.get('dispatch') or 'on_shelf'))
+    if 'status' in data:
+        st = str(data.get('status') or '').strip()
+        if st == 'sold':
+            raise ValueError('Sold status is set through point of sale')
+        allowed_status = {choice[0] for choice in Item.STATUS_CHOICES}
+        if st in allowed_status:
+            if item.status == 'sold' or item.sold_at:
+                raise ValueError('Cannot change status on sold items')
+            updates['status'] = st
     if 'notes' in data:
         updates['notes'] = str(data.get('notes') or '')
     _apply_checked_in_dispute_patch(updates, data)
+
+    if not updates:
+        item.refresh_from_db()
+        po = PurchaseOrder.objects.get(pk=item.purchase_order_id)
+        mids = {item.manifest_row_id} if item.manifest_row_id else set()
+        pr_ids = processing_row_ids_for_manifest_rows(po, mids)
+        return {
+            'item': ItemSerializer(item).data,
+            'workspace_patch': build_workspace_patch(po, touched_processing_row_ids=pr_ids),
+        }
 
     histories = []
     with transaction.atomic():

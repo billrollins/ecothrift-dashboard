@@ -468,7 +468,58 @@ class BatchRemapTests(ProcessingSplitTestBase):
         self.assertEqual(resp.status_code, 200, resp.data)
         pr.refresh_from_db()
         self.assertEqual(pr.matched_product_id, product_a.id)
+        self.assertIn(str(product_a.id), pr.product_links)
         self.assertEqual(Item.objects.filter(manifest_row=pr.manifest_row).count(), 0)
+
+    def test_attach_multiple_products_without_check_in(self):
+        order, pr, _mr, product_a, product_b = self._crayons_order()
+        for product in (product_a, product_b):
+            resp = self.client.post(
+                f'/api/inventory/orders/{order.id}/processing-row-set-product/',
+                {
+                    'processing_row_id': pr.id,
+                    'product_mode': 'existing',
+                    'product_id': product.id,
+                },
+                format='json',
+            )
+            self.assertEqual(resp.status_code, 200, resp.data)
+        pr.refresh_from_db()
+        self.assertEqual(pr.matched_product_id, product_b.id)
+        self.assertIn(str(product_a.id), pr.product_links)
+        self.assertIn(str(product_b.id), pr.product_links)
+        attached = resp.data['row'].get('attachedProducts') or []
+        self.assertEqual(len(attached), 2)
+        attached_ids = {entry['id'] for entry in attached}
+        self.assertEqual(attached_ids, {product_a.id, product_b.id})
+
+    def test_detach_attached_product_without_check_in(self):
+        order, pr, _mr, product_a, product_b = self._crayons_order()
+        for product in (product_a, product_b):
+            self.client.post(
+                f'/api/inventory/orders/{order.id}/processing-row-set-product/',
+                {
+                    'processing_row_id': pr.id,
+                    'product_mode': 'existing',
+                    'product_id': product.id,
+                },
+                format='json',
+            )
+        resp = self.client.patch(
+            f'/api/inventory/orders/{order.id}/processing-row-patch/',
+            {
+                'processing_row_id': pr.id,
+                'product_links': {str(product_b.id): {'role': None, 'checkIns': 1, 'manifestUnits': 1}},
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        pr.refresh_from_db()
+        self.assertNotIn(str(product_a.id), pr.product_links)
+        self.assertIn(str(product_b.id), pr.product_links)
+        self.assertEqual(pr.matched_product_id, product_b.id)
+        attached = resp.data['row'].get('attachedProducts') or []
+        self.assertEqual({entry['id'] for entry in attached}, {product_b.id})
 
     def test_crayons_scenario_totals(self):
         order, pr, mr, product_a, product_b = self._crayons_order()

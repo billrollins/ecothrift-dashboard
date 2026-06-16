@@ -13,14 +13,20 @@ function FieldHoverTooltip({
   title,
   children,
   disabled = false,
+  multiline = false,
 }: {
   title: string;
   children: ReactElement;
   disabled?: boolean;
+  multiline?: boolean;
 }) {
   if (disabled || !title.trim()) return children;
   return (
-    <Tooltip title={title} enterDelay={350} disableInteractive>
+    <Tooltip
+      title={multiline ? <span style={{ whiteSpace: 'pre-line' }}>{title}</span> : title}
+      enterDelay={350}
+      disableInteractive
+    >
       <Box component="span" sx={{ display: 'block', minWidth: 0, flex: 1 }}>
         {children}
       </Box>
@@ -33,6 +39,8 @@ export const manifestToolbarLabelSx = processingRowLabelSx;
 export interface ManifestToolbarPillProps {
   label: string;
   value: string;
+  /** Full hover text when `value` is a truncated summary. Defaults to `value`. */
+  hoverTitle?: string;
   placeholder?: string;
   onClick?: () => void;
   readOnly?: boolean;
@@ -47,6 +55,7 @@ export interface ManifestToolbarPillProps {
 export function ManifestToolbarPill({
   label,
   value,
+  hoverTitle,
   placeholder = '—',
   onClick,
   readOnly = false,
@@ -58,6 +67,7 @@ export function ManifestToolbarPill({
 }: ManifestToolbarPillProps) {
   const isEmpty = !value.trim();
   const shown = isEmpty ? placeholder : value;
+  const tooltipText = (hoverTitle ?? value).trim();
   const isDisplay = appearance === 'display';
   const valueTextSx = {
     fontSize: valueFontSize,
@@ -104,7 +114,7 @@ export function ManifestToolbarPill({
             {shown}
           </Typography>
         </Box>
-      : <FieldHoverTooltip title={value} disabled={isEmpty}>
+      : <FieldHoverTooltip title={tooltipText} disabled={isEmpty && !tooltipText} multiline={Boolean(hoverTitle)}>
           <Box
             onClick={readOnly ? undefined : onClick}
             sx={{

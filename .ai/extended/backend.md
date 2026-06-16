@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-06-15 (v2.30.0 — ItemCheckIn catalog API, migration 0065) -->
+<!-- Last updated: 2026-06-16 (v2.31.0 — processing row product links, migration 0066) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-06-16 (v2.31.0) — Processing product links:** migration **`0066_processingrow_product_links`** persists row/check-in product linkage for processing workspace product remap and prior history flows. `processing-patch` still limits condition/dispatch/price edits to on-shelf items and rejects manual `status="sold"`; prior check-ins no longer expose Status editing.
 
 **2026-06-15 (v2.30.0) — ItemCheckIn catalog API:** **`GET /api/inventory/item-check-ins/`** (`ItemCheckInCatalogViewSet`, searchable serializer, dedicated pagination count). Filters: **`product`**, **`item_check_in`**, **`search`**.
 

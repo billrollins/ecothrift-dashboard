@@ -115,7 +115,7 @@ describe('processingWorkspaceFilters', () => {
       expect(
         rowMatchesStatusSegment(
           { items: [{ status: 'intake' }, { status: 'intake' }] },
-          'pending',
+          'open',
         ),
       ).toBe(true);
     });
@@ -165,9 +165,16 @@ describe('processingWorkspaceFilters', () => {
         ),
       ).toBe(false);
     });
+    it('open segment matches any row not fully checked in', () => {
+      expect(rowMatchesStatusSegment({ status: 'pending', items: [] }, 'open')).toBe(true);
+      expect(rowMatchesStatusSegment({ status: 'partial', items: [] }, 'open')).toBe(true);
+      expect(rowMatchesStatusSegment({ status: 'disputed', items: [] }, 'open')).toBe(true);
+      expect(rowMatchesStatusSegment({ status: 'checked_in', items: [] }, 'open')).toBe(false);
+    });
     it('matches segment via row.status when items[] omitted (lazy list)', () => {
       expect(rowMatchesStatusSegment({ status: 'partial', items: [] }, 'partial')).toBe(true);
-      expect(rowMatchesStatusSegment({ status: 'partial', items: [] }, 'pending')).toBe(false);
+      expect(rowMatchesStatusSegment({ status: 'partial', items: [] }, 'open')).toBe(true);
+      expect(rowMatchesStatusSegment({ status: 'checked_in', items: [] }, 'open')).toBe(false);
     });
   });
 });

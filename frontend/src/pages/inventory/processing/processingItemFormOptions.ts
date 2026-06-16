@@ -12,6 +12,11 @@ export const PROCESSING_ITEM_STATUS_OPTIONS: Array<{ value: ItemStatus; label: s
   label: formatItemStatusLabel(value),
 }));
 
+/** Manual processing edits — sold is set only through point of sale. */
+export const PROCESSING_ITEM_PATCHABLE_STATUS_OPTIONS = PROCESSING_ITEM_STATUS_OPTIONS.filter(
+  (option) => option.value !== 'sold',
+);
+
 export const PROCESSING_ITEM_CONDITION_OPTIONS = ITEM_CONDITIONS.filter((condition) => condition !== 'unknown').map(
   (value) => ({
     value,
@@ -28,6 +33,12 @@ export const PROCESSING_ITEM_DISPATCH_OPTIONS: Array<{ value: string; label: str
   { value: 'online_sales', label: 'Online sales' },
   { value: 'salvage', label: 'Salvage' },
 ];
+
+export function processingDispatchLabel(raw: string | null | undefined): string {
+  const value = normalizeProcessingDispatch(raw);
+  return PROCESSING_ITEM_DISPATCH_OPTIONS.find((option) => option.value === value)?.label
+    ?? formatItemStatusLabel(value);
+}
 
 export function normalizeProcessingDispatch(raw: string | null | undefined): string {
   const trimmed = String(raw || '').trim();

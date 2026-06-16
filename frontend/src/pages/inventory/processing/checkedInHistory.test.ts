@@ -91,4 +91,25 @@ describe('checkedInHistory', () => {
     expect(groups[1]?.productLabel).toBe('Alpha');
     expect(groups[1]?.totalQty).toBe(1);
   });
+
+  it('groups with current check-in product snapshot over stale item labels', () => {
+    const items = [
+      item({ id: 1, sku: 'A', product: 11, product_title: 'Old Beta', checked_in_at: '2026-06-03T10:00:00Z' }),
+    ];
+    const itemCheckIns: ItemCheckInDTO[] = [
+      {
+        id: 1,
+        quantity: 1,
+        items,
+        product: { id: 11, title: 'New Beta', brand: '', model: '', specs: {}, identifiers: {}, tags: [], taxonomy: '', category: '', upc: '', product_number: 'P-11' },
+        created_at: '2026-06-03T10:00:00Z',
+        created_by: null,
+        defaults: {},
+        dispute_count: 0,
+      },
+    ];
+    const groups = buildProductGroupedHistory(items, itemCheckIns);
+    expect(groups[0]?.productLabel).toBe('New Beta');
+    expect(groups[0]?.productId).toBe(11);
+  });
 });

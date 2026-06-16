@@ -218,12 +218,14 @@ function WorkspaceSelector({
               }}
               sx={{
                 display: 'grid',
-                gridTemplateColumns: '28px 1fr auto',
+                gridTemplateColumns: '28px 1fr',
                 alignItems: 'center',
                 gap: 1,
+                position: 'relative',
                 width: '100%',
                 minHeight: 44,
                 px: 1.25,
+                pr: 5.25,
                 py: 0.75,
                 borderRadius: '10px',
                 textAlign: 'left',
@@ -273,9 +275,13 @@ function WorkspaceSelector({
               <Typography
                 component="span"
                 sx={{
+                  position: 'absolute',
+                  top: 5,
+                  right: 10,
                   color: selected ? 'primary.main' : '#94A3B8',
                   fontSize: '0.6875rem',
                   fontWeight: 700,
+                  lineHeight: 1,
                 }}
               >
                 Alt {idx + 1}

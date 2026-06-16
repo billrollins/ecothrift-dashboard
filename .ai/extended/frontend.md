@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-06-15 (v2.30.0 — Inventory Catalog page, rich search) -->
+<!-- Last updated: 2026-06-16 (v2.31.0 — processing workspace prior check-ins/product links) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-06-16 (v2.31.0) — Processing workspace product-linked check-ins:** `ProcessingActiveCard` / `CheckedInItemsTable` show a flat prior check-ins table with measured column layout, product cells that open the Product editor, product remap among row-attached products, inline condition/dispatch/price edits, and no Status column. Dispatch labels use canonical option labels (`Back storage`, `On shelf / floor`).
 
 **2026-06-15 (v2.30.0) — Inventory Catalog (`/inventory/workbench`, nav Catalog):** **`InventoryWorkbenchPage`** — shared **`ProcessingScanBar`** search, Products / Check-ins / Items tabs, split detail panels (`ProductManageDrawer`, **`ItemManagePanel`**, **`ItemCheckInManagePanel`**), rich filter syntax via **`richInventorySearch.ts`**, URL state (`tab`, `q`, `selected`). Legacy **`/inventory/manage-products`** / **`/inventory/manage-items`** redirect here.
 

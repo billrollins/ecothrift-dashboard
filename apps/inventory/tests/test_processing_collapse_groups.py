@@ -74,12 +74,16 @@ class CollapseGroupTests(CollapseGroupTestBase):
         self.rows[0].refresh_from_db()
         self.assertIsNone(self.rows[0].collapse_master_id)
 
-    def test_collapse_keep_requires_shared_hint(self):
+    def test_collapse_merges_mixed_product_decisions(self):
         other = Product.objects.create(title='Other')
         ProcessingRow.objects.filter(pk=self.rows[1].pk).update(matched_product=other)
         resp = self._collapse()
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('different product decisions', resp.data['detail'])
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.rows[0].refresh_from_db()
+        self.assertIn(str(self.product.id), self.rows[0].product_links)
+        self.assertIn(str(other.id), self.rows[0].product_links)
+        self.rows[1].refresh_from_db()
+        self.assertEqual(self.rows[1].matched_product_id, other.id)
 
     def test_collapse_with_new_product_assigns_all(self):
         ProcessingRow.objects.filter(purchase_order=self.order).update(matched_product=None)

@@ -6,9 +6,8 @@ import {
   checkedInModelText,
   checkedInProductIdText,
   checkedInTitleText,
-  itemLocationLabel,
 } from './checkedInHistoryDisplay';
-import { formatQueueMoney, itemStatusMeta, queueDispatchLabel } from './processingQueueCellText';
+import { formatQueueMoney, queueDispatchLabel } from './processingQueueCellText';
 
 export type CheckedInSortField =
   | 'checkedIn'
@@ -21,9 +20,7 @@ export type CheckedInSortField =
   | 'retail'
   | 'price'
   | 'condition'
-  | 'dispatch'
-  | 'location'
-  | 'status';
+  | 'dispatch';
 
 export type CheckedInSortState = { field: CheckedInSortField; dir: 'asc' | 'desc' } | null;
 
@@ -77,12 +74,6 @@ export function sortCheckedInHistoryRows(
         break;
       case 'dispatch':
         cmp = queueDispatchLabel(a.item.dispatch).localeCompare(queueDispatchLabel(b.item.dispatch));
-        break;
-      case 'location':
-        cmp = itemLocationLabel(a.item.location).localeCompare(itemLocationLabel(b.item.location));
-        break;
-      case 'status':
-        cmp = itemStatusMeta(a.item).label.localeCompare(itemStatusMeta(b.item).label);
         break;
       default:
         cmp = 0;

@@ -1226,6 +1226,42 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertIsNone(self.i1.dispute_pct_loss)
         self.assertEqual(self.i1.dispute_description, '')
 
+    def test_processing_patch_item_status(self):
+        self.i1.status = 'on_shelf'
+        self.i1.save(update_fields=['status'])
+        r = self.client.patch(
+            f'/api/inventory/items/{self.i1.id}/processing-patch/',
+            {'status': 'scrapped'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.i1.refresh_from_db()
+        self.assertEqual(self.i1.status, 'scrapped')
+
+    def test_processing_patch_item_status_on_intake_item(self):
+        self.i1.status = 'intake'
+        self.i1.save(update_fields=['status'])
+        r = self.client.patch(
+            f'/api/inventory/items/{self.i1.id}/processing-patch/',
+            {'status': 'processing'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.i1.refresh_from_db()
+        self.assertEqual(self.i1.status, 'processing')
+
+    def test_processing_patch_item_rejects_sold_status(self):
+        self.i1.status = 'on_shelf'
+        self.i1.save(update_fields=['status'])
+        r = self.client.patch(
+            f'/api/inventory/items/{self.i1.id}/processing-patch/',
+            {'status': 'sold'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400, r.data)
+        self.i1.refresh_from_db()
+        self.assertEqual(self.i1.status, 'on_shelf')
+
     def test_processing_row_check_in_creates_temp_batch_and_serializes_detail(self):
         pr = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)
         r = self.client.post(

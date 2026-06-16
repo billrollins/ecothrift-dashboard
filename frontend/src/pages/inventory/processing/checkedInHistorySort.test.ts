@@ -89,9 +89,40 @@ describe('checkedInHistorySort', () => {
     expect(formatCheckedInProductSummary(row, null)).toContain('PRD-1');
     expect(formatCheckedInProductSummary(row, null)).toContain('Widget');
     expect(formatCheckedInItemSummary(row.item)).toContain('$12.00');
-    expect(formatCheckedInItemSummary(row.item)).toContain('back storage');
+    expect(formatCheckedInItemSummary(row.item)).toContain('Back storage');
     expect(checkedInBrandText(row, null)).toBe('Acme');
     expect(checkedInTitleText(row, null)).toBe('Widget');
+  });
+
+  it('formats prior check-ins from current check-in product when item labels are stale', () => {
+    const row = {
+      ...historyRow({
+        id: 1,
+        sku: 'A',
+        product: 42,
+        product_number: 'OLD-42',
+        product_brand: 'Old Brand',
+        product_title: 'Old Title',
+        product_model: 'Old Model',
+      }),
+      checkInProduct: {
+        id: 42,
+        product_number: 'NEW-42',
+        title: 'New Title',
+        brand: 'New Brand',
+        model: 'New Model',
+        specs: {},
+        identifiers: {},
+        tags: [],
+        taxonomy: '',
+        category: 'New Category',
+        upc: '',
+      },
+    };
+    expect(formatCheckedInProductSummary(row, null)).toContain('NEW-42');
+    expect(formatCheckedInProductSummary(row, null)).toContain('New Title');
+    expect(checkedInBrandText(row, null)).toBe('New Brand');
+    expect(checkedInTitleText(row, null)).toBe('New Title');
   });
 });
 

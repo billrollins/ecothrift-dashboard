@@ -148,6 +148,25 @@ const compactInputSx = {
   '& .MuiOutlinedInput-input': { py: 0.25, px: 0.75 },
 };
 
+/** Final Decisions toolbar — readable height/width (avoid cramped size="small" + tight py). */
+const reviewToolbarInputSx = {
+  '& .MuiOutlinedInput-root': {
+    minHeight: 44,
+    fontSize: '0.9375rem',
+  },
+  '& .MuiOutlinedInput-input': {
+    py: 1.25,
+    px: 1.25,
+  },
+  '& .MuiSelect-select': {
+    py: 1.25,
+    px: 1.25,
+    minHeight: '1.25rem',
+    display: 'flex',
+    alignItems: 'center',
+  },
+};
+
 const PRODUCT_COLUMN_TOOLTIP =
   "A linked product describes the item itself; this row's text describes what's in this order. Clearing the match makes this row a new product at check-in.";
 
@@ -793,57 +812,59 @@ export function PreprocessingReviewTable({
         />
       </Box>
 
-      <Paper variant="outlined" sx={{ p: 1, mb: 1, flexShrink: 0 }}>
-        <Stack spacing={1}>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }}>
+      <Paper variant="outlined" sx={{ p: 1.5, mb: 1, flexShrink: 0 }}>
+        <Stack spacing={1.25}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} alignItems={{ xs: 'stretch', md: 'center' }}>
             <TextField
-              size="small"
               placeholder="Search rows — title, brand, model, category, #…"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              sx={{ flex: 1, minWidth: 320, '& .MuiOutlinedInput-root': { fontSize: 13 }, '& .MuiOutlinedInput-input': { py: 0.75 } }}
+              sx={{
+                flex: '1 1 420px',
+                minWidth: { xs: '100%', md: 320 },
+                maxWidth: '100%',
+                ...reviewToolbarInputSx,
+              }}
             />
             <Chip
-              size="small"
+              size="medium"
               variant={search ? 'filled' : 'outlined'}
               color={search ? 'info' : 'default'}
               label={`${filteredRows.length.toLocaleString()} row(s) targeted`}
-              sx={{ flexShrink: 0 }}
+              sx={{ flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' } }}
             />
-            <Button size="small" disabled={!search} onClick={() => setSearch('')} sx={{ flexShrink: 0 }}>
+            <Button disabled={!search} onClick={() => setSearch('')} sx={{ flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' } }}>
               Clear filters
             </Button>
             <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
             <Button
-              size="small"
               variant="contained"
               disabled={isSaving || dirtyIds.length === 0}
-              startIcon={isSaving ? <CircularProgress size={14} /> : undefined}
+              startIcon={isSaving ? <CircularProgress size={16} /> : undefined}
               onClick={() => void saveIds(dirtyIds)}
-              sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+              sx={{ whiteSpace: 'nowrap', flexShrink: 0, minHeight: 44, px: 2 }}
             >
               {dirtyIds.length ? `Save Changes (${dirtyIds.length})` : 'Save Changes'}
             </Button>
           </Stack>
 
-          <Stack direction="row" spacing={1.25} flexWrap="wrap" alignItems="center" useFlexGap>
+          <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center" useFlexGap>
             <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.04 }}>
               Price filtered
             </Typography>
-            <ButtonGroup size="small" variant="outlined" disabled={isSaving}>
+            <ButtonGroup variant="outlined" disabled={isSaving} sx={{ '& .MuiButton-root': { minHeight: 44, px: 1.5 } }}>
               <Button onClick={applyAiPrices}>= AI</Button>
               <Button onClick={applyIdealPrices}>= Ideal</Button>
               <Button onClick={() => applyPctBulk(0.95)}>−5%</Button>
               <Button onClick={() => applyPctBulk(1.05)}>+5%</Button>
             </ButtonGroup>
-            <Divider orientation="vertical" flexItem />
+            <Divider orientation="vertical" flexItem sx={{ height: 44 }} />
             <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.04 }}>
-              Target order
+              Target order total
             </Typography>
             <Tooltip title="Scales every row's current price so the whole-order total lands exactly on this amount (ignores filters; leftover cents distributed automatically).">
               <Stack direction="row" alignItems="stretch" sx={{ flexShrink: 0 }}>
                 <TextField
-                  size="small"
                   placeholder="21,863.33"
                   value={targetTotal}
                   onChange={(e) => setTargetTotal(formatMoneyInput(e.target.value))}
@@ -851,18 +872,18 @@ export function PreprocessingReviewTable({
                     if (e.key === 'Enter') applyTargetTotalBulk();
                   }}
                   sx={{
-                    width: 140,
+                    width: { xs: 200, sm: 220 },
+                    ...reviewToolbarInputSx,
                     '& .MuiOutlinedInput-root': {
+                      ...reviewToolbarInputSx['& .MuiOutlinedInput-root'],
                       borderTopRightRadius: 0,
                       borderBottomRightRadius: 0,
-                      fontSize: 13,
                     },
-                    '& .MuiOutlinedInput-input': { py: 0.75 },
                   }}
                   slotProps={{
                     input: {
                       startAdornment: (
-                        <InputAdornment position="start" sx={{ mr: 0.5, '& .MuiTypography-root': { fontSize: 13, fontWeight: 600 } }}>
+                        <InputAdornment position="start" sx={{ mr: 0.25, '& .MuiTypography-root': { fontSize: '0.9375rem', fontWeight: 700 } }}>
                           $
                         </InputAdornment>
                       ),
@@ -870,7 +891,6 @@ export function PreprocessingReviewTable({
                   }}
                 />
                 <Button
-                  size="small"
                   variant="contained"
                   disableElevation
                   disabled={isSaving || !targetTotal.trim()}
@@ -879,8 +899,9 @@ export function PreprocessingReviewTable({
                     borderTopLeftRadius: 0,
                     borderBottomLeftRadius: 0,
                     ml: '-1px',
-                    px: 1.25,
-                    minWidth: 44,
+                    px: 2,
+                    minWidth: 56,
+                    minHeight: 44,
                     fontWeight: 700,
                   }}
                 >
@@ -888,20 +909,19 @@ export function PreprocessingReviewTable({
                 </Button>
               </Stack>
             </Tooltip>
-            <Divider orientation="vertical" flexItem />
+            <Divider orientation="vertical" flexItem sx={{ height: 44 }} />
             <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.04 }}>
               Cond. filtered
             </Typography>
             <TextField
               select
-              size="small"
               value={bulkCondition}
               onChange={(e) => {
                 const v = e.target.value;
                 setBulkCondition('');
                 if (v) applyConditionBulk(v);
               }}
-              sx={{ width: 190, '& .MuiSelect-select': { py: 0.5 } }}
+              sx={{ width: { xs: '100%', sm: 220 }, maxWidth: 280, ...reviewToolbarInputSx }}
               slotProps={{ select: { displayEmpty: true } }}
             >
               <MenuItem value="" dense disabled>

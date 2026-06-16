@@ -12,6 +12,8 @@ import type { ManifestModalEditorHandle } from './manifestModalEditor';
 export interface ManifestModalFieldProps {
   label: string;
   summary: string;
+  /** Full hover text when summary is truncated. */
+  hoverTitle?: string;
   open: boolean;
   onOpen: () => void;
   onCancel: () => void;
@@ -28,6 +30,7 @@ export interface ManifestModalFieldProps {
 export function ManifestModalField({
   label,
   summary,
+  hoverTitle,
   open,
   onOpen,
   onCancel,
@@ -58,6 +61,7 @@ export function ManifestModalField({
       <ManifestToolbarPill
         label={label}
         value={summary}
+        hoverTitle={hoverTitle}
         onClick={onOpen}
         valueFontSize={valueFontSize}
         valueFontWeight={valueFontWeight}

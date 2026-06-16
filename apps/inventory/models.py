@@ -761,6 +761,15 @@ class ProcessingRow(models.Model):
         default='',
         help_text='Lowercased denormalized blob for substring workspace search; rebuilt on save.',
     )
+    product_links = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            'Per attached product manifest accounting: '
+            '{product_id: {role: set|part|null, check_ins: int, manifest_units: int}}. '
+            'X check-ins account for Y manifest row units (display only; each check-in still creates one Item).'
+        ),
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

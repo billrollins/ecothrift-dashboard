@@ -59,7 +59,7 @@ export function ProcessingRowSectionHeader({
       sx={{
         flexShrink: 0,
         px: { xs: 1.25, md: 1.5 },
-        py: 1,
+        py: 0.75,
         borderBottom: collapsed ? 0 : 1,
         borderColor: theme.borderColor,
         bgcolor: theme.headerBg,
@@ -90,8 +90,8 @@ export function ProcessingRowSectionHeader({
               sx={{
                 display: 'block',
                 mt: 0.4,
-                fontSize: '0.72rem',
-                lineHeight: 1.45,
+                fontSize: '0.6875rem',
+                lineHeight: 1.4,
                 fontWeight: 400,
                 textTransform: 'none',
                 letterSpacing: 0,

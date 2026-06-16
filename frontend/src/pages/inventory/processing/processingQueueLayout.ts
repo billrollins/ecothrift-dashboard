@@ -17,7 +17,6 @@ export const PROCESSING_QUEUE_MONEY_COL_MIN = 88;
 
 /** Floor widths (px) when the viewport is too narrow for measured content. */
 export const PROCESSING_QUEUE_COL_MIN = {
-  rowNum: 36,
   brand: 72,
   title: 120,
   category: 96,
@@ -32,7 +31,6 @@ export const PROCESSING_QUEUE_COL_MIN = {
 
 /** Static defaults when rows or container width are unavailable (matches prior hardcoded layout). */
 export const PROCESSING_QUEUE_COL_DEFAULTS = {
-  rowNum: 42,
   brand: 80,
   title: 320,
   category: 148,

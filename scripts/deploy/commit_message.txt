@@ -1,22 +1,25 @@
-release(v2.30.0): Inventory Catalog — unified search and in-place CRUD
+release(v2.31.0): processing product-linked check-ins
 
-Ship the Inventory Catalog page (nav Catalog) replacing separate Manage
-Products/Items pages. One search bar, three tabs, split detail panels.
+Ship the processing workspace product-linked check-in pass: row/check-in
+product links, cleaner prior history, inline batch edits, and updated
+processing validation.
 
-## Inventory Catalog
-- /inventory/workbench with Products, Check-ins, Items tabs
-- Rich search syntax {product=…; checkin=…} and URL state
-- Product, item, and check-in edit/create in detail panels
-- Legacy manage-products / manage-items redirect with query preserved
-- Save+print three-way dialog; ConfirmDialog modals; copyable ID chips
+## Processing Workspace
+- Add migration 0066 for processing row product links.
+- Rework prior check-ins into a flat measured table with product editor
+  access from ID/Brand/Title/Model/Category cells.
+- Allow prior check-in product remap among row-attached products.
+- Keep inline Condition / Dispatch / Price edits; remove Status from
+  prior check-ins.
+- Normalize dispatch labels to canonical capitalization.
 
 ## Backend
-- GET /api/inventory/item-check-ins/ catalog API
-- Migrations 0063–0065: Item.check_in FK, drop item_ids JSON, indexes
-- ItemCheckIn pagination count isolated from Item list cache
+- Preserve row/check-in product linkage through workspace serializers and
+  mutation patches.
+- Reject manual processing-patch status=sold; Sold remains POS-controlled.
 
-## Fixes
-- Free tab switching without selection bounce
-- Retail/Price decimal input while typing
+## Tests
+- Add/extend processing split, collapse, identity, validation, queue layout,
+  manifest accounting, and prior-history layout tests.
 
-Initiative: product_item_crud_and_processing (catalog consolidation)
+Initiative: product_item_crud_and_processing (processing integration)

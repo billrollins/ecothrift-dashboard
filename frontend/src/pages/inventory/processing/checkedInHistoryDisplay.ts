@@ -6,13 +6,28 @@ import {
   queueDispatchLabel,
 } from './processingQueueCellText';
 
+export function formatCheckedInShortDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export function checkedInProductIdText(
   row: CheckedInHistoryRow,
   fallbackProduct: ProcessingWorkspaceProductDTO | null,
 ): string {
   const { item } = row;
+  const checkInProductNumber = row.checkInProduct?.product_number?.trim();
   return (
-    item.product_number
+    (checkInProductNumber || item.product_number)
     ?? (item.product != null ? String(item.product) : null)
     ?? (item.product === fallbackProduct?.id ? fallbackProduct.product_number : null)
     ?? '—'
@@ -24,7 +39,7 @@ export function checkedInBrandText(
   fallbackProduct: ProcessingWorkspaceProductDTO | null,
 ): string {
   const { item } = row;
-  return item.product_brand ?? (item.product === fallbackProduct?.id ? fallbackProduct.brand : null) ?? '—';
+  return row.checkInProduct?.brand ?? item.product_brand ?? (item.product === fallbackProduct?.id ? fallbackProduct.brand : null) ?? '—';
 }
 
 export function checkedInTitleText(
@@ -33,7 +48,8 @@ export function checkedInTitleText(
 ): string {
   const { item } = row;
   return (
-    item.product_title
+    row.checkInProduct?.title
+    ?? item.product_title
     ?? (item.product === fallbackProduct?.id ? fallbackProduct.title : null)
     ?? '—'
   );
@@ -45,7 +61,8 @@ export function checkedInModelText(
 ): string {
   const { item } = row;
   return (
-    item.product_model
+    row.checkInProduct?.model
+    ?? item.product_model
     ?? (item.product === fallbackProduct?.id ? fallbackProduct.model : null)
     ?? '—'
   );
@@ -56,6 +73,8 @@ export function checkedInCategoryText(
   fallbackProduct: ProcessingWorkspaceProductDTO | null,
 ): string {
   const fromCheckIn = (row.checkInProductCategory || '').trim();
+  const fromProduct = (row.checkInProduct?.category || '').trim();
+  if (fromProduct) return fromProduct;
   if (fromCheckIn) return fromCheckIn;
   const { item } = row;
   if (item.product === fallbackProduct?.id && fallbackProduct?.category) {
@@ -79,7 +98,7 @@ export function formatCheckedInProductSummary(
     checkedInTitleText(row, fallbackProduct),
     checkedInBrandText(row, fallbackProduct),
     checkedInModelText(row, fallbackProduct),
-    formatQueueMoney(row.item.retail),
+    checkedInCategoryText(row, fallbackProduct),
   ].filter((part) => part && part !== '—');
   return parts.length ? parts.join(' · ') : '—';
 }

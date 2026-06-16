@@ -16,7 +16,7 @@ import { formatConditionLabel } from '../../../constants/inventory.constants';
 import {
   PROCESSING_ITEM_CONDITION_OPTIONS,
   PROCESSING_ITEM_DISPATCH_OPTIONS,
-  PROCESSING_ITEM_STATUS_OPTIONS,
+  PROCESSING_ITEM_PATCHABLE_STATUS_OPTIONS,
 } from '../processing/processingItemFormOptions';
 import { MAX_CHECK_IN_QUANTITY } from '../processing/largeCheckIn';
 import { processingTokens } from '../processing/processingTokens';
@@ -837,7 +837,7 @@ export function CheckInDetailFieldsSection({
             disabled={disabled}
             sx={compactFieldSx}
           >
-            {PROCESSING_ITEM_STATUS_OPTIONS.map((option) => (
+            {PROCESSING_ITEM_PATCHABLE_STATUS_OPTIONS.map((option) => (
               <MenuItem key={option.value} value={option.value}>
                 {option.label}
               </MenuItem>

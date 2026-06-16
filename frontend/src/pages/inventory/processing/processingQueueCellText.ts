@@ -1,6 +1,7 @@
 import type { ProcessingWorkspaceItemDTO, ProcessingWorkspaceRowDTO } from '../../../types/inventory.types';
 import { formatCurrency } from '../../../utils/format';
 
+import { processingDispatchLabel } from './processingItemFormOptions';
 import { processingTokens } from './processingTokens';
 
 export function queueStatusLabel(status: string): string {
@@ -69,11 +70,35 @@ export function queueExtRetailText(
   return formatCurrency(total);
 }
 
+/** Bookmark-only identity text for queue columns (never product-coalesced). */
+function queueRowDetailField(
+  row: Partial<Pick<ProcessingWorkspaceRowDTO, 'title' | 'brand' | 'category' | 'standardizedIdentity'>>,
+  field: 'title' | 'brand' | 'category',
+): string {
+  const fromStd = row.standardizedIdentity?.[field]?.trim();
+  if (fromStd) return fromStd;
+  const fromRow = row[field];
+  if (typeof fromRow === 'string' && fromRow.trim()) return fromRow.trim();
+  return '';
+}
+
+/** Hint when an attached catalog product overrides the row bookmark in other views. */
+export function queueAttachedProductHint(
+  row: Pick<ProcessingWorkspaceRowDTO, 'product'> &
+    Partial<Pick<ProcessingWorkspaceRowDTO, 'title' | 'brand' | 'standardizedIdentity'>>,
+  field: 'title' | 'brand',
+): string {
+  const bookmark = queueRowDetailField(row, field);
+  const productVal = row.product?.[field]?.trim() ?? '';
+  if (!productVal || productVal === bookmark) return '';
+  return `Product ${field}: ${productVal}`;
+}
+
 export function queueTitleText(
-  row: Pick<ProcessingWorkspaceRowDTO, 'title'> &
+  row: Pick<ProcessingWorkspaceRowDTO, 'title' | 'standardizedIdentity'> &
     Partial<Pick<ProcessingWorkspaceRowDTO, 'collapsedGroup' | 'collapseMasterId' | 'splitParentRowNumber'>>,
 ): string {
-  const base = row.title || '—';
+  const base = queueRowDetailField(row, 'title') || '—';
   if (row.collapsedGroup) {
     return `⊟ ${base} (+rows ${row.collapsedGroup.memberRowNumbers.join(', ')})`;
   }
@@ -97,8 +122,27 @@ export function queueRowNumLabel(
   return String(row.rowNum);
 }
 
-export function queueBrandText(row: Pick<ProcessingWorkspaceRowDTO, 'brand'>): string {
-  return row.brand || '—';
+export function queueBrandText(
+  row: Pick<ProcessingWorkspaceRowDTO, 'brand' | 'standardizedIdentity'>,
+): string {
+  return queueRowDetailField(row, 'brand') || '—';
+}
+
+/** Bookmark-only row fields for the row-details editor (never product-coalesced). */
+export function processingRowBookmark(
+  row: Pick<
+    ProcessingWorkspaceRowDTO,
+    'standardizedIdentity' | 'category' | 'identifiers'
+  >,
+) {
+  const std = row.standardizedIdentity;
+  return {
+    title: std?.title ?? '',
+    brand: std?.brand ?? '',
+    model: std?.model ?? '',
+    category: std?.category ?? '',
+    identifiers: std?.identifiers ?? row.identifiers ?? {},
+  };
 }
 
 /** Hover text when display may differ from bookmark standardized fields (product-wins coalesce). */
@@ -118,8 +162,10 @@ export function processingIdentityHoverTooltip(
   return `Showing: ${disp}\nStandardized ${fieldLabel}: ${std}`;
 }
 
-export function queueCategoryText(row: Pick<ProcessingWorkspaceRowDTO, 'category'>): string {
-  return row.category || '—';
+export function queueCategoryText(
+  row: Pick<ProcessingWorkspaceRowDTO, 'category' | 'standardizedIdentity'>,
+): string {
+  return queueRowDetailField(row, 'category') || '—';
 }
 
 export function queueQtyText(
@@ -183,7 +229,7 @@ export function queueSameProductPeerLabel(peerRowNumbers: number[] | null | unde
 }
 
 export function queueDispatchLabel(dispatch: string | null | undefined): string {
-  return (dispatch || 'on_shelf').replace(/_/g, ' ');
+  return processingDispatchLabel(dispatch);
 }
 
 export function itemStatusLabel(status: string): string {

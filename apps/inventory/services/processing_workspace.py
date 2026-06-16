@@ -282,7 +282,7 @@ def push_shelf_price_to_bookmark(
 
 
 # Narrow columns loaded for GET processing-workspace / workspace_patch rows (heavy JSON omitted).
-_WORKSPACE_SEGMENTS_F = frozenset({'all', 'pending', 'partial', 'checked_in', 'disputed'})
+_WORKSPACE_SEGMENTS_F = frozenset({'all', 'open', 'pending', 'partial', 'checked_in', 'disputed'})
 
 
 # Digit-only tokens with more than this many characters are treated as identifiers
@@ -336,7 +336,10 @@ def _apply_workspace_list_filters(
     if seg not in _WORKSPACE_SEGMENTS_F:
         seg = 'all'
     if seg != 'all':
-        qs = qs.filter(queue_status=seg)
+        if seg == 'open':
+            qs = qs.exclude(queue_status='checked_in')
+        else:
+            qs = qs.filter(queue_status=seg)
     if product_id is not None:
         qs = qs.filter(matched_product_id=product_id)
     if not sq and hide_checked_in:
@@ -465,6 +468,7 @@ PROCESSING_WORKSPACE_ROW_VALUE_FIELDS = (
     'list_sku',
     'shelf_price',
     'item_ids',
+    'product_links',
     'collapse_master_id',
     'split_parent_id',
     'split_seq',
@@ -545,12 +549,15 @@ def _first_nonempty_str(*values: Any) -> str:
     return ''
 
 
-def standardized_identity_from_bookmark_row(rw: dict[str, Any]) -> dict[str, str]:
-    """Bookmark-only title/brand/model from finalize — not product-coalesced."""
+def standardized_identity_from_bookmark_row(rw: dict[str, Any]) -> dict[str, Any]:
+    """Bookmark-only row fields from finalize — not product-coalesced."""
+    ids = rw.get('identifiers')
     return {
         'title': str(rw.get('title') or '').strip(),
         'brand': str(rw.get('brand') or '').strip(),
         'model': str(rw.get('model') or '').strip(),
+        'category': str(rw.get('category') or '').strip(),
+        'identifiers': ids if isinstance(ids, dict) else {},
     }
 
 
@@ -643,6 +650,262 @@ def _manifest_evidence(mr: ManifestRow) -> dict[str, Any]:
     }
 
 
+def _manifest_row_category(mr: ManifestRow | None) -> str:
+    if mr is None:
+        return ''
+    flat = str(getattr(mr, 'category', '') or '').strip()
+    if flat:
+        return flat
+    tax = mr.taxonomy if isinstance(mr.taxonomy, dict) else {}
+    return str(tax.get('category') or tax.get('path') or '').strip()
+
+
+def _manifest_row_taxonomy_tooltip(mr: ManifestRow | None) -> str:
+    """Vendor manifest taxonomy path for row-detail category hover."""
+    if mr is None:
+        return ''
+    tax = mr.taxonomy if isinstance(mr.taxonomy, dict) else {}
+    path = str(tax.get('path') or '').strip()
+    if path:
+        return path
+    parts: list[str] = []
+    for key in ('department', 'category', 'subcategory', 'commodity'):
+        val = str(tax.get(key) or '').strip()
+        if val and (not parts or val != parts[-1]):
+            parts.append(val)
+    flat = str(getattr(mr, 'category', '') or '').strip()
+    if flat and flat not in parts:
+        parts.append(flat)
+    elif flat and not parts:
+        parts = [flat]
+    return ' > '.join(parts)
+
+
+def _prep_category_ai_tooltip(prep: Any | None) -> str:
+    if prep is None:
+        return ''
+    ai_tax = prep.ai_taxonomy if isinstance(getattr(prep, 'ai_taxonomy', None), dict) else {}
+    path = str(ai_tax.get('path') or ai_tax.get('category') or '').strip()
+    if path:
+        return path
+    return str(getattr(prep, 'ai_category', '') or '').strip()
+
+
+def _prep_category_final_tooltip(prep: Any | None) -> str:
+    if prep is None:
+        return ''
+    final_tax = prep.final_taxonomy if isinstance(getattr(prep, 'final_taxonomy', None), dict) else {}
+    path = str(final_tax.get('path') or final_tax.get('category') or '').strip()
+    if path:
+        return path
+    return str(getattr(prep, 'final_category', '') or '').strip()
+
+
+def _prep_final_field(prep: Any | None, field: str) -> str:
+    if prep is None:
+        return ''
+    return str(getattr(prep, field, None) or '').strip()
+
+
+def _unit_retail_ai_tooltip(mr: ManifestRow | None, prep: Any | None) -> str:
+    """AI/preprocessing context for unit retail hover (no separate ai_unit_retail field)."""
+    if prep is None:
+        return ''
+    hints: list[str] = []
+    prep_retail = _money(getattr(prep, 'unit_retail', None))
+    mr_retail = _money(mr.unit_retail if mr else None)
+    if prep_retail and prep_retail != (mr_retail or ''):
+        hints.append(prep_retail)
+    status = prep.ai_status if isinstance(getattr(prep, 'ai_status', None), dict) else {}
+    pricing = status.get('pricing') if isinstance(status.get('pricing'), dict) else {}
+    if pricing.get('retail_suspect'):
+        reason = str(pricing.get('retail_suspect_reason') or pricing.get('reason') or '').strip()
+        if reason:
+            hints.append(reason)
+    return '; '.join(hints)
+
+
+def _processing_row_layer_sources(
+    mr: ManifestRow | None,
+    prep: Any | None,
+    *,
+    bookmark: ProcessingRow | None = None,
+) -> dict[str, dict[str, str]]:
+    """Manifest vs AI source values for row-detail field hovers."""
+
+    def layer(manifest_val: Any, ai_val: Any, final_val: Any = '') -> dict[str, str]:
+        return {
+            'manifest': str(manifest_val or '').strip(),
+            'ai': str(ai_val or '').strip(),
+            'final': str(final_val or '').strip(),
+        }
+
+    def price_layer() -> dict[str, str]:
+        # ManifestRow has no shelf price — only unit_retail (see unitRetail layer).
+        # proposed_price / final_price are PreprocessingRow staging fields.
+        return {
+            'manifest': '',
+            'ai': _money(getattr(prep, 'proposed_price', None) if prep else None) or '',
+            'final': _money(getattr(prep, 'final_price', None) if prep else None) or '',
+        }
+
+    manifest_model = _first_nonempty_str(
+        mr.model if mr else '',
+        getattr(prep, 'standard_model', '') if prep else '',
+    )
+
+    prep_unit_retail = _money(getattr(prep, 'unit_retail', None) if prep else None)
+    if not prep_unit_retail and bookmark is not None:
+        prep_unit_retail = _money(getattr(bookmark, 'unit_retail', None))
+
+    return {
+        'title': layer(
+            mr.title if mr else '',
+            getattr(prep, 'ai_title', '') if prep else '',
+            _prep_final_field(prep, 'final_title'),
+        ),
+        'brand': layer(
+            mr.brand if mr else '',
+            getattr(prep, 'ai_brand', '') if prep else '',
+            _prep_final_field(prep, 'final_brand'),
+        ),
+        'model': layer(
+            manifest_model,
+            getattr(prep, 'ai_model', '') if prep else '',
+            _prep_final_field(prep, 'final_model'),
+        ),
+        'category': layer(
+            _manifest_row_taxonomy_tooltip(mr),
+            _prep_category_ai_tooltip(prep),
+            _prep_category_final_tooltip(prep),
+        ),
+        'unitRetail': layer(
+            _money(mr.unit_retail if mr else None) or '',
+            _unit_retail_ai_tooltip(mr, prep),
+            prep_unit_retail or '',
+        ),
+        'price': price_layer(),
+    }
+
+
+def _serialize_product_links(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for key, val in raw.items():
+        if not str(key).strip().isdigit():
+            continue
+        if val is None:
+            out[str(int(key))] = {'role': None, 'checkIns': 1, 'manifestUnits': 1}
+            continue
+        if not isinstance(val, dict):
+            continue
+        role = str(val.get('role') or '').strip().lower()
+        if role not in ('set', 'part'):
+            role = None
+        try:
+            check_ins = max(1, int(val.get('check_ins') or val.get('checkIns') or 1))
+            manifest_units = max(1, int(val.get('manifest_units') or val.get('manifestUnits') or 1))
+        except (TypeError, ValueError):
+            check_ins, manifest_units = 1, 1
+        out[str(int(key))] = {
+            'role': role,
+            'checkIns': check_ins,
+            'manifestUnits': manifest_units,
+        }
+    return out
+
+
+def _default_product_link_entry() -> dict[str, Any]:
+    return {'role': None, 'checkIns': 1, 'manifestUnits': 1}
+
+
+def effective_product_links(row: ProcessingRow | dict[str, Any]) -> dict[str, Any]:
+    """Attached products for a row: explicit product_links plus legacy matched_product."""
+    raw_links = row.product_links if isinstance(row, ProcessingRow) else row.get('product_links')
+    links = _serialize_product_links(raw_links)
+    matched_id = row.matched_product_id if isinstance(row, ProcessingRow) else row.get('matched_product_id')
+    if matched_id:
+        key = str(int(matched_id))
+        links.setdefault(key, _default_product_link_entry())
+    return links
+
+
+def attach_product_link(row: ProcessingRow, product_id: int) -> dict[str, Any]:
+    """Merge one catalog product into the row's attached-product list (does not replace others)."""
+    links = effective_product_links(row)
+    key = str(int(product_id))
+    links.setdefault(key, _default_product_link_entry())
+    return links
+
+
+def _processing_row_item_count_for_product(row: ProcessingRow, product_id: int) -> int:
+    qs = Item.objects.filter(product_id=int(product_id), purchase_order_id=row.purchase_order_id)
+    if row.manifest_row_id:
+        qs = qs.filter(manifest_row_id=row.manifest_row_id)
+    elif row.row_kind == ProcessingRow.ROW_KIND_ADDED:
+        check_in_ids = ItemCheckIn.objects.filter(processing_row_id=row.pk).values_list('pk', flat=True)
+        qs = qs.filter(check_in_id__in=list(check_in_ids))
+    else:
+        return 0
+    return qs.count()
+
+
+def _qty_by_product_for_items(items: Iterable[Item]) -> dict[int, int]:
+    out: dict[int, int] = defaultdict(int)
+    for item in items:
+        if item.product_id:
+            out[int(item.product_id)] += 1
+    return dict(out)
+
+
+def merge_product_links_for_rows(*rows: ProcessingRow) -> dict[str, Any]:
+    """Union attached-product links from multiple processing rows (collapse groups)."""
+    merged: dict[str, Any] = {}
+    for row in rows:
+        for key, val in effective_product_links(row).items():
+            merged.setdefault(key, val)
+    return merged
+
+
+def build_attached_products_payload(
+    row: ProcessingRow,
+    items: Iterable[Item],
+    *,
+    product_links: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Hydrate attached catalog products for row detail (linked + checked-in)."""
+    links = product_links if product_links is not None else effective_product_links(row)
+    qty_by_pid = _qty_by_product_for_items(items)
+    ordered_ids: list[int] = []
+    seen: set[int] = set()
+    for key in links:
+        pid = int(key)
+        if pid not in seen:
+            ordered_ids.append(pid)
+            seen.add(pid)
+    for pid in qty_by_pid:
+        if pid not in seen:
+            ordered_ids.append(pid)
+            seen.add(pid)
+    if not ordered_ids:
+        return []
+    products = {
+        p.id: p
+        for p in Product.objects.filter(pk__in=ordered_ids).select_related('category')
+    }
+    out: list[dict[str, Any]] = []
+    for pid in ordered_ids:
+        prod = products.get(pid)
+        if prod is None:
+            continue
+        ser = _serialize_product(prod)
+        if ser is None:
+            continue
+        out.append({**ser, 'checkedInQty': int(qty_by_pid.get(pid, 0))})
+    return out
+
+
 def _workspace_row_core_fields(
     rw: dict[str, Any],
     dup_hint: list[int],
@@ -665,8 +928,9 @@ def _workspace_row_core_fields(
     item_id_count = len(_processing_row_item_ids(rw))
     qty_target = q_int if q_int > 0 else max(1, item_id_count if is_manifest_backed else 1)
     identity = coalesce_processing_row_identity(rw, product, manifest_row=manifest_row)
-    display_title = identity['title']
-    identifiers_out = identity.get('identifiers') or {}
+    std = standardized_identity_from_bookmark_row(rw)
+    display_title = std['title']
+    identifiers_out = std.get('identifiers') or {}
     if identifiers_out.get('upc'):
         identifiers_out = {'upc': identifiers_out['upc']}
     else:
@@ -688,8 +952,8 @@ def _workspace_row_core_fields(
         'splitSeq': rw.get('split_seq'),
         'productId': rw.get('matched_product_id'),
         'title': display_title,
-        'brand': identity['brand'],
-        'category': identity['category'],
+        'brand': std['brand'],
+        'category': std['category'],
         'qty': qty_target,
         'qtyDispositioned': int(rw['qty_dispositioned'] or 0) if is_manifest_backed else 0,
         'distinctProductCount': int(rw.get('distinct_product_count') or 0),
@@ -705,9 +969,9 @@ def _workspace_row_core_fields(
         'dispatch': str(rw.get('list_dispatch') or 'on_shelf') or 'on_shelf',
         'sku': sku_val if sku_val else None,
         '_search_string': str(rw.get('search_string') or ''),
-        '_model': identity['model'],
+        '_model': std['model'] or identity['model'],
         '_search_tags': rw.get('search_tags'),
-        'standardizedIdentity': standardized_identity_from_bookmark_row(rw),
+        'standardizedIdentity': std,
     }
 
 
@@ -764,6 +1028,7 @@ def serialize_processing_workspace_row_values(
         'tracking': {},
         'items': [],
         'searchString': search_string,
+        'productLinks': effective_product_links(rw),
     }
 
 
@@ -1358,6 +1623,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         if prod is None and items:
             prod = items[0].product
         identity = coalesce_processing_row_identity(bk, prod)
+        std = standardized_identity_from_bookmark_row(rw_vals)
         qty_target = max(1, int(bk.quantity or 1), len(items))
         primary = _row_primary_item(items)
         row_price = _workspace_price_from_bookmark_row(rw_vals)
@@ -1369,20 +1635,20 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
             'manifest_row_id': None,
             'productId': prod.id if prod else None,
             'product': _serialize_product(prod),
-            'title': identity['title'],
-            'brand': identity['brand'],
-            'model': identity['model'],
+            'title': std['title'],
+            'brand': std['brand'],
+            'model': std['model'],
             'specs': identity['specifications'],
             'tags': tags_str,
             'taxonomy': str((bk.taxonomy or {}).get('path') or (bk.taxonomy or {}).get('category') or ''),
-            'category': identity['category'],
+            'category': std['category'],
             'qty': qty_target,
             'qtyDispositioned': qty_disp,
             'qtyRemaining': max(0, qty_target - qty_disp),
             'qtyOverage': max(0, qty_disp - qty_target),
             'unitRetail': _money(bk.unit_retail),
             'manifestNotes': bk.notes or '',
-            'identifiers': identity['identifiers'] or (bk.identifiers if isinstance(bk.identifiers, dict) else {}),
+            'identifiers': std.get('identifiers') or (bk.identifiers if isinstance(bk.identifiers, dict) else {}),
             'tracking': bk.tracking if isinstance(bk.tracking, dict) else {},
             'items': [_serialize_item(i) for i in items],
             'itemCheckIns': _serialize_item_check_ins(bk, items_by_id),
@@ -1393,6 +1659,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
             'sku': primary.sku if primary else None,
         }
         row_full.pop('likelyDuplicateOf', None)
+        _attach_row_detail_extras(bk, row_full, items, manifest_row=None)
         return {'row': row_full}
 
     if not bk.manifest_row_id:
@@ -1402,7 +1669,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
             'itemCheckIns': [],
             'product': None,
         }
-        out.pop('likelyDuplicateOf', None)
+        _attach_row_detail_extras(bk, out, [], manifest_row=None)
         return {'row': out}
 
     mr = (
@@ -1416,7 +1683,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
             'itemCheckIns': [],
             'product': None,
         }
-        out.pop('likelyDuplicateOf', None)
+        _attach_row_detail_extras(bk, out, [], manifest_row=None)
         return {'row': out}
 
     items = list(Item.objects.filter(manifest_row_id=mr.pk).select_related('product').order_by('id'))
@@ -1426,6 +1693,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
     items_by_id = {i.id: i for i in items}
     prod = bk.matched_product
     identity = coalesce_processing_row_identity(bk, prod, manifest_row=mr)
+    std = standardized_identity_from_bookmark_row(rw_vals)
     qty_target = bk.quantity if bk.quantity and bk.quantity > 0 else (
         mr.quantity if mr.quantity and mr.quantity > 0 else max(1, len(items))
     )
@@ -1437,22 +1705,20 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
     qty_overage = max(0, qty_disp - qty_target)
     stags = bk.search_tags
     tags_str = ','.join(str(x) for x in stags) if isinstance(stags, list) else str(stags or '')
-    row_identifiers = bk.identifiers if isinstance(bk.identifiers, dict) else {}
-    if identity.get('identifiers'):
-        row_identifiers = {**row_identifiers, **identity['identifiers']}
+    row_identifiers = std.get('identifiers') or (bk.identifiers if isinstance(bk.identifiers, dict) else {})
     row_full = {
         **base,
         'manifest_row_id': mr.id,
         'rowNum': mr.row_number,
         'productId': prod.id if prod else None,
         'product': _serialize_product(prod),
-        'title': identity['title'],
-        'brand': identity['brand'],
-        'model': identity['model'],
+        'title': std['title'],
+        'brand': std['brand'],
+        'model': std['model'],
         'specs': identity['specifications'],
         'tags': tags_str,
         'taxonomy': str((bk.taxonomy or {}).get('path') or (bk.taxonomy or {}).get('category') or ''),
-        'category': identity['category'],
+        'category': std['category'],
         'qty': qty_target,
         'qtyDispositioned': qty_disp,
         'qtyRemaining': qty_remaining,
@@ -1473,6 +1739,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
     # member's items, and every member's check-in batches (one check-in spanning rows
     # creates one batch per member). Per-row qty fields stay own-row; the client reads
     # collapsedGroup for combined displays.
+    detail_items: list[Item] = items
     member_rows = list(
         ProcessingRow.objects.filter(collapse_master_id=bk.pk)
         .order_by('row_number'),
@@ -1516,12 +1783,42 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
                 else 'checked_in'
             )
         row_full['status'] = derived
+        detail_items = all_items
 
     _attach_split_family_payload(bk, row_full)
-    if prod is not None:
-        row_full['manifestEvidence'] = _manifest_evidence(mr)
-    row_full.pop('likelyDuplicateOf', None)
+    _attach_row_detail_extras(
+        bk,
+        row_full,
+        detail_items,
+        manifest_row=mr,
+        link_rows=member_rows if member_rows else None,
+    )
     return {'row': row_full}
+
+
+def _attach_row_detail_extras(
+    bk: ProcessingRow,
+    row_full: dict[str, Any],
+    items: Iterable[Item],
+    *,
+    manifest_row: ManifestRow | None,
+    link_rows: Iterable[ProcessingRow] | None = None,
+) -> None:
+    prep = None
+    if bk.preprocessing_row_id:
+        from apps.inventory.models import PreprocessingRow
+
+        prep = PreprocessingRow.objects.filter(pk=bk.preprocessing_row_id).first()
+    row_full['rowLayerSources'] = _processing_row_layer_sources(manifest_row, prep, bookmark=bk)
+    if link_rows:
+        links = merge_product_links_for_rows(bk, *link_rows)
+    else:
+        links = effective_product_links(bk)
+    row_full['productLinks'] = links
+    row_full['attachedProducts'] = build_attached_products_payload(bk, items, product_links=links)
+    if manifest_row is not None and bk.matched_product_id:
+        row_full['manifestEvidence'] = _manifest_evidence(manifest_row)
+    row_full.pop('likelyDuplicateOf', None)
 
 
 def _attach_split_family_payload(bk: ProcessingRow, row_full: dict[str, Any]) -> None:

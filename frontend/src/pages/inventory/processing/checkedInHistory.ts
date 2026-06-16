@@ -1,4 +1,4 @@
-import type { ItemCheckInDTO, ProcessingWorkspaceItemDTO } from '../../../types/inventory.types';
+import type { ItemCheckInDTO, ProcessingWorkspaceItemDTO, ProcessingWorkspaceProductDTO } from '../../../types/inventory.types';
 
 export interface CheckedInHistoryRow {
   item: ProcessingWorkspaceItemDTO;
@@ -10,6 +10,8 @@ export interface CheckedInHistoryRow {
   checkedInAt: string;
   /** Category from check-in product when checked in as a group. */
   checkInProductCategory?: string | null;
+  /** Current catalog product snapshot for the check-in; preferred over item denorm labels. */
+  checkInProduct?: ProcessingWorkspaceProductDTO | null;
 }
 
 export interface ProductGroupedHistory {
@@ -56,6 +58,7 @@ export function buildCheckedInHistoryRows(
       itemCheckInCreatedAt: checkIn.created_at,
       checkedInAt: checkIn.created_at || primary.checked_in_at || primary.created_at || '',
       checkInProductCategory: checkIn.product?.category || null,
+      checkInProduct: checkIn.product,
     });
   }
 
@@ -82,11 +85,17 @@ export function productKeyForItem(it: ProcessingWorkspaceItemDTO): string {
   return `i:${it.id}`;
 }
 
+function productKeyForHistoryRow(row: CheckedInHistoryRow): string {
+  if (row.checkInProduct?.id != null) return `p:${row.checkInProduct.id}`;
+  return productKeyForItem(row.item);
+}
+
 export function distinctProductCount(items: ProcessingWorkspaceItemDTO[]): number {
   return new Set(items.map(productKeyForItem)).size;
 }
 
 function productLabelForHistoryRow(row: CheckedInHistoryRow): string {
+  if (row.checkInProduct?.title?.trim()) return row.checkInProduct.title.trim();
   const item = row.item;
   if (item.product_title?.trim()) return item.product_title.trim();
   if (item.product_number) return item.product_number;
@@ -102,7 +111,7 @@ export function buildProductGroupedHistory(
   const groups = new Map<string, ProductGroupedHistory>();
 
   for (const row of historyRows) {
-    const key = productKeyForItem(row.item);
+    const key = productKeyForHistoryRow(row);
     const existing = groups.get(key);
     if (existing) {
       existing.historyRows.push(row);
@@ -110,7 +119,7 @@ export function buildProductGroupedHistory(
       continue;
     }
     groups.set(key, {
-      productId: row.item.product ?? null,
+      productId: row.checkInProduct?.id ?? row.item.product ?? null,
       productLabel: productLabelForHistoryRow(row),
       totalQty: row.qty,
       historyRows: [row],

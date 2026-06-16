@@ -418,6 +418,11 @@ export interface ProcessingWorkspaceProductDTO {
   upc: string;
 }
 
+/** Row detail: catalog product linked for check-in on this processing row. */
+export interface ProcessingAttachedProductDTO extends ProcessingWorkspaceProductDTO {
+  checkedInQty: number;
+}
+
 export type ProcessingItemDisputeType =
   | 'broken'
   | 'missing_pieces'
@@ -506,11 +511,31 @@ export interface ProcessingManifestEvidenceDTO {
   unit_retail: string | null;
 }
 
-/** Bookmark title/brand/model from finalize — unchanged when a catalog product overrides display. */
+export interface ProcessingRowLayerFieldDTO {
+  manifest?: string;
+  ai?: string;
+  final?: string;
+}
+
+export type ProcessingRowLayerSourcesDTO = Partial<
+  Record<'title' | 'brand' | 'model' | 'category' | 'unitRetail' | 'price', ProcessingRowLayerFieldDTO>
+>;
+
+export type ProcessingProductLinkRole = 'set' | 'part' | null;
+
+export interface ProcessingProductLinkDTO {
+  role: ProcessingProductLinkRole;
+  checkIns: number;
+  manifestUnits: number;
+}
+
+/** Bookmark row fields from finalize — unchanged when a catalog product overrides display. */
 export interface ProcessingStandardizedIdentityDTO {
   title: string;
   brand: string;
   model: string;
+  category?: string;
+  identifiers?: Record<string, unknown>;
 }
 
 /** Subset returned from GET processing-workspace (no nested items/products). */
@@ -611,6 +636,12 @@ export interface ProcessingWorkspaceRowDTO {
   qtyOverage?: number;
   /** Detail-only vendor claim when a product is matched. */
   manifestEvidence?: ProcessingManifestEvidenceDTO;
+  /** Detail-only manifest vs AI source values for row-detail hovers. */
+  rowLayerSources?: ProcessingRowLayerSourcesDTO;
+  /** Per attached product: X check-ins account for Y manifest row units (display only). */
+  productLinks?: Record<string, ProcessingProductLinkDTO>;
+  /** Detail-only hydrated attached catalog products (includes zero-qty links). */
+  attachedProducts?: ProcessingAttachedProductDTO[];
   /** Bookmark-only identity from preprocessing finalize (list + detail). */
   standardizedIdentity?: ProcessingStandardizedIdentityDTO;
 }

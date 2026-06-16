@@ -1,5 +1,4 @@
 import { Box, Chip, Typography } from '@mui/material';
-import Check from '@mui/icons-material/Check';
 import Close from '@mui/icons-material/Close';
 import type { ProcessingStatusSegment } from './processingWorkspaceFilters';
 import { processingTokens } from './processingTokens';
@@ -7,8 +6,6 @@ import { processingTokens } from './processingTokens';
 export interface ProcessingFilterRowProps {
   segment: ProcessingStatusSegment;
   onSegmentChange: (v: ProcessingStatusSegment) => void;
-  hideDispositioned: boolean;
-  onHideDispositionedChange: (v: boolean) => void;
   productFilterProductId: number | null;
   productFilterTitle?: string;
   onClearProductFilter: () => void;
@@ -16,16 +13,11 @@ export interface ProcessingFilterRowProps {
   totalRowCount?: number;
   /** Lines matching segment, search, and other filters. */
   filteredRowCount?: number;
-  groupByProduct?: boolean;
-  onGroupByProductChange?: (value: boolean) => void;
-  /** P7 collapse: when true, collapsed member rows stay visible (indented under their master). */
-  showCollapsedMembers?: boolean;
-  onShowCollapsedMembersChange?: (value: boolean) => void;
 }
 
 const SEGMENTS: Array<{ id: ProcessingStatusSegment; label: string }> = [
   { id: 'all', label: 'All' },
-  { id: 'pending', label: 'Open' },
+  { id: 'open', label: 'Open' },
   { id: 'partial', label: 'Partial' },
   { id: 'checked_in', label: 'Done' },
   { id: 'disputed', label: 'Disputes' },
@@ -34,17 +26,11 @@ const SEGMENTS: Array<{ id: ProcessingStatusSegment; label: string }> = [
 export function ProcessingFilterRow({
   segment,
   onSegmentChange,
-  hideDispositioned,
-  onHideDispositionedChange,
   productFilterProductId,
   productFilterTitle,
   onClearProductFilter,
   totalRowCount,
   filteredRowCount,
-  groupByProduct = false,
-  onGroupByProductChange,
-  showCollapsedMembers = false,
-  onShowCollapsedMembersChange,
 }: ProcessingFilterRowProps) {
   return (
     <Box
@@ -88,100 +74,6 @@ export function ProcessingFilterRow({
             />
           );
         })}
-        <Box
-          component="button"
-          type="button"
-          onClick={() => onHideDispositionedChange(!hideDispositioned)}
-          sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 0.4,
-            height: 27,
-            px: 1,
-            borderRadius: 99,
-            border: hideDispositioned ?
-              `1px solid ${processingTokens.borderStrong}`
-            : `1px solid ${processingTokens.border}`,
-            bgcolor: hideDispositioned ? processingTokens.primarySoftStrong : 'transparent',
-            color: hideDispositioned ? processingTokens.textStrong : processingTokens.textSoft,
-            cursor: 'pointer',
-            font: 'inherit',
-            fontSize: 11.5,
-            fontWeight: 700,
-            whiteSpace: 'nowrap',
-            transition: (theme) => theme.transitions.create(['background-color', 'border-color']),
-            '&:hover': {
-              bgcolor: processingTokens.primarySoft,
-            },
-          }}
-        >
-          {hideDispositioned ? <Check sx={{ fontSize: 14 }} /> : null}
-          Hide done
-        </Box>
-        {onGroupByProductChange ?
-          <Box
-            component="button"
-            type="button"
-            onClick={() => onGroupByProductChange(!groupByProduct)}
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.4,
-              height: 27,
-              px: 1,
-              borderRadius: 99,
-              border: groupByProduct ?
-                `1px solid ${processingTokens.borderStrong}`
-              : `1px solid ${processingTokens.border}`,
-              bgcolor: groupByProduct ? processingTokens.primarySoftStrong : 'transparent',
-              color: groupByProduct ? processingTokens.textStrong : processingTokens.textSoft,
-              cursor: 'pointer',
-              font: 'inherit',
-              fontSize: 11.5,
-              fontWeight: 700,
-              whiteSpace: 'nowrap',
-              transition: (theme) => theme.transitions.create(['background-color', 'border-color']),
-              '&:hover': {
-                bgcolor: processingTokens.primarySoft,
-              },
-            }}
-          >
-            {groupByProduct ? <Check sx={{ fontSize: 14 }} /> : null}
-            Group by product
-          </Box>
-        : null}
-        {onShowCollapsedMembersChange ?
-          <Box
-            component="button"
-            type="button"
-            onClick={() => onShowCollapsedMembersChange(!showCollapsedMembers)}
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.4,
-              height: 27,
-              px: 1,
-              borderRadius: 99,
-              border: showCollapsedMembers ?
-                `1px solid ${processingTokens.borderStrong}`
-              : `1px solid ${processingTokens.border}`,
-              bgcolor: showCollapsedMembers ? processingTokens.primarySoftStrong : 'transparent',
-              color: showCollapsedMembers ? processingTokens.textStrong : processingTokens.textSoft,
-              cursor: 'pointer',
-              font: 'inherit',
-              fontSize: 11.5,
-              fontWeight: 700,
-              whiteSpace: 'nowrap',
-              transition: (theme) => theme.transitions.create(['background-color', 'border-color']),
-              '&:hover': {
-                bgcolor: processingTokens.primarySoft,
-              },
-            }}
-          >
-            {showCollapsedMembers ? <Check sx={{ fontSize: 14 }} /> : null}
-            Show collapsed rows
-          </Box>
-        : null}
         {productFilterProductId != null ? (
           <Chip
             label={`Product: ${productFilterTitle || `#${productFilterProductId}`}`}

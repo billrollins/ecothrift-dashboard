@@ -73,9 +73,13 @@ interface ProductEditorState extends ProductEditorDraft {
   isActive: boolean;
 }
 
-interface ProductManagePanelProps {
+export interface ProductManagePanelProps {
   open: boolean;
   initialProduct: Product | null;
+  /** Prefill identity fields when creating a new product (e.g. from processing row details). */
+  rowDetailsSeed?: { draft: Partial<ProductEditorDraft>; categoryName: string };
+  /** Changes re-hydrate the new-product draft (e.g. processing_row_id). */
+  rowDetailsSeedKey?: number | string;
   onClose: () => void;
   /** Fired after a successful save, before the panel closes. */
   onProductSaved?: (product: Product, ctx: { created: boolean }) => void;
@@ -146,6 +150,40 @@ function normalizeSpecObject(raw: Record<string, unknown> | null | undefined): R
     out[normKey] = normVal;
   }
   return out;
+}
+
+function identifiersToEditor(raw: Record<string, unknown> | null | undefined): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [key, val] of Object.entries(raw)) {
+    const normVal = String(val ?? '').trim();
+    if (!normVal) continue;
+    out[key] = normVal;
+  }
+  return out;
+}
+
+/** Map processing row bookmark fields into a new-product editor draft. */
+export function rowDetailsToProductEditorDraft(input: {
+  title?: string;
+  brand?: string;
+  model?: string;
+  category?: string;
+  tags?: string;
+  identifiers?: Record<string, unknown>;
+  specifications?: Record<string, unknown>;
+}): { draft: Partial<ProductEditorDraft>; categoryName: string } {
+  return {
+    draft: {
+      title: (input.title ?? '').trim(),
+      brand: (input.brand ?? '').trim() || 'Generic',
+      model: (input.model ?? '').trim(),
+      tagsText: (input.tags ?? '').trim(),
+      identifiers: identifiersToEditor(input.identifiers),
+      specifications: normalizeSpecObject(input.specifications),
+    },
+    categoryName: (input.category ?? '').trim(),
+  };
 }
 
 function productToEditor(product: Product): ProductEditorState {
@@ -380,7 +418,19 @@ function isProductDirty(
   return productStateSignature(current) !== productStateSignature(baseline);
 }
 
-export function ProductManagePanel({ open, initialProduct, onClose, onProductSaved, embedded = false, onApplyProductSearch, onStartProductCheckIn, onOpenProductCheckIns, onOpenItemsForProduct }: ProductManagePanelProps) {
+export function ProductManagePanel({
+  open,
+  initialProduct,
+  rowDetailsSeed,
+  rowDetailsSeedKey,
+  onClose,
+  onProductSaved,
+  embedded = false,
+  onApplyProductSearch,
+  onStartProductCheckIn,
+  onOpenProductCheckIns,
+  onOpenItemsForProduct,
+}: ProductManagePanelProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
@@ -392,23 +442,33 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
   const [ai, dispatchAi] = useReducer(productAiReducer, undefined, initialProductAIState);
   const suggestMutation = useAISuggestProduct();
   const hydratedEditorKeyRef = useRef<string | null>(null);
+  const appliedCategorySeedRef = useRef<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) {
       hydratedEditorKeyRef.current = null;
+      appliedCategorySeedRef.current = null;
       return;
     }
-    const hydrateKey = initialProduct?.id != null ? `product:${initialProduct.id}` : 'new';
+    const hydrateKey =
+      initialProduct?.id != null ?
+        `product:${initialProduct.id}`
+      : `new:${rowDetailsSeedKey ?? 'blank'}`;
     if (hydratedEditorKeyRef.current === hydrateKey) return;
     hydratedEditorKeyRef.current = hydrateKey;
-    const next = initialProduct ? productToEditor(initialProduct) : EMPTY_EDITOR;
+    appliedCategorySeedRef.current = null;
+    const next =
+      initialProduct ?
+        productToEditor(initialProduct)
+      : { ...EMPTY_EDITOR, ...(rowDetailsSeed?.draft ?? {}) };
     setState(next);
     setBaselineState(next);
     setConfirmLeaveOpen(false);
     setCheckInOpen(false);
     setCheckInProduct(null);
     dispatchAi({ type: 'reset' });
-  }, [open, initialProduct?.id, initialProduct]);
+  }, [open, initialProduct?.id, initialProduct, rowDetailsSeed, rowDetailsSeedKey]);
 
   const categoriesQuery = useQuery({
     queryKey: ['categories', 'product-manage'],
@@ -439,6 +499,18 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
 
   const isEditing = state.productId != null;
   const categories = categoriesQuery.data ?? [];
+
+  useEffect(() => {
+    if (!open || initialProduct || !rowDetailsSeed?.categoryName || categories.length === 0) return;
+    const seedKey = `${rowDetailsSeedKey ?? 'blank'}:${rowDetailsSeed.categoryName}`;
+    if (appliedCategorySeedRef.current === seedKey) return;
+    const mapped = mapSuggestedCategoryToCategoryRef(rowDetailsSeed.categoryName, categories);
+    if (!mapped.matched) return;
+    appliedCategorySeedRef.current = seedKey;
+    setState((prev) => ({ ...prev, categoryRef: mapped.categoryRef }));
+    setBaselineState((prev) => ({ ...prev, categoryRef: mapped.categoryRef }));
+  }, [open, initialProduct, rowDetailsSeed, rowDetailsSeedKey, categories]);
+
   const draft = editorDraft(state);
 
   const titleVal = displayValueForProductField('title', draft, ai, categories) as string;
@@ -539,6 +611,48 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
     }
     forceClose();
   };
+
+  const canSaveProduct = Boolean(titleVal.trim() && categoryRefVal) && !saveMutation.isPending;
+  const requestCloseRef = useRef(requestClose);
+  requestCloseRef.current = requestClose;
+
+  useEffect(() => {
+    if (!open || checkInOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      if (target.closest('[role="listbox"], [role="menu"], .MuiPopover-root')) {
+        return;
+      }
+
+      if (!panelRef.current?.contains(target)) return;
+
+      if (e.key === 'Escape') {
+        if (confirmLeaveOpen) return;
+        e.preventDefault();
+        requestCloseRef.current();
+        return;
+      }
+
+      if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (confirmLeaveOpen) return;
+      if (target.tagName === 'TEXTAREA') return;
+      if (target.closest('button')) return;
+
+      const nestedDialog = target.closest('.MuiDialog-root');
+      if (nestedDialog && !panelRef.current.contains(nestedDialog)) return;
+
+      if (!canSaveProduct) return;
+
+      e.preventDefault();
+      saveMutation.mutate();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, checkInOpen, confirmLeaveOpen, canSaveProduct, saveMutation]);
 
   const openCheckIn = async () => {
     if (!state.productId) {
@@ -805,8 +919,8 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
             </Typography>
             <Typography variant="caption" sx={{ display: 'block', mt: 0.35, color: processingTokens.textMute }}>
               {isEditing ?
-                'Edit the product details below.'
-              : 'Fill in the product details below, then save to create.'}
+                'Edit the product details below. Enter saves · Esc cancels.'
+              : 'Fill in the product details below, then save to create. Enter saves · Esc cancels.'}
             </Typography>
           </Box>
           <WorkbenchCopyableChip
@@ -1158,6 +1272,7 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
 
   const editorSurfaceNode = embedded ? (
     <Box
+      ref={panelRef}
       sx={{
         height: '100%',
         minHeight: 0,
@@ -1176,6 +1291,7 @@ export function ProductManagePanel({ open, initialProduct, onClose, onProductSav
       fullWidth
       maxWidth="lg"
       PaperProps={{
+        ref: panelRef,
         sx: {
           borderRadius: 3,
           maxHeight: 'calc(100vh - 32px)',

@@ -1,10 +1,10 @@
 import ArrowDropDown from '@mui/icons-material/ArrowDropDown';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
-import { memo, useMemo, useState, Fragment, type ReactNode } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Box,
-  Chip,
+  Divider,
   IconButton,
   Menu,
   MenuItem,
@@ -15,21 +15,29 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  TextField,
   Tooltip,
   Typography,
   useTheme,
 } from '@mui/material';
+import { isValidCheckInPrice } from '../workbench/CheckInDetailsLayout';
+import { preventWheelChangeNumber, sanitizeDecimalPaste } from '../../../utils/formInputs';
 import type { ProcessingWorkspaceItemDTO, ProcessingWorkspaceProductDTO } from '../../../types/inventory.types';
-import type { CheckedInHistoryRow, ProductGroupedHistory } from './checkedInHistory';
+import type { CheckedInHistoryRow } from './checkedInHistory';
 import {
   checkedInBrandText,
   checkedInCategoryText,
   checkedInModelText,
   checkedInProductIdText,
   checkedInTitleText,
+  formatCheckedInShortDateTime,
   historyRowIncludesItem,
-  itemLocationLabel,
 } from './checkedInHistoryDisplay';
+import {
+  CHECKED_IN_HISTORY_COLUMN_ORDER,
+  computeCheckedInHistoryColumnWidths,
+  createCheckedInHistoryMeasureFonts,
+} from './checkedInHistoryColumnLayout';
 import {
   checkedInSortDirection,
   cycleCheckedInSort,
@@ -38,7 +46,7 @@ import {
   type CheckedInSortField,
   type CheckedInSortState,
 } from './checkedInHistorySort';
-import { formatQueueMoney, itemStatusMeta, queueDispatchLabel } from './processingQueueCellText';
+import { formatQueueMoney, queueDispatchLabel } from './processingQueueCellText';
 import {
   PROCESSING_ITEM_CONDITION_OPTIONS,
   PROCESSING_ITEM_DISPATCH_OPTIONS,
@@ -46,12 +54,52 @@ import {
 import {
   PROCESSING_QUEUE_TABLE_HEAD_HEIGHT,
   PROCESSING_QUEUE_TABLE_ROW_HEIGHT,
+  readProcessingQueueTableClientWidth,
 } from './processingQueueLayout';
 import { processingHeaderGradient, processingTokens } from './processingTokens';
 
-const CHECKED_IN_COL_COUNT = 2;
-const PRODUCT_COL_COUNT = 6;
-const ITEM_COL_COUNT = 5;
+const CHECKED_IN_AUTOSIZE_COL_SX = {
+  whiteSpace: 'nowrap',
+} as const;
+
+const CHECKED_IN_PRODUCT_COL_SX = {
+  minWidth: 0,
+} as const;
+
+const CHECKED_IN_ITEM_ENUM_COL_SX = {
+  minWidth: 0,
+  textAlign: 'center',
+  pl: '4px !important',
+  pr: '4px !important',
+} as const;
+
+const ITEM_ENUM_GROUP_DIVIDER_SX = {
+  borderLeft: 2,
+  borderColor: processingTokens.borderStrong,
+  pl: '6px !important',
+} as const;
+
+const CHECKED_IN_MONEY_COL_SX = {
+  minWidth: 0,
+  whiteSpace: 'nowrap',
+  textAlign: 'center',
+} as const;
+
+const CHECKED_IN_DATE_COL_SX = {
+  ...CHECKED_IN_AUTOSIZE_COL_SX,
+  pl: '8px !important',
+  pr: '4px !important',
+} as const;
+
+const CHECKED_IN_QTY_COL_SX = {
+  ...CHECKED_IN_AUTOSIZE_COL_SX,
+  overflow: 'visible',
+  textOverflow: 'clip',
+  pl: '6px !important',
+  pr: '8px !important',
+  fontVariantNumeric: 'tabular-nums',
+  textAlign: 'center',
+} as const;
 
 const GROUP_DIVIDER_SX = {
   borderLeft: 2,
@@ -59,19 +107,20 @@ const GROUP_DIVIDER_SX = {
   pl: '14px !important',
 } as const;
 
-function formatShortDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      month: 'numeric',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
+const PRODUCT_ID_COL_SX = {
+  ...CHECKED_IN_AUTOSIZE_COL_SX,
+  ...GROUP_DIVIDER_SX,
+} as const;
+
+const CHECKED_IN_ACTIONS_COL_SX = {
+  whiteSpace: 'nowrap',
+  px: '4px !important',
+  textAlign: 'center',
+} as const;
+
+const PRODUCT_TITLE_COL_SX = {
+  minWidth: 0,
+} as const;
 
 const tableSx = (mode: 'light' | 'dark') =>
   ({
@@ -106,18 +155,9 @@ const tableSx = (mode: 'light' | 'dark') =>
       textTransform: 'uppercase',
       letterSpacing: '0.06em',
       color: processingTokens.textSoft,
+      textOverflow: 'clip',
     },
-    '& .MuiTableHead-root .MuiTableRow:first-of-type .MuiTableCell-root': {
-      height: 22,
-      minHeight: 22,
-      py: '2px',
-      fontSize: (theme: { typography: { pxToRem: (n: number) => string } }) => theme.typography.pxToRem(8.5),
-      letterSpacing: '0.08em',
-      color: processingTokens.textMute,
-      borderBottom: 1,
-      borderColor: processingTokens.border,
-    },
-    '& .MuiTableHead-root .MuiTableRow:last-of-type .MuiTableCell-root': {
+    '& .MuiTableHead-root .MuiTableRow .MuiTableCell-root': {
       height: PROCESSING_QUEUE_TABLE_HEAD_HEIGHT,
       minHeight: PROCESSING_QUEUE_TABLE_HEAD_HEIGHT,
       borderBottom: 2,
@@ -128,8 +168,16 @@ const tableSx = (mode: 'light' | 'dark') =>
       lineHeight: 1.25,
       letterSpacing: 'inherit',
       textTransform: 'inherit',
+      maxWidth: '100%',
       '&:hover': { color: processingTokens.textStrong },
-      '&.Mui-active': { color: processingTokens.textStrong, fontWeight: 800 },
+      '&.Mui-active': {
+        color: processingTokens.textStrong,
+        fontWeight: 800,
+        flexDirection: 'row',
+      },
+      '&:not(.Mui-active) .MuiTableSortLabel-icon': {
+        display: 'none',
+      },
     },
   }) as const;
 
@@ -170,24 +218,90 @@ const actionIconSx = (hoverColor: string) =>
     },
   }) as const;
 
-/** Inline click-to-edit enum cell (condition / dispatched-to): text + caret, menu on click. */
+export interface CheckInAttachedProductOption {
+  productId: number;
+  label: string;
+  hint?: string;
+}
+
+/** Read-only product field — click opens the product editor when a product is linked. */
+function ProductSectionFieldCell({
+  children,
+  title,
+  fontWeight,
+  cellSx,
+  productId,
+  onEditProduct,
+  align = 'left',
+}: {
+  children: ReactNode;
+  title?: string;
+  fontWeight?: number;
+  cellSx?: object;
+  productId: number | null;
+  onEditProduct?: (productId: number) => void;
+  align?: 'left' | 'center';
+}) {
+  const editable = productId != null && onEditProduct != null;
+  const displayTitle = title ?? (typeof children === 'string' ? children : undefined);
+  return (
+    <TableCell
+      align={align}
+      sx={{
+        minWidth: 0,
+        ...(editable ?
+          {
+            cursor: 'pointer',
+            '&:hover': { bgcolor: 'action.hover' },
+          }
+        : {}),
+        ...cellSx,
+      }}
+      onClick={
+        editable ?
+          (e) => {
+            e.stopPropagation();
+            onEditProduct(productId);
+          }
+        : undefined
+      }
+      title={editable && displayTitle ? `${displayTitle} — click to edit product` : displayTitle}
+    >
+      <CellText title={displayTitle} fontWeight={fontWeight}>
+        {children}
+      </CellText>
+    </TableCell>
+  );
+}
+
+/** Inline click-to-edit enum cell (condition / dispatched-to / product id): text + caret, menu on click. */
 function EditableEnumCell({
   display,
   value,
   options,
   ariaLabel,
   onSave,
+  cellSx,
+  menuVariant = 'default',
+  onOpenProductEditor,
+  align = 'left',
 }: {
   display: string;
   value: string;
-  options: ReadonlyArray<{ value: string; label: string }>;
+  options: ReadonlyArray<{ value: string; label: string; hint?: string }>;
   ariaLabel: string;
   onSave: (value: string) => void;
+  cellSx?: object;
+  menuVariant?: 'default' | 'product';
+  onOpenProductEditor?: () => void;
+  align?: 'left' | 'center';
 }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const productMenu = menuVariant === 'product';
   return (
     <TableCell
-      sx={{ minWidth: 0, cursor: 'pointer' }}
+      align={align}
+      sx={{ minWidth: 0, cursor: 'pointer', ...cellSx }}
       onClick={(e) => {
         e.stopPropagation();
         setAnchor(e.currentTarget as HTMLElement);
@@ -199,8 +313,10 @@ function EditableEnumCell({
         sx={{
           display: 'flex',
           alignItems: 'center',
+          justifyContent: align === 'center' ? 'center' : 'flex-start',
           gap: 0.25,
           minWidth: 0,
+          mx: align === 'center' ? 'auto' : undefined,
           px: 0.25,
           borderRadius: 0.5,
           border: '1px dashed',
@@ -216,21 +332,206 @@ function EditableEnumCell({
         open={anchor != null}
         onClose={() => setAnchor(null)}
         onClick={(e) => e.stopPropagation()}
+        slotProps={{
+          paper: productMenu ?
+            {
+              sx: {
+                minWidth: Math.max(anchor?.offsetWidth ?? 0, 400),
+                maxWidth: 'min(560px, calc(100vw - 24px))',
+              },
+            }
+          : undefined,
+        }}
       >
         {options.map((opt) => (
           <MenuItem
             key={opt.value}
-            dense
+            dense={!productMenu}
             selected={opt.value === value}
+            sx={
+              productMenu ?
+                { alignItems: 'flex-start', py: 1, whiteSpace: 'normal' }
+              : undefined
+            }
             onClick={() => {
               setAnchor(null);
               if (opt.value !== value) onSave(opt.value);
             }}
           >
-            {opt.label}
+            <Box sx={{ minWidth: 0, width: '100%' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontSize: productMenu ? '0.8125rem' : '0.8125rem',
+                  lineHeight: 1.35,
+                  fontWeight: productMenu ? 600 : 400,
+                  whiteSpace: productMenu ? 'normal' : 'nowrap',
+                  wordBreak: productMenu ? 'break-word' : undefined,
+                }}
+              >
+                {opt.label}
+              </Typography>
+              {opt.hint ?
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{
+                    display: 'block',
+                    mt: 0.25,
+                    lineHeight: 1.25,
+                    whiteSpace: productMenu ? 'normal' : 'nowrap',
+                    wordBreak: productMenu ? 'break-word' : undefined,
+                    ...(productMenu ? {} : { maxWidth: 220 }),
+                  }}
+                >
+                  {opt.hint}
+                </Typography>
+              : null}
+            </Box>
           </MenuItem>
         ))}
+        {onOpenProductEditor ?
+          <>
+            <Divider sx={{ my: 0.5 }} />
+            <MenuItem
+              dense={!productMenu}
+              onClick={() => {
+                setAnchor(null);
+                onOpenProductEditor();
+              }}
+            >
+              Edit product details
+            </MenuItem>
+          </>
+        : null}
       </Menu>
+    </TableCell>
+  );
+}
+
+function priceDraftFromItem(price: string | null | undefined): string {
+  if (price == null || price === '') return '';
+  return String(price).replace(/^\$/, '').trim();
+}
+
+/** Inline click-to-edit money cell (shelf price). */
+function EditablePriceCell({
+  display,
+  value,
+  ariaLabel,
+  onSave,
+  cellSx,
+  align = 'right',
+}: {
+  display: string;
+  value: string;
+  ariaLabel: string;
+  onSave: (value: string) => void;
+  cellSx?: object;
+  align?: 'left' | 'center' | 'right';
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!editing) return;
+    setDraft(value);
+    const t = window.setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [editing, value]);
+
+  function cancel() {
+    setDraft(value);
+    setEditing(false);
+  }
+
+  function commit() {
+    const normalized = sanitizeDecimalPaste(draft.trim());
+    if (!isValidCheckInPrice(normalized)) {
+      cancel();
+      return;
+    }
+    if (normalized === value) {
+      setEditing(false);
+      return;
+    }
+    onSave(normalized);
+    setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <TableCell
+        align={align}
+        sx={{ minWidth: 0, cursor: 'pointer', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', ...cellSx }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditing(true);
+        }}
+      >
+        <Box
+          role="button"
+          aria-label={ariaLabel}
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start',
+            gap: 0.25,
+            minWidth: 0,
+            px: 0.25,
+            borderRadius: 0.5,
+            border: '1px dashed',
+            borderColor: 'transparent',
+            '&:hover': { bgcolor: 'action.hover', borderColor: processingTokens.borderStrong },
+          }}
+        >
+          <CellText title={`${display} — click to change`} fontWeight={700}>
+            {display}
+          </CellText>
+        </Box>
+      </TableCell>
+    );
+  }
+
+  return (
+    <TableCell
+      align={align}
+      sx={{ minWidth: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', ...cellSx }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <TextField
+        inputRef={inputRef}
+        size="small"
+        value={draft}
+        onChange={(e) => setDraft(sanitizeDecimalPaste(e.target.value))}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            cancel();
+          }
+        }}
+        onBlur={commit}
+        onWheel={preventWheelChangeNumber}
+        onPaste={(e) => {
+          e.preventDefault();
+          setDraft(sanitizeDecimalPaste(e.clipboardData.getData('text')));
+        }}
+        slotProps={{
+          input: {
+            sx: { fontSize: '0.72rem', py: 0.25, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
+            'aria-label': ariaLabel,
+          },
+        }}
+        sx={{ width: 72 }}
+      />
     </TableCell>
   );
 }
@@ -238,36 +539,63 @@ function EditableEnumCell({
 interface CheckedInHistoryTableRowProps {
   row: CheckedInHistoryRow;
   fallbackProduct: ProcessingWorkspaceProductDTO | null;
+  attachedProductOptions: CheckInAttachedProductOption[];
   selected: boolean;
   striped: boolean;
   onSelectItemId: (itemId: number) => void;
-  onReprintItems?: (items: ProcessingWorkspaceItemDTO[]) => Promise<void>;
+  onReprintCheckIn?: (row: CheckedInHistoryRow) => void;
   onDeleteItemCheckIn?: (row: CheckedInHistoryRow) => void;
+  onSetCheckInProduct?: (row: CheckedInHistoryRow, productId: number) => void;
+  onSetCheckInPrice?: (row: CheckedInHistoryRow, value: string) => void;
   onSetCheckInCondition?: (row: CheckedInHistoryRow, value: string) => void;
   onSetCheckInDispatch?: (row: CheckedInHistoryRow, value: string) => void;
+  onEditCheckInProduct?: (productId: number) => void;
   showDeleteCheckInAction?: boolean;
 }
 
 const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
   row,
   fallbackProduct,
+  attachedProductOptions,
   selected,
   striped,
   onSelectItemId,
-  onReprintItems,
+  onReprintCheckIn,
   onDeleteItemCheckIn,
+  onSetCheckInProduct,
+  onSetCheckInPrice,
   onSetCheckInCondition,
   onSetCheckInDispatch,
+  onEditCheckInProduct,
   showDeleteCheckInAction = false,
 }: CheckedInHistoryTableRowProps) {
   const { item, qty, itemCheckInId } = row;
-  const statusMeta = itemStatusMeta(item);
-  const productId = checkedInProductIdText(row, fallbackProduct);
+  const productIdDisplay = checkedInProductIdText(row, fallbackProduct);
+  const currentProductId = row.checkInProduct?.id ?? item.product ?? null;
+  const priceDisplay = formatQueueMoney(item.price);
+  const priceDraft = priceDraftFromItem(item.price);
+  const productEnumOptions = useMemo(
+    () =>
+      attachedProductOptions.map((opt) => ({
+        value: String(opt.productId),
+        label: opt.label,
+        hint: opt.hint,
+      })),
+    [attachedProductOptions],
+  );
+  const canEditProduct =
+    onSetCheckInProduct != null
+    && itemCheckInId != null
+    && currentProductId != null
+    && productEnumOptions.length > 0;
+  const openProductEditor =
+    onEditCheckInProduct && currentProductId != null ?
+      () => onEditCheckInProduct(currentProductId)
+    : undefined;
   const brand = checkedInBrandText(row, fallbackProduct);
   const title = checkedInTitleText(row, fallbackProduct);
   const model = checkedInModelText(row, fallbackProduct);
   const category = checkedInCategoryText(row, fallbackProduct);
-  const location = itemLocationLabel(item.location);
   const open = () => onSelectItemId(item.id);
   const dateTitle =
     itemCheckInId != null ? `${row.checkedInAt} · Check-in #${itemCheckInId}` : row.checkedInAt;
@@ -296,46 +624,79 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
         },
       }}
     >
-      <TableCell sx={{ whiteSpace: 'nowrap', color: 'text.secondary' }} title={dateTitle}>
-        {formatShortDateTime(row.checkedInAt)}
+      <TableCell sx={{ ...CHECKED_IN_DATE_COL_SX, color: 'text.secondary' }} title={dateTitle}>
+        {formatCheckedInShortDateTime(row.checkedInAt)}
       </TableCell>
-      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, whiteSpace: 'nowrap' }}>
+      <TableCell align="center" sx={{ ...CHECKED_IN_QTY_COL_SX, fontWeight: 700 }}>
         {qty}
       </TableCell>
-      <TableCell sx={{ minWidth: 0, ...GROUP_DIVIDER_SX }}>
-        <CellText title={productId} fontWeight={700}>
-          {productId}
-        </CellText>
-      </TableCell>
-      <TableCell sx={{ minWidth: 0 }}>
-        <CellText title={brand}>{brand}</CellText>
-      </TableCell>
-      <TableCell sx={{ minWidth: 0 }}>
-        <CellText title={title} fontWeight={700}>
-          {title}
-        </CellText>
-      </TableCell>
-      <TableCell sx={{ minWidth: 0 }}>
-        <CellText title={model}>{model}</CellText>
-      </TableCell>
-      <TableCell sx={{ minWidth: 0 }}>
-        <CellText title={category}>{category}</CellText>
-      </TableCell>
-      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-        <CellText fontWeight={600}>{formatQueueMoney(item.retail)}</CellText>
-      </TableCell>
-      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', ...GROUP_DIVIDER_SX }}>
-        <CellText fontWeight={700}>{formatQueueMoney(item.price)}</CellText>
-      </TableCell>
+      {canEditProduct ?
+        <EditableEnumCell
+          display={productIdDisplay}
+          value={String(currentProductId)}
+          options={productEnumOptions}
+          menuVariant="product"
+          ariaLabel={`Change product for this check-in (currently ${productIdDisplay})`}
+          cellSx={PRODUCT_ID_COL_SX}
+          onOpenProductEditor={openProductEditor}
+          onSave={(value) => {
+            const nextId = Number(value);
+            if (Number.isFinite(nextId)) onSetCheckInProduct(row, nextId);
+          }}
+        />
+      : <ProductSectionFieldCell
+          productId={currentProductId}
+          onEditProduct={onEditCheckInProduct}
+          title={productIdDisplay}
+          fontWeight={700}
+          cellSx={PRODUCT_ID_COL_SX}
+        >
+          {productIdDisplay}
+        </ProductSectionFieldCell>}
+      <ProductSectionFieldCell
+        productId={currentProductId}
+        onEditProduct={onEditCheckInProduct}
+        title={brand}
+        cellSx={CHECKED_IN_PRODUCT_COL_SX}
+      >
+        {brand}
+      </ProductSectionFieldCell>
+      <ProductSectionFieldCell
+        productId={currentProductId}
+        onEditProduct={onEditCheckInProduct}
+        title={title}
+        fontWeight={700}
+        cellSx={PRODUCT_TITLE_COL_SX}
+      >
+        {title}
+      </ProductSectionFieldCell>
+      <ProductSectionFieldCell
+        productId={currentProductId}
+        onEditProduct={onEditCheckInProduct}
+        title={model}
+        cellSx={CHECKED_IN_PRODUCT_COL_SX}
+      >
+        {model}
+      </ProductSectionFieldCell>
+      <ProductSectionFieldCell
+        productId={currentProductId}
+        onEditProduct={onEditCheckInProduct}
+        title={category}
+        cellSx={CHECKED_IN_PRODUCT_COL_SX}
+      >
+        {category}
+      </ProductSectionFieldCell>
       {onSetCheckInCondition ?
         <EditableEnumCell
           display={item.condition_label || item.condition}
           value={item.condition}
           options={PROCESSING_ITEM_CONDITION_OPTIONS}
           ariaLabel={`Change condition for this check-in (currently ${item.condition_label || item.condition})`}
+          cellSx={{ ...ITEM_ENUM_GROUP_DIVIDER_SX, ...CHECKED_IN_ITEM_ENUM_COL_SX }}
+          align="center"
           onSave={(value) => onSetCheckInCondition(row, value)}
         />
-      : <TableCell sx={{ minWidth: 0 }}>
+      : <TableCell align="center" sx={{ ...ITEM_ENUM_GROUP_DIVIDER_SX, ...CHECKED_IN_ITEM_ENUM_COL_SX }}>
           <CellText title={item.condition_label || item.condition}>{item.condition_label || item.condition}</CellText>
         </TableCell>}
       {onSetCheckInDispatch ?
@@ -344,40 +705,36 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
           value={item.dispatch}
           options={PROCESSING_ITEM_DISPATCH_OPTIONS}
           ariaLabel={`Change dispatch for this check-in (currently ${queueDispatchLabel(item.dispatch)})`}
+          cellSx={CHECKED_IN_ITEM_ENUM_COL_SX}
+          align="center"
           onSave={(value) => onSetCheckInDispatch(row, value)}
         />
-      : <TableCell sx={{ minWidth: 0 }}>
+      : <TableCell align="center" sx={CHECKED_IN_ITEM_ENUM_COL_SX}>
           <CellText title={queueDispatchLabel(item.dispatch)}>{queueDispatchLabel(item.dispatch)}</CellText>
         </TableCell>}
-      <TableCell sx={{ minWidth: 0 }}>
-        <CellText title={location}>{location}</CellText>
+      <TableCell align="center" sx={{ ...CHECKED_IN_MONEY_COL_SX, fontVariantNumeric: 'tabular-nums' }}>
+        <CellText fontWeight={600}>{formatQueueMoney(item.retail)}</CellText>
       </TableCell>
-      <TableCell sx={{ minWidth: 0 }}>
-        <Chip
-          label={statusMeta.label}
-          size="small"
-          sx={{
-            height: 15,
-            fontSize: 9,
-            bgcolor: statusMeta.bg,
-            color: statusMeta.color,
-            border: statusMeta.border ? `1px solid ${statusMeta.border}` : 'none',
-            maxWidth: '100%',
-          }}
+      {onSetCheckInPrice ?
+        <EditablePriceCell
+          display={priceDisplay}
+          value={priceDraft}
+          ariaLabel={`Change shelf price for this check-in (currently ${priceDisplay})`}
+          cellSx={CHECKED_IN_MONEY_COL_SX}
+          align="center"
+          onSave={(value) => onSetCheckInPrice(row, value)}
         />
-      </TableCell>
-      <TableCell align="right" sx={{ px: '4px !important', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
-        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25 }}>
-          {onReprintItems ?
+      : <TableCell align="center" sx={{ ...CHECKED_IN_MONEY_COL_SX, fontVariantNumeric: 'tabular-nums' }}>
+          <CellText fontWeight={700}>{priceDisplay}</CellText>
+        </TableCell>}
+      <TableCell align="center" sx={CHECKED_IN_ACTIONS_COL_SX} onClick={(e) => e.stopPropagation()}>
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 0.25 }}>
+          {onReprintCheckIn ?
             <Tooltip title={`Print ${qty} label${qty === 1 ? '' : 's'}`} enterDelay={300} disableInteractive>
               <IconButton
                 size="small"
                 aria-label={`Print ${qty} label${qty === 1 ? '' : 's'} for this check-in`}
-                onClick={() => {
-                  if (window.confirm(`Print ${qty} label${qty === 1 ? '' : 's'} for this check-in?`)) {
-                    void onReprintItems(row.items);
-                  }
-                }}
+                onClick={() => onReprintCheckIn(row)}
                 sx={actionIconSx('primary.main')}
               >
                 <LocalPrintshop sx={{ fontSize: 16 }} />
@@ -402,62 +759,60 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
   );
 });
 
-function GroupHeadCell({
-  label,
-  colSpan,
-  align = 'left',
-  divider = false,
-}: {
-  label: string;
-  colSpan: number;
-  align?: 'left' | 'right';
-  divider?: boolean;
-}) {
-  return (
-    <TableCell
-      colSpan={colSpan}
-      align={align}
-      sx={{
-        whiteSpace: 'nowrap',
-        ...(divider ? GROUP_DIVIDER_SX : {}),
-      }}
-    >
-      {label}
-    </TableCell>
-  );
-}
+const CHECKED_IN_SORT_LABEL_SX = {
+  width: '100%',
+  maxWidth: '100%',
+  justifyContent: 'space-between',
+  gap: 0.5,
+  '& .MuiTableSortLabel-icon': {
+    flexShrink: 0,
+    marginLeft: 'auto',
+    marginRight: 0,
+  },
+} as const;
+
+const CHECKED_IN_CENTERED_SORT_LABEL_SX = {
+  width: '100%',
+  maxWidth: '100%',
+  justifyContent: 'center',
+  '& .MuiTableSortLabel-icon': {
+    flexShrink: 0,
+  },
+} as const;
 
 function SortableHead({
   label,
   field,
   sortState,
   onSort,
-  align,
   divider = false,
+  cellSx,
+  centered = false,
 }: {
   label: string;
   field: CheckedInSortField;
   sortState: CheckedInSortState;
   onSort: (field: CheckedInSortField) => void;
-  align?: 'left' | 'right';
   divider?: boolean;
+  cellSx?: object;
+  centered?: boolean;
 }) {
+  const active = isCheckedInSortActive(sortState, field);
   return (
     <TableCell
-      align={align ?? 'left'}
+      align={centered ? 'center' : 'left'}
       sx={{
         whiteSpace: 'nowrap',
         ...(divider ? GROUP_DIVIDER_SX : {}),
+        ...cellSx,
       }}
     >
       <TableSortLabel
-        active={isCheckedInSortActive(sortState, field)}
+        active={active}
         direction={checkedInSortDirection(sortState, field)}
         onClick={() => onSort(field)}
-        sx={{
-          justifyContent: align === 'right' ? 'flex-end' : 'flex-start',
-          '& .MuiTableSortLabel-icon': { flexShrink: 0 },
-        }}
+        hideSortIcon={!active}
+        sx={centered ? CHECKED_IN_CENTERED_SORT_LABEL_SX : CHECKED_IN_SORT_LABEL_SX}
       >
         {label}
       </TableSortLabel>
@@ -467,48 +822,92 @@ function SortableHead({
 
 export interface CheckedInItemsTableProps {
   rows: CheckedInHistoryRow[];
-  productGroups?: ProductGroupedHistory[];
   fallbackProduct: ProcessingWorkspaceProductDTO | null;
+  attachedProductOptions?: CheckInAttachedProductOption[];
   activeItemId: number | null;
   onSelectItemId: (itemId: number) => void;
-  onReprintItems?: (items: ProcessingWorkspaceItemDTO[]) => Promise<void>;
+  onReprintCheckIn?: (row: CheckedInHistoryRow) => void;
   onDeleteItemCheckIn?: (row: CheckedInHistoryRow) => void;
+  onSetCheckInProduct?: (row: CheckedInHistoryRow, productId: number) => void;
+  onSetCheckInPrice?: (row: CheckedInHistoryRow, value: string) => void;
   onSetCheckInCondition?: (row: CheckedInHistoryRow, value: string) => void;
   onSetCheckInDispatch?: (row: CheckedInHistoryRow, value: string) => void;
+  onEditCheckInProduct?: (productId: number) => void;
   showDeleteCheckInAction?: boolean;
   scrollable?: boolean;
 }
 
 export function CheckedInItemsTable({
   rows,
-  productGroups,
   fallbackProduct,
+  attachedProductOptions = [],
   activeItemId,
   onSelectItemId,
-  onReprintItems,
+  onReprintCheckIn,
   onDeleteItemCheckIn,
+  onSetCheckInProduct,
+  onSetCheckInPrice,
   onSetCheckInCondition,
   onSetCheckInDispatch,
+  onEditCheckInProduct,
   showDeleteCheckInAction = false,
   scrollable = false,
 }: CheckedInItemsTableProps) {
   const theme = useTheme();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
   const [sortState, setSortState] = useState<CheckedInSortState>(null);
 
-  const grouped = productGroups ?? [{ productId: null, productLabel: '', totalQty: 0, historyRows: rows }];
+  const measureFonts = useMemo(
+    () => createCheckedInHistoryMeasureFonts(String(theme.typography.fontFamily ?? 'sans-serif')),
+    [theme.typography.fontFamily],
+  );
 
-  const sortedGroups = useMemo(
+  const productDropdown = attachedProductOptions.length > 0 && onSetCheckInProduct != null;
+
+  const columnLayout = useMemo(
     () =>
-      grouped.map((group) => ({
-        ...group,
-        historyRows: sortCheckedInHistoryRows(group.historyRows, sortState, fallbackProduct),
-      })),
-    [grouped, sortState, fallbackProduct],
+      computeCheckedInHistoryColumnWidths(rows, containerWidth, fallbackProduct, measureFonts, {
+        productDropdown,
+        showReprint: onReprintCheckIn != null,
+        showDelete: showDeleteCheckInAction,
+      }),
+    [
+      rows,
+      containerWidth,
+      fallbackProduct,
+      measureFonts,
+      productDropdown,
+      onReprintCheckIn,
+      showDeleteCheckInAction,
+    ],
+  );
+
+  const sortedRows = useMemo(
+    () => sortCheckedInHistoryRows(rows, sortState, fallbackProduct),
+    [rows, sortState, fallbackProduct],
   );
 
   function handleSort(field: CheckedInSortField) {
     setSortState((prev) => cycleCheckedInSort(prev, field));
   }
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const apply = () => {
+      const w = readProcessingQueueTableClientWidth(el);
+      setContainerWidth((prev) => (prev === w ? prev : w));
+    };
+    apply();
+    const rafId = requestAnimationFrame(apply);
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => {
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
+    };
+  }, [rows.length]);
 
   if (!rows.length) {
     return (
@@ -518,29 +917,18 @@ export function CheckedInItemsTable({
     );
   }
 
-  // All-percentage columns summing to 100 — a fixed-px trailing col on top of 100%
-  // overflowed the container (overflowX: hidden) and clipped the Actions column.
   const colgroup = (
     <colgroup>
-      <col style={{ width: '8%' }} />
-      <col style={{ width: '4%' }} />
-      <col style={{ width: '7%' }} />
-      <col style={{ width: '7%' }} />
-      <col style={{ width: '12%' }} />
-      <col style={{ width: '7%' }} />
-      <col style={{ width: '8%' }} />
-      <col style={{ width: '6%' }} />
-      <col style={{ width: '6%' }} />
-      <col style={{ width: '7%' }} />
-      <col style={{ width: '8%' }} />
-      <col style={{ width: '7%' }} />
-      <col style={{ width: '6%' }} />
-      <col style={{ width: '7%' }} />
+      {CHECKED_IN_HISTORY_COLUMN_ORDER.map((id) => (
+        <col key={id} style={{ width: columnLayout.cols[id] }} />
+      ))}
+      <col style={{ width: columnLayout.actionsColPx }} />
     </colgroup>
   );
 
   return (
     <TableContainer
+      ref={containerRef}
       sx={{
         width: '100%',
         maxWidth: '100%',
@@ -555,60 +943,52 @@ export function CheckedInItemsTable({
         : {}),
       }}
     >
-      <Table size="small" stickyHeader sx={tableSx(theme.palette.mode)}>
+      <Table
+        size="small"
+        stickyHeader
+        sx={{
+          ...tableSx(theme.palette.mode),
+          width: containerWidth > 0 ? containerWidth : '100%',
+        }}
+      >
         {colgroup}
         <TableHead>
           <TableRow>
-            <GroupHeadCell label="Checked in" colSpan={CHECKED_IN_COL_COUNT} />
-            <GroupHeadCell label="Product" colSpan={PRODUCT_COL_COUNT} divider />
-            <GroupHeadCell label="Item" colSpan={ITEM_COL_COUNT} divider />
-            <GroupHeadCell label="Actions" colSpan={1} align="right" divider />
-          </TableRow>
-          <TableRow>
-            <SortableHead label="Date" field="checkedIn" sortState={sortState} onSort={handleSort} />
-            <SortableHead label="Qty" field="qty" sortState={sortState} onSort={handleSort} align="right" />
-            <SortableHead label="ID" field="productId" sortState={sortState} onSort={handleSort} divider />
-            <SortableHead label="Brand" field="brand" sortState={sortState} onSort={handleSort} />
-            <SortableHead label="Title" field="title" sortState={sortState} onSort={handleSort} />
-            <SortableHead label="Model" field="model" sortState={sortState} onSort={handleSort} />
-            <SortableHead label="Category" field="category" sortState={sortState} onSort={handleSort} />
-            <SortableHead label="Retail" field="retail" sortState={sortState} onSort={handleSort} align="right" />
-            <SortableHead label="Price" field="price" sortState={sortState} onSort={handleSort} align="right" divider />
-            <SortableHead label="Condition" field="condition" sortState={sortState} onSort={handleSort} />
-            <SortableHead label="Dispatched to" field="dispatch" sortState={sortState} onSort={handleSort} />
-            <SortableHead label="Location" field="location" sortState={sortState} onSort={handleSort} />
-            <SortableHead label="Status" field="status" sortState={sortState} onSort={handleSort} />
-            <TableCell align="right" sx={{ whiteSpace: 'nowrap', px: '4px !important' }} aria-hidden />
+            <SortableHead label="Date" field="checkedIn" sortState={sortState} onSort={handleSort} cellSx={CHECKED_IN_DATE_COL_SX} />
+            <SortableHead label="Qty" field="qty" sortState={sortState} onSort={handleSort} centered cellSx={CHECKED_IN_QTY_COL_SX} />
+            <SortableHead label="ID" field="productId" sortState={sortState} onSort={handleSort} divider cellSx={PRODUCT_ID_COL_SX} />
+            <SortableHead label="Brand" field="brand" sortState={sortState} onSort={handleSort} cellSx={CHECKED_IN_PRODUCT_COL_SX} />
+            <SortableHead label="Title" field="title" sortState={sortState} onSort={handleSort} cellSx={PRODUCT_TITLE_COL_SX} />
+            <SortableHead label="Model" field="model" sortState={sortState} onSort={handleSort} cellSx={CHECKED_IN_PRODUCT_COL_SX} />
+            <SortableHead label="Category" field="category" sortState={sortState} onSort={handleSort} cellSx={CHECKED_IN_PRODUCT_COL_SX} />
+            <SortableHead label="Condition" field="condition" sortState={sortState} onSort={handleSort} centered cellSx={{ ...ITEM_ENUM_GROUP_DIVIDER_SX, ...CHECKED_IN_ITEM_ENUM_COL_SX }} />
+            <SortableHead label="Dispatch" field="dispatch" sortState={sortState} onSort={handleSort} centered cellSx={CHECKED_IN_ITEM_ENUM_COL_SX} />
+            <SortableHead label="Retail" field="retail" sortState={sortState} onSort={handleSort} centered cellSx={CHECKED_IN_MONEY_COL_SX} />
+            <SortableHead label="Price" field="price" sortState={sortState} onSort={handleSort} centered cellSx={CHECKED_IN_MONEY_COL_SX} />
+            <TableCell align="center" sx={CHECKED_IN_ACTIONS_COL_SX}>
+              Actions
+            </TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {sortedGroups.map((group) => (
-            <Fragment key={group.productId ?? group.productLabel}>
-              {productGroups && productGroups.length > 1 ?
-                <TableRow>
-                  <TableCell colSpan={CHECKED_IN_COL_COUNT + PRODUCT_COL_COUNT + ITEM_COL_COUNT + 1} sx={{ py: 0.75, bgcolor: processingTokens.neutralSoft }}>
-                    <Typography variant="caption" fontWeight={800} sx={{ fontSize: '0.6875rem' }}>
-                      {group.productLabel} · {group.totalQty} unit{group.totalQty === 1 ? '' : 's'}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              : null}
-              {group.historyRows.map((row, index) => (
-                <CheckedInHistoryTableRow
-                  key={row.itemCheckInId != null ? `checkin-${row.itemCheckInId}` : `item-${row.item.id}`}
-                  row={row}
-                  fallbackProduct={fallbackProduct}
-                  selected={historyRowIncludesItem(row, activeItemId)}
-                  striped={index % 2 === 1}
-                  onSelectItemId={onSelectItemId}
-                  onReprintItems={onReprintItems}
-                  onDeleteItemCheckIn={onDeleteItemCheckIn}
-                  onSetCheckInCondition={onSetCheckInCondition}
-                  onSetCheckInDispatch={onSetCheckInDispatch}
-                  showDeleteCheckInAction={showDeleteCheckInAction}
-                />
-              ))}
-            </Fragment>
+          {sortedRows.map((row, index) => (
+            <CheckedInHistoryTableRow
+              key={row.itemCheckInId != null ? `checkin-${row.itemCheckInId}` : `item-${row.item.id}`}
+              row={row}
+              fallbackProduct={fallbackProduct}
+              attachedProductOptions={attachedProductOptions}
+              selected={historyRowIncludesItem(row, activeItemId)}
+              striped={index % 2 === 1}
+              onSelectItemId={onSelectItemId}
+              onReprintCheckIn={onReprintCheckIn}
+              onDeleteItemCheckIn={onDeleteItemCheckIn}
+              onSetCheckInProduct={onSetCheckInProduct}
+              onSetCheckInPrice={onSetCheckInPrice}
+              onSetCheckInCondition={onSetCheckInCondition}
+              onSetCheckInDispatch={onSetCheckInDispatch}
+              onEditCheckInProduct={onEditCheckInProduct}
+              showDeleteCheckInAction={showDeleteCheckInAction}
+            />
           ))}
         </TableBody>
       </Table>

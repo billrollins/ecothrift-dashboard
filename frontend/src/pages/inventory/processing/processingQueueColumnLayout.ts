@@ -26,7 +26,6 @@ import {
 } from './processingQueueLayout';
 
 export type ProcessingQueueColumnId =
-  | 'rowNum'
   | 'qty'
   | 'brand'
   | 'title'
@@ -39,7 +38,6 @@ export type ProcessingQueueColumnId =
   | 'status';
 
 export const PROCESSING_QUEUE_COLUMN_ORDER: ProcessingQueueColumnId[] = [
-  'rowNum',
   'qty',
   'brand',
   'title',
@@ -215,7 +213,6 @@ export function computeProcessingQueueColumnWidths(
     };
   }
 
-  let rowNumW = measureTextWidth('#', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
   let qtyW = measureTextWidth('Qty', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
   let brandW = measureTextWidth('Brand', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
   let titleW = measureTextWidth('Title', fonts.header) + PROCESSING_QUEUE_SORT_ICON_PX;
@@ -251,7 +248,6 @@ export function computeProcessingQueueColumnWidths(
     if (row.sameProductRowNumbers?.length) hasPeerChip = true;
     if ((row.distinctProductCount ?? 0) >= 2) hasProductsChip = true;
 
-    rowNumW = Math.max(rowNumW, measureTextWidth(String(row.rowNum), fonts.body));
     brandW = Math.max(brandW, measureTextWidth(queueBrandText(row), fonts.bodyBrand));
     titleW = Math.max(titleW, measureTextWidth(queueTitleText(row), fonts.bodyTitle));
     categoryW = Math.max(categoryW, measureTextWidth(queueCategoryText(row), fonts.body));
@@ -278,7 +274,7 @@ export function computeProcessingQueueColumnWidths(
   }
 
   if (hasAddedRow) {
-    rowNumW = Math.max(rowNumW, PROCESSING_QUEUE_ADDED_CHIP_PX);
+    titleW = Math.max(titleW, PROCESSING_QUEUE_ADDED_CHIP_PX);
   }
   if (hasDupChip) {
     titleW += PROCESSING_QUEUE_DUP_CHIP_PX;
@@ -291,7 +287,6 @@ export function computeProcessingQueueColumnWidths(
   }
 
   const ideals: Record<ProcessingQueueColumnId, number> = {
-    rowNum: idealFloor(ceilPad(rowNumW, PROCESSING_QUEUE_ROW_NUM_PAD_PX), PROCESSING_QUEUE_COL_MIN.rowNum),
     qty: idealFloor(ceilPad(qtyW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.qty),
     brand: idealFloor(ceilPad(brandW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.brand),
     title: idealFloor(ceilPad(titleW, PROCESSING_QUEUE_CELL_PAD_PX), PROCESSING_QUEUE_COL_MIN.title),

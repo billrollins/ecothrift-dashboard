@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.30.0] — 2026-06-15 (Inventory Catalog — unified search, check-in tab, ItemCheckIn normalization) -->
-<!-- Last reviewed: 2026-06-15 (v2.30.0 — Inventory Catalog page, migrations 0063–0065, rich search) -->
+<!-- Line 1 release: ## [2.31.0] — 2026-06-16 (Processing workspace — product-linked check-ins and prior history cleanup) -->
+<!-- Last reviewed: 2026-06-16 (v2.31.0 — Processing workspace product links, migration 0066, prior check-ins table) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,29 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.31.0] — 2026-06-16
+
+User-facing theme: **Processing workspace product-linked check-ins and a cleaner prior check-ins workflow.**
+
+### Added
+
+- **Inventory / processing workspace product links** — migration `0066_processingrow_product_links` adds durable product linkage for processing rows/check-ins so staff can attach, remap, and carry product identity through row detail and prior check-in flows.
+- **Inventory / prior check-ins table** — new measured column layout (`checkedInHistoryColumnLayout.ts`), flat row history, Product editor links from ID/Brand/Title/Model/Category cells, and inline condition/dispatch/price edits for prior check-in batches.
+- **Inventory / processing accounting helpers** — manifest accounting utilities and tests keep split/collapse/check-in quantities aligned in the active processing workspace.
+
+### Changed
+
+- **Inventory / detailed check-in** — simplified product/item workflow, reuse of attached product options, and product draft validation for processing row check-ins.
+- **Inventory / processing queue** — tightened column sizing, queue cell labels, filter helpers, and prior-history display; dispatch labels now use proper option capitalization such as **Back storage** and **On shelf / floor**.
+- **Inventory / product drawer** — Product management integrates better with processing-row context and row product drafts.
+
+### Fixed
+
+- **Inventory / prior check-ins** — removed Status from the prior check-ins table so staff cannot manually change item status from history rows; Sold remains a POS-controlled status and `processing-patch` rejects manual `status: "sold"`.
+- **Inventory / processing validation** — split, collapse, identity, and status-patch tests cover the revised product/check-in behavior.
 
 ---
 

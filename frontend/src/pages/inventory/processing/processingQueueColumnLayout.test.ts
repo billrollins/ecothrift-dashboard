@@ -102,7 +102,7 @@ describe('computeProcessingQueueColumnWidths', () => {
     expect(narrow.cols.title).toBeLessThan(wide.cols.title);
   });
 
-  it('bumps rowNum width when any row is added kind', () => {
+  it('bumps title width when any row is added kind', () => {
     const manifestOnly = computeProcessingQueueColumnWidths(
       [sampleRow()],
       1000,
@@ -115,8 +115,8 @@ describe('computeProcessingQueueColumnWidths', () => {
       fonts,
       stubMeasure,
     );
-    expect(withAdded.cols.rowNum).toBeGreaterThanOrEqual(
-      Math.max(manifestOnly.cols.rowNum, PROCESSING_QUEUE_ADDED_CHIP_PX),
+    expect(withAdded.cols.title).toBeGreaterThanOrEqual(
+      Math.max(manifestOnly.cols.title, PROCESSING_QUEUE_ADDED_CHIP_PX),
     );
   });
 

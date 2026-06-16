@@ -17,7 +17,7 @@ export interface ProcessingSearchRowParts {
   identifiers?: { upc?: string };
 }
 
-export type ProcessingStatusSegment = 'all' | 'pending' | 'partial' | 'checked_in' | 'disputed';
+export type ProcessingStatusSegment = 'all' | 'open' | 'partial' | 'checked_in' | 'disputed';
 
 /**
  * Canonical workspace row search blob — supplied by GET processing-workspace (`search_string` → `searchString`).
@@ -174,6 +174,9 @@ export function rowMatchesStatusSegment(
       deriveProcessingRowStatus(row.items)
     : ((row.status || 'pending') as 'pending' | 'partial' | 'checked_in' | 'disputed');
 
+  if (segment === 'open') {
+    return derived !== 'checked_in';
+  }
   if (segment === 'disputed') {
     return derived === 'disputed';
   }

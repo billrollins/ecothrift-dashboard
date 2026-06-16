@@ -133,6 +133,12 @@ Normalized check-in membership: **`ProcessingCheckInBatch` → `ItemCheckIn`**, 
 
 Shipped unified **Inventory Catalog** at `/inventory/workbench` (nav **Catalog**): shared rich search, Products / Check-ins / Items tabs, in-place product/item/check-in edit and create, URL-driven selection, legacy manage URLs redirect here. **`GET /api/inventory/item-check-ins/`** catalog API; migrations **`0063`–`0065`** complete ItemCheckIn FK cleanup. Replaces separate Manage Products/Items pages.
 
+### 2026-06-16 — Processing workspace product-linked check-ins (v2.31.0)
+
+#### Result
+
+Shipped processing-workspace integration for product-linked row/check-in workflows: migration **`0066_processingrow_product_links`**, attached-product selection/remap in prior check-ins, compact flat prior history table, inline condition/dispatch/price edits, Product editor access from prior history product cells, and no manual Status column in prior check-ins. Dispatch labels now use the canonical option labels; `processing-patch` rejects manual `status="sold"`.
+
 ---
 
 ## See also

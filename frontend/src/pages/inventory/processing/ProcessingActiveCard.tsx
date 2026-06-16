@@ -1,8 +1,9 @@
+import DeleteOutline from '@mui/icons-material/DeleteOutline';
+import LinearScale from '@mui/icons-material/LinearScale';
 import Add from '@mui/icons-material/Add';
 import ArrowBack from '@mui/icons-material/ArrowBack';
 import Check from '@mui/icons-material/Check';
 import Close from '@mui/icons-material/Close';
-import FilterAlt from '@mui/icons-material/FilterAlt';
 import JoinFull from '@mui/icons-material/JoinFull';
 import Search from '@mui/icons-material/Search';
 import {
@@ -11,34 +12,43 @@ import {
   Button,
   Card,
   Chip,
+  IconButton,
   MenuItem,
   Paper,
+  Popover,
   Stack,
   TextField,
   Tooltip,
   Typography,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
+import { alpha } from '@mui/material/styles';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
-  useProcessingBreakApartRow,
-  useProcessingMakeSetRow,
-  useProcessingRestartRow,
-  useProcessingSetRowProduct,
   useProcessingDeleteItemCheckIn,
   useProcessingUpdateItemCheckIn,
   useProcessingPatchItem,
+  useProcessingSetRowProduct,
+  useProcessingRestartRow,
+  useRemapItemCheckInProduct,
   printedPreviewToLabelInputs,
 } from '../../../hooks/useProcessingWorkspace';
 import { printProcessingLabelsStaggered } from './printProcessingLabel';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
-import type { ProcessingRestartSummary } from '../../../api/inventory.api';
+import { ProductSearchAutocomplete } from '../../../components/inventory/ProductSearchAutocomplete';
+import { getProduct, type ProcessingRestartSummary } from '../../../api/inventory.api';
 import type {
+  Product,
   ProcessingWorkspaceItemDTO,
+  ProcessingWorkspaceProductDTO,
   ProcessingWorkspaceRowDTO,
 } from '../../../types/inventory.types';
+import { ProductManagePanel, rowDetailsToProductEditorDraft } from '../manage/ProductManageDrawer';
+import { isValidCheckInPrice } from '../workbench/CheckInDetailsLayout';
 import { formatCurrency } from '../../../utils/format';
 import { preventWheelChangeNumber, sanitizeDecimalPaste } from '../../../utils/formInputs';
 import { isTaxonomyV1CategoryName, TAXONOMY_V1_CATEGORY_NAMES } from '../../../constants/taxonomyV1';
@@ -50,23 +60,10 @@ import {
 import { ProcessingCheckInDialog, type ProcessingCheckInSeed } from './ProcessingCheckInDialog';
 import { ProcessingRowSection } from './ProcessingRowSection';
 import { processingTokens } from './processingTokens';
-import { normalizeProcessingCondition } from './processingItemFormOptions';
-
-function resolveQuickCheckInProduct(row: ProcessingWorkspaceRowDTO) {
-  const recentProductId =
-    row.itemCheckIns?.[0]?.product?.id
-    ?? row.productId
-    ?? row.product?.id
-    ?? null;
-  if (recentProductId != null) {
-    return { product_mode: 'existing' as const, product_id: recentProductId };
-  }
-  return { product_mode: 'new' as const };
-}
 import { ManifestFieldNavContext, ManifestFieldNavProvider, type ManifestFieldId } from './manifestFieldNav';
 import { ManifestIdentifiersField } from './ManifestIdentifiersField';
 import { ManifestTagsField } from './manifestTagsField';
-import { CheckedInItemsTable } from './CheckedInItemsTable';
+import { CheckedInItemsTable, type CheckInAttachedProductOption } from './CheckedInItemsTable';
 import {
   buildCheckedInHistoryRows,
   buildProductGroupedHistory,
@@ -75,23 +72,29 @@ import {
   isCheckedInItem,
   type CheckedInHistoryRow,
 } from './checkedInHistory';
-import { ProcessingQuickCheckInFooter } from './ProcessingQuickCheckInFooter';
-import { QuickCheckInProductPrompt } from './QuickCheckInProductPrompt';
-import { LargeCheckInConfirmDialog } from './LargeCheckInConfirmDialog';
-import { isLargeCheckIn } from './largeCheckIn';
-import { effectiveRowQty, processingIdentityHoverTooltip, queueProductsChipLabel } from './processingQueueCellText';
+import { effectiveRowQty, processingRowBookmark, queueProductsChipLabel } from './processingQueueCellText';
 import {
-  ProcessingRestartRowDialog,
-  ProcessingTransformDialog,
-  type ProcessingTransformMode,
-} from './ProcessingTransformDialogs';
-import { processingRowManifestBodySx, processingRowManifestToolbarRowSx } from './processingRowToolbarLayout';
+  buildProductLinksPatch,
+  buildProductLinksRemove,
+  computeManifestProgress,
+  formatManifestUnits,
+  formatProductLinkSummary,
+  formatProductLinkSummaryLong,
+  normalizeProductLink,
+  processingRowFieldLayerTooltip,
+  productLinkUsesManifestAccounting,
+  type ProcessingProductLinkConfig,
+  type ProcessingProductLinkRole,
+} from './processingManifestAccounting';
+import { ProcessingRestartRowDialog } from './ProcessingTransformDialogs';
+import { processingRowManifestToolbarRowSx } from './processingRowToolbarLayout';
 import { ManifestModalField } from './ManifestModalField';
 import { ManifestModalNavBridge } from './ManifestModalNavBridge';
 import { ManifestNotesField } from './ManifestNotesField';
 import { ManifestToolbarPill } from './ManifestToolbarPill';
 import type { ManifestModalEditorHandle } from './manifestModalEditor';
-import { identifiersSummary, notesSummary, tagsSummary } from './processingManifestSummary';
+import { identifiersFullText, identifiersSummary, notesFullText, notesSummary, tagsFullText, tagsSummary } from './processingManifestSummary';
+import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialog';
 import {
   PROCESSING_ROW_EDIT_ICON_SIZE,
   PROCESSING_ROW_EDIT_SEGMENT_WIDTH,
@@ -103,8 +106,6 @@ import {
   PROCESSING_ROW_VALUE_FONT_WEIGHT,
   processingRowLabelSx,
 } from './processingRowFieldTokens';
-
-const CONDITION_OPTIONS = ['New', 'Like New', 'Very Good', 'Used Good', 'Used Fair', 'Salvage'];
 
 const manifestToolbarFieldSx = { flex: '1 1 102px', minWidth: 98, maxWidth: 260 };
 const manifestToolbarEditablePillSlotSx = {
@@ -119,7 +120,6 @@ const manifestToolbarTitleSx = {
   maxWidth: 320,
 };
 const manifestToolbarMoneyFieldSx = manifestToolbarEditablePillSlotSx;
-const manifestToolbarRowSx = { flex: '0 0 50px', minWidth: 46, maxWidth: 58 };
 const manifestToolbarEmphasisFieldSx = {
   valueFontSize: PROCESSING_ROW_VALUE_FONT_EMPHASIZED,
   valueFontWeight: PROCESSING_ROW_VALUE_FONT_WEIGHT,
@@ -134,22 +134,21 @@ function ProcessingRowHeader({
   qtyExpected,
   qtyRemaining,
   qtyOverage,
-  checkedInItemCount,
+  itemCount,
+  usesManifestAccounting,
   distinctProducts,
   itemCheckInCount,
   disputedCount,
   productsChipLabel,
   groupChipLabel,
   onBackToQueue,
-  googleHref,
-  onShowAllThisProduct,
-  productFilterActive,
 }: {
   qtyCheckedIn: number;
   qtyExpected: number;
   qtyRemaining: number;
   qtyOverage: number;
-  checkedInItemCount: number;
+  itemCount: number;
+  usesManifestAccounting: boolean;
   distinctProducts: number;
   itemCheckInCount: number;
   disputedCount: number;
@@ -157,87 +156,191 @@ function ProcessingRowHeader({
   /** P7 collapse: "⊟ Rows 1, 2, 3 as one" — tiles show COMBINED group numbers. */
   groupChipLabel?: string | null;
   onBackToQueue: () => void;
-  googleHref: string | null;
-  onShowAllThisProduct?: () => void;
-  productFilterActive?: boolean;
 }) {
+  const progressPct = qtyExpected > 0 ? Math.min(100, Math.round((qtyCheckedIn / qtyExpected) * 100)) : 0;
+  const progressLabel = usesManifestAccounting ?
+      `${formatManifestUnits(qtyCheckedIn)} / ${formatManifestUnits(qtyExpected)} row units`
+    : `${qtyCheckedIn.toLocaleString()} / ${qtyExpected.toLocaleString()} checked in`;
+  const progressTooltip =
+    usesManifestAccounting ?
+      `${itemCount.toLocaleString()} item${itemCount === 1 ? '' : 's'} checked in · manifest row units accounted`
+    : '';
+  const isComplete = qtyRemaining <= 0 && qtyOverage <= 0;
+  const remainingHeadline =
+    qtyOverage > 0 ? `${formatManifestUnits(qtyOverage)} over`
+    : isComplete ? 'Complete'
+    : `${formatManifestUnits(qtyRemaining)} left`;
+  const remainingColor =
+    qtyOverage > 0 ? processingTokens.accentRed
+    : isComplete ? processingTokens.primaryDark
+    : processingTokens.rowStatusHeaderText;
+
   return (
     <Box
       sx={{
         flexShrink: 0,
-        px: { xs: 1.5, md: 2 },
-        py: { xs: 1, md: 1.15 },
+        px: { xs: 1.25, md: 1.5 },
+        py: 0.55,
         borderBottom: 1,
         borderColor: processingTokens.rowStatusHeaderBorder,
         bgcolor: processingTokens.rowStatusHeaderBg,
         color: processingTokens.rowStatusHeaderText,
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'auto 1fr', md: 'minmax(88px, 1fr) minmax(300px, 520px) minmax(88px, 1fr)' },
+          alignItems: 'center',
+          columnGap: { xs: 1, md: 1.5 },
+          rowGap: 0.45,
+        }}
+      >
         <Button
           size="small"
-          startIcon={<ArrowBack sx={{ fontSize: 17 }} />}
+          startIcon={<ArrowBack sx={{ fontSize: 15 }} />}
           onClick={onBackToQueue}
-          sx={{ minHeight: 30, py: 0, px: 0.75, color: processingTokens.rowStatusHeaderText, flexShrink: 0 }}
+          sx={{
+            minHeight: 28,
+            py: 0,
+            px: 0.65,
+            fontSize: '0.72rem',
+            color: processingTokens.rowStatusHeaderText,
+            justifySelf: { xs: 'start', md: 'start' },
+            gridColumn: { xs: '1', md: '1' },
+            gridRow: { xs: '1', md: '1' },
+          }}
         >
-          Back to Queue
+          Queue
         </Button>
-        {googleHref ?
-          <Button
-            size="small"
-            component="a"
-            href={googleHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            startIcon={<Search sx={{ fontSize: 17 }} />}
-            aria-label="Search on Google"
-            sx={{ minHeight: 30, py: 0, px: 0.75, color: processingTokens.rowStatusHeaderText, flexShrink: 0 }}
-          >
-            Google
-          </Button>
-        : null}
-        <Box sx={{ flex: 1, minWidth: 8 }} />
-        <Stack direction="row" spacing={0.65} flexWrap="wrap" useFlexGap alignItems="center" justifyContent="flex-end">
+
+        <Box
+          sx={{
+            minWidth: 0,
+            width: '100%',
+            justifySelf: 'center',
+            gridColumn: { xs: '1 / -1', md: '2' },
+            gridRow: { xs: '2', md: '1' },
+            px: { xs: 0.25, md: 0 },
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 1.35 }, minWidth: 0 }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              {progressTooltip ?
+                <Tooltip title={progressTooltip} enterDelay={350}>
+                  <Typography
+                    sx={{
+                      display: 'block',
+                      minWidth: 0,
+                      mb: 0.35,
+                      textAlign: 'center',
+                      fontFamily: processingTokens.monoFontFamily,
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      lineHeight: 1.1,
+                      color: processingTokens.rowStatusHeaderText,
+                      opacity: 0.9,
+                    }}
+                    noWrap
+                  >
+                    {progressLabel}
+                  </Typography>
+                </Tooltip>
+              : (
+                <Typography
+                  sx={{
+                    display: 'block',
+                    minWidth: 0,
+                    mb: 0.35,
+                    textAlign: 'center',
+                    fontFamily: processingTokens.monoFontFamily,
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    lineHeight: 1.1,
+                    color: processingTokens.rowStatusHeaderText,
+                    opacity: 0.9,
+                  }}
+                  noWrap
+                >
+                  {progressLabel}
+                </Typography>
+              )}
+              <Box
+                sx={{
+                  height: 7,
+                  borderRadius: 99,
+                  bgcolor: 'rgba(27, 94, 32, 0.22)',
+                  overflow: 'hidden',
+                  boxShadow: 'inset 0 1px 2px rgba(15, 23, 42, 0.08)',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: `${progressPct}%`,
+                    height: '100%',
+                    borderRadius: 99,
+                    bgcolor: qtyOverage > 0 ? processingTokens.accentRed : isComplete ? processingTokens.primaryDark : processingTokens.primary,
+                    transition: 'width 200ms ease',
+                  }}
+                />
+              </Box>
+            </Box>
+            <Typography
+              sx={{
+                flexShrink: 0,
+                minWidth: { xs: 72, md: 90 },
+                textAlign: 'right',
+                fontFamily: processingTokens.monoFontFamily,
+                fontSize: { xs: '1.05rem', md: '1.22rem' },
+                fontWeight: 900,
+                lineHeight: 1,
+                color: remainingColor,
+              }}
+            >
+              {remainingHeadline}
+            </Typography>
+          </Box>
+        </Box>
+
+        <Stack
+          direction="row"
+          spacing={0.65}
+          flexWrap="wrap"
+          useFlexGap
+          alignItems="center"
+          justifyContent={{ xs: 'flex-start', md: 'flex-end' }}
+          sx={{
+            justifySelf: { xs: 'start', md: 'end' },
+            gridColumn: { xs: '2', md: '3' },
+            gridRow: { xs: '1', md: '1' },
+            minWidth: 0,
+          }}
+        >
           {groupChipLabel ?
             <Chip
               size="small"
               label={groupChipLabel}
               sx={{
-                height: 22,
-                fontSize: '0.6875rem',
+                height: 20,
+                fontSize: '0.625rem',
                 fontWeight: 800,
                 bgcolor: 'rgba(255,255,255,0.16)',
                 color: 'inherit',
               }}
             />
           : null}
-          <ManifestStatTile label="Expected" value={qtyExpected} size="header" />
-          <ManifestStatTile label="Checked in" value={qtyCheckedIn} tone="primary" size="header" />
-          <ManifestStatTile label="Left" value={qtyRemaining} tone={qtyRemaining > 0 ? 'warning' : 'default'} size="header" />
-          {qtyOverage > 0 ? <ManifestStatTile label="Over" value={`+${qtyOverage}`} tone="error" size="header" /> : null}
-          {disputedCount > 0 ? <ManifestStatTile label="Disputed" value={disputedCount} tone="warning" size="header" /> : null}
-          <ManifestStatTile label="Items" value={checkedInItemCount} size="header" />
-          <ManifestStatTile label="Products" value={distinctProducts} size="header" />
-          {itemCheckInCount > 0 ? <ManifestStatTile label="Check-ins" value={itemCheckInCount} size="header" /> : null}
+          {qtyOverage > 0 ? <Chip size="small" color="error" label={`+${qtyOverage} over`} sx={{ height: 20, fontSize: '0.625rem', fontWeight: 800 }} /> : null}
+          {disputedCount > 0 ? <Chip size="small" color="warning" label={`${disputedCount} disputed`} sx={{ height: 20, fontSize: '0.625rem', fontWeight: 800 }} /> : null}
+          {distinctProducts >= 2 ? <Chip size="small" label={`${distinctProducts} products`} sx={{ height: 20, fontSize: '0.625rem', fontWeight: 800 }} /> : null}
+          {itemCheckInCount > 0 ? <Chip size="small" label={`${itemCheckInCount} check-ins`} sx={{ height: 20, fontSize: '0.625rem', fontWeight: 800 }} /> : null}
           {distinctProducts >= 2 && productsChipLabel ?
             <Chip
               size="small"
               label={productsChipLabel}
-              sx={{ height: 22, fontSize: '0.6875rem', fontWeight: 700 }}
+              sx={{ height: 20, fontSize: '0.625rem', fontWeight: 700 }}
             />
           : null}
         </Stack>
-        {onShowAllThisProduct ?
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<FilterAlt sx={{ fontSize: 15 }} />}
-            onClick={onShowAllThisProduct}
-            sx={{ minHeight: 30, flexShrink: 0 }}
-          >
-            {productFilterActive ? 'Clear filter' : 'This product'}
-          </Button>
-        : null}
       </Box>
     </Box>
   );
@@ -361,7 +464,7 @@ function ManifestField({
   label,
   value,
   displayValue,
-  standardizedValue,
+  layerSources,
   currency = false,
   multiline = false,
   variant = 'block',
@@ -373,8 +476,8 @@ function ManifestField({
   label: string;
   value: string;
   displayValue?: string;
-  /** Bookmark standardized value — shown on hover when display differs from finalize. */
-  standardizedValue?: string;
+  /** Manifest vs AI source values for hover tooltip. Pass `{}` to always show layer lines. */
+  layerSources?: { manifest?: string; ai?: string; final?: string };
   currency?: boolean;
   multiline?: boolean;
   variant?: ManifestFieldVariant;
@@ -509,7 +612,13 @@ function ManifestField({
       : processingTokens.border
     : 'transparent';
 
-  const hoverTooltip = editing ? '' : processingIdentityHoverTooltip(trimmed, standardizedValue, label.toLowerCase());
+  const hoverTooltip =
+    editing || layerSources === undefined ?
+      ''
+    : processingRowFieldLayerTooltip(
+        layerSources,
+        fieldId === 'price' ? 'price' : fieldId === 'unitRetail' ? 'unitRetail' : 'identity',
+      );
 
   const fieldShell = (
       <Box
@@ -744,8 +853,8 @@ function ManifestField({
         </Typography>
       : null}
 
-      {hoverTooltip ?
-        <Tooltip title={hoverTooltip} enterDelay={350} disableInteractive>
+      {layerSources !== undefined && !editing ?
+        <Tooltip title={<span style={{ whiteSpace: 'pre-line' }}>{hoverTooltip}</span>} enterDelay={350} disableInteractive>
           <Box component="span" sx={{ display: 'block', minWidth: 0 }}>
             {fieldShell}
           </Box>
@@ -755,49 +864,355 @@ function ManifestField({
   );
 }
 
-function ManifestStatTile({
-  label,
-  value,
-  tone = 'default',
-  size = 'compact',
+interface AttachedRowProduct {
+  key: string;
+  productId: number | null;
+  productNumber?: string | null;
+  title: string;
+  brand?: string;
+  model?: string;
+  category?: string | null;
+  tags?: string[];
+  identifiers?: Record<string, unknown>;
+  specs?: Record<string, unknown>;
+  checkedInQty: number;
+  linkConfig: ProcessingProductLinkConfig;
+}
+
+function productToProcessingSnapshot(product: Product): ProcessingWorkspaceProductDTO {
+  return {
+    id: product.id,
+    product_number: product.product_number || '',
+    title: product.title || '',
+    brand: product.brand || '',
+    model: product.model || '',
+    specs: product.specifications || {},
+    identifiers: product.identifiers || {},
+    tags: product.tags || [],
+    taxonomy: '',
+    category: product.category_name || '',
+    upc: product.upc || product.identifiers?.upc || '',
+  };
+}
+
+function updateProductSnapshotInProcessingRow(
+  row: ProcessingWorkspaceRowDTO | undefined,
+  saved: Product,
+): ProcessingWorkspaceRowDTO | undefined {
+  if (!row) return row;
+  const snapshot = productToProcessingSnapshot(saved);
+  const productNumber = saved.product_number || null;
+  const updateItem = (item: ProcessingWorkspaceItemDTO): ProcessingWorkspaceItemDTO => (
+    item.product === saved.id ?
+      {
+        ...item,
+        product_number: productNumber,
+        product_title: saved.title,
+        product_brand: saved.brand,
+        product_model: saved.model,
+      }
+    : item
+  );
+
+  return {
+    ...row,
+    product: row.product?.id === saved.id ? snapshot : row.product,
+    attachedProducts: row.attachedProducts?.map((p) => (p.id === saved.id ? { ...snapshot, checkedInQty: p.checkedInQty } : p)),
+    items: row.items?.map(updateItem),
+    itemCheckIns: row.itemCheckIns?.map((checkIn) => ({
+      ...checkIn,
+      product: checkIn.product?.id === saved.id ? snapshot : checkIn.product,
+      items: checkIn.items.map(updateItem),
+    })),
+  };
+}
+
+function ProductLinkAccountingControl({
+  config,
+  onChange,
 }: {
-  label: string;
-  value: string | number;
-  tone?: 'default' | 'primary' | 'warning' | 'error';
-  size?: 'compact' | 'header';
+  config: ProcessingProductLinkConfig;
+  onChange: (next: ProcessingProductLinkConfig) => void;
 }) {
-  const theme = useTheme();
-  const toneColor =
-    tone === 'primary' ? theme.palette.primary.main
-    : tone === 'warning' ? theme.palette.warning.main
-    : tone === 'error' ? theme.palette.error.main
-    : theme.palette.text.primary;
-  const isHeader = size === 'header';
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const [draft, setDraft] = useState(() => normalizeProductLink(config));
+  const open = Boolean(anchor);
+  const active = productLinkUsesManifestAccounting(config);
+
+  useEffect(() => {
+    if (!open) setDraft(normalizeProductLink(config));
+  }, [config, open]);
+
+  function close() {
+    setAnchor(null);
+  }
+
+  function applyDraft() {
+    onChange(normalizeProductLink(draft));
+    close();
+  }
+
+  function setRole(nextRole: ProcessingProductLinkRole) {
+    if (nextRole === null) {
+      setDraft({ role: null, checkIns: 1, manifestUnits: 1 });
+      return;
+    }
+    if (nextRole === 'set') {
+      setDraft({
+        role: 'set',
+        checkIns: 1,
+        manifestUnits: draft.role === 'set' && draft.manifestUnits > 1 ? draft.manifestUnits : 10,
+      });
+      return;
+    }
+    setDraft({
+      role: 'part',
+      checkIns: draft.role === 'part' && draft.checkIns > 1 ? draft.checkIns : 10,
+      manifestUnits: 1,
+    });
+  }
 
   return (
-    <Box
+    <>
+      <Tooltip title={formatProductLinkSummaryLong(config)} enterDelay={400} disableInteractive>
+        <IconButton
+          size="small"
+          aria-label="Row unit accounting"
+          onClick={(e) => {
+            e.stopPropagation();
+            setAnchor(e.currentTarget);
+          }}
+          sx={{
+            p: 0.2,
+            mt: 0.05,
+            color: active ? 'primary.main' : 'text.disabled',
+            opacity: active ? 1 : 0.45,
+            '&:hover': { opacity: 1, bgcolor: 'action.hover' },
+          }}
+        >
+          {active ?
+            <Chip
+              label={formatProductLinkSummary(config)}
+              size="small"
+              color="primary"
+              variant="outlined"
+              sx={{
+                height: 18,
+                fontSize: '0.62rem',
+                fontWeight: 800,
+                '& .MuiChip-label': { px: 0.55 },
+              }}
+            />
+          : <LinearScale sx={{ fontSize: 15 }} />}
+        </IconButton>
+      </Tooltip>
+      <Popover
+        open={open}
+        anchorEl={anchor}
+        onClose={close}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{ paper: { sx: { p: 1.25, width: 248 } } }}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ display: 'block', mb: 0.75 }}>
+          Row unit ratio
+        </Typography>
+        <ToggleButtonGroup
+          exclusive
+          size="small"
+          value={draft.role ?? 'standard'}
+          onChange={(_event, value: 'set' | 'part' | 'standard' | null) => {
+            if (value == null) return;
+            setRole(value === 'standard' ? null : value);
+          }}
+          fullWidth
+          sx={{
+            mb: draft.role ? 1 : 0,
+            '& .MuiToggleButton-root': {
+              flex: 1,
+              py: 0.35,
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              textTransform: 'none',
+              lineHeight: 1.2,
+            },
+          }}
+        >
+          <ToggleButton value="standard">Standard</ToggleButton>
+          <ToggleButton value="set">Set</ToggleButton>
+          <ToggleButton value="part">Part</ToggleButton>
+        </ToggleButtonGroup>
+        {draft.role === 'set' ?
+          <Stack direction="row" spacing={0.6} alignItems="center" useFlexGap>
+            <Typography variant="caption" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+              1 check-in =
+            </Typography>
+            <TextField
+              size="small"
+              value={String(draft.manifestUnits)}
+              onChange={(e) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  manifestUnits: Math.max(1, parseInt(e.target.value.replace(/\D/g, ''), 10) || 1),
+                }))
+              }
+              inputProps={{ inputMode: 'numeric', 'aria-label': 'Row units per check-in' }}
+              sx={{ width: 52, '& .MuiInputBase-input': { py: 0.35, px: 0.6, fontSize: '0.78rem', fontWeight: 800 } }}
+            />
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+              units
+            </Typography>
+          </Stack>
+        : draft.role === 'part' ?
+          <Stack direction="row" spacing={0.6} alignItems="center" useFlexGap>
+            <TextField
+              size="small"
+              value={String(draft.checkIns)}
+              onChange={(e) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  checkIns: Math.max(1, parseInt(e.target.value.replace(/\D/g, ''), 10) || 1),
+                }))
+              }
+              inputProps={{ inputMode: 'numeric', 'aria-label': 'Check-ins per row unit' }}
+              sx={{ width: 52, '& .MuiInputBase-input': { py: 0.35, px: 0.6, fontSize: '0.78rem', fontWeight: 800 } }}
+            />
+            <Typography variant="caption" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+              check-ins = 1 unit
+            </Typography>
+          </Stack>
+        : null}
+        <Stack direction="row" justifyContent="flex-end" spacing={0.5} sx={{ mt: 1.1 }}>
+          <Button size="small" onClick={close}>
+            Cancel
+          </Button>
+          <Button size="small" variant="contained" onClick={applyDraft}>
+            Apply
+          </Button>
+        </Stack>
+      </Popover>
+    </>
+  );
+}
+
+function AttachedProductCard({
+  product,
+  onCheckIn,
+  onEditProduct,
+  onLinkConfigChange,
+  onRemove,
+}: {
+  product: AttachedRowProduct;
+  onCheckIn: () => void;
+  onEditProduct: () => void;
+  onLinkConfigChange: (config: ProcessingProductLinkConfig) => void;
+  onRemove?: () => void;
+}) {
+  const line2 = [product.brand, product.category].filter(Boolean).join(' · ');
+  const titleLine = [product.productNumber, product.title].filter(Boolean).join(' · ');
+  const manifestUnitsNumeric =
+    product.checkedInQty > 0 ?
+      (product.checkedInQty * product.linkConfig.manifestUnits) / product.linkConfig.checkIns
+    : 0;
+  const manifestUnitsCheckedIn = product.checkedInQty > 0 ? formatManifestUnits(manifestUnitsNumeric) : null;
+  const showManifestUnitsInStatus =
+    product.checkedInQty > 0 && productLinkUsesManifestAccounting(product.linkConfig);
+  const statusLine =
+    product.checkedInQty ?
+      `${product.checkedInQty} item${product.checkedInQty === 1 ? '' : 's'}${
+        showManifestUnitsInStatus && manifestUnitsCheckedIn != null ?
+          ` (${manifestUnitsCheckedIn} row${Math.abs(manifestUnitsNumeric - 1) < 0.05 ? '' : 's'})`
+        : ''
+      }`
+    : 'none yet';
+  return (
+    <Paper
+      variant="outlined"
       sx={{
-        px: isHeader ? 1.25 : 0.85,
-        py: isHeader ? 0.65 : 0.4,
-        borderRadius: 1,
-        bgcolor: alpha(toneColor, tone === 'default' ? 0.04 : 0.08),
-        border: 1,
-        borderColor: alpha(toneColor, 0.12),
-        minWidth: isHeader ? 72 : 56,
-        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.5,
+        px: 0.6,
+        py: 0.4,
+        borderColor: processingTokens.border,
+        bgcolor: processingTokens.surfaceRaised,
+        minWidth: 0,
       }}
     >
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ display: 'block', fontSize: isHeader ? '0.72rem' : '0.62rem', lineHeight: 1.1, fontWeight: isHeader ? 700 : 400 }}
+      <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', mr: 1 }}>
+        <Button variant="contained" size="small" onClick={onCheckIn} sx={{ minHeight: 26, py: 0.15, px: 0.75, fontSize: '0.6875rem', whiteSpace: 'nowrap' }}>
+          Check in
+        </Button>
+      </Box>
+      <Box
+        role="button"
+        tabIndex={0}
+        onClick={onEditProduct}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onEditProduct();
+          }
+        }}
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          py: 0.1,
+          borderRadius: 1,
+          cursor: 'pointer',
+          '&:hover': { bgcolor: processingTokens.rowHover },
+          '&:focus-visible': { outline: 'none', boxShadow: processingTokens.focusRing },
+        }}
       >
-        {label}
-      </Typography>
-      <Typography variant={isHeader ? 'h6' : 'body2'} fontWeight={800} sx={{ color: toneColor, lineHeight: 1.15 }}>
-        {value}
-      </Typography>
-    </Box>
+        <Typography sx={{ minWidth: 0, fontSize: '0.78rem', fontWeight: 800, lineHeight: 1.2 }} noWrap>
+          {product.productNumber ?
+            <>
+              <Box component="span" sx={{ fontFamily: processingTokens.monoFontFamily, color: 'text.secondary', mr: 0.5 }}>
+                {product.productNumber}
+              </Box>
+              {product.title}
+            </>
+          : titleLine || '—'}
+        </Typography>
+        {line2 ?
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.05, fontWeight: 600, fontSize: '0.625rem', lineHeight: 1.2 }} noWrap>
+            {line2}
+          </Typography>
+        : null}
+      </Box>
+      <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: 0.1, pl: 0.25 }}>
+        <Typography color="text.secondary" sx={{ fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.625rem', lineHeight: 1.15 }}>
+          {statusLine}
+        </Typography>
+        {product.productId != null ?
+          <Box onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+            <ProductLinkAccountingControl config={product.linkConfig} onChange={onLinkConfigChange} />
+          </Box>
+        : null}
+      </Box>
+      {!product.checkedInQty && onRemove ?
+        <Tooltip title="Remove from row" enterDelay={300} disableInteractive>
+          <IconButton
+            size="small"
+            aria-label="Remove product from row"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            sx={{
+              flexShrink: 0,
+              p: 0.35,
+              color: 'text.secondary',
+              '&:hover': { color: processingTokens.accentRed, bgcolor: processingTokens.redSoft },
+            }}
+          >
+            <DeleteOutline sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Tooltip>
+      : null}
+    </Paper>
   );
 }
 
@@ -812,8 +1227,6 @@ export interface ProcessingActiveCardProps {
   onPatchCheckedIn: (payload: Record<string, unknown>) => void;
   patchLoading: boolean;
   onReprintItems?: (items: ProcessingWorkspaceItemDTO[]) => Promise<void>;
-  onShowAllThisProduct?: () => void;
-  productFilterActive?: boolean;
   onPatchRowDefaults?: (payload: Record<string, unknown>) => void | Promise<void>;
   /** Opens Check in together pre-seeded with this row's same-product peers (P5). */
   onOpenCheckInTogether?: () => void;
@@ -833,8 +1246,6 @@ export function ProcessingActiveCard({
   onCheckIn,
   checkInLoading,
   onReprintItems,
-  onShowAllThisProduct,
-  productFilterActive,
   onPatchRowDefaults,
   onOpenCheckInTogether,
   onAddItem,
@@ -842,20 +1253,23 @@ export function ProcessingActiveCard({
   onScrollToHistoryDone,
 }: ProcessingActiveCardProps) {
   const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+  const { confirm, ConfirmDialogHost } = useWorkbenchConfirmDialog();
   const priorCheckInsRef = useRef<HTMLDivElement | null>(null);
   const { hasRole } = useAuth();
   const isManager = hasRole('Manager') || hasRole('Admin');
   const setRowProduct = useProcessingSetRowProduct(orderId);
   const deleteItemCheckIn = useProcessingDeleteItemCheckIn(orderId);
   const updateItemCheckIn = useProcessingUpdateItemCheckIn(orderId);
-  const breakApartRow = useProcessingBreakApartRow(orderId);
-  const makeSetRow = useProcessingMakeSetRow(orderId);
+  const remapItemCheckInProduct = useRemapItemCheckInProduct(orderId);
   const restartRow = useProcessingRestartRow(orderId);
-  const [transformMode, setTransformMode] = useState<ProcessingTransformMode | null>(null);
   const [restartSummary, setRestartSummary] = useState<ProcessingRestartSummary | null>(null);
   const patchItem = useProcessingPatchItem(orderId);
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [checkInSeed, setCheckInSeed] = useState<ProcessingCheckInSeed | null>(null);
+  const [checkInProductId, setCheckInProductId] = useState<number | null>(null);
+  const [productEditorOpen, setProductEditorOpen] = useState(false);
+  const [productEditorProductId, setProductEditorProductId] = useState<number | null>(null);
   const [identifiersModalOpen, setIdentifiersModalOpen] = useState(false);
   const [tagsModalOpen, setTagsModalOpen] = useState(false);
   const [notesModalOpen, setNotesModalOpen] = useState(false);
@@ -895,14 +1309,28 @@ export function ProcessingActiveCard({
       setNotesModalOpen(false);
     }
   }, []);
-  const [conditionUi, setConditionUi] = useState(CONDITION_OPTIONS[3]);
-  const [dispatch, setDispatch] = useState('on_shelf');
-  const [retail, setRetail] = useState('');
-  const [price, setPrice] = useState('');
-
   const product = row.product;
+  const rowBookmark = useMemo(() => processingRowBookmark(row), [row]);
+  const newProductEditorSeed = useMemo(
+    () =>
+      rowDetailsToProductEditorDraft({
+        title: rowBookmark.title,
+        brand: rowBookmark.brand,
+        model: rowBookmark.model,
+        category: rowBookmark.category,
+        tags: row.tags,
+        identifiers: rowBookmark.identifiers,
+        specifications: row.specs,
+      }),
+    [rowBookmark, row.tags, row.specs],
+  );
+  const productEditorQuery = useQuery({
+    queryKey: ['products', 'processing-row-editor', productEditorProductId],
+    queryFn: async () => (await getProduct(productEditorProductId!)).data,
+    enabled: productEditorOpen && productEditorProductId != null,
+  });
   const isAddedRow = row.rowKind === 'added';
-  const displayTitle = row.title || (isAddedRow ? 'Added item' : 'Manifest line');
+  const displayTitle = rowBookmark.title || (isAddedRow ? 'Added item' : 'Manifest line');
   const priorCheckIns = useMemo(() => (row.items ?? []).filter(isCheckedInItem), [row.items]);
   const itemCheckIns = row.itemCheckIns ?? [];
   const historyRows = useMemo(
@@ -913,20 +1341,101 @@ export function ProcessingActiveCard({
     () => buildProductGroupedHistory(row.items, itemCheckIns),
     [row.items, itemCheckIns],
   );
-  const checkedInItemCount = priorCheckIns.length;
+  const attachedProducts = useMemo((): AttachedRowProduct[] => {
+    const links = row.productLinks ?? {};
+    const qtyByProductId = new Map(
+      productGroups
+        .filter((group) => group.productId != null)
+        .map((group) => [group.productId as number, group.totalQty]),
+    );
+    const fromApi = row.attachedProducts ?? [];
+    if (fromApi.length > 0) {
+      return fromApi.map((p) => ({
+        key: `product:${p.id}`,
+        productId: p.id,
+        productNumber: p.product_number,
+        title: p.title,
+        brand: p.brand,
+        model: p.model,
+        category: p.category,
+        checkedInQty: qtyByProductId.get(p.id) ?? p.checkedInQty ?? 0,
+        linkConfig: normalizeProductLink(links[String(p.id)]),
+      }));
+    }
+    // List/patch payloads without detail hydration — fall back to matched product + check-ins.
+    const out = new Map<string, AttachedRowProduct>();
+    if (product) {
+      out.set(`product:${product.id}`, {
+        key: `product:${product.id}`,
+        productId: product.id,
+        productNumber: product.product_number,
+        title: product.title || displayTitle,
+        brand: product.brand,
+        model: product.model,
+        category: product.category,
+        checkedInQty: qtyByProductId.get(product.id) ?? 0,
+        linkConfig: normalizeProductLink(links[String(product.id)]),
+      });
+    }
+    for (const [productId, linkKey] of Object.entries(links)) {
+      const pid = Number(productId);
+      if (!Number.isFinite(pid) || out.has(`product:${pid}`)) continue;
+      out.set(`product:${pid}`, {
+        key: `product:${pid}`,
+        productId: pid,
+        productNumber: null,
+        title: `Product #${pid}`,
+        checkedInQty: qtyByProductId.get(pid) ?? 0,
+        linkConfig: normalizeProductLink(linkKey),
+      });
+    }
+    for (const group of productGroups) {
+      const first = group.historyRows[0]?.item;
+      const key = group.productId != null ? `product:${group.productId}` : `history:${group.productLabel}`;
+      const existing = out.get(key);
+      if (existing) {
+        existing.checkedInQty = group.totalQty;
+        continue;
+      }
+      out.set(key, {
+        key,
+        productId: group.productId,
+        productNumber: first?.product_number,
+        title: first?.product_title || group.productLabel,
+        brand: first?.product_brand,
+        model: first?.product_model,
+        category: group.historyRows[0]?.checkInProductCategory,
+        checkedInQty: group.totalQty,
+        linkConfig: normalizeProductLink(group.productId != null ? links[String(group.productId)] : undefined),
+      });
+    }
+    return [...out.values()].sort((a, b) => b.checkedInQty - a.checkedInQty || a.title.localeCompare(b.title));
+  }, [displayTitle, product, productGroups, row.attachedProducts, row.productLinks]);
+  const attachedProductIds = useMemo(
+    () => new Set(attachedProducts.map((p) => p.productId).filter((id): id is number => id != null)),
+    [attachedProducts],
+  );
+  const attachedProductOptions = useMemo((): CheckInAttachedProductOption[] => {
+    return attachedProducts
+      .filter((p): p is AttachedRowProduct & { productId: number } => p.productId != null)
+      .map((p) => {
+        const productNumber = p.productNumber?.trim() || `#${p.productId}`;
+        const title = p.title?.trim() || productNumber;
+        return {
+          productId: p.productId,
+          label: title,
+          hint: productNumber,
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [attachedProducts]);
+  const manifestProgress = useMemo(
+    () => computeManifestProgress(row, productGroups),
+    [row, productGroups],
+  );
   const distinctProducts = row.distinctProductCount ?? distinctProductCount(priorCheckIns);
   const productsChipLabel = queueProductsChipLabel(distinctProducts);
-  const isMixedProductRow = distinctProducts >= 2;
-  const [mixedProductId, setMixedProductId] = useState<number | null>(null);
-  /** Pending quick check-in waiting on the new-vs-existing product decision (P8c). */
-  const [productPrompt, setProductPrompt] = useState<{ printLabels: boolean; quantity: number } | null>(null);
-  /** Pending large quick check-in awaiting volume confirmation ("type PRINT <qty>"). */
-  const [volumeConfirm, setVolumeConfirm] = useState<{ printLabels: boolean; quantity: number } | null>(null);
   useEffect(() => {
-    setMixedProductId(null);
-    setProductPrompt(null);
-    setVolumeConfirm(null);
-    setTransformMode(null);
     setRestartSummary(null);
   }, [row.processing_row_id]);
   useEffect(() => {
@@ -938,23 +1447,15 @@ export function ProcessingActiveCard({
     }, 50);
     return () => window.clearTimeout(t);
   }, [scrollToHistory, row.processing_row_id, onScrollToHistoryDone]);
-  const mixedProductOptions = useMemo(
-    () =>
-      productGroups
-        .filter((g): g is typeof g & { productId: number } => g.productId != null)
-        .map((g) => ({ id: g.productId, label: g.productLabel, qty: g.totalQty })),
-    [productGroups],
-  );
-  const mixedQuickCheckInReason = 'Multiple products on this row — pick one above or use Detailed check-in.';
   const checkInCount = itemCheckIns.length;
   const disputedCount = useMemo(() => disputedItemCount(priorCheckIns), [priorCheckIns]);
 
   // P7 collapse: a master's tiles/caps cover the WHOLE group (5/3/7 ⇒ Expected 15).
   const effQty = effectiveRowQty(row);
   const qtyExpected = effQty.qty;
-  const qtyCheckedIn = effQty.dispositioned;
-  const qtyRemaining = effQty.remaining;
-  const qtyOverage = effQty.overage;
+  const qtyCheckedIn = manifestProgress.usesManifestAccounting ? manifestProgress.manifestUnits : effQty.dispositioned;
+  const qtyRemaining = Math.max(0, qtyExpected - qtyCheckedIn);
+  const qtyOverage = Math.max(0, qtyCheckedIn - qtyExpected);
   const collapseGroupLabel =
     row.collapsedGroup ?
       `⊟ Rows ${[row.rowNum, ...row.collapsedGroup.memberRowNumbers].join(', ')} as one`
@@ -962,30 +1463,16 @@ export function ProcessingActiveCard({
   const googleQuery = useMemo(
     () =>
       buildProcessingGoogleQuery({
-        brand: row.brand || product?.brand,
+        brand: rowBookmark.brand || product?.brand,
         title: displayTitle,
-        model: row.model || product?.model,
-        searchTags: parseSearchTagsCsv(
-          Array.isArray(product?.tags) && product.tags.length ? product.tags.join(', ') : row.tags || '',
-        ),
+        model: rowBookmark.model || product?.model,
+        searchTags: parseSearchTagsCsv(row.tags || ''),
       }),
-    [row.brand, row.model, row.tags, displayTitle, product?.brand, product?.model, product?.tags],
+    [rowBookmark.brand, rowBookmark.model, row.tags, displayTitle, product?.brand, product?.model],
   );
   const googleHref = googleSearchUrl(googleQuery);
   const activeStatus = activeItem?.status ?? 'intake';
   const terminalDisputed = activeStatus === 'scrapped' || activeStatus === 'lost';
-  const salvageLocked = conditionUi === 'Salvage' || activeItem?.condition === 'salvage';
-
-  useEffect(() => {
-    setConditionUi(activeItem?.condition_label || CONDITION_OPTIONS[3]);
-    setDispatch(activeItem?.dispatch || row.dispatch || 'on_shelf');
-    setRetail(activeItem?.retail ?? row.unitRetail ?? '');
-    setPrice(activeItem?.price ?? row.price ?? '');
-  }, [activeItem?.id, activeItem?.condition_label, activeItem?.dispatch, activeItem?.retail, activeItem?.price, row.dispatch, row.unitRetail, row.price]);
-
-  useEffect(() => {
-    if (conditionUi === 'Salvage') setDispatch('salvage');
-  }, [conditionUi]);
 
   async function patchRow(payload: Record<string, unknown>) {
     await Promise.resolve(onPatchRowDefaults?.({ processing_row_id: row.processing_row_id, ...payload }));
@@ -996,11 +1483,13 @@ export function ProcessingActiveCard({
     const item = priorCheckIns.find((it) => it.id === itemId);
     if (!item) return;
     const checkIn = itemCheckIns.find((c) => c.items.some((it) => it.id === itemId)) ?? null;
+    setCheckInProductId(null);
     setCheckInSeed({ item, itemCheckIn: checkIn });
     setCheckInOpen(true);
   }
 
-  function openDetailedCheckIn() {
+  function openDetailedCheckIn(productId?: number | null) {
+    setCheckInProductId(productId ?? null);
     setCheckInSeed(null);
     setCheckInOpen(true);
   }
@@ -1008,107 +1497,42 @@ export function ProcessingActiveCard({
   function closeDetailedCheckIn() {
     setCheckInOpen(false);
     setCheckInSeed(null);
+    setCheckInProductId(null);
   }
 
-  async function submitQuickCheckIn(
-    productAction: { product_mode: 'new' | 'existing'; product_id?: number },
-    printLabels: boolean,
-    quantity: number,
-  ) {
-    await onCheckIn(
-      {
-        ...productAction,
-        quantity,
-        condition: normalizeProcessingCondition(conditionUi),
-        dispatch,
-        retail: retail || row.unitRetail || undefined,
-        price: price || row.price || undefined,
-        title: displayTitle,
-        brand: row.brand || product?.brand,
-        model: row.model || product?.model,
-        category: row.category || product?.category,
-        identifiers: {
-          ...((row.identifiers as Record<string, string> | undefined) || {}),
-          ...(product?.identifiers || {}),
-        },
-        specifications: row.specs || product?.specs || undefined,
-        search_tags: row.tags || undefined,
-        notes: row.manifestNotes || undefined,
-      },
-      { printLabels },
+  function openProductEditor(productId: number | null) {
+    setProductEditorProductId(productId);
+    setProductEditorOpen(true);
+  }
+
+  function closeProductEditor() {
+    setProductEditorOpen(false);
+    setProductEditorProductId(null);
+  }
+
+  function refreshSavedProductInRow(savedProduct: Product) {
+    queryClient.setQueryData<ProcessingWorkspaceRowDTO>(
+      ['processing-row-detail', orderId, row.processing_row_id],
+      (prev) => updateProductSnapshotInProcessingRow(prev, savedProduct),
     );
+    queryClient.setQueriesData<{ rows?: ProcessingWorkspaceRowDTO[] }>(
+      { queryKey: ['processing-workspace', orderId] },
+      (prev) => (
+        prev?.rows ?
+          {
+            ...prev,
+            rows: prev.rows.map((r) =>
+              r.processing_row_id === row.processing_row_id ?
+                updateProductSnapshotInProcessingRow(r, savedProduct) ?? r
+              : r,
+            ),
+          }
+        : prev
+      ),
+    );
+    void queryClient.invalidateQueries({ queryKey: ['processing-row-detail', orderId, row.processing_row_id] });
+    void queryClient.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
   }
-
-  async function quickCheckInResolved(printLabels: boolean, quantity: number) {
-    const productAction =
-      isMixedProductRow && mixedProductId != null ?
-        { product_mode: 'existing' as const, product_id: mixedProductId }
-      : resolveQuickCheckInProduct(row);
-    if (productAction.product_mode === 'new') {
-      // P8c: never silently invent a product — ask new-vs-existing explicitly.
-      setProductPrompt({ printLabels, quantity });
-      return;
-    }
-    await submitQuickCheckIn(productAction, printLabels, quantity);
-  }
-
-  async function quickCheckIn(printLabels: boolean, quantity: number) {
-    if (isLargeCheckIn(quantity)) {
-      // No cap — big runs confirm intent (and type PRINT <qty> when printing).
-      setVolumeConfirm({ printLabels, quantity });
-      return;
-    }
-    await quickCheckInResolved(printLabels, quantity);
-  }
-
-  const mixedProductPicker = isMixedProductRow ?
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', mr: 0.25 }}>
-        {distinctProducts} products on this row — check in as:
-      </Typography>
-      {mixedProductOptions.map((opt) => (
-        <Chip
-          key={opt.id}
-          size="small"
-          label={`${opt.label} (${opt.qty})`}
-          color={mixedProductId === opt.id ? 'primary' : 'default'}
-          variant={mixedProductId === opt.id ? 'filled' : 'outlined'}
-          onClick={() => setMixedProductId(opt.id)}
-          sx={{ height: 24, fontSize: '0.7rem', fontWeight: 600, maxWidth: 240 }}
-        />
-      ))}
-      <Chip
-        size="small"
-        label="Other…"
-        variant="outlined"
-        onClick={openDetailedCheckIn}
-        sx={{ height: 24, fontSize: '0.7rem', fontWeight: 600 }}
-      />
-    </Box>
-  : null;
-
-  const quickCheckInPanel = !isAddedRow ?
-    <ProcessingQuickCheckInFooter
-      variant="section"
-      sectionTitle="Quick check-in"
-      sectionNote="Use Quick check-in when you do not need to change product or item information. Use Detailed check-in when checking in a batch with different product information."
-      topContent={mixedProductPicker}
-      qtyRemaining={qtyRemaining}
-      checkInLoading={checkInLoading}
-      conditionUi={conditionUi}
-      dispatch={dispatch}
-      price={price}
-      salvageLocked={salvageLocked}
-      quickCheckInDisabled={isMixedProductRow && mixedProductId == null}
-      quickCheckInDisabledReason={mixedQuickCheckInReason}
-      onConditionChange={setConditionUi}
-      onDispatchChange={setDispatch}
-      onPriceChange={setPrice}
-      onCheckInPrint={(quantity) => void quickCheckIn(true, quantity)}
-      onCheckInNoPrint={(quantity) => void quickCheckIn(false, quantity)}
-      onDetailedCheckIn={openDetailedCheckIn}
-    />
-  : null;
 
   async function handleSaveProductDecision(payload: Record<string, unknown>): Promise<boolean> {
     try {
@@ -1116,7 +1540,6 @@ export function ProcessingActiveCard({
         processing_row_id: row.processing_row_id,
         ...payload,
       });
-      enqueueSnackbar('Product decision saved on this row.', { variant: 'success' });
       return true;
     } catch (err) {
       enqueueSnackbar(apiErrorDetail(err, 'Could not save product'), { variant: 'error' });
@@ -1124,21 +1547,73 @@ export function ProcessingActiveCard({
     }
   }
 
+  async function handleAttachExistingProduct(productId: number | null | undefined) {
+    if (productId == null) return;
+    if (attachedProductIds.has(productId)) {
+      enqueueSnackbar('That product is already attached to this row.', { variant: 'info' });
+      return;
+    }
+    const ok = await handleSaveProductDecision({
+      product_mode: 'existing',
+      product_id: productId,
+    });
+    if (ok) {
+      enqueueSnackbar('Product attached.', { variant: 'success' });
+    }
+  }
+
+  async function handleProductLinkConfigChange(productId: number, config: ProcessingProductLinkConfig) {
+    await patchRow({
+      product_links: buildProductLinksPatch(row.productLinks, productId, config),
+    });
+  }
+
+  async function handleDetachAttachedProduct(productId: number) {
+    const attached = attachedProducts.find((p) => p.productId === productId);
+    const label = attached?.productNumber || attached?.title || `product #${productId}`;
+    const ok = await confirm({
+      title: 'Remove attached product?',
+      message: `Remove ${label} from this manifest row? Prior check-ins for this product are not deleted.`,
+      confirmLabel: 'Remove',
+      severity: 'warning',
+    });
+    if (!ok) return;
+    try {
+      await patchRow({
+        product_links: buildProductLinksRemove(row.productLinks, productId),
+      });
+    } catch {
+      // Parent patch handler shows error snackbar.
+    }
+  }
+
+  async function handleReprintCheckIn(historyRow: CheckedInHistoryRow) {
+    if (!onReprintItems) return;
+    const qty = historyRow.qty;
+    const ok = await confirm({
+      title: 'Print labels?',
+      message: `Print ${qty.toLocaleString()} label${qty === 1 ? '' : 's'} for this check-in?`,
+      confirmLabel: 'Print',
+      severity: 'info',
+    });
+    if (!ok) return;
+    await onReprintItems(historyRow.items);
+  }
+
   async function handleDeleteItemCheckIn(historyRow: CheckedInHistoryRow) {
     if (historyRow.itemCheckInId == null) return;
     const n = historyRow.qty;
     const productLabel = historyRow.item.product_number || product?.product_number || null;
-    const lines = [
-      `Delete this check-in?`,
-      ``,
-      `This removes ${n} item${n === 1 ? '' : 's'} (tag${n === 1 ? '' : 's'}) from inventory.`,
-      productLabel ?
-        `Product ${productLabel} will also be deleted if no other items or rows reference it.`
-      : `The check-in product will also be deleted if nothing else references it.`,
-    ];
-    if (!window.confirm(lines.join('\n'))) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Delete check-in?',
+      message: productLabel ?
+        `This removes ${n.toLocaleString()} item${n === 1 ? '' : 's'} (tag${n === 1 ? '' : 's'}) from inventory. Product ${productLabel} will also be deleted if no other items or rows reference it.`
+      : `This removes ${n.toLocaleString()} item${n === 1 ? '' : 's'} (tag${n === 1 ? '' : 's'}) from inventory. The check-in product will also be deleted if nothing else references it.`,
+      confirmLabel: 'Delete check-in',
+      severity: 'error',
+      confirmColor: 'error',
+    });
+    if (!ok) return;
     try {
       const data = await deleteItemCheckIn.mutateAsync(historyRow.itemCheckInId);
       enqueueSnackbar(
@@ -1203,31 +1678,57 @@ export function ProcessingActiveCard({
     }
   }
 
-  // P9 transforms (Break apart / Make set / Restart) — manager action, original rows only.
-  const canTransform =
-    isManager
-    && !isAddedRow
-    && row.manifest_row_id != null
-    && row.splitParentId == null
-    && row.collapseMasterId == null
-    && !row.collapsedGroup;
-  const canRestart = isManager && (row.splitFamily?.canRestart ?? false);
-
-  async function handleTransformSubmit(payload: Record<string, unknown>) {
-    const mutation = transformMode === 'break_apart' ? breakApartRow : makeSetRow;
+  async function handleSetCheckInPrice(target: CheckedInHistoryRow, value: string) {
+    if (!isValidCheckInPrice(value)) {
+      enqueueSnackbar('Enter a valid shelf price.', { variant: 'warning' });
+      return;
+    }
     try {
-      const data = await mutation.mutateAsync(payload);
-      setTransformMode(null);
+      if (target.itemCheckInId != null) {
+        await updateItemCheckIn.mutateAsync({
+          itemCheckInId: target.itemCheckInId,
+          payload: { price: value },
+        });
+        enqueueSnackbar('Price updated for this check-in.', { variant: 'success' });
+        return;
+      }
+      const editable = target.items.filter((it) => it.status === 'on_shelf');
+      const skipped = target.items.length - editable.length;
+      for (const it of editable) {
+        await patchItem.mutateAsync({ itemId: it.id, payload: { price: value } });
+      }
       enqueueSnackbar(
-        data.sub_processing_row_id != null
-          ? 'Sub row created — the remainder stays on this row.'
-          : 'Row converted.',
-        { variant: 'success' },
+        `Price updated on ${editable.length} item(s)`
+          + (skipped > 0 ? ` — ${skipped} skipped (not on shelf).` : '.'),
+        { variant: skipped > 0 ? 'warning' : 'success' },
       );
     } catch (err) {
-      enqueueSnackbar(apiErrorDetail(err, 'Transform failed'), { variant: 'error' });
+      enqueueSnackbar(apiErrorDetail(err, 'Could not update price'), { variant: 'error' });
     }
   }
+
+  /** Inline product remap in Prior check-ins — limited to products attached on this row. */
+  async function handleSetCheckInProduct(target: CheckedInHistoryRow, productId: number) {
+    if (target.itemCheckInId == null) return;
+    const currentId = target.checkInProduct?.id ?? target.item.product;
+    if (currentId === productId) return;
+    if (!attachedProductIds.has(productId)) {
+      enqueueSnackbar('That product is not attached to this manifest row.', { variant: 'warning' });
+      return;
+    }
+    try {
+      await remapItemCheckInProduct.mutateAsync({
+        itemCheckInId: target.itemCheckInId,
+        payload: { product_mode: 'existing', product_id: productId },
+      });
+      enqueueSnackbar('Check-in product updated.', { variant: 'success' });
+    } catch (err) {
+      enqueueSnackbar(apiErrorDetail(err, 'Could not update check-in product'), { variant: 'error' });
+    }
+  }
+
+  // Legacy split rows may still offer Restart (manager only).
+  const canRestart = isManager && (row.splitFamily?.canRestart ?? false);
 
   async function openRestartConfirm() {
     try {
@@ -1256,61 +1757,102 @@ export function ProcessingActiveCard({
     }
   }
 
-  // P8d: defaults live at the TOP of the detail body (owner: "must see details of what
-  // we're dealing with"), expanded by default; collapsible to reclaim space.
-  const rowDefaultsSection = !isAddedRow ? (
-    <Box sx={{ flexShrink: 0, mb: 1, minWidth: 0, width: '100%' }}>
-      <ProcessingRowSection
-        title="Row defaults"
-        note="Every check-in from this row starts from these values — edit them to change what future check-ins prefill."
-        surface="rowDetail"
-        collapsible
-        sx={{ mb: 0, minWidth: 0 }}
-        bodySx={processingRowManifestBodySx}
+  const rowDetailsBand = !isAddedRow ? (
+    <Paper
+      variant="outlined"
+      sx={{
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        mb: 0.75,
+        borderColor: processingTokens.border,
+        bgcolor: processingTokens.surfaceRaised,
+        overflow: 'hidden',
+      }}
+    >
+      <Box
+        sx={{
+          px: 0.75,
+          pt: 0.5,
+          pb: 0.25,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          gap: 0.25,
+        }}
       >
+        <Typography
+          variant="caption"
+          sx={{
+            fontWeight: 900,
+            letterSpacing: 0.7,
+            fontSize: '0.625rem',
+            textTransform: 'uppercase',
+            color: processingTokens.cardHeaderRowDetailText,
+            lineHeight: 1.2,
+          }}
+        >
+          Row details
+        </Typography>
+        {googleHref ?
+          <Tooltip title="Search on Google" enterDelay={300} disableInteractive>
+            <IconButton
+              size="small"
+              component="a"
+              href={googleHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Search on Google"
+              sx={{
+                p: 0.25,
+                ml: -0.15,
+                color: processingTokens.cardHeaderRowDetailText,
+                '&:hover': { bgcolor: 'action.hover' },
+              }}
+            >
+              <Search sx={{ fontSize: 15 }} />
+            </IconButton>
+          </Tooltip>
+        : null}
+      </Box>
+      <Box sx={{ minWidth: 0, px: 0.75, pb: 0.55 }}>
         <ManifestFieldNavProvider>
           <ManifestModalNavBridge
             onOpenIdentifiers={() => setIdentifiersModalOpen(true)}
             onOpenTags={() => setTagsModalOpen(true)}
             onOpenNotes={() => setNotesModalOpen(true)}
           />
-          <Box sx={processingRowManifestToolbarRowSx}>
-            <ManifestToolbarSlot sx={manifestToolbarRowSx}>
-              <ManifestToolbarPill
-                label="Row"
-                value={String(row.rowNum)}
-                appearance="display"
-                emptyItalic={false}
-              />
-            </ManifestToolbarSlot>
+          <Box sx={{ ...processingRowManifestToolbarRowSx, gap: 0.45, flexWrap: 'nowrap', overflowX: 'auto', pb: 0.15 }}>
             <ManifestToolbarSlot sx={manifestToolbarTitleSx}>
-              <ManifestField fieldId="title" label="Title" value={row.title || ''} standardizedValue={row.standardizedIdentity?.title} variant="pill" emphasis="compact" onSave={(v) => patchRow({ title: v.trim() })} />
+              <ManifestField fieldId="title" label="Title" value={rowBookmark.title} layerSources={row.rowLayerSources?.title ?? {}} variant="pill" onSave={(v) => patchRow({ title: v.trim() })} />
             </ManifestToolbarSlot>
             <ManifestToolbarSlot sx={manifestToolbarCompactFieldSx}>
-              <ManifestField fieldId="brand" label="Brand" value={row.brand || ''} standardizedValue={row.standardizedIdentity?.brand} variant="pill" emphasis="compact" onSave={(v) => patchRow({ brand: v })} />
+              <ManifestField fieldId="brand" label="Brand" value={rowBookmark.brand} layerSources={row.rowLayerSources?.brand ?? {}} variant="pill" onSave={(v) => patchRow({ brand: v })} />
             </ManifestToolbarSlot>
             <ManifestToolbarSlot sx={manifestToolbarCompactFieldSx}>
-              <ManifestField fieldId="model" label="Model" value={row.model || ''} standardizedValue={row.standardizedIdentity?.model} variant="pill" emphasis="compact" onSave={(v) => patchRow({ model: v })} />
+              <ManifestField fieldId="model" label="Model" value={rowBookmark.model} layerSources={row.rowLayerSources?.model ?? {}} variant="pill" onSave={(v) => patchRow({ model: v })} />
             </ManifestToolbarSlot>
             <ManifestToolbarSlot sx={manifestToolbarEditablePillSlotSx}>
               <ManifestField
                 fieldId="category"
                 label="Category"
-                value={row.category || ''}
+                value={rowBookmark.category}
+                layerSources={row.rowLayerSources?.category ?? {}}
                 variant="pill"
                 selectOptions={TAXONOMY_V1_CATEGORY_NAMES}
                 onSave={(v) => patchRow({ category: v })}
               />
             </ManifestToolbarSlot>
             <ManifestToolbarSlot sx={manifestToolbarMoneyFieldSx}>
-              <ManifestField fieldId="unitRetail" label="Retail" currency value={row.unitRetail ?? ''} variant="pill" onSave={(v) => patchRow({ unit_retail: v || undefined })} />
+              <ManifestField fieldId="unitRetail" label="Retail" currency value={row.unitRetail ?? ''} layerSources={row.rowLayerSources?.unitRetail ?? {}} variant="pill" onSave={(v) => patchRow({ unit_retail: v || undefined })} />
             </ManifestToolbarSlot>
             <ManifestToolbarSlot sx={manifestToolbarMoneyFieldSx}>
-              <ManifestField fieldId="price" label="Price" currency value={row.price ?? ''} variant="pill" onSave={(v) => patchRow({ shelf_price: v || undefined })} />
+              <ManifestField fieldId="price" label="Price" currency value={row.price ?? ''} layerSources={row.rowLayerSources?.price ?? {}} variant="pill" onSave={(v) => patchRow({ shelf_price: v || undefined })} />
             </ManifestToolbarSlot>
             <ManifestModalField
               label="Identifiers"
-              summary={identifiersSummary(row.identifiers ?? {})}
+              summary={identifiersSummary(rowBookmark.identifiers)}
+              hoverTitle={identifiersFullText(rowBookmark.identifiers)}
               open={identifiersModalOpen}
               onOpen={() => setIdentifiersModalOpen(true)}
               onCancel={closeIdentifiersModal}
@@ -1324,13 +1866,14 @@ export function ProcessingActiveCard({
               <ManifestIdentifiersField
                 ref={identifiersEditorRef}
                 presentation="modal"
-                value={row.identifiers ?? {}}
+                value={rowBookmark.identifiers}
                 onSave={(identifiers) => patchRow({ identifiers })}
               />
             </ManifestModalField>
             <ManifestModalField
               label="Tags"
               summary={tagsSummary(row.tags || '')}
+              hoverTitle={tagsFullText(row.tags || '')}
               open={tagsModalOpen}
               onOpen={() => setTagsModalOpen(true)}
               onCancel={closeTagsModal}
@@ -1351,6 +1894,7 @@ export function ProcessingActiveCard({
             <ManifestModalField
               label="Notes"
               summary={notesSummary(row.manifestNotes || '')}
+              hoverTitle={notesFullText(row.manifestNotes || '')}
               open={notesModalOpen}
               onOpen={() => setNotesModalOpen(true)}
               onCancel={closeNotesModal}
@@ -1369,8 +1913,8 @@ export function ProcessingActiveCard({
             </ManifestModalField>
           </Box>
         </ManifestFieldNavProvider>
-      </ProcessingRowSection>
-    </Box>
+      </Box>
+    </Paper>
   ) : null;
 
   return (
@@ -1380,16 +1924,14 @@ export function ProcessingActiveCard({
         qtyExpected={qtyExpected}
         qtyRemaining={qtyRemaining}
         qtyOverage={qtyOverage}
-        checkedInItemCount={checkedInItemCount}
+        itemCount={manifestProgress.itemCount}
+        usesManifestAccounting={manifestProgress.usesManifestAccounting}
         distinctProducts={distinctProducts}
         itemCheckInCount={checkInCount}
         disputedCount={disputedCount}
         productsChipLabel={productsChipLabel}
         groupChipLabel={collapseGroupLabel}
         onBackToQueue={onBackToQueue}
-        googleHref={googleHref}
-        onShowAllThisProduct={onShowAllThisProduct}
-        productFilterActive={productFilterActive}
       />
 
       <Box
@@ -1400,48 +1942,41 @@ export function ProcessingActiveCard({
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          px: { xs: 1.25, md: 1.75 },
-          py: { xs: 1, md: 1.25 },
+          px: { xs: 1, md: 1.5 },
+          py: { xs: 0.75, md: 1 },
           bgcolor: processingTokens.cardDeckBg,
         }}
       >
-        <Box sx={{ flexShrink: 0, mb: 0.5, minWidth: 0, width: '100%' }}>
-          <Box sx={{ px: 0.25, pb: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
-              <Typography
-                sx={{
-                  fontWeight: 800,
-                  fontSize: '1.05rem',
-                  lineHeight: 1.25,
-                  minWidth: 0,
-                  wordBreak: 'break-word',
-                }}
+        <Box sx={{ flexShrink: 0, minWidth: 0, width: '100%' }}>
+          {rowDetailsBand}
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.65 }}>
+            {canRestart ?
+              <Button
+                size="small"
+                color="warning"
+                variant="outlined"
+                disabled={restartRow.isPending}
+                onClick={() => void openRestartConfirm()}
+                sx={{ fontSize: '0.6875rem', py: 0.2 }}
               >
-                {product?.title?.trim() || displayTitle}
-              </Typography>
-              {product?.product_number ?
-                <Chip
-                  size="small"
-                  label={product.product_number}
-                  sx={{ height: 20, fontSize: '0.66rem', fontWeight: 700 }}
-                />
-              : null}
-              {(product?.brand || row.brand)?.trim() ?
-                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  {(product?.brand || row.brand).trim()}
-                </Typography>
-              : null}
-            </Box>
-            {row.productId && row.manifestEvidence ?
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: 'block', mt: 0.25, fontStyle: 'italic' }}
-              >
-                Vendor said: {row.manifestEvidence.title}
-                {row.manifestEvidence.brand ? ` · ${row.manifestEvidence.brand}` : ''}
-              </Typography>
+                Restart row…
+              </Button>
             : null}
+            {isAddedRow && onAddItem ?
+              <Button
+                size="small"
+                variant="outlined"
+                sx={{ fontSize: '0.6875rem', py: 0.2 }}
+                startIcon={<Add sx={{ fontSize: 14 }} />}
+                onClick={onAddItem}
+              >
+                Add unmanifested units
+              </Button>
+            : null}
+          </Box>
+
+          <Stack spacing={0.55} sx={{ mb: 0.75 }}>
             {(row.sameProductRowNumbers?.length ?? 0) > 0 ?
               <Alert
                 severity="info"
@@ -1491,40 +2026,77 @@ export function ProcessingActiveCard({
                 : 'This row was converted by Break apart / Make set.'}
               </Alert>
             : null}
-            {canTransform ?
-              <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }}>
-                <Button size="small" variant="outlined" onClick={() => setTransformMode('break_apart')}>
-                  Break apart…
-                </Button>
-                <Button size="small" variant="outlined" onClick={() => setTransformMode('make_set')}>
-                  Make set…
-                </Button>
-              </Stack>
-            : null}
-          </Box>
+          </Stack>
 
-          {rowDefaultsSection}
-
-          {!isAddedRow ?
-            quickCheckInPanel
-          : (
-            <Paper variant="outlined" sx={{ p: 1.25, mb: 1, borderColor: processingTokens.border, bgcolor: processingTokens.surfaceRaised }}>
-              <Typography variant="body2" color="text.secondary">
-                Added row — its units were created and checked in when it was added.
+          <Paper
+            variant="outlined"
+            sx={{
+              flexShrink: 0,
+              mb: 0.65,
+              p: 0.65,
+              borderColor: processingTokens.border,
+              bgcolor: processingTokens.surfaceWarm,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, minWidth: 0 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 900,
+                  letterSpacing: 0.7,
+                  fontSize: '0.625rem',
+                  textTransform: 'uppercase',
+                  color: processingTokens.textSoft,
+                }}
+              >
+                Attached products ({attachedProducts.length})
               </Typography>
-              {onAddItem ?
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<Add sx={{ fontSize: 16 }} />}
-                  onClick={onAddItem}
-                  sx={{ mt: 0.75 }}
-                >
-                  Add more unmanifested units
-                </Button>
-              : null}
-            </Paper>
-          )}
+              <Box sx={{ flex: 1, minWidth: 8 }} />
+              <Button size="small" variant="outlined" sx={{ fontSize: '0.6875rem', py: 0.2 }} startIcon={<Add sx={{ fontSize: 14 }} />} onClick={() => openProductEditor(null)}>
+                New product
+              </Button>
+            </Box>
+            <Stack spacing={0.45}>
+              <Box
+                sx={{
+                  px: 0.75,
+                  py: 0.35,
+                  border: 1,
+                  borderColor: processingTokens.border,
+                  borderRadius: 1,
+                  bgcolor: processingTokens.surfaceRaised,
+                }}
+              >
+                <ProductSearchAutocomplete
+                  scope="processing-row-attach"
+                  label="Search to add product"
+                  placeholder="Type product #, title, brand, model, UPC…"
+                  value={null}
+                  onSelect={(product) => void handleAttachExistingProduct(product?.id)}
+                  searchOnly
+                  helperText=""
+                />
+              </Box>
+              {attachedProducts.map((attached) => (
+                <AttachedProductCard
+                  key={attached.key}
+                  product={attached}
+                  onCheckIn={() => openDetailedCheckIn(attached.productId)}
+                  onEditProduct={() => {
+                    if (attached.productId != null) openProductEditor(attached.productId);
+                  }}
+                  onLinkConfigChange={(config) => {
+                    if (attached.productId != null) void handleProductLinkConfigChange(attached.productId, config);
+                  }}
+                  onRemove={
+                    attached.productId != null && !attached.checkedInQty
+                      ? () => void handleDetachAttachedProduct(attached.productId!)
+                      : undefined
+                  }
+                />
+              ))}
+            </Stack>
+          </Paper>
 
           {terminalDisputed ?
             <Alert severity="error" variant="outlined" sx={{ py: 0.25, mb: 1 }}>
@@ -1533,10 +2105,10 @@ export function ProcessingActiveCard({
           : null}
         </Box>
 
-        <Box ref={priorCheckInsRef}>
+        <Box ref={priorCheckInsRef} sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <ProcessingRowSection
           title="Prior check-ins"
-          note="Prior check-in batches are listed below. Select a row to review or edit it."
+          note="Select a row to review or edit it."
           surface="priorCheckIns"
           fill
           sx={{ mb: 0, minWidth: 0 }}
@@ -1559,14 +2131,21 @@ export function ProcessingActiveCard({
           >
             <CheckedInItemsTable
               rows={historyRows}
-              productGroups={productGroups.length > 1 ? productGroups : undefined}
               fallbackProduct={product}
+              attachedProductOptions={attachedProductOptions}
               activeItemId={activeItem?.id ?? null}
               onSelectItemId={handleSelectPriorCheckIn}
-              onReprintItems={onReprintItems}
+              onReprintCheckIn={onReprintItems ? (historyRow) => void handleReprintCheckIn(historyRow) : undefined}
               onDeleteItemCheckIn={isManager ? (historyRow) => void handleDeleteItemCheckIn(historyRow) : undefined}
+              onSetCheckInProduct={
+                attachedProductOptions.length > 0 ?
+                  (historyRow, productId) => void handleSetCheckInProduct(historyRow, productId)
+                : undefined
+              }
               onSetCheckInCondition={(historyRow, value) => void handleSetCheckInField(historyRow, 'condition', value)}
               onSetCheckInDispatch={(historyRow, value) => void handleSetCheckInField(historyRow, 'dispatch', value)}
+              onSetCheckInPrice={(historyRow, value) => void handleSetCheckInPrice(historyRow, value)}
+              onEditCheckInProduct={(productId) => openProductEditor(productId)}
               showDeleteCheckInAction={isManager}
               scrollable
             />
@@ -1579,60 +2158,27 @@ export function ProcessingActiveCard({
       <ProcessingCheckInDialog
         open={checkInOpen}
         row={row}
+        initialProductId={checkInProductId}
         loading={checkInLoading || updateItemCheckIn.isPending}
-        saveProductLoading={setRowProduct.isPending}
         seed={checkInSeed}
         onClose={closeDetailedCheckIn}
         onSubmit={onCheckIn}
         onUpdateItemCheckIn={handleUpdateItemCheckIn}
-        onSaveProduct={handleSaveProductDecision}
       />
-      <QuickCheckInProductPrompt
-        open={productPrompt != null}
-        rowTitle={displayTitle}
-        loading={checkInLoading}
-        onClose={() => setProductPrompt(null)}
-        onNewProduct={() => {
-          const pending = productPrompt;
-          setProductPrompt(null);
-          if (pending) void submitQuickCheckIn({ product_mode: 'new' }, pending.printLabels, pending.quantity);
-        }}
-        onExistingProduct={(picked) => {
-          const pending = productPrompt;
-          setProductPrompt(null);
-          if (pending) {
-            void submitQuickCheckIn(
-              { product_mode: 'existing', product_id: picked.id },
-              pending.printLabels,
-              pending.quantity,
-            );
-          }
-        }}
-        onDetailed={() => {
-          setProductPrompt(null);
-          openDetailedCheckIn();
-        }}
-      />
-      <LargeCheckInConfirmDialog
-        open={volumeConfirm != null}
-        quantity={volumeConfirm?.quantity ?? 0}
-        printLabels={volumeConfirm?.printLabels === true}
-        loading={checkInLoading}
-        onCancel={() => setVolumeConfirm(null)}
-        onConfirm={() => {
-          const pending = volumeConfirm;
-          setVolumeConfirm(null);
-          if (pending) void quickCheckInResolved(pending.printLabels, pending.quantity);
-        }}
-      />
-      {transformMode ?
-        <ProcessingTransformDialog
+      {productEditorOpen && (productEditorProductId == null || productEditorQuery.data) ?
+        <ProductManagePanel
           open
-          mode={transformMode}
-          row={row}
-          loading={breakApartRow.isPending || makeSetRow.isPending}
-          onClose={() => setTransformMode(null)}
-          onSubmit={handleTransformSubmit}
+          initialProduct={productEditorProductId == null ? null : productEditorQuery.data ?? null}
+          rowDetailsSeed={productEditorProductId == null ? newProductEditorSeed : undefined}
+          rowDetailsSeedKey={productEditorProductId == null ? row.processing_row_id : undefined}
+          onClose={closeProductEditor}
+          onProductSaved={(savedProduct: Product, ctx) => {
+            refreshSavedProductInRow(savedProduct);
+            if (ctx.created) {
+              void handleAttachExistingProduct(savedProduct.id);
+            }
+            closeProductEditor();
+          }}
         />
       : null}
       <ProcessingRestartRowDialog
@@ -1642,6 +2188,7 @@ export function ProcessingActiveCard({
         onClose={() => setRestartSummary(null)}
         onConfirm={handleRestartConfirm}
       />
+      {ConfirmDialogHost}
     </Card>
   );
 }

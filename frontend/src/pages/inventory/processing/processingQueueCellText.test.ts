@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { effectiveRowQty, processingIdentityHoverTooltip, queueQtyText, queueTitleText } from './processingQueueCellText';
+import { effectiveRowQty, processingIdentityHoverTooltip, processingRowBookmark, queueAttachedProductHint, queueQtyText, queueTitleText } from './processingQueueCellText';
 
 const group = {
   memberRowNumbers: [2, 3],
@@ -10,8 +10,14 @@ const group = {
 };
 
 describe('queueTitleText (P7 collapse)', () => {
-  it('plain row shows title only', () => {
+  it('plain row shows bookmark title', () => {
     expect(queueTitleText({ title: 'LEGO Star Wars' })).toBe('LEGO Star Wars');
+    expect(
+      queueTitleText({
+        title: 'Red Headband',
+        standardizedIdentity: { title: 'hdbnd red', brand: '', model: '' },
+      }),
+    ).toBe('hdbnd red');
   });
 
   it('master row gets ⊟ prefix and member row list', () => {
@@ -82,6 +88,58 @@ describe('effectiveRowQty (P7 collapse)', () => {
   });
 });
 
+describe('queueAttachedProductHint', () => {
+  it('shows attached product when it differs from bookmark', () => {
+    expect(
+      queueAttachedProductHint(
+        {
+          title: 'Red Headband',
+          standardizedIdentity: { title: 'hdbnd red', brand: 'Vendor', model: '' },
+          product: {
+            id: 1,
+            product_number: 'P1',
+            title: 'Red Headband',
+            brand: 'Acme',
+            model: '',
+            specs: {},
+            identifiers: {},
+            tags: [],
+            taxonomy: '',
+            category: '',
+            upc: '',
+          },
+        },
+        'title',
+      ),
+    ).toBe('Product title: Red Headband');
+  });
+
+  it('returns empty when product matches bookmark', () => {
+    expect(
+      queueAttachedProductHint(
+        {
+          title: 'hdbnd red',
+          standardizedIdentity: { title: 'hdbnd red', brand: 'Vendor', model: '' },
+          product: {
+            id: 1,
+            product_number: 'P1',
+            title: 'hdbnd red',
+            brand: 'Vendor',
+            model: '',
+            specs: {},
+            identifiers: {},
+            tags: [],
+            taxonomy: '',
+            category: '',
+            upc: '',
+          },
+        },
+        'title',
+      ),
+    ).toBe('');
+  });
+});
+
 describe('processingIdentityHoverTooltip', () => {
   it('shows both when display differs from standardized', () => {
     expect(processingIdentityHoverTooltip('Red Headband', 'hdbnd red', 'title')).toBe(
@@ -97,5 +155,29 @@ describe('processingIdentityHoverTooltip', () => {
 
   it('falls back to display when no standardized value', () => {
     expect(processingIdentityHoverTooltip('Shelf label', undefined, 'brand')).toBe('Shelf label');
+  });
+});
+
+describe('processingRowBookmark', () => {
+  it('uses bookmark fields instead of coalesced row display values', () => {
+    expect(
+      processingRowBookmark({
+        category: 'Apparel',
+        identifiers: { upc: '111' },
+        standardizedIdentity: {
+          title: 'hdbnd red',
+          brand: 'Vendor',
+          model: 'M1',
+          category: 'Accessories',
+          identifiers: { upc: '222' },
+        },
+      }),
+    ).toEqual({
+      title: 'hdbnd red',
+      brand: 'Vendor',
+      model: 'M1',
+      category: 'Accessories',
+      identifiers: { upc: '222' },
+    });
   });
 });
