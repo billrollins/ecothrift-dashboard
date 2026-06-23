@@ -1,1 +1,11 @@
----
+fix(hr): scope Time clock My recent shifts to logged-in user
+
+Managers and admins saw every employee's shifts on the Time clock page
+because GET /hr/time-entries/ returned the full queryset for non-Employee
+roles.
+
+- TimeEntryViewSet list/summary default to request.user; ?employee= for managers
+- TimeClockPage passes employee filter; useTimeEntries enabled guard
+
+Initiative: hr_time_clock_mvp
+Release: v2.33.1

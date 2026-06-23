@@ -47,9 +47,16 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = TimeEntry.objects.select_related('employee', 'approved_by').all()
         user = self.request.user
-        # Employees only see their own entries
+        is_manager = user.role in ('Manager', 'Admin') or user.is_superuser
+        # List/summary = "my shifts" unless a manager passes ?employee=
         if user.role == 'Employee':
             qs = qs.filter(employee=user)
+        elif self.action in ('list', 'summary'):
+            employee_id = self.request.query_params.get('employee')
+            if employee_id and is_manager:
+                qs = qs.filter(employee_id=employee_id)
+            else:
+                qs = qs.filter(employee=user)
         # Date range filtering
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')

@@ -2,10 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as hrApi from '../api/hr.api';
 import type { TimeEntryParams } from '../api/hr.api';
 
-export function useTimeEntries(params?: TimeEntryParams) {
+export function useTimeEntries(
+  params?: TimeEntryParams,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['timeEntries', params],
     queryFn: () => hrApi.getTimeEntries(params).then((r) => r.data),
+    enabled: options?.enabled ?? true,
   });
 }
 

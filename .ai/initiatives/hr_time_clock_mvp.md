@@ -1,5 +1,5 @@
 <!-- initiative: slug=hr-time-clock-mvp status=active updated=2026-06-22 -->
-<!-- Last updated: 2026-06-23 — Time & payroll, Employees, reject, soft delete -->
+<!-- Last updated: 2026-06-23 — My recent shifts scoped to logged-in user -->
 
 # Initiative: HR Time Clock MVP
 
@@ -94,6 +94,23 @@ Staff can **clock in / take break / clock out** with a **huge overtime warning**
 - **Time & payroll** — consolidated superadmin page (`/admin/time-payroll`): period calendar + quick select, roster with pay $, filters, row/bulk CRUD, change requests tab (approve + **reject**).
 - **Employees** — Admin **Users** renamed to **Employees**; add/edit includes status, contact, role, position, employment type, **pay rate**.
 - **Soft delete** — `TimeEntry` + `TimeEntryModificationRequest` `deleted_at`/`deleted_by`; migration `0004`; `purge_soft_deleted_hr` management command (30-day retention).
+
+### Session 2 — 2026-06-23
+
+**Started:** 2026-06-23T~14:00-05:00 (America/Chicago)
+
+**Goal:** Fix Time clock **My recent shifts** listing all staff instead of the logged-in user.
+
+**Finish line:** Managers/admins on `/hr/time-clock` see only their own recent shifts; roster on Time & payroll unchanged.
+
+**Scope:** `TimeEntryViewSet` list/summary queryset + `TimeClockPage` / `useTimeEntries`.
+
+**Estimated time:** ~15m
+
+**Updates:**
+
+- **Backend** — `list` / `summary` on `TimeEntryViewSet` filter to `request.user` unless manager passes `?employee=`.
+- **Frontend** — `TimeClockPage` passes `employee: user.id`; `useTimeEntries` supports `enabled` guard.
 
 ---
 

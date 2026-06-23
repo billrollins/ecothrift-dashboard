@@ -185,10 +185,12 @@ export default function TimeClockPage() {
 
   const { data: currentEntry, isLoading: currentLoading } = useCurrentEntry();
   const { data: weeklyStatus, isLoading: weeklyLoading } = useWeeklyHoursStatus();
-  const { data: entriesData, isLoading: entriesLoading } = useTimeEntries({
-    page_size: 20,
-    ordering: '-date,-clock_in',
-  });
+  const { data: entriesData, isLoading: entriesLoading } = useTimeEntries(
+    user?.id
+      ? { employee: user.id, page_size: 20, ordering: '-date,-clock_in' }
+      : undefined,
+    { enabled: Boolean(user?.id) },
+  );
 
   const clockIn = useClockIn();
   const clockOut = useClockOut();

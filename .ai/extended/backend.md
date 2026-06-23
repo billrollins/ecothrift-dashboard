@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-23 (HR Time & payroll, soft delete, pay rate on roster) -->
+<!-- Last updated: 2026-06-23 (HR time-entries list/summary scoped to self) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -142,7 +142,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 | **SickLeaveRequest** | employee, start_date, end_date, hours_requested, status (pending/approved/denied), reviewed_by |
 | **TimeEntryModificationRequest** | time_entry (FK TimeEntry), employee (FK User), requested_clock_in/out, requested_break_minutes, reason, status (pending/approved/denied), reviewed_by, review_note, **deleted_at**, **deleted_by** |
 
-**HR API (MVP):** `TimeEntryViewSet` — clock in/out, `start_break`/`end_break`, `weekly_status`, `roster`, `payroll`, `payroll_periods`, manager `bulk_delete` (soft); `TimeEntryModificationRequestViewSet` — Super Admin `approve`, **`reject`**, `bulk_approve`, **`bulk_reject`**, `bulk_delete` (soft). **`purge_soft_deleted_hr`** management command hard-deletes after 30 days.
+**HR API (MVP):** `TimeEntryViewSet` — clock in/out, `start_break`/`end_break`, `weekly_status`, `roster`, `payroll`, `payroll_periods`, manager `bulk_delete` (soft); **`GET …/time-entries/` list** and **`summary`** default to the **current user** (managers may pass `?employee=`; detail/approve actions unchanged). `TimeEntryModificationRequestViewSet` — Super Admin `approve`, **`reject`**, `bulk_approve`, **`bulk_reject`**, `bulk_delete` (soft). **`purge_soft_deleted_hr`** management command hard-deletes after 30 days.
 
 ### inventory
 

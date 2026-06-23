@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.33.0] — 2026-06-23 (HR Time Clock MVP — Time & payroll, Employees, soft delete) -->
-<!-- Last reviewed: 2026-06-23 (v2.33.0 — HR Time Clock MVP) -->
+<!-- Line 1 release: ## [2.33.1] — 2026-06-23 (HR Time clock — My recent shifts scoped to logged-in user) -->
+<!-- Last reviewed: 2026-06-23 (v2.33.1 — HR Time clock my-shifts fix) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,18 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.33.1] — 2026-06-23
+
+User-facing theme: **Time clock “My recent shifts” shows only the logged-in employee’s entries.**
+
+Initiative: [`.ai/initiatives/hr_time_clock_mvp.md`](.ai/initiatives/hr_time_clock_mvp.md)
+
+### Fixed
+
+- **HR / time clock** — **My recent shifts** on `TimeClockPage` no longer lists all staff for managers/admins; `GET …/time-entries/` list and `summary` default to the current user (`apps/hr/views.py`; frontend passes `employee` + `useTimeEntries` `enabled` guard).
 
 ---
 
