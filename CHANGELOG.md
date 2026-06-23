@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.32.0] — 2026-06-16 (Processing workspace — unmanifested lines, queue resume, and check-in UX) -->
-<!-- Last reviewed: 2026-06-16 (v2.32.0 — unmanifested add/delete, queue filters, session resume, recent rows) -->
+<!-- Line 1 release: ## [2.33.0] — 2026-06-23 (HR Time Clock MVP — Time & payroll, Employees, soft delete) -->
+<!-- Last reviewed: 2026-06-23 (v2.33.0 — HR Time Clock MVP) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,9 +10,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.33.0] — 2026-06-23
 
 User-facing theme: **HR Time Clock MVP — clock in/out, breaks, overtime warnings, consolidated Time & payroll, and Employees admin with pay rates.**
+
+Initiative: [`.ai/initiatives/hr_time_clock_mvp.md`](.ai/initiatives/hr_time_clock_mvp.md)
 
 ### Added
 
@@ -27,7 +29,7 @@ User-facing theme: **HR Time Clock MVP — clock in/out, breaks, overtime warnin
 ### Changed
 
 - **Navigation** — Essentials **Time clock**; Admin **Employees**, **Time & payroll** (superuser); legacy HR routes redirect.
-- **HR / modification review** — Super Admin approve applies edits to shift; **reject** marks denied without changing the time entry (replaces earlier “no deny” MVP note).
+- **HR / modification review** — Super Admin approve applies edits to shift; **reject** marks denied without changing the time entry.
 
 ### Removed
 

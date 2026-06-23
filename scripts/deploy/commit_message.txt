@@ -1,4 +1,4 @@
-feat: HR Time Clock MVP — Time & payroll, Employees, soft delete
+release(v2.33.0): HR Time Clock MVP — Time & payroll, Employees, soft delete
 
 Initiative: hr_time_clock_mvp
 
@@ -9,4 +9,4 @@ Initiative: hr_time_clock_mvp
 - Migrations: 0003_timeentry_break_fields, 0004_soft_delete_fields
 - Legacy HR pages removed; routes redirect
 
-See CHANGELOG [Unreleased] for full bullet list.
+See CHANGELOG [2.33.0] for full bullet list.
