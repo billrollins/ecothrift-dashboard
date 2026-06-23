@@ -97,7 +97,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'email', 'first_name', 'last_name', 'phone', 'password', 'role',
+            'email', 'first_name', 'last_name', 'phone', 'password', 'role', 'is_active',
             'department', 'position', 'employment_type', 'pay_rate',
             'hire_date', 'work_location',
             'commission_rate', 'payout_method',

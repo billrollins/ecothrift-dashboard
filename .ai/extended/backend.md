@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-16 (v2.32.0 — unmanifested processing lines, delete added row, set/part check-in scaling) -->
+<!-- Last updated: 2026-06-23 (HR Time & payroll, soft delete, pay rate on roster) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -137,10 +137,12 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 | Model | Key Fields |
 |-------|------------|
 | **Department** | name, location (FK core.WorkLocation), manager (FK User), is_active |
-| **TimeEntry** | employee (FK User), date, clock_in, clock_out, break_minutes, total_hours, status (pending/approved/flagged), approved_by |
+| **TimeEntry** | employee (FK User), date, clock_in, clock_out, break_minutes, **on_break**, **break_started_at**, total_hours, status (pending/approved/flagged), approved_by, **deleted_at**, **deleted_by** — default manager excludes soft-deleted |
 | **SickLeaveBalance** | employee, year, hours_earned, hours_used; ANNUAL_CAP 56h |
 | **SickLeaveRequest** | employee, start_date, end_date, hours_requested, status (pending/approved/denied), reviewed_by |
-| **TimeEntryModificationRequest** | time_entry (FK TimeEntry), employee (FK User), requested_clock_in/out, requested_break_minutes, reason, status (pending/approved/denied), reviewed_by, review_note |
+| **TimeEntryModificationRequest** | time_entry (FK TimeEntry), employee (FK User), requested_clock_in/out, requested_break_minutes, reason, status (pending/approved/denied), reviewed_by, review_note, **deleted_at**, **deleted_by** |
+
+**HR API (MVP):** `TimeEntryViewSet` — clock in/out, `start_break`/`end_break`, `weekly_status`, `roster`, `payroll`, `payroll_periods`, manager `bulk_delete` (soft); `TimeEntryModificationRequestViewSet` — Super Admin `approve`, **`reject`**, `bulk_approve`, **`bulk_reject`**, `bulk_delete` (soft). **`purge_soft_deleted_hr`** management command hard-deletes after 30 days.
 
 ### inventory
 

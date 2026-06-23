@@ -1,11 +1,11 @@
-<!-- initiative: slug=product-item-crud-processing status=active updated=2026-06-15 -->
-<!-- Last updated: 2026-06-15 — Inventory Catalog v2.30.0 -->
+<!-- Archived 2026-06-22: disposition=completed (v2.29.0–v2.32.0 — catalog CRUD, Inventory Catalog, processing product-linked check-ins, unmanifested lines) -->
+<!-- initiative: slug=product-item-crud-processing status=completed updated=2026-06-22 -->
 
 # Initiative: Product & Item CRUD → Processing check-in
 
-**Status:** **Active** — direction reset 2026-06-13. Build canonical Product and Item CRUD/search UX first; wire into Processing only after those forms are right.
+**Status:** **Completed** — archived 2026-06-22. Phases 1–6 core scope shipped **v2.29.0–v2.32.0**; semantic embedding search on hold; production validation/backfill is ops, not blocking closure.
 
-**Supersedes (remaining scope from):** [`intake_processing_improvements`](./_archived/_completed/intake_processing_improvements.md) — P1–P9 shipped; further processing/product UX work continues here.
+**Supersedes (remaining scope from):** [`intake_processing_improvements`](./intake_processing_improvements.md) — P1–P9 shipped; further processing/product UX work continued here until archive.
 
 ---
 

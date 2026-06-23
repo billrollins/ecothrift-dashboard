@@ -1,8 +1,28 @@
 import type { PaginatedResponse } from '../types/index';
-import type { Department, TimeEntry, SickLeaveBalance, SickLeaveRequest, TimeEntrySummary } from '../types/hr.types';
+import type {
+  Department,
+  TimeEntry,
+  SickLeaveBalance,
+  SickLeaveRequest,
+  TimeEntrySummary,
+  WeeklyHoursStatus,
+  PayrollEmployeeRow,
+  PayrollPeriod,
+  TimeEntryRosterRow,
+} from '../types/hr.types';
 import api from './client';
 
-export type { Department, TimeEntry, SickLeaveBalance, SickLeaveRequest, TimeEntrySummary };
+export type {
+  Department,
+  TimeEntry,
+  SickLeaveBalance,
+  SickLeaveRequest,
+  TimeEntrySummary,
+  WeeklyHoursStatus,
+  PayrollEmployeeRow,
+  PayrollPeriod,
+  TimeEntryRosterRow,
+};
 
 export interface TimeEntryParams {
   employee?: number;
@@ -40,8 +60,38 @@ export function clockOut(id: number, breakMinutes?: number): Promise<{ data: Tim
   return api.post<TimeEntry>(`/hr/time-entries/${id}/clock_out/`, { break_minutes: breakMinutes });
 }
 
+export function startBreak(id: number): Promise<{ data: TimeEntry }> {
+  return api.post<TimeEntry>(`/hr/time-entries/${id}/start_break/`);
+}
+
+export function endBreak(id: number): Promise<{ data: TimeEntry }> {
+  return api.post<TimeEntry>(`/hr/time-entries/${id}/end_break/`);
+}
+
 export function getCurrentEntry(): Promise<{ data: TimeEntry | null }> {
   return api.get<TimeEntry | null>('/hr/time-entries/current/');
+}
+
+export function getWeeklyHoursStatus(params?: { employee?: number }): Promise<{ data: WeeklyHoursStatus }> {
+  return api.get<WeeklyHoursStatus>('/hr/time-entries/weekly_status/', { params });
+}
+
+export function getPayrollHours(params: {
+  date_from: string;
+  date_to: string;
+}): Promise<{ data: PayrollEmployeeRow[] }> {
+  return api.get<PayrollEmployeeRow[]>('/hr/time-entries/payroll/', { params });
+}
+
+export function getPayrollPeriods(count = 16): Promise<{ data: PayrollPeriod[] }> {
+  return api.get<PayrollPeriod[]>('/hr/time-entries/payroll_periods/', { params: { count } });
+}
+
+export function getTimeEntryRoster(params: {
+  date_from: string;
+  date_to: string;
+}): Promise<{ data: TimeEntryRosterRow[] }> {
+  return api.get<TimeEntryRosterRow[]>('/hr/time-entries/roster/', { params });
 }
 
 export function approveEntry(id: number): Promise<{ data: TimeEntry }> {
@@ -88,6 +138,10 @@ export function deleteTimeEntry(id: number): Promise<{ data: void }> {
   return api.delete(`/hr/time-entries/${id}/`);
 }
 
+export function bulkDeleteTimeEntries(ids: number[]): Promise<{ data: { deleted: number } }> {
+  return api.post<{ deleted: number }>('/hr/time-entries/bulk_delete/', { ids });
+}
+
 // Modification request endpoints
 export interface ModificationRequest {
   id: number;
@@ -132,5 +186,42 @@ export function denyModificationRequest(
   id: number,
   reviewNote?: string
 ): Promise<{ data: ModificationRequest }> {
-  return api.post<ModificationRequest>(`/hr/modification-requests/${id}/deny/`, { review_note: reviewNote });
+  return api.post<ModificationRequest>(`/hr/modification-requests/${id}/reject/`, { review_note: reviewNote });
+}
+
+export function updateModificationRequest(
+  id: number,
+  data: Record<string, unknown>
+): Promise<{ data: ModificationRequest }> {
+  return api.patch<ModificationRequest>(`/hr/modification-requests/${id}/`, data);
+}
+
+export function deleteModificationRequest(id: number): Promise<{ data: void }> {
+  return api.delete(`/hr/modification-requests/${id}/`);
+}
+
+export function bulkDeleteModificationRequests(
+  ids: number[]
+): Promise<{ data: { deleted: number } }> {
+  return api.post<{ deleted: number }>('/hr/modification-requests/bulk_delete/', { ids });
+}
+
+export function bulkApproveModificationRequests(
+  ids: number[],
+  reviewNote?: string
+): Promise<{ data: { approved: number } }> {
+  return api.post<{ approved: number }>('/hr/modification-requests/bulk_approve/', {
+    ids,
+    review_note: reviewNote,
+  });
+}
+
+export function bulkRejectModificationRequests(
+  ids: number[],
+  reviewNote?: string
+): Promise<{ data: { rejected: number } }> {
+  return api.post<{ rejected: number }>('/hr/modification-requests/bulk_reject/', {
+    ids,
+    review_note: reviewNote,
+  });
 }

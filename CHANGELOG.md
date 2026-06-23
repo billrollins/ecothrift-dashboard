@@ -10,6 +10,31 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+User-facing theme: **HR Time Clock MVP — clock in/out, breaks, overtime warnings, consolidated Time & payroll, and Employees admin with pay rates.**
+
+### Added
+
+- **HR / time clock rebuild** — Essentials nav **Time clock**: clock in/out, **Take a break** / **End break**, weekly hours ring, **red overtime banner** at 40h/week (warn only — clock-in never blocked).
+- **Admin / Time & payroll** — Super Admin consolidated page (`/admin/time-payroll`): calendar **From/To**, period quick select, split week/period/month buttons, roster tab (employee/hours filters, pay $, row + bulk soft-delete), by-employee payroll summary, change requests tab (approve + **reject**, bulk actions).
+- **HR / payroll API** — `GET …/time-entries/roster/`, `payroll/`, `payroll_periods/` with running weekly/payroll totals and `pay_rate × hours`; manager CRUD on time entries; `bulk_delete` soft-delete.
+- **HR / modification requests** — employees submit changes on completed shifts; Super Admin edit, approve, or **reject** (`reject` + `bulk_reject`); soft-delete + `bulk_delete`.
+- **HR / break tracking** — migration `0003`: `TimeEntry.on_break`, `break_started_at`; `start_break` / `end_break` API actions.
+- **HR / soft delete** — migration `0004`: `deleted_at`/`deleted_by` on `TimeEntry` and `TimeEntryModificationRequest`; `manage.py purge_soft_deleted_hr` (30-day hard purge).
+- **Admin / Employees** — **Users** renamed to **Employees** in nav; add/edit includes status, contact, role, position, employment type, **pay rate** (`UserCreateSerializer` + `employee_profile` PATCH).
+
+### Changed
+
+- **Navigation** — Essentials **Time clock**; Admin **Employees**, **Time & payroll** (superuser); legacy HR routes redirect.
+- **HR / modification review** — Super Admin approve applies edits to shift; **reject** marks denied without changing the time entry (replaces earlier “no deny” MVP note).
+
+### Removed
+
+- **HR legacy pages deleted** — `TimeHistoryPage`, `EmployeeListPage`, `EmployeeDetailPage`, `SickLeavePage`, old `PayrollHoursPage`, `TimeModificationRequestsPage`; routes redirect to Time clock or Time & payroll.
+
+---
+
 ## [2.32.0] — 2026-06-16
 
 User-facing theme: **Processing workspace unmanifested lines, faster queue resume, and tighter check-in UX.**

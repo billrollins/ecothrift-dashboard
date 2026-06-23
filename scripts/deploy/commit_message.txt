@@ -1,1 +1,12 @@
----
+feat: HR Time Clock MVP — Time & payroll, Employees, soft delete
+
+Initiative: hr_time_clock_mvp
+
+- Time clock: in/out, break, weekly overtime banner (non-blocking)
+- Admin Time & payroll: roster, payroll summary with pay $, change requests (approve/reject, bulk)
+- Admin Employees: renamed from Users; pay rate on add/edit
+- Soft delete for time entries and mod requests; purge_soft_deleted_hr (30 days)
+- Migrations: 0003_timeentry_break_fields, 0004_soft_delete_fields
+- Legacy HR pages removed; routes redirect
+
+See CHANGELOG [Unreleased] for full bullet list.

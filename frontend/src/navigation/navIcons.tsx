@@ -21,6 +21,7 @@ import FactCheck from '@mui/icons-material/FactCheck';
 import SupervisorAccount from '@mui/icons-material/SupervisorAccount';
 import Search from '@mui/icons-material/Search';
 import Handyman from '@mui/icons-material/Handyman';
+import Schedule from '@mui/icons-material/Schedule';
 import type { ComponentType } from 'react';
 import type { SvgIconProps } from '@mui/material/SvgIcon';
 import type { NavIconKey } from './navTypes';
@@ -49,6 +50,7 @@ export const NAV_ICON_MAP: Record<NavIconKey, ComponentType<SvgIconProps>> = {
   security: Security,
   settings: Settings,
   build: Handyman,
+  schedule: Schedule,
 };
 
 export function resolveNavIcon(key: NavIconKey): ComponentType<SvgIconProps> {

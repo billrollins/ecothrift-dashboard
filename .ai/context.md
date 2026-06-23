@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-16 (v2.32.0 — processing unmanifested lines, queue resume, recent rows) -->
+<!-- Last updated: 2026-06-23 (HR Time & payroll, Employees admin, soft delete) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,8 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active initiative — Product/Item CRUD → Processing:** [`product_item_crud_and_processing`](initiatives/product_item_crud_and_processing.md) — **Phases 1–3 + product-first check-in shipped v2.29.0**; **Inventory Catalog shipped v2.30.0**; **processing workspace product-linked check-ins shipped v2.31.0** (migration `0066`); **v2.32.0** unmanifested add/delete lines, queue OR filters, session resume, recent rows/search history, set/part check-in price scaling. Remaining: final production validation/backfill review and semantic embedding search on hold.
+- **Active initiative — HR Time Clock MVP:** [`hr_time_clock_mvp`](initiatives/hr_time_clock_mvp.md) — rebuild time clock (in/out + break + overtime banner), simple user/role admin, modification requests, superadmin payroll hours; strip legacy HR pages. Session 1 opened 2026-06-22.
+- **Product/Item CRUD → Processing (shipped):** archived [`product_item_crud_and_processing`](initiatives/_archived/_completed/product_item_crud_and_processing.md) — **v2.29.0–v2.32.0** (Catalog, processing integration, unmanifested lines). Semantic embedding search on hold.
 - **AI cleanup (shipped):** archived [`preprocessing_ai_cleanup_review`](initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md) — Step 2 **Run AI Cleanup** browser batch pool (`ai-cleanup-batch`/`-status`/`-complete`), chunked offline apply, gthread Procfile, legacy `ai-cleanup-rows` 410. Shipped **v2.28.0**.
 - **Blog Studio (shipped):** archived [`blog_studio`](initiatives/_archived/_completed/blog_studio.md) — Super Admin **Blog Studio** (`/blog-studio`, lazy TipTap, opens in a new window) + DB-backed public blog (`apps.blog` at `/api/blog/`). Shipped **v2.27.0**–**v2.27.2**. One-time prod ops (if not done): `python manage.py seed_initial_blog_posts` (idempotent).
 - **Parked — public site launch:** [`.ai/initiatives/_archived/_pending/public_website.md`](initiatives/_archived/_pending/public_website.md) — storefront **Phases 0–4 shipped** (**v2.26.0**, `frontend-public/` + `apps.webstore`). **Resume when:** deploy to Heroku + prod `seed_shop_categories`; wire **Helcim + email** after vendor conversations. Hostname routing: `ecothrift.us`/`www` → public SPA, `dash.*` → staff.
@@ -27,10 +28,13 @@ Owner decision **2026-05-30** ([`web_ui_cleanup_section_pass.txt`](reference/web
 
 | Area | Hidden from nav | Routes |
 |------|-----------------|--------|
-| **HR** | Time Clock, Time History, Sick Leave | `/hr/time-clock`, `/hr/time-history`, `/hr/sick-leave` |
 | **Consignment (staff)** | Accounts, Items, Payouts (+ account detail) | `/consignment/accounts`, `/consignment/accounts/:id`, `/consignment/items`, `/consignment/payouts` |
 
-**HR kept in nav:** Employees (+ employee detail). **Consignee portal** (`/consignee/*`) unchanged.
+**HR (Essentials):** Time clock. **Admin:** Employees (user/role CRUD + pay rate), Permissions, **Time & payroll** (superuser — roster, payroll summary, change requests). **Consignee portal** (`/consignee/*`) unchanged.
+
+### Removed UI (`web_ui_cleanup` + `hr_time_clock_mvp`)
+
+Legacy HR pages deleted **2026-06-22** (`TimeHistoryPage`, `EmployeeListPage`, `EmployeeDetailPage`, `SickLeavePage`). Routes `/hr/time-history`, `/hr/employees`, `/hr/sick-leave` redirect.
 
 ### Removed UI (`web_ui_cleanup` — routes + pages deleted)
 

@@ -22,16 +22,20 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         model = TimeEntry
         fields = [
             'id', 'employee', 'employee_name', 'date', 'clock_in', 'clock_out',
-            'break_minutes', 'total_hours', 'status', 'approved_by',
+            'break_minutes', 'on_break', 'break_started_at',
+            'total_hours', 'status', 'approved_by',
             'approved_by_name', 'notes', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'total_hours', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'total_hours', 'on_break', 'break_started_at', 'created_at', 'updated_at']
         extra_kwargs = {
-            # Allow clock-in with empty body; view auto-fills these
+            # Allow clock-in with empty body; view auto-fills these in perform_create
             'employee': {'required': False},
             'date': {'required': False},
             'clock_in': {'required': False},
         }
+        # Skip UniqueTogetherValidator — it requires employee/date/clock_in before
+        # perform_create can auto-fill them. DB unique_together still applies on save.
+        validators = []
 
 
 class TimeEntrySummarySerializer(serializers.Serializer):
@@ -39,6 +43,55 @@ class TimeEntrySummarySerializer(serializers.Serializer):
     total_entries = serializers.IntegerField()
     approved_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
     pending_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+
+
+class WeeklyHoursStatusSerializer(serializers.Serializer):
+    week_start = serializers.DateField()
+    week_end = serializers.DateField()
+    hours_worked = serializers.DecimalField(max_digits=8, decimal_places=2)
+    hours_limit = serializers.DecimalField(max_digits=8, decimal_places=2)
+    hours_remaining = serializers.DecimalField(max_digits=8, decimal_places=2)
+    is_at_limit = serializers.BooleanField()
+    is_over_limit = serializers.BooleanField()
+    overtime_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+
+
+class PayrollEmployeeRowSerializer(serializers.Serializer):
+    employee_id = serializers.IntegerField()
+    employee_name = serializers.CharField()
+    pay_rate = serializers.DecimalField(max_digits=8, decimal_places=2)
+    total_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+    total_pay = serializers.DecimalField(max_digits=10, decimal_places=2)
+    approved_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+    pending_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+    entry_count = serializers.IntegerField()
+
+
+class PayrollPeriodSerializer(serializers.Serializer):
+    date_from = serializers.DateField()
+    date_to = serializers.DateField()
+    label = serializers.CharField()
+    is_current = serializers.BooleanField()
+
+
+class TimeEntryRosterSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    employee_id = serializers.IntegerField()
+    employee_name = serializers.CharField()
+    date = serializers.DateField()
+    clock_in = serializers.DateTimeField(allow_null=True)
+    clock_out = serializers.DateTimeField(allow_null=True)
+    break_minutes = serializers.IntegerField()
+    break_label = serializers.CharField()
+    on_break = serializers.BooleanField()
+    total_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+    pay_rate = serializers.DecimalField(max_digits=8, decimal_places=2)
+    pay = serializers.DecimalField(max_digits=10, decimal_places=2)
+    week_start = serializers.DateField()
+    week_end = serializers.DateField()
+    weekly_cumulative_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+    payroll_cumulative_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+    is_open = serializers.BooleanField()
 
 
 class TimeEntryModificationRequestSerializer(serializers.ModelSerializer):
@@ -57,7 +110,11 @@ class TimeEntryModificationRequestSerializer(serializers.ModelSerializer):
             'reason', 'status', 'reviewed_by', 'reviewed_by_name',
             'review_note', 'reviewed_at', 'created_at',
         ]
-        read_only_fields = ['id', 'employee', 'reviewed_at', 'created_at']
+        read_only_fields = [
+            'id', 'employee', 'status', 'reviewed_by',
+            'reviewed_by_name', 'review_note', 'reviewed_at', 'created_at',
+            'employee_name', 'entry_date', 'entry_clock_in', 'entry_clock_out',
+        ]
 
 
 class SickLeaveBalanceSerializer(serializers.ModelSerializer):

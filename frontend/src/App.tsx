@@ -14,10 +14,7 @@ import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import TimeClockPage from './pages/hr/TimeClockPage';
-import TimeHistoryPage from './pages/hr/TimeHistoryPage';
-import EmployeeListPage from './pages/hr/EmployeeListPage';
-import EmployeeDetailPage from './pages/hr/EmployeeDetailPage';
-import SickLeavePage from './pages/hr/SickLeavePage';
+import TimePayrollPage from './pages/admin/TimePayrollPage';
 import VendorListPage from './pages/inventory/VendorListPage';
 import VendorDetailPage from './pages/inventory/VendorDetailPage';
 import OrderListPage from './pages/inventory/OrderListPage';
@@ -120,10 +117,11 @@ export default function App() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/hr/time-clock" element={<TimeClockPage />} />
-        <Route path="/hr/time-history" element={<TimeHistoryPage />} />
-        <Route path="/hr/employees" element={<EmployeeListPage />} />
-        <Route path="/hr/employees/:id" element={<EmployeeDetailPage />} />
-        <Route path="/hr/sick-leave" element={<SickLeavePage />} />
+        <Route path="/hr/modification-requests" element={<Navigate to="/admin/time-payroll" replace />} />
+        <Route path="/hr/time-history" element={<Navigate to="/hr/time-clock" replace />} />
+        <Route path="/hr/employees" element={<Navigate to="/admin/users" replace />} />
+        <Route path="/hr/employees/:id" element={<Navigate to="/admin/users" replace />} />
+        <Route path="/hr/sick-leave" element={<Navigate to="/dashboard" replace />} />
         <Route path="/inventory/vendors" element={<VendorListPage />} />
         <Route path="/inventory/vendors/:id" element={<VendorDetailPage />} />
         <Route path="/inventory/orders" element={<OrderListPage />} />
@@ -200,6 +198,15 @@ export default function App() {
           path="/admin/permissions"
           element={<AdminRoute><PermissionsPage /></AdminRoute>}
         />
+        <Route
+          path="/admin/time-payroll"
+          element={
+            <SuperAdminRoute>
+              <TimePayrollPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route path="/admin/payroll-hours" element={<Navigate to="/admin/time-payroll" replace />} />
         <Route
           path="/admin/settings"
           element={

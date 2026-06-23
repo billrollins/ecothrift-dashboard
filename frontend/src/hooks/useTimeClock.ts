@@ -3,6 +3,9 @@ import {
   getCurrentEntry,
   createTimeEntry,
   clockOut,
+  startBreak,
+  endBreak,
+  getWeeklyHoursStatus,
 } from '../api/hr.api';
 
 export function useCurrentEntry() {
@@ -12,7 +15,24 @@ export function useCurrentEntry() {
       const { data } = await getCurrentEntry();
       return data;
     },
+    refetchInterval: 30_000,
   });
+}
+
+export function useWeeklyHoursStatus() {
+  return useQuery({
+    queryKey: ['timeClock', 'weeklyStatus'],
+    queryFn: async () => {
+      const { data } = await getWeeklyHoursStatus();
+      return data;
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+function invalidateTimeClock(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['timeClock'] });
+  queryClient.invalidateQueries({ queryKey: ['timeEntries'] });
 }
 
 export function useClockIn() {
@@ -23,10 +43,7 @@ export function useClockIn() {
       const { data: result } = await createTimeEntry(data ?? {});
       return result;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['timeClock', 'current'] });
-      queryClient.invalidateQueries({ queryKey: ['timeEntries'] });
-    },
+    onSuccess: () => invalidateTimeClock(queryClient),
   });
 }
 
@@ -34,19 +51,34 @@ export function useClockOut() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      id,
-      breakMinutes,
-    }: {
-      id: number;
-      breakMinutes?: number;
-    }) => {
-      const { data } = await clockOut(id, breakMinutes);
+    mutationFn: async ({ id }: { id: number }) => {
+      const { data } = await clockOut(id);
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['timeClock', 'current'] });
-      queryClient.invalidateQueries({ queryKey: ['timeEntries'] });
+    onSuccess: () => invalidateTimeClock(queryClient),
+  });
+}
+
+export function useStartBreak() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await startBreak(id);
+      return data;
     },
+    onSuccess: () => invalidateTimeClock(queryClient),
+  });
+}
+
+export function useEndBreak() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await endBreak(id);
+      return data;
+    },
+    onSuccess: () => invalidateTimeClock(queryClient),
   });
 }

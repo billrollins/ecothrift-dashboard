@@ -1,6 +1,9 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from decimal import Decimal
+
+from .soft_delete import SoftDeleteManager
 
 
 class Department(models.Model):
@@ -38,6 +41,8 @@ class TimeEntry(models.Model):
     clock_in = models.DateTimeField()
     clock_out = models.DateTimeField(null=True, blank=True)
     break_minutes = models.IntegerField(default=0)
+    on_break = models.BooleanField(default=False)
+    break_started_at = models.DateTimeField(null=True, blank=True)
     total_hours = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     approved_by = models.ForeignKey(
@@ -45,8 +50,16 @@ class TimeEntry(models.Model):
         related_name='approved_entries',
     )
     notes = models.TextField(blank=True, default='')
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='deleted_time_entries',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()
 
     class Meta:
         unique_together = ('employee', 'date', 'clock_in')
@@ -64,6 +77,16 @@ class TimeEntry(models.Model):
             break_hours = Decimal(str(self.break_minutes)) / Decimal('60')
             self.total_hours = max(hours - break_hours, Decimal('0'))
         return self.total_hours
+
+    def finalize_open_break(self, as_of=None):
+        """If on break, add elapsed break minutes and clear break state."""
+        if not self.on_break or not self.break_started_at:
+            return
+        end = as_of or timezone.now()
+        elapsed_mins = int((end - self.break_started_at).total_seconds() // 60)
+        self.break_minutes = (self.break_minutes or 0) + max(elapsed_mins, 0)
+        self.on_break = False
+        self.break_started_at = None
 
     def save(self, *args, **kwargs):
         if self.clock_out:
@@ -137,7 +160,15 @@ class TimeEntryModificationRequest(models.Model):
     )
     review_note = models.TextField(blank=True, default='')
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='deleted_time_mod_requests',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()
 
     class Meta:
         ordering = ['-created_at']

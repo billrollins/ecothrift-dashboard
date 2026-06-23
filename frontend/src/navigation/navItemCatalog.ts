@@ -8,11 +8,11 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Dashboard',
     icon: 'dashboard',
   },
-  employees: {
-    id: 'employees',
-    path: '/hr/employees',
-    label: 'Employees',
-    icon: 'people',
+  timeClock: {
+    id: 'timeClock',
+    path: '/hr/time-clock',
+    label: 'Time clock',
+    icon: 'schedule',
   },
   orders: {
     id: 'orders',
@@ -144,7 +144,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   users: {
     id: 'users',
     path: '/admin/users',
-    label: 'Users',
+    label: 'Employees',
     icon: 'supervisorAccount',
     roles: ['Admin'],
   },
@@ -182,5 +182,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'article',
     superuserOnly: true,
     openInNewWindow: true,
+  },
+  payrollHours: {
+    id: 'payrollHours',
+    path: '/admin/time-payroll',
+    label: 'Time & payroll',
+    icon: 'schedule',
+    superuserOnly: true,
   },
 };
