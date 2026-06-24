@@ -66,6 +66,7 @@ describe('distributeCheckedInHistoryColumnWidths', () => {
     const measured = {
       checkedIn: 90,
       qty: 52,
+      printed: 52,
       productId: 80,
       brand: 120,
       title: 200,

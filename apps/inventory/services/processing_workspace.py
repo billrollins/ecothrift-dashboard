@@ -176,6 +176,8 @@ def _serialize_item(it: Item) -> dict[str, Any]:
         'manifest_row': it.manifest_row_id,
         'created_at': it.created_at.isoformat() if it.created_at else None,
         'checked_in_at': it.checked_in_at.isoformat() if it.checked_in_at else None,
+        'label_printed_at': it.label_printed_at.isoformat() if it.label_printed_at else None,
+        'label_printed': it.label_printed_at is not None,
         'dispute_type': it.dispute_type or None,
         'dispute_pct_loss': it.dispute_pct_loss,
         'dispute_description': it.dispute_description or '',

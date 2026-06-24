@@ -7057,6 +7057,12 @@ class ItemViewSet(viewsets.ModelViewSet):
         if source_vals:
             qs = qs.filter(source__in=source_vals)
 
+        printed_raw = (request.query_params.get('label_printed') or request.query_params.get('printed') or '').strip().lower()
+        if printed_raw in ('true', '1', 'yes'):
+            qs = qs.filter(label_printed_at__isnull=False)
+        elif printed_raw in ('false', '0', 'no'):
+            qs = qs.filter(label_printed_at__isnull=True)
+
         return qs
 
     def list(self, request, *args, **kwargs):
@@ -7172,6 +7178,28 @@ class ItemViewSet(viewsets.ModelViewSet):
         ]
         headers = self.get_success_headers(body)
         return Response(body, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=False, methods=['post'], url_path='mark-labels-printed')
+    def mark_labels_printed(self, request):
+        """Bulk-set label_printed_at after successful local label print."""
+        raw_ids = request.data.get('item_ids') if isinstance(request.data, dict) else None
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return Response(
+                {'detail': 'item_ids must be a non-empty list of integers.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        id_list: list[int] = []
+        for raw in raw_ids:
+            try:
+                id_list.append(int(raw))
+            except (TypeError, ValueError):
+                return Response(
+                    {'detail': 'item_ids must contain only integers.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        now = timezone.now()
+        updated = Item.objects.filter(pk__in=id_list).update(label_printed_at=now, updated_at=now)
+        return Response({'updated': updated})
 
     @action(detail=False, methods=['get'], url_path='stats')
     def item_stats(self, request):

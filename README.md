@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-30T12:00:00-05:00 (B-Stock initiative link → archived) -->
+<!-- Last updated: 2026-06-23 (no active initiatives; HR MVP archived) -->
 ```
                     ╔═══════════════════════════════════════════════════════════╗
                     ║                                                           ║

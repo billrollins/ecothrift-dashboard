@@ -161,6 +161,7 @@ function invalidateTouchedProcessingRowDetails(
 
 export function printedPreviewToLabelInputs(rows: PrintedItemPreview[]) {
   return rows.map((p) => ({
+    id: p.id,
     sku: p.sku,
     price: p.price,
     product_title: p.title,

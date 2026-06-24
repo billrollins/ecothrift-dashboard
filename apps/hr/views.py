@@ -19,7 +19,7 @@ from .serializers import (
     PayrollPeriodSerializer, TimeEntryRosterSerializer,
     SickLeaveBalanceSerializer, SickLeaveRequestSerializer,
 )
-from .services.time_clock_utils import weekly_status_for_employee
+from .services.time_clock_utils import weekly_status_for_employee, week_bounds
 from .services.payroll_periods import list_payroll_periods
 from .services.roster import build_time_roster
 
@@ -276,6 +276,20 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
                 rows[key]['pending_hours'] += hrs
         for row in rows.values():
             row['total_pay'] = (row['total_hours'] * row['pay_rate']).quantize(Decimal('0.01'))
+        week_start, week_end = week_bounds()
+        week_hours: dict[int, Decimal] = {eid: Decimal('0') for eid in rows}
+        if week_hours:
+            week_entries = TimeEntry.objects.filter(
+                employee_id__in=week_hours.keys(),
+                date__gte=week_start,
+                date__lte=week_end,
+                clock_out__isnull=False,
+            )
+            for entry in week_entries:
+                entry.compute_total_hours()
+                week_hours[entry.employee_id] += entry.total_hours or Decimal('0')
+        for row in rows.values():
+            row['hours_this_week'] = week_hours.get(row['employee_id'], Decimal('0')).quantize(Decimal('0.01'))
         result = sorted(rows.values(), key=lambda r: r['employee_name'].lower())
         return Response(PayrollEmployeeRowSerializer(result, many=True).data)
 

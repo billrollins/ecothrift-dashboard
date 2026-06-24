@@ -52,7 +52,9 @@ import AssumptionsPage from './pages/admin/AssumptionsPage';
 import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
-import TarsPlaceholderPage from './pages/restoration/TarsPlaceholderPage';
+import TarsQueuePage from './pages/restoration/tars/TarsQueuePage';
+import TarsPage from './pages/restoration/tars/TarsPage';
+import RestorationLayout from './pages/restoration/RestorationLayout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -153,7 +155,11 @@ export default function App() {
         <Route path="/buying/auctions" element={<AuctionListPage />} />
         <Route path="/buying/auctions/:id" element={<AuctionDetailPage />} />
         <Route path="/buying/watchlist" element={<WatchlistPage />} />
-        <Route path="/restoration/tars" element={<TarsPlaceholderPage />} />
+        <Route path="/restoration" element={<RestorationLayout />}>
+          <Route index element={<Navigate to="/restoration/queue" replace />} />
+          <Route path="queue" element={<TarsQueuePage />} />
+          <Route path="tars" element={<TarsPage />} />
+        </Route>
         <Route
           path="/admin/pos-setup"
           element={

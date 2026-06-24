@@ -23,6 +23,8 @@ function item(overrides: Partial<Item> = {}): Item {
     listed_at: null,
     checked_in_at: null,
     checked_in_by: null,
+    label_printed_at: null,
+    label_printed: false,
     sold_at: null,
     sold_for: null,
     notes: '',

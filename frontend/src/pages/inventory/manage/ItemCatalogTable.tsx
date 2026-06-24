@@ -30,7 +30,7 @@ import {
   storeColumnWidths as persistColumnWidths,
 } from './catalogTableColumns';
 
-export type ItemSortField = 'itemNumber' | 'product' | 'checkedIn' | 'status' | 'location';
+export type ItemSortField = 'itemNumber' | 'product' | 'location' | 'status' | 'printed';
 
 type SortCycleState = { field: ItemSortField; dir: 'asc' | 'desc' } | null;
 type ItemColumnWidths = Record<ItemSortField, number>;
@@ -38,12 +38,12 @@ type ItemColumnWidths = Record<ItemSortField, number>;
 const ITEM_CATALOG_COL = {
   itemNumber: 72,
   product: 360,
-  checkedIn: 132,
-  status: 72,
   location: 120,
+  status: 72,
+  printed: 52,
 } as const;
-const ITEM_CATALOG_COLUMN_ORDER = ['itemNumber', 'product', 'checkedIn', 'status', 'location'] as const;
-const ITEM_CATALOG_WIDTHS_KEY = 'inventory.workbench.itemCatalog.columns.v1';
+const ITEM_CATALOG_COLUMN_ORDER = ['itemNumber', 'product', 'location', 'status', 'printed'] as const;
+const ITEM_CATALOG_WIDTHS_KEY = 'inventory.workbench.itemCatalog.columns.v2';
 
 function formatCheckedInDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -58,6 +58,10 @@ function formatCheckedInDateTime(iso: string | null | undefined): string {
   } catch {
     return iso;
   }
+}
+
+function printedLabel(item: Item): string {
+  return item.label_printed ? '✓' : '—';
 }
 
 function itemNumberLabel(item: Item): string {
@@ -90,9 +94,9 @@ function defaultColumnWidths(totalWidth: number): ItemColumnWidths {
     {
       itemNumber: ITEM_CATALOG_COL.itemNumber,
       product: Math.round(total * 0.38),
-      checkedIn: ITEM_CATALOG_COL.checkedIn,
-      status: ITEM_CATALOG_COL.status,
       location: Math.round(total * 0.18),
+      status: ITEM_CATALOG_COL.status,
+      printed: ITEM_CATALOG_COL.printed,
     },
     ITEM_CATALOG_COLUMN_ORDER,
     total,
@@ -172,7 +176,7 @@ const ItemCatalogRow = memo(function ItemCatalogRow({
   const title = productLabel(item);
   const location = locationLabel(item);
   const statusMeta = itemStatusChipMeta(item);
-  const checkedIn = formatCheckedInDateTime(item.checked_in_at);
+  const printed = printedLabel(item);
 
   return (
     <TableRow
@@ -212,8 +216,8 @@ const ItemCatalogRow = memo(function ItemCatalogRow({
           {title}
         </Typography>
       </TableCell>
-      <TableCell align="left" sx={{ fontSize: '0.72rem', fontVariantNumeric: 'tabular-nums' }} title={checkedIn !== '—' ? checkedIn : undefined}>
-        {checkedIn}
+      <TableCell align="left" sx={{ fontSize: '0.72rem' }} title={location !== '—' ? location : undefined}>
+        {location}
       </TableCell>
       <TableCell align="center">
         <Chip
@@ -228,8 +232,16 @@ const ItemCatalogRow = memo(function ItemCatalogRow({
           }}
         />
       </TableCell>
-      <TableCell align="left" sx={{ fontSize: '0.72rem' }} title={location !== '—' ? location : undefined}>
-        {location}
+      <TableCell
+        align="center"
+        sx={{
+          fontSize: '0.72rem',
+          fontFamily: processingTokens.monoFontFamily,
+          color: item.label_printed ? 'success.main' : 'text.disabled',
+        }}
+        title={item.label_printed_at ? `Printed ${formatCheckedInDateTime(item.label_printed_at)}` : 'Not printed'}
+      >
+        {printed}
       </TableCell>
     </TableRow>
   );
@@ -253,12 +265,12 @@ export function ItemCatalogTable({
   const theme = useTheme();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
-  const [sortState, setSortState] = useState<SortCycleState>({ field: 'checkedIn', dir: 'desc' });
+  const [sortState, setSortState] = useState<SortCycleState>({ field: 'itemNumber', dir: 'desc' });
   const [columnWidths, setColumnWidths] = useState<ItemColumnWidths | null>(() => readStoredColumnWidths());
 
   const sortedItems = useMemo(() => {
     const copy = [...items];
-    const active = sortState ?? { field: 'checkedIn' as const, dir: 'desc' as const };
+    const active = sortState ?? { field: 'itemNumber' as const, dir: 'desc' as const };
     const { field, dir } = active;
     const mult = dir === 'asc' ? 1 : -1;
     copy.sort((a, b) => {
@@ -270,14 +282,14 @@ export function ItemCatalogTable({
         case 'product':
           cmp = productLabel(a).localeCompare(productLabel(b));
           break;
-        case 'checkedIn':
-          cmp = (a.checked_in_at || '').localeCompare(b.checked_in_at || '');
+        case 'location':
+          cmp = locationLabel(a).localeCompare(locationLabel(b));
           break;
         case 'status':
           cmp = itemStatusChipMeta(a).label.localeCompare(itemStatusChipMeta(b).label);
           break;
-        case 'location':
-          cmp = locationLabel(a).localeCompare(locationLabel(b));
+        case 'printed':
+          cmp = Number(Boolean(a.label_printed)) - Number(Boolean(b.label_printed));
           break;
       }
       return cmp * mult;
@@ -317,9 +329,9 @@ export function ItemCatalogTable({
 
   const handleSort = (field: ItemSortField) => {
     setSortState((prev) => {
-      if (prev === null || prev.field !== field) return { field, dir: field === 'checkedIn' ? 'desc' : 'asc' };
+      if (prev === null || prev.field !== field) return { field, dir: field === 'itemNumber' ? 'desc' : 'asc' };
       if (prev.dir === 'asc') return { field, dir: 'desc' };
-      return { field: 'checkedIn', dir: 'desc' };
+      return { field: 'itemNumber', dir: 'desc' };
     });
   };
 
@@ -379,9 +391,9 @@ export function ItemCatalogTable({
     <colgroup>
       <col style={{ width: effectiveColumnWidths.itemNumber }} />
       <col style={{ width: effectiveColumnWidths.product }} />
-      <col style={{ width: effectiveColumnWidths.checkedIn }} />
-      <col style={{ width: effectiveColumnWidths.status }} />
       <col style={{ width: effectiveColumnWidths.location }} />
+      <col style={{ width: effectiveColumnWidths.status }} />
+      <col style={{ width: effectiveColumnWidths.printed }} />
     </colgroup>
   );
 
@@ -455,25 +467,25 @@ export function ItemCatalogTable({
                   onClick={() => handleSort('product')}
                   hideSortIcon={sortState?.field !== 'product'}
                 >
-                  Product
+                  Title
                 </TableSortLabel>
                 <CatalogTableColumnResizeHandle
                   leftKey="product"
-                  rightKey="checkedIn"
+                  rightKey="location"
                   onResizePair={(left, right, event) => startColumnResize(left as ItemSortField, right as ItemSortField, event)}
                 />
               </TableCell>
               <TableCell align="left" sx={{ position: 'relative', pr: '14px !important' }}>
                 <TableSortLabel
-                  active={sortState?.field === 'checkedIn'}
-                  direction={sortState?.field === 'checkedIn' ? sortState.dir : 'desc'}
-                  onClick={() => handleSort('checkedIn')}
-                  hideSortIcon={sortState?.field !== 'checkedIn'}
+                  active={sortState?.field === 'location'}
+                  direction={sortState?.field === 'location' ? sortState.dir : 'asc'}
+                  onClick={() => handleSort('location')}
+                  hideSortIcon={sortState?.field !== 'location'}
                 >
-                  Checked in
+                  Location
                 </TableSortLabel>
                 <CatalogTableColumnResizeHandle
-                  leftKey="checkedIn"
+                  leftKey="location"
                   rightKey="status"
                   onResizePair={(left, right, event) => startColumnResize(left as ItemSortField, right as ItemSortField, event)}
                 />
@@ -490,18 +502,19 @@ export function ItemCatalogTable({
                 </TableSortLabel>
                 <CatalogTableColumnResizeHandle
                   leftKey="status"
-                  rightKey="location"
+                  rightKey="printed"
                   onResizePair={(left, right, event) => startColumnResize(left as ItemSortField, right as ItemSortField, event)}
                 />
               </TableCell>
-              <TableCell align="left">
+              <TableCell align="center">
                 <TableSortLabel
-                  active={sortState?.field === 'location'}
-                  direction={sortState?.field === 'location' ? sortState.dir : 'asc'}
-                  onClick={() => handleSort('location')}
-                  hideSortIcon={sortState?.field !== 'location'}
+                  active={sortState?.field === 'printed'}
+                  direction={sortState?.field === 'printed' ? sortState.dir : 'asc'}
+                  onClick={() => handleSort('printed')}
+                  hideSortIcon={sortState?.field !== 'printed'}
+                  sx={centeredSortLabelSx}
                 >
-                  Location
+                  Printed
                 </TableSortLabel>
               </TableCell>
             </TableRow>

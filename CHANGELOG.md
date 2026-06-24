@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.33.1] — 2026-06-23 (HR Time clock — My recent shifts scoped to logged-in user) -->
-<!-- Last reviewed: 2026-06-23 (v2.33.1 — HR Time clock my-shifts fix) -->
+<!-- Line 1 release: ## [Unreleased] — HR Time & payroll week-hours / overtime UX (local) -->
+<!-- Last reviewed: 2026-06-23 (docs audit — initiative archived; WIP in [Unreleased]) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,11 +10,35 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+Initiative: [`.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md`](.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md) (Session 3 post-release polish); [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md) (Phase 0 mock)
+
+### Added
+
+- **Inventory / item label printed tracking** — `Item.label_printed_at` (backfilled for existing items); `POST /api/inventory/items/mark-labels-printed/` bulk marker after local print success; **Printed** column on workbench Items tab and Processing Prior Check-ins (`printedCount/qty`); Print vs Reprint affordances when labels already printed.
+- **Restoration / TARS workspace (mock)** — `/restoration/tars`: **Send to Restoration** (grade retail + send), **Check-In & Evaluate** (scan-in, live evaluation, perform path), **TARS** (active evaluation summary + Test/Assemble/Repair/Salvage queues). Client-only mock (`frontend/src/pages/restoration/tars/`).
+
+### Changed
+
+- **Inventory / Processing — edit check-in dialog** — `ProductSummaryCard` shows Product #, Title, Brand, Model only (no nested stat cards); edit mode surfaces **4 check-in-scoped item stat cards** (# Items, On Shelf, Sold, Printed) clickable to workbench with filters; modal spacing tightened (`ProcessingCheckInEditStats.tsx`, `ProcessingCheckInDialog.tsx`).
+- **Inventory / Processing — check-in forms** — Status removed as a check-in input (status is automatic); `CheckInDetailFieldsSection.status` prop is opt-in; removed from Processing check-in dialog, workbench manage panel create/edit/duplicate paths (`ProcessingCheckInDialog.tsx`, `ItemCheckInManagePanel.tsx`).
+- **Restoration / TARS mock UX** — Workspace pages renamed to **Send to Restoration**, **Check-In & Evaluate** (default), **TARS**; active evaluation summary above verb queues (`TarsWorkspacePage`, `TarsExecutePanel`).
+- **HR / Time & payroll — roster tab** — Columns reordered (Date, Employee, Start, Stop, Break, Hours, **Week hours**, Pay); **Week hours** shows full Mon–Sun partition sum per employee with red overtime format (`40.00 (+X.XX overtime)`); removed payroll running-total column (`apps/hr/services/roster.py`, `TimePayrollPage.tsx`).
+- **HR / Time & payroll — by employee** — **This week** column (`hours_this_week` on `GET …/payroll/`); **This payroll** shows per-calendar-week OT breakdown; KPI **This week** uses current-week roster fetch (`apps/hr/views.py`, `PayrollEmployeeRowSerializer`).
+- **HR / time entries** — `TimeEntry.save` syncs `date` from `clock_in`; **`validate_shift_duration`** rejects shifts over **16h** after breaks (`apps/hr/models.py`, `apps/hr/services/time_clock_utils.py`).
+
+### Fixed
+
+- **HR / roster display** — Start/Stop show date when clock timestamp spans a different day than the row date (`fmtClockCell` on `TimePayrollPage.tsx`).
+
+---
+
 ## [2.33.1] — 2026-06-23
 
 User-facing theme: **Time clock “My recent shifts” shows only the logged-in employee’s entries.**
 
-Initiative: [`.ai/initiatives/hr_time_clock_mvp.md`](.ai/initiatives/hr_time_clock_mvp.md)
+Initiative: [`.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md`](.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md)
 
 ### Fixed
 
@@ -26,7 +50,7 @@ Initiative: [`.ai/initiatives/hr_time_clock_mvp.md`](.ai/initiatives/hr_time_clo
 
 User-facing theme: **HR Time Clock MVP — clock in/out, breaks, overtime warnings, consolidated Time & payroll, and Employees admin with pay rates.**
 
-Initiative: [`.ai/initiatives/hr_time_clock_mvp.md`](.ai/initiatives/hr_time_clock_mvp.md)
+Initiative: [`.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md`](.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md)
 
 ### Added
 

@@ -20,14 +20,14 @@ import {
   processingUpdateItemCheckIn,
 } from '../../../api/inventory.api';
 import type { ProductCheckInOrderOption } from '../../../api/inventory.api';
-import type { ItemCheckInCatalog, ItemCondition, ItemStatus, Product } from '../../../types/inventory.types';
+import type { ItemCheckInCatalog, ItemCondition, Product } from '../../../types/inventory.types';
 import { moneyValuesEqual } from '../../../utils/formInputs';
 import type { WorkbenchSelection } from '../../../utils/richInventorySearch';
 import { formatNumber } from '../../../utils/format';
 import { productDisplayLabel } from '../../../utils/productCatalog';
 import { ProductSearchAutocomplete } from '../../../components/inventory/ProductSearchAutocomplete';
 import { MAX_CHECK_IN_QUANTITY } from '../processing/largeCheckIn';
-import { printProcessingLabelsStaggered } from '../processing/printProcessingLabel';
+import { printProcessingLabelsAndMarkPrinted } from '../processing/printProcessingLabel';
 import {
   normalizeProcessingCondition,
   PROCESSING_ITEM_DEFAULT_CONDITION,
@@ -111,17 +111,12 @@ function orderOptionFromCheckIn(checkIn: ItemCheckInCatalog): ProductCheckInOrde
   };
 }
 
-function deriveCheckInItemStatus(items: ItemCheckInCatalog['items']): ItemStatus {
-  return items[0]?.status ?? 'on_shelf';
-}
-
 function checkInFormBaseline(checkIn: ItemCheckInCatalog) {
   const defaults = checkIn.defaults ?? {};
   return {
     quantity: String(checkIn.quantity),
     purchaseOrderId: checkIn.purchase_order,
     condition: normalizeProcessingCondition(strDefault(defaults.condition)),
-    status: deriveCheckInItemStatus(checkIn.items),
     dispatch: normalizeProcessingDispatch(strDefault(defaults.dispatch)),
     price: strDefault(defaults.price),
     retail: strDefault(defaults.retail),
@@ -136,7 +131,6 @@ function duplicateDraftDefaults() {
   return {
     quantity: '1',
     condition: PROCESSING_ITEM_DEFAULT_CONDITION,
-    status: 'on_shelf' as ItemStatus,
     dispatch: 'on_shelf',
     price: '',
     retail: '',
@@ -147,6 +141,7 @@ function duplicateDraftDefaults() {
 
 function checkInLabelItems(checkIn: ItemCheckInCatalog) {
   return checkIn.items.map((it) => ({
+    id: it.id,
     sku: it.sku,
     price: it.price,
     product_title: checkIn.product_title,
@@ -179,7 +174,6 @@ function ItemCheckInEditPanel({
 
   const [quantity, setQuantity] = useState('1');
   const [condition, setCondition] = useState<ItemCondition>('good');
-  const [status, setStatus] = useState<ItemStatus>('on_shelf');
   const [dispatch, setDispatch] = useState('on_shelf');
   const [price, setPrice] = useState('');
   const [retail, setRetail] = useState('');
@@ -207,7 +201,6 @@ function ItemCheckInEditPanel({
     const nextBaseline = checkInFormBaseline(checkIn);
     setQuantity(nextBaseline.quantity);
     setCondition(nextBaseline.condition);
-    setStatus(nextBaseline.status);
     setDispatch(nextBaseline.dispatch);
     setPrice(nextBaseline.price);
     setRetail(nextBaseline.retail);
@@ -221,7 +214,6 @@ function ItemCheckInEditPanel({
     const nextBaseline = checkInFormBaseline(checkIn);
     setQuantity(nextBaseline.quantity);
     setCondition(nextBaseline.condition);
-    setStatus(nextBaseline.status);
     setDispatch(nextBaseline.dispatch);
     setPrice(nextBaseline.price);
     setRetail(nextBaseline.retail);
@@ -245,14 +237,13 @@ function ItemCheckInEditPanel({
       quantity !== baseline.quantity
       || selectedOrder.id !== baseline.purchaseOrderId
       || condition !== baseline.condition
-      || status !== baseline.status
       || dispatch !== baseline.dispatch
       || price !== baseline.price
       || retail !== baseline.retail
       || notes !== baseline.notes
       || JSON.stringify(specifications) !== JSON.stringify(baseline.specifications)
     );
-  }, [baseline, quantity, selectedOrder, condition, status, dispatch, price, retail, notes, specifications]);
+  }, [baseline, quantity, selectedOrder, condition, dispatch, price, retail, notes, specifications]);
 
   const saveMutation = useMutation({
     mutationFn: async ({ printAfterSave }: { printAfterSave: boolean }) => {
@@ -263,7 +254,6 @@ function ItemCheckInEditPanel({
         quantity: qtyValue,
         purchase_order: selectedOrder.id,
         condition,
-        status,
         dispatch: salvageLocked ? 'salvage' : dispatch,
         price: price.trim() || undefined,
         retail: retail.trim() || null,
@@ -285,12 +275,14 @@ function ItemCheckInEditPanel({
         enqueueSnackbar('No items to print', { variant: 'warning' });
         return;
       }
-      const { succeeded, failed } = await printProcessingLabelsStaggered(
+      const result = await printProcessingLabelsAndMarkPrinted(
         checkInLabelItems(fresh),
         savedPrice,
       );
-      if (failed > 0) enqueueSnackbar('Some labels failed to print', { variant: 'error' });
-      else if (succeeded > 0) enqueueSnackbar(`${succeeded} label(s) sent to printer`, { variant: 'success' });
+      if (result.failed > 0) enqueueSnackbar('Some labels failed to print', { variant: 'error' });
+      else if (result.succeeded > 0) enqueueSnackbar(`${result.succeeded} label(s) sent to printer`, { variant: 'success' });
+      if (result.markFailed) enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
+      else await queryClient.invalidateQueries({ queryKey: ['item-check-ins', 'manage', checkInId] });
     },
     onError: (err: unknown) => {
       if (err instanceof Error && err.message === 'Save cancelled.') return;
@@ -309,7 +301,7 @@ function ItemCheckInEditPanel({
         message: n > 0 ?
           `Save this check-in with the updated shelf price? You can print ${n} new label${n === 1 ? '' : 's'} or skip printing.`
           : 'Save this check-in with the updated shelf price?',
-        printLabel: 'Print',
+        printLabel: checkIn?.items.every((it) => it.label_printed) ? 'Reprint' : 'Print',
         noPrintLabel: 'No print',
         cancelLabel: 'Cancel save',
       });
@@ -346,7 +338,6 @@ function ItemCheckInEditPanel({
         quantity: qtyValue,
         purchase_order: selectedOrder.id,
         condition,
-        status,
         dispatch: salvageLocked ? 'salvage' : dispatch,
         price: price.trim(),
         retail: retail.trim() || undefined,
@@ -378,7 +369,6 @@ function ItemCheckInEditPanel({
     const cleared = duplicateDraftDefaults();
     setQuantity(cleared.quantity);
     setCondition(cleared.condition);
-    setStatus(cleared.status);
     setDispatch(cleared.dispatch);
     setPrice(cleared.price);
     setRetail(cleared.retail);
@@ -404,17 +394,21 @@ function ItemCheckInEditPanel({
       return;
     }
     const n = checkIn.items.length;
+    const allPrinted = checkIn.items.every((it) => it.label_printed);
+    const action = allPrinted ? 'Reprint' : 'Print';
     const ok = await confirm({
-      title: 'Reprint labels?',
-      message: `Reprint ${n} label${n === 1 ? '' : 's'} for this check-in?`,
-      confirmLabel: 'Reprint',
+      title: `${action} labels?`,
+      message: `${action} ${n} label${n === 1 ? '' : 's'} for this check-in?`,
+      confirmLabel: action,
       severity: 'info',
       confirmColor: 'primary',
     });
     if (!ok) return;
-    const { succeeded, failed } = await printProcessingLabelsStaggered(checkInLabelItems(checkIn));
-    if (failed > 0) enqueueSnackbar('Some labels failed to print', { variant: 'error' });
-    else if (succeeded > 0) enqueueSnackbar(`${succeeded} label(s) sent to printer`, { variant: 'success' });
+    const result = await printProcessingLabelsAndMarkPrinted(checkInLabelItems(checkIn));
+    if (result.failed > 0) enqueueSnackbar('Some labels failed to print', { variant: 'error' });
+    else if (result.succeeded > 0) enqueueSnackbar(`${result.succeeded} label(s) sent to printer`, { variant: 'success' });
+    if (result.markFailed) enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
+    else await queryClient.invalidateQueries({ queryKey: ['item-check-ins', 'manage', checkInId] });
   };
 
   const bumpQuantity = (delta: number) => {
@@ -678,8 +672,6 @@ function ItemCheckInEditPanel({
             setCondition(normalizeProcessingCondition(next));
             if (next === 'salvage') setDispatch('salvage');
           }}
-          status={status}
-          onStatusChange={setStatus}
           dispatch={dispatch}
           onDispatchChange={setDispatch}
           specifications={specifications}
@@ -783,7 +775,6 @@ function ItemCheckInCreatePanel({
   const [pickedProduct, setPickedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState('1');
   const [condition, setCondition] = useState<ItemCondition>(PROCESSING_ITEM_DEFAULT_CONDITION);
-  const [status, setStatus] = useState<ItemStatus>('on_shelf');
   const [dispatch, setDispatch] = useState('on_shelf');
   const [price, setPrice] = useState('');
   const [retail, setRetail] = useState('');
@@ -796,7 +787,6 @@ function ItemCheckInCreatePanel({
     const cleared = duplicateDraftDefaults();
     setQuantity(cleared.quantity);
     setCondition(cleared.condition);
-    setStatus(cleared.status);
     setDispatch(cleared.dispatch);
     setPrice(cleared.price);
     setRetail(cleared.retail);
@@ -828,7 +818,6 @@ function ItemCheckInCreatePanel({
         quantity: qtyValue,
         purchase_order: selectedOrder.id,
         condition,
-        status,
         dispatch: salvageLocked ? 'salvage' : dispatch,
         price: price.trim(),
         retail: retail.trim() || undefined,
@@ -1079,8 +1068,6 @@ function ItemCheckInCreatePanel({
                 setCondition(normalizeProcessingCondition(next));
                 if (next === 'salvage') setDispatch('salvage');
               }}
-              status={status}
-              onStatusChange={setStatus}
               dispatch={dispatch}
               onDispatchChange={setDispatch}
               specifications={specifications}

@@ -1,4 +1,5 @@
-"""Super-admin time entry roster with running weekly / payroll totals."""
+"""Super-admin time entry roster with weekly totals (Mon–Sun per employee)."""
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.utils import timezone
@@ -27,29 +28,47 @@ def _pay_rate_for(entry: TimeEntry) -> Decimal:
     return Decimal(rate) if rate is not None else Decimal('0')
 
 
+def _shift_hours(entry: TimeEntry) -> Decimal:
+    if entry.clock_out:
+        entry.compute_total_hours()
+        return (entry.total_hours or Decimal('0')).quantize(Decimal('0.01'))
+    return _entry_hours(entry).quantize(Decimal('0.01'))
+
+
+def _week_partition_totals(week_keys: set[tuple[int, date]]) -> dict[tuple[int, date], Decimal]:
+    """SUM(hours) per (employee, calendar week) — full Mon–Sun week, not running."""
+    totals: dict[tuple[int, date], Decimal] = {}
+    for employee_id, week_start in week_keys:
+        week_end = week_start + timedelta(days=6)
+        entries = TimeEntry.objects.filter(
+            employee_id=employee_id,
+            date__gte=week_start,
+            date__lte=week_end,
+        )
+        total = Decimal('0')
+        for entry in entries:
+            total += _shift_hours(entry)
+        totals[(employee_id, week_start)] = total.quantize(Decimal('0.01'))
+    return totals
+
+
 def build_time_roster(date_from, date_to) -> list[dict]:
-    """All shifts in range, sorted for running cumulative columns."""
+    """Shifts in range; weekly_cumulative_hours = full-week sum per employee (same on every row)."""
     qs = (
         TimeEntry.objects.filter(date__gte=date_from, date__lte=date_to)
         .select_related('employee', 'employee__employee')
         .order_by('employee__last_name', 'employee__first_name', 'date', 'clock_in')
     )
 
-    week_running: dict[tuple[int, date], Decimal] = {}
-    payroll_running: dict[int, Decimal] = {}
-    rows = []
+    rows: list[dict] = []
+    week_keys: set[tuple[int, date]] = set()
 
     for entry in qs:
-        hrs = _entry_hours(entry)
         ws, we = week_bounds(entry.date)
         week_key = (entry.employee_id, ws)
-        week_running[week_key] = week_running.get(week_key, Decimal('0')) + hrs
-        payroll_running[entry.employee_id] = payroll_running.get(entry.employee_id, Decimal('0')) + hrs
+        week_keys.add(week_key)
 
-        if entry.clock_out:
-            entry.compute_total_hours()
-
-        shift_hours = (entry.total_hours if entry.clock_out else hrs).quantize(Decimal('0.01'))
+        shift_hours = _shift_hours(entry)
         rate = _pay_rate_for(entry)
 
         rows.append({
@@ -67,9 +86,13 @@ def build_time_roster(date_from, date_to) -> list[dict]:
             'pay': (shift_hours * rate).quantize(Decimal('0.01')),
             'week_start': ws.isoformat(),
             'week_end': we.isoformat(),
-            'weekly_cumulative_hours': week_running[week_key].quantize(Decimal('0.01')),
-            'payroll_cumulative_hours': payroll_running[entry.employee_id].quantize(Decimal('0.01')),
             'is_open': entry.clock_out is None,
         })
+
+    week_totals = _week_partition_totals(week_keys)
+    for row in rows:
+        ws = date.fromisoformat(row['week_start'])
+        key = (row['employee_id'], ws)
+        row['weekly_cumulative_hours'] = week_totals.get(key, Decimal('0'))
 
     return rows

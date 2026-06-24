@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-16 (v2.32.0 — unmanifested lines, queue resume, check-in UX) -->
+<!-- Last updated: 2026-06-24 (label_printed_at + mark-labels-printed endpoint; edit check-in dialog) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -258,11 +258,13 @@ Core inventory entity flowing through the system.
 - **`title`**, **`brand`**, **`category`**, **`price`**, **`cost`**
 - **`condition`**, **`location`**, **`listed_at`**, **`sold_at`**, **`sold_for`**, **`notes`**
 - **`checked_in_at`**, **`checked_in_by`** — explicit arrival check-in audit fields
+- **`label_printed_at`** — set after a successful local label print (`null` = never printed); exposed as read-only **`label_printed`** bool in API
 
 **Check-in actions**:
 - `POST /inventory/items/{id}/check-in/` — single-item check-in + field finalize
 - `POST /inventory/items/{id}/mark-broken/` — mark item as scrapped
 - `POST /inventory/items/{id}/uncheck-in/` — revert item to intake
+- `POST /inventory/items/mark-labels-printed/` — bulk-set `label_printed_at` after successful local print (`item_ids[]`); idempotent; skips already-printed items
 - `POST /inventory/orders/{id}/check-in-items/` — bulk check-in for order-scoped queues
 - `POST /inventory/orders/{id}/mark-items-broken/` — bulk mark items scrapped
 - `POST /inventory/orders/{id}/uncheck-in-items/` — bulk revert items to intake

@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+:root{--accent:#1A7A4F;--num-font:'IBM Plex Mono';}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Hanken Grotesk',system-ui,sans-serif;background:#F0F2EE;color:#16201B;-webkit-font-smoothing:antialiased;}
+input{font-family:inherit;}button{font-family:inherit;}
+::placeholder{color:#9AA59D;}
+input[type=range]{-webkit-appearance:none;height:6px;border-radius:999px;background:#DDE2DC;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--accent);cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.25);}
+</style>
+</helmet>
+
+<div style="min-height:100vh;">
+
+  <header style="display:flex;align-items:center;gap:22px;padding:0 22px;height:60px;background:#15211B;color:#E8EEE9;position:sticky;top:0;z-index:30;">
+    <div style="display:flex;align-items:center;gap:11px;">
+      <div style="width:32px;height:32px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px;">E</div>
+      <div style="line-height:1.12;">
+        <div style="font-weight:750;font-size:15px;letter-spacing:.2px;">EcoThrift</div>
+        <div style="font-size:10px;color:#8FA89A;letter-spacing:.18em;font-weight:700;">TARS WORKFLOW</div>
+      </div>
+    </div>
+    <nav style="display:flex;gap:4px;background:#1E2E26;padding:4px;border-radius:10px;">
+      <sc-for list="{{ roleTabs }}" as="tab" hint-placeholder-count="3">
+        <button onClick="{{ tab.onClick }}" style="{{ tab.style }}">
+          <span style="font-size:13px;font-weight:650;">{{ tab.label }}</span>
+        </button>
+      </sc-for>
+    </nav>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:9px;padding:7px 13px;border-radius:9px;background:{{ premiumChipBg }};">
+      <span style="font-size:10px;color:#8FA89A;font-weight:700;letter-spacing:.1em;">TIME RATE</span>
+      <span style="font-family:var(--num-font);font-weight:700;font-size:15px;color:{{ premiumChipText }};">{{ timePremiumPct }}</span>
+      <span style="font-size:11px;font-weight:700;color:{{ premiumChipText }};">{{ premiumState }}</span>
+    </div>
+  </header>
+
+  <main style="padding:22px;max-width:1320px;margin:0 auto;">
+
+    <!-- ============ PROCESSING ============ -->
+    <sc-if value="{{ isProcessing }}" hint-placeholder-val="{{ true }}">
+    <div>
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px;">
+        <h1 style="margin:0;font-size:21px;font-weight:750;">Processing — Intake</h1>
+        <span style="font-size:13px;color:#5A655E;">Set the retail value at each grade, then send to Restoration.</span>
+      </div>
+      <div style="display:grid;grid-template-columns:288px 1fr 272px;gap:18px;align-items:start;">
+
+        <section style="background:#fff;border:1px solid #E2E6E1;border-radius:12px;padding:15px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <span style="font-size:12px;font-weight:750;letter-spacing:.05em;color:#46504A;">INTAKE QUEUE</span>
+            <span style="font-family:var(--num-font);font-size:12px;font-weight:700;color:#fff;background:var(--accent);padding:2px 8px;border-radius:999px;">{{ intakeCount }}</span>
+          </div>
+          <sc-for list="{{ processingQueue }}" as="it" hint-placeholder-count="2">
+            <button onClick="{{ it.onClick }}" style="{{ it.style }}">
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
+                <span style="font-family:var(--num-font);font-size:11px;font-weight:700;color:#46504A;">{{ it.sku }}</span>
+                <span style="font-size:10px;font-weight:700;color:#fff;padding:1px 6px;border-radius:4px;background:{{ it.sourceColor }};">{{ it.source }}</span>
+              </div>
+              <div style="font-size:13px;font-weight:600;line-height:1.25;color:#16201B;">{{ it.name }}</div>
+              <div style="font-size:11px;color:#7B857E;margin-top:3px;">{{ it.category }}</div>
+            </button>
+          </sc-for>
+          <sc-if value="{{ noIntake }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:24px 8px;text-align:center;color:#9AA59D;font-size:13px;">Queue clear 🎉</div>
+          </sc-if>
+        </section>
+
+        <sc-if value="{{ hasProcessingItem }}" hint-placeholder-val="{{ true }}">
+        <section style="background:#fff;border:1px solid #E2E6E1;border-radius:12px;padding:20px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;padding-bottom:16px;border-bottom:1px solid #EDEFEA;">
+            <div style="width:52px;height:52px;border-radius:10px;background:#F0F2EE;display:flex;align-items:center;justify-content:center;font-size:22px;">📦</div>
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+                <span style="font-family:var(--num-font);font-size:12px;font-weight:700;color:#46504A;">{{ procItem.sku }}</span>
+                <span style="font-size:10px;font-weight:700;color:#fff;padding:1px 7px;border-radius:4px;background:{{ procItem.sourceColor }};">{{ procItem.source }}</span>
+                <span style="font-size:11px;color:#7B857E;">{{ procItem.category }}</span>
+              </div>
+              <div style="font-size:17px;font-weight:700;">{{ procItem.name }}</div>
+            </div>
+          </div>
+
+          <div style="margin-top:18px;">
+            <div style="font-size:12px;font-weight:750;letter-spacing:.05em;color:#46504A;margin-bottom:9px;">GRADE SCALE</div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px;">
+              <sc-for list="{{ scaleOptions }}" as="s" hint-placeholder-count="4">
+                <button onClick="{{ s.onClick }}" style="{{ s.style }}">{{ s.name }} <span style="opacity:.6;font-weight:600;">· {{ s.count }}</span></button>
+              </sc-for>
+              <button onClick="{{ onAddCustom }}" style="padding:6px 11px;border-radius:999px;cursor:pointer;font-size:12px;font-weight:650;border:1px dashed #B7BEB6;background:#fff;color:#46504A;">+ Custom</button>
+            </div>
+          </div>
+
+          <div style="margin-top:20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <span style="font-size:12px;font-weight:750;letter-spacing:.05em;color:#46504A;">ITEM RETAIL VALUE — IF GRADE IS…</span>
+              <span style="font-size:11px;color:#7B857E;">These feed the decision engine</span>
+            </div>
+            <sc-for list="{{ gradeRows }}" as="g" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid #F2F3EF;">
+                <div style="flex:1;display:flex;align-items:center;gap:9px;">
+                  <span style="width:9px;height:9px;border-radius:50%;background:{{ g.dot }};"></span>
+                  <span style="font-size:14px;font-weight:600;">{{ g.grade }}</span>
+                </div>
+                <div style="position:relative;width:148px;">
+                  <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-family:var(--num-font);font-size:14px;color:#9AA59D;">$</span>
+                  <input type="number" value="{{ g.valueStr }}" onInput="{{ g.onInput }}" placeholder="0" style="width:100%;padding:9px 11px 9px 23px;border:1px solid #D6DAD4;border-radius:8px;font-family:var(--num-font);font-size:14px;color:#16201B;background:#fff;outline:none;text-align:right;">
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <button onClick="{{ procItem.onSend }}" style="{{ procItem.sendStyle }}">{{ procItem.sendLabel }}</button>
+        </section>
+        </sc-if>
+        <sc-if value="{{ noProcessingItem }}" hint-placeholder-val="{{ false }}">
+          <section style="background:#fff;border:1px solid #E2E6E1;border-radius:12px;padding:60px 20px;text-align:center;color:#9AA59D;">No item selected — pick one from the intake queue.</section>
+        </sc-if>
+
+        <aside style="display:flex;flex-direction:column;gap:16px;">
+          <section style="background:#fff;border:1px solid #E2E6E1;border-radius:12px;padding:15px;">
+            <div style="font-size:12px;font-weight:750;letter-spacing:.05em;color:#46504A;margin-bottom:11px;">MOST-USED SCALES</div>
+            <sc-for list="{{ mruList }}" as="m" hint-placeholder-count="3">
+              <div style="padding:9px 0;border-bottom:1px solid #F2F3EF;">
+                <div style="font-size:13px;font-weight:650;">{{ m.name }}</div>
+                <div style="font-size:11px;color:#7B857E;margin-top:2px;font-family:var(--num-font);">{{ m.grades }}</div>
+              </div>
+            </sc-for>
+          </section>
+          <section style="background:color-mix(in srgb,var(--accent) 7%,#fff);border:1px solid color-mix(in srgb,var(--accent) 22%,#fff);border-radius:12px;padding:15px;">
+            <div style="font-size:12px;font-weight:750;color:color-mix(in srgb,var(--accent) 78%,#000);margin-bottom:6px;">HOW THIS WORKS</div>
+            <div style="font-size:12.5px;line-height:1.5;color:#3C463F;">Processing only sets <b>what each grade is worth</b>. Restoration later estimates the <b>cost to reach</b> each grade — the app picks the most profitable path.</div>
+          </section>
+        </aside>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ============ RESTORATION ============ -->
+    <sc-if value="{{ isRestoration }}" hint-placeholder-val="{{ false }}">
+    <div>
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px;">
+        <h1 style="margin:0;font-size:21px;font-weight:750;">Restoration — Bench</h1>
+        <span style="font-size:13px;color:#5A655E;">Scan items in, estimate TARS cost per path, let the engine call the play.</span>
+      </div>
+
+      <section style="background:#15211B;border-radius:12px;padding:13px 14px;display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <span style="font-size:19px;">🔫</span>
+        <input value="{{ scanInput }}" onInput="{{ onScanInput }}" onKeyDown="{{ onScanKey }}" placeholder="Scan or type a SKU to receive it onto the bench…" style="flex:1;padding:11px 13px;border:none;border-radius:8px;background:#243730;color:#EAF1EC;font-family:var(--num-font);font-size:14px;outline:none;">
+        <button onClick="{{ onScanNext }}" style="padding:11px 18px;border:none;border-radius:8px;cursor:pointer;background:var(--accent);color:#fff;font-weight:700;font-size:14px;">Scan next ({{ scanQueueCount }})</button>
+      </section>
+
+      <div style="display:grid;grid-template-columns:280px 1fr;gap:18px;align-items:start;">
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <section style="background:#fff;border:1px solid #E2E6E1;border-radius:12px;padding:15px;">
+            <div style="font-size:12px;font-weight:750;letter-spacing:.05em;color:#46504A;margin-bottom:11px;">TO SCAN IN</div>
+            <sc-for list="{{ scanQueue }}" as="it" hint-placeholder-count="2">
+              <button onClick="{{ it.onClick }}" style="display:block;width:100%;text-align:left;padding:10px 11px;margin-bottom:8px;border-radius:9px;cursor:pointer;border:1px dashed #C8CEC6;background:#FAFBF9;">
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">
+                  <span style="font-family:var(--num-font);font-size:11px;font-weight:700;color:#46504A;">{{ it.sku }}</span>
+                  <span style="font-size:10px;font-weight:700;color:#fff;padding:1px 6px;border-radius:4px;background:{{ it.sourceColor }};">{{ it.source }}</span>
+                </div>
+                <div style="font-size:13px;font-weight:600;line-height:1.25;">{{ it.name }}</div>
+              </button>
+            </sc-for>
+            <sc-if value="{{ noScanQueue }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:16px 8px;text-align:center;color:#9AA59D;font-size:12.5px;">Nothing inbound.</div>
+            </sc-if>
+          </section>
+          <section style="background:#fff;border:1px solid #E2E6E1;border-radius:12px;padding:15px;">
+            <div style="font-size:12px;font-weight:750;letter-spacing:.05em;color:#46504A;margin-bottom:11px;">ON BENCH</div>
+            <sc-for list="{{ benchItems }}" as="it" hint-placeholder-count="1">
+              <button onClick="{{ it.onClick }}" style="{{ it.style }}">
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">
+                  <span style="font-family:var(--num-font);font-size:11px;font-weight:700;color:#46504A;">{{ it.sku }}</span>
+                  <span style="font-size:10px;font-weight:700;color:#fff;padding:1px 6px;border-radius:4px;background:{{ it.sourceColor }};">{{ it.source }}</span>
+                </div>
+                <div style="font-size:13px;font-weight:600;line-height:1.25;">{{ it.name }}</div>
+              </button>
+            </sc-for>
+            <sc-if value="{{ noBench }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:16px 8px;text-align:center;color:#9AA59D;font-size:12.5px;">Bench empty — scan something in.</div>
+            </sc-if>
+          </section>
+        </div>
+
+        <sc-if value="{{ hasWorkstation }}" hint-placeholder-val="{{ false }}">
+        <section style="background:#fff;border:1px solid #E2E6E1;border-radius:12px;padding:20px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;padding-bottom:15px;border-bottom:1px solid #EDEFEA;">
+            <div style="width:50px;height:50px;border-radius:10px;background:#F0F2EE;display:flex;align-items:center;justify-content:center;font-size:22px;">🛠️</div>
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+                <span style="font-family:var(--num-font);font-size:12px;font-weight:700;color:#46504A;">{{ ws.sku }}</span>
+                <span style="font-size:10px;font-weight:700;color:#fff;padding:1px 7px;border-radius:4px;background:{{ ws.sourceColor }};">{{ ws.source }}</span>
+                <span style="font-size:11px;color:#7B857E;">{{ ws.category }} · {{ ws.scale }} scale</span>
+              </div>
+              <div style="font-size:17px;font-weight:700;">{{ ws.name }}</div>
+            </div>
+          </div>
+
+          <div style="margin-top:15px;">
+            <div style="font-size:11px;font-weight:750;letter-spacing:.05em;color:#7B857E;margin-bottom:8px;">RETAIL VALUE BY GRADE <span style="font-weight:600;color:#A4ADA5;">(from Processing)</span></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <sc-for list="{{ ws.retailRows }}" as="r" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:8px;background:#F5F6F3;border:1px solid #E8EAE5;">
+                  <span style="font-size:12.5px;font-weight:600;color:#46504A;">{{ r.grade }}</span>
+                  <span style="font-family:var(--num-font);font-size:14px;font-weight:700;color:#16201B;">{{ r.value }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;">
+            <div style="font-size:14px;font-weight:750;">Decision engine</div>
+            <div style="display:flex;gap:3px;background:#EEF0EC;padding:3px;border-radius:9px;">
+              <sc-for list="{{ engineTabs }}" as="t" hint-placeholder-count="3">
+                <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- CARDS -->
+          <sc-if value="{{ isCards }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+            <sc-for list="{{ ws.pathRows }}" as="p" hint-placeholder-count="3">
+              <div onClick="{{ p.onSelect }}" style="{{ p.cardStyle }}">
+                <sc-if value="{{ p.isWinner }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;top:-9px;left:12px;font-size:10px;font-weight:800;letter-spacing:.06em;color:#fff;background:var(--accent);padding:2px 8px;border-radius:999px;">RECOMMENDED</div>
+                </sc-if>
+                <div style="{{ p.verbBadge }}">{{ p.verb }}</div>
+                <div style="font-size:13px;font-weight:650;margin:8px 0 2px;">→ {{ p.grade }}</div>
+                <div style="font-size:11px;color:#8B948C;margin-bottom:11px;">{{ p.verbDesc }}</div>
+                <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;">
+                  <div style="display:flex;justify-content:space-between;"><span style="color:#7B857E;">Retail</span><span style="font-family:var(--num-font);font-weight:600;">{{ p.value }}</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="color:#7B857E;">Parts</span>
+                    <div style="position:relative;width:78px;"><span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-family:var(--num-font);font-size:12px;color:#9AA59D;">$</span>
+                    <input type="number" value="{{ p.partsStr }}" onInput="{{ p.onParts }}" onClick="{{ stop }}" style="width:100%;padding:6px 7px 6px 18px;border:1px solid #D6DAD4;border-radius:6px;font-family:var(--num-font);font-size:12px;text-align:right;outline:none;"></div>
+                  </div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="color:#7B857E;">Hours</span>
+                    <input type="number" step="0.1" value="{{ p.hoursStr }}" onInput="{{ p.onHours }}" onClick="{{ stop }}" style="width:78px;padding:6px 7px;border:1px solid #D6DAD4;border-radius:6px;font-family:var(--num-font);font-size:12px;text-align:right;outline:none;">
+                  </div>
+                  <div style="display:flex;justify-content:space-between;color:#8B948C;"><span>Labor</span><span style="font-family:var(--num-font);">{{ p.labor }}</span></div>
+                </div>
+                <div style="margin-top:11px;padding-top:10px;border-top:1px dashed #E2E6E1;display:flex;align-items:baseline;justify-content:space-between;">
+                  <span style="font-size:11px;font-weight:700;color:#7B857E;letter-spacing:.04em;">PROFIT</span>
+                  <span style="font-family:var(--num-font);font-size:21px;font-weight:700;color:{{ p.profitColor }};">{{ p.profit }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <!-- TABLE -->
+          <sc-if value="{{ isTable }}" hint-placeholder-val="{{ false }}">
+          <div style="border:1px solid #E8EAE5;border-radius:10px;overflow:hidden;">
+            <div style="display:grid;grid-template-columns:1.4fr 1fr .9fr .9fr 1fr 1.1fr;background:#F5F6F3;padding:10px 14px;font-size:11px;font-weight:750;letter-spacing:.04em;color:#7B857E;">
+              <span>PATH</span><span style="text-align:right;">RETAIL</span><span style="text-align:right;">PARTS</span><span style="text-align:right;">HOURS</span><span style="text-align:right;">LABOR</span><span style="text-align:right;">PROFIT</span>
+            </div>
+            <sc-for list="{{ ws.pathRows }}" as="p" hint-placeholder-count="3">
+              <div onClick="{{ p.onSelect }}" style="{{ p.rowStyle }}">
+                <span style="display:flex;align-items:center;gap:8px;"><span style="{{ p.dotBadge }}"></span><b style="font-weight:650;">{{ p.verb }}</b><span style="color:#9AA59D;">→ {{ p.grade }}</span><sc-if value="{{ p.isWinner }}" hint-placeholder-val="{{ false }}"><span style="font-size:9px;font-weight:800;color:#fff;background:var(--accent);padding:1px 6px;border-radius:999px;">BEST</span></sc-if></span>
+                <span style="text-align:right;font-family:var(--num-font);">{{ p.value }}</span>
+                <span style="text-align:right;"><input type="number" value="{{ p.partsStr }}" onInput="{{ p.onParts }}" onClick="{{ stop }}" style="width:62px;padding:5px 6px;border:1px solid #D6DAD4;border-radius:6px;font-family:var(--num-font);font-size:12px;text-align:right;outline:none;"></span>
+                <span style="text-align:right;"><input type="number" step="0.1" value="{{ p.hoursStr }}" onInput="{{ p.onHours }}" onClick="{{ stop }}" style="width:56px;padding:5px 6px;border:1px solid #D6DAD4;border-radius:6px;font-family:var(--num-font);font-size:12px;text-align:right;outline:none;"></span>
+                <span style="text-align:right;font-family:var(--num-font);color:#8B948C;">{{ p.labor }}</span>
+                <span style="text-align:right;font-family:var(--num-font);font-weight:700;color:{{ p.profitColor }};">{{ p.profit }}</span>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <!-- BARS -->
+          <sc-if value="{{ isBars }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:14px;padding:6px 2px;">
+            <sc-for list="{{ ws.pathRows }}" as="p" hint-placeholder-count="3">
+              <div onClick="{{ p.onSelect }}" style="cursor:pointer;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                  <span style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="{{ p.dotBadge }}"></span><b style="font-weight:650;">{{ p.verb }}</b><span style="color:#9AA59D;">→ {{ p.grade }}</span><sc-if value="{{ p.isWinner }}" hint-placeholder-val="{{ false }}"><span style="font-size:9px;font-weight:800;color:#fff;background:var(--accent);padding:1px 6px;border-radius:999px;">BEST</span></sc-if></span>
+                  <span style="font-family:var(--num-font);font-size:15px;font-weight:700;color:{{ p.profitColor }};">{{ p.profit }}</span>
+                </div>
+                <div style="height:14px;background:#F0F2EE;border-radius:999px;overflow:hidden;">
+                  <div style="height:100%;width:{{ p.barWidth }};background:{{ p.barColor }};border-radius:999px;"></div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <div style="margin-top:20px;display:flex;align-items:center;gap:14px;padding:14px;border-radius:11px;background:{{ ws.recBg }};border:1px solid {{ ws.recBorder }};">
+            <div style="flex:1;">
+              <div style="font-size:11px;font-weight:750;letter-spacing:.05em;color:#7B857E;">APP RECOMMENDS</div>
+              <div style="font-size:18px;font-weight:750;color:{{ ws.recColor }};margin-top:2px;">{{ ws.recText }} <span style="font-family:var(--num-font);font-weight:700;">{{ ws.recProfit }}</span></div>
+              <sc-if value="{{ ws.selDiffers }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:12px;color:#B45309;margin-top:3px;">You picked <b>{{ ws.selSummary }}</b> ({{ ws.selProfit }}) — overriding the recommendation.</div>
+              </sc-if>
+            </div>
+            <button onClick="{{ ws.onPerform }}" style="padding:13px 22px;border:none;border-radius:9px;cursor:pointer;background:var(--accent);color:#fff;font-weight:750;font-size:14px;white-space:nowrap;">{{ ws.performLabel }}</button>
+          </div>
+        </section>
+        </sc-if>
+        <sc-if value="{{ noWorkstation }}" hint-placeholder-val="{{ false }}">
+          <section style="background:#fff;border:1px solid #E2E6E1;border-radius:12px;padding:70px 20px;text-align:center;color:#9AA59D;">Scan an item in to start a TARS evaluation.</section>
+        </sc-if>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ============ OWNER ============ -->
+    <sc-if value="{{ isOwner }}" hint-placeholder-val="{{ false }}">
+    <div>
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px;">
+        <h1 style="margin:0;font-size:21px;font-weight:750;">Owner — Steering</h1>
+        <span style="font-size:13px;color:#5A655E;">Tune the time premium to bias every job toward speed or margin.</span>
+      </div>
+      <div style="display:grid;grid-template-columns:440px 1fr;gap:18px;align-items:start;">
+
+        <section style="background:#15211B;border-radius:14px;padding:22px;color:#E8EEE9;">
+          <div style="font-size:12px;font-weight:750;letter-spacing:.06em;color:#8FA89A;">GLOBAL TIME PREMIUM</div>
+          <div style="display:flex;align-items:baseline;gap:10px;margin:8px 0 4px;">
+            <span style="font-family:var(--num-font);font-size:52px;font-weight:700;line-height:1;color:{{ ownerBigColor }};">{{ timePremiumPct }}</span>
+            <span style="font-size:16px;font-weight:700;color:{{ ownerBigColor }};">{{ premiumState }}</span>
+          </div>
+          <div style="font-size:12.5px;color:#9DB2A6;margin-bottom:18px;">{{ premiumBlurb }}</div>
+          
+          <input type="range" min="70" max="160" step="5" value="{{ premiumSliderVal }}" onInput="{{ onSlider }}" style="width:100%;"><div style="display:flex;justify-content:space-between;font-size:10px;color:#6E847A;font-family:var(--num-font);margin-top:5px;">
+            <span>70% discount</span><span>100%</span><span>160% surge</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:16px;">
+            <sc-for list="{{ presets }}" as="p" hint-placeholder-count="4">
+              <button onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.label }}</button>
+            </sc-for>
+          </div>
+          <div style="margin-top:20px;padding:14px;border-radius:10px;background:#243730;">
+            <div style="font-size:11px;font-weight:700;color:#8FA89A;letter-spacing:.04em;margin-bottom:8px;">LABOR COST MATH</div>
+            <div style="font-family:var(--num-font);font-size:12.5px;line-height:1.7;color:#CFE0D6;">{{ formulaRate }}</div>
+            <div style="font-family:var(--num-font);font-size:12.5px;line-height:1.7;color:#9DB2A6;margin-top:4px;">Profit = Retail − (Parts + Hours × {{ effRateStr }})</div>
+          </div>
+        </section>
+
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <section style="background:#fff;border:1px solid #E2E6E1;border-radius:12px;padding:18px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <div style="font-size:13px;font-weight:750;">Backlog</div>
+              <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;color:{{ backlogColor }};background:{{ backlogBg }};">{{ backlogLabel }}</span>
+            </div>
+            <div style="font-size:12.5px;color:#5A655E;margin-bottom:14px;">{{ backlogCount }} items waiting or on the bench.</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;background:#F5F6F3;">
+              <div style="flex:1;font-size:13px;color:#3C463F;">{{ suggestText }}</div>
+              <button onClick="{{ onApplySuggest }}" style="padding:9px 15px;border:none;border-radius:8px;cursor:pointer;background:var(--accent);color:#fff;font-weight:700;font-size:13px;white-space:nowrap;">Apply {{ suggestPct }}</button>
+            </div>
+          </section>
+
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+            <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="4">
+              <div style="background:#fff;border:1px solid #E2E6E1;border-radius:11px;padding:15px;">
+                <div style="font-family:var(--num-font);font-size:25px;font-weight:700;color:{{ m.color }};">{{ m.value }}</div>
+                <div style="font-size:11.5px;color:#7B857E;margin-top:3px;font-weight:600;">{{ m.label }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <section style="background:#fff;border:1px solid #E2E6E1;border-radius:12px;padding:18px;">
+            <div style="font-size:13px;font-weight:750;margin-bottom:14px;">Cost assumptions</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:#5A655E;">Base hourly rate</label>
+                <div style="position:relative;margin-top:6px;"><span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-family:var(--num-font);font-size:14px;color:#9AA59D;">$</span>
+                <input type="number" value="{{ hourlyRateStr }}" onInput="{{ onHourly }}" style="width:100%;padding:9px 11px 9px 23px;border:1px solid #D6DAD4;border-radius:8px;font-family:var(--num-font);font-size:14px;outline:none;"></div>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:#5A655E;">Payroll tax loading</label>
+                <div style="margin-top:6px;padding:9px 11px;border:1px solid #ECEEE9;border-radius:8px;background:#F7F8F5;font-family:var(--num-font);font-size:14px;color:#7B857E;">× 1.10 <span style="font-size:11px;">(fixed)</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accentColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#1A7A4F&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;startRole&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Processing&quot;,&quot;Restoration&quot;,&quot;Owner&quot;],&quot;default&quot;:&quot;Restoration&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;numericFont&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Mono&quot;,&quot;Sans&quot;],&quot;default&quot;:&quot;Mono&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const SRC = {Target:'#CC0000', Amazon:'#E47911', Walmart:'#0071DC'};
+const VERB = {
+  Test:{c:'#2563EB',d:'Diagnose before committing'},
+  Assemble:{c:'#7C3AED',d:'Build to complete / assembled'},
+  Repair:{c:'#1A7A4F',d:'Fix to working condition'},
+  Salvage:{c:'#B45309',d:'Part out for component value'},
+  'As-is':{c:'#64748B',d:'Sell in current condition'},
+};
+const GDOT = ['#1A7A4F','#C2790B','#B45309','#C0392B','#64748B'];
+
+class Component extends DCLogic {
+  state = {
+    role:'restoration',
+    timePremium:1.0, hourlyRate:18, payrollMult:1.1,
+    engineView:'cards', scanInput:'',
+    selProc:'TGT-9015', activeWs:'TGT-4821', selPath:{},
+    scales:{
+      Functional:['Working','Repairable','Parts-only'],
+      Completeness:['Complete','Incomplete'],
+      Assembly:['Assembled','Flat-pack','Parts'],
+      Condition:['New','Like-new','Good','Fair','Salvage'],
+    },
+    mru:['Functional','Completeness','Assembly'],
+    items:[
+      {sku:'TGT-4821',name:'Dyson V8 Cordless Vacuum',source:'Target',category:'Floor Care',stage:'workstation',scale:'Functional',
+        values:{Working:240,Repairable:90,'Parts-only':35},
+        paths:[{verb:'Repair',grade:'Working',parts:22,hours:0.8},{verb:'As-is',grade:'Repairable',parts:0,hours:0.1},{verb:'Salvage',grade:'Parts-only',parts:0,hours:0.3}]},
+      {sku:'AMZ-7733',name:'Graco 4-in-1 Convertible Crib',source:'Amazon',category:'Nursery',stage:'sent',scale:'Assembly',
+        values:{Assembled:180,'Flat-pack':120,Parts:25},
+        paths:[{verb:'Assemble',grade:'Assembled',parts:0,hours:1.5},{verb:'As-is',grade:'Flat-pack',parts:0,hours:0.2},{verb:'Salvage',grade:'Parts',parts:0,hours:0.4}]},
+      {sku:'WMT-1290',name:'Keurig K-Elite Coffee Maker',source:'Walmart',category:'Kitchen',stage:'sent',scale:'Functional',
+        values:{Working:95,Repairable:30,'Parts-only':12},
+        paths:[{verb:'Repair',grade:'Working',parts:35,hours:1.2},{verb:'As-is',grade:'Repairable',parts:0,hours:0.1},{verb:'Salvage',grade:'Parts-only',parts:0,hours:0.2}]},
+      {sku:'TGT-9015',name:'LEGO Technic Bulldozer (open box)',source:'Target',category:'Toys',stage:'intake',scale:'Completeness',
+        values:{},
+        paths:[{verb:'Test',grade:'Complete',parts:8,hours:0.6},{verb:'As-is',grade:'Incomplete',parts:0,hours:0.1}]},
+      {sku:'WMT-3367',name:'Instant Pot Duo 6qt',source:'Walmart',category:'Kitchen',stage:'intake',scale:'Functional',
+        values:{},
+        paths:[{verb:'Repair',grade:'Working',parts:14,hours:0.5},{verb:'As-is',grade:'Repairable',parts:0,hours:0.1},{verb:'Salvage',grade:'Parts-only',parts:0,hours:0.2}]},
+      {sku:'AMZ-5540',name:'Shark ION Robot Vacuum',source:'Amazon',category:'Floor Care',stage:'done',scale:'Functional',
+        values:{Working:160,Repairable:60,'Parts-only':20},
+        paths:[{verb:'Repair',grade:'Working',parts:18,hours:0.7},{verb:'As-is',grade:'Repairable',parts:0,hours:0.1},{verb:'Salvage',grade:'Parts-only',parts:0,hours:0.2}],
+        chosen:{verb:'Repair',grade:'Working'}},
+    ],
+  };
+
+  componentDidMount(){ this.applyVars(); const m={Processing:'processing',Restoration:'restoration',Owner:'owner'}; const sr=this.props.startRole; if(sr&&m[sr]) this.setState({role:m[sr]}); }
+  componentDidUpdate(){ this.applyVars(); }
+  applyVars(){ const r=document.documentElement; r.style.setProperty('--accent', this.props.accentColor||'#1A7A4F'); r.style.setProperty('--num-font', this.props.numericFont==='Sans'?"'Hanken Grotesk'":"'IBM Plex Mono'"); }
+
+  eff(){ return this.state.hourlyRate*this.state.payrollMult*this.state.timePremium; }
+  fmt(n){ const r=Math.round(n); return (r<0?'-$':'$')+Math.abs(r).toLocaleString(); }
+  item(sku){ return this.state.items.find(i=>i.sku===sku); }
+  updItem(sku,fn){ this.setState(s=>({items:s.items.map(i=> i.sku===sku? fn({...i}): i)})); }
+
+  setScale(sku,name){ this.updItem(sku,it=>{ it.scale=name; const g=this.state.scales[name]||[]; const nv={}; g.forEach(x=> nv[x]= it.values[x]||0); it.values=nv; return it; }); }
+  addCustom(sku){ this.setState(s=>{ const scales={...s.scales, Custom:['Tier A','Tier B','Tier C']}; const mru=['Custom',...s.mru.filter(x=>x!=='Custom')].slice(0,5); return {scales,mru}; }, ()=> this.setScale(sku,'Custom')); }
+  setRetail(sku,g,v){ const n=parseFloat(v); this.updItem(sku,it=>{ it.values={...it.values,[g]: isNaN(n)?0:n}; return it; }); }
+  send(sku){ this.updItem(sku,it=>{ it.stage='sent'; return it; }); }
+  scanIn(sku){ const it=this.item(sku); if(!it||it.stage!=='sent') return; this.updItem(sku,i=>{ i.stage='workstation'; return i; }); this.setState(s=>({activeWs:sku, scanInput:'', mru:[it.scale,...s.mru.filter(x=>x!==it.scale)].slice(0,5)})); }
+  scanNext(){ const q=this.state.items.find(i=>i.stage==='sent'); if(q) this.scanIn(q.sku); }
+  submitScan(){ const v=this.state.scanInput.trim().toUpperCase(); const it=this.state.items.find(i=>i.stage==='sent'&&i.sku.toUpperCase()===v); if(it) this.scanIn(it.sku); }
+  setPath(sku,idx,f,v){ const n=parseFloat(v); this.updItem(sku,it=>{ it.paths=it.paths.map((p,i)=> i===idx?{...p,[f]:isNaN(n)?0:n}:p); return it; }); }
+  perform(sku,row){ this.updItem(sku,it=>{ it.stage='done'; it.chosen={verb:row.verb,grade:row.grade}; return it; }); this.setState(s=>{ const nx=s.items.find(i=>i.stage==='workstation'&&i.sku!==sku); return {activeWs: nx?nx.sku:null}; }); }
+
+  buildPaths(it){
+    const eff=this.eff();
+    const rows=(it.paths||[]).map((p,i)=>{ const value=it.values[p.grade]||0; const labor=p.hours*eff; const cost=p.parts+labor; return {...p, idx:i, value, labor, cost, profit:value-cost}; });
+    let best=0; rows.forEach((r,i)=>{ if(r.profit>rows[best].profit) best=i; });
+    const sel = (this.state.selPath[it.sku]!=null)? this.state.selPath[it.sku] : best;
+    const maxAbs=Math.max(1, ...rows.map(r=>Math.abs(r.profit)));
+    return {rows, best, sel, maxAbs};
+  }
+
+  renderVals(){
+    const S=this.state, items=S.items, tp=S.timePremium;
+    const tab=(a)=>`display:flex;align-items:center;padding:8px 15px;border:none;border-radius:7px;cursor:pointer;background:${a?'#F3F5F1':'transparent'};color:${a?'#15211B':'#A9BBB0'};`;
+    const qbtn=(a)=>`display:block;width:100%;text-align:left;padding:11px 12px;margin-bottom:8px;border-radius:9px;cursor:pointer;border:1px solid ${a?'var(--accent)':'#E6E9E4'};background:${a?'color-mix(in srgb,var(--accent) 7%,#fff)':'#fff'};`;
+    const chip=(a)=>`padding:6px 11px;border-radius:999px;cursor:pointer;font-size:12px;font-weight:650;border:1px solid ${a?'var(--accent)':'#D9DDD7'};background:${a?'color-mix(in srgb,var(--accent) 10%,#fff)':'#fff'};color:${a?'color-mix(in srgb,var(--accent) 80%,#000)':'#46504A'};`;
+    const eTab=(a)=>`padding:6px 13px;border:none;border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:650;background:${a?'#fff':'transparent'};color:${a?'#15211B':'#7B857E'};box-shadow:${a?'0 1px 2px rgba(0,0,0,.08)':'none'};`;
+    const pre=(a)=>`padding:7px 11px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:650;border:1px solid ${a?'var(--accent)':'#33473E'};background:${a?'var(--accent)':'#1E2E26'};color:${a?'#fff':'#B7CCBF'};`;
+
+    // top bar chip
+    let premiumState,premiumChipBg,premiumChipText,premiumBlurb,ownerBigColor;
+    if(tp<0.96){premiumState='Discount';premiumChipBg='rgba(26,122,79,.20)';premiumChipText='#7FE3AD';premiumBlurb='Slow week — we discount labor to keep margin-thin repairs worth doing.';ownerBigColor='#7FE3AD';}
+    else if(tp<=1.06){premiumState='Neutral';premiumChipBg='#1E2E26';premiumChipText='#CFE0D6';premiumBlurb='Standard rate. Repairs win on raw margin alone.';ownerBigColor='#CFE0D6';}
+    else if(tp<=1.31){premiumState='Premium';premiumChipBg='rgba(180,83,9,.26)';premiumChipText='#F0B66B';premiumBlurb='Behind — labor costs more, so slow repairs lose to quick sell-as-is paths.';ownerBigColor='#F0B66B';}
+    else {premiumState='Surge';premiumChipBg='rgba(192,57,43,.26)';premiumChipText='#F0A097';premiumBlurb='Slammed — only fast, high-margin work clears the engine.';ownerBigColor='#F0A097';}
+
+    const out={
+      roleTabs:[['processing','Processing'],['restoration','Restoration'],['owner','Owner']].map(([k,l])=>({label:l,onClick:()=>this.setState({role:k}),style:tab(S.role===k)})),
+      premiumState, premiumChipBg, premiumChipText, premiumBlurb, ownerBigColor,
+      timePremiumPct: Math.round(tp*100)+'%',
+      isProcessing:S.role==='processing', isRestoration:S.role==='restoration', isOwner:S.role==='owner',
+      stop:(e)=>e.stopPropagation(),
+    };
+
+    // ---- PROCESSING ----
+    const intake=items.filter(i=>i.stage==='intake');
+    out.intakeCount=intake.length; out.noIntake=intake.length===0;
+    out.processingQueue=intake.map(it=>({sku:it.sku,name:it.name,source:it.source,sourceColor:SRC[it.source],category:it.category,onClick:()=>this.setState({selProc:it.sku}),style:qbtn(it.sku===S.selProc)}));
+    let pItem=this.item(S.selProc); if(!pItem||pItem.stage!=='intake') pItem=intake[0]||null;
+    out.hasProcessingItem=!!pItem; out.noProcessingItem=!pItem;
+    if(pItem){
+      const grades=S.scales[pItem.scale]||[];
+      const canSend=grades.length>0 && grades.every(g=>(pItem.values[g]||0)>0);
+      out.procItem={sku:pItem.sku,name:pItem.name,source:pItem.source,sourceColor:SRC[pItem.source],category:pItem.category,
+        onSend:()=> canSend && this.send(pItem.sku), sendLabel: canSend?'Send to Restoration →':'Enter a value for every grade',
+        sendStyle:`width:100%;margin-top:20px;padding:13px;border:none;border-radius:9px;cursor:${canSend?'pointer':'not-allowed'};font-weight:700;font-size:14px;background:${canSend?'var(--accent)':'#C8D0CA'};color:#fff;`};
+      out.gradeRows=grades.map((g,i)=>({grade:g,dot:GDOT[i%GDOT.length],valueStr: pItem.values[g]? String(pItem.values[g]):'', onInput:(e)=>this.setRetail(pItem.sku,g,e.target.value)}));
+      out.scaleOptions=Object.keys(S.scales).map(n=>({name:n,count:S.scales[n].length,onClick:()=>this.setScale(pItem.sku,n),style:chip(n===pItem.scale)}));
+      out.onAddCustom=()=>this.addCustom(pItem.sku);
+    }
+    out.mruList=S.mru.map(n=>({name:n,grades:(S.scales[n]||[]).join('  ·  ')}));
+
+    // ---- RESTORATION ----
+    const sent=items.filter(i=>i.stage==='sent'), bench=items.filter(i=>i.stage==='workstation'), done=items.filter(i=>i.stage==='done');
+    out.scanInput=S.scanInput; out.scanQueueCount=sent.length;
+    out.onScanInput=(e)=>this.setState({scanInput:e.target.value});
+    out.onScanKey=(e)=>{ if(e.key==='Enter') this.submitScan(); };
+    out.onScanNext=()=>this.scanNext();
+    out.scanQueue=sent.map(it=>({sku:it.sku,name:it.name,source:it.source,sourceColor:SRC[it.source],onClick:()=>this.scanIn(it.sku)}));
+    out.noScanQueue=sent.length===0;
+    out.benchItems=bench.map(it=>({sku:it.sku,name:it.name,source:it.source,sourceColor:SRC[it.source],onClick:()=>this.setState({activeWs:it.sku}),style:qbtn(it.sku===S.activeWs)}));
+    out.noBench=bench.length===0;
+    out.engineTabs=[['cards','Cards'],['table','Table'],['bars','Bars']].map(([k,l])=>({label:l,onClick:()=>this.setState({engineView:k}),style:eTab(S.engineView===k)}));
+    out.isCards=S.engineView==='cards'; out.isTable=S.engineView==='table'; out.isBars=S.engineView==='bars';
+    let wItem=this.item(S.activeWs); if(!wItem||wItem.stage!=='workstation') wItem=bench[0]||null;
+    out.hasWorkstation=!!wItem; out.noWorkstation=!wItem;
+    if(wItem){
+      const {rows,best,sel,maxAbs}=this.buildPaths(wItem);
+      const grades=S.scales[wItem.scale]||Object.keys(wItem.values);
+      const card=(win,isSel)=>`position:relative;border-radius:11px;padding:14px;cursor:pointer;background:${win?'color-mix(in srgb,var(--accent) 6%,#fff)':'#fff'};border:1.5px solid ${win?'var(--accent)':(isSel?'#8E97F2':'#E6E9E4')};box-shadow:${isSel?'0 0 0 3px rgba(99,102,241,.14)':'none'};`;
+      const rowS=(isSel)=>`display:grid;grid-template-columns:1.4fr 1fr .9fr .9fr 1fr 1.1fr;align-items:center;padding:9px 14px;font-size:12.5px;cursor:pointer;border-top:1px solid #F0F1ED;background:${isSel?'color-mix(in srgb,#6366F1 6%,#fff)':'#fff'};`;
+      const pathRows=rows.map(r=>{ const vm=VERB[r.verb]||{c:'#64748B',d:''}; const win=r.idx===best; const isSel=r.idx===sel; const pos=r.profit>=0;
+        return {verb:r.verb,verbDesc:vm.d,grade:r.grade,value:this.fmt(r.value),partsStr:String(r.parts),hoursStr:String(r.hours),labor:this.fmt(r.labor),profit:this.fmt(r.profit),
+          profitColor:pos?'#1A7A4F':'#C0392B',isWinner:win,
+          barWidth:Math.max(4,Math.abs(r.profit)/maxAbs*100)+'%',barColor:pos?vm.c:'#C0392B',
+          verbBadge:`display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:750;letter-spacing:.04em;color:${vm.c};background:color-mix(in srgb,${vm.c} 13%,#fff);`,
+          dotBadge:`width:9px;height:9px;border-radius:50%;background:${vm.c};display:inline-block;`,
+          cardStyle:card(win,isSel),rowStyle:rowS(isSel),
+          onParts:(e)=>this.setPath(wItem.sku,r.idx,'parts',e.target.value),onHours:(e)=>this.setPath(wItem.sku,r.idx,'hours',e.target.value),onSelect:()=>this.setState(s=>({selPath:{...s.selPath,[wItem.sku]:r.idx}}))};
+      });
+      const bRow=rows[best], sRow=rows[sel], pos=bRow.profit>=0;
+      out.ws={sku:wItem.sku,name:wItem.name,source:wItem.source,sourceColor:SRC[wItem.source],category:wItem.category,scale:wItem.scale,
+        retailRows:grades.map(g=>({grade:g,value:this.fmt(wItem.values[g]||0)})), pathRows,
+        recText: pos?`${bRow.verb} → ${bRow.grade}`:'No profitable path — bulk-liquidate', recProfit:this.fmt(bRow.profit),
+        recColor: pos?'#1A7A4F':'#C0392B', recBg: pos?'color-mix(in srgb,var(--accent) 7%,#fff)':'#FBEBE9', recBorder: pos?'color-mix(in srgb,var(--accent) 25%,#fff)':'#F2C8C2',
+        selDiffers: sel!==best, selSummary:`${sRow.verb} → ${sRow.grade}`, selProfit:this.fmt(sRow.profit),
+        performLabel:'Perform '+sRow.verb, onPerform:()=>this.perform(wItem.sku,sRow)};
+    }
+
+    // ---- OWNER ----
+    const eff=this.eff();
+    out.premiumSliderVal=Math.round(tp*100);
+    out.onSlider=(e)=>this.setState({timePremium:parseInt(e.target.value,10)/100});
+    out.presets=[['Idle −15%',0.85],['Neutral',1.0],['Behind +25%',1.25],['Slammed +50%',1.5]].map(([l,v])=>({label:l,onClick:()=>this.setState({timePremium:v}),style:pre(Math.abs(tp-v)<0.001)}));
+    out.effRateStr='$'+eff.toFixed(2)+'/hr';
+    out.formulaRate=`$${S.hourlyRate.toFixed(2)} × 1.10 × ${tp.toFixed(2)} = ${out.effRateStr}`;
+    const backlog=sent.length+bench.length;
+    out.backlogCount=backlog;
+    let bColor,bBg,bLabel,sV,sTxt;
+    if(backlog>=4){bColor='#B45309';bBg='#FAF0E2';bLabel='Behind';sV=1.25;sTxt='Backlog is piling up — raise the premium so techs prioritize fast, high-value work.';}
+    else if(backlog===0){bColor='#1A7A4F';bBg='color-mix(in srgb,var(--accent) 12%,#fff)';bLabel='Idle';sV=0.85;sTxt='Nothing in the queue — discount labor so thin-margin repairs become worth doing.';}
+    else {bColor='#46504A';bBg='#F0F2EE';bLabel='Steady';sV=1.0;sTxt='Flow is healthy — keep the rate neutral.';}
+    out.backlogColor=bColor; out.backlogBg=bBg; out.backlogLabel=bLabel; out.suggestText=sTxt; out.suggestPct=Math.round(sV*100)+'%'; out.onApplySuggest=()=>this.setState({timePremium:sV});
+    let proj=0; [...sent,...bench].forEach(it=>{ const {rows,best}=this.buildPaths(it); if(rows.length) proj+=rows[best].profit; });
+    out.metrics=[{value:String(sent.length),label:'In queue',color:'#16201B'},{value:String(bench.length),label:'On bench',color:'#16201B'},{value:String(done.length),label:'Completed',color:'#1A7A4F'},{value:this.fmt(proj),label:'Projected profit',color:'#1A7A4F'}];
+    out.hourlyRateStr=String(S.hourlyRate);
+    out.onHourly=(e)=>{ const n=parseFloat(e.target.value); this.setState({hourlyRate:isNaN(n)?0:n}); };
+
+    return out;
+  }
+}
+</script>
+</body>
+</html>

@@ -391,6 +391,8 @@ export interface Item {
   listed_at: string | null;
   checked_in_at: string | null;
   checked_in_by: number | null;
+  label_printed_at: string | null;
+  label_printed: boolean;
   sold_at: string | null;
   sold_for: string | null;
   notes: string;
@@ -452,6 +454,8 @@ export interface ProcessingWorkspaceItemDTO {
   manifest_row: number | null;
   created_at?: string | null;
   checked_in_at: string | null;
+  label_printed_at?: string | null;
+  label_printed?: boolean;
   dispute_type: ProcessingItemDisputeType | null;
   dispute_pct_loss: number | null;
   dispute_description: string;
@@ -477,6 +481,8 @@ export interface ItemCheckInCatalogItem {
   price: string;
   location: string;
   checked_in_at: string | null;
+  label_printed_at?: string | null;
+  label_printed?: boolean;
 }
 
 export interface ItemCheckInCatalog {

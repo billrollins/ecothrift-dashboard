@@ -20,6 +20,9 @@ const ITEM_KEY_ALIASES: Record<string, string> = {
   product_id: 'product',
   status: 'status',
   'item.status': 'status',
+  printed: 'printed',
+  label_printed: 'printed',
+  unprinted: 'printed',
   condition: 'condition',
   source: 'source',
   purchase_order: 'purchase_order',
@@ -67,7 +70,7 @@ const ORDER_KEY_ALIASES: Record<string, string> = {
 
 const FILTER_BLOCK_RE = /\{([^{}]+)\}/g;
 
-const ITEM_FILTER_ORDER = ['product', 'status', 'checkin', 'condition', 'source', 'purchase_order', 'ids'];
+const ITEM_FILTER_ORDER = ['product', 'status', 'printed', 'checkin', 'condition', 'source', 'purchase_order', 'ids'];
 const CHECKIN_FILTER_ORDER = ['checkin', 'product', 'order', 'origin'];
 const PRODUCT_FILTER_ORDER = ['product', 'category'];
 const VENDOR_FILTER_ORDER = ['vendor', 'type', 'active'];
@@ -141,6 +144,7 @@ function chipLabel(key: string, value: string, entity: RichInventoryEntity): str
     case 'items':
       if (key === 'product') return `Product #${value}`;
       if (key === 'status') return `Status: ${value.replace(/_/g, ' ')}`;
+      if (key === 'printed') return value === 'false' ? 'Unprinted' : 'Printed';
       if (key === 'checkin') return `Check-in #${value}`;
       if (key === 'condition') return `Condition: ${value.replace(/_/g, ' ')}`;
       if (key === 'source') return `Source: ${value.replace(/_/g, ' ')}`;
@@ -239,6 +243,7 @@ export function itemFiltersToApiParams(parsed: ParsedRichSearch): Record<string,
     search: parsed.text || undefined,
     product: f.product,
     status: f.status,
+    label_printed: f.printed,
     item_check_in: checkin,
     ids: !checkin && f.ids ? f.ids : undefined,
     condition: f.condition,
@@ -360,12 +365,15 @@ export function itemRichSearch(opts: {
   sku?: string;
   status?: string;
   order?: number;
+  printed?: boolean;
 }): string {
   const filters: Record<string, string | number> = {};
   if (opts.product) filters.product = opts.product;
   if (opts.checkin) filters.checkin = opts.checkin;
   if (opts.order) filters.purchase_order = opts.order;
   if (opts.status) filters.status = opts.status;
+  if (opts.printed === true) filters.printed = 'true';
+  if (opts.printed === false) filters.printed = 'false';
   const text = opts.sku?.trim() || '';
   return formatRichSearch({ text, filters, entity: 'items' });
 }

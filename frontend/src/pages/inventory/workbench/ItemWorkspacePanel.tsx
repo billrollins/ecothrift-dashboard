@@ -17,7 +17,7 @@ import { ProductDisplayLine } from '../../../components/inventory/ProductDisplay
 import { productLikeFromItemFields } from '../../../utils/productCatalog';
 import { formatCurrency } from '../../../utils/format';
 import type { WorkbenchSelection } from '../../../utils/richInventorySearch';
-import { printProcessingLabelsStaggered } from '../processing/printProcessingLabel';
+import { printProcessingLabelsAndMarkPrinted } from '../processing/printProcessingLabel';
 import { processingTokens } from '../processing/processingTokens';
 import { useWorkbenchConfirmDialog } from './useWorkbenchConfirmDialog';
 
@@ -99,9 +99,10 @@ export function ItemWorkspacePanel({ itemId, onNavigate, onEditItem }: ItemWorks
   : null;
 
   const handleReprint = async () => {
-    const { succeeded, failed } = await printProcessingLabelsStaggered([item]);
-    if (failed > 0) enqueueSnackbar('Label print failed', { variant: 'error' });
-    else if (succeeded > 0) enqueueSnackbar('Label sent to printer', { variant: 'success' });
+    const result = await printProcessingLabelsAndMarkPrinted([item]);
+    if (result.failed > 0) enqueueSnackbar('Label print failed', { variant: 'error' });
+    else if (result.succeeded > 0) enqueueSnackbar('Label sent to printer', { variant: 'success' });
+    if (result.markFailed) enqueueSnackbar('Label printed but printed status could not be saved.', { variant: 'warning' });
   };
 
   return (
@@ -127,7 +128,7 @@ export function ItemWorkspacePanel({ itemId, onNavigate, onEditItem }: ItemWorks
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
         <Button variant="contained" startIcon={<LocalPrintshopOutlinedIcon />} onClick={() => void handleReprint()}>
-          Reprint tag
+          {item.label_printed ? 'Reprint tag' : 'Print tag'}
         </Button>
         <Button variant="outlined" startIcon={<EditOutlinedIcon />} onClick={onEditItem}>
           Edit item

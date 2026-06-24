@@ -16,7 +16,6 @@ import { formatConditionLabel } from '../../../constants/inventory.constants';
 import {
   PROCESSING_ITEM_CONDITION_OPTIONS,
   PROCESSING_ITEM_DISPATCH_OPTIONS,
-  PROCESSING_ITEM_PATCHABLE_STATUS_OPTIONS,
 } from '../processing/processingItemFormOptions';
 import { MAX_CHECK_IN_QUANTITY } from '../processing/largeCheckIn';
 import { processingTokens } from '../processing/processingTokens';
@@ -758,8 +757,9 @@ export interface CheckInDetailFieldsSectionProps {
   onRetailChange: (value: string) => void;
   condition: ItemCondition;
   onConditionChange: (value: ItemCondition) => void;
-  status: ItemStatus;
-  onStatusChange: (value: ItemStatus) => void;
+  /** Item edit only — hidden on check-in flows (status is system-driven). */
+  status?: ItemStatus;
+  onStatusChange?: (value: ItemStatus) => void;
   dispatch: string;
   onDispatchChange: (value: string) => void;
   specifications: Record<string, string>;
@@ -794,6 +794,7 @@ export function CheckInDetailFieldsSection({
 }: CheckInDetailFieldsSectionProps) {
   const salvageLocked = condition === 'salvage';
   const priceMissing = highlightRequired && !isValidCheckInPrice(price);
+  const showStatus = status != null && onStatusChange != null;
 
   return (
     <Box sx={workbenchDetailTokens.formSection}>
@@ -802,7 +803,11 @@ export function CheckInDetailFieldsSection({
           sx={{
             gridColumn: '1 / -1',
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1fr 1fr 1fr' },
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: showStatus ? '1fr 1fr 1fr' : '1fr 1fr',
+              lg: showStatus ? '1fr 1fr 1fr' : '1fr 1fr',
+            },
             gap: 1.5,
             alignItems: 'start',
           }}
@@ -827,22 +832,24 @@ export function CheckInDetailFieldsSection({
               </MenuItem>
             ))}
           </TextField>
-          <TextField
-            select
-            fullWidth
-            size="small"
-            label="Status"
-            value={status}
-            onChange={(event) => onStatusChange(event.target.value as ItemStatus)}
-            disabled={disabled}
-            sx={compactFieldSx}
-          >
-            {PROCESSING_ITEM_PATCHABLE_STATUS_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField>
+          {showStatus ?
+            <TextField
+              select
+              fullWidth
+              size="small"
+              label="Status"
+              value={status}
+              onChange={(event) => onStatusChange(event.target.value as ItemStatus)}
+              disabled={disabled}
+              sx={compactFieldSx}
+            >
+              {(['intake', 'processing', 'on_shelf', 'returned', 'scrapped', 'lost'] as ItemStatus[]).map((value) => (
+                <MenuItem key={value} value={value}>
+                  {value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                </MenuItem>
+              ))}
+            </TextField>
+          : null}
           <TextField
             select
             fullWidth

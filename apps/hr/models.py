@@ -89,7 +89,11 @@ class TimeEntry(models.Model):
         self.break_started_at = None
 
     def save(self, *args, **kwargs):
+        if self.clock_in:
+            self.date = timezone.localtime(self.clock_in).date()
         if self.clock_out:
+            from apps.hr.services.time_clock_utils import validate_shift_duration
+            validate_shift_duration(self.clock_in, self.clock_out, self.break_minutes)
             self.compute_total_hours()
         super().save(*args, **kwargs)
 

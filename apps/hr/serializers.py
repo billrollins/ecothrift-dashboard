@@ -60,6 +60,7 @@ class PayrollEmployeeRowSerializer(serializers.Serializer):
     employee_id = serializers.IntegerField()
     employee_name = serializers.CharField()
     pay_rate = serializers.DecimalField(max_digits=8, decimal_places=2)
+    hours_this_week = serializers.DecimalField(max_digits=8, decimal_places=2)
     total_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
     total_pay = serializers.DecimalField(max_digits=10, decimal_places=2)
     approved_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
@@ -90,7 +91,6 @@ class TimeEntryRosterSerializer(serializers.Serializer):
     week_start = serializers.DateField()
     week_end = serializers.DateField()
     weekly_cumulative_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
-    payroll_cumulative_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
     is_open = serializers.BooleanField()
 
 

@@ -48,7 +48,7 @@ import { formatCurrency } from '../../../utils/format';
 
 import type { WorkbenchSelection } from '../../../utils/richInventorySearch';
 
-import { printProcessingLabelsStaggered } from '../processing/printProcessingLabel';
+import { printProcessingLabelsAndMarkPrinted } from '../processing/printProcessingLabel';
 
 import { processingTokens } from '../processing/processingTokens';
 
@@ -161,34 +161,31 @@ export function ItemCheckInWorkspacePanel({ checkInId, onNavigate }: ItemCheckIn
     }
 
     const n = checkIn.items.length;
+    const allPrinted = checkIn.items.every((it) => it.label_printed);
+    const action = allPrinted ? 'Reprint' : 'Print';
     const ok = await confirm({
-      title: 'Reprint labels?',
-      message: `Reprint ${n} label${n === 1 ? '' : 's'} for check-in #${checkIn.id}?`,
-      confirmLabel: 'Reprint',
+      title: `${action} labels?`,
+      message: `${action} ${n} label${n === 1 ? '' : 's'} for check-in #${checkIn.id}?`,
+      confirmLabel: action,
       severity: 'info',
       confirmColor: 'primary',
     });
     if (!ok) return;
 
     const labelItems = checkIn.items.map((it) => ({
-
+      id: it.id,
       sku: it.sku,
-
       price: it.price,
-
       product_title: checkIn.product_title,
-
       product_brand: checkIn.product_brand,
-
       product_number: checkIn.product_number ?? undefined,
-
     }));
 
-    const { succeeded, failed } = await printProcessingLabelsStaggered(labelItems);
+    const result = await printProcessingLabelsAndMarkPrinted(labelItems);
 
-    if (failed > 0) enqueueSnackbar('Some labels failed to print', { variant: 'error' });
-
-    else if (succeeded > 0) enqueueSnackbar(`${succeeded} label${succeeded === 1 ? '' : 's'} sent to printer`, { variant: 'success' });
+    if (result.failed > 0) enqueueSnackbar('Some labels failed to print', { variant: 'error' });
+    else if (result.succeeded > 0) enqueueSnackbar(`${result.succeeded} label${result.succeeded === 1 ? '' : 's'} sent to printer`, { variant: 'success' });
+    if (result.markFailed) enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
 
   };
 

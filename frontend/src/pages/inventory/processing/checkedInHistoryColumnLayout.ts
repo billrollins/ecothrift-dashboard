@@ -10,10 +10,12 @@ import {
   formatCheckedInShortDateTime,
 } from './checkedInHistoryDisplay';
 import { formatQueueMoney, queueDispatchLabel } from './processingQueueCellText';
+import { checkInPrintedDisplay } from './checkedInPrintedAggregate';
 
 export type CheckedInHistoryColumnId =
   | 'checkedIn'
   | 'qty'
+  | 'printed'
   | 'productId'
   | 'brand'
   | 'title'
@@ -27,6 +29,7 @@ export type CheckedInHistoryColumnId =
 export const CHECKED_IN_HISTORY_COLUMN_ORDER: CheckedInHistoryColumnId[] = [
   'checkedIn',
   'qty',
+  'printed',
   'productId',
   'brand',
   'title',
@@ -38,7 +41,7 @@ export const CHECKED_IN_HISTORY_COLUMN_ORDER: CheckedInHistoryColumnId[] = [
   'price',
 ];
 
-export const CHECKED_IN_HISTORY_AUTOSIZE_COLS = ['checkedIn', 'qty'] as const satisfies readonly CheckedInHistoryColumnId[];
+export const CHECKED_IN_HISTORY_AUTOSIZE_COLS = ['checkedIn', 'qty', 'printed'] as const satisfies readonly CheckedInHistoryColumnId[];
 
 export const CHECKED_IN_HISTORY_PRODUCT_ID_COL_PX = 140;
 
@@ -75,6 +78,7 @@ export const CHECKED_IN_HISTORY_QTY_HEADER_EXTRA_PX = 10;
 
 export const CHECKED_IN_HISTORY_TITLE_MIN_PX = 80;
 export const CHECKED_IN_HISTORY_QTY_MIN_PX = 52;
+export const CHECKED_IN_HISTORY_PRINTED_MIN_PX = 52;
 export const CHECKED_IN_HISTORY_BRAND_COL_PX = 120;
 export const CHECKED_IN_HISTORY_MODEL_COL_PX = 120;
 export const CHECKED_IN_HISTORY_CATEGORY_COL_PX = 180;
@@ -95,6 +99,7 @@ export const CHECKED_IN_HISTORY_MONEY_COL_MIN_PX = 74;
 export const CHECKED_IN_HISTORY_COL_DEFAULTS: Record<CheckedInHistoryColumnId, number> = {
   checkedIn: 104,
   qty: 60,
+  printed: 52,
   productId: CHECKED_IN_HISTORY_PRODUCT_ID_COL_PX,
   brand: CHECKED_IN_HISTORY_BRAND_COL_PX,
   title: 280,
@@ -279,6 +284,7 @@ export function distributeCheckedInHistoryColumnWidths(
   const cols = {
     checkedIn: measured.checkedIn,
     qty: measured.qty,
+    printed: measured.printed,
     productId: CHECKED_IN_HISTORY_PRODUCT_ID_COL_PX,
     title: Math.max(CHECKED_IN_HISTORY_TITLE_MIN_PX, titlePx),
     brand: brandColPx,
@@ -310,6 +316,7 @@ function measureColumnIdeals(
     measureTextWidth('Qty', fonts.header)
     + CHECKED_IN_HISTORY_SORT_ICON_PX
     + CHECKED_IN_HISTORY_QTY_HEADER_EXTRA_PX;
+  let printedW = measureTextWidth('Printed', fonts.header) + CHECKED_IN_HISTORY_SORT_ICON_PX;
   let productIdW = measureTextWidth('ID', fonts.header) + CHECKED_IN_HISTORY_SORT_ICON_PX;
   let brandW = measureTextWidth('Brand', fonts.header) + CHECKED_IN_HISTORY_SORT_ICON_PX;
   let modelW = measureTextWidth('Model', fonts.header) + CHECKED_IN_HISTORY_SORT_ICON_PX;
@@ -323,6 +330,8 @@ function measureColumnIdeals(
   for (const row of rows) {
     checkedInW = Math.max(checkedInW, measureTextWidth(formatCheckedInShortDateTime(row.checkedInAt), fonts.body));
     qtyW = Math.max(qtyW, measureTextWidth(String(row.qty), fonts.bodyBold));
+    const printedDisplay = checkInPrintedDisplay(row.items, row.qty);
+    printedW = Math.max(printedW, measureTextWidth(printedDisplay.text, fonts.bodyBold));
     productIdW = Math.max(
       productIdW,
       measureTextWidth(checkedInProductIdText(row, fallbackProduct), fonts.bodyBold),
@@ -353,6 +362,7 @@ function measureColumnIdeals(
   return {
     checkedIn: ceilPad(checkedInW, cellPad('checkedIn')),
     qty: Math.max(ceilPad(qtyW, cellPad('qty')), CHECKED_IN_HISTORY_QTY_MIN_PX),
+    printed: Math.max(ceilPad(printedW, cellPad('printed')), CHECKED_IN_HISTORY_PRINTED_MIN_PX),
     productId: CHECKED_IN_HISTORY_PRODUCT_ID_COL_PX,
     brand: ceilPad(brandW, cellPad('brand')),
     title: ceilPad(titleW, cellPad('title')),

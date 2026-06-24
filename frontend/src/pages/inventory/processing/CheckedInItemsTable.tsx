@@ -47,6 +47,7 @@ import {
   type CheckedInSortState,
 } from './checkedInHistorySort';
 import { formatQueueMoney, queueDispatchLabel } from './processingQueueCellText';
+import { checkInPrintActionLabel, checkInPrintedDisplay } from './checkedInPrintedAggregate';
 import {
   PROCESSING_ITEM_CONDITION_OPTIONS,
   PROCESSING_ITEM_DISPATCH_OPTIONS,
@@ -98,6 +99,17 @@ const CHECKED_IN_QTY_COL_SX = {
   pl: '6px !important',
   pr: '8px !important',
   fontVariantNumeric: 'tabular-nums',
+  textAlign: 'center',
+} as const;
+
+const CHECKED_IN_PRINTED_COL_SX = {
+  ...CHECKED_IN_AUTOSIZE_COL_SX,
+  overflow: 'visible',
+  textOverflow: 'clip',
+  pl: '4px !important',
+  pr: '6px !important',
+  fontVariantNumeric: 'tabular-nums',
+  fontFamily: processingTokens.monoFontFamily,
   textAlign: 'center',
 } as const;
 
@@ -570,6 +582,14 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
   showDeleteCheckInAction = false,
 }: CheckedInHistoryTableRowProps) {
   const { item, qty, itemCheckInId } = row;
+  const printedMeta = checkInPrintedDisplay(row.items, qty);
+  const printAction = checkInPrintActionLabel(row.items, qty);
+  const printedTooltip =
+    printedMeta.unprintedSkus.length > 0 ?
+      `Unprinted: ${printedMeta.unprintedSkus.join(', ')}`
+    : printedMeta.allPrinted ?
+      'All labels printed'
+    : 'No labels printed yet';
   const productIdDisplay = checkedInProductIdText(row, fallbackProduct);
   const currentProductId = row.checkInProduct?.id ?? item.product ?? null;
   const priceDisplay = formatQueueMoney(item.price);
@@ -629,6 +649,17 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
       </TableCell>
       <TableCell align="center" sx={{ ...CHECKED_IN_QTY_COL_SX, fontWeight: 700 }}>
         {qty}
+      </TableCell>
+      <TableCell
+        align="center"
+        sx={{
+          ...CHECKED_IN_PRINTED_COL_SX,
+          fontWeight: 700,
+          color: printedMeta.allPrinted ? 'success.main' : 'text.secondary',
+        }}
+        title={printedTooltip}
+      >
+        {printedMeta.text}
       </TableCell>
       {canEditProduct ?
         <EditableEnumCell
@@ -730,10 +761,10 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
       <TableCell align="center" sx={CHECKED_IN_ACTIONS_COL_SX} onClick={(e) => e.stopPropagation()}>
         <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 0.25 }}>
           {onReprintCheckIn ?
-            <Tooltip title={`Print ${qty} label${qty === 1 ? '' : 's'}`} enterDelay={300} disableInteractive>
+            <Tooltip title={`${printAction} ${qty} label${qty === 1 ? '' : 's'}`} enterDelay={300} disableInteractive>
               <IconButton
                 size="small"
-                aria-label={`Print ${qty} label${qty === 1 ? '' : 's'} for this check-in`}
+                aria-label={`${printAction} ${qty} label${qty === 1 ? '' : 's'} for this check-in`}
                 onClick={() => onReprintCheckIn(row)}
                 sx={actionIconSx('primary.main')}
               >
@@ -956,6 +987,9 @@ export function CheckedInItemsTable({
           <TableRow>
             <SortableHead label="Date" field="checkedIn" sortState={sortState} onSort={handleSort} cellSx={CHECKED_IN_DATE_COL_SX} />
             <SortableHead label="Qty" field="qty" sortState={sortState} onSort={handleSort} centered cellSx={CHECKED_IN_QTY_COL_SX} />
+            <TableCell align="center" sx={CHECKED_IN_PRINTED_COL_SX}>
+              Printed
+            </TableCell>
             <SortableHead label="ID" field="productId" sortState={sortState} onSort={handleSort} divider cellSx={PRODUCT_ID_COL_SX} />
             <SortableHead label="Brand" field="brand" sortState={sortState} onSort={handleSort} cellSx={CHECKED_IN_PRODUCT_COL_SX} />
             <SortableHead label="Title" field="title" sortState={sortState} onSort={handleSort} cellSx={PRODUCT_TITLE_COL_SX} />

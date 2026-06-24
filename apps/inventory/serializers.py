@@ -834,6 +834,8 @@ class ItemSerializer(serializers.ModelSerializer):
     )
     retail_value = serializers.DecimalField(source='retail', max_digits=10, decimal_places=2, required=False, allow_null=True)
     item_check_in_id = serializers.IntegerField(source='check_in_id', read_only=True, allow_null=True)
+    label_printed_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    label_printed = serializers.SerializerMethodField()
 
     class Meta:
         model = Item
@@ -844,6 +846,7 @@ class ItemSerializer(serializers.ModelSerializer):
             'price', 'retail', 'retail_value', 'cost', 'item_check_in_id',
             'source', 'status', 'condition', 'specifications',
             'location', 'listed_at', 'checked_in_at', 'checked_in_by',
+            'label_printed_at', 'label_printed',
             'sold_at', 'sold_for', 'notes',
             'dispute_type', 'dispute_pct_loss', 'dispute_description',
             'created_at', 'updated_at',
@@ -856,12 +859,17 @@ class ItemSerializer(serializers.ModelSerializer):
             'listed_at',
             'checked_in_at',
             'checked_in_by',
+            'label_printed_at',
+            'label_printed',
             'dispute_type',
             'dispute_pct_loss',
             'dispute_description',
             'created_at',
             'updated_at',
         ]
+
+    def get_label_printed(self, obj):
+        return obj.label_printed_at is not None
 
     def get_category(self, obj):
         return item_listing_category(obj)
@@ -1216,6 +1224,8 @@ class ItemCheckInCatalogItemSerializer(serializers.Serializer):
     price = serializers.CharField()
     location = serializers.CharField()
     checked_in_at = serializers.DateTimeField(allow_null=True)
+    label_printed_at = serializers.DateTimeField(allow_null=True)
+    label_printed = serializers.BooleanField()
 
 
 class ItemCheckInCatalogSerializer(serializers.ModelSerializer):
@@ -1316,6 +1326,8 @@ class ItemCheckInCatalogSerializer(serializers.ModelSerializer):
                 'price': str(it.price),
                 'location': it.location or '',
                 'checked_in_at': it.checked_in_at,
+                'label_printed_at': it.label_printed_at,
+                'label_printed': it.label_printed_at is not None,
             })
         return out
 

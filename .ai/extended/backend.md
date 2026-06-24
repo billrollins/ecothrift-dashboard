@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-06-23 (HR time-entries list/summary scoped to self) -->
+<!-- Last updated: 2026-06-24 (Item.label_printed_at + mark-labels-printed bulk endpoint) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-06-24 — Item label printed tracking (migration `0067_item_label_printed_at`):** **`Item.label_printed_at`** — nullable timestamp; backfilled to `checked_in_at` for items already on shelf (status not `intake`). **`POST /api/inventory/items/mark-labels-printed/`** accepts `item_ids[]`, sets `label_printed_at = now()` for never-printed items; idempotent. Serializer exposes **`label_printed`** (bool) + **`label_printed_at`** (read-only); `ItemListSerializer._serialize_item` carries the same fields. List filter: **`?label_printed=true|false`** / **`?printed=`** alias.
 
 **2026-06-16 (v2.32.0) — Unmanifested processing lines:** **`POST …/processing-add-item/`** creates pending **`row_kind='added'`** **`ProcessingRow`** rows (title/brand/model; no manifest row); check-in uses **`manifest_row_id=null`** and **`ItemCheckIn.ORIGIN_PRODUCT_AD_HOC`**. **`POST …/processing-delete-added-row/`** removes empty added rows (blocked when check-ins exist). Workspace **`segments`** query param supports multi-chip OR filters including **`unmanifested`**. Set/part product links scale default check-in price/retail via **`scale_row_amount_for_product_link`** (`manifestUnits / checkIns` from row bookmark). Manifest audit rollups exclude added rows.
 
@@ -142,7 +144,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 | **SickLeaveRequest** | employee, start_date, end_date, hours_requested, status (pending/approved/denied), reviewed_by |
 | **TimeEntryModificationRequest** | time_entry (FK TimeEntry), employee (FK User), requested_clock_in/out, requested_break_minutes, reason, status (pending/approved/denied), reviewed_by, review_note, **deleted_at**, **deleted_by** |
 
-**HR API (MVP):** `TimeEntryViewSet` — clock in/out, `start_break`/`end_break`, `weekly_status`, `roster`, `payroll`, `payroll_periods`, manager `bulk_delete` (soft); **`GET …/time-entries/` list** and **`summary`** default to the **current user** (managers may pass `?employee=`; detail/approve actions unchanged). `TimeEntryModificationRequestViewSet` — Super Admin `approve`, **`reject`**, `bulk_approve`, **`bulk_reject`**, `bulk_delete` (soft). **`purge_soft_deleted_hr`** management command hard-deletes after 30 days.
+**HR API (MVP):** `TimeEntryViewSet` — clock in/out, `start_break`/`end_break`, `weekly_status`, `roster`, `payroll`, `payroll_periods`, manager `bulk_delete` (soft); **`GET …/time-entries/` list** and **`summary`** default to the **current user** (managers may pass `?employee=`; detail/approve actions unchanged). **`GET …/roster/`** — shift rows with **`weekly_cumulative_hours`** = full-week partition sum (Mon–Sun per employee; same on every row in that week). **`GET …/payroll/`** — by-employee totals plus **`hours_this_week`** (completed shifts in current calendar week). **`TimeEntry.save`** sets **`date`** from **`clock_in`**; **`validate_shift_duration`** (max **16h** worked after breaks) on clock-out. `TimeEntryModificationRequestViewSet` — Super Admin `approve`, **`reject`**, `bulk_approve`, **`bulk_reject`**, `bulk_delete` (soft). **`purge_soft_deleted_hr`** management command hard-deletes after 30 days.
 
 ### inventory
 

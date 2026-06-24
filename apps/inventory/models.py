@@ -1176,6 +1176,11 @@ class Item(models.Model):
         blank=True,
         related_name='checked_in_items',
     )
+    label_printed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Set when a shelf label successfully prints; null = never printed.',
+    )
     sold_at = models.DateTimeField(null=True, blank=True)
     sold_for = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True, default='')

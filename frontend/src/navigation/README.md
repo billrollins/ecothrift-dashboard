@@ -8,10 +8,10 @@ Pinned **Essentials:** Dashboard, Employees.
 
 Workspaces (lifecycle order):
 
-1. **Buying** — Auctions, Watchlist, Preprocessing
+1. **Buying** — Auctions, Watchlist, Vendors, Orders, Preprocessing
 2. **Processing** — Receiving, Processing, Finalization, Disputes
-3. **Restoration** — TARS (placeholder)
-4. **Inventory** — Vendors, Orders, Products, Items
+3. **Restoration** — TARS (Send to Restoration → Check-In & Evaluate → TARS verb queues)
+4. **Inventory** — Catalog
 5. **Floor Ops** — Quick reprice *(more coming)*
 6. **Cashier** — Terminal, Transactions, Drawers, Cash Management
 7. **Admin** (Manager/Admin) — Assumptions, POS setup, Web store, Web orders, Users, Customers, Permissions, Settings

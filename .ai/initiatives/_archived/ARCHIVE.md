@@ -51,6 +51,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [hr_time_clock_mvp.md](./_completed/hr_time_clock_mvp.md) | HR Time Clock MVP: clock in/out/break, overtime banner, **Employees** admin (pay rate), **Time & payroll** (roster, payroll $, mod requests approve/reject), soft delete; legacy HR pages removed. Shipped **v2.33.0**–**v2.33.1**. | 2026-06-23 |
 | [product_item_crud_and_processing.md](./_completed/product_item_crud_and_processing.md) | Product & Item CRUD → Processing: Manage Products/Items, **Inventory Catalog** (**v2.30.0**), product-linked check-ins (**v2.31.0**), unmanifested lines + queue resume (**v2.32.0**). Semantic search on hold. | 2026-06-22 |
 | [intake_processing_improvements.md](./_completed/intake_processing_improvements.md) | Intake → Processing product-identity roadmap **P1–P9 shipped** (Sessions 3–11: matching, Final Decisions, precedence, split/collapse, check-in UX, break apart/make set). **Superseded** by **`product_item_crud_and_processing`** — remaining backlog moved 2026-06-13. | 2026-06-13 |
 | [preprocessing_ai_cleanup_review.md](./_completed/preprocessing_ai_cleanup_review.md) | Step 2 AI cleanup review + Fable verdict + web batch implementation (`ai-cleanup-batch` pool, chunked offline apply, gthread Procfile, legacy 410); shipped **v2.28.0**. | 2026-06-10 |

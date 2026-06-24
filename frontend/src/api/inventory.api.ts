@@ -1850,6 +1850,10 @@ export function deleteItem(id: number): Promise<{ data: void }> {
   return api.delete(`/inventory/items/${id}/`);
 }
 
+export function markItemsLabelsPrinted(itemIds: number[]): Promise<{ data: { updated: number } }> {
+  return api.post<{ updated: number }>('/inventory/items/mark-labels-printed/', { item_ids: itemIds });
+}
+
 export function markItemReady(id: number): Promise<{ data: Item }> {
   return api.post<Item>(`/inventory/items/${id}/ready/`);
 }

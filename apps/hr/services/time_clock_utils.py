@@ -3,10 +3,33 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 
 from apps.hr.models import TimeEntry
 
 WEEKLY_HOUR_LIMIT = Decimal('40.00')
+MAX_SHIFT_HOURS = Decimal('16.00')
+
+
+def validate_shift_duration(clock_in, clock_out, break_minutes=0) -> None:
+    """Reject clock spans that cannot represent a single work shift."""
+    if not clock_in or not clock_out:
+        return
+    delta = clock_out - clock_in
+    hours = Decimal(str(delta.total_seconds())) / Decimal('3600')
+    break_hours = Decimal(str(break_minutes or 0)) / Decimal('60')
+    worked = hours - break_hours
+    if worked > MAX_SHIFT_HOURS:
+        raise ValidationError(
+            {
+                'detail': (
+                    f'Shift duration is {worked.quantize(Decimal("0.01"))} hours after breaks '
+                    f'(max {MAX_SHIFT_HOURS} per shift). Check clock in/out dates and times.'
+                ),
+            }
+        )
+    if worked < Decimal('0'):
+        raise ValidationError({'detail': 'Clock out must be after clock in.'})
 
 
 def week_bounds(for_day: date | None = None) -> tuple[date, date]:
@@ -47,6 +70,32 @@ def weekly_hours_for_employee(employee, as_of: datetime | None = None) -> Decima
     for entry in entries:
         total += _entry_hours(entry, as_of)
     return total.quantize(Decimal('0.01'))
+
+
+def completed_hours_for_employee(
+    employee,
+    date_from: date,
+    date_to: date,
+) -> Decimal:
+    """Sum hours from completed shifts only (clock in and out) in a date range."""
+    entries = TimeEntry.objects.filter(
+        employee=employee,
+        date__gte=date_from,
+        date__lte=date_to,
+        clock_out__isnull=False,
+    )
+    total = Decimal('0')
+    for entry in entries:
+        entry.compute_total_hours()
+        total += entry.total_hours or Decimal('0')
+    return total.quantize(Decimal('0.01'))
+
+
+def completed_hours_this_week_for_employee(employee, as_of: datetime | None = None) -> Decimal:
+    """Completed shift hours for the calendar week containing as_of."""
+    as_of = as_of or timezone.now()
+    week_start, week_end = week_bounds(as_of.date())
+    return completed_hours_for_employee(employee, week_start, week_end)
 
 
 def weekly_status_for_employee(employee, as_of: datetime | None = None) -> dict:

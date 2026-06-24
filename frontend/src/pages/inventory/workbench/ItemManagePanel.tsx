@@ -26,7 +26,7 @@ import {
   normalizeProcessingCondition,
   normalizeProcessingDispatch,
 } from '../processing/processingItemFormOptions';
-import { printProcessingLabelsStaggered } from '../processing/printProcessingLabel';
+import { printProcessingLabelsAndMarkPrinted } from '../processing/printProcessingLabel';
 import { processingTokens } from '../processing/processingTokens';
 import { CheckInDetailFieldsSection } from './CheckInDetailsLayout';
 import { formatOrderOrderedDate } from './CheckInOrderAutocomplete';
@@ -169,9 +169,11 @@ export function ItemManagePanel({
       enqueueSnackbar('Item updated.', { variant: 'success' });
       await queryClient.invalidateQueries({ queryKey: ['items'] });
       if (!printAfterSave) return;
-      const { succeeded, failed } = await printProcessingLabelsStaggered([data]);
-      if (failed > 0) enqueueSnackbar('Label print failed', { variant: 'error' });
-      else if (succeeded > 0) enqueueSnackbar('Label sent to printer', { variant: 'success' });
+      const result = await printProcessingLabelsAndMarkPrinted([{ ...data, id: data.id }]);
+      if (result.failed > 0) enqueueSnackbar('Label print failed', { variant: 'error' });
+      else if (result.succeeded > 0) enqueueSnackbar('Label sent to printer', { variant: 'success' });
+      if (result.markFailed) enqueueSnackbar('Label printed but printed status could not be saved.', { variant: 'warning' });
+      else await queryClient.invalidateQueries({ queryKey: ['items'] });
     },
     onError: (err: unknown) => {
       enqueueSnackbar(err instanceof Error ? err.message : 'Could not save item.', { variant: 'error' });
@@ -186,7 +188,7 @@ export function ItemManagePanel({
       const choice = await confirmSavePrint({
         title: 'Shelf price changed',
         message: 'Save this item with the updated shelf price?',
-        printLabel: 'Print',
+        printLabel: item?.label_printed ? 'Reprint' : 'Print',
         noPrintLabel: 'No print',
         cancelLabel: 'Cancel save',
       });
@@ -198,9 +200,11 @@ export function ItemManagePanel({
 
   const handleReprint = async () => {
     if (!item) return;
-    const { succeeded, failed } = await printProcessingLabelsStaggered([item]);
-    if (failed > 0) enqueueSnackbar('Label print failed', { variant: 'error' });
-    else if (succeeded > 0) enqueueSnackbar('Label sent to printer', { variant: 'success' });
+    const result = await printProcessingLabelsAndMarkPrinted([item]);
+    if (result.failed > 0) enqueueSnackbar('Label print failed', { variant: 'error' });
+    else if (result.succeeded > 0) enqueueSnackbar('Label sent to printer', { variant: 'success' });
+    if (result.markFailed) enqueueSnackbar('Label printed but printed status could not be saved.', { variant: 'warning' });
+    else await queryClient.invalidateQueries({ queryKey: ['items', item.id] });
   };
 
   if (itemQuery.isLoading) {

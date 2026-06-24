@@ -21,7 +21,6 @@ import { getProduct } from '../../../api/inventory.api';
 import type {
   ItemCheckInDTO,
   ItemCondition,
-  ItemStatus,
   ProcessingWorkspaceItemDTO,
   ProcessingWorkspaceProductDTO,
   ProcessingWorkspaceRowDTO,
@@ -42,6 +41,7 @@ import { effectiveRowQty } from './processingQueueCellText';
 import { LargeCheckInConfirmDialog } from './LargeCheckInConfirmDialog';
 import { isLargeCheckIn, MAX_CHECK_IN_QUANTITY } from './largeCheckIn';
 import { processingTokens } from './processingTokens';
+import { ProcessingCheckInEditStats, ProductSummaryCard } from './ProcessingCheckInEditStats';
 import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialog';
 
 const MAX_CHECK_IN_QTY = MAX_CHECK_IN_QUANTITY;
@@ -55,13 +55,18 @@ function strDefault(value: unknown): string {
   return String(value);
 }
 
-function productCategory(product: ProductLike | null | undefined): string {
-  if (!product) return '';
-  if (typeof product.category === 'number') return 'category_name' in product ? product.category_name || '' : '';
-  return product.category || '';
-}
-
 type ProductLike = ProcessingWorkspaceProductDTO | Awaited<ReturnType<typeof getProduct>>['data'];
+
+function productSummary(product: ProductLike | null | undefined) {
+  if (!product) return null;
+  return {
+    id: product.id,
+    product_number: product.product_number,
+    title: product.title,
+    brand: product.brand,
+    model: product.model,
+  };
+}
 
 function productLabel(product: ProductLike | null | undefined): string {
   if (!product) return 'Attached product';
@@ -101,7 +106,7 @@ function QuantityControl({
         aria-label="Decrease quantity"
         disabled={disabled || qtyValue <= 1}
         onClick={() => onBump(-1)}
-        sx={{ width: 34, borderRadius: 0, borderRight: 1, borderColor: processingTokens.border }}
+        sx={{ width: 30, borderRadius: 0, borderRight: 1, borderColor: processingTokens.border }}
       >
         <Remove sx={{ fontSize: 16 }} />
       </IconButton>
@@ -114,13 +119,13 @@ function QuantityControl({
         onBlur={onBlur}
         onWheel={(event: WheelEvent<HTMLInputElement>) => preventWheelChangeNumber(event)}
         sx={{
-          width: 64,
+          width: 56,
           border: 0,
           outline: 0,
           textAlign: 'center',
-          fontSize: 22,
+          fontSize: 18,
           fontWeight: 900,
-          py: 0.65,
+          py: 0.45,
           fontVariantNumeric: 'tabular-nums',
           bgcolor: processingTokens.surfaceRaised,
           color: 'text.primary',
@@ -131,7 +136,7 @@ function QuantityControl({
         aria-label="Increase quantity"
         disabled={disabled || qtyValue >= MAX_CHECK_IN_QTY}
         onClick={() => onBump(1)}
-        sx={{ width: 34, borderRadius: 0, borderLeft: 1, borderColor: processingTokens.border }}
+        sx={{ width: 30, borderRadius: 0, borderLeft: 1, borderColor: processingTokens.border }}
       >
         <Add sx={{ fontSize: 16 }} />
       </IconButton>
@@ -181,7 +186,6 @@ export function ProcessingCheckInDialog({
 
   const [quantity, setQuantity] = useState('1');
   const [condition, setCondition] = useState<ItemCondition>(PROCESSING_ITEM_DEFAULT_CONDITION);
-  const [status, setStatus] = useState<ItemStatus>('on_shelf');
   const [dispatch, setDispatch] = useState(row.dispatch || 'on_shelf');
   const [retail, setRetail] = useState(row.unitRetail ?? '');
   const [price, setPrice] = useState(row.price ?? '');
@@ -210,7 +214,6 @@ export function ProcessingCheckInDialog({
     const defaults = seed?.itemCheckIn?.defaults ?? {};
     setQuantity(editCheckIn ? String(editCheckIn.quantity) : '1');
     setCondition(normalizeProcessingCondition(seed?.item.condition || seed?.item.condition_label || row.condition));
-    setStatus((seed?.item.status as ItemStatus | undefined) || 'on_shelf');
     setDispatch(seed?.item.dispatch || strDefault(defaults.dispatch) || row.dispatch || 'on_shelf');
     setRetail(seed?.item.retail ?? (strDefault(defaults.retail) || scaledRowRetail || ''));
     setPrice(seed?.item.price ?? (strDefault(defaults.price) || scaledRowPrice || ''));
@@ -237,7 +240,6 @@ export function ProcessingCheckInDialog({
       product_id: productId,
       quantity: qtyValue,
       condition,
-      status,
       dispatch: salvageLocked ? 'salvage' : dispatch,
       retail: retail || undefined,
       price: price || undefined,
@@ -307,15 +309,21 @@ export function ProcessingCheckInDialog({
         },
       }}
     >
-      <DialogTitle sx={{ px: 2.75, py: 1.5, borderBottom: 1, borderColor: processingTokens.border }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
+      <DialogTitle sx={{ px: 2, py: 1.15, borderBottom: 1, borderColor: processingTokens.border }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.15 }}>
+            <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.15, fontSize: '1.05rem' }}>
               {isEditMode ? `Edit check-in #${editCheckIn.id}` : 'Check in'}
             </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35, fontWeight: 700 }} noWrap>
-              {productLabel(product)} · Row {row.rowNum}
-            </Typography>
+            {!isEditMode ?
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontWeight: 700 }} noWrap>
+                {productLabel(product)} · Row {row.rowNum}
+              </Typography>
+            : (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontWeight: 700 }}>
+                Row {row.rowNum}
+              </Typography>
+            )}
           </Box>
           {!isEditMode ?
             <Stack direction="row" spacing={0.75} sx={{ display: { xs: 'none', md: 'flex' } }}>
@@ -335,31 +343,25 @@ export function ProcessingCheckInDialog({
         </Box>
       </DialogTitle>
 
-      <DialogContent sx={{ p: 2.75, bgcolor: processingTokens.cardDeckBg, overflow: 'auto' }}>
+      <DialogContent sx={{ px: 2, py: 1.5, bgcolor: processingTokens.cardDeckBg, overflow: 'auto' }}>
         {productId == null ?
-          <Typography color="text.secondary">
+          <Typography color="text.secondary" variant="body2">
             Attach a product to this row before checking in.
           </Typography>
         : (
-          <Stack spacing={1.25}>
-            <Paper variant="outlined" sx={{ p: 1.25, borderColor: processingTokens.border, bgcolor: processingTokens.surfaceRaised }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 800, textTransform: 'uppercase', mb: 0.35 }}>
-                Product
-              </Typography>
-              <Typography sx={{ fontWeight: 900 }}>{productLabel(product)}</Typography>
-              <Typography variant="caption" color="text.secondary">
-                {[product?.brand, product?.model, productCategory(product)].filter(Boolean).join(' · ') || 'Catalog product'}
-              </Typography>
-            </Paper>
+          <Stack spacing={0.85}>
+            {isEditMode && editCheckIn ?
+              <ProcessingCheckInEditStats checkIn={editCheckIn} product={productSummary(product)} />
+            : <ProductSummaryCard product={productSummary(product)} />}
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
-              <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                 <Typography
                   variant="caption"
                   color="text.secondary"
-                  sx={{ display: 'block', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: '0.62rem', mb: 0.4 }}
+                  sx={{ fontWeight: 800, letterSpacing: 0.4, textTransform: 'uppercase', fontSize: '0.58rem', whiteSpace: 'nowrap' }}
                 >
-                  Quantity
+                  Qty
                 </Typography>
                 <QuantityControl
                   quantity={quantity}
@@ -370,15 +372,15 @@ export function ProcessingCheckInDialog({
                 />
               </Box>
               {isEditMode && qtyDelta !== 0 ?
-                <Typography variant="body2" sx={{ color: qtyDelta > 0 ? processingTokens.accentGreen : 'error.main', fontWeight: 800 }}>
+                <Typography variant="caption" sx={{ color: qtyDelta > 0 ? processingTokens.accentGreen : 'error.main', fontWeight: 700, lineHeight: 1.3 }}>
                   {qtyDelta > 0 ?
-                    `Will ADD ${qtyDelta} item${qtyDelta === 1 ? '' : 's'} to this check-in (you'll confirm).`
-                  : `Will DELETE ${-qtyDelta} item${qtyDelta === -1 ? '' : 's'} from this check-in (you'll confirm).`}
+                    `+${qtyDelta} on save`
+                  : `${qtyDelta} on save`}
                 </Typography>
               : null}
             </Box>
 
-            <CheckInFormActionRow left={!isEditMode ? <CheckInFinalizeHint /> : undefined} />
+            {!isEditMode ? <CheckInFormActionRow left={<CheckInFinalizeHint />} /> : null}
             <CheckInDetailFieldsSection
               price={price}
               onPriceChange={setPrice}
@@ -389,8 +391,6 @@ export function ProcessingCheckInDialog({
                 setCondition(normalizeProcessingCondition(next));
                 if (next === 'salvage') setDispatch('salvage');
               }}
-              status={status}
-              onStatusChange={setStatus}
               dispatch={dispatch}
               onDispatchChange={setDispatch}
               specifications={specifications}
@@ -405,7 +405,7 @@ export function ProcessingCheckInDialog({
         )}
       </DialogContent>
 
-      <DialogActions sx={{ px: 2.75, py: 1.25, gap: 1, borderTop: 1, borderColor: processingTokens.border, flexWrap: 'wrap' }}>
+      <DialogActions sx={{ px: 2, py: 1, gap: 0.75, borderTop: 1, borderColor: processingTokens.border, flexWrap: 'wrap' }}>
         <Button onClick={onClose} disabled={busy} sx={{ mr: 'auto' }}>
           Cancel
         </Button>

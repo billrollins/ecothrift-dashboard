@@ -1,11 +1,28 @@
-fix(hr): scope Time clock My recent shifts to logged-in user
+feat(inventory): label printed tracking + edit check-in ProductSummaryCard
 
-Managers and admins saw every employee's shifts on the Time clock page
-because GET /hr/time-entries/ returned the full queryset for non-Employee
-roles.
+Inventory / item label printed tracking:
+- Item.label_printed_at (migration 0067); backfilled for on-shelf items
+- POST /api/inventory/items/mark-labels-printed/ bulk endpoint; idempotent
+- label_printed / label_printed_at on serializer + _serialize_item; ?printed= list filter
+- printProcessingLabelsAndMarkPrinted wrapper wired to processing, catalog, workbench print paths
+- Workbench Items tab: Printed column (replaces checkedIn); Prior Check-ins: printedCount/qty aggregate
+- Rich search {printed=true|false}; Print vs Reprint affordance when already printed
 
-- TimeEntryViewSet list/summary default to request.user; ?employee= for managers
-- TimeClockPage passes employee filter; useTimeEntries enabled guard
+Inventory / Processing check-in dialog:
+- Edit mode: ProductSummaryCard (Product #, Title, Brand, Model only) + 4 check-in-scoped item stat cards
+  (# Items, On Shelf, Sold, Printed — each clickable → workbench filtered view)
+- Status removed from all check-in forms (CheckInDetailFieldsSection.status is now opt-in)
+- Modal spacing tightened: reduced padding, inline compact Qty stepper, +N/-N on save delta
 
-Initiative: hr_time_clock_mvp
-Release: v2.33.1
+Restoration / TARS mock (Phase 0):
+- /restoration/tars: Send to Restoration | Check-In & Evaluate | TARS verb queues
+- Client-only mock store (TarsMockStore); grade-scale profit math; bench panel; execute panel
+- Active evaluation summary above Test / Assemble / Repair / Salvage queues
+
+HR Time & payroll (Session 3 post-release polish):
+- Roster: Mon-Sun week-hours column, OT red format, remove cumulative payroll column
+- By employee: hours_this_week API field; per-week OT breakdown in This payroll
+- TimeEntry.save syncs date from clock_in; validate_shift_duration (16h max after breaks)
+- fmtClockCell shows date when clock spans a different day than the row date
+
+Initiative: tars_restoration_workspace (active Phase 0); hr_time_clock_mvp (archived)

@@ -71,6 +71,66 @@ function fmtHours(v: string | number | null | undefined): string {
   return Number.isFinite(n) ? n.toFixed(2) : '0.00';
 }
 
+const WEEKLY_HOUR_LIMIT = 40;
+/** Min width for columns showing `40.00 (+XX.XX overtime)`. */
+const OVERTIME_HOURS_COL_WIDTH = 240;
+const OVERTIME_PAYROLL_COL_WIDTH = 320;
+
+function WeeklyHoursLine({ total }: { total: number }) {
+  if (!Number.isFinite(total) || total <= 0) {
+    return <span style={{ fontVariantNumeric: 'tabular-nums' }}>0.00</span>;
+  }
+  if (total <= WEEKLY_HOUR_LIMIT) {
+    return <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtHours(total)}</span>;
+  }
+  const overtime = total - WEEKLY_HOUR_LIMIT;
+  return (
+    <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+      {fmtHours(WEEKLY_HOUR_LIMIT)}{' '}
+      <Box component="span" sx={{ color: 'error.main', fontWeight: 700 }}>
+        (+{fmtHours(overtime)} overtime)
+      </Box>
+    </span>
+  );
+}
+
+function ThisWeekHoursCell({ value }: { value: string | number | null | undefined }) {
+  const total = typeof value === 'number' ? value : parseFloat(String(value));
+  return <WeeklyHoursLine total={total} />;
+}
+
+function fmtWeekRangeMonSun(weekStart: string): string {
+  const start = parseISO(weekStart);
+  const end = endOfWeek(start, { weekStartsOn: 1 });
+  return `${format(start, 'MMM d')}–${format(end, 'MMM d')}`;
+}
+
+function PayrollPeriodHoursCell({ weeks }: { weeks: { week_start: string; hours: number }[] }) {
+  if (weeks.length === 0) {
+    return <WeeklyHoursLine total={0} />;
+  }
+  if (weeks.length === 1) {
+    return <WeeklyHoursLine total={weeks[0].hours} />;
+  }
+  return (
+    <Stack spacing={0.35} sx={{ py: 0.25, width: '100%' }}>
+      {weeks.map((w) => (
+        <Box key={w.week_start} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, flexWrap: 'nowrap' }}>
+          <Typography
+            component="span"
+            variant="caption"
+            color="text.secondary"
+            sx={{ minWidth: 96, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            {fmtWeekRangeMonSun(w.week_start)}:
+          </Typography>
+          <WeeklyHoursLine total={w.hours} />
+        </Box>
+      ))}
+    </Stack>
+  );
+}
+
 function fmtMoney(v: string | number | null | undefined): string {
   const n = typeof v === 'string' ? parseFloat(v) : Number(v);
   return usd.format(Number.isFinite(n) ? n : 0);
@@ -78,6 +138,17 @@ function fmtMoney(v: string | number | null | undefined): string {
 
 function fmtTime(iso: string | null): string {
   return iso ? format(parseISO(iso), 'h:mm a') : '—';
+}
+
+/** Show date + time when clock timestamp is not on the roster row date (multi-day span). */
+function fmtClockCell(iso: string | null, rowDate: string): string {
+  if (!iso) return '—';
+  const dt = parseISO(iso);
+  const clockDay = format(dt, 'yyyy-MM-dd');
+  if (clockDay !== rowDate) {
+    return format(dt, 'MMM d, h:mm a');
+  }
+  return format(dt, 'h:mm a');
 }
 
 function fmtDt(v: string | null): string {
@@ -211,6 +282,14 @@ const DATA_GRID_SX = {
   '& .MuiDataGrid-columnHeader--alignRight .MuiDataGrid-columnHeaderDraggableContainer, & .MuiDataGrid-columnHeader--alignRight .MuiDataGrid-columnHeaderTitleContainer': {
     justifyContent: 'flex-start',
   },
+  '& .overtime-hours-cell': {
+    overflow: 'visible',
+    whiteSpace: 'nowrap',
+  },
+  '& .overtime-hours-cell .MuiDataGrid-cellContent': {
+    overflow: 'visible',
+    textOverflow: 'clip',
+  },
 } as const;
 
 const TAB_TOOLBAR_CARD_SX = {
@@ -320,6 +399,11 @@ export default function TimePayrollPage() {
     enabled: Boolean(activeRange),
   });
 
+  const { data: thisWeekRoster } = useQuery({
+    queryKey: ['timeEntryRoster', thisWeek.date_from, thisWeek.date_to],
+    queryFn: async () => (await getTimeEntryRoster(thisWeek)).data,
+  });
+
   const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'denied' | ''>('pending');
   const { data: requests, isLoading: requestsLoading } = useQuery({
     queryKey: ['modificationRequests', statusFilter],
@@ -374,14 +458,27 @@ export default function TimePayrollPage() {
     () => (summary ?? []).reduce((a, r) => a + parseFloat(r.total_pay || '0'), 0),
     [summary],
   );
-  const thisWeekMonday = fmtDay(startOfWeek(today, { weekStartsOn: 1 }));
   const weeklyHoursTotal = useMemo(
     () =>
-      (roster ?? [])
-        .filter((r) => r.week_start === thisWeekMonday)
+      (thisWeekRoster ?? [])
+        .filter((r) => !r.is_open)
         .reduce((a, r) => a + parseFloat(r.total_hours || '0'), 0),
-    [roster, thisWeekMonday],
+    [thisWeekRoster],
   );
+
+  /** Completed shift hours in the selected payroll range, grouped by employee and calendar week. */
+  const payrollWeekHoursByEmployee = useMemo(() => {
+    const map = new Map<number, Map<string, number>>();
+    for (const row of roster ?? []) {
+      if (row.is_open) continue;
+      const hrs = parseFloat(row.total_hours || '0');
+      if (!Number.isFinite(hrs)) continue;
+      if (!map.has(row.employee_id)) map.set(row.employee_id, new Map());
+      const weeks = map.get(row.employee_id)!;
+      weeks.set(row.week_start, (weeks.get(row.week_start) ?? 0) + hrs);
+    }
+    return map;
+  }, [roster]);
 
   // ── Mutations: roster row edit / add / delete ────────────────
   const invalidateTime = () => {
@@ -601,16 +698,26 @@ export default function TimePayrollPage() {
 
   // ── Columns ──────────────────────────────────────────────────
   const rosterColumns: GridColDef[] = [
-    { field: 'employee_name', headerName: 'Employee', width: 190 },
     { field: 'date', headerName: 'Date', width: 112 },
-    { field: 'clock_in', headerName: 'Start', width: 92, valueFormatter: (v) => fmtTime(v as string | null) },
-    { field: 'clock_out', headerName: 'Stop', width: 92, valueFormatter: (v) => fmtTime(v as string | null) },
+    { field: 'employee_name', headerName: 'Employee', width: 190 },
+    { field: 'clock_in', headerName: 'Start', width: 130, valueFormatter: (v, row) => fmtClockCell(v as string | null, row.date as string) },
+    { field: 'clock_out', headerName: 'Stop', width: 130, valueFormatter: (v, row) => fmtClockCell(v as string | null, row.date as string) },
+    { field: 'break_label', headerName: 'Break', width: 112 },
     {
       field: 'total_hours',
-      headerName: 'Hrs',
+      headerName: 'Hours',
       width: 82,
       cellClassName: 'tabular',
       valueFormatter: (v) => fmtHours(v as string),
+    },
+    {
+      field: 'weekly_cumulative_hours',
+      headerName: 'Week hours',
+      width: OVERTIME_HOURS_COL_WIDTH,
+      minWidth: OVERTIME_HOURS_COL_WIDTH,
+      flex: 0,
+      cellClassName: 'tabular overtime-hours-cell',
+      renderCell: ({ value }) => <WeeklyHoursLine total={parseFloat(String(value))} />,
     },
     {
       field: 'pay',
@@ -619,28 +726,6 @@ export default function TimePayrollPage() {
       cellClassName: 'tabular',
       valueFormatter: (v) => fmtMoney(v as string),
     },
-    {
-      field: 'weekly_cumulative_hours',
-      headerName: 'Week Σ',
-      width: 90,
-      cellClassName: 'tabular',
-      renderCell: ({ value }) => {
-        const n = parseFloat(String(value));
-        return (
-          <span style={{ fontVariantNumeric: 'tabular-nums', color: n > 40 ? '#D32F2F' : undefined, fontWeight: n > 40 ? 700 : 400 }}>
-            {fmtHours(value as string)}
-          </span>
-        );
-      },
-    },
-    {
-      field: 'payroll_cumulative_hours',
-      headerName: 'Pay Σ',
-      width: 90,
-      cellClassName: 'tabular',
-      valueFormatter: (v) => fmtHours(v as string),
-    },
-    { field: 'break_label', headerName: 'Break', width: 112 },
     {
       field: 'actions',
       headerName: '',
@@ -664,31 +749,51 @@ export default function TimePayrollPage() {
   ];
 
   const summaryColumns: GridColDef[] = [
-    { field: 'employee_name', headerName: 'Employee', width: 220 },
+    { field: 'employee_name', headerName: 'Employee', width: 200 },
     {
       field: 'pay_rate',
       headerName: 'Rate',
-      width: 100,
+      width: 96,
       cellClassName: 'tabular',
       valueFormatter: (v) => fmtMoney(v as string),
     },
     {
+      field: 'hours_this_week',
+      headerName: 'This week',
+      width: OVERTIME_HOURS_COL_WIDTH,
+      minWidth: OVERTIME_HOURS_COL_WIDTH,
+      flex: 0,
+      cellClassName: 'tabular overtime-hours-cell',
+      renderCell: ({ value }) => <ThisWeekHoursCell value={value as string} />,
+    },
+    {
       field: 'total_hours',
-      headerName: 'Hours',
-      width: 110,
-      cellClassName: 'tabular',
-      valueFormatter: (v) => fmtHours(v as string),
+      headerName: 'This payroll',
+      width: OVERTIME_PAYROLL_COL_WIDTH,
+      minWidth: OVERTIME_PAYROLL_COL_WIDTH,
+      flex: 0,
+      cellClassName: 'tabular overtime-hours-cell',
+      sortable: false,
+      renderCell: ({ row }) => {
+        const weeksMap = payrollWeekHoursByEmployee.get(row.employee_id as number);
+        const weeks = weeksMap
+          ? [...weeksMap.entries()]
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([week_start, hours]) => ({ week_start, hours }))
+          : [];
+        return <PayrollPeriodHoursCell weeks={weeks} />;
+      },
     },
     {
       field: 'total_pay',
-      headerName: 'Payroll',
-      width: 120,
+      headerName: 'Payroll $',
+      width: 112,
       cellClassName: 'tabular',
       renderCell: ({ value }) => (
         <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmtMoney(value as string)}</span>
       ),
     },
-    { field: 'entry_count', headerName: 'Shifts', width: 90 },
+    { field: 'entry_count', headerName: '# Shifts', width: 88, cellClassName: 'tabular' },
   ];
 
   const requestColumns: GridColDef[] = [
@@ -877,7 +982,7 @@ export default function TimePayrollPage() {
           mb: 3,
         }}
       >
-        <KpiCard label="This week" value={`${weeklyHoursTotal.toFixed(2)} h`} sub="Current Mon–Sun" />
+        <KpiCard label="This week" value={`${weeklyHoursTotal.toFixed(2)} h`} sub="Mon–Sun (current week)" />
         <KpiCard label="Payroll hours" value={`${payrollHoursTotal.toFixed(2)} h`} sub="Selected period" />
         <KpiCard label="Payroll total" value={fmtMoney(payrollPayTotal)} sub="Rate × hours" accent="success" />
         <KpiCard
@@ -1036,7 +1141,7 @@ export default function TimePayrollPage() {
                     Employee payroll summary
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Selected period totals by employee
+                    Completed shifts only · weeks Mon–Sun · 40h/week before overtime
                   </Typography>
                 </Box>
                 <Stack
@@ -1064,9 +1169,13 @@ export default function TimePayrollPage() {
               columns={summaryColumns}
               loading={summaryLoading}
               disableRowSelectionOnClick
+              getRowHeight={() => 'auto'}
               pageSizeOptions={[25, 50]}
               initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-              sx={DATA_GRID_SX}
+              sx={{
+                ...DATA_GRID_SX,
+                '& .MuiDataGrid-cell': { py: 1, alignItems: 'flex-start' },
+              }}
             />
           </Card>
         </Box>

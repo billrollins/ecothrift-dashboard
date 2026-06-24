@@ -38,7 +38,8 @@ import {
   useRemapItemCheckInProduct,
   printedPreviewToLabelInputs,
 } from '../../../hooks/useProcessingWorkspace';
-import { printProcessingLabelsStaggered } from './printProcessingLabel';
+import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
+import { checkInPrintActionLabel } from './checkedInPrintedAggregate';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import { ProductSearchAutocomplete } from '../../../components/inventory/ProductSearchAutocomplete';
 import { getProduct, type ProcessingRestartSummary } from '../../../api/inventory.api';
@@ -1640,10 +1641,11 @@ export function ProcessingActiveCard({
   async function handleReprintCheckIn(historyRow: CheckedInHistoryRow) {
     if (!onReprintItems) return;
     const qty = historyRow.qty;
+    const action = checkInPrintActionLabel(historyRow.items, qty);
     const ok = await confirm({
-      title: 'Print labels?',
-      message: `Print ${qty.toLocaleString()} label${qty === 1 ? '' : 's'} for this check-in?`,
-      confirmLabel: 'Print',
+      title: `${action} labels?`,
+      message: `${action} ${qty.toLocaleString()} label${qty === 1 ? '' : 's'} for this check-in?`,
+      confirmLabel: action,
       severity: 'info',
     });
     if (!ok) return;
@@ -1694,10 +1696,13 @@ export function ProcessingActiveCard({
       if (data.items_updated) parts.push(`${data.items_updated} updated`);
       enqueueSnackbar(`Check-in saved${parts.length ? ` — ${parts.join(', ')}` : ''}.`, { variant: 'success' });
       if (options.printLabels && data.printed_items_preview?.length) {
-        const { failed } = await printProcessingLabelsStaggered(
+        const result = await printProcessingLabelsAndMarkPrinted(
           printedPreviewToLabelInputs(data.printed_items_preview),
         );
-        if (failed > 0) enqueueSnackbar(`${failed} label(s) failed to print.`, { variant: 'warning' });
+        if (result.failed > 0) enqueueSnackbar(`${result.failed} label(s) failed to print.`, { variant: 'warning' });
+        if (result.markFailed) {
+          enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
+        }
       }
       return true;
     } catch (err) {
@@ -1815,9 +1820,12 @@ export function ProcessingActiveCard({
         display: 'flex',
         flexDirection: 'column',
         mb: 0.75,
-        borderColor: processingTokens.border,
+        borderColor: alpha(processingTokens.primary, 0.24),
+        borderLeft: 3,
+        borderLeftColor: processingTokens.primary,
         bgcolor: processingTokens.surfaceRaised,
         overflow: 'hidden',
+        boxShadow: '0 1px 4px rgba(26, 27, 24, 0.05)',
       }}
     >
       <Box
@@ -1825,6 +1833,9 @@ export function ProcessingActiveCard({
           px: 0.75,
           pt: 0.5,
           pb: 0.25,
+          bgcolor: processingTokens.cardHeaderRowDetailBg,
+          borderBottom: 1,
+          borderColor: alpha(processingTokens.primary, 0.16),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-start',
@@ -2060,14 +2071,39 @@ export function ProcessingActiveCard({
           <Paper
             variant="outlined"
             sx={{
-              flexShrink: 0,
+              flex: '0 1 auto',
+              minHeight: 0,
+              width: '100%',
+              maxWidth: '100%',
+              maxHeight: { xs: 280, md: '34vh' },
               mb: 0.65,
               p: 0.65,
-              borderColor: processingTokens.border,
-              bgcolor: processingTokens.surfaceWarm,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              borderColor: processingTokens.cardboardBrownBorder,
+              borderLeft: 3,
+              borderLeftColor: processingTokens.cardboardBrown,
+              bgcolor: '#fbfaf8',
+              boxShadow: '0 1px 4px rgba(26, 27, 24, 0.05)',
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, minWidth: 0 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
+                mx: -0.65,
+                mt: -0.65,
+                mb: 0.5,
+                px: 0.75,
+                py: 0.5,
+                minWidth: 0,
+                bgcolor: processingTokens.cardboardBrownSoft,
+                borderBottom: 1,
+                borderColor: processingTokens.cardboardBrownBorder,
+              }}
+            >
               <Typography
                 variant="caption"
                 sx={{
@@ -2075,7 +2111,7 @@ export function ProcessingActiveCard({
                   letterSpacing: 0.7,
                   fontSize: '0.625rem',
                   textTransform: 'uppercase',
-                  color: processingTokens.textSoft,
+                  color: processingTokens.cardboardBrownDark,
                 }}
               >
                 Attached products ({attachedProducts.length})
@@ -2085,9 +2121,10 @@ export function ProcessingActiveCard({
                 New product
               </Button>
             </Box>
-            <Stack spacing={0.45}>
+            <Stack spacing={0.45} sx={{ flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
               <Box
                 sx={{
+                  flexShrink: 0,
                   px: 0.75,
                   py: 0.35,
                   border: 1,
@@ -2106,25 +2143,36 @@ export function ProcessingActiveCard({
                   helperText=""
                 />
               </Box>
-              {attachedProducts.map((attached) => (
-                <AttachedProductCard
-                  key={attached.key}
-                  product={attached}
-                  hideManifestAccounting={isAddedRow}
-                  onCheckIn={() => openDetailedCheckIn(attached.productId)}
-                  onEditProduct={() => {
-                    if (attached.productId != null) openProductEditor(attached.productId);
-                  }}
-                  onLinkConfigChange={(config) => {
-                    if (attached.productId != null) void handleProductLinkConfigChange(attached.productId, config);
-                  }}
-                  onRemove={
-                    attached.productId != null && !attached.checkedInQty
-                      ? () => void handleDetachAttachedProduct(attached.productId!)
-                      : undefined
-                  }
-                />
-              ))}
+              <Stack
+                spacing={0.45}
+                sx={{
+                  flex: '1 1 auto',
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  overscrollBehavior: 'contain',
+                  pr: 0.25,
+                }}
+              >
+                {attachedProducts.map((attached) => (
+                  <AttachedProductCard
+                    key={attached.key}
+                    product={attached}
+                    hideManifestAccounting={isAddedRow}
+                    onCheckIn={() => openDetailedCheckIn(attached.productId)}
+                    onEditProduct={() => {
+                      if (attached.productId != null) openProductEditor(attached.productId);
+                    }}
+                    onLinkConfigChange={(config) => {
+                      if (attached.productId != null) void handleProductLinkConfigChange(attached.productId, config);
+                    }}
+                    onRemove={
+                      attached.productId != null && !attached.checkedInQty
+                        ? () => void handleDetachAttachedProduct(attached.productId!)
+                        : undefined
+                    }
+                  />
+                ))}
+              </Stack>
             </Stack>
           </Paper>
 
@@ -2135,52 +2183,63 @@ export function ProcessingActiveCard({
           : null}
         </Box>
 
-        <Box ref={priorCheckInsRef} sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <ProcessingRowSection
-          title="Prior check-ins"
-          note="Select a row to review or edit it."
-          surface="priorCheckIns"
-          fill
-          sx={{ mb: 0, minWidth: 0 }}
-          bodySx={{ p: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        <Box
+          ref={priorCheckInsRef}
+          sx={{ flex: '1 1 0', minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}
         >
-          <Paper
-            variant="outlined"
+          <ProcessingRowSection
+            title="Prior check-ins"
+            note="Select a row to review or edit it."
+            surface="priorCheckIns"
+            fill
             sx={{
-              flex: 1,
-              minHeight: 0,
-              minWidth: 0,
-              p: 0,
               mb: 0,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              borderColor: processingTokens.border,
-              bgcolor: processingTokens.surfaceRaised,
+              minWidth: 0,
+              maxWidth: '100%',
+              borderColor: processingTokens.borderStrong,
+              borderLeft: 3,
+              borderLeftColor: processingTokens.accentBlue,
+              boxShadow: '0 1px 4px rgba(26, 27, 24, 0.05)',
             }}
+            bodySx={{ p: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
           >
-            <CheckedInItemsTable
-              rows={historyRows}
-              fallbackProduct={product}
-              attachedProductOptions={attachedProductOptions}
-              activeItemId={activeItem?.id ?? null}
-              onSelectItemId={handleSelectPriorCheckIn}
-              onReprintCheckIn={onReprintItems ? (historyRow) => void handleReprintCheckIn(historyRow) : undefined}
-              onDeleteItemCheckIn={isManager ? (historyRow) => void handleDeleteItemCheckIn(historyRow) : undefined}
-              onSetCheckInProduct={
-                attachedProductOptions.length > 0 ?
-                  (historyRow, productId) => void handleSetCheckInProduct(historyRow, productId)
-                : undefined
-              }
-              onSetCheckInCondition={(historyRow, value) => void handleSetCheckInField(historyRow, 'condition', value)}
-              onSetCheckInDispatch={(historyRow, value) => void handleSetCheckInField(historyRow, 'dispatch', value)}
-              onSetCheckInPrice={(historyRow, value) => void handleSetCheckInPrice(historyRow, value)}
-              onEditCheckInProduct={(productId) => openProductEditor(productId)}
-              showDeleteCheckInAction={isManager}
-              scrollable
-            />
-          </Paper>
-        </ProcessingRowSection>
+            <Paper
+              variant="outlined"
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                minWidth: 0,
+                p: 0,
+                mb: 0,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                borderColor: processingTokens.border,
+                bgcolor: processingTokens.surfaceRaised,
+              }}
+            >
+              <CheckedInItemsTable
+                rows={historyRows}
+                fallbackProduct={product}
+                attachedProductOptions={attachedProductOptions}
+                activeItemId={activeItem?.id ?? null}
+                onSelectItemId={handleSelectPriorCheckIn}
+                onReprintCheckIn={onReprintItems ? (historyRow) => void handleReprintCheckIn(historyRow) : undefined}
+                onDeleteItemCheckIn={isManager ? (historyRow) => void handleDeleteItemCheckIn(historyRow) : undefined}
+                onSetCheckInProduct={
+                  attachedProductOptions.length > 0 ?
+                    (historyRow, productId) => void handleSetCheckInProduct(historyRow, productId)
+                  : undefined
+                }
+                onSetCheckInCondition={(historyRow, value) => void handleSetCheckInField(historyRow, 'condition', value)}
+                onSetCheckInDispatch={(historyRow, value) => void handleSetCheckInField(historyRow, 'dispatch', value)}
+                onSetCheckInPrice={(historyRow, value) => void handleSetCheckInPrice(historyRow, value)}
+                onEditCheckInProduct={(productId) => openProductEditor(productId)}
+                showDeleteCheckInAction={isManager}
+                scrollable
+              />
+            </Paper>
+          </ProcessingRowSection>
         </Box>
 
       </Box>

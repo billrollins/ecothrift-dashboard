@@ -17,7 +17,7 @@ import { useProductCheckIn } from '../../../hooks/useInventory';
 import { printedPreviewToLabelInputs } from '../../../hooks/useProcessingWorkspace';
 import { LargeCheckInConfirmDialog } from '../processing/LargeCheckInConfirmDialog';
 import { isLargeCheckIn } from '../processing/largeCheckIn';
-import { printProcessingLabelsStaggered } from '../processing/printProcessingLabel';
+import { printProcessingLabelsAndMarkPrinted } from '../processing/printProcessingLabel';
 import {
   normalizeProcessingCondition,
   PROCESSING_ITEM_DEFAULT_CONDITION,
@@ -144,13 +144,16 @@ export function ProductCheckInForm({
       localStorage.setItem(LS_PRINT_ON_CHECKIN, String(doPrint));
       const data = await checkInMutation.mutateAsync({ productId: product.id, payload });
       if (doPrint && data.printed_items_preview?.length) {
-        const { succeeded, failed } = await printProcessingLabelsStaggered(
+        const result = await printProcessingLabelsAndMarkPrinted(
           printedPreviewToLabelInputs(data.printed_items_preview),
         );
-        if (failed > 0) {
-          enqueueSnackbar(`Checked in ${data.created_count}; ${failed} label(s) failed`, { variant: 'warning' });
-        } else if (succeeded > 0) {
-          enqueueSnackbar(`Checked in ${data.created_count} and printed ${succeeded} label(s)`, { variant: 'success' });
+        if (result.failed > 0) {
+          enqueueSnackbar(`Checked in ${data.created_count}; ${result.failed} label(s) failed`, { variant: 'warning' });
+        } else if (result.succeeded > 0) {
+          enqueueSnackbar(`Checked in ${data.created_count} and printed ${result.succeeded} label(s)`, { variant: 'success' });
+        }
+        if (result.markFailed) {
+          enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
         }
       } else {
         enqueueSnackbar(`Checked in ${data.created_count} item(s)`, { variant: 'success' });

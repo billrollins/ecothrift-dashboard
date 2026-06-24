@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-03-30T14:30:00-05:00 -->
+<!-- Last updated: 2026-06-23 (Employee HR nav — Time clock only; legacy HR pages removed) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -144,10 +144,10 @@ hasRole(role) => userLevel >= requiredLevel
 
 ### Employee
 
-- Dashboard, HR (time clock, time history, employees, sick leave)
+- Dashboard, HR (**Time clock** only — clock in/out/break, My recent shifts, mod requests)
 - Inventory (vendors, orders, processing, products, items)
 - POS (terminal, drawers, cash, transactions)
-- No consignment management, no admin
+- No consignment management, no admin, no Time & payroll
 
 ### Consignee
 

@@ -55,7 +55,7 @@ import { CheckInTogetherDialog } from './CheckInTogetherDialog';
 import { CollapseRowsDialog } from './CollapseRowsDialog';
 // import { ProcessingQueuePagination } from './ProcessingQueuePagination';
 import { ProcessingActiveCard } from './ProcessingActiveCard';
-import { printProcessingLabelsStaggered } from './printProcessingLabel';
+import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
 import { queueTitleText } from './processingQueueCellText';
 import {
   readProcessingWorkspaceSession,
@@ -510,11 +510,18 @@ export default function ProcessingWorkspacePage() {
         recordSessionCheckIns(data.created_count);
         rememberRecentRow(selectedRow);
         if (shouldPrint) {
-          const { succeeded, failed } = await printProcessingLabelsStaggered(labelItems);
-          if (failed > 0) {
-            enqueueSnackbar(`Checked in ${data.created_count}; printed ${succeeded}/${labelItems.length}.`, { variant: 'warning' });
+          const result = await printProcessingLabelsAndMarkPrinted(labelItems);
+          if (result.failed > 0) {
+            enqueueSnackbar(`Checked in ${data.created_count}; printed ${result.succeeded}/${labelItems.length}.`, { variant: 'warning' });
           } else {
             enqueueSnackbar(`Checked in ${data.created_count} unit(s) and sent labels.`, { variant: 'success' });
+          }
+          if (result.markFailed) {
+            enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
+          } else if (result.succeededItemIds.length && orderId != null && selectedRow) {
+            void queryClient.invalidateQueries({
+              queryKey: ['processing-row-detail', orderId, selectedRow.processing_row_id],
+            });
           }
         } else {
           enqueueSnackbar(`Checked in ${data.created_count} unit(s) without printing.`, { variant: 'success' });
@@ -530,7 +537,7 @@ export default function ProcessingWorkspacePage() {
         return false;
       }
     },
-    [selectedRow, orderId, rowCheckIn, enqueueSnackbar, bumpSearchFocus, recordSessionCheckIns, rememberRecentRow],
+    [selectedRow, orderId, rowCheckIn, enqueueSnackbar, bumpSearchFocus, recordSessionCheckIns, rememberRecentRow, queryClient],
   );
 
   const selectedQueueRows = useMemo(
@@ -630,13 +637,20 @@ export default function ProcessingWorkspacePage() {
         recordSessionCheckIns(data.created_count);
         clearRowSelection();
         if (shouldPrint) {
-          const { succeeded, failed } = await printProcessingLabelsStaggered(labelItems);
-          if (failed > 0) {
-            enqueueSnackbar(`Checked in ${data.created_count}; printed ${succeeded}/${labelItems.length}.`, {
+          const result = await printProcessingLabelsAndMarkPrinted(labelItems);
+          if (result.failed > 0) {
+            enqueueSnackbar(`Checked in ${data.created_count}; printed ${result.succeeded}/${labelItems.length}.`, {
               variant: 'warning',
             });
           } else {
             enqueueSnackbar(`Checked in ${data.created_count} unit(s) and sent labels.`, { variant: 'success' });
+          }
+          if (result.markFailed) {
+            enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
+          } else if (result.succeededItemIds.length && orderId != null && detailProcessingRowId != null) {
+            void queryClient.invalidateQueries({
+              queryKey: ['processing-row-detail', orderId, detailProcessingRowId],
+            });
           }
         } else {
           enqueueSnackbar(`Checked in ${data.created_count} unit(s) without printing.`, { variant: 'success' });
@@ -652,27 +666,35 @@ export default function ProcessingWorkspacePage() {
         return false;
       }
     },
-    [orderId, checkInTogether, enqueueSnackbar, bumpSearchFocus, clearRowSelection, recordSessionCheckIns],
+    [orderId, checkInTogether, enqueueSnackbar, bumpSearchFocus, clearRowSelection, recordSessionCheckIns, queryClient, detailProcessingRowId],
   );
 
   const handleReprintProcessingItems = useCallback(
     async (items: ProcessingWorkspaceItemDTO[]) => {
       if (!items.length) return;
       const labelItems = items.map((item) => ({
+        id: item.id,
         sku: item.sku,
         price: item.price,
         product_title: item.product_title || selectedRow?.title || item.sku,
         product_brand: item.product_brand || selectedRow?.brand || undefined,
         product_number: item.product_number ?? undefined,
       }));
-      const { succeeded, failed } = await printProcessingLabelsStaggered(labelItems);
-      if (failed > 0) {
-        enqueueSnackbar(`Reprinted ${succeeded}/${labelItems.length}; ${failed} failed locally.`, { variant: 'warning' });
+      const result = await printProcessingLabelsAndMarkPrinted(labelItems);
+      if (result.failed > 0) {
+        enqueueSnackbar(`Reprinted ${result.succeeded}/${labelItems.length}; ${result.failed} failed locally.`, { variant: 'warning' });
       } else {
-        enqueueSnackbar(`Reprinted ${succeeded} label(s).`, { variant: 'success' });
+        enqueueSnackbar(`Reprinted ${result.succeeded} label(s).`, { variant: 'success' });
+      }
+      if (result.markFailed) {
+        enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
+      } else if (result.succeededItemIds.length && orderId != null && detailProcessingRowId != null) {
+        void queryClient.invalidateQueries({
+          queryKey: ['processing-row-detail', orderId, detailProcessingRowId],
+        });
       }
     },
-    [enqueueSnackbar, selectedRow?.brand, selectedRow?.title],
+    [enqueueSnackbar, selectedRow?.brand, selectedRow?.title, orderId, detailProcessingRowId, queryClient],
   );
 
   const handlePatchCheckedIn = useCallback(

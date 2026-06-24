@@ -21,7 +21,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'buying',
     label: 'Buying',
-    itemIds: ['auctions', 'watchlist', 'preprocessing'],
+    itemIds: ['auctions', 'watchlist', 'vendors', 'orders', 'preprocessing'],
   },
   {
     id: 'processing',
@@ -31,12 +31,12 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'restoration',
     label: 'Restoration',
-    itemIds: ['tars'],
+    itemIds: ['restorationQueue', 'tars'],
   },
   {
     id: 'inventory',
     label: 'Inventory',
-    itemIds: ['vendors', 'orders', 'inventoryWorkbench'],
+    itemIds: ['inventoryWorkbench'],
   },
   {
     id: 'floorOps',
@@ -71,7 +71,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'buying',
     label: 'Buying',
     shortLabel: 'Buying',
-    helper: 'Auctions and manifest prep',
+    helper: 'Auctions, vendors, orders, and manifest prep',
     icon: 'gavel',
   },
   {
@@ -92,7 +92,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'inventory',
     label: 'Inventory',
     shortLabel: 'Inventory',
-    helper: 'Vendors, orders, products, items',
+    helper: 'Catalog — products, check-ins, items',
     icon: 'inventory',
   },
   {

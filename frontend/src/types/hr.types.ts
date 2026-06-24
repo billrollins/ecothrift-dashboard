@@ -77,6 +77,7 @@ export interface PayrollEmployeeRow {
   employee_id: number;
   employee_name: string;
   pay_rate: string;
+  hours_this_week: string;
   total_hours: string;
   total_pay: string;
   approved_hours: string;
@@ -107,6 +108,5 @@ export interface TimeEntryRosterRow {
   week_start: string;
   week_end: string;
   weekly_cumulative_hours: string;
-  payroll_cumulative_hours: string;
   is_open: boolean;
 }
