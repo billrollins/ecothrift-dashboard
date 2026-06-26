@@ -329,11 +329,29 @@ def upsert_parts_request_from_work_session(
     job: RestorationJob,
     *,
     user,
+    grade: str | None = None,
     eval_snapshot: dict | None = None,
 ) -> RestorationPartsRequest:
+    """Bundle the orders attached to a single grade option into one purchasing request.
+
+    A request always carries a grade option so the owner knows what the spend is for.
+    """
+
     session = job.work_session or {}
-    selected_grade = str(session.get('selectedGrade') or job.final_grade or '')
+    selected_grade = str(grade or session.get('selectedGrade') or job.final_grade or '').strip()
+    if not selected_grade:
+        raise ValueError('Select a grade option before requesting parts.')
+
     snapshot = eval_snapshot if eval_snapshot is not None else session.get('evalSnapshot') or {}
+
+    parts_by_id = {
+        p.get('id'): p for p in (session.get('parts') or []) if isinstance(p, dict) and p.get('id')
+    }
+    orders = [o for o in (session.get('orders') or []) if isinstance(o, dict)]
+    order_by_id = {o.get('id'): o for o in orders}
+    grade_plans = session.get('gradePlans') or {}
+    plan = grade_plans.get(selected_grade) or {}
+    order_ids = [oid for oid in (plan.get('orderIds') or []) if oid in order_by_id]
 
     request = (
         RestorationPartsRequest.objects.filter(
@@ -359,43 +377,41 @@ def upsert_parts_request_from_work_session(
         request.eval_snapshot = snapshot
         request.save(update_fields=['selected_grade', 'eval_snapshot', 'updated_at'])
 
-    # Clear and rebuild sites/lines from repair actions in work_session.
+    # Clear and rebuild sites/lines from the orders attached to the selected grade.
     request.sites.all().delete()
     site_map: dict[str, RestorationPartsRequestSite] = {}
-    procurement_groups = session.get('procurementGroups') or []
-    group_by_id = {g.get('id'): g for g in procurement_groups if isinstance(g, dict)}
 
-    for action in session.get('actions') or []:
-        if not isinstance(action, dict) or action.get('type') != 'repair':
+    for order_id in order_ids:
+        order = order_by_id.get(order_id)
+        if not isinstance(order, dict):
             continue
-        for option in action.get('options') or []:
-            if not isinstance(option, dict):
+        supplier = str(order.get('supplierName') or '').strip() or 'Unassigned'
+        site = site_map.get(supplier)
+        if site is None:
+            site = RestorationPartsRequestSite.objects.create(
+                parts_request=request,
+                supplier_name=supplier,
+                sort_order=len(site_map),
+            )
+            site_map[supplier] = site
+        overrides = order.get('partQtyOverrides') or {}
+        for part_id in order.get('partIds') or []:
+            part = parts_by_id.get(part_id)
+            if not isinstance(part, dict):
                 continue
-            for part in option.get('parts') or []:
-                if not isinstance(part, dict):
-                    continue
-                group_id = part.get('procurementGroupId')
-                group = group_by_id.get(group_id) if group_id else None
-                supplier = (group or {}).get('supplierName') or 'Unassigned'
-                site = site_map.get(supplier)
-                if site is None:
-                    site = RestorationPartsRequestSite.objects.create(
-                        parts_request=request,
-                        supplier_name=supplier,
-                        sort_order=len(site_map),
-                    )
-                    site_map[supplier] = site
-                RestorationPartsRequestLine.objects.create(
-                    site=site,
-                    part_number=str(part.get('partNumber') or ''),
-                    description=str(part.get('description') or ''),
-                    url=str(part.get('url') or ''),
-                    qty=int(part.get('qty') or 1),
-                    unit_price_estimate=Decimal(str(part.get('unitPriceEstimate') or 0)),
-                    unit_price_actual=Decimal(str(part.get('unitPriceActual') or 0)),
-                    status=str(part.get('status') or RestorationPartsRequestLine.STATUS_PLANNED),
-                    linked_grade=str(action.get('linkedGrade') or selected_grade),
-                )
+            override_qty = overrides.get(part_id)
+            qty = int(override_qty) if override_qty not in (None, 0) else int(part.get('qty') or 1)
+            RestorationPartsRequestLine.objects.create(
+                site=site,
+                part_number=str(part.get('partNumber') or ''),
+                description=str(part.get('description') or ''),
+                url=str(part.get('url') or ''),
+                qty=max(qty, 1),
+                unit_price_estimate=Decimal(str(part.get('unitPriceEstimate') or 0)),
+                unit_price_actual=Decimal(str(part.get('unitPriceActual') or 0)),
+                status=str(part.get('status') or RestorationPartsRequestLine.STATUS_PLANNED),
+                linked_grade=selected_grade,
+            )
 
     return request
 
@@ -427,6 +443,8 @@ def record_parts_order(
     expected_delivery=None,
     line_ids: list[int] | None = None,
     notes: str = '',
+    supplier_url: str = '',
+    lines: list[dict] | None = None,
 ) -> RestorationPartsOrder:
     site = None
     if site_id:
@@ -441,6 +459,7 @@ def record_parts_order(
         site=site,
         po_number=po_number,
         supplier_name=supplier_name or (site.supplier_name if site else ''),
+        supplier_url=supplier_url or '',
         subtotal=sub,
         shipping=ship,
         tax=tax_amt,
@@ -452,13 +471,25 @@ def record_parts_order(
         notes=notes,
         status=RestorationPartsOrder.STATUS_ORDERED,
     )
+    line_costs: dict[int, Decimal] = {}
+    for entry in lines or []:
+        try:
+            lid = int(entry.get('id'))
+        except (TypeError, ValueError):
+            continue
+        try:
+            cost = Decimal(str(entry.get('unit_cost')))
+        except Exception:
+            cost = Decimal('0')
+        if cost > 0:
+            line_costs[lid] = cost
     lines_qs = RestorationPartsRequestLine.objects.filter(site__parts_request=request)
     if site:
         lines_qs = lines_qs.filter(site=site)
     if line_ids:
         lines_qs = lines_qs.filter(pk__in=line_ids)
     for line in lines_qs:
-        unit = line.unit_price_actual or line.unit_price_estimate
+        unit = line_costs.get(line.id) or line.unit_price_actual or line.unit_price_estimate
         RestorationPartsOrderLine.objects.create(
             order=order,
             request_line=line,
@@ -472,3 +503,20 @@ def record_parts_order(
     request.status = RestorationPartsRequest.STATUS_ORDERED
     request.save(update_fields=['status', 'updated_at'])
     return order
+
+
+@transaction.atomic
+def receive_parts_request(request: RestorationPartsRequest) -> RestorationPartsRequest:
+    """Tech marks an approved/ordered request as received — archives it to the Received tab."""
+
+    if request.status != RestorationPartsRequest.STATUS_ORDERED:
+        raise ValueError('Only ordered requests can be marked received.')
+    request.status = RestorationPartsRequest.STATUS_RECEIVED
+    request.save(update_fields=['status', 'updated_at'])
+    request.orders.exclude(status=RestorationPartsOrder.STATUS_RECEIVED).update(
+        status=RestorationPartsOrder.STATUS_RECEIVED,
+    )
+    RestorationPartsRequestLine.objects.filter(site__parts_request=request).update(
+        status=RestorationPartsRequestLine.STATUS_RECEIVED,
+    )
+    return request

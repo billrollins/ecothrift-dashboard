@@ -1624,6 +1624,7 @@ class RestorationPartsOrderSerializer(serializers.ModelSerializer):
             'id',
             'po_number',
             'supplier_name',
+            'supplier_url',
             'subtotal',
             'shipping',
             'tax',
@@ -1677,13 +1678,15 @@ class RestorationPartsRequestSerializer(serializers.ModelSerializer):
 
 
 class RestorationPartsRequestUpsertSerializer(serializers.Serializer):
+    grade = serializers.CharField(required=False, allow_blank=True)
     eval_snapshot = serializers.DictField(required=False)
 
 
 class RestorationPartsOrderCreateSerializer(serializers.Serializer):
     site_id = serializers.IntegerField(required=False, allow_null=True)
-    po_number = serializers.CharField()
+    po_number = serializers.CharField(required=False, allow_blank=True, default='')
     supplier_name = serializers.CharField(required=False, allow_blank=True, default='')
+    supplier_url = serializers.CharField(required=False, allow_blank=True, default='')
     subtotal = serializers.DecimalField(max_digits=10, decimal_places=2)
     shipping = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
     tax = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -1696,6 +1699,11 @@ class RestorationPartsOrderCreateSerializer(serializers.Serializer):
         allow_empty=True,
     )
     notes = serializers.CharField(required=False, allow_blank=True, default='')
+    lines = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        allow_empty=True,
+    )
 
 
 class RestorationJobCreateSerializer(serializers.Serializer):

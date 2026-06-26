@@ -9,6 +9,7 @@ import {
   moveRestorationJobBackToQueue,
   patchRestorationJobWorkSession,
   pauseRestorationJobTimer,
+  receiveRestorationPartsRequest,
   recordRestorationPartsOrder,
   startRestorationJobTimer,
   submitRestorationPartsRequest,
@@ -228,22 +229,38 @@ export function useUpsertRestorationPartsRequest() {
   return useMutation({
     mutationFn: async ({
       jobId,
+      grade,
       evalSnapshot,
       submit,
     }: {
       jobId: number;
+      grade?: string;
       evalSnapshot?: Record<string, unknown>;
       submit?: boolean;
     }) => {
       const { data } = await upsertRestorationPartsRequestFromJob(
         jobId,
-        { eval_snapshot: evalSnapshot },
+        { grade, eval_snapshot: evalSnapshot },
         submit,
       );
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['restoration-parts-requests'] });
+    },
+  });
+}
+
+export function useReceiveRestorationPartsRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await receiveRestorationPartsRequest(id);
+      return data;
+    },
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['restoration-parts-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['restoration-parts-request', id] });
     },
   });
 }

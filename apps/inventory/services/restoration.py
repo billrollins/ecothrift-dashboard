@@ -34,12 +34,19 @@ RESTORATION_UNTOUCHED_REASONS: dict[str, str] = {
 
 
 def get_active_scales() -> dict[str, list[str]]:
+    """Seed scales are always valid; active DB scales are added/override by name.
+
+    Returning the union prevents a legacy/seed scale from ever 400ing with
+    "Unknown grade scale" once custom DB scales exist.
+    """
+
     from apps.inventory.models import RestorationGradeScale
 
+    merged: dict[str, list[str]] = dict(_SEED_SCALES)
     rows = RestorationGradeScale.objects.filter(is_active=True).order_by('sort_order', 'name')
-    if not rows.exists():
-        return dict(_SEED_SCALES)
-    return {row.name: [str(g) for g in (row.grades or [])] for row in rows}
+    for row in rows:
+        merged[row.name] = [str(g) for g in (row.grades or [])]
+    return merged
 
 
 def is_known_active_scale(scale: str) -> bool:

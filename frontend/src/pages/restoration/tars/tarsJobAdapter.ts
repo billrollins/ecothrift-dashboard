@@ -21,26 +21,27 @@ function pendingFromJob(job: RestorationJobDTO): TarsPendingInfo | undefined {
     notes: job.pending_notes ?? '',
     storageLocation: job.pending_storage_location ?? '',
     pendingStartedAt: job.pending_started_at ?? '',
-    expectedResumeAt: '',
   };
 }
 
 function mergeWorkSession(job: RestorationJobDTO): TarsWorkSession {
-  const base = (job.work_session as TarsWorkSession | undefined) ?? createEmptyWorkSession();
+  const base = (job.work_session as Partial<TarsWorkSession> | undefined) ?? createEmptyWorkSession();
   const pending = pendingFromJob(job);
   const workState =
     job.stage === 'bench' ? 'bench'
     : job.stage === 'pending' ? 'pending'
     : job.stage === 'sent' ? 'queue'
-    : base.workState;
+    : base.workState ?? 'queue';
 
   return {
-    ...base,
     workState,
     pending: pending ?? base.pending,
     selectedGrade: base.selectedGrade ?? null,
-    actions: base.actions ?? [],
-    procurementGroups: base.procurementGroups ?? [],
+    parts: base.parts ?? [],
+    orders: base.orders ?? [],
+    gradePlans: base.gradePlans ?? {},
+    benchRows: base.benchRows ?? [],
+    benchStartedAt: base.benchStartedAt,
   };
 }
 

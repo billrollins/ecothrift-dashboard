@@ -1,33 +1,40 @@
 import Add from '@mui/icons-material/Add';
 import Delete from '@mui/icons-material/Delete';
 import OpenInNew from '@mui/icons-material/OpenInNew';
+import ShoppingCartCheckout from '@mui/icons-material/ShoppingCartCheckout';
 import {
   Box,
   Button,
   Card,
   CardActionArea,
   CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   InputAdornment,
   Link,
+  MenuItem,
   Stack,
   Tab,
   Tabs,
   TextField,
   Typography,
 } from '@mui/material';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { TarsPartLine, TarsProcurementGroup, TarsWorkSession } from './tarsWorkTypes';
 import { fmtUsd } from './tarsProfit';
+import { absoluteUrl } from './tarsUrl';
 import { TarsPartsOrderDialog, orderPartLines } from './TarsPartsOrderDialog';
 import {
   addSessionPart,
+  addSessionParts,
   allOrdersFeesTotal,
   collectSessionParts,
   listSessionOrders,
   orderGrandTotal,
-  orderPartsSubtotal,
   partLineTotal,
   partsGrandTotal,
   partsSubtotal,
@@ -43,6 +50,10 @@ interface TarsPartsListPanelProps {
   itemLabel?: string;
   readOnly?: boolean;
   onSessionChange?: (session: TarsWorkSession) => void;
+  gradeOptions?: string[];
+  selectedGrade?: string | null;
+  requesting?: boolean;
+  onRequestParts?: (grade: string) => void;
 }
 
 type PartsTab = 'parts' | 'orders';
@@ -106,7 +117,7 @@ function PartLineRow({
             sx: { fontSize: 13, py: 0.85 },
             endAdornment:
               part.url.trim() ?
-                <Link href={part.url} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', lineHeight: 0 }}>
+                <Link href={absoluteUrl(part.url)} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', lineHeight: 0 }}>
                   <OpenInNew sx={{ fontSize: 14 }} />
                 </Link>
               : undefined,
@@ -216,10 +227,21 @@ export function TarsPartsListPanel({
   itemLabel,
   readOnly = false,
   onSessionChange,
+  gradeOptions = [],
+  selectedGrade,
+  requesting = false,
+  onRequestParts,
 }: TarsPartsListPanelProps) {
   const [tab, setTab] = useState<PartsTab>('parts');
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<TarsProcurementGroup | null>(null);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestGrade, setRequestGrade] = useState('');
+
+  useEffect(() => {
+    if (!requestOpen) return;
+    setRequestGrade(selectedGrade ?? gradeOptions[0] ?? '');
+  }, [requestOpen, selectedGrade, gradeOptions]);
 
   const parts = session ? collectSessionParts(session) : [];
   const partLines = useMemo(() => parts.map((row) => row.part), [parts]);
@@ -363,25 +385,35 @@ export function TarsPartsListPanel({
       {tab === 'orders' ?
         <Stack spacing={1}>
           {canEdit ?
-            <Button
-              size="small"
-              variant="contained"
-              startIcon={<Add />}
-              onClick={openNewOrder}
-              disabled={partLines.length === 0}
-              sx={{ alignSelf: 'flex-start', minHeight: 28, fontSize: 12, fontWeight: 700 }}
-            >
-              New order
-            </Button>
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<Add />}
+                onClick={openNewOrder}
+                sx={{ minHeight: 28, fontSize: 12, fontWeight: 700 }}
+              >
+                New order
+              </Button>
+              {onRequestParts ?
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="warning"
+                  startIcon={<ShoppingCartCheckout sx={{ fontSize: 16 }} />}
+                  onClick={() => setRequestOpen(true)}
+                  disabled={orders.length === 0 || requesting}
+                  sx={{ minHeight: 28, fontSize: 12, fontWeight: 700 }}
+                >
+                  Request parts
+                </Button>
+              : null}
+            </Stack>
           : null}
 
-          {partLines.length === 0 ?
+          {orders.length === 0 ?
             <Typography variant="body2" color="text.secondary">
-              Add parts on the Parts tab before creating an order.
-            </Typography>
-          : orders.length === 0 ?
-            <Typography variant="body2" color="text.secondary">
-              {readOnly ? 'No orders yet.' : 'No orders yet. Group parts into an order with shipping and fees.'}
+              {readOnly ? 'No orders yet.' : 'No orders yet. Create an order and add parts to it — new parts also land in the Parts tab.'}
             </Typography>
           : orders.map((order, index) => (
               <OrderCard
@@ -408,8 +440,9 @@ export function TarsPartsListPanel({
           setOrderDialogOpen(false);
           setEditingOrder(null);
         }}
-        onSave={({ order, partUpdates }) => {
+        onSave={({ order, partUpdates, newParts }) => {
           let next = session;
+          if (newParts.length > 0) next = addSessionParts(next, newParts);
           for (const update of partUpdates) {
             const { id, ...patch } = update;
             next = updateSessionPart(next, id, patch);
@@ -424,6 +457,50 @@ export function TarsPartsListPanel({
             : undefined
         }
       />
+
+      <Dialog open={requestOpen} onClose={() => setRequestOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>Request parts for purchasing</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.25} sx={{ pt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">
+              The orders attached to the chosen grade option are bundled into one request for the owner to approve.
+            </Typography>
+            {gradeOptions.length === 0 ?
+              <Typography variant="body2" color="warning.main" fontWeight={700}>
+                No priced grades on this item — set grade values first.
+              </Typography>
+            : <TextField
+                select
+                fullWidth
+                size="small"
+                required
+                label="Grade option"
+                value={requestGrade}
+                onChange={(e) => setRequestGrade(e.target.value)}
+              >
+                {gradeOptions.map((g) => (
+                  <MenuItem key={g} value={g}>
+                    {g}
+                  </MenuItem>
+                ))}
+              </TextField>
+            }
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 2, pb: 1.5 }}>
+          <Button onClick={() => setRequestOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!requestGrade || requesting}
+            onClick={() => {
+              onRequestParts?.(requestGrade);
+              setRequestOpen(false);
+            }}
+          >
+            Submit request
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

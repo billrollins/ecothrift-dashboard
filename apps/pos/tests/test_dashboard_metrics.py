@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from apps.core.models import WorkLocation
 from apps.inventory.models import Item, ItemHistory, Product, PurchaseOrder, Vendor
-from apps.pos.models import Cart, DashboardSalesGoal, Drawer, Register
+from apps.pos.models import Cart, CartLine, DashboardSalesGoal, Drawer, Register
 from apps.pos.services.dashboard_metrics import build_dashboard_metrics, get_dashboard_metrics
 
 User = get_user_model()
@@ -72,6 +72,30 @@ class DashboardMetricsTests(TestCase):
         self.assertIn('rolling_week_total', sales['daily_last_90_days'][-1])
         self.assertIn('four_week_weekly_avg', sales['daily_last_90_days'][-1])
         self.assertEqual(len(sales['weekly_last_14_weeks']), 14)
+
+    def test_weekly_calendar_includes_items_sold(self):
+        cart = self._complete_cart('120.00', day=self.today)
+        CartLine.objects.create(
+            cart=cart,
+            description='Test item',
+            quantity=3,
+            unit_price=Decimal('40.00'),
+            line_total=Decimal('120.00'),
+        )
+        CartLine.objects.create(
+            cart=cart,
+            description='Another item',
+            quantity=2,
+            unit_price=Decimal('10.00'),
+            line_total=Decimal('20.00'),
+        )
+
+        payload = build_dashboard_metrics(self.today)
+        this_week = payload['sales']['weekly_last_14_weeks'][0]
+        today_day = next(d for d in this_week['days'] if d['date'] == self.today.isoformat())
+
+        self.assertEqual(today_day['items_sold'], 5)
+        self.assertEqual(this_week['week_items_sold'], 5)
 
     def test_sales_goal_is_included_when_configured(self):
         DashboardSalesGoal.objects.create(

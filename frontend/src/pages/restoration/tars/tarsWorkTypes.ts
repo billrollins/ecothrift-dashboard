@@ -1,10 +1,14 @@
-/** Work session domain — Evaluation directions vs TARS action records. */
+/** Work session domain — simplified MVP: parts/orders + per-grade plans + a free-form bench log. */
 
 export type TarsActionType = 'test' | 'assemble' | 'repair' | 'salvage';
-export type TarsActionStatus = 'planned' | 'in_progress' | 'complete' | 'skipped';
 
-export type TarsTestOutcome = 'pass' | 'fail' | 'partial' | 'not_tested';
-export type TarsAssemblyStepStatus = 'todo' | 'in_progress' | 'done' | 'blocked';
+export const TARS_ACTION_TYPE_LABELS: Record<TarsActionType, string> = {
+  test: 'Test',
+  assemble: 'Assemble',
+  repair: 'Repair',
+  salvage: 'Salvage',
+};
+
 export type TarsPartStatus =
   | 'considering'
   | 'planned'
@@ -12,67 +16,6 @@ export type TarsPartStatus =
   | 'received'
   | 'installed'
   | 'skipped';
-
-export type TarsSalvageDestination =
-  | 'trash'
-  | 'metals_general'
-  | 'metals_aluminum'
-  | 'metals_copper'
-  | 'metals_steel'
-  | 'metals_ewaste'
-  | 'parts_sell'
-  | 'parts_our_use';
-
-export const SALVAGE_DESTINATION_LABELS: Record<TarsSalvageDestination, string> = {
-  trash: 'Trash',
-  metals_general: 'Metals — General Pile',
-  metals_aluminum: 'Metals — Aluminum',
-  metals_copper: 'Metals — Copper',
-  metals_steel: 'Metals — Steel',
-  metals_ewaste: 'Metals — E-waste',
-  parts_sell: 'Parts — Sell',
-  parts_our_use: 'Parts — Our Use',
-};
-
-export interface TarsActionBase {
-  id: string;
-  type: TarsActionType;
-  status: TarsActionStatus;
-  notes: string;
-  timeEstimateHours: number;
-  timeActualHours: number;
-  startedAt?: string;
-  stoppedAt?: string;
-  /** Grade outcome this action supports, if any. */
-  linkedGrade?: string;
-}
-
-export interface TarsTestRecord {
-  id: string;
-  testName: string;
-  outcome: TarsTestOutcome;
-  notes: string;
-  timeEstimateHours: number;
-  timeActualHours: number;
-}
-
-export interface TarsTestAction extends TarsActionBase {
-  type: 'test';
-  tests: TarsTestRecord[];
-}
-
-export interface TarsAssemblyStep {
-  id: string;
-  stepNumber: number;
-  instruction: string;
-  status: TarsAssemblyStepStatus;
-  notes: string;
-}
-
-export interface TarsAssembleAction extends TarsActionBase {
-  type: 'assemble';
-  steps: TarsAssemblyStep[];
-}
 
 export interface TarsPartLine {
   id: string;
@@ -99,45 +42,20 @@ export interface TarsProcurementGroup {
   partQtyOverrides?: Record<string, number>;
 }
 
-export interface TarsRepairOption {
+/** One free-form action row in the unified WorkBench log. */
+export interface TarsWorkBenchRow {
   id: string;
+  category: TarsActionType;
   name: string;
   notes: string;
-  timeEstimateHours: number;
-  timeActualHours: number;
-  parts: TarsPartLine[];
-  selected: boolean;
-}
-
-export interface TarsRepairAction extends TarsActionBase {
-  type: 'repair';
-  complaint: string;
-  diagnosis: string;
-  correction: string;
   result: string;
-  options: TarsRepairOption[];
 }
 
-export interface TarsSalvageLine {
-  id: string;
-  destination: TarsSalvageDestination;
-  description: string;
-  qty: number;
-  weightLbs: number | null;
-  valueRecovery: number;
-  notes: string;
+/** Per-grade plan — estimated hours + the orders attached to that grade option. */
+export interface TarsGradePlan {
+  estimateHours: number;
+  orderIds: string[];
 }
-
-export interface TarsSalvageAction extends TarsActionBase {
-  type: 'salvage';
-  lines: TarsSalvageLine[];
-}
-
-export type TarsAction =
-  | TarsTestAction
-  | TarsAssembleAction
-  | TarsRepairAction
-  | TarsSalvageAction;
 
 export type TarsWorkState = 'queue' | 'bench' | 'pending' | 'done' | 'returned';
 
@@ -170,15 +88,16 @@ export interface TarsPendingInfo {
   reason: TarsPendingReason;
   notes: string;
   storageLocation: string;
-  expectedResumeAt: string;
   pendingStartedAt: string;
 }
 
 export interface TarsWorkSession {
   workState: TarsWorkState;
   selectedGrade: string | null;
-  actions: TarsAction[];
-  procurementGroups: TarsProcurementGroup[];
+  parts: TarsPartLine[];
+  orders: TarsProcurementGroup[];
+  gradePlans: Record<string, TarsGradePlan>;
+  benchRows: TarsWorkBenchRow[];
   benchStartedAt?: string;
   pending?: TarsPendingInfo;
 }
@@ -186,26 +105,15 @@ export interface TarsWorkSession {
 export interface TarsGradeDirectionRow {
   grade: string;
   processorValue: number;
-  estimatedActionCost: number | null;
-  actualActionCost: number | null;
-  partsCost: number;
+  estimateHours: number;
   laborCost: number;
-  projectedProfit: number | null;
-  actualProfit: number | null;
-  actionSummary: {
-    testHours: number;
-    assembleHours: number;
-    repairParts: number;
-    repairHours: number;
-    salvageRecovery: number;
-  };
+  ordersCost: number;
+  restoreCost: number;
+  orderCount: number;
   isSelected: boolean;
-  isRecommended: boolean;
-  hasUnknownCosts: boolean;
 }
 
 export interface TarsWorkEvaluation {
   directions: TarsGradeDirectionRow[];
   selectedGrade: string | null;
-  recommendedGrade: string | null;
 }

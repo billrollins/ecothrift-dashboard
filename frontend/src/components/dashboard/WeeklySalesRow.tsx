@@ -1,6 +1,14 @@
-import { Box, Typography } from '@mui/material';
+import type { ReactElement } from 'react';
+import { Box, Tooltip, Typography } from '@mui/material';
 import type { SalesWeeklyRow as SalesWeeklyRowType } from '../../types/pos.types';
-import { dayMonthTitle, formatDashboardCurrency } from './dashboardFormatters';
+import {
+  dayMonthTitle,
+  formatDashboardCurrency,
+  formatDashboardCurrencyExact,
+  formatItemsSold,
+  longDayTitle,
+  weekDateRange,
+} from './dashboardFormatters';
 import { dashboardPalette } from './dashboardCardStyles';
 
 interface WeeklySalesRowProps {
@@ -23,6 +31,7 @@ const cellSx = {
   justifyContent: 'center',
   gap: 0,
   textAlign: 'center' as const,
+  cursor: 'default',
 };
 
 const DAILY_VARIANT_SX: Record<DailyVariant, { bgcolor: string; borderColor: string }> = {
@@ -32,8 +41,82 @@ const DAILY_VARIANT_SX: Record<DailyVariant, { bgcolor: string; borderColor: str
   today: { bgcolor: dashboardPalette.greenSoft, borderColor: dashboardPalette.green },
 };
 
-function WeekTotalCell({ label, value }: { label: string; value: string }) {
+function SalesHoverTooltip({
+  headline,
+  subheadline,
+  salesLabel,
+  revenue,
+  itemsSold,
+  children,
+}: {
+  headline: string;
+  subheadline?: string;
+  salesLabel: string;
+  revenue: string;
+  itemsSold: number;
+  children: ReactElement;
+}) {
   return (
+    <Tooltip
+      followCursor
+      disableInteractive
+      enterDelay={250}
+      leaveDelay={0}
+      slotProps={{
+        tooltip: {
+          sx: {
+            bgcolor: '#fff',
+            color: '#0f172a',
+            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.14)',
+            border: '1px solid rgba(91, 111, 95, 0.22)',
+            borderRadius: 1.5,
+            px: 1.25,
+            py: 1,
+            maxWidth: 280,
+            pointerEvents: 'none',
+          },
+        },
+      }}
+      title={
+        <Box>
+          <Typography variant="subtitle2" fontWeight={800} lineHeight={1.25} sx={{ mb: subheadline ? 0.25 : 0.75 }}>
+            {headline}
+          </Typography>
+          {subheadline ?
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75 }}>
+              {subheadline}
+            </Typography>
+          : null}
+          <Typography variant="body2" lineHeight={1.5} sx={{ m: 0 }}>
+            {salesLabel}: {formatDashboardCurrencyExact(revenue)}
+          </Typography>
+          <Typography variant="body2" lineHeight={1.5} sx={{ m: 0 }}>
+            Items Sold: {formatItemsSold(itemsSold)}
+          </Typography>
+        </Box>
+      }
+    >
+      {children}
+    </Tooltip>
+  );
+}
+
+function WeekTotalCell({
+  label,
+  value,
+  weekStart,
+  weekEnd,
+  revenue,
+  itemsSold,
+}: {
+  label: string;
+  value: string;
+  weekStart: string;
+  weekEnd: string;
+  revenue: string;
+  itemsSold: number;
+}) {
+  const cell = (
     <Box
       sx={{
         ...cellSx,
@@ -51,12 +134,40 @@ function WeekTotalCell({ label, value }: { label: string; value: string }) {
       </Typography>
     </Box>
   );
+
+  return (
+    <SalesHoverTooltip
+      headline={label}
+      subheadline={weekDateRange(weekStart, weekEnd)}
+      salesLabel="Weekly Sales"
+      revenue={revenue}
+      itemsSold={itemsSold}
+    >
+      {cell}
+    </SalesHoverTooltip>
+  );
 }
 
-function DailyCell({ title, value, variant }: { title: string; value: string; variant: DailyVariant }) {
+function DailyCell({
+  title,
+  value,
+  variant,
+  dayName,
+  date,
+  revenue,
+  itemsSold,
+}: {
+  title: string;
+  value: string;
+  variant: DailyVariant;
+  dayName: string;
+  date: string;
+  revenue: string;
+  itemsSold: number;
+}) {
   const variantSx = DAILY_VARIANT_SX[variant];
   const emphasized = variant !== 'default';
-  return (
+  const cell = (
     <Box
       sx={{
         ...cellSx,
@@ -85,6 +196,17 @@ function DailyCell({ title, value, variant }: { title: string; value: string; va
       </Typography>
     </Box>
   );
+
+  return (
+    <SalesHoverTooltip
+      headline={longDayTitle(dayName, date)}
+      salesLabel="Daily Sales"
+      revenue={revenue}
+      itemsSold={itemsSold}
+    >
+      {cell}
+    </SalesHoverTooltip>
+  );
 }
 
 export function WeeklySalesRow({
@@ -100,6 +222,9 @@ export function WeeklySalesRow({
     return 'default';
   };
 
+  const weekItemsSold =
+    week.week_items_sold ?? week.days.reduce((sum, d) => sum + (d.items_sold ?? 0), 0);
+
   return (
     <Box sx={{ p: 0.45 }}>
       <Box
@@ -110,13 +235,24 @@ export function WeeklySalesRow({
           alignItems: 'stretch',
         }}
       >
-        <WeekTotalCell label={week.label} value={formatDashboardCurrency(week.week_total)} />
+        <WeekTotalCell
+          label={week.label}
+          value={formatDashboardCurrency(week.week_total)}
+          weekStart={week.week_start}
+          weekEnd={week.week_end}
+          revenue={week.week_total}
+          itemsSold={weekItemsSold}
+        />
         {week.days.map((d) => (
           <DailyCell
             key={d.date}
             title={dayMonthTitle(d.day, d.date)}
             value={formatDashboardCurrency(d.revenue)}
             variant={variantFor(d)}
+            dayName={d.day}
+            date={d.date}
+            revenue={d.revenue}
+            itemsSold={d.items_sold ?? 0}
           />
         ))}
       </Box>

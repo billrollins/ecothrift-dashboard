@@ -1143,6 +1143,7 @@ class RestorationPartsOrder(models.Model):
     )
     po_number = models.CharField(max_length=64, blank=True, default='', db_index=True)
     supplier_name = models.CharField(max_length=128, blank=True, default='')
+    supplier_url = models.URLField(blank=True, default='')
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     shipping = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)

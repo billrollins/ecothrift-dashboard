@@ -789,15 +789,28 @@ class RestorationGradeScaleTests(RestorationQueueTestBase):
         )
         self.assertEqual(resp.status_code, 400)
 
-    def test_inactive_scale_rejected_for_check_in(self):
+    def test_inactive_custom_scale_rejected_for_check_in(self):
         from apps.inventory.models import RestorationGradeScale
 
-        row = RestorationGradeScale.objects.get(name='Functional')
+        # Seed scales are always valid; only deactivated *custom* scales are rejected.
+        create = self.client.post(
+            '/api/inventory/grade-scales/',
+            {'name': 'Custom Inactive', 'grades': ['A', 'B']},
+            format='json',
+        )
+        self.assertEqual(create.status_code, 201, create.data)
+        row = RestorationGradeScale.objects.get(name='Custom Inactive')
         row.is_active = False
         row.save(update_fields=['is_active'])
 
         order, pr, product = self._restoration_order()
-        resp = self._check_in_restoration(order, pr, product, scale='Functional')
+        resp = self._check_in_restoration(
+            order,
+            pr,
+            product,
+            scale='Custom Inactive',
+            grade_values={'A': 5.0, 'B': 3.0},
+        )
         self.assertEqual(resp.status_code, 400)
 
     def test_suggest_scale_picks_most_common_for_vendor(self):
@@ -1015,29 +1028,18 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         work_session = {
             'workState': 'bench',
             'selectedGrade': 'Working',
-            'actions': [{
-                'id': 'a1',
-                'type': 'repair',
+            'parts': [{
+                'id': 'p1',
+                'partNumber': 'TH-01',
+                'description': 'Thumbstick',
+                'url': 'https://example.com/p1',
+                'qty': 1,
+                'unitPriceEstimate': 6,
+                'unitPriceActual': 0,
                 'status': 'planned',
-                'linkedGrade': 'Working',
-                'options': [{
-                    'id': 'o1',
-                    'name': 'Option A',
-                    'selected': True,
-                    'parts': [{
-                        'id': 'p1',
-                        'partNumber': 'TH-01',
-                        'description': 'Thumbstick',
-                        'url': 'https://example.com/p1',
-                        'qty': 1,
-                        'unitPriceEstimate': 6,
-                        'unitPriceActual': 0,
-                        'status': 'planned',
-                        'procurementGroupId': 'g1',
-                    }],
-                }],
+                'procurementGroupId': 'g1',
             }],
-            'procurementGroups': [{
+            'orders': [{
                 'id': 'g1',
                 'supplierName': 'Amazon',
                 'partIds': ['p1'],
@@ -1045,6 +1047,10 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
                 'tax': 1,
                 'fees': 0,
             }],
+            'gradePlans': {
+                'Working': {'estimateHours': 1.5, 'orderIds': ['g1']},
+            },
+            'benchRows': [],
         }
         self.client.patch(
             f'/api/inventory/restoration-jobs/{job.id}/work-session/',
@@ -1053,30 +1059,54 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         )
         upsert = self.client.post(
             f'/api/inventory/restoration-parts-requests/upsert-from-job/{job.id}/?submit=true',
-            {'eval_snapshot': {'directions': [{'grade': 'Working', 'processorValue': 19.99}]}},
+            {
+                'grade': 'Working',
+                'eval_snapshot': {'grade': 'Working', 'processorValue': 19.99},
+            },
             format='json',
         )
         self.assertEqual(upsert.status_code, 200, upsert.data)
         req = RestorationPartsRequest.objects.get(pk=upsert.data['id'])
         self.assertEqual(req.status, 'submitted')
+        self.assertEqual(req.selected_grade, 'Working')
         site = req.sites.first()
         self.assertEqual(site.supplier_name, 'Amazon')
+        line = site.lines.first()
+        self.assertIsNotNone(line)
         order = self.client.post(
             f'/api/inventory/restoration-parts-requests/{req.id}/record-order/',
             {
                 'site_id': site.id,
                 'po_number': 'PO-9001',
                 'supplier_name': 'Amazon',
-                'subtotal': '6.00',
+                'supplier_url': 'https://amazon.com',
+                'subtotal': '7.50',
                 'shipping': '5.00',
                 'tax': '1.00',
                 'fees': '0.00',
                 'ship_to_address': '123 Shop St',
+                'lines': [{'id': line.id, 'unit_cost': '7.50'}],
             },
             format='json',
         )
         self.assertEqual(order.status_code, 200, order.data)
         self.assertEqual(order.data['po_number'], 'PO-9001')
+        self.assertEqual(order.data['supplier_url'], 'https://amazon.com')
+
+        order_line = order.data['lines'][0]
+        self.assertEqual(order_line['unit_cost'], '7.50')
+        line.refresh_from_db()
+        self.assertEqual(line.unit_price_actual, Decimal('7.50'))
+        self.assertEqual(line.unit_price_estimate, Decimal('6.00'))
+
+        req.refresh_from_db()
+        self.assertEqual(req.status, 'ordered')
+
+        receive = self.client.post(
+            f'/api/inventory/restoration-parts-requests/{req.id}/receive/',
+        )
+        self.assertEqual(receive.status_code, 200, receive.data)
+        self.assertEqual(receive.data['status'], 'received')
 
     def test_starting_second_timer_pauses_first(self):
         job_a = self._sent_job()

@@ -1,13 +1,12 @@
-release(v2.34.1): consolidate TARS to /restoration/tars
+release(v2.35.0): TARS MVP bench + parts request order detail and actuals
 
-Release: v2.34.1
+Release: v2.35.0
 
-### Restoration
-- Live bench workstation now at /restoration/tars (drawer layout)
-- /restoration/tars-2 redirects to /restoration/tars
-- Removed duplicate TARS 2 nav item
-- TarsWorkstation is drawer-only (split rail layout removed)
-- Deleted Tars2Page and ProcurementGroupDialog; repair orders use TarsPartsOrderDialog
+TARS restoration workspace — MVP simplification and parts-request purchasing lifecycle.
 
-### Documentation
-- Updated steering docs for single TARS route
+- Redesign work_session (parts/orders/gradePlans/benchRows); TarsWorkBenchTable action log; TarsGradeEvalDialog; grade-scoped Request parts
+- Parts requests page: Open/Received tabs, Approve with vendor URL + per-line actual cost, full order detail, Open in TARS
+- Migration 0076 supplier_url; record-order accepts supplier_url and line unit_cost
+- receive parts request endpoint; eval card choose vs open split; hold/done trims; queue scale fix
+- Order dialog polish; absoluteUrl fixes bare-domain part links
+- Remove legacy verb action panels; dashboard weekly sales rollups

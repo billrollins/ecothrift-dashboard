@@ -190,6 +190,7 @@ export interface WeeklyDayMetric {
   date: string;
   day: string;
   revenue: string;
+  items_sold: number;
   goal?: string;
 }
 
@@ -206,6 +207,7 @@ export interface SalesWeeklyRow {
   week_start: string;
   week_end: string;
   week_total: string;
+  week_items_sold: number;
   label: string;
   days: WeeklyDayMetric[];
 }

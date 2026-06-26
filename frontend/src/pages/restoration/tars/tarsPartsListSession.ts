@@ -1,13 +1,11 @@
-import { createRepairAction } from './tarsWorkDefaults';
 import { newId } from './tarsWorkRollup';
 import type {
+  TarsGradePlan,
   TarsPartLine,
   TarsProcurementGroup,
-  TarsRepairAction,
   TarsWorkSession,
 } from './tarsWorkTypes';
 
-export const PARTS_LIST_COMPLAINT = 'Parts list';
 /** @deprecated Legacy single fees bucket — shown as a normal order if present. */
 export const PARTS_ORDER_FEES_SUPPLIER = 'Order fees';
 export const PARTS_DRAWER_WIDTH = 740;
@@ -36,30 +34,20 @@ export function orderPartLineTotal(order: TarsProcurementGroup, part: TarsPartLi
   return partUnitPrice(part) * orderPartQty(order, part);
 }
 
+function sessionParts(session: TarsWorkSession): TarsPartLine[] {
+  return session.parts ?? [];
+}
+
 export function collectSessionParts(session: TarsWorkSession): TarsSessionPartRow[] {
-  const rows: TarsSessionPartRow[] = [];
-  for (const action of session.actions) {
-    if (action.type !== 'repair') continue;
-    const repairLabel = action.complaint.trim() || action.diagnosis.trim() || 'Repair';
-    for (const option of action.options) {
-      for (const part of option.parts) {
-        rows.push({
-          part,
-          repairLabel,
-          optionName: option.name,
-        });
-      }
-    }
-  }
-  return rows;
+  return sessionParts(session).map((part) => ({ part, repairLabel: '', optionName: '' }));
 }
 
 function partsById(session: TarsWorkSession): Map<string, TarsPartLine> {
-  return new Map(collectSessionParts(session).map((row) => [row.part.id, row.part]));
+  return new Map(sessionParts(session).map((part) => [part.id, part]));
 }
 
 export function listSessionOrders(session: TarsWorkSession): TarsProcurementGroup[] {
-  return session.procurementGroups;
+  return session.orders ?? [];
 }
 
 export function orderPartsSubtotal(session: TarsWorkSession, order: TarsProcurementGroup): number {
@@ -88,59 +76,44 @@ export function orderGrandTotal(session: TarsWorkSession, order: TarsProcurement
   return orderPartsSubtotal(session, order) + orderFeesAmount(order);
 }
 
-function ensurePartsListRepair(session: TarsWorkSession): { session: TarsWorkSession; optionId: string } {
-  const existing = session.actions.find(
-    (a): a is TarsRepairAction => a.type === 'repair' && a.complaint === PARTS_LIST_COMPLAINT,
-  );
-  if (existing) {
-    const option = existing.options.find((o) => o.selected) ?? existing.options[0];
-    return { session, optionId: option.id };
-  }
-
-  const action = createRepairAction();
-  action.complaint = PARTS_LIST_COMPLAINT;
-  action.diagnosis = 'Parts added from parts list drawer';
-  action.options = [
-    {
-      id: newId(),
-      name: 'Default',
-      notes: '',
-      timeEstimateHours: 0,
-      timeActualHours: 0,
-      parts: [],
-      selected: true,
-    },
-  ];
-
+export function newPartLine(): TarsPartLine {
   return {
-    session: { ...session, actions: [...session.actions, action] },
-    optionId: action.options[0].id,
+    id: newId(),
+    partNumber: '',
+    description: '',
+    url: '',
+    qty: 1,
+    unitPriceEstimate: 0,
+    unitPriceActual: 0,
+    status: 'considering',
+    procurementGroupId: null,
   };
 }
 
-function mapRepairParts(
+export function addSessionPart(session: TarsWorkSession): TarsWorkSession {
+  return { ...session, parts: [...sessionParts(session), newPartLine()] };
+}
+
+export function addSessionParts(session: TarsWorkSession, parts: TarsPartLine[]): TarsWorkSession {
+  if (parts.length === 0) return session;
+  return { ...session, parts: [...sessionParts(session), ...parts] };
+}
+
+export function updateSessionPart(
   session: TarsWorkSession,
-  mapper: (parts: TarsPartLine[], action: TarsRepairAction, optionId: string) => TarsPartLine[],
+  partId: string,
+  patch: Partial<TarsPartLine>,
 ): TarsWorkSession {
   return {
     ...session,
-    actions: session.actions.map((action) => {
-      if (action.type !== 'repair') return action;
-      return {
-        ...action,
-        options: action.options.map((option) => ({
-          ...option,
-          parts: mapper(option.parts, action, option.id),
-        })),
-      };
-    }),
+    parts: sessionParts(session).map((part) => (part.id === partId ? { ...part, ...patch } : part)),
   };
 }
 
 function stripPartFromOrders(session: TarsWorkSession, partId: string): TarsWorkSession {
   return {
     ...session,
-    procurementGroups: session.procurementGroups.map((g) => {
+    orders: listSessionOrders(session).map((g) => {
       const partQtyOverrides = { ...(g.partQtyOverrides ?? {}) };
       delete partQtyOverrides[partId];
       return {
@@ -152,63 +125,52 @@ function stripPartFromOrders(session: TarsWorkSession, partId: string): TarsWork
   };
 }
 
+export function removeSessionPart(session: TarsWorkSession, partId: string): TarsWorkSession {
+  const withoutPart = {
+    ...session,
+    parts: sessionParts(session).filter((part) => part.id !== partId),
+  };
+  return stripPartFromOrders(withoutPart, partId);
+}
+
 function linkPartsToOrder(session: TarsWorkSession, order: TarsProcurementGroup): TarsWorkSession {
   const partIdSet = new Set(order.partIds);
-  return mapRepairParts(session, (parts) =>
-    parts.map((part) => {
+  return {
+    ...session,
+    parts: sessionParts(session).map((part) => {
       if (partIdSet.has(part.id)) return { ...part, procurementGroupId: order.id };
       if (part.procurementGroupId === order.id) return { ...part, procurementGroupId: null };
       return part;
     }),
-  );
-}
-
-export function addSessionPart(session: TarsWorkSession): TarsWorkSession {
-  const { session: withAction, optionId } = ensurePartsListRepair(session);
-  const part: TarsPartLine = {
-    id: newId(),
-    partNumber: '',
-    description: '',
-    url: '',
-    qty: 1,
-    unitPriceEstimate: 0,
-    unitPriceActual: 0,
-    status: 'considering',
-    procurementGroupId: null,
   };
-
-  return mapRepairParts(withAction, (parts, action, oid) =>
-    action.complaint === PARTS_LIST_COMPLAINT && oid === optionId ? [...parts, part] : parts,
-  );
 }
 
-export function updateSessionPart(
+export function upsertSessionOrder(
   session: TarsWorkSession,
-  partId: string,
-  patch: Partial<TarsPartLine>,
+  order: TarsProcurementGroup,
 ): TarsWorkSession {
-  return mapRepairParts(session, (parts) =>
-    parts.map((part) => (part.id === partId ? { ...part, ...patch } : part)),
-  );
-}
-
-export function removeSessionPart(session: TarsWorkSession, partId: string): TarsWorkSession {
-  const withoutPart = mapRepairParts(session, (parts) => parts.filter((part) => part.id !== partId));
-  return stripPartFromOrders(withoutPart, partId);
-}
-
-export function upsertSessionOrder(session: TarsWorkSession, order: TarsProcurementGroup): TarsWorkSession {
   const normalized = cleanOrderQtyOverrides(order);
-  const exists = session.procurementGroups.some((g) => g.id === normalized.id);
-  const procurementGroups = exists
-    ? session.procurementGroups.map((g) => (g.id === normalized.id ? normalized : g))
-    : [...session.procurementGroups, normalized];
-  return linkPartsToOrder({ ...session, procurementGroups }, normalized);
+  const orders = listSessionOrders(session);
+  const exists = orders.some((g) => g.id === normalized.id);
+  const nextOrders = exists
+    ? orders.map((g) => (g.id === normalized.id ? normalized : g))
+    : [...orders, normalized];
+  return linkPartsToOrder({ ...session, orders: nextOrders }, normalized);
+}
+
+/** Drop an order id from every grade plan so eval cards never reference a deleted order. */
+function pruneOrderFromGradePlans(session: TarsWorkSession, orderId: string): TarsWorkSession {
+  const gradePlans = session.gradePlans ?? {};
+  const next: typeof gradePlans = {};
+  for (const [grade, plan] of Object.entries(gradePlans)) {
+    next[grade] = { ...plan, orderIds: (plan.orderIds ?? []).filter((id) => id !== orderId) };
+  }
+  return { ...session, gradePlans: next };
 }
 
 export function removeSessionOrder(session: TarsWorkSession, orderId: string): TarsWorkSession {
-  const procurementGroups = session.procurementGroups.filter((g) => g.id !== orderId);
-  return linkPartsToOrder({ ...session, procurementGroups }, {
+  const orders = listSessionOrders(session).filter((g) => g.id !== orderId);
+  const unlinked = linkPartsToOrder({ ...session, orders }, {
     id: orderId,
     supplierName: '',
     cartUrl: '',
@@ -218,16 +180,62 @@ export function removeSessionOrder(session: TarsWorkSession, orderId: string): T
     notes: '',
     partIds: [],
   });
+  return pruneOrderFromGradePlans(unlinked, orderId);
 }
 
 export function partsSubtotal(session: TarsWorkSession): number {
-  return collectSessionParts(session).reduce((sum, row) => sum + partLineTotal(row.part), 0);
+  return sessionParts(session).reduce((sum, part) => sum + partLineTotal(part), 0);
 }
 
 export function allOrdersFeesTotal(session: TarsWorkSession): number {
-  return session.procurementGroups.reduce((sum, g) => sum + orderFeesAmount(g), 0);
+  return listSessionOrders(session).reduce((sum, g) => sum + orderFeesAmount(g), 0);
 }
 
 export function partsGrandTotal(session: TarsWorkSession): number {
   return partsSubtotal(session) + allOrdersFeesTotal(session);
+}
+
+export function gradePlanFor(session: TarsWorkSession, grade: string): TarsGradePlan {
+  return session.gradePlans?.[grade] ?? { estimateHours: 0, orderIds: [] };
+}
+
+function setGradePlan(
+  session: TarsWorkSession,
+  grade: string,
+  patch: Partial<TarsGradePlan>,
+): TarsWorkSession {
+  const plan = gradePlanFor(session, grade);
+  return {
+    ...session,
+    gradePlans: { ...(session.gradePlans ?? {}), [grade]: { ...plan, ...patch } },
+  };
+}
+
+export function setGradePlanHours(
+  session: TarsWorkSession,
+  grade: string,
+  hours: number,
+): TarsWorkSession {
+  return setGradePlan(session, grade, { estimateHours: Number.isFinite(hours) && hours > 0 ? hours : 0 });
+}
+
+export function toggleGradeOrder(
+  session: TarsWorkSession,
+  grade: string,
+  orderId: string,
+): TarsWorkSession {
+  const plan = gradePlanFor(session, grade);
+  const has = plan.orderIds.includes(orderId);
+  const orderIds = has ? plan.orderIds.filter((id) => id !== orderId) : [...plan.orderIds, orderId];
+  return setGradePlan(session, grade, { orderIds });
+}
+
+export function attachGradeOrder(
+  session: TarsWorkSession,
+  grade: string,
+  orderId: string,
+): TarsWorkSession {
+  const plan = gradePlanFor(session, grade);
+  if (plan.orderIds.includes(orderId)) return session;
+  return setGradePlan(session, grade, { orderIds: [...plan.orderIds, orderId] });
 }

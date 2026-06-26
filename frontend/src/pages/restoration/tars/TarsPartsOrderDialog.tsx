@@ -1,5 +1,5 @@
+import Add from '@mui/icons-material/Add';
 import Close from '@mui/icons-material/Close';
-import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined';
 import OpenInNew from '@mui/icons-material/OpenInNew';
 import {
   Box,
@@ -9,20 +9,22 @@ import {
   Divider,
   IconButton,
   InputAdornment,
-  Link,
   Stack,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TarsPartLine, TarsProcurementGroup } from './tarsWorkTypes';
 import { newId } from './tarsWorkRollup';
-import { orderPartLineTotal, partUnitPrice } from './tarsPartsListSession';
+import { newPartLine, orderPartLineTotal, partUnitPrice } from './tarsPartsListSession';
+import { absoluteUrl, urlDomain } from './tarsUrl';
 
 export type TarsPartsOrderSavePayload = {
   order: TarsProcurementGroup;
   partUpdates: Array<Pick<TarsPartLine, 'id' | 'description' | 'url' | 'qty' | 'unitPriceEstimate'>>;
+  /** Parts created inline in this dialog — appended to the master parts list. */
+  newParts: TarsPartLine[];
 };
 
 export interface TarsPartsOrderDialogProps {
@@ -80,7 +82,14 @@ function parseMoney(raw: string): number {
 }
 
 const ORDER_PART_GRID =
-  '32px minmax(0, 2fr) minmax(0, 1.2fr) 52px 84px 80px 32px';
+  '32px minmax(0, 2fr) minmax(0, 1.2fr) 52px 104px 80px 32px';
+
+// Shared compact money-field styling so Shipping/Fees/Tax share identical height,
+// fill, radius, and value proportion.
+const MONEY_FIELD_SX = {
+  '& .MuiOutlinedInput-root': { bgcolor: '#fff', borderRadius: 2 },
+  '& .MuiInputBase-input': { fontSize: 14 },
+} as const;
 
 function OrderPartLineRow({
   part,
@@ -99,7 +108,11 @@ function OrderPartLineRow({
   onChange: (patch: Partial<TarsPartLine>) => void;
   onQtyChange: (raw: string) => void;
 }) {
-  const inputSx = { fontSize: 13, py: 0.85 };
+  const inputSx = { fontSize: 14, py: 0.5 };
+  const [urlEditing, setUrlEditing] = useState(false);
+  const urlInputRef = useRef<HTMLInputElement>(null);
+  const hasUrl = part.url.trim().length > 0;
+  const urlDisplay = urlEditing ? part.url : hasUrl ? urlDomain(part.url) : '';
 
   return (
     <Box
@@ -133,18 +146,38 @@ function OrderPartLineRow({
       />
       <TextField
         size="small"
-        placeholder="URL"
-        value={part.url}
+        inputRef={urlInputRef}
+        placeholder="Add link"
+        value={urlDisplay}
         onChange={(e) => onChange({ url: e.target.value })}
+        onFocus={() => setUrlEditing(true)}
+        onBlur={() => setUrlEditing(false)}
         slotProps={{
           input: {
             sx: inputSx,
-            endAdornment:
-              part.url.trim() ?
-                <Link href={part.url} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', lineHeight: 0 }}>
-                  <OpenInNew sx={{ fontSize: 14 }} />
-                </Link>
-              : undefined,
+            startAdornment: (
+              <InputAdornment position="start" sx={{ mr: 0.25, ml: -0.25 }}>
+                <Box
+                  component="span"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    urlInputRef.current?.focus();
+                    setUrlEditing(true);
+                  }}
+                  sx={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    color: hasUrl ? accent : '#cbd5e1',
+                    cursor: 'text',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Edit
+                </Box>
+              </InputAdornment>
+            ),
           },
         }}
       />
@@ -179,7 +212,7 @@ function OrderPartLineRow({
         <Tooltip title="Open part link" arrow>
           <IconButton
             component="a"
-            href={part.url}
+            href={absoluteUrl(part.url)}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Open part link"
@@ -215,7 +248,7 @@ function MoneyField({
         htmlInput: { min: 0, step: 0.01, style: { fontVariantNumeric: 'tabular-nums' } },
         input: { startAdornment: <InputAdornment position="start">$</InputAdornment> },
       }}
-      sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#fff', borderRadius: 2 } }}
+      sx={MONEY_FIELD_SX}
     />
   );
 }
@@ -231,6 +264,7 @@ export function TarsPartsOrderDialog({
 }: TarsPartsOrderDialogProps) {
   const [selectedPartIds, setSelectedPartIds] = useState<string[]>([]);
   const [draftParts, setDraftParts] = useState<Record<string, TarsPartLine>>({});
+  const [extraPartIds, setExtraPartIds] = useState<string[]>([]);
   const [partQtyOverrides, setPartQtyOverrides] = useState<Record<string, number>>({});
   const [name, setName] = useState('');
   const [shipping, setShipping] = useState('');
@@ -243,6 +277,7 @@ export function TarsPartsOrderDialog({
   useEffect(() => {
     if (!open) return;
     setDraftParts(Object.fromEntries(parts.map((p) => [p.id, { ...p }])));
+    setExtraPartIds([]);
     setSelectedPartIds(existing?.partIds ?? []);
     const overrides: Record<string, number> = { ...(existing?.partQtyOverrides ?? {}) };
     for (const id of existing?.partIds ?? []) {
@@ -262,6 +297,22 @@ export function TarsPartsOrderDialog({
   }, [open, existing, parts]);
 
   const selectedSet = useMemo(() => new Set(selectedPartIds), [selectedPartIds]);
+
+  const orderedParts = useMemo<TarsPartLine[]>(() => {
+    const existingRows = parts.map((p) => draftParts[p.id] ?? p);
+    const extraRows = extraPartIds
+      .map((id) => draftParts[id])
+      .filter((p): p is TarsPartLine => p != null);
+    return [...existingRows, ...extraRows];
+  }, [parts, draftParts, extraPartIds]);
+
+  const addPart = () => {
+    const part = newPartLine();
+    setDraftParts((prev) => ({ ...prev, [part.id]: part }));
+    setExtraPartIds((prev) => [...prev, part.id]);
+    setSelectedPartIds((prev) => [...prev, part.id]);
+    setPartQtyOverrides((prev) => ({ ...prev, [part.id]: 1 }));
+  };
 
   const draftOrderBase: Omit<TarsProcurementGroup, 'tax'> = useMemo(
     () => ({
@@ -377,7 +428,10 @@ export function TarsPartsOrderDialog({
         unitPriceEstimate: draft.unitPriceEstimate,
       };
     }).filter((row): row is TarsPartsOrderSavePayload['partUpdates'][number] => row != null);
-    onSave({ order: draftOrder, partUpdates });
+    const newParts = extraPartIds
+      .map((id) => draftParts[id])
+      .filter((p): p is TarsPartLine => p != null);
+    onSave({ order: draftOrder, partUpdates, newParts });
     onClose();
   };
 
@@ -458,26 +512,45 @@ export function TarsPartsOrderDialog({
             fullWidth
             size="small"
             placeholder={`Order ${orderIndex + 1}`}
-            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: subtleBg } }}
+            sx={{
+              '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: subtleBg },
+              '& .MuiInputBase-input': { fontSize: 14 },
+            }}
           />
 
           {/* Parts list */}
           <Box>
-            <Typography
-              sx={{ fontSize: 11.5, fontWeight: 800, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em', mb: 1 }}
-            >
-              Parts
-            </Typography>
-            {parts.length === 0 ?
-              <Stack alignItems="center" spacing={1} sx={{ py: 4, color: muted }}>
-                <Inventory2Outlined sx={{ fontSize: 32, color: '#cbd5e1' }} />
-                <Typography sx={{ fontSize: 13.5, color: muted }}>
-                  No parts on this item yet.
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography
+                sx={{ fontSize: 11.5, fontWeight: 800, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+              >
+                Parts
+              </Typography>
+              <Button
+                size="small"
+                startIcon={<Add sx={{ fontSize: 16 }} />}
+                onClick={addPart}
+                sx={{ fontWeight: 700, fontSize: 12.5, color: accent, '&:hover': { bgcolor: accentSoft } }}
+              >
+                Add part
+              </Button>
+            </Stack>
+            {orderedParts.length === 0 ?
+              <Box
+                sx={{
+                  py: 3,
+                  px: 2,
+                  textAlign: 'center',
+                  borderRadius: 2,
+                  border: '1px dashed',
+                  borderColor: hairline,
+                  bgcolor: subtleBg,
+                }}
+              >
+                <Typography sx={{ fontSize: 13, color: muted, fontWeight: 600 }}>
+                  No parts yet — use “Add part” to build this order from scratch.
                 </Typography>
-                <Typography sx={{ fontSize: 12.5, color: '#94a3b8' }}>
-                  Add parts on the Parts tab first.
-                </Typography>
-              </Stack>
+              </Box>
             : <Stack spacing={0.5}>
                 <Box
                   sx={{
@@ -505,16 +578,15 @@ export function TarsPartsOrderDialog({
                   </Typography>
                   <span />
                 </Box>
-                {parts.map((part) => {
-                  const draft = draftParts[part.id] ?? part;
+                {orderedParts.map((part) => {
                   const selected = selectedSet.has(part.id);
                   return (
                     <OrderPartLineRow
                       key={part.id}
-                      part={draft}
+                      part={part}
                       selected={selected}
-                      displayQty={displayQty(part.id, draft)}
-                      lineTotal={lineTotalForPart(part.id, draft)}
+                      displayQty={displayQty(part.id, part)}
+                      lineTotal={lineTotalForPart(part.id, part)}
                       onToggle={() => togglePart(part.id)}
                       onChange={(patch) => updatePart(part.id, patch)}
                       onQtyChange={(raw) => updateQty(part.id, raw)}
@@ -544,91 +616,97 @@ export function TarsPartsOrderDialog({
                   onChange={(e) => setTaxInput(e.target.value)}
                   onFocus={() => setTaxFocused(true)}
                   onBlur={() => setTaxFocused(false)}
+                  fullWidth
                   size="small"
+                  type="number"
                   slotProps={{
                     htmlInput: {
                       inputMode: 'decimal',
+                      min: 0,
                       style: { fontVariantNumeric: 'tabular-nums', textAlign: 'right' },
                     },
                     input: {
                       startAdornment: (
-                        <InputAdornment position="start" sx={{ mr: 0.75 }}>
-                          <Box sx={{ display: 'inline-flex', p: 0.25, borderRadius: 1.5, bgcolor: '#eef2f6' }}>
-                            {(['amount', 'percent'] as const).map((mode) => {
-                              const active = taxMode === mode;
-                              return (
-                                <Box
-                                  key={mode}
-                                  role="button"
-                                  tabIndex={0}
-                                  aria-pressed={active}
-                                  onMouseDown={(e) => e.preventDefault()}
-                                  onClick={() => setTaxModeKeepValue(mode)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      setTaxModeKeepValue(mode);
-                                    }
-                                  }}
-                                  sx={{
-                                    px: 1,
-                                    py: 0.25,
-                                    minWidth: 26,
-                                    textAlign: 'center',
-                                    fontSize: 13,
-                                    fontWeight: 800,
-                                    lineHeight: 1.4,
-                                    cursor: 'pointer',
-                                    borderRadius: 1,
-                                    color: active ? '#fff' : muted,
-                                    bgcolor: active ? accent : 'transparent',
-                                    transition: 'all 150ms ease',
-                                  }}
-                                >
-                                  {mode === 'amount' ? '$' : '%'}
-                                </Box>
-                              );
-                            })}
-                          </Box>
-                        </InputAdornment>
-                      ),
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <Button
-                            size="small"
-                            onClick={applyNebraskaTax}
-                            onMouseDown={(e) => e.preventDefault()}
-                            sx={{
-                              minWidth: 0,
-                              px: 1,
-                              py: 0.25,
-                              fontWeight: 800,
-                              fontSize: 12,
-                              borderRadius: 1.5,
-                              color: accent,
-                              bgcolor: accentSoft,
-                              border: '1px solid',
-                              borderColor: accentBorder,
-                              '&:hover': { bgcolor: 'rgba(46, 125, 50, 0.16)' },
-                            }}
-                          >
-                            NE 7%
-                          </Button>
-                        </InputAdornment>
+                        <InputAdornment position="start">{taxMode === 'amount' ? '$' : '%'}</InputAdornment>
                       ),
                     },
                   }}
-                  helperText={
-                    taxMode === 'percent'
-                      ? `${fmtPctField(taxInput) || '0.00'}% of ${fmtMoney2(partsCost)} parts = ${fmtMoney2(taxDollars)}`
-                      : 'Enter a dollar amount, or switch to % for a rate'
-                  }
-                  sx={{
-                    alignSelf: 'flex-start',
-                    width: { xs: '100%', sm: 320 },
-                    '& .MuiOutlinedInput-root': { bgcolor: '#fff', borderRadius: 2 },
-                  }}
+                  sx={MONEY_FIELD_SX}
                 />
+                {/* Tax tools + computed note */}
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  spacing={1}
+                  sx={{ mt: '-2px' }}
+                >
+                  <Box sx={{ display: 'inline-flex', p: 0.25, borderRadius: 1.5, bgcolor: '#eef2f6' }}>
+                    {(['amount', 'percent'] as const).map((mode) => {
+                      const active = taxMode === mode;
+                      return (
+                        <Box
+                          key={mode}
+                          role="button"
+                          tabIndex={0}
+                          aria-pressed={active}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => setTaxModeKeepValue(mode)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setTaxModeKeepValue(mode);
+                            }
+                          }}
+                          sx={{
+                            px: 1.25,
+                            py: 0.25,
+                            minWidth: 30,
+                            textAlign: 'center',
+                            fontSize: 12.5,
+                            fontWeight: 800,
+                            lineHeight: 1.4,
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                            color: active ? '#fff' : muted,
+                            bgcolor: active ? accent : 'transparent',
+                            transition: 'all 150ms ease',
+                          }}
+                        >
+                          {mode === 'amount' ? '$' : '%'}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                  <Typography
+                    sx={{ fontSize: 11.5, color: muted, fontWeight: 600, ...numeric }}
+                    noWrap
+                  >
+                    {taxMode === 'percent'
+                      ? `${fmtPctField(taxInput) || '0.00'}% of ${fmtMoney2(partsCost)} = ${fmtMoney2(taxDollars)}`
+                      : `Tax ${fmtMoney2(taxDollars)}`}
+                  </Typography>
+                  <Button
+                    size="small"
+                    onClick={applyNebraskaTax}
+                    onMouseDown={(e) => e.preventDefault()}
+                    sx={{
+                      minWidth: 0,
+                      px: 1,
+                      py: 0.25,
+                      fontWeight: 800,
+                      fontSize: 12,
+                      borderRadius: 1.5,
+                      color: accent,
+                      bgcolor: accentSoft,
+                      border: '1px solid',
+                      borderColor: accentBorder,
+                      '&:hover': { bgcolor: 'rgba(46, 125, 50, 0.16)' },
+                    }}
+                  >
+                    NE 7%
+                  </Button>
+                </Stack>
               </Stack>
             </Box>
           </Box>
@@ -642,28 +720,20 @@ export function TarsPartsOrderDialog({
               bgcolor: '#fff',
               border: '1px solid',
               borderColor: hairline,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 1.5,
+              textAlign: 'right',
             }}
           >
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: ink }}>
-                {selectedPartIds.length} part{selectedPartIds.length === 1 ? '' : 's'} · {fmtMoney2(partsCost)}
-              </Typography>
-              <Typography sx={{ fontSize: 11.5, color: muted, ...numeric }} noWrap>
-                Ship {fmtMoney2(draftOrder.shipping)} · Tax {fmtMoney2(draftOrder.tax)} · Fees {fmtMoney2(draftOrder.fees)}
-              </Typography>
-            </Box>
-            <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-              <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Total
-              </Typography>
-              <Typography sx={{ fontSize: 19, fontWeight: 900, color: ink, ...numeric }}>
-                {fmtMoney2(total)}
-              </Typography>
-            </Box>
+            <Typography
+              sx={{ fontSize: 10.5, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+            >
+              Total
+            </Typography>
+            <Typography sx={{ fontSize: 22, fontWeight: 900, color: ink, lineHeight: 1.1, ...numeric }}>
+              {fmtMoney2(total)}
+            </Typography>
+            <Typography sx={{ fontSize: 11.5, color: muted, mt: 0.25, ...numeric }} noWrap>
+              Parts {fmtMoney2(partsCost)} · Ship {fmtMoney2(draftOrder.shipping)} · Tax {fmtMoney2(draftOrder.tax)} · Fees {fmtMoney2(draftOrder.fees)}
+            </Typography>
           </Box>
 
           {/* Notes */}
@@ -676,7 +746,10 @@ export function TarsPartsOrderDialog({
             multiline
             minRows={2}
             placeholder="Order notes…"
-            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: subtleBg } }}
+            sx={{
+              '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: subtleBg },
+              '& .MuiInputBase-input': { fontSize: 14 },
+            }}
           />
         </Stack>
       </Box>

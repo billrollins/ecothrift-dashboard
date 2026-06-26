@@ -13,8 +13,7 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from apps.inventory.models import ItemHistory, PurchaseOrder, RestorationJob
-from apps.pos.models import Cart, DashboardDepartmentGoal, DashboardSalesGoal
-
+from apps.pos.models import Cart, CartLine, DashboardDepartmentGoal, DashboardSalesGoal
 DASHBOARD_CACHE_SECONDS = 45
 QUICK_REPRICE_NOTE = 'Quick reprice'
 
@@ -50,11 +49,25 @@ def _daily_sales_series(start: date, end: date) -> dict[date, Decimal]:
     return {row['completed_at__date']: _dec(row['total']) for row in rows}
 
 
-def _day_payload(day: date, revenue: Decimal) -> dict[str, str]:
+def _daily_items_sold_series(start: date, end: date) -> dict[date, int]:
+    rows = (
+        CartLine.objects.filter(
+            cart__status='completed',
+            cart__completed_at__date__gte=start,
+            cart__completed_at__date__lte=end,
+        )
+        .values('cart__completed_at__date')
+        .annotate(total=Sum('quantity'))
+    )
+    return {row['cart__completed_at__date']: int(row['total'] or 0) for row in rows}
+
+
+def _day_payload(day: date, revenue: Decimal, items_sold: int) -> dict[str, str | int]:
     return {
         'date': day.isoformat(),
         'day': day.strftime('%A'),
         'revenue': _str_dec(revenue),
+        'items_sold': items_sold,
     }
 
 
@@ -74,6 +87,7 @@ def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
     earliest_week_start = current_week_start - timedelta(weeks=13)
     revenue_start = min(earliest_week_start, ninety_start - timedelta(days=27))
     revenue_by_day = _daily_sales_series(revenue_start, today)
+    items_by_day = _daily_items_sold_series(revenue_start, today)
 
     daily_last_90_days = []
     for offset in range(89, -1, -1):
@@ -102,14 +116,18 @@ def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
         week_end = week_start + timedelta(days=6)
         days = []
         week_total = Decimal('0')
+        week_items_sold = 0
         for day in _monday_sunday_days(week_start):
             rev = revenue_by_day.get(day, Decimal('0'))
+            items = items_by_day.get(day, 0)
             week_total += rev
-            days.append(_day_payload(day, rev))
+            week_items_sold += items
+            days.append(_day_payload(day, rev, items))
         weekly_last_14_weeks.append({
             'week_start': week_start.isoformat(),
             'week_end': week_end.isoformat(),
             'week_total': _str_dec(week_total),
+            'week_items_sold': week_items_sold,
             'days': days,
             'label': 'This Week' if week_index == 0 else (
                 f'{week_index} Week{"s" if week_index > 1 else ""} Ago'

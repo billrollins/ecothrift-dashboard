@@ -53,7 +53,8 @@ import { TARS_DEFAULT_HOURLY_RATE, TARS_DEFAULT_TIME_PREMIUM } from './tarsConst
 
 import { TarsGradeDirectionCards } from './TarsGradeDirectionCards';
 
-import { TarsActionLogPanel } from './TarsActionLogPanel';
+import { TarsWorkBenchTable } from './TarsWorkBenchTable';
+import { TarsGradeEvalDialog } from './TarsGradeEvalDialog';
 
 import { TarsBenchItemCard } from './TarsBenchItemCard';
 import { TarsBenchTimer } from './TarsBenchTimer';
@@ -70,10 +71,12 @@ import { TarsWorkstationRail, RAIL_MAX_WIDTH, type RailSectionKey } from './Tars
 import { jobMatchesScan, myActiveBenchRestorationJob, myRunningRestorationJob, restorationJobToTarsItem, tarsJobRowKey } from './tarsJobAdapter';
 import { isBenchIdleWithoutTimer, timerGuardKey, type TimerGuardAction } from './tarsTimerWarnings';
 import { useWorkSessionDraft } from './useWorkSessionDraft';
+import { useGradeScales } from '../../../hooks/useGradeScales';
 
 import { createEmptyWorkSession, evaluateWorkSession } from './tarsWorkRollup';
 
-import type { TarsPendingInfo, TarsWorkSession } from './tarsWorkTypes';
+import type { TarsWorkSession } from './tarsWorkTypes';
+import type { TarsHoldSubmit } from './TarsHoldDialog';
 
 export type TarsWorkstationNavState = {
   selectJobId?: number;
@@ -90,12 +93,6 @@ function benchSortValue(job: RestorationJobDTO): number {
   return timeValue(job.bench_started_at ?? job.sent_at ?? job.created_at);
 }
 
-function sessionHasRepairParts(session: TarsWorkSession): boolean {
-  return session.actions.some(
-    (a) => a.type === 'repair' && a.options.some((o) => o.parts.length > 0),
-  );
-}
-
 /** TARS workstation — backend-backed evaluation + action log. */
 
 export function TarsWorkstation() {
@@ -104,6 +101,7 @@ export function TarsWorkstation() {
   const { user, isLoading: authLoading } = useAuth();
   const currentUserId = user?.id;
   const { data: jobs = [], isLoading, refetch } = useTarsBenchJobs();
+  const { scales: gradeScales } = useGradeScales();
 
 
 
@@ -139,6 +137,8 @@ export function TarsWorkstation() {
   const [holdOpen, setHoldOpen] = useState(false);
 
   const [holdDialogMode, setHoldDialogMode] = useState<'new' | 'update'>('new');
+
+  const [evalGrade, setEvalGrade] = useState<string | null>(null);
   const [scanMessageDialog, setScanMessageDialog] = useState<{ title: string; message: string } | null>(null);
   const timerSwitchAckRef = useRef<Set<string>>(new Set());
   const [timerSwitchDialog, setTimerSwitchDialog] = useState<{
@@ -203,51 +203,23 @@ export function TarsWorkstation() {
 
   const displayJob = selectedJob;
 
-  const syncPartsRequest = useCallback(
-    async (job: RestorationJobDTO, evalSnapshot: ReturnType<typeof evaluateWorkSession> | null) => {
-      const session = (job.work_session as unknown as TarsWorkSession | undefined) ?? createEmptyWorkSession('bench');
-
-      if (!sessionHasRepairParts(session)) return;
-
-      try {
-        await upsertParts.mutateAsync({
-          jobId: job.id,
-          evalSnapshot: evalSnapshot ? { ...evalSnapshot } : undefined,
-        });
-      } catch {
-        // Non-blocking — parts sync is best-effort during bench work.
-      }
-    },
-    [upsertParts],
-  );
-
   const persistWorkSession = useCallback(
     async (jobId: number, session: TarsWorkSession) => {
       const job = jobById.get(jobId);
       if (!job) return;
 
       try {
-        const updated = await patchWorkSession.mutateAsync({
+        await patchWorkSession.mutateAsync({
           id: jobId,
           workSession: session as unknown as Record<string, unknown>,
         });
-
-        const item = restorationJobToTarsItem(updated);
-        const evalResult = evaluateWorkSession(
-          item,
-          session,
-          TARS_DEFAULT_HOURLY_RATE,
-          TARS_DEFAULT_TIME_PREMIUM,
-        );
-
-        await syncPartsRequest(updated, evalResult);
       } catch (err) {
         enqueueSnackbar(err instanceof Error ? err.message : 'Failed to save work session', {
           variant: 'error',
         });
       }
     },
-    [jobById, patchWorkSession, syncPartsRequest, enqueueSnackbar],
+    [jobById, patchWorkSession, enqueueSnackbar],
   );
 
   const {
@@ -303,22 +275,20 @@ export function TarsWorkstation() {
 
 
   const evaluation = useMemo(() => {
-
     if (!displayItem) return null;
-
     return evaluateWorkSession(
-
       displayItem,
-
       displayItem.workSession,
-
       TARS_DEFAULT_HOURLY_RATE,
-
       TARS_DEFAULT_TIME_PREMIUM,
-
+      gradeScales,
     );
+  }, [displayItem, gradeScales]);
 
-  }, [displayItem]);
+  const gradeOptions = useMemo(
+    () => evaluation?.directions.map((d) => d.grade) ?? [],
+    [evaluation],
+  );
 
 
 
@@ -491,6 +461,48 @@ export function TarsWorkstation() {
 
   );
 
+  const requestPartsForGrade = useCallback(
+    async (grade: string | null) => {
+      if (!displayJob) return;
+      if (!grade) {
+        enqueueSnackbar('Select a grade option before requesting parts.', { variant: 'warning' });
+        return;
+      }
+      try {
+        await flushWorkSessionSave();
+        const snapshot = evaluation?.directions.find((d) => d.grade === grade) ?? null;
+        await upsertParts.mutateAsync({
+          jobId: displayJob.id,
+          grade,
+          submit: true,
+          evalSnapshot: snapshot ? { ...snapshot } : undefined,
+        });
+        enqueueSnackbar(`Parts request submitted for grade ${grade}`, { variant: 'success' });
+      } catch (err) {
+        enqueueSnackbar(err instanceof Error ? err.message : 'Could not request parts', {
+          variant: 'error',
+        });
+      }
+    },
+    [displayJob, evaluation, flushWorkSessionSave, upsertParts, enqueueSnackbar],
+  );
+
+  const openEval = useCallback(
+    (grade: string) => {
+      if (!displayJob) return;
+      setEvalGrade(grade);
+    },
+    [displayJob],
+  );
+
+  const chooseGrade = useCallback(
+    (grade: string) => {
+      if (!displayJob) return;
+      void selectDirectionGrade(displayJob.id, grade);
+    },
+    [displayJob, selectDirectionGrade],
+  );
+
 
 
   const handleMoveBack = async () => {
@@ -510,7 +522,7 @@ export function TarsWorkstation() {
 
 
 
-  const handleHoldSubmit = async (info: Omit<TarsPendingInfo, 'pendingStartedAt'> & { pendingStartedAt?: string }) => {
+  const handleHoldSubmit = async (info: TarsHoldSubmit) => {
     if (!selectedJob) return;
 
     if (holdDialogMode === 'update') {
@@ -523,7 +535,6 @@ export function TarsWorkstation() {
           reason: info.reason,
           notes: info.notes,
           storageLocation: info.storageLocation,
-          expectedResumeAt: info.expectedResumeAt ?? '',
           pendingStartedAt: info.pendingStartedAt ?? selectedJob.pending_started_at ?? new Date().toISOString(),
         },
       });
@@ -546,6 +557,9 @@ export function TarsWorkstation() {
 
       setHoldOpen(false);
       enqueueSnackbar('Item placed on hold', { variant: 'info' });
+      if (info.requestParts) {
+        await requestPartsForGrade(info.requestGrade);
+      }
       focusScanInput();
     } catch (err) {
       enqueueSnackbar(err instanceof Error ? err.message : 'Hold failed', { variant: 'error' });
@@ -718,13 +732,8 @@ export function TarsWorkstation() {
             <TarsGradeDirectionCards
               directions={evaluation.directions}
               readOnly={isPendingSelected}
-              onSelect={
-                isPendingSelected
-                  ? undefined
-                  : (grade) => {
-                      void selectDirectionGrade(displayJob.id, grade);
-                    }
-              }
+              onOpenEval={isPendingSelected ? undefined : openEval}
+              onChooseGrade={isPendingSelected ? undefined : chooseGrade}
             />
           </Box>
 
@@ -751,9 +760,8 @@ export function TarsWorkstation() {
                 '&:last-child': { pb: 1 },
               }}
             >
-              <TarsActionLogPanel
+              <TarsWorkBenchTable
                 session={displayItem.workSession ?? createEmptyWorkSession(isPendingSelected ? 'pending' : 'bench')}
-                selectedGrade={displayItem.workSession?.selectedGrade ?? null}
                 readOnly={isPendingSelected}
                 onSessionChange={replaceWorkSession}
               />
@@ -952,7 +960,7 @@ export function TarsWorkstation() {
               Parts List
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Parts from repair actions on this item
+              Parts &amp; orders for this item
             </Typography>
           </Box>
           <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
@@ -961,6 +969,10 @@ export function TarsWorkstation() {
               itemLabel={partsListLabel}
               readOnly={isPendingSelected}
               onSessionChange={replaceWorkSession}
+              gradeOptions={gradeOptions}
+              selectedGrade={displayItem?.workSession?.selectedGrade ?? null}
+              requesting={upsertParts.isPending}
+              onRequestParts={(grade) => void requestPartsForGrade(grade)}
             />
           </Box>
         </Drawer>
@@ -1001,10 +1013,27 @@ export function TarsWorkstation() {
           open={holdOpen}
           title={holdDialogMode === 'update' ? 'Update pending shelf' : 'Place on hold'}
           initial={displayItem?.workSession?.pending}
+          canRequestParts={holdDialogMode === 'new'}
+          gradeOptions={gradeOptions}
+          selectedGrade={displayItem?.workSession?.selectedGrade ?? null}
+          requesting={upsertParts.isPending}
           onClose={closeHoldDialog}
           onSubmit={(info) => void handleHoldSubmit(info)}
         />
       : null}
+
+      <TarsGradeEvalDialog
+        open={evalGrade != null && Boolean(displayJob) && !isPendingSelected}
+        grade={evalGrade}
+        processorValue={
+          evalGrade ? evaluation?.directions.find((d) => d.grade === evalGrade)?.processorValue ?? 0 : 0
+        }
+        session={displayItem?.workSession}
+        requesting={upsertParts.isPending}
+        onClose={() => setEvalGrade(null)}
+        onSessionChange={replaceWorkSession}
+        onRequestParts={(grade) => void requestPartsForGrade(grade)}
+      />
 
       <TarsTimerSwitchDialog
         open={timerSwitchDialog != null}

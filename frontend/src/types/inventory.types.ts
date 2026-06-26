@@ -1040,6 +1040,7 @@ export interface RestorationPartsOrderDTO {
   id: number;
   po_number: string;
   supplier_name: string;
+  supplier_url: string;
   subtotal: string;
   shipping: string;
   tax: string;
@@ -1076,6 +1077,7 @@ export interface RestorationPartsOrderCreatePayload {
   site_id?: number | null;
   po_number: string;
   supplier_name?: string;
+  supplier_url?: string;
   subtotal: string | number;
   shipping?: string | number;
   tax?: string | number;
@@ -1084,6 +1086,7 @@ export interface RestorationPartsOrderCreatePayload {
   expected_delivery?: string | null;
   line_ids?: number[];
   notes?: string;
+  lines?: Array<{ id: number; unit_cost: string | number }>;
 }
 
 export interface RestorationJobPatchPayload {

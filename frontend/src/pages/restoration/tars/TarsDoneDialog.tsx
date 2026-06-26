@@ -59,7 +59,6 @@ export function TarsDoneDialog({
   const [finalGrade, setFinalGrade] = useState('');
   const [notes, setNotes] = useState('');
   const [spentHours, setSpentHours] = useState('');
-  const [spentParts, setSpentParts] = useState('');
   const [timeWarning, setTimeWarning] = useState<DoneTimeWarningKind>(null);
   const [overrideNote, setOverrideNote] = useState('');
 
@@ -69,27 +68,16 @@ export function TarsDoneDialog({
   );
 
   const defaultHours = job?.elapsed_hours ?? '0';
-  const defaultParts = useMemo(() => {
-    const selected = evaluation?.directions.find((d) => d.isSelected);
-    if (selected?.partsCost != null) return String(selected.partsCost);
-    return '0';
-  }, [evaluation]);
 
   useEffect(() => {
     if (!open || !job) return;
     setDestination('processing');
-    setFinalGrade(
-      evaluation?.selectedGrade
-      ?? evaluation?.recommendedGrade
-      ?? gradeOptions[0]
-      ?? '',
-    );
+    setFinalGrade(evaluation?.selectedGrade ?? gradeOptions[0] ?? '');
     setNotes('');
     setSpentHours(defaultHours);
-    setSpentParts(defaultParts);
     setTimeWarning(null);
     setOverrideNote('');
-  }, [open, job, evaluation, gradeOptions, defaultHours, defaultParts]);
+  }, [open, job, evaluation, gradeOptions, defaultHours]);
 
   if (!job) return null;
 
@@ -107,7 +95,6 @@ export function TarsDoneDialog({
       final_grade: finalGrade.trim(),
       notes: combinedNotes,
       spent_hours: spentHours.trim() || defaultHours,
-      spent_parts_cost: spentParts.trim() || defaultParts,
     };
   };
 
@@ -186,28 +173,16 @@ export function TarsDoneDialog({
               ))}
             </TextField>
 
-            <Stack direction="row" spacing={1}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Spent hours"
-                type="number"
-                inputProps={{ min: 0, step: 0.01 }}
-                value={spentHours}
-                onChange={(e) => setSpentHours(e.target.value)}
-                helperText={`Timer default: ${defaultHours}h`}
-              />
-              <TextField
-                fullWidth
-                size="small"
-                label="Spent parts $"
-                type="number"
-                inputProps={{ min: 0, step: 0.01 }}
-                value={spentParts}
-                onChange={(e) => setSpentParts(e.target.value)}
-                helperText={`Eval default: $${defaultParts}`}
-              />
-            </Stack>
+            <TextField
+              fullWidth
+              size="small"
+              label="Spent hours"
+              type="number"
+              inputProps={{ min: 0, step: 0.01 }}
+              value={spentHours}
+              onChange={(e) => setSpentHours(e.target.value)}
+              helperText={`Timer default: ${defaultHours}h`}
+            />
 
             <TextField
               fullWidth

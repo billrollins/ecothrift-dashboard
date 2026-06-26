@@ -2244,7 +2244,7 @@ export function getRestorationPartsRequest(id: number): Promise<{ data: Restorat
 
 export function upsertRestorationPartsRequestFromJob(
   jobId: number,
-  payload: { eval_snapshot?: Record<string, unknown> },
+  payload: { grade?: string; eval_snapshot?: Record<string, unknown> },
   submit = false,
 ): Promise<{ data: RestorationPartsRequestDTO }> {
   return api.post(
@@ -2256,6 +2256,10 @@ export function upsertRestorationPartsRequestFromJob(
 
 export function submitRestorationPartsRequest(id: number): Promise<{ data: RestorationPartsRequestDTO }> {
   return api.post(`/inventory/restoration-parts-requests/${id}/submit/`);
+}
+
+export function receiveRestorationPartsRequest(id: number): Promise<{ data: RestorationPartsRequestDTO }> {
+  return api.post(`/inventory/restoration-parts-requests/${id}/receive/`);
 }
 
 export function recordRestorationPartsOrder(

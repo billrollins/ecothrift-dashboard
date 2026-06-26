@@ -8462,6 +8462,7 @@ class RestorationPartsRequestViewSet(
             req = upsert_parts_request_from_work_session(
                 job,
                 user=request.user,
+                grade=ser.validated_data.get('grade') or None,
                 eval_snapshot=ser.validated_data.get('eval_snapshot'),
             )
             if request.query_params.get('submit') == 'true':
@@ -8486,6 +8487,20 @@ class RestorationPartsRequestViewSet(
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(RestorationPartsRequestSerializer(req, context=self.get_serializer_context()).data)
 
+    @action(detail=True, methods=['post'])
+    def receive(self, request, pk=None):
+        from apps.inventory.services.restoration_bench import receive_parts_request
+
+        req = self.get_object()
+        try:
+            req = receive_parts_request(req)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        req = (
+            self.get_queryset().get(pk=req.pk)
+        )
+        return Response(RestorationPartsRequestSerializer(req, context=self.get_serializer_context()).data)
+
     @action(detail=True, methods=['post'], url_path='record-order')
     def record_order(self, request, pk=None):
         from apps.inventory.services.restoration_bench import record_parts_order
@@ -8507,6 +8522,8 @@ class RestorationPartsRequestViewSet(
                 expected_delivery=ser.validated_data.get('expected_delivery'),
                 line_ids=ser.validated_data.get('line_ids'),
                 notes=ser.validated_data.get('notes', ''),
+                supplier_url=ser.validated_data.get('supplier_url', ''),
+                lines=ser.validated_data.get('lines'),
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)

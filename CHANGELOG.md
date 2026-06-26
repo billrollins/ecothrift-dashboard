@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.34.1] — 2026-06-26 -->
-<!-- Last reviewed: 2026-06-26 (release v2.34.1 — TARS route consolidation) -->
+<!-- Line 1 release: ## [2.35.0] — 2026-06-26 -->
+<!-- Last reviewed: 2026-06-26 (release v2.35.0 — TARS MVP + parts request detail) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,35 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.35.0] — 2026-06-26
+
+User-facing theme: **TARS bench MVP — simplified work session, grade-scoped parts requests with full order detail and per-part actual costs.**
+
+Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md)
+
+### Added
+
+- **Restoration / TARS MVP** — Redesigned `work_session` JSON (top-level `parts`, `orders`, `gradePlans`, `benchRows`); **`TarsWorkBenchTable`** free-form action log; **`TarsGradeEvalDialog`** (hours + orders per grade); grade-scoped **Request parts** from eval modal, parts drawer, and hold dialog; **`POST …/restoration-parts-requests/{id}/receive/`** for tech mark-received.
+- **Restoration / parts requests manager** — Open/Received tabs; **Approve** dialog with vendor-website picker, per-line actual cost vs estimate (mismatch chips), and full parts list (qty, URL, domain); order cards show `supplier_url` and order lines; **Open in TARS** jumps to workbench for the job.
+- **Restoration / orders** — Migration `0076`: `RestorationPartsOrder.supplier_url`; `record-order` accepts `supplier_url` + per-line `unit_cost`; shared **`tarsUrl.ts`** (`urlDomain`, `absoluteUrl`) fixes bare-domain part links resolving against `/restoration/tars`.
+
+### Changed
+
+- **Restoration / TARS bench** — Eval cards: body opens eval dialog, bottom bar chooses grade; profit math removed, timer kept; hold dialog drops expected-resume, adds optional parts request; done dialog trimmed to grade/time/destination/notes.
+- **Restoration / parts order dialog** — Inline **Add part**; aligned Shipping/Fees/Tax layout; URL field shows domain + Edit; wider price column.
+- **Restoration / queue** — Seed + active DB grade scales always valid (`get_active_scales`); scale change resets grade values and surfaces patch errors.
+- **POS / dashboard** — Weekly sales row and dashboard formatters extended for restoration/buying rollups (`WeeklySalesRow.tsx`, `dashboard_metrics.py`).
+
+### Removed
+
+- **Restoration / legacy action panels** — Deleted verb-specific panels (`TarsTest/Assemble/Repair/SalvageActionPanel`, `TarsActionLogPanel`, `tarsWorkDefaults.ts`).
+
+### Fixed
+
+- **Restoration / part links** — URLs without `https://` no longer open as `localhost/restoration/tars` + path (`absoluteUrl` on parts list, order dialog, parts-request page).
 
 ---
 

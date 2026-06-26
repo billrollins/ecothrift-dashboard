@@ -1,5 +1,6 @@
 import {
   Box,
+  ButtonBase,
   Card,
   CardActionArea,
   Chip,
@@ -13,7 +14,7 @@ import ChevronRight from '@mui/icons-material/ChevronRight';
 import SwipeLeft from '@mui/icons-material/SwipeLeft';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TarsGradeDirectionRow } from './tarsWorkTypes';
-import { fmtProfit, fmtUsd } from './tarsProfit';
+import { fmtUsd } from './tarsProfit';
 import { tarsTokens as eco } from './tarsTokens';
 
 const CARD_WIDTH = 208;
@@ -23,11 +24,19 @@ const CARD_BORDER_WIDTH = 2;
 
 interface TarsGradeDirectionCardsProps {
   directions: TarsGradeDirectionRow[];
-  onSelect?: (grade: string) => void;
+  /** Bench-only: open the per-grade eval dialog to view/enter details (does NOT select). */
+  onOpenEval?: (grade: string) => void;
+  /** Bench-only: choose this grade as the decision (the filled bottom bar). */
+  onChooseGrade?: (grade: string) => void;
   readOnly?: boolean;
 }
 
-export function TarsGradeDirectionCards({ directions, onSelect, readOnly }: TarsGradeDirectionCardsProps) {
+export function TarsGradeDirectionCards({
+  directions,
+  onOpenEval,
+  onChooseGrade,
+  readOnly,
+}: TarsGradeDirectionCardsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -223,7 +232,8 @@ export function TarsGradeDirectionCards({ directions, onSelect, readOnly }: Tars
               <GradeCard
                 row={row}
                 readOnly={readOnly}
-                onSelect={readOnly || !onSelect ? undefined : () => onSelect(row.grade)}
+                onOpen={readOnly || !onOpenEval ? undefined : () => onOpenEval(row.grade)}
+                onChoose={readOnly || !onChooseGrade ? undefined : () => onChooseGrade(row.grade)}
               />
             </Box>
           ))}
@@ -240,10 +250,7 @@ export function TarsGradeDirectionCards({ directions, onSelect, readOnly }: Tars
                 width: 10,
                 height: 10,
                 borderRadius: '50%',
-                bgcolor:
-                  row.isSelected ? eco.greenDark
-                  : row.isRecommended ? '#2563eb'
-                  : '#cbd5e1',
+                bgcolor: row.isSelected ? eco.greenDark : '#cbd5e1',
                 border: '2px solid',
                 borderColor: row.isSelected ? '#14532d' : 'transparent',
                 flexShrink: 0,
@@ -259,13 +266,15 @@ export function TarsGradeDirectionCards({ directions, onSelect, readOnly }: Tars
   );
 }
 
-type StatusTone = 'decision' | 'recommended' | 'estimate' | 'ready';
+type StatusTone = 'decision' | 'planned' | 'empty';
 
-function cardStatus(row: TarsGradeDirectionRow): { label: string; tone: StatusTone } {
+function cardStatus(row: TarsGradeDirectionRow, readOnly?: boolean): { label: string; tone: StatusTone } {
   if (row.isSelected) return { label: 'Your decision', tone: 'decision' };
-  if (row.hasUnknownCosts) return { label: 'Needs estimates', tone: 'estimate' };
-  if (row.isRecommended) return { label: 'Recommended', tone: 'recommended' };
-  return { label: 'Ready', tone: 'ready' };
+  if (readOnly) {
+    if (row.estimateHours > 0 || row.orderCount > 0) return { label: 'Planned', tone: 'planned' };
+    return { label: '—', tone: 'empty' };
+  }
+  return { label: 'Choose this grade', tone: row.estimateHours > 0 || row.orderCount > 0 ? 'planned' : 'empty' };
 }
 
 const STATUS_BAR_STYLES: Record<
@@ -273,23 +282,56 @@ const STATUS_BAR_STYLES: Record<
   { bgcolor: string; color: string; borderColor: string }
 > = {
   decision: { bgcolor: eco.greenDark, color: '#fff', borderColor: eco.greenDark },
-  recommended: { bgcolor: '#eff6ff', color: '#1d4ed8', borderColor: '#93c5fd' },
-  estimate: { bgcolor: '#fffbeb', color: '#b45309', borderColor: '#fcd34d' },
-  ready: { bgcolor: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' },
+  planned: { bgcolor: '#eff6ff', color: '#1d4ed8', borderColor: '#93c5fd' },
+  empty: { bgcolor: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' },
 };
 
 function GradeCard({
   row,
-  onSelect,
+  onOpen,
+  onChoose,
   readOnly,
 }: {
   row: TarsGradeDirectionRow;
-  onSelect?: () => void;
+  onOpen?: () => void;
+  onChoose?: () => void;
   readOnly?: boolean;
 }) {
-  const positive = row.projectedProfit !== null && row.projectedProfit >= 0;
-  const status = cardStatus(row);
+  const status = cardStatus(row, readOnly);
   const barStyle = STATUS_BAR_STYLES[status.tone];
+  const barInteractive = !readOnly && !!onChoose && !row.isSelected;
+
+  const barContent = (
+    <Typography
+      variant="caption"
+      fontWeight={800}
+      sx={{
+        fontSize: 9,
+        letterSpacing: status.tone === 'decision' ? '0.06em' : '0.03em',
+        textTransform: status.tone === 'decision' ? 'uppercase' : 'none',
+        lineHeight: 1.2,
+      }}
+    >
+      {status.label}
+    </Typography>
+  );
+
+  const barSx = {
+    width: '100%',
+    minHeight: 30,
+    flexShrink: 0,
+    px: 0.75,
+    py: 0.5,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    bgcolor: barStyle.bgcolor,
+    color: barStyle.color,
+    borderTop: '1px solid',
+    borderColor: barStyle.borderColor,
+    textAlign: 'center' as const,
+    boxSizing: 'border-box' as const,
+  };
 
   return (
     <Card
@@ -304,42 +346,25 @@ function GradeCard({
         boxSizing: 'border-box',
         borderWidth: CARD_BORDER_WIDTH,
         borderStyle: 'solid',
-        borderColor: row.isSelected ? eco.greenDark : row.isRecommended ? 'primary.main' : 'divider',
-        bgcolor: row.isSelected ? '#f0fdf4' : row.isRecommended ? '#f8fbff' : 'background.paper',
+        borderColor: row.isSelected ? eco.greenDark : 'divider',
+        bgcolor: row.isSelected ? '#f0fdf4' : 'background.paper',
         boxShadow: row.isSelected ? `0 0 0 2px ${eco.greenAlpha22}` : 'none',
       }}
     >
       <CardActionArea
-        onClick={readOnly ? undefined : onSelect}
+        onClick={readOnly ? undefined : onOpen}
         disabled={readOnly}
         sx={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'stretch',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-start',
           py: 0,
           ...(readOnly ? { cursor: 'default' } : {}),
         }}
       >
         <Box sx={{ flex: 1, px: 0.75, pt: 0.65, pb: 0.5, position: 'relative', minHeight: 0 }}>
-          {row.isRecommended ?
-            <Chip
-              label="Recommended"
-              size="small"
-              color="primary"
-              sx={{
-                position: 'absolute',
-                top: 4,
-                right: 4,
-                height: 18,
-                fontSize: 9,
-                fontWeight: 800,
-                '& .MuiChip-label': { px: 0.65 },
-              }}
-            />
-          : null}
-
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
             <Typography
               variant="caption"
@@ -359,55 +384,32 @@ function GradeCard({
 
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <ReceiptLine label="Price" value={fmtUsd(row.processorValue)} />
-              <ReceiptLine label="Cost of labor" value={fmtUsd(row.laborCost)} />
-              <ReceiptLine label="Cost of parts" value={fmtUsd(row.partsCost)} />
-              <Divider sx={{ my: 0.35, borderStyle: 'dashed' }} />
               <ReceiptLine
-                label="Value to restore"
-                value={fmtProfit(row.projectedProfit)}
-                valueColor={
-                  row.projectedProfit === null ? 'text.disabled'
-                  : positive ? 'success.main'
-                  : 'error.main'
-                }
-                bold
+                label={`Labor (${row.estimateHours || 0}h)`}
+                value={fmtUsd(row.laborCost)}
               />
+              <ReceiptLine
+                label={`Orders (${row.orderCount})`}
+                value={fmtUsd(row.ordersCost)}
+              />
+              <Divider sx={{ my: 0.35, borderStyle: 'dashed' }} />
+              <ReceiptLine label="Restore cost" value={fmtUsd(row.restoreCost)} bold />
             </Box>
           </Box>
         </Box>
+      </CardActionArea>
 
-        <Box
+      {barInteractive ?
+        <ButtonBase
+          onClick={onChoose}
           sx={{
-            width: '100%',
-            minHeight: 30,
-            flexShrink: 0,
-            px: 0.75,
-            py: 0.5,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            bgcolor: barStyle.bgcolor,
-            color: barStyle.color,
-            borderTop: '1px solid',
-            borderColor: barStyle.borderColor,
-            textAlign: 'center',
-            boxSizing: 'border-box',
+            ...barSx,
+            '&:hover': { filter: 'brightness(0.95)' },
           }}
         >
-          <Typography
-            variant="caption"
-            fontWeight={800}
-            sx={{
-              fontSize: 9,
-              letterSpacing: status.tone === 'decision' ? '0.06em' : '0.03em',
-              textTransform: status.tone === 'decision' ? 'uppercase' : 'none',
-              lineHeight: 1.2,
-            }}
-          >
-            {status.label}
-          </Typography>
-        </Box>
-      </CardActionArea>
+          {barContent}
+        </ButtonBase>
+      : <Box sx={barSx}>{barContent}</Box>}
     </Card>
   );
 }

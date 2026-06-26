@@ -48,3 +48,42 @@ export function shortDate(iso: string): string {
 export function dayMonthTitle(day: string, iso: string): string {
   return `${shortDayLabel(day)} ${shortDate(iso)}`;
 }
+
+function ordinalDay(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
+/** e.g. Friday June 6th, 2026 */
+export function longDayTitle(dayName: string, iso: string): string {
+  const formatted = formatIsoDateLong(iso);
+  return dayName ? `${dayName} ${formatted}` : formatted;
+}
+
+export function formatIsoDateLong(iso: string): string {
+  const [yStr, mStr, dStr] = iso.split('-');
+  const y = Number.parseInt(yStr ?? '', 10);
+  const m = Number.parseInt(mStr ?? '', 10);
+  const d = Number.parseInt(dStr ?? '', 10);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return iso;
+  const month = new Date(y, m - 1, d).toLocaleString('en-US', { month: 'long' });
+  return `${month} ${ordinalDay(d)}, ${y}`;
+}
+
+export function formatItemsSold(count: number): string {
+  return count.toLocaleString('en-US');
+}
+
+export function weekDateRange(weekStart: string, weekEnd: string): string {
+  return `${formatIsoDateLong(weekStart)} – ${formatIsoDateLong(weekEnd)}`;
+}
