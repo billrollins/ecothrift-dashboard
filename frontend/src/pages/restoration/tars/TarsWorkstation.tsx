@@ -65,7 +65,7 @@ import { TarsScanMessageDialog } from './TarsScanMessageDialog';
 import { TarsHoldDialog } from './TarsHoldDialog';
 import { TarsPartsListPanel, collectSessionParts } from './TarsPartsListPanel';
 import { PARTS_DRAWER_WIDTH } from './tarsPartsListSession';
-import { TarsWorkstationRail, RAIL_DEFAULT_WIDTH, RAIL_MAX_WIDTH, RAIL_MIN_WIDTH, type RailSectionKey } from './TarsWorkstationRail';
+import { TarsWorkstationRail, RAIL_MAX_WIDTH, type RailSectionKey } from './TarsWorkstationRail';
 
 import { jobMatchesScan, myActiveBenchRestorationJob, myRunningRestorationJob, restorationJobToTarsItem, tarsJobRowKey } from './tarsJobAdapter';
 import { isBenchIdleWithoutTimer, timerGuardKey, type TimerGuardAction } from './tarsTimerWarnings';
@@ -96,16 +96,9 @@ function sessionHasRepairParts(session: TarsWorkSession): boolean {
   );
 }
 
-export type TarsWorkstationLayout = 'split' | 'drawer';
-
-export type TarsWorkstationProps = {
-  /** split = inline left rail (classic TARS); drawer = rail in pop-out panel (TARS 2). */
-  railLayout?: TarsWorkstationLayout;
-};
-
 /** TARS workstation — backend-backed evaluation + action log. */
 
-export function TarsWorkstation({ railLayout = 'split' }: TarsWorkstationProps) {
+export function TarsWorkstation() {
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
@@ -159,43 +152,12 @@ export function TarsWorkstation({ railLayout = 'split' }: TarsWorkstationProps) 
     bench: false,
     pending: false,
   });
-  const [railWidth, setRailWidth] = useState(RAIL_DEFAULT_WIDTH);
   const [selectionDrawerOpen, setSelectionDrawerOpen] = useState(false);
   const [partsDrawerOpen, setPartsDrawerOpen] = useState(false);
-  const railDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const selectionDrawerWidth = RAIL_MAX_WIDTH;
 
   const toggleRailSection = useCallback((key: RailSectionKey) => {
     setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
-  }, []);
-
-  const handleRailResizeStart = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      railDragRef.current = { startX: e.clientX, startWidth: railWidth };
-    },
-    [railWidth],
-  );
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!railDragRef.current) return;
-      const delta = e.clientX - railDragRef.current.startX;
-      const next = Math.min(
-        RAIL_MAX_WIDTH,
-        Math.max(RAIL_MIN_WIDTH, railDragRef.current.startWidth + delta),
-      );
-      setRailWidth(next);
-    };
-    const onUp = () => {
-      railDragRef.current = null;
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
   }, []);
 
   const scanInputRef = useRef<HTMLInputElement>(null);
@@ -203,12 +165,10 @@ export function TarsWorkstation({ railLayout = 'split' }: TarsWorkstationProps) 
 
   const focusScanInput = useCallback(() => {
     requestAnimationFrame(() => {
-      if (railLayout === 'drawer') {
-        setSelectionDrawerOpen(true);
-      }
+      setSelectionDrawerOpen(true);
       scanInputRef.current?.focus();
     });
-  }, [railLayout]);
+  }, []);
 
 
 
@@ -624,17 +584,10 @@ export function TarsWorkstation({ railLayout = 'split' }: TarsWorkstationProps) 
     focusScanInput();
   }, [focusScanInput]);
 
-  const handleSelectRailJob = useCallback(
-    (job: RestorationJobDTO) => {
-      setSelectedRowKey(tarsJobRowKey(job));
-      if (railLayout === 'drawer') {
-        setSelectionDrawerOpen(false);
-      } else {
-        focusScanInput();
-      }
-    },
-    [focusScanInput, railLayout],
-  );
+  const handleSelectRailJob = useCallback((job: RestorationJobDTO) => {
+    setSelectedRowKey(tarsJobRowKey(job));
+    setSelectionDrawerOpen(false);
+  }, []);
 
   const queueItemCount = queueJobs.length + benchJobs.length + pendingJobs.length;
 
@@ -646,7 +599,7 @@ export function TarsWorkstation({ railLayout = 'split' }: TarsWorkstationProps) 
         height: '100%',
         width: '100%',
         overflow: 'hidden',
-        p: railLayout === 'drawer' ? 1 : 0,
+        p: 1,
         boxSizing: 'border-box',
       }}
     >
@@ -692,17 +645,14 @@ export function TarsWorkstation({ railLayout = 'split' }: TarsWorkstationProps) 
         runningRowKey={runningRowKey}
         activeBenchRowKey={activeBenchRowKey}
         collapsed={collapsedSections}
-        railWidth={railLayout === 'drawer' ? selectionDrawerWidth : railWidth}
+        railWidth={selectionDrawerWidth}
         onToggleSection={toggleRailSection}
         onSelectJob={handleSelectRailJob}
       />
     </Stack>
   );
 
-  const emptySelectionMessage =
-    railLayout === 'drawer'
-      ? 'Open Item list and pick an item, or scan a tag to start work.'
-      : 'Select an item from the rail, or scan a tag to start work.';
+  const emptySelectionMessage = 'Open Item list and pick an item, or scan a tag to start work.';
   const partsListCount =
     displayItem?.workSession ? collectSessionParts(displayItem.workSession).length : 0;
   const partsListLabel = displayItem?.skuLabel ?? displayItem?.sku;
@@ -847,26 +797,19 @@ export function TarsWorkstation({ railLayout = 'split' }: TarsWorkstationProps) 
         }}
       >
         <Stack direction="row" alignItems="center" spacing={0.75} minWidth={0}>
-          {railLayout === 'drawer' ?
-            <>
-              <Tooltip title={`Item list (${queueItemCount})`}>
-                <IconButton
-                  size="small"
-                  aria-label="Open item list"
-                  onClick={() => setSelectionDrawerOpen(true)}
-                  sx={{ flexShrink: 0 }}
-                >
-                  <Menu fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Typography variant="h5" fontWeight={600} noWrap>
-                Item list
-              </Typography>
-            </>
-          : <Typography variant="h5" fontWeight={600} noWrap>
-              TARS Workstation
-            </Typography>
-          }
+          <Tooltip title={`Item list (${queueItemCount})`}>
+            <IconButton
+              size="small"
+              aria-label="Open item list"
+              onClick={() => setSelectionDrawerOpen(true)}
+              sx={{ flexShrink: 0 }}
+            >
+              <Menu fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Typography variant="h5" fontWeight={600} noWrap>
+            Item list
+          </Typography>
         </Stack>
         <Box sx={{ justifySelf: 'center', alignSelf: 'stretch', display: 'flex', alignItems: 'center' }}>
           {headerTimerJob ?
@@ -889,23 +832,21 @@ export function TarsWorkstation({ railLayout = 'split' }: TarsWorkstationProps) 
             />
           : null}
         </Box>
-        {railLayout === 'drawer' ?
-          <Stack direction="row" alignItems="center" spacing={0.75} justifyContent="flex-end" minWidth={0}>
-            <Typography variant="h5" fontWeight={600} noWrap>
-              Parts List
-            </Typography>
-            <Tooltip title={partsListCount > 0 ? `${partsListCount} parts` : 'Open parts list'}>
-              <IconButton
-                size="small"
-                aria-label="Open parts list"
-                onClick={() => setPartsDrawerOpen(true)}
-                sx={{ flexShrink: 0 }}
-              >
-                <Menu fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        : <Box />}
+        <Stack direction="row" alignItems="center" spacing={0.75} justifyContent="flex-end" minWidth={0}>
+          <Typography variant="h5" fontWeight={600} noWrap>
+            Parts List
+          </Typography>
+          <Tooltip title={partsListCount > 0 ? `${partsListCount} parts` : 'Open parts list'}>
+            <IconButton
+              size="small"
+              aria-label="Open parts list"
+              onClick={() => setPartsDrawerOpen(true)}
+              sx={{ flexShrink: 0 }}
+            >
+              <Menu fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </Box>
 
 
@@ -920,185 +861,109 @@ export function TarsWorkstation({ railLayout = 'split' }: TarsWorkstationProps) 
           minWidth: 0,
         }}
       >
-        {railLayout === 'split' ?
+        <Stack
+          spacing={0.85}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+            overflow: 'hidden',
+            pb: 0.5,
+            width: '100%',
+          }}
+        >
+          {!displayItem || !evaluation || !displayJob ?
+            <Card variant="outlined">
+              <CardContent sx={{ py: 6, textAlign: 'center' }}>
+                <Typography color="text.secondary">{emptySelectionMessage}</Typography>
+                <Button size="small" sx={{ mt: 1, mr: 0.75 }} onClick={() => setSelectionDrawerOpen(true)}>
+                  Item list
+                </Button>
+                <Button size="small" sx={{ mt: 1 }} onClick={() => void refetch()}>
+                  Refresh
+                </Button>
+              </CardContent>
+            </Card>
+          : <>
+              {workstationMain}
+            </>
+          }
+        </Stack>
+
+        <Drawer
+          anchor="left"
+          open={selectionDrawerOpen}
+          onClose={() => setSelectionDrawerOpen(false)}
+          PaperProps={{
+            sx: {
+              width: selectionDrawerWidth,
+              maxWidth: '92vw',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            },
+          }}
+        >
           <Box
             sx={{
-              flex: 1,
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: { xs: 'column', lg: 'row' },
-              alignItems: 'stretch',
-              gap: { xs: 1, lg: 0 },
+              px: 1.25,
+              py: 1,
+              borderBottom: 1,
+              borderColor: 'divider',
+              flexShrink: 0,
             }}
           >
-            <Stack
-              spacing={0.65}
-              sx={{
-                minHeight: 0,
-                height: { xs: 'auto', lg: '100%' },
-                width: { xs: '100%', lg: railWidth },
-                flexShrink: 0,
-                overflow: 'hidden',
-              }}
-            >
-              {railPanel}
-            </Stack>
-
-            <Box
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Resize queue panel"
-              onMouseDown={handleRailResizeStart}
-              sx={{
-                display: { xs: 'none', lg: 'flex' },
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 8,
-                flexShrink: 0,
-                cursor: 'col-resize',
-                bgcolor: 'transparent',
-                '&:hover': { bgcolor: 'action.hover' },
-                '&::after': {
-                  content: '""',
-                  width: 3,
-                  height: 48,
-                  borderRadius: 999,
-                  bgcolor: '#cbd5e1',
-                },
-              }}
-            />
-
-            <Stack
-              spacing={0.85}
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                minHeight: 0,
-                overflow: 'hidden',
-                pb: 0.5,
-              }}
-            >
-              {!displayItem || !evaluation || !displayJob ?
-                <Card variant="outlined">
-                  <CardContent sx={{ py: 6, textAlign: 'center' }}>
-                    <Typography color="text.secondary">{emptySelectionMessage}</Typography>
-                    <Button size="small" sx={{ mt: 1 }} onClick={() => void refetch()}>
-                      Refresh
-                    </Button>
-                  </CardContent>
-                </Card>
-              : <>
-                  {workstationMain}
-                </>
-              }
-            </Stack>
+            <Typography variant="subtitle2" fontWeight={800}>
+              Item list
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Scan, queue, bench & pending
+            </Typography>
           </Box>
-        : <>
-            <Stack
-              spacing={0.85}
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                minHeight: 0,
-                overflow: 'hidden',
-                pb: 0.5,
-                width: '100%',
-              }}
-            >
-              {!displayItem || !evaluation || !displayJob ?
-                <Card variant="outlined">
-                  <CardContent sx={{ py: 6, textAlign: 'center' }}>
-                    <Typography color="text.secondary">{emptySelectionMessage}</Typography>
-                    <Button size="small" sx={{ mt: 1, mr: 0.75 }} onClick={() => setSelectionDrawerOpen(true)}>
-                      Item list
-                    </Button>
-                    <Button size="small" sx={{ mt: 1 }} onClick={() => void refetch()}>
-                      Refresh
-                    </Button>
-                  </CardContent>
-                </Card>
-              : <>
-                  {workstationMain}
-                </>
-              }
-            </Stack>
+          <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+            {railPanel}
+          </Box>
+        </Drawer>
 
-            <Drawer
-              anchor="left"
-              open={selectionDrawerOpen}
-              onClose={() => setSelectionDrawerOpen(false)}
-              PaperProps={{
-                sx: {
-                  width: selectionDrawerWidth,
-                  maxWidth: '92vw',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                },
-              }}
-            >
-              <Box
-                sx={{
-                  px: 1.25,
-                  py: 1,
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  flexShrink: 0,
-                }}
-              >
-                <Typography variant="subtitle2" fontWeight={800}>
-                  Item list
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Scan, queue, bench & pending
-                </Typography>
-              </Box>
-              <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-                {railPanel}
-              </Box>
-            </Drawer>
-
-            <Drawer
-              anchor="right"
-              open={partsDrawerOpen}
-              onClose={() => setPartsDrawerOpen(false)}
-              PaperProps={{
-                sx: {
-                  width: PARTS_DRAWER_WIDTH,
-                  maxWidth: '96vw',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                },
-              }}
-            >
-              <Box
-                sx={{
-                  px: 1.25,
-                  py: 1,
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  flexShrink: 0,
-                }}
-              >
-                <Typography variant="subtitle2" fontWeight={800}>
-                  Parts List
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Parts from repair actions on this item
-                </Typography>
-              </Box>
-              <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-                <TarsPartsListPanel
-                  session={displayItem?.workSession}
-                  itemLabel={partsListLabel}
-                  readOnly={isPendingSelected}
-                  onSessionChange={replaceWorkSession}
-                />
-              </Box>
-            </Drawer>
-          </>
-        }
+        <Drawer
+          anchor="right"
+          open={partsDrawerOpen}
+          onClose={() => setPartsDrawerOpen(false)}
+          PaperProps={{
+            sx: {
+              width: PARTS_DRAWER_WIDTH,
+              maxWidth: '96vw',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            },
+          }}
+        >
+          <Box
+            sx={{
+              px: 1.25,
+              py: 1,
+              borderBottom: 1,
+              borderColor: 'divider',
+              flexShrink: 0,
+            }}
+          >
+            <Typography variant="subtitle2" fontWeight={800}>
+              Parts List
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Parts from repair actions on this item
+            </Typography>
+          </Box>
+          <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+            <TarsPartsListPanel
+              session={displayItem?.workSession}
+              itemLabel={partsListLabel}
+              readOnly={isPendingSelected}
+              onSessionChange={replaceWorkSession}
+            />
+          </Box>
+        </Drawer>
       </Box>
 
 

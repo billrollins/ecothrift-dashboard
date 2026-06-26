@@ -21,7 +21,7 @@ import type {
 } from './tarsWorkTypes';
 import { newId } from './tarsWorkRollup';
 import { fmtUsd } from './tarsProfit';
-import { ProcurementGroupDialog } from './ProcurementGroupDialog';
+import { TarsPartsOrderDialog } from './TarsPartsOrderDialog';
 
 const PART_STATUSES: TarsPartStatus[] = [
   'considering',
@@ -253,22 +253,57 @@ export function TarsRepairActionPanel({
         </Box>
       : null}
 
-      <ProcurementGroupDialog
+      <TarsPartsOrderDialog
         open={groupDialogOpen}
         parts={selectedOption?.parts ?? []}
         existing={editingGroup}
-        onClose={() => setGroupDialogOpen(false)}
-        onSave={(group) => {
-          const others = procurementGroups.filter((g) => g.id !== group.id);
-          onProcurementGroupsChange([...others, group]);
+        orderIndex={
+          editingGroup
+            ? procurementGroups.findIndex((g) => g.id === editingGroup.id)
+            : procurementGroups.length
+        }
+        onClose={() => {
+          setGroupDialogOpen(false);
+          setEditingGroup(null);
+        }}
+        onSave={({ order, partUpdates }) => {
+          const others = procurementGroups.filter((g) => g.id !== order.id);
+          onProcurementGroupsChange([...others, order]);
           if (selectedOption) {
+            const updatesById = new Map(partUpdates.map((u) => [u.id, u]));
             updateOption(selectedOption.id, {
-              parts: selectedOption.parts.map((p) =>
-                group.partIds.includes(p.id) ? { ...p, procurementGroupId: group.id } : p,
-              ),
+              parts: selectedOption.parts.map((p) => {
+                const patch = updatesById.get(p.id);
+                const merged = patch ? { ...p, ...patch } : p;
+                if (order.partIds.includes(p.id)) {
+                  return { ...merged, procurementGroupId: order.id };
+                }
+                if (p.procurementGroupId === order.id) {
+                  return { ...merged, procurementGroupId: null };
+                }
+                return merged;
+              }),
             });
           }
+          setGroupDialogOpen(false);
+          setEditingGroup(null);
         }}
+        onDelete={
+          editingGroup
+            ? () => {
+                onProcurementGroupsChange(procurementGroups.filter((g) => g.id !== editingGroup.id));
+                if (selectedOption) {
+                  updateOption(selectedOption.id, {
+                    parts: selectedOption.parts.map((p) =>
+                      p.procurementGroupId === editingGroup.id ? { ...p, procurementGroupId: null } : p,
+                    ),
+                  });
+                }
+                setGroupDialogOpen(false);
+                setEditingGroup(null);
+              }
+            : undefined
+        }
       />
     </Stack>
   );

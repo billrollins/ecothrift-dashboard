@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [tars_restoration_workspace](./tars_restoration_workspace.md) | Phase 1–3 — bench live | **`/restoration/queue`** live; **`/restoration/tars-2`** bench workstation + parts orders; legacy **`/restoration/tars`** mock route retained. |
+| [tars_restoration_workspace](./tars_restoration_workspace.md) | Phase 1–3 — bench live | **`/restoration/queue`** + **`/restoration/tars`** live workstation with parts orders. |
 
 **Parked (off this index):** [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.
 

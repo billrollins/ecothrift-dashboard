@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.34.0] — 2026-06-26 -->
-<!-- Last reviewed: 2026-06-26 (release v2.34.0 — TARS bench, dashboard, parts orders) -->
+<!-- Line 1 release: ## [2.34.1] — 2026-06-26 -->
+<!-- Last reviewed: 2026-06-26 (release v2.34.1 — TARS route consolidation) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,23 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.34.1] — 2026-06-26
+
+User-facing theme: **Single TARS route at `/restoration/tars` — legacy tars-2 duplicate removed.**
+
+Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md)
+
+### Changed
+
+- **Restoration / TARS routing** — Live bench workstation is now **`/restoration/tars`** (drawer item list + parts list); **`/restoration/tars-2`** redirects for old bookmarks; duplicate **TARS 2** nav item removed.
+- **Restoration / TARS workstation** — **`TarsWorkstation`** is drawer-only; split inline-rail layout and resize handle removed.
+
+### Removed
+
+- **Restoration / legacy UI** — Deleted **`Tars2Page`**, **`ProcurementGroupDialog`**; repair-action orders use **`TarsPartsOrderDialog`** (same as parts drawer).
 
 ---
 

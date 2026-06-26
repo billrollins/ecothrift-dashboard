@@ -5,7 +5,7 @@
 
 **Status:** **Active** — Queue live + **TARS 2 bench live** (parts orders, work session persistence).
 
-**Routes:** `/restoration/queue` (Send to Restoration), `/restoration/tars-2` (live bench workstation), `/restoration/tars` (legacy mock Check-In & Evaluate).
+**Routes:** `/restoration/queue` (Send to Restoration), `/restoration/tars` (live bench workstation).
 
 ---
 
@@ -93,7 +93,7 @@ Restoration staff can **receive items sent from Processing**, **price grade outc
 
 **Updates:**
 
-- **`/restoration/tars-2`** — full-width **`TarsWorkstation`** with live **`RestorationJob`** bench API, debounced **`work_session`** draft, grade scales, timer flows.
+- **`/restoration/tars`** — full-width **`TarsWorkstation`** with live **`RestorationJob`** bench API, debounced **`work_session`** draft, grade scales, timer flows, parts drawer.
 - Parts drawer — Parts + Orders tabs; **`TarsPartsOrderDialog`** with drawer-style lines; **`partQtyOverrides`** for order-only qty.
 - Dashboard — live metrics API, department/sales goals, sub-second reload via cache + client placeholder.
 - Released **v2.34.0**.

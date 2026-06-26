@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-24 (label printed tracking; edit check-in dialog ProductSummaryCard + 4 item stat cards) -->
+<!-- Last updated: 2026-06-26 (TARS consolidated to /restoration/tars) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **TARS Restoration (active):** [`tars_restoration_workspace`](initiatives/tars_restoration_workspace.md) — `/restoration/tars`: **Send to Restoration** → **Check-In & Evaluate** → **TARS** verb queues under evaluation; Phase 0 client mock.
+- **TARS Restoration (active):** [`tars_restoration_workspace`](initiatives/tars_restoration_workspace.md) — `/restoration/queue` (send) + `/restoration/tars` (live bench workstation); shipped **v2.34.0**.
 - **HR Time Clock (shipped):** archived [`hr_time_clock_mvp`](initiatives/_archived/_completed/hr_time_clock_mvp.md) — time clock, **Employees**, **Time & payroll**, soft delete; legacy HR pages removed. Shipped **v2.33.0**–**v2.33.1**.
 - **Product/Item CRUD → Processing (shipped):** archived [`product_item_crud_and_processing`](initiatives/_archived/_completed/product_item_crud_and_processing.md) — **v2.29.0–v2.32.0** (Catalog, processing integration, unmanifested lines). Semantic embedding search on hold.
 - **AI cleanup (shipped):** archived [`preprocessing_ai_cleanup_review`](initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md) — Step 2 **Run AI Cleanup** browser batch pool (`ai-cleanup-batch`/`-status`/`-complete`), chunked offline apply, gthread Procfile, legacy `ai-cleanup-rows` 410. Shipped **v2.28.0**.
