@@ -75,7 +75,7 @@ How to begin a new AI session on this project. See also [`.ai/README.md`](../REA
 | `code.1.Bearing.md` | Mid-session when stuck / drifting | Compare progress to written session goal |
 | `review.0.Bump.md` | Isolated docs audit + semver + `CHANGELOG` | Checklist + bump matrix; optional **`commit_message.txt`** + **`2_push_github.bat`** (Part 5); local Part 4B short commit; **no** `git push` by itself |
 | **`review.1.Diff.md`** | Local vs GitHub / Heroku | Fetch remotes; ahead/behind + file tallies; save **`.ai/reference/diffs/YYYYMMDD-HHmmss.diff.md`**; short summary in chat |
-| **`code.9.Push.md`** | Bump checklist + GitHub push | Wraps **`review.0.Bump`** + **`2_push_github.bat`** with **full** **`commit_message.txt`** — skip redundant Part 4B |
+| **`code.9.Push.md`** | Bump checklist + GitHub push | Wraps **`review.0.Bump`** (**mandatory Part 2E release**) + **`2_push_github.bat`** with **full** **`commit_message.txt`** — skip redundant Part 4B |
 | `review.9.Deep.md` | Full repo/context audit | Generates human-readable reports + plan under `.ai/reference/deep_dive/latest/`; does not execute changes by default |
 | `session.9.Close.md` | **End** of session / before commit | Record **`Result`**, docs, version bump, commit message |
 | **`sql.0.UpdateSchema.md`** | **On demand** — migrations / SQL reporting prep | Read **`extended/sql/README.md`** + **`cli.md`** → run **`schema_columns_ecothrift.sql`** → **`.ai/extended/sql/schema.csv`** |
@@ -85,4 +85,4 @@ How to begin a new AI session on this project. See also [`.ai/README.md`](../REA
 
 ## Next protocols
 
-During work: **`.ai/protocols/session.1.Checkpoint.md`**. When stuck: **`code.1.Bearing.md`**. Docs audit + bump slice only: **`review.0.Bump.md`**. Diff summary local ↔ **`origin` / `heroku`**: **`review.1.Diff.md`**. Bump then **`git push origin main`** with **`commit_message.txt`**: **`code.9.Push.md`**. Full context refresh / report set: **`review.9.Deep.md`**. Refresh **`schema.csv`**: **`.ai/protocols/sql.0.UpdateSchema.md`**. When finishing: **`session.9.Close.md`**. Consultant handoff: **[`extended/consultant_handoff.md`](../extended/consultant_handoff.md)**.
+During work: **`.ai/protocols/session.1.Checkpoint.md`**. When stuck: **`code.1.Bearing.md`**. Docs audit + bump slice only: **`review.0.Bump.md`**. Diff summary local ↔ **`origin` / `heroku`**: **`review.1.Diff.md`**. **Release bump +** **`git push origin main`** with **`commit_message.txt`**: **`code.9.Push.md`** (always semver — see Part 2E). Full context refresh / report set: **`review.9.Deep.md`**. Refresh **`schema.csv`**: **`.ai/protocols/sql.0.UpdateSchema.md`**. When finishing: **`session.9.Close.md`**. Consultant handoff: **[`extended/consultant_handoff.md`](../extended/consultant_handoff.md)**.

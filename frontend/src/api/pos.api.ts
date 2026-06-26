@@ -1,5 +1,12 @@
 import type { PaginatedResponse } from '../types/index';
-import type { Register, Drawer } from '../types/pos.types';
+import type {
+  DashboardMetrics,
+  DashboardSalesGoal,
+  DashboardDepartmentGoal,
+  DepartmentGoalKey,
+  Register,
+  Drawer,
+} from '../types/pos.types';
 import api from './client';
 
 export type { Register, Drawer };
@@ -188,8 +195,23 @@ export function getCarts(params?: Record<string, unknown>): Promise<{ data: Pagi
 }
 
 // Dashboard
-export function getDashboardMetrics(): Promise<{ data: unknown }> {
-  return api.get('/pos/dashboard/metrics/');
+export function getDashboardMetrics(): Promise<{ data: DashboardMetrics }> {
+  return api.get<DashboardMetrics>('/pos/dashboard/metrics/');
+}
+
+export function upsertDashboardSalesGoal(data: {
+  amount: string;
+  description: string;
+}): Promise<{ data: DashboardSalesGoal }> {
+  return api.post<DashboardSalesGoal>('/pos/dashboard/sales-goal/', data);
+}
+
+export function upsertDashboardDepartmentGoal(data: {
+  department: DepartmentGoalKey;
+  value: string;
+  description: string;
+}): Promise<{ data: DashboardDepartmentGoal }> {
+  return api.post<DashboardDepartmentGoal>('/pos/dashboard/department-goals/', data);
 }
 
 export function getDashboardAlerts(): Promise<{ data: unknown[] }> {

@@ -22,6 +22,22 @@ import type {
   ReceivingCompleteResponse,
   ProcessingWorkspaceDTO,
   ProcessingWorkspacePatchDTO,
+  RestorationJobDTO,
+  RestorationJobCreateResultDTO,
+  RestorationJobPatchPayload,
+  RestorationJobReturnPayload,
+  RestorationJobSplitPayload,
+  RestorationJobSplitResultDTO,
+  RestorationJobCombinePayload,
+  RestorationJobHoldPayload,
+  RestorationJobDonePayload,
+  RestorationPartsRequestDTO,
+  RestorationPartsOrderDTO,
+  RestorationPartsOrderCreatePayload,
+  RestorationGradeScaleDTO,
+  RestorationGradeScaleCreatePayload,
+  RestorationGradeScaleSuggestParams,
+  RestorationGradeScaleSuggestDTO,
 } from '../types/inventory.types';
 import api from './client';
 
@@ -1215,6 +1231,8 @@ export interface ProcessingRowCheckInPayload {
   upc?: string;
   specifications?: Record<string, unknown>;
   notes?: string;
+  restoration_scale?: string;
+  restoration_grade_values?: Record<string, number>;
 }
 
 export interface ProcessingRowCheckInResponse {
@@ -2108,4 +2126,157 @@ export function fetchOrderDisputes(
   params?: { kind?: string; status?: string },
 ): Promise<{ data: OrderDisputeDTO[] }> {
   return api.get<OrderDisputeDTO[]>(`/inventory/orders/${orderId}/disputes/`, { params });
+}
+
+export function listRestorationJobs(params?: {
+  stage?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<{ data: PaginatedResponse<RestorationJobDTO> }> {
+  return api.get('/inventory/restoration-jobs/', { params });
+}
+
+export function createRestorationJobFromSku(
+  sku: string,
+): Promise<{ data: RestorationJobCreateResultDTO }> {
+  return api.post('/inventory/restoration-jobs/', { sku });
+}
+
+export function patchRestorationJob(
+  id: number,
+  payload: RestorationJobPatchPayload,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.patch(`/inventory/restoration-jobs/${id}/`, payload);
+}
+
+export function sendRestorationJob(
+  id: number,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/send/`);
+}
+
+export function returnRestorationJobToProcessing(
+  id: number,
+  payload: RestorationJobReturnPayload,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/return-to-processing/`, payload);
+}
+
+export function splitRestorationJob(
+  id: number,
+  payload: RestorationJobSplitPayload,
+): Promise<{ data: RestorationJobSplitResultDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/split/`, payload);
+}
+
+export function combineRestorationJobs(
+  payload: RestorationJobCombinePayload,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post('/inventory/restoration-jobs/combine/', payload);
+}
+
+export function patchRestorationJobWorkSession(
+  id: number,
+  workSession: Record<string, unknown>,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.patch(`/inventory/restoration-jobs/${id}/work-session/`, { work_session: workSession });
+}
+
+export function checkInRestorationJob(
+  id: number,
+  itemId?: number,
+  startTimer = true,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(
+    `/inventory/restoration-jobs/${id}/check-in/`,
+    {
+      ...(itemId != null ? { item_id: itemId } : {}),
+      start_timer: startTimer,
+    },
+  );
+}
+
+export function moveRestorationJobBackToQueue(id: number): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/move-back-to-queue/`);
+}
+
+export function holdRestorationJob(
+  id: number,
+  payload: RestorationJobHoldPayload,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/hold/`, payload);
+}
+
+export function startRestorationJobTimer(id: number): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/timer/start/`);
+}
+
+export function pauseRestorationJobTimer(id: number): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/timer/pause/`);
+}
+
+export function adjustRestorationJobTimer(
+  id: number,
+  activeSeconds: number,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/timer/adjust/`, { active_seconds: activeSeconds });
+}
+
+export function completeRestorationJob(
+  id: number,
+  payload: RestorationJobDonePayload,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/done/`, payload);
+}
+
+export function listRestorationPartsRequests(params?: {
+  status?: string;
+  job?: number;
+  page?: number;
+  page_size?: number;
+}): Promise<{ data: PaginatedResponse<RestorationPartsRequestDTO> }> {
+  return api.get('/inventory/restoration-parts-requests/', { params });
+}
+
+export function getRestorationPartsRequest(id: number): Promise<{ data: RestorationPartsRequestDTO }> {
+  return api.get(`/inventory/restoration-parts-requests/${id}/`);
+}
+
+export function upsertRestorationPartsRequestFromJob(
+  jobId: number,
+  payload: { eval_snapshot?: Record<string, unknown> },
+  submit = false,
+): Promise<{ data: RestorationPartsRequestDTO }> {
+  return api.post(
+    `/inventory/restoration-parts-requests/upsert-from-job/${jobId}/`,
+    payload,
+    { params: submit ? { submit: 'true' } : undefined },
+  );
+}
+
+export function submitRestorationPartsRequest(id: number): Promise<{ data: RestorationPartsRequestDTO }> {
+  return api.post(`/inventory/restoration-parts-requests/${id}/submit/`);
+}
+
+export function recordRestorationPartsOrder(
+  requestId: number,
+  payload: RestorationPartsOrderCreatePayload,
+): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-requests/${requestId}/record-order/`, payload);
+}
+
+export function listRestorationGradeScales(): Promise<{ data: RestorationGradeScaleDTO[] }> {
+  return api.get('/inventory/grade-scales/');
+}
+
+export function createRestorationGradeScale(
+  payload: RestorationGradeScaleCreatePayload,
+): Promise<{ data: RestorationGradeScaleDTO }> {
+  return api.post('/inventory/grade-scales/', payload);
+}
+
+export function suggestRestorationGradeScale(
+  params: RestorationGradeScaleSuggestParams,
+): Promise<{ data: RestorationGradeScaleSuggestDTO }> {
+  return api.get('/inventory/grade-scales/suggest/', { params });
 }

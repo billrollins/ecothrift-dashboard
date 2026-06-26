@@ -433,6 +433,14 @@ def _check_in_processing_row(
     retail = parse_decimal(data.get('retail') or data.get('unit_retail'))
     price = parse_decimal(data.get('price'))
     dispatch = data.get('dispatch') or 'on_shelf'
+    if dispatch == 'restoration' and quantity > 1:
+        raise ValueError('Restoration check-in is one item at a time. Set quantity to 1.')
+    restoration_scale = ''
+    restoration_grade_values: dict[str, float] = {}
+    if dispatch == 'restoration':
+        from apps.inventory.services.restoration import validate_restoration_check_in_payload
+
+        restoration_scale, restoration_grade_values = validate_restoration_check_in_payload(data)
     notes = str(data.get('notes') or '')
     title = str(data.get('title') or '').strip()
     brand = str(data.get('brand') or '').strip()
@@ -509,6 +517,23 @@ def _check_in_processing_row(
     check_in_origin = (
         ItemCheckIn.ORIGIN_PRODUCT_AD_HOC if is_added_row else ItemCheckIn.ORIGIN_PROCESSING
     )
+    defaults_snapshot = {
+        'condition': cond_db,
+        'dispatch': dispatch,
+        'location': location,
+        'price': str(item_price) if item_price is not None else None,
+        'retail': str(item_retail) if item_retail is not None else None,
+        'notes': notes,
+        'specifications': specs or row.specifications or {},
+    }
+    if dispatch == 'restoration':
+        from apps.inventory.services.restoration import merge_restoration_into_defaults_snapshot
+
+        defaults_snapshot = merge_restoration_into_defaults_snapshot(
+            defaults_snapshot,
+            restoration_scale,
+            restoration_grade_values,
+        )
     batch = ItemCheckIn.objects.create(
         purchase_order=order,
         processing_row=row,
@@ -516,15 +541,7 @@ def _check_in_processing_row(
         product=product,
         origin=check_in_origin,
         quantity=0,
-        defaults_snapshot={
-            'condition': cond_db,
-            'dispatch': dispatch,
-            'location': location,
-            'price': str(item_price) if item_price is not None else None,
-            'retail': str(item_retail) if item_retail is not None else None,
-            'notes': notes,
-            'specifications': specs or row.specifications or {},
-        },
+        defaults_snapshot=defaults_snapshot,
         created_by=user,
     )
     items = _bulk_create_checked_in_items([
@@ -564,6 +581,15 @@ def _check_in_processing_row(
         ItemHistory.objects.bulk_create(histories)
     if item_price is not None and row.manifest_row_id is not None:
         push_shelf_price_to_bookmark(order.id, row.manifest_row_id, item_price, processing_row_id=row.pk)
+    if dispatch == 'restoration':
+        from apps.inventory.services.restoration import create_restoration_job_from_check_in
+
+        create_restoration_job_from_check_in(
+            batch,
+            scale=restoration_scale,
+            grade_values=restoration_grade_values,
+            user=user,
+        )
     return items, batch
 
 
@@ -1295,6 +1321,9 @@ def delete_item_check_in(user, order: PurchaseOrder, item_check_in_id: int) -> d
         items = _items_for_item_check_in(check_in, order, for_update=True)
         item_pks = [i.pk for i in items]
         if not item_pks:
+            from apps.inventory.services.restoration import delete_restoration_job_if_removable
+
+            delete_restoration_job_if_removable(check_in)
             check_in.delete()
         else:
             sold = [i for i in items if i.status == 'sold' or i.sold_at]
@@ -1308,6 +1337,9 @@ def delete_item_check_in(user, order: PurchaseOrder, item_check_in_id: int) -> d
                 raise ValueError('Items in this check-in are referenced by POS carts — delete is blocked.')
 
             Item.objects.filter(pk__in=item_pks).delete()
+            from apps.inventory.services.restoration import delete_restoration_job_if_removable
+
+            delete_restoration_job_if_removable(check_in)
             check_in.delete()
 
         product_deleted = None
@@ -1576,6 +1608,7 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
 
         _sync_item_check_in_quantity(check_in)
         snapshot = dict(check_in.defaults_snapshot or {})
+        prior_dispatch = snapshot.get('dispatch')
         for key, src in (
             ('condition', updates.get('condition')),
             ('status', updates.get('status')),
@@ -1589,6 +1622,14 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
                 snapshot[key] = src
         if dispatch:
             snapshot['dispatch'] = dispatch
+            if prior_dispatch == 'restoration' and dispatch != 'restoration':
+                from apps.inventory.services.restoration import delete_restoration_job_for_check_in
+
+                delete_restoration_job_for_check_in(check_in)
+            elif dispatch == 'restoration' and prior_dispatch != 'restoration':
+                from apps.inventory.services.restoration import create_restoration_job_for_check_in
+
+                create_restoration_job_for_check_in(check_in, user)
         check_in.defaults_snapshot = snapshot
         check_in.save()
 

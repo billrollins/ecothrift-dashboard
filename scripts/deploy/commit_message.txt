@@ -1,28 +1,26 @@
-feat(inventory): label printed tracking + edit check-in ProductSummaryCard
+release(v2.34.0): TARS 2 bench live, dashboard metrics, parts orders
 
-Inventory / item label printed tracking:
-- Item.label_printed_at (migration 0067); backfilled for on-shelf items
-- POST /api/inventory/items/mark-labels-printed/ bulk endpoint; idempotent
-- label_printed / label_printed_at on serializer + _serialize_item; ?printed= list filter
-- printProcessingLabelsAndMarkPrinted wrapper wired to processing, catalog, workbench print paths
-- Workbench Items tab: Printed column (replaces checkedIn); Prior Check-ins: printedCount/qty aggregate
-- Rich search {printed=true|false}; Print vs Reprint affordance when already printed
+Release: v2.34.0
 
-Inventory / Processing check-in dialog:
-- Edit mode: ProductSummaryCard (Product #, Title, Brand, Model only) + 4 check-in-scoped item stat cards
-  (# Items, On Shelf, Sold, Printed — each clickable → workbench filtered view)
-- Status removed from all check-in forms (CheckInDetailFieldsSection.status is now opt-in)
-- Modal spacing tightened: reduced padding, inline compact Qty stepper, +N/-N on save delta
+### Restoration
+- Live RestorationJob queue API (migrations 0068–0074) and /restoration/queue React Query wiring
+- TARS 2 bench workstation (/restoration/tars-2) with persisted work_session, scan-to-bench, timer flows
+- Parts drawer Parts + Orders tabs; TarsPartsOrderDialog with order-specific partQtyOverrides
+- Debounced work session draft fixes input lag on bench text fields
 
-Restoration / TARS mock (Phase 0):
-- /restoration/tars: Send to Restoration | Check-In & Evaluate | TARS verb queues
-- Client-only mock store (TarsMockStore); grade-scale profit math; bench panel; execute panel
-- Active evaluation summary above Test / Assemble / Repair / Salvage queues
+### Dashboard
+- GET /api/pos/dashboard/metrics/ with sales + department rollups (45s cache, DB indexes)
+- DashboardSalesGoal + DashboardDepartmentGoal models and editable goal UI
+- Client sessionStorage placeholder for sub-second dashboard reload
 
-HR Time & payroll (Session 3 post-release polish):
-- Roster: Mon-Sun week-hours column, OT red format, remove cumulative payroll column
-- By employee: hours_this_week API field; per-week OT breakdown in This payroll
-- TimeEntry.save syncs date from clock_in; validate_shift_duration (16h max after breaks)
-- fmtClockCell shows date when clock spans a different day than the row date
+### HR
+- Time & payroll week-hours column, overtime formatting, 16h shift validation
 
-Initiative: tars_restoration_workspace (active Phase 0); hr_time_clock_mvp (archived)
+### Inventory / Processing
+- Label printed tracking (label_printed_at, mark-labels-printed API)
+- Restoration check-in grade scale validation; edit check-in ProductSummaryCard + stat cards
+- Status removed as manual check-in input
+
+### Other
+- Legacy /restoration/tars mock route retained; TarsMockProvider scoped to that route only
+- AI push protocol: mandatory semver bump on every GitHub push

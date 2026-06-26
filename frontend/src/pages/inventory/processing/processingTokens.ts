@@ -72,8 +72,8 @@ export const processingTokens = {
   /** Row manifest toolbar — clean white card */
   manifestToolbarSurface: '#ffffff',
   /** Compatibility aliases for existing section code. */
-  checkInSurface: '#ecfdf5',
-  checkInBorder: '#a7f3d0',
+  checkInSurface: '#e8f5e9',
+  checkInBorder: '#a5d6a7',
   /** Quick check-in field shells — white on amber header card */
   checkInShellBg: '#ffffff',
 } as const;

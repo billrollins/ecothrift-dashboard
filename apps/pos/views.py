@@ -10,14 +10,15 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 
-from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee
+from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee, IsSuperAdmin
 from apps.core.models import WorkLocation
 from apps.inventory.models import Item, ItemScanHistory
 from apps.inventory.services.resale_duplicate import duplicate_item_for_resale
 from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
-    Cart, CartLine, Receipt, RevenueGoal, HistoricalTransaction,
+    Cart, CartLine, Receipt, RevenueGoal, HistoricalTransaction, DashboardSalesGoal,
+    DashboardDepartmentGoal,
 )
 from .serializers import (
     RegisterSerializer, DrawerSerializer,
@@ -25,7 +26,8 @@ from .serializers import (
     SupplementalDrawerSerializer, SupplementalTransactionSerializer,
     BankTransactionSerializer,
     CartSerializer, CartLineSerializer, ReceiptSerializer,
-    RevenueGoalSerializer,
+    RevenueGoalSerializer, DashboardSalesGoalSerializer,
+    DashboardDepartmentGoalSerializer,
 )
 from .filters import CartFilter, DrawerFilter
 
@@ -775,79 +777,10 @@ class RevenueGoalViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 @perm_classes([IsAuthenticated])
 def dashboard_metrics(request):
-    """Dashboard: today's revenue, weekly summary, 4-week data."""
-    from datetime import timedelta, date
+    """Dashboard: sales overview and department metric stat cards."""
+    from apps.pos.services.dashboard_metrics import get_dashboard_metrics
 
-    today = timezone.now().date()
-
-    # Today's revenue
-    today_carts = Cart.objects.filter(
-        status='completed',
-        completed_at__date=today,
-    )
-    todays_revenue = today_carts.aggregate(
-        total=Sum('total'),
-    )['total'] or Decimal('0')
-
-    # Today's goal
-    goal = RevenueGoal.objects.filter(date=today).first()
-    todays_goal = goal.goal_amount if goal else Decimal('0')
-
-    # Weekly summary (Sun-Sat)
-    weekday = today.weekday()  # Mon=0, Sun=6
-    days_since_sunday = (weekday + 1) % 7
-    week_start = today - timedelta(days=days_since_sunday)
-
-    weekly = []
-    for i in range(7):
-        day = week_start + timedelta(days=i)
-        rev = Cart.objects.filter(
-            status='completed', completed_at__date=day,
-        ).aggregate(total=Sum('total'))['total'] or Decimal('0')
-        day_goal = RevenueGoal.objects.filter(date=day).first()
-        weekly.append({
-            'date': day.isoformat(),
-            'day': day.strftime('%A'),
-            'revenue': str(rev),
-            'goal': str(day_goal.goal_amount) if day_goal else '0',
-        })
-
-    # 4-week comparison (current + 3 prior weeks, Sun-Sat)
-    four_weeks = []
-    for w in range(4):
-        w_start = week_start - timedelta(weeks=w)
-        w_end = w_start + timedelta(days=6)
-        w_rev = Cart.objects.filter(
-            status='completed',
-            completed_at__date__gte=w_start,
-            completed_at__date__lte=w_end,
-        ).aggregate(total=Sum('total'))['total'] or Decimal('0')
-        w_goal = RevenueGoal.objects.filter(
-            date__gte=w_start, date__lte=w_end,
-        ).aggregate(total=Sum('goal_amount'))['total'] or Decimal('0')
-        four_weeks.append({
-            'week_start': w_start.isoformat(),
-            'week_end': w_end.isoformat(),
-            'revenue': str(w_rev),
-            'goal': str(w_goal),
-        })
-
-    # Quick stats
-    items_sold_today = Item.objects.filter(sold_at__date=today).count()
-    active_drawers = Drawer.objects.filter(status='open', date=today).count()
-
-    from apps.hr.models import TimeEntry
-    clocked_in = TimeEntry.objects.filter(clock_out__isnull=True).count()
-
-    return Response({
-        'todays_revenue': str(todays_revenue),
-        'todays_goal': str(todays_goal),
-        'weekly': weekly,
-        'four_weeks': four_weeks,
-        'items_sold_today': items_sold_today,
-        'active_drawers': active_drawers,
-        'clocked_in_employees': clocked_in,
-    })
+    return Response(get_dashboard_metrics())
 
 
 @api_view(['GET'])
@@ -887,6 +820,54 @@ def dashboard_alerts(request):
         })
 
     return Response(alerts)
+
+
+@api_view(['GET', 'POST'])
+@perm_classes([IsAuthenticated])
+def dashboard_sales_goal(request):
+    """Read or upsert the singleton dashboard sales chart goal."""
+    if request.method == 'GET':
+        goal = DashboardSalesGoal.objects.order_by('-updated_at').first()
+        if goal is None:
+            return Response(None)
+        return Response(DashboardSalesGoalSerializer(goal).data)
+
+    if not IsSuperAdmin().has_permission(request, None):
+        return Response({'detail': 'Superuser access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    goal = DashboardSalesGoal.objects.order_by('-updated_at').first()
+    serializer = DashboardSalesGoalSerializer(instance=goal, data=request.data)
+    serializer.is_valid(raise_exception=True)
+    serializer.save(
+        created_by=request.user if goal is None else goal.created_by,
+        updated_by=request.user,
+    )
+    return Response(serializer.data, status=status.HTTP_200_OK if goal else status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+@perm_classes([IsAuthenticated])
+def dashboard_department_goals(request):
+    """Read all department goals, or upsert one (superuser only)."""
+    if request.method == 'GET':
+        goals = DashboardDepartmentGoal.objects.all()
+        return Response(DashboardDepartmentGoalSerializer(goals, many=True).data)
+
+    if not IsSuperAdmin().has_permission(request, None):
+        return Response({'detail': 'Superuser access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    department = request.data.get('department')
+    existing = DashboardDepartmentGoal.objects.filter(department=department).first()
+    serializer = DashboardDepartmentGoalSerializer(instance=existing, data=request.data)
+    serializer.is_valid(raise_exception=True)
+    serializer.save(
+        created_by=request.user if existing is None else existing.created_by,
+        updated_by=request.user,
+    )
+    return Response(
+        serializer.data,
+        status=status.HTTP_200_OK if existing else status.HTTP_201_CREATED,
+    )
 
 
 @api_view(['GET'])

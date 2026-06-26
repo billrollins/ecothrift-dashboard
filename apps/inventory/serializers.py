@@ -6,6 +6,7 @@ from .models import (
     ItemHistory, ItemScanHistory,
     PreprocessingRow,
     ProcessingRow,
+    RestorationJob,
     Receiving, ReceivingPallet, ReceivingAttachment,
     Dispute,
 )
@@ -1331,3 +1332,473 @@ class ItemCheckInCatalogSerializer(serializers.ModelSerializer):
             })
         return out
 
+
+class RestorationJobSerializer(serializers.ModelSerializer):
+    sku = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField()
+    brand = serializers.SerializerMethodField()
+    model = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+    product_number = serializers.SerializerMethodField()
+    upc = serializers.SerializerMethodField()
+    source = serializers.SerializerMethodField()
+    condition = serializers.SerializerMethodField()
+    retail = serializers.SerializerMethodField()
+    price = serializers.SerializerMethodField()
+    needs_setup = serializers.SerializerMethodField()
+    items = serializers.SerializerMethodField()
+    elapsed_seconds = serializers.SerializerMethodField()
+    elapsed_hours = serializers.SerializerMethodField()
+    purchase_order_number = serializers.CharField(
+        source='purchase_order.order_number',
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = RestorationJob
+        fields = [
+            'id',
+            'stage',
+            'quantity',
+            'scale',
+            'grade_values',
+            'work_session',
+            'needs_setup',
+            'product_id',
+            'purchase_order_id',
+            'sku',
+            'name',
+            'brand',
+            'model',
+            'category',
+            'product_number',
+            'upc',
+            'source',
+            'condition',
+            'retail',
+            'price',
+            'purchase_order_number',
+            'return_disposition_type',
+            'return_reason',
+            'return_scale',
+            'return_grade',
+            'return_notes',
+            'item_check_in_id',
+            'items',
+            'created_at',
+            'updated_at',
+            'sent_at',
+            'returned_at',
+            'bench_started_at',
+            'timer_started_at',
+            'active_seconds',
+            'timer_is_running',
+            'timer_started_by_id',
+            'elapsed_seconds',
+            'elapsed_hours',
+            'pending_reason',
+            'pending_notes',
+            'pending_storage_location',
+            'pending_started_at',
+            'bench_disposition',
+            'final_grade',
+            'disposition_notes',
+            'spent_hours',
+            'spent_parts_cost',
+            'dispositioned_at',
+        ]
+        read_only_fields = fields
+
+    def get_elapsed_seconds(self, obj):
+        from apps.inventory.services.restoration_bench import elapsed_active_seconds
+
+        return elapsed_active_seconds(obj)
+
+    def get_elapsed_hours(self, obj):
+        from decimal import Decimal
+        from apps.inventory.services.restoration_bench import elapsed_active_hours
+
+        return str(elapsed_active_hours(obj).quantize(Decimal('0.01')))
+
+    def _check_in_items(self, obj: RestorationJob):
+        if not obj.item_check_in_id:
+            return []
+        check_in = obj.item_check_in
+        prefetched = getattr(check_in, '_prefetched_objects_cache', None)
+        if prefetched and 'items' in prefetched:
+            return list(check_in.items.all())
+        return list(check_in.items.order_by('id'))
+
+    def get_items(self, obj):
+        return [
+            {
+                'id': it.id,
+                'sku': it.sku,
+                'status': it.status,
+                'condition': it.condition,
+                'location': it.location or '',
+            }
+            for it in self._check_in_items(obj)
+        ]
+
+    def _first_item(self, obj: RestorationJob):
+        cached = getattr(obj, '_first_item_cache', None)
+        if cached is not None:
+            return cached
+        item = obj.item_check_in.items.order_by('id').first() if obj.item_check_in_id else None
+        obj._first_item_cache = item
+        return item
+
+    def get_sku(self, obj):
+        item = self._first_item(obj)
+        return item.sku if item else None
+
+    def get_name(self, obj):
+        if obj.product_id and obj.product:
+            return obj.product.title
+        return ''
+
+    def get_brand(self, obj):
+        if obj.product_id and obj.product:
+            return obj.product.brand or ''
+        return ''
+
+    def get_model(self, obj):
+        if obj.product_id and obj.product:
+            return obj.product.model or ''
+        return ''
+
+    def get_category(self, obj):
+        if obj.product_id and obj.product and obj.product.category_id:
+            return obj.product.category.name
+        return 'General'
+
+    def get_product_number(self, obj):
+        if obj.product_id and obj.product:
+            return obj.product.product_number or ''
+        return ''
+
+    def get_upc(self, obj):
+        if obj.product_id and obj.product:
+            identifiers = obj.product.identifiers if isinstance(obj.product.identifiers, dict) else {}
+            return str(identifiers.get('upc') or '')
+        return ''
+
+    def get_source(self, obj):
+        from apps.inventory.services.restoration import map_vendor_name_to_tars_source
+
+        vendor_name = None
+        if obj.purchase_order_id and obj.purchase_order and obj.purchase_order.vendor_id:
+            vendor_name = obj.purchase_order.vendor.name
+        return map_vendor_name_to_tars_source(vendor_name)
+
+    def get_condition(self, obj):
+        defaults = obj.item_check_in.defaults_snapshot if obj.item_check_in_id else {}
+        if isinstance(defaults, dict) and defaults.get('condition'):
+            return str(defaults.get('condition'))
+        item = self._first_item(obj)
+        return item.condition if item else ''
+
+    def get_retail(self, obj):
+        from apps.inventory.services.restoration import job_display_retail
+
+        value = job_display_retail(obj)
+        return str(value) if value is not None else None
+
+    def get_price(self, obj):
+        from apps.inventory.services.restoration import job_display_price
+
+        value = job_display_price(obj)
+        return str(value) if value is not None else None
+
+    def get_needs_setup(self, obj):
+        from apps.inventory.services.restoration import restoration_job_needs_setup
+
+        return restoration_job_needs_setup(obj)
+
+
+class RestorationJobPatchSerializer(serializers.Serializer):
+    scale = serializers.CharField(required=False, allow_blank=True)
+    grade_values = serializers.DictField(child=serializers.FloatField(), required=False)
+
+    def validate_scale(self, value):
+        from apps.inventory.services.restoration import is_known_active_scale
+
+        if value and not is_known_active_scale(value):
+            raise serializers.ValidationError('Unknown grade scale.')
+        return value
+
+    def validate(self, attrs):
+        from apps.inventory.services.restoration import (
+            empty_values_for_scale,
+            normalize_grade_values,
+        )
+
+        job = self.context['job']
+        scale = attrs.get('scale', job.scale)
+        if 'grade_values' in attrs:
+            grade_values = normalize_grade_values(attrs['grade_values'])
+        elif 'scale' in attrs and attrs['scale'] and attrs['scale'] != job.scale:
+            grade_values = empty_values_for_scale(scale, normalize_grade_values(job.grade_values))
+        else:
+            grade_values = normalize_grade_values(job.grade_values)
+        attrs['scale'] = scale
+        attrs['grade_values'] = grade_values
+        return attrs
+
+
+class RestorationJobWorkSessionSerializer(serializers.Serializer):
+    work_session = serializers.DictField()
+
+
+class RestorationJobHoldSerializer(serializers.Serializer):
+    reason = serializers.CharField()
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    storage_location = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate_reason(self, value):
+        from apps.inventory.services.restoration_bench import PENDING_REASONS
+
+        if value not in PENDING_REASONS:
+            raise serializers.ValidationError('Invalid hold reason.')
+        return value
+
+
+class RestorationJobDoneSerializer(serializers.Serializer):
+    destination = serializers.ChoiceField(
+        choices=['processing', 'storage', 'salvage', 'online_sales'],
+    )
+    final_grade = serializers.CharField()
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    spent_hours = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    spent_parts_cost = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+
+
+class RestorationPartsRequestLineSerializer(serializers.ModelSerializer):
+    class Meta:
+        from apps.inventory.models import RestorationPartsRequestLine
+
+        model = RestorationPartsRequestLine
+        fields = [
+            'id',
+            'part_number',
+            'description',
+            'url',
+            'qty',
+            'unit_price_estimate',
+            'unit_price_actual',
+            'status',
+            'linked_grade',
+        ]
+
+
+class RestorationPartsRequestSiteSerializer(serializers.ModelSerializer):
+    lines = RestorationPartsRequestLineSerializer(many=True, read_only=True)
+
+    class Meta:
+        from apps.inventory.models import RestorationPartsRequestSite
+
+        model = RestorationPartsRequestSite
+        fields = ['id', 'supplier_name', 'sort_order', 'lines']
+
+
+class RestorationPartsOrderLineSerializer(serializers.ModelSerializer):
+    request_line_id = serializers.IntegerField(source='request_line.id', read_only=True)
+
+    class Meta:
+        from apps.inventory.models import RestorationPartsOrderLine
+
+        model = RestorationPartsOrderLine
+        fields = ['id', 'request_line_id', 'qty', 'unit_cost', 'line_total']
+
+
+class RestorationPartsOrderSerializer(serializers.ModelSerializer):
+    lines = RestorationPartsOrderLineSerializer(many=True, read_only=True)
+
+    class Meta:
+        from apps.inventory.models import RestorationPartsOrder
+
+        model = RestorationPartsOrder
+        fields = [
+            'id',
+            'po_number',
+            'supplier_name',
+            'subtotal',
+            'shipping',
+            'tax',
+            'fees',
+            'total',
+            'ship_to_address',
+            'expected_delivery',
+            'ordered_at',
+            'notes',
+            'status',
+            'site',
+            'lines',
+            'created_at',
+            'updated_at',
+        ]
+
+
+class RestorationPartsRequestSerializer(serializers.ModelSerializer):
+    sites = RestorationPartsRequestSiteSerializer(many=True, read_only=True)
+    orders = RestorationPartsOrderSerializer(many=True, read_only=True)
+    job_sku = serializers.SerializerMethodField()
+    job_name = serializers.SerializerMethodField()
+
+    class Meta:
+        from apps.inventory.models import RestorationPartsRequest
+
+        model = RestorationPartsRequest
+        fields = [
+            'id',
+            'job',
+            'job_sku',
+            'job_name',
+            'status',
+            'selected_grade',
+            'eval_snapshot',
+            'notes',
+            'requested_by',
+            'sites',
+            'orders',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_job_sku(self, obj):
+        item = obj.job.item_check_in.items.order_by('id').first() if obj.job.item_check_in_id else None
+        return item.sku if item else None
+
+    def get_job_name(self, obj):
+        return obj.job.product.title if obj.job.product_id else ''
+
+
+class RestorationPartsRequestUpsertSerializer(serializers.Serializer):
+    eval_snapshot = serializers.DictField(required=False)
+
+
+class RestorationPartsOrderCreateSerializer(serializers.Serializer):
+    site_id = serializers.IntegerField(required=False, allow_null=True)
+    po_number = serializers.CharField()
+    supplier_name = serializers.CharField(required=False, allow_blank=True, default='')
+    subtotal = serializers.DecimalField(max_digits=10, decimal_places=2)
+    shipping = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tax = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
+    fees = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
+    ship_to_address = serializers.CharField(required=False, allow_blank=True, default='')
+    expected_delivery = serializers.DateField(required=False, allow_null=True)
+    line_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        allow_empty=True,
+    )
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class RestorationJobCreateSerializer(serializers.Serializer):
+    sku = serializers.CharField()
+
+
+class RestorationJobReturnSerializer(serializers.Serializer):
+    disposition_type = serializers.ChoiceField(choices=['tars_completed', 'untouched'])
+    reason = serializers.CharField(required=False, allow_blank=True)
+    scale = serializers.CharField(required=False, allow_blank=True)
+    grade = serializers.CharField(required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    item_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        allow_empty=False,
+    )
+
+
+class RestorationJobTimerAdjustSerializer(serializers.Serializer):
+    active_seconds = serializers.IntegerField(min_value=0, max_value=86400)
+
+
+class RestorationJobSplitGroupSerializer(serializers.Serializer):
+    item_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+    )
+
+
+class RestorationJobSplitSerializer(serializers.Serializer):
+    groups = RestorationJobSplitGroupSerializer(many=True)
+
+    def validate_groups(self, value):
+        if not value:
+            raise serializers.ValidationError('Provide at least one split group.')
+        seen: set[int] = set()
+        for group in value:
+            for item_id in group['item_ids']:
+                if item_id in seen:
+                    raise serializers.ValidationError('Each item can only appear in one split group.')
+                seen.add(item_id)
+        return value
+
+
+class RestorationJobCombineSerializer(serializers.Serializer):
+    job_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+    )
+    replace_values = serializers.BooleanField(required=False, default=False)
+
+    def validate_job_ids(self, value):
+        seen: set[int] = set()
+        for job_id in value:
+            if job_id in seen:
+                raise serializers.ValidationError('Each stack can only be selected once.')
+            seen.add(job_id)
+        if len(value) < 2:
+            raise serializers.ValidationError('Select at least two stacks to combine.')
+        return value
+
+
+class RestorationGradeScaleSerializer(serializers.ModelSerializer):
+    class Meta:
+        from apps.inventory.models import RestorationGradeScale
+
+        model = RestorationGradeScale
+        fields = ['id', 'name', 'grades', 'is_active', 'sort_order', 'created_at']
+        read_only_fields = fields
+
+
+class RestorationGradeScaleCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        from apps.inventory.models import RestorationGradeScale
+
+        model = RestorationGradeScale
+        fields = ['name', 'grades']
+
+    def validate_name(self, value):
+        from apps.inventory.models import RestorationGradeScale
+
+        name = (value or '').strip()
+        if not name:
+            raise serializers.ValidationError('Scale name is required.')
+        if RestorationGradeScale.objects.filter(name__iexact=name).exists():
+            raise serializers.ValidationError('A scale with this name already exists.')
+        return name
+
+    def validate_grades(self, value):
+        if not isinstance(value, list) or len(value) < 1:
+            raise serializers.ValidationError('At least one grade is required.')
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for raw in value:
+            grade = str(raw).strip()
+            if not grade:
+                continue
+            key = grade.lower()
+            if key in seen:
+                raise serializers.ValidationError(f'Duplicate grade: {grade}')
+            seen.add(key)
+            cleaned.append(grade)
+        if not cleaned:
+            raise serializers.ValidationError('At least one grade is required.')
+        return cleaned

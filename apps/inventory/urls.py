@@ -3,7 +3,10 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     VendorViewSet, CategoryViewSet, PurchaseOrderViewSet, CSVTemplateViewSet,
     ProductViewSet, VendorProductRefViewSet, BatchGroupViewSet,
-    ItemViewSet, ItemCheckInViewSet, ItemHistoryViewSet, manifest_field_metadata_view, item_lookup,
+    ItemViewSet, ItemCheckInViewSet, ItemHistoryViewSet, RestorationJobViewSet,
+    RestorationPartsRequestViewSet,
+    RestorationGradeScaleViewSet,
+    manifest_field_metadata_view, item_lookup,
     classify_item_view, store_report_view,
     verify_present_view, quick_reprice_view, duplicate_item_for_resale_view,
     mark_sold_item_on_shelf_view, estimate_price_view,
@@ -20,6 +23,9 @@ router.register(r'batch-groups', BatchGroupViewSet, basename='batchgroup')
 router.register(r'items', ItemViewSet, basename='item')
 router.register(r'item-check-ins', ItemCheckInViewSet, basename='itemcheckin')
 router.register(r'item-history', ItemHistoryViewSet, basename='itemhistory')
+router.register(r'restoration-jobs', RestorationJobViewSet, basename='restorationjob')
+router.register(r'restoration-parts-requests', RestorationPartsRequestViewSet, basename='restorationpartsrequest')
+router.register(r'grade-scales', RestorationGradeScaleViewSet, basename='restorationgradescale')
 
 urlpatterns = [
     path('manifest-fields/', manifest_field_metadata_view, name='inventory-manifest-fields'),

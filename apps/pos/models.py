@@ -215,6 +215,9 @@ class Cart(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'completed_at'], name='cart_dash_completed_idx'),
+        ]
 
     def __str__(self):
         return f'Cart #{self.id} - {self.status}'
@@ -299,6 +302,80 @@ class RevenueGoal(models.Model):
 
     def __str__(self):
         return f'{self.location.name} - {self.date}: ${self.goal_amount}'
+
+
+class DashboardSalesGoal(models.Model):
+    """Singleton target line for the dashboard sales run-rate chart."""
+
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    description = models.TextField(blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dashboard_sales_goals_created',
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dashboard_sales_goals_updated',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f'Dashboard sales goal: ${self.amount}'
+
+
+class DashboardDepartmentGoal(models.Model):
+    """Per-department target shown on the dashboard department cards.
+
+    `value` is stored as free text so it can represent money ("10000"),
+    a count ("10"), or a letter grade ("C") depending on the department.
+    """
+
+    BUYING = 'buying'
+    PROCESSING = 'processing'
+    RESTORATION = 'restoration'
+    RETAIL = 'retail'
+    DEPARTMENT_CHOICES = [
+        (BUYING, 'Buying'),
+        (PROCESSING, 'Processing'),
+        (RESTORATION, 'Restoration'),
+        (RETAIL, 'Retail QA'),
+    ]
+
+    department = models.CharField(max_length=20, choices=DEPARTMENT_CHOICES, unique=True)
+    value = models.CharField(max_length=50)
+    description = models.TextField(blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dashboard_department_goals_created',
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dashboard_department_goals_updated',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['department']
+
+    def __str__(self):
+        return f'{self.get_department_display()} goal: {self.value}'
 
 
 class HistoricalTransaction(models.Model):

@@ -181,6 +181,19 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'TARS',
     icon: 'build',
   },
+  tars2: {
+    id: 'tars2',
+    path: '/restoration/tars-2',
+    label: 'TARS 2',
+    icon: 'build',
+  },
+  restorationPartsRequests: {
+    id: 'restorationPartsRequests',
+    path: '/restoration/parts-requests',
+    label: 'Parts requests',
+    icon: 'localShipping',
+    roles: ['Manager', 'Admin'],
+  },
   blogStudio: {
     id: 'blogStudio',
     path: '/blog-studio',

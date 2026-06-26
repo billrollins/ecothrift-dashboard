@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-23 — TARS Restoration workspace active -->
+<!-- Last updated: 2026-06-26 — TARS Session 3: bench live + parts orders -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,7 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [tars_restoration_workspace](./tars_restoration_workspace.md) | Phase 0 — mock UI | TARS workspace `/restoration/tars`: **Send to Restoration** → **Check-In & Evaluate** → **TARS** verb tabs under active evaluation. Reference: [TARS prototype](./reference/TARS%20Restoration%20Processing%20App/TARS.dc.html). **Session 1** opened 2026-06-23. |
+| [tars_restoration_workspace](./tars_restoration_workspace.md) | Phase 1–3 — bench live | **`/restoration/queue`** live; **`/restoration/tars-2`** bench workstation + parts orders; legacy **`/restoration/tars`** mock route retained. |
 
 **Parked (off this index):** [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.
 

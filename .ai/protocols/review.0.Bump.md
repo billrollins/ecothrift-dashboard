@@ -1,7 +1,7 @@
-<!-- Last updated: 2026-05-18 (consultant_context removed; Extended TOC in context.md only) -->
+<!-- Last updated: 2026-06-24 (Part 2E — push always releases) -->
 # Protocol: Review & Bump (docs audit → `.version` → `CHANGELOG` → local commit)
 
-**Scope:** Docs-audit + semver bump + `CHANGELOG` update + **local** `git add` / `git commit` with a **short** message. This is a **slice** of `session.9.Close.md` — use when the user wants those without a full session close. **Optional:** grow **`scripts/deploy/commit_message.txt`** for the eventual push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**). **Bump then push in one flow:** **`code.9.Push.md`** runs this checklist + fills **`commit_message.txt`** + **`2_push_github.bat`** (skip Part 4B there). Otherwise **push** stays separate: frequent local commits protect against lost work; only reviewed work goes to GitHub or production via **`session.9.Close.md`** / deploy scripts.
+**Scope:** Docs-audit + semver bump + `CHANGELOG` update + **local** `git add` / `git commit` with a **short** message. This is a **slice** of `session.9.Close.md` — use when the user wants those without a full session close. **Optional:** grow **`scripts/deploy/commit_message.txt`** for the eventual push — see **Part 5** (works with **`scripts/deploy/2_push_github.bat`**). **Bump then push in one flow:** **`code.9.Push.md`** runs this checklist + **mandatory release bump (Part 2E)** + fills **`commit_message.txt`** + **`2_push_github.bat`** (skip Part 4B there). Otherwise **push** stays separate: frequent local commits protect against lost work; only reviewed work goes to GitHub or production via **`session.9.Close.md`** / deploy scripts — and **any** GitHub push via **`code.9.Push`** must ship a **new semver**.
 
 **Not this protocol:**
 - Session entry bookkeeping (`#### Result`, Session updates) → `session.1.Checkpoint.md` / `session.9.Close.md`.
@@ -78,13 +78,17 @@ grep -oE '\[.*\]\(\./[a-z_]+\.md\)' .ai/initiatives/_index.md
 
 **Format:** `.version` line 1 is `vMAJOR.MINOR.PATCH` (with `v`). Root `package.json` `"version"` is the same numeric semver **without** the `v`. Bump both together.
 
-### 2A. Gate — bump ONLY if
+### 2A. Gate — bump when releasing (checkpoint / review-only)
+
+Use this gate for **`review.0.Bump` alone**, **`session.1.Checkpoint.md`**, or **docs-only local commits** — **not** for **`code.9.Push`** (see **Part 2E**).
 
 1. User explicitly asked for a release, OR
 2. Work ships a user-visible / API-relevant change and this is `session.9.Close.md` (not a checkpoint), AND
 3. You can **name the initiative** the release fulfills (or explicitly declare "outside initiatives" hotfix).
 
 If any of those three fail → **do not bump**; log under `[Unreleased]` in `CHANGELOG.md` and stop.
+
+**Do not use Part 2A to skip a bump when the user invoked `code.9.Push`.**
 
 ### 2B. SemVer decision matrix (ecothrift-specific)
 
@@ -98,8 +102,8 @@ If any of those three fail → **do not bump**; log under `[Unreleased]` in `CHA
 | Backend perf optimization, no API change | HTTP session reuse; query prefetch | **PATCH** |
 | Bug fix; edge-case handling; error message tweak | Fix `change_given` coercion; fix 500 on empty manifest | **PATCH** |
 | AI/prompt tuning, no schema change | Remove `title_echo` verify; padded cached block | **PATCH** |
-| Docs / steering only (no code touched) | Protocol edit; `.ai/extended/` rewording; CHANGELOG cleanup | **no bump** — land in `[Unreleased]` Documentation subsection |
-| Pure refactor, no behavior change | Rename internal helper; extract pure fn | **no bump** (or PATCH if tied to a shipping release) |
+| Docs / steering only (no code touched) | Protocol edit; `.ai/extended/` rewording; CHANGELOG cleanup | **no bump** under Part 2A — land in `[Unreleased]`; **minimum PATCH** if pushing via **`code.9.Push` (Part 2E)** |
+| Pure refactor, no behavior change | Rename internal helper; extract pure fn | **no bump** under Part 2A (or PATCH if tied to a shipping release); **PATCH** if **`code.9.Push`** |
 | Dependency bump, security patch, no API change | `django==5.2.4 → 5.2.5` | **PATCH** |
 
 ### 2C. Ambiguity resolution
@@ -125,6 +129,20 @@ cat .version
 grep '"version"' package.json | head -1
 grep '"version"' frontend/package.json | head -1    # must remain 0.0.0
 ```
+
+### 2E. Push release — **always bump** (`code.9.Push.md`)
+
+When the user runs **`code.9.Push`** (GitHub push to **`main`**), **always cut a release** — no exceptions.
+
+1. **Bump** **`.version`** + root **`package.json`** (Part 2D).
+2. **Apply Part 3A** — new dated **`CHANGELOG`** section at the top; move content out of **`[Unreleased]`**.
+3. **Choose semver** with Part 2B. If the change list is doc-only or trivial → **PATCH**. If you cannot decide PATCH vs MINOR → **PATCH** (Part 2C). MAJOR vs MINOR ambiguity → **stop and ask**.
+4. **Name the initiative** (or "outside initiatives hotfix") in the CHANGELOG theme line when applicable.
+5. **Verify** top dated **`CHANGELOG`** header matches **`.version`** before **`2_push_github.bat`**.
+
+**Rationale:** Production displays this semver (`/api/core/system/version/`, sidebar). Pushing without a bump ships code but leaves the version unchanged — you cannot confirm deploy from the live app.
+
+**Checkpoint / Part 2A "no bump" does not apply on push.** Accumulate work under **`[Unreleased]`** during the session; **release it at push time**.
 
 ---
 
@@ -202,8 +220,9 @@ All of:
 
 - [ ] Every touched file listed in Part 1 has a current `<!-- Last updated -->`.
 - [ ] Extended TOC in `.ai/context.md` lists every file in `.ai/extended/` (Part 1C check 3).
-- [ ] If bumped in Part 2: `.version`, root `package.json` `"version"`, and top of `CHANGELOG.md` all agree.
-- [ ] If NOT bumped: changes live under `## [Unreleased]` in `CHANGELOG.md`.
+- [ ] **If `code.9.Push` (Part 2E):** `.version`, root `package.json` `"version"`, and top dated `CHANGELOG.md` section **must** agree; `[Unreleased]` must not hold shipped bullets.
+- [ ] **If bumped under Part 2A / session close (not push-only checkpoint):** `.version`, root `package.json` `"version"`, and top of `CHANGELOG.md` all agree.
+- [ ] **If NOT bumped (checkpoint / review-only under Part 2A):** changes live under `## [Unreleased]` in `CHANGELOG.md`.
 - [ ] `frontend/package.json` `"version"` still `0.0.0`.
 - [ ] No secrets in touched files (`git diff` visual scan of `.env*`, `AWS_`, `ANTHROPIC_`, `SECRET_KEY`, `DATABASE_URL`).
 
@@ -243,7 +262,7 @@ After committing, hand back to the user or continue to `session.9.Close.md` Part
 | **After a successful push** | `2_push_github.bat` resets `commit_message.txt` to a **single line** `---`. Before the next push, **replace the whole file** with the new message (subject on line 1, blank line, then body). Do **not** keep `---` on line 1 with more text below — the script rejects `---` as the first line and you will not get a real subject. |
 | **File already has a full message** (not placeholder) | Run `2_push_github.bat` when ready — the **entire** file becomes the git commit message. To add more, **edit** the file (append or rewrite), then run the script; nothing auto-appends. |
 | **Placeholder only** (`---` alone) | **Replace completely** with your real subject + body. |
-| **`code.9.Push.md`** | Runs this checklist + **`commit_message.txt`** + **`2_push_github.bat`** — skip Part 4B unless you intentionally want a separate short commit before the bat runs. |
+| **`code.9.Push.md`** | **Mandatory Part 2E release** + **`commit_message.txt`** + **`2_push_github.bat`** — skip Part 4B unless you intentionally want a separate short commit before the bat runs |
 | **`Called from** `4_deploy_careful.bat` / `5_deploy_yolo.bat` | Same **`commit_message.txt`** rules; **`2_push_github.bat`** resets to **`---`** after a successful push. |
 
 **Conventional shape:** line 1 = `type: short description`; blank line; body (bullets OK).
@@ -260,5 +279,5 @@ After committing, hand back to the user or continue to `session.9.Close.md` Part
 | `session.1.Checkpoint.md` | Lighter pulse — `[Unreleased]` only, never `.version` |
 | `code.1.Bearing.md` | Use when you're not sure what changed — do that before this protocol |
 | **`review.0.Bump.md`** (this) | Docs audit + semver + CHANGELOG + **local** short commit |
-| **`code.9.Push.md`** | Same checklist + **`commit_message.txt`** + **`2_push_github.bat`** — **no** separate Part 4B short commit |
+| **`code.9.Push.md`** | Same checklist + **mandatory Part 2E bump** + **`commit_message.txt`** + **`2_push_github.bat`** — **no** separate Part 4B short commit |
 | `session.9.Close.md` | Superset — calls this protocol's work AND sets `#### Result` / `commit_message.txt` / pre-commit / **push** |

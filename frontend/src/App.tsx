@@ -54,6 +54,8 @@ import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
 import TarsQueuePage from './pages/restoration/tars/TarsQueuePage';
 import TarsPage from './pages/restoration/tars/TarsPage';
+import Tars2Page from './pages/restoration/tars/Tars2Page';
+import TarsPartsRequestsPage from './pages/restoration/TarsPartsRequestsPage';
 import RestorationLayout from './pages/restoration/RestorationLayout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -159,6 +161,8 @@ export default function App() {
           <Route index element={<Navigate to="/restoration/queue" replace />} />
           <Route path="queue" element={<TarsQueuePage />} />
           <Route path="tars" element={<TarsPage />} />
+          <Route path="tars-2" element={<Tars2Page />} />
+          <Route path="parts-requests" element={<TarsPartsRequestsPage />} />
         </Route>
         <Route
           path="/admin/pos-setup"

@@ -304,6 +304,20 @@ export function inventoryWorkbenchItemsUrl(opts: {
   return inventoryWorkbenchUrl({ tab: 'items', q: q || undefined });
 }
 
+/** Open a single catalog item on the workbench items tab. */
+export function inventoryWorkbenchItemUrl(item: { id: number; sku: string }): string {
+  return inventoryWorkbenchUrl({
+    tab: 'items',
+    q: item.sku,
+    selected: { type: 'item', id: item.id, label: item.sku },
+  });
+}
+
+/** Inventory Workbench URL focused on a catalog item (Items tab). */
+export function itemCatalogWorkbenchUrl(catalogItemId: number, sku: string): string {
+  return inventoryWorkbenchItemUrl({ id: catalogItemId, sku });
+}
+
 /** @deprecated Use inventoryWorkbenchItemsUrl — kept for call-site compatibility. */
 export function manageItemsSearchUrl(opts: {
   text?: string;
@@ -353,6 +367,18 @@ export function inventoryWorkbenchUrl(opts: {
 
 export function productRichSearch(productId: number): string {
   return formatRichSearch({ filters: { product: productId }, entity: 'products' });
+}
+
+/** Inventory Workbench URL focused on a catalog product (Products tab). */
+export function productCatalogWorkbenchUrl(productId: number, label?: string): string {
+  return inventoryWorkbenchUrl({
+    q: productRichSearch(productId),
+    selected: {
+      type: 'product',
+      id: productId,
+      label: label?.trim() || String(productId),
+    },
+  });
 }
 
 export function checkInRichSearch(opts: { product?: number; checkin?: number; order?: number }): string {

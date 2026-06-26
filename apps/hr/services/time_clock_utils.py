@@ -11,7 +11,13 @@ WEEKLY_HOUR_LIMIT = Decimal('40.00')
 MAX_SHIFT_HOURS = Decimal('16.00')
 
 
-def validate_shift_duration(clock_in, clock_out, break_minutes=0) -> None:
+def validate_shift_duration(
+    clock_in,
+    clock_out,
+    break_minutes=0,
+    *,
+    skip_max_duration: bool = False,
+) -> None:
     """Reject clock spans that cannot represent a single work shift."""
     if not clock_in or not clock_out:
         return
@@ -19,7 +25,7 @@ def validate_shift_duration(clock_in, clock_out, break_minutes=0) -> None:
     hours = Decimal(str(delta.total_seconds())) / Decimal('3600')
     break_hours = Decimal(str(break_minutes or 0)) / Decimal('60')
     worked = hours - break_hours
-    if worked > MAX_SHIFT_HOURS:
+    if not skip_max_duration and worked > MAX_SHIFT_HOURS:
         raise ValidationError(
             {
                 'detail': (

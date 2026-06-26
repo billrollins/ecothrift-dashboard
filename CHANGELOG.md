@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [Unreleased] — HR Time & payroll week-hours / overtime UX (local) -->
-<!-- Last reviewed: 2026-06-23 (docs audit — initiative archived; WIP in [Unreleased]) -->
+<!-- Line 1 release: ## [2.34.0] — 2026-06-26 -->
+<!-- Last reviewed: 2026-06-26 (release v2.34.0 — TARS bench, dashboard, parts orders) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,27 +10,41 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.34.0] — 2026-06-26
 
-Initiative: [`.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md`](.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md) (Session 3 post-release polish); [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md) (Phase 0 mock)
+User-facing theme: **Restoration bench goes live on TARS 2, dashboard metrics ship with goals, and parts-list orders get full CRUD with order-specific qty.**
+
+Initiatives: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md); [`.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md`](.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md) (payroll polish)
 
 ### Added
 
+- **Restoration / queue live data** — **`RestorationJob`** model (migrations `0068`–`0074`, one batch per **`ItemCheckIn`**); Processing check-in with **`dispatch=restoration`** persists grade scale/values and creates a **`queued`** job; **`GET/PATCH/POST /api/inventory/restoration-jobs/`**, **`POST …/{id}/send/`**, **`POST …/{id}/return-to-processing/`**; **`/restoration/queue`** wired to React Query (manual SKU scan, edit grades, send to bench-ready **`sent`** stage, or return to Processing with TARS-completed/untouched disposition).
+- **Restoration / TARS 2 bench** — **`/restoration/tars-2`** full-width workstation with live bench API (`PATCH …/work-session/`, scan-to-bench, pending/hold/done flows); persisted **`work_session`** JSON on **`RestorationJob`** (migrations `0071`–`0073`); grade scales API (`GET/PATCH /api/inventory/grade-scales/`); parts requests scaffold (`RestorationPartsRequestViewSet`).
+- **Restoration / parts list orders** — Parts drawer **Parts** + **Orders** tabs; per-order shipping/tax/fees; renamable orders; **`TarsPartsOrderDialog`** with drawer-style editable lines; **`partQtyOverrides`** on orders so order qty can differ from the parts-list master qty while description/URL/price stay synced.
+- **POS / dashboard metrics** — **`GET /api/pos/dashboard/metrics/`** with sales run-rate, department cards, buying/processing/restoration rollups; **`DashboardSalesGoal`** + **`DashboardDepartmentGoal`** models (migrations `0005`–`0006`); editable goals in UI (`frontend/src/components/dashboard/`); 45s server cache + client **`sessionStorage`** placeholder for sub-second reloads; DB indexes on **`Cart`** and **`ItemHistory`** (migrations `0007`, `0075`).
 - **Inventory / item label printed tracking** — `Item.label_printed_at` (backfilled for existing items); `POST /api/inventory/items/mark-labels-printed/` bulk marker after local print success; **Printed** column on workbench Items tab and Processing Prior Check-ins (`printedCount/qty`); Print vs Reprint affordances when labels already printed.
-- **Restoration / TARS workspace (mock)** — `/restoration/tars`: **Send to Restoration** (grade retail + send), **Check-In & Evaluate** (scan-in, live evaluation, perform path), **TARS** (active evaluation summary + Test/Assemble/Repair/Salvage queues). Client-only mock (`frontend/src/pages/restoration/tars/`).
+- **Restoration / TARS workspace (legacy mock route)** — `/restoration/tars`: **Check-In & Evaluate** (scan-in, live evaluation, perform path), **TARS** (active evaluation summary + Test/Assemble/Repair/Salvage queues). Client mock retained on legacy route while TARS 2 uses live data.
 
 ### Changed
 
+- **Restoration / Send to Restoration** — **`/restoration/queue`** reads live **`RestorationJob`** rows instead of client mock seed data; **`TarsMockProvider`** scoped to **`/restoration/tars`** only.
+- **Restoration / TARS 2 UX** — Debounced local **`work_session`** draft (`useWorkSessionDraft`) eliminates input lag on bench text fields; bench cache patch avoids full refetch on every keystroke.
+- **Inventory / Processing — restoration check-in** — **`restoration_scale`** + **`restoration_grade_values`** validated server-side when dispatch is Restoration (`ProcessingSendToRestorationDialog` payload).
 - **Inventory / Processing — edit check-in dialog** — `ProductSummaryCard` shows Product #, Title, Brand, Model only (no nested stat cards); edit mode surfaces **4 check-in-scoped item stat cards** (# Items, On Shelf, Sold, Printed) clickable to workbench with filters; modal spacing tightened (`ProcessingCheckInEditStats.tsx`, `ProcessingCheckInDialog.tsx`).
-- **Inventory / Processing — check-in forms** — Status removed as a check-in input (status is automatic); `CheckInDetailFieldsSection.status` prop is opt-in; removed from Processing check-in dialog, workbench manage panel create/edit/duplicate paths (`ProcessingCheckInDialog.tsx`, `ItemCheckInManagePanel.tsx`).
-- **Restoration / TARS mock UX** — Workspace pages renamed to **Send to Restoration**, **Check-In & Evaluate** (default), **TARS**; active evaluation summary above verb queues (`TarsWorkspacePage`, `TarsExecutePanel`).
+- **Inventory / Processing — check-in forms** — Status removed as a check-in input (status is automatic); `CheckInDetailFieldsSection.status` prop is opt-in; removed from Processing check-in dialog, workbench manage panel create/edit/duplicate paths.
+- **Restoration / TARS mock UX** — Workspace pages renamed to **Send to Restoration**, **Check-In & Evaluate** (default), **TARS**; active evaluation summary above verb queues.
+- **Dashboard** — **`DashboardPage`** rebuilt with department metric cards, weekly sales list, and sales overview section; metrics load from live API instead of static placeholders.
 - **HR / Time & payroll — roster tab** — Columns reordered (Date, Employee, Start, Stop, Break, Hours, **Week hours**, Pay); **Week hours** shows full Mon–Sun partition sum per employee with red overtime format (`40.00 (+X.XX overtime)`); removed payroll running-total column (`apps/hr/services/roster.py`, `TimePayrollPage.tsx`).
-- **HR / Time & payroll — by employee** — **This week** column (`hours_this_week` on `GET …/payroll/`); **This payroll** shows per-calendar-week OT breakdown; KPI **This week** uses current-week roster fetch (`apps/hr/views.py`, `PayrollEmployeeRowSerializer`).
-- **HR / time entries** — `TimeEntry.save` syncs `date` from `clock_in`; **`validate_shift_duration`** rejects shifts over **16h** after breaks (`apps/hr/models.py`, `apps/hr/services/time_clock_utils.py`).
+- **HR / Time & payroll — by employee** — **This week** column (`hours_this_week` on `GET …/payroll/`); **This payroll** shows per-calendar-week OT breakdown; KPI **This week** uses current-week roster fetch.
+- **HR / time entries** — `TimeEntry.save` syncs `date` from `clock_in`; **`validate_shift_duration`** rejects shifts over **16h** after breaks.
 
 ### Fixed
 
 - **HR / roster display** — Start/Stop show date when clock timestamp spans a different day than the row date (`fmtClockCell` on `TimePayrollPage.tsx`).
+
+### Documentation
+
+- **AI protocols** — **`code.9.Push`** and **`review.0.Bump` Part 2E**: every GitHub push requires semver release + dated **`CHANGELOG`** section.
 
 ---
 

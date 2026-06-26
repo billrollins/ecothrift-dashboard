@@ -798,7 +798,7 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
             <Typography
               sx={{
                 fontWeight: 700,
-                color: hasCosts ? '#15803d' : '#cbd5e1',
+                color: hasCosts ? '#2e7d32' : '#cbd5e1',
                 fontVariantNumeric: 'tabular-nums',
                 fontSize: 14,
               }}
@@ -832,7 +832,7 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
                 sx={{
                   fontWeight: 700,
                   fontSize: 13,
-                  color: marginPct > 50 ? '#15803d' : '#0f172a',
+                  color: marginPct > 50 ? '#2e7d32' : '#0f172a',
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >

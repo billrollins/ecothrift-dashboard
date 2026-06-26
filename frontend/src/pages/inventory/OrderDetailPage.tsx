@@ -901,7 +901,7 @@ export default function OrderDetailPage() {
                           width: 2,
                           height: 12,
                           borderRadius: 0.5,
-                          bgcolor: filled ? '#a7f3d0' : TOKENS.borderInner,
+                          bgcolor: filled ? '#a5d6a7' : TOKENS.borderInner,
                         }}
                       />
                     )}

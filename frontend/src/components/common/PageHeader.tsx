@@ -4,31 +4,32 @@ export interface PageHeaderProps {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
+  dense?: boolean;
 }
 
-export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, action, dense }: PageHeaderProps) {
   return (
     <Box
       sx={{
         display: 'flex',
         flexWrap: 'wrap',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        gap: 2,
-        mb: 3,
+        gap: dense ? 1 : 2,
+        mb: dense ? 0.75 : 3,
       }}
     >
       <Box>
-        <Typography variant="h4" fontWeight={600} gutterBottom>
+        <Typography variant={dense ? 'h5' : 'h4'} fontWeight={600} gutterBottom={!dense && Boolean(subtitle)}>
           {title}
         </Typography>
-        {subtitle && (
+        {subtitle ? (
           <Typography variant="body2" color="text.secondary">
             {subtitle}
           </Typography>
-        )}
+        ) : null}
       </Box>
-      {action && <Box sx={{ flexShrink: 0 }}>{action}</Box>}
+      {action ? <Box sx={{ flexShrink: 0 }}>{action}</Box> : null}
     </Box>
   );
 }

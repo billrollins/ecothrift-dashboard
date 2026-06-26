@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar,
   Avatar,
@@ -24,6 +24,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
 import { getAppVersion } from '../../api/core.api';
 import logo from '../../assets/logo-full-240x80.png';
+import { dashboardPalette } from '../dashboard/dashboardCardStyles';
+
+const DASHBOARD_BACKDROP = dashboardPalette.backdrop;
 
 export default function MainLayout() {
   const theme = useTheme();
@@ -32,6 +35,8 @@ export default function MainLayout() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isDashboard = location.pathname === '/dashboard';
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
   const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
@@ -188,10 +193,17 @@ export default function MainLayout() {
             overflowX: 'hidden',
             overflowY: 'auto',
             p: 3,
-            bgcolor: 'background.default',
+            ...(isDashboard
+              ? {
+                  background: DASHBOARD_BACKDROP,
+                }
+              : {}),
+            bgcolor: isDashboard ? DASHBOARD_BACKDROP : 'background.default',
           }}
         >
-          <Outlet />
+          <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <Outlet />
+          </Box>
         </Box>
       </Box>
     </Box>

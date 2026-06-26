@@ -48,7 +48,7 @@ export default function InlineEditableValue({
   const borderBottom = editing
     ? '2px solid #0f172a'
     : flashOk
-      ? '2px solid #22c55e'
+      ? '2px solid #2e7d32'
       : flashErr
         ? '2px solid #ef4444'
         : undefined;
@@ -192,7 +192,7 @@ export default function InlineEditableValue({
         fontWeight: 600,
         color: displayEmpty ? '#c4c9d1' : '#1e293b',
         cursor: 'pointer',
-        borderBottom: flashOk ? '2px solid #22c55e' : flashErr ? '2px solid #ef4444' : '1px dashed transparent',
+        borderBottom: flashOk ? '2px solid #2e7d32' : flashErr ? '2px solid #ef4444' : '1px dashed transparent',
         transition: 'border-color 150ms ease',
         fontFamily: mono ? "'DM Mono', ui-monospace, monospace" : 'inherit',
         fontVariantNumeric: 'tabular-nums',

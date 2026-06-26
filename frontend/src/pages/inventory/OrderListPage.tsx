@@ -80,7 +80,7 @@ function statusDotColor(status: PurchaseOrderStatus): string {
   switch (status) {
     case 'delivered':
     case 'complete':
-      return '#22c55e';
+      return '#2e7d32';
     case 'shipped':
       return '#3b82f6';
     case 'ordered':

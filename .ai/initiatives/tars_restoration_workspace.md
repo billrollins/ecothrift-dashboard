@@ -1,15 +1,11 @@
-<!-- initiative: slug=tars-restoration-workspace status=active updated=2026-06-23 -->
-<!-- Last updated: 2026-06-23 (Session 1b — TARS page model: Send / Check-In & Evaluate / TARS) -->
+<!-- initiative: slug=tars-restoration-workspace status=active updated=2026-06-24 -->
+<!-- Last updated: 2026-06-26 (Session 3 — TARS 2 bench live + parts orders) -->
 
 # Initiative: TARS Restoration Workspace
 
-**Status:** **Active** — Phase 0 (design + client mock).
+**Status:** **Active** — Queue live + **TARS 2 bench live** (parts orders, work session persistence).
 
-**Goal:** Build the **Restoration workspace** for TARS — **Test, Assemble, Repair, Salvage** — with a clear handoff from Processing and a profit-based decision engine.
-
-**Reference UX:** [`.ai/reference/TARS Restoration Processing App/`](../reference/TARS%20Restoration%20Processing%20App/TARS.dc.html) (Design Component prototype).
-
-**Route:** `/restoration/tars` — Restoration nav workspace (Slot C).
+**Routes:** `/restoration/queue` (Send to Restoration), `/restoration/tars-2` (live bench workstation), `/restoration/tars` (legacy mock Check-In & Evaluate).
 
 ---
 
@@ -42,14 +38,15 @@ Restoration staff can **receive items sent from Processing**, **price grade outc
 
 ### Phase 1 — Backend foundation
 
-- [ ] `RestorationJob` (or equivalent) model: stage, scale, `grade_values`, paths, `chosen_path`, timestamps
-- [ ] REST API: list/send/scan/bench/decide/complete
-- [ ] Wire mock UI to React Query hooks
+- [x] `RestorationJob` model: stage, scale, `grade_values`, timestamps (one per `ItemCheckIn`)
+- [x] REST API: list / patch / send / manual SKU scan (`/api/inventory/restoration-jobs/`)
+- [x] Queue page wired to React Query hooks
+- [x] Bench / verb queue API (`sent` → `bench` → `executing` → `done`) — **`PATCH …/work-session/`**, scan-to-bench, pending/hold/done
 
 ### Phase 2 — Processing handoff
 
-- [ ] Items with `dispatch=restoration` create or enqueue restoration jobs
-- [ ] Intake queue fed from real check-ins (not seed data)
+- [x] Items with `dispatch=restoration` create restoration jobs + persist grade snapshot
+- [x] Intake queue fed from real check-ins (Processing + manual SKU scan)
 
 ### Phase 3 — Execute workflows
 
@@ -89,6 +86,42 @@ Restoration staff can **receive items sent from Processing**, **price grade outc
 ---
 
 ## Sessions
+
+### Session 3 — 2026-06-26
+
+**Goal:** Ship **TARS 2** live bench workstation, parts-list orders CRUD, dashboard metrics.
+
+**Updates:**
+
+- **`/restoration/tars-2`** — full-width **`TarsWorkstation`** with live **`RestorationJob`** bench API, debounced **`work_session`** draft, grade scales, timer flows.
+- Parts drawer — Parts + Orders tabs; **`TarsPartsOrderDialog`** with drawer-style lines; **`partQtyOverrides`** for order-only qty.
+- Dashboard — live metrics API, department/sales goals, sub-second reload via cache + client placeholder.
+- Released **v2.34.0**.
+
+---
+
+### Session 2 — 2026-06-24
+
+**Goal:** Finish **Queue** page design, then redesign **TARS** page to match reference UX — still client mock only.
+
+**Finish line:** Queue design complete and signed off; TARS page (bench + evaluation + verb queues) visually aligned with [TARS prototype](../reference/TARS%20Restoration%20Processing%20App/TARS.dc.html).
+
+**Scope:** Phase 0 mock UI polish — `TarsIntakePanel` / `TarsQueuePage`, then `TarsBenchPanel`, `TarsExecutePanel`, `TarsPage`. Shared mock store unchanged unless design needs it.
+
+**Out of scope:** Django models, REST API, React Query wiring, Processing handoff (Phase 1+).
+
+**Start:** 2026-06-24
+
+**Order:** (1) Queue → (2) TARS → (3) backend / real data (later session).
+
+**Updates (Session 2b — queue live):**
+
+- `RestorationJob` + migration `0068`; `apps/inventory/services/restoration.py` grade validation + job lifecycle.
+- Processing check-in validates/persists `restoration_scale` / `restoration_grade_values`; creates job when `dispatch=restoration`.
+- REST: `GET/PATCH/POST /api/inventory/restoration-jobs/`, `POST …/{id}/send/`; manual SKU scan for restoration items.
+- `/restoration/queue` uses React Query (`useRestorationJobs`); `TarsMockProvider` scoped to `/restoration/tars` only.
+
+---
 
 ### Session 1 — 2026-06-23
 

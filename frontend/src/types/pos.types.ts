@@ -190,16 +190,110 @@ export interface WeeklyDayMetric {
   date: string;
   day: string;
   revenue: string;
-  goal: string;
+  goal?: string;
+}
+
+export interface SalesDailyMetric {
+  date: string;
+  day: string;
+  rolling_week_total: string;
+  four_week_weekly_avg: string;
+  week_start: string;
+  is_week_start: boolean;
+}
+
+export interface SalesWeeklyRow {
+  week_start: string;
+  week_end: string;
+  week_total: string;
+  label: string;
+  days: WeeklyDayMetric[];
+}
+
+export interface DashboardSalesGoal {
+  id: number;
+  amount: string;
+  description: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SalesMetrics {
+  today: string;
+  yesterday: string;
+  same_weekday_last_week: string;
+  goal: DashboardSalesGoal | null;
+  daily_last_90_days: SalesDailyMetric[];
+  weekly_last_14_weeks: SalesWeeklyRow[];
+}
+
+export interface DepartmentPeriodMetric {
+  week: string;
+  today: string;
+}
+
+export interface RestorationMetrics {
+  week_jobs_done: number;
+  today_jobs_done: number;
+  week_tested: number;
+  week_repairs: number;
+  week_assembled: number;
+  week_salvaged: number;
+  today_tested: number;
+  today_repairs: number;
+  today_assembled: number;
+  today_salvaged: number;
+  ready: boolean;
+  note?: string;
+}
+
+export interface RetailMetrics {
+  ready: boolean;
+  average_grade: string | null;
+  last_grade: string | null;
+  note?: string;
+}
+
+export interface DepartmentDailyMetric {
+  date: string;
+  day: string;
+  buying: string;
+  processing: string;
+  restoration: number;
+  retail: string | null;
+  is_future: boolean;
+}
+
+export interface DepartmentDailyWeek {
+  label: string;
+  week_start: string;
+  week_end: string;
+  days: DepartmentDailyMetric[];
+}
+
+export type DepartmentGoalKey = 'buying' | 'processing' | 'restoration' | 'retail';
+
+export interface DashboardDepartmentGoal {
+  id: number;
+  department: DepartmentGoalKey;
+  value: string;
+  description: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DepartmentMetrics {
+  buying: DepartmentPeriodMetric;
+  processing: DepartmentPeriodMetric;
+  restoration: RestorationMetrics;
+  retail: RetailMetrics;
+  goals: Partial<Record<DepartmentGoalKey, DashboardDepartmentGoal>>;
+  daily_weeks: DepartmentDailyWeek[];
 }
 
 export interface DashboardMetrics {
-  todays_revenue: string;
-  todays_goal: string;
-  weekly: WeeklyDayMetric[];
-  items_sold_today: number;
-  active_drawers: number;
-  clocked_in_employees: number;
+  sales: SalesMetrics;
+  department_metrics: DepartmentMetrics;
 }
 
 export interface DashboardAlert {

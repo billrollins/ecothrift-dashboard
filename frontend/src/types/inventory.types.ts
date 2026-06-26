@@ -899,3 +899,250 @@ export interface ReceivingPatchPayload {
   received_pallet_count?: number;
   pallets?: Array<{ pallet_number: number; damaged?: boolean }> | null;
 }
+
+export type RestorationJobStage = 'queued' | 'sent' | 'bench' | 'pending' | 'executing' | 'done' | 'returned';
+
+export type RestorationBenchDisposition = 'processing' | 'storage' | 'salvage' | 'online_sales';
+
+export type RestorationPendingReason =
+  | 'parts_needed'
+  | 'need_more_time'
+  | 'pending_test'
+  | 'repair_time_needed'
+  | 'tools_needed'
+  | 'needs_approval'
+  | 'research_sop'
+  | 'safety_hold'
+  | 'between_steps'
+  | 'other';
+
+export type RestorationReturnDispositionType = 'tars_completed' | 'untouched';
+
+export type RestorationUntouchedReason = 'recalled' | 'not_worth_it' | 'other';
+
+export type TarsSource = 'Target' | 'Amazon' | 'Walmart' | null;
+
+export interface RestorationJobItemDTO {
+  id: number;
+  sku: string;
+  status: string;
+  condition: string;
+  location: string;
+}
+
+export interface RestorationJobDTO {
+  id: number;
+  stage: RestorationJobStage;
+  quantity: number;
+  scale: string;
+  grade_values: Record<string, number>;
+  needs_setup: boolean;
+  work_session?: Record<string, unknown>;
+  product_id: number | null;
+  purchase_order_id: number | null;
+  sku: string | null;
+  name: string;
+  brand: string;
+  model: string;
+  category: string;
+  product_number: string;
+  upc: string;
+  source: TarsSource;
+  condition: string;
+  retail: string | null;
+  price: string | null;
+  purchase_order_number: string | null;
+  return_disposition_type: RestorationReturnDispositionType | '';
+  return_reason: RestorationUntouchedReason | '';
+  return_scale: string;
+  return_grade: string;
+  return_notes: string;
+  item_check_in_id: number;
+  items: RestorationJobItemDTO[];
+  created_at: string;
+  updated_at: string;
+  sent_at: string | null;
+  returned_at: string | null;
+  bench_started_at: string | null;
+  timer_started_at: string | null;
+  active_seconds: number;
+  timer_is_running: boolean;
+  timer_started_by_id?: number | null;
+  elapsed_seconds: number;
+  elapsed_hours: string;
+  pending_reason: RestorationPendingReason | '';
+  pending_notes: string;
+  pending_storage_location: string;
+  pending_started_at: string | null;
+  bench_disposition: RestorationBenchDisposition | '';
+  final_grade: string;
+  disposition_notes: string;
+  spent_hours: string | null;
+  spent_parts_cost: string | null;
+  dispositioned_at: string | null;
+}
+
+export type RestorationQueueAddStatus =
+  | 'created'
+  | 'already_queued'
+  | 'requeued'
+  | 'on_bench'
+  | 'on_pending';
+
+export interface RestorationJobCreateResultDTO extends RestorationJobDTO {
+  queue_add_status?: RestorationQueueAddStatus;
+  scanned_item_id?: number;
+  scanned_item_sku?: string;
+}
+
+export interface RestorationJobHoldPayload {
+  reason: RestorationPendingReason;
+  notes?: string;
+  storage_location?: string;
+}
+
+export interface RestorationJobDonePayload {
+  destination: RestorationBenchDisposition;
+  final_grade: string;
+  notes?: string;
+  spent_hours?: string | number;
+  spent_parts_cost?: string | number;
+}
+
+export interface RestorationPartsRequestLineDTO {
+  id: number;
+  part_number: string;
+  description: string;
+  url: string;
+  qty: number;
+  unit_price_estimate: string;
+  unit_price_actual: string;
+  status: string;
+  linked_grade: string;
+}
+
+export interface RestorationPartsRequestSiteDTO {
+  id: number;
+  supplier_name: string;
+  sort_order: number;
+  lines: RestorationPartsRequestLineDTO[];
+}
+
+export interface RestorationPartsOrderLineDTO {
+  id: number;
+  request_line_id: number;
+  qty: number;
+  unit_cost: string;
+  line_total: string;
+}
+
+export interface RestorationPartsOrderDTO {
+  id: number;
+  po_number: string;
+  supplier_name: string;
+  subtotal: string;
+  shipping: string;
+  tax: string;
+  fees: string;
+  total: string;
+  ship_to_address: string;
+  expected_delivery: string | null;
+  ordered_at: string | null;
+  notes: string;
+  status: string;
+  site: number | null;
+  lines: RestorationPartsOrderLineDTO[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RestorationPartsRequestDTO {
+  id: number;
+  job: number;
+  job_sku: string | null;
+  job_name: string;
+  status: string;
+  selected_grade: string;
+  eval_snapshot: Record<string, unknown>;
+  notes: string;
+  requested_by: number | null;
+  sites: RestorationPartsRequestSiteDTO[];
+  orders: RestorationPartsOrderDTO[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RestorationPartsOrderCreatePayload {
+  site_id?: number | null;
+  po_number: string;
+  supplier_name?: string;
+  subtotal: string | number;
+  shipping?: string | number;
+  tax?: string | number;
+  fees?: string | number;
+  ship_to_address?: string;
+  expected_delivery?: string | null;
+  line_ids?: number[];
+  notes?: string;
+}
+
+export interface RestorationJobPatchPayload {
+  scale?: string;
+  grade_values?: Record<string, number>;
+}
+
+export interface RestorationJobReturnPayload {
+  disposition_type: RestorationReturnDispositionType;
+  reason?: RestorationUntouchedReason | '';
+  scale?: string;
+  grade?: string;
+  notes?: string;
+  item_ids?: number[];
+}
+
+export interface RestorationJobSplitGroupPayload {
+  item_ids: number[];
+}
+
+export interface RestorationJobSplitPayload {
+  groups: RestorationJobSplitGroupPayload[];
+}
+
+export interface RestorationJobSplitResultDTO {
+  source_job: RestorationJobDTO | null;
+  created_jobs: RestorationJobDTO[];
+}
+
+export interface RestorationJobCombinePayload {
+  job_ids: number[];
+  replace_values?: boolean;
+}
+
+export interface RestorationGradeScaleDTO {
+  id: number;
+  name: string;
+  grades: string[];
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface RestorationGradeScaleCreatePayload {
+  name: string;
+  grades: string[];
+}
+
+export interface RestorationGradeScaleSuggestParams {
+  source?: string;
+  brand?: string;
+  category?: string;
+  filter_vendor?: boolean;
+  filter_brand?: boolean;
+  filter_category?: boolean;
+}
+
+export interface RestorationGradeScaleSuggestDTO {
+  scale: string | null;
+  count: number;
+  counts: Array<{ scale: string; count: number }>;
+}

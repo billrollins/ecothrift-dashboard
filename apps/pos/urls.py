@@ -4,7 +4,8 @@ from .views import (
     RegisterViewSet, DrawerViewSet, SupplementalViewSet,
     BankTransactionViewSet, CartViewSet, ReceiptViewSet,
     RevenueGoalViewSet,
-    dashboard_metrics, dashboard_alerts, historical_revenue,
+    dashboard_metrics, dashboard_alerts, dashboard_sales_goal,
+    dashboard_department_goals, historical_revenue,
 )
 
 router = DefaultRouter()
@@ -20,5 +21,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('dashboard/metrics/', dashboard_metrics, name='dashboard-metrics'),
     path('dashboard/alerts/', dashboard_alerts, name='dashboard-alerts'),
+    path('dashboard/sales-goal/', dashboard_sales_goal, name='dashboard-sales-goal'),
+    path('dashboard/department-goals/', dashboard_department_goals, name='dashboard-department-goals'),
     path('historical-revenue/', historical_revenue, name='historical-revenue'),
 ]

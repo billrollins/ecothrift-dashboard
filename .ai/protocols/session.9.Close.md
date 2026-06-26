@@ -95,7 +95,7 @@ Types: `feat`, `fix`, `refactor`, `docs`, `style`, `chore`.
 | `session.1.Checkpoint.md` | Several times per session | Session updates + **`[Unreleased]`** + light docs |
 | `code.1.Bearing.md` | Mid-session when stuck | Compare progress to **written** session goal |
 | `review.0.Bump.md` | Docs audit + semver + `CHANGELOG` slice | Steering/extended checklist, bump matrix; **local** short commit Part 4B; **no** `git push` unless user asks |
-| **`code.9.Push.md`** | Bump checklist then GitHub push | **`review.0.Bump`** through Part 5 + **`2_push_github.bat`** — skip Part 4B when the bat performs the commit |
+| **`code.9.Push.md`** | Bump checklist then GitHub push | **`review.0.Bump`** through Part 5 + **mandatory Part 2E** + **`2_push_github.bat`** — skip Part 4B when the bat performs the commit |
 | **`session.9.Close.md`** (this) | **End** of session / before commit | **`Result`**, scoped docs, version bump, commit message |
 | [`extended/consultant_handoff.md`](../extended/consultant_handoff.md) | After build phase / handoff | Spot-check + **flat** copy — **`workspace/to_consultant/files-update/`** |
 

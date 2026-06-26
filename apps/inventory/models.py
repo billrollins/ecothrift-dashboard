@@ -873,6 +873,349 @@ class ItemCheckIn(models.Model):
         return f'ItemCheckIn {self.pk} row={self.processing_row_id}'
 
 
+class RestorationJob(models.Model):
+    """One restoration batch per ItemCheckIn — grade scale/values shared across qty."""
+
+    STAGE_QUEUED = 'queued'
+    STAGE_SENT = 'sent'
+    STAGE_BENCH = 'bench'
+    STAGE_PENDING = 'pending'
+    STAGE_EXECUTING = 'executing'
+    STAGE_DONE = 'done'
+    STAGE_RETURNED = 'returned'
+    STAGE_CHOICES = [
+        (STAGE_QUEUED, 'Queued'),
+        (STAGE_SENT, 'Sent'),
+        (STAGE_BENCH, 'Bench'),
+        (STAGE_PENDING, 'Pending'),
+        (STAGE_EXECUTING, 'Executing'),
+        (STAGE_DONE, 'Done'),
+        (STAGE_RETURNED, 'Returned to Processing'),
+    ]
+    BENCH_DISPOSITION_PROCESSING = 'processing'
+    BENCH_DISPOSITION_STORAGE = 'storage'
+    BENCH_DISPOSITION_SALVAGE = 'salvage'
+    BENCH_DISPOSITION_ONLINE_SALES = 'online_sales'
+    BENCH_DISPOSITION_CHOICES = [
+        (BENCH_DISPOSITION_PROCESSING, 'Processing'),
+        (BENCH_DISPOSITION_STORAGE, 'Storage'),
+        (BENCH_DISPOSITION_SALVAGE, 'Salvage'),
+        (BENCH_DISPOSITION_ONLINE_SALES, 'Online Sales'),
+    ]
+    RETURN_DISPOSITION_TARS_COMPLETED = 'tars_completed'
+    RETURN_DISPOSITION_UNTOUCHED = 'untouched'
+    RETURN_DISPOSITION_CHOICES = [
+        (RETURN_DISPOSITION_TARS_COMPLETED, 'TARS completed'),
+        (RETURN_DISPOSITION_UNTOUCHED, 'Untouched'),
+    ]
+
+    item_check_in = models.OneToOneField(
+        ItemCheckIn,
+        on_delete=models.PROTECT,
+        related_name='restoration_job',
+    )
+    product = models.ForeignKey(
+        'Product',
+        on_delete=models.PROTECT,
+        related_name='restoration_jobs',
+    )
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.PROTECT,
+        related_name='restoration_jobs',
+    )
+    quantity = models.PositiveIntegerField(default=1)
+    stage = models.CharField(
+        max_length=20,
+        choices=STAGE_CHOICES,
+        default=STAGE_QUEUED,
+        db_index=True,
+    )
+    scale = models.CharField(max_length=64, blank=True, default='')
+    grade_values = models.JSONField(default=dict, blank=True)
+    # TARS bench payload (JSON until reporting needs indexed columns).
+    # Keys: workState (queue|bench|pending|done|returned), selectedGrade, actions,
+    # procurementGroups, benchStartedAt, pending { reason, notes, storageLocation, ... }.
+    work_session = models.JSONField(default=dict, blank=True)
+    return_disposition_type = models.CharField(
+        max_length=32,
+        choices=RETURN_DISPOSITION_CHOICES,
+        blank=True,
+        default='',
+    )
+    return_reason = models.CharField(max_length=64, blank=True, default='')
+    return_scale = models.CharField(max_length=64, blank=True, default='')
+    return_grade = models.CharField(max_length=64, blank=True, default='')
+    return_notes = models.TextField(blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_jobs_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    returned_at = models.DateTimeField(null=True, blank=True)
+    returned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_jobs_returned',
+    )
+    bench_started_at = models.DateTimeField(null=True, blank=True)
+    timer_started_at = models.DateTimeField(null=True, blank=True)
+    active_seconds = models.PositiveIntegerField(default=0)
+    timer_is_running = models.BooleanField(default=False)
+    timer_started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_jobs_timer_running',
+    )
+    pending_reason = models.CharField(max_length=64, blank=True, default='')
+    pending_notes = models.TextField(blank=True, default='')
+    pending_storage_location = models.CharField(max_length=128, blank=True, default='')
+    pending_started_at = models.DateTimeField(null=True, blank=True)
+    bench_disposition = models.CharField(
+        max_length=32,
+        choices=BENCH_DISPOSITION_CHOICES,
+        blank=True,
+        default='',
+    )
+    final_grade = models.CharField(max_length=64, blank=True, default='')
+    disposition_notes = models.TextField(blank=True, default='')
+    spent_hours = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    spent_parts_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    dispositioned_at = models.DateTimeField(null=True, blank=True)
+    dispositioned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_jobs_dispositioned',
+    )
+
+    class Meta:
+        ordering = ['-updated_at', '-id']
+        indexes = [
+            models.Index(fields=['stage', 'updated_at']),
+        ]
+
+    def __str__(self):
+        return f'RestorationJob {self.pk} stage={self.stage} check_in={self.item_check_in_id}'
+
+
+class RestorationPartsRequest(models.Model):
+    """Formal parts request for a restoration job — manager review and ordering."""
+
+    STATUS_DRAFT = 'draft'
+    STATUS_SUBMITTED = 'submitted'
+    STATUS_ORDERED = 'ordered'
+    STATUS_RECEIVED = 'received'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_SUBMITTED, 'Submitted'),
+        (STATUS_ORDERED, 'Ordered'),
+        (STATUS_RECEIVED, 'Received'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    job = models.ForeignKey(
+        RestorationJob,
+        on_delete=models.CASCADE,
+        related_name='parts_requests',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_DRAFT,
+        db_index=True,
+    )
+    selected_grade = models.CharField(max_length=64, blank=True, default='')
+    eval_snapshot = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True, default='')
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_parts_requests_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at', '-id']
+        indexes = [
+            models.Index(fields=['status', 'updated_at']),
+            models.Index(fields=['job', 'status']),
+        ]
+
+    def __str__(self):
+        return f'PartsRequest {self.pk} job={self.job_id} status={self.status}'
+
+
+class RestorationPartsRequestSite(models.Model):
+    """Supplier/site grouping within a parts request."""
+
+    parts_request = models.ForeignKey(
+        RestorationPartsRequest,
+        on_delete=models.CASCADE,
+        related_name='sites',
+    )
+    supplier_name = models.CharField(max_length=128)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return f'{self.supplier_name} (request {self.parts_request_id})'
+
+
+class RestorationPartsRequestLine(models.Model):
+    """Individual part line on a parts request."""
+
+    STATUS_PLANNED = 'planned'
+    STATUS_ORDERED = 'ordered'
+    STATUS_RECEIVED = 'received'
+    STATUS_SKIPPED = 'skipped'
+    STATUS_CHOICES = [
+        (STATUS_PLANNED, 'Planned'),
+        (STATUS_ORDERED, 'Ordered'),
+        (STATUS_RECEIVED, 'Received'),
+        (STATUS_SKIPPED, 'Skipped'),
+    ]
+
+    site = models.ForeignKey(
+        RestorationPartsRequestSite,
+        on_delete=models.CASCADE,
+        related_name='lines',
+    )
+    part_number = models.CharField(max_length=64, blank=True, default='')
+    description = models.CharField(max_length=300, blank=True, default='')
+    url = models.URLField(blank=True, default='')
+    qty = models.PositiveIntegerField(default=1)
+    unit_price_estimate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    unit_price_actual = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PLANNED,
+    )
+    linked_grade = models.CharField(max_length=64, blank=True, default='')
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return self.description or self.part_number or f'Line {self.pk}'
+
+
+class RestorationPartsOrder(models.Model):
+    """Purchase order record for a parts request site."""
+
+    STATUS_PENDING = 'pending'
+    STATUS_ORDERED = 'ordered'
+    STATUS_RECEIVED = 'received'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_ORDERED, 'Ordered'),
+        (STATUS_RECEIVED, 'Received'),
+    ]
+
+    parts_request = models.ForeignKey(
+        RestorationPartsRequest,
+        on_delete=models.CASCADE,
+        related_name='orders',
+    )
+    site = models.ForeignKey(
+        RestorationPartsRequestSite,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='orders',
+    )
+    po_number = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    supplier_name = models.CharField(max_length=128, blank=True, default='')
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    shipping = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    fees = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    ship_to_address = models.TextField(blank=True, default='')
+    expected_delivery = models.DateField(null=True, blank=True)
+    ordered_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True, default='')
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at', '-id']
+        indexes = [
+            models.Index(fields=['status', 'expected_delivery']),
+        ]
+
+    def __str__(self):
+        return self.po_number or f'Order {self.pk}'
+
+
+class RestorationPartsOrderLine(models.Model):
+    """Links an order to request lines with actual costs."""
+
+    order = models.ForeignKey(
+        RestorationPartsOrder,
+        on_delete=models.CASCADE,
+        related_name='lines',
+    )
+    request_line = models.ForeignKey(
+        RestorationPartsRequestLine,
+        on_delete=models.CASCADE,
+        related_name='order_lines',
+    )
+    qty = models.PositiveIntegerField(default=1)
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    line_total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ['id']
+
+
+class RestorationGradeScale(models.Model):
+    """Named grade scale with ordered grade labels for restoration valuation."""
+
+    name = models.CharField(max_length=64, unique=True)
+    grades = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_grade_scales_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
 class Product(models.Model):
     """Reusable product catalog entry."""
     product_number = models.CharField(
@@ -1449,6 +1792,12 @@ class ItemHistory(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(
+                fields=['event_type', 'new_value', 'created_at'],
+                name='itemhist_dash_on_shelf_idx',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.item.sku} - {self.event_type}'

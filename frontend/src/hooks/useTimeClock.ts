@@ -33,6 +33,7 @@ export function useWeeklyHoursStatus() {
 function invalidateTimeClock(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ['timeClock'] });
   queryClient.invalidateQueries({ queryKey: ['timeEntries'] });
+  queryClient.invalidateQueries({ queryKey: ['tars-bench-jobs'] });
 }
 
 export function useClockIn() {

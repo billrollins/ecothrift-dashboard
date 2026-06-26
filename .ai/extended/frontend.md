@@ -1,6 +1,10 @@
-<!-- Last updated: 2026-06-24 (label printed tracking + edit check-in dialog ProductSummaryCard) -->
+<!-- Last updated: 2026-06-26 (TARS 2 bench + parts orders + dashboard rebuild) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-06-26 (v2.34.0) — Restoration / TARS 2:** **`/restoration/tars-2`** (`Tars2Page` → **`TarsWorkstation`**) — live bench via **`useRestorationBench`** / **`usePatchRestorationJobWorkSession`**; debounced **`useWorkSessionDraft`** for responsive text inputs; parts drawer (**`TarsPartsListPanel`**) with Parts + Orders tabs, **`TarsPartsOrderDialog`** (order-specific **`partQtyOverrides`**, synced description/URL/price).
+
+**2026-06-26 (v2.34.0) — Dashboard:** **`DashboardPage`** rebuilt with **`SalesOverviewSection`**, **`DepartmentCardGrid`**, weekly sales list; **`useDashboardMetrics`** with **`sessionStorage`** placeholder + 30s stale time; goal dialogs for sales and department targets.
 
 **2026-06-24 — Inventory / item label printed tracking:** `printProcessingLabelsAndMarkPrinted` wrapper calls `POST …/mark-labels-printed/` after a successful local print across processing, catalog, and workbench print paths. **Printed** column on workbench Items tab (`ItemCatalogTable`) replaces checked-in column; **Prior Check-ins** table has a Printed `printedCount/qty` aggregate column with Print / Reprint affordance. `{printed=true|false}` rich-search filter.
 

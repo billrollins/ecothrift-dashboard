@@ -2,7 +2,8 @@ from rest_framework import serializers
 from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
-    Cart, CartLine, Receipt, RevenueGoal,
+    Cart, CartLine, Receipt, RevenueGoal, DashboardSalesGoal,
+    DashboardDepartmentGoal,
 )
 
 
@@ -167,3 +168,30 @@ class RevenueGoalSerializer(serializers.ModelSerializer):
         model = RevenueGoal
         fields = '__all__'
         read_only_fields = ['id']
+
+
+class DashboardSalesGoalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DashboardSalesGoal
+        fields = [
+            'id',
+            'amount',
+            'description',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class DashboardDepartmentGoalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DashboardDepartmentGoal
+        fields = [
+            'id',
+            'department',
+            'value',
+            'description',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

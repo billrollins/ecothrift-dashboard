@@ -109,7 +109,7 @@ function OvertimeBanner({
       <Typography variant="body1" fontWeight={600}>
         This week: {formatHours(hoursWorked)} / {formatHours(hoursLimit)} hours.
         {worked >= limit
-          ? ' Overtime is not allowed — contact Super Admin to adjust your time.'
+          ? ' Overtime is not allowed. Clock out if needed, then use Correct time below to submit your actual hours — Super Admin will review and approve.'
           : ` ${formatHours(Math.max(limit - worked, 0))} hours left this week.`}
       </Typography>
     </Alert>
@@ -243,10 +243,16 @@ export default function TimeClockPage() {
   const handleClockOut = async () => {
     if (!currentEntry) return;
     try {
-      await clockOut.mutateAsync({ id: currentEntry.id });
+      const result = await clockOut.mutateAsync({ id: currentEntry.id });
       enqueueSnackbar('Clocked out', { variant: 'success' });
-    } catch {
-      enqueueSnackbar('Failed to clock out', { variant: 'error' });
+      if (result?.restoration_timer_paused_job_id) {
+        enqueueSnackbar('Restoration bench timer paused for clock-out', { variant: 'info' });
+      }
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        ?? 'Failed to clock out';
+      enqueueSnackbar(String(msg), { variant: 'error' });
     }
   };
 
@@ -257,8 +263,11 @@ export default function TimeClockPage() {
         await endBreak.mutateAsync(currentEntry.id);
         enqueueSnackbar('Break ended', { variant: 'success' });
       } else {
-        await startBreak.mutateAsync(currentEntry.id);
+        const result = await startBreak.mutateAsync(currentEntry.id);
         enqueueSnackbar('Break started', { variant: 'info' });
+        if (result?.restoration_timer_paused_job_id) {
+          enqueueSnackbar('Restoration bench timer paused for break', { variant: 'info' });
+        }
       }
     } catch (err: unknown) {
       const msg =
@@ -339,12 +348,11 @@ export default function TimeClockPage() {
       align: 'right',
       headerAlign: 'right',
       sortable: false,
-      renderCell: ({ row }) =>
-        row.clock_out ? (
-          <Button size="small" startIcon={<Edit />} onClick={() => openModDialog(row as TimeEntry)}>
-            Request change
-          </Button>
-        ) : null,
+      renderCell: ({ row }) => (
+        <Button size="small" startIcon={<Edit />} onClick={() => openModDialog(row as TimeEntry)}>
+          {row.clock_out ? 'Request change' : 'Correct time'}
+        </Button>
+      ),
     },
   ];
 
@@ -435,6 +443,14 @@ export default function TimeClockPage() {
                       ? ` · break since ${format(parseISO(currentEntry.break_started_at), 'h:mm a')}`
                       : ''}
                   </Typography>
+
+                  {elapsedSeconds > 16 * 3600 && (
+                    <Alert severity="warning" sx={{ mb: 2, textAlign: 'left' }}>
+                      This shift looks longer than a normal work day. Clock out, then use{' '}
+                      <strong>Correct time</strong> below to submit the actual hours for Super Admin
+                      approval.
+                    </Alert>
+                  )}
 
                   <Stack
                     direction={{ xs: 'column', sm: 'row' }}

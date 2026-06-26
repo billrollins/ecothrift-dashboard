@@ -93,7 +93,20 @@ class TimeEntry(models.Model):
             self.date = timezone.localtime(self.clock_in).date()
         if self.clock_out:
             from apps.hr.services.time_clock_utils import validate_shift_duration
-            validate_shift_duration(self.clock_in, self.clock_out, self.break_minutes)
+            closing_open_shift = False
+            if self.pk:
+                prev_clock_out = (
+                    TimeEntry.objects.filter(pk=self.pk)
+                    .values_list('clock_out', flat=True)
+                    .first()
+                )
+                closing_open_shift = prev_clock_out is None
+            validate_shift_duration(
+                self.clock_in,
+                self.clock_out,
+                self.break_minutes,
+                skip_max_duration=closing_open_shift,
+            )
             self.compute_total_hours()
         super().save(*args, **kwargs)
 
