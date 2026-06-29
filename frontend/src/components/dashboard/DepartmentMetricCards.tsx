@@ -21,9 +21,11 @@ import {
   type DepartmentGoalConfig,
   type DepartmentGoalKind,
 } from './DepartmentGoalDialog';
+import { DepartmentWeekDetailDialog } from './DepartmentWeekDetailDialog';
 import { formatDashboardCurrency } from './dashboardFormatters';
 import { dashboardPalette } from './dashboardCardStyles';
 import type { DepartmentDailyMetric } from '../../types/pos.types';
+import { useDashboardLayout } from './useDashboardLayout';
 
 interface DepartmentMetricCardsProps {
   metrics: DepartmentMetrics;
@@ -43,9 +45,11 @@ interface CardConfig {
 
 export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
   const { user } = useAuth();
+  const { isCompact } = useDashboardLayout();
   const isSuperuser = Boolean(user?.is_superuser);
   const { buying, processing, restoration, retail, goals, daily_weeks } = metrics;
   const [openKey, setOpenKey] = useState<DepartmentGoalKey | null>(null);
+  const [weekDetailKey, setWeekDetailKey] = useState<DepartmentGoalKey | null>(null);
 
   const todayIso = useMemo(() => {
     let latest = '';
@@ -87,7 +91,13 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
       subStat: (
         <Typography
           variant="caption"
-          sx={{ fontSize: '0.62rem', fontWeight: 800, color: 'text.secondary', lineHeight: 1.2 }}
+          sx={{
+            fontSize: '0.62rem',
+            fontWeight: 800,
+            color: 'text.secondary',
+            lineHeight: 1.2,
+            whiteSpace: { xs: 'normal', sm: 'nowrap' },
+          }}
         >
           {restoration.active_jobs} in restoration · {restoration.returns_pending} awaiting retag
         </Typography>
@@ -111,11 +121,13 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
     ? { key: activeCard.key, label: activeCard.label, kind: activeCard.kind }
     : null;
 
+  const weekDetailCard = cards.find((c) => c.key === weekDetailKey) ?? null;
+
   return (
     <>
       <Grid container spacing={1.5} columns={12} sx={{ overflow: 'visible' }}>
         {cards.map((card) => (
-          <Grid key={card.key} size={{ xs: 6, md: 3 }} sx={{ display: 'flex', minWidth: 0, p: 1, overflow: 'visible' }}>
+          <Grid key={card.key} size={{ xs: 12, sm: 6, md: 3 }} sx={{ display: 'flex', minWidth: 0, p: 1, overflow: 'visible' }}>
             <Box sx={{ width: '100%', minWidth: 0 }}>
               <DepartmentStatCard
                 label={card.label}
@@ -126,8 +138,12 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
                 placeholder={card.placeholder}
                 subStat={card.subStat}
                 onGoalClick={() => setOpenKey(card.key)}
+                showWeekDetailButton={isCompact}
+                onViewWeekDetail={() => setWeekDetailKey(card.key)}
                 footer={
-                  <DepartmentCardGrid weeks={daily_weeks} getValue={card.getValue} todayIso={todayIso} />
+                  isCompact ? undefined : (
+                    <DepartmentCardGrid weeks={daily_weeks} getValue={card.getValue} todayIso={todayIso} />
+                  )
                 }
               />
             </Box>
@@ -144,6 +160,17 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
           isSuperuser={isSuperuser}
         />
       )}
+
+      {weekDetailCard ?
+        <DepartmentWeekDetailDialog
+          open={weekDetailKey !== null}
+          onClose={() => setWeekDetailKey(null)}
+          label={weekDetailCard.label}
+          weeks={daily_weeks}
+          getValue={weekDetailCard.getValue}
+          todayIso={todayIso}
+        />
+      : null}
     </>
   );
 }

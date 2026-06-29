@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-06-26 (TARS 2 bench + parts orders + dashboard rebuild) -->
+<!-- Last updated: 2026-06-29 (dashboard mobile responsive v2.37.0) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-06-29 (v2.37.0) — Dashboard mobile:** **`useDashboardLayout`** (`isMobile` / `isCompact`); **`DashboardPage`** flex scroll on phone; **`WeeklySalesWeekList`** (This Week list + accordion); **`SalesDayDetailContent`** for tap/hover day detail; **`DepartmentWeekDetailDialog`**; Today's Sales in Sales **`SectionHeader`** on mobile; desktop layout unchanged at `md+`.
 
 **2026-06-26 (v2.34.0) — Restoration / TARS:** **`/restoration/tars`** (`TarsPage` → **`TarsWorkstation`**) — live bench via **`useRestorationBench`** / **`usePatchRestorationJobWorkSession`**; drawer rail for item list + parts list; debounced **`useWorkSessionDraft`**; **`TarsPartsListPanel`** + **`TarsPartsOrderDialog`**.
 

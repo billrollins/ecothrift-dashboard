@@ -147,7 +147,11 @@ export default function MainLayout() {
             <Box sx={{ flexGrow: 1 }} />
             {user && (
               <>
-                <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mr: 1, display: { xs: 'none', sm: 'block' } }}
+                >
                   {user.full_name}
                 </Typography>
                 <IconButton onClick={handleMenuOpen} size="small">
@@ -192,7 +196,7 @@ export default function MainLayout() {
             flexDirection: 'column',
             overflowX: 'hidden',
             overflowY: 'auto',
-            p: 3,
+            p: isDashboard ? { xs: 1, sm: 2, md: 3 } : 3,
             ...(isDashboard
               ? {
                   background: DASHBOARD_BACKDROP,

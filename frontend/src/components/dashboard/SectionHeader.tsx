@@ -1,16 +1,22 @@
 import { Box, Tooltip, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { dashboardPalette } from './dashboardCardStyles';
+import { useDashboardLayout } from './useDashboardLayout';
 
 interface SectionHeaderProps {
   title: string;
   hint?: string;
+  hintDesktop?: string;
+  hintMobile?: string;
   action?: ReactNode;
 }
 
-export function SectionHeader({ title, hint, action }: SectionHeaderProps) {
+export function SectionHeader({ title, hint, hintDesktop, hintMobile, action }: SectionHeaderProps) {
+  const { isMobile } = useDashboardLayout();
+  const resolvedHint =
+    hint ?? (isMobile && hintMobile ? hintMobile : hintDesktop ?? hintMobile);
   const label = (
-    <Box sx={{ display: 'inline-flex', flexDirection: 'column', width: 'fit-content', cursor: hint ? 'default' : 'inherit' }}>
+    <Box sx={{ display: 'inline-flex', flexDirection: 'column', width: 'fit-content', cursor: resolvedHint ? 'default' : 'inherit' }}>
       <Typography
         component="h2"
         sx={{
@@ -52,8 +58,8 @@ export function SectionHeader({ title, hint, action }: SectionHeaderProps) {
         pb: 0.15,
       }}
     >
-      {hint ? (
-        <Tooltip title={hint} arrow>
+      {resolvedHint ? (
+        <Tooltip title={resolvedHint} arrow>
           {label}
         </Tooltip>
       ) : (

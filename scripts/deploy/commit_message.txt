@@ -1,11 +1,13 @@
-release(v2.36.0): TARS end-to-end lifecycle and Restoration Returns
+feat(dashboard): mobile-responsive layout and today's sales header
 
-Release: v2.36.0
+Release: v2.37.0
 
-Close the TARS restoration lifecycle so bench Disposition actually returns items to Processing with the achieved grade, parts-needed flows park and resume cleanly, and Processing can find returned items to retag and price.
-
-- complete_restoration_job moves items by destination, writes ItemHistory + grade snapshot, refreshes processing denorm (migration 0077 processing_handled_at)
-- GET restoration-jobs/returns/ and POST mark-handled/ for Processing handoff tracking
-- receive_parts_request sets pending.partsReceived on the bench
-- Dashboard active_jobs / returns_pending metrics; Restoration Returns page with print tag, set price, mark handled
-- TARS bench: request parts auto-pending, disposition from pending, parts-received banner; dead UI removed
+- Dashboard usable on phone without changing desktop layout at md+ (≥900px).
+- useDashboardLayout (isMobile/isCompact) + responsive section gutters.
+- DashboardPage: flex scroll on mobile; chart/weekly min-heights; Today's Sales pill on Sales header (mobile).
+- WeeklySalesWeekList: This Week day list + accordion for past weeks; tap day for revenue/items detail.
+- SalesDayDetailContent shared by desktop tooltips and mobile popovers.
+- DepartmentWeekDetailDialog from View week detail on compact cards; xs:12 card grid.
+- SalesOverviewSection: stacked header, stat pill scroll row, taller chart + sparser ticks on xs.
+- MainLayout: tighter dashboard padding on xs; AppBar user name hidden on xs.
+- SectionHeader mobile hint copy for Departments.

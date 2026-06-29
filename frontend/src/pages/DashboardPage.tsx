@@ -1,8 +1,11 @@
-import { Box, Alert, Grid } from '@mui/material';
+import { Box, Alert, Grid, Typography } from '@mui/material';
 
 import { LoadingScreen } from '../components/feedback/LoadingScreen';
 
 import { DepartmentMetricCards } from '../components/dashboard/DepartmentMetricCards';
+
+import { dashboardRaisedStatSx } from '../components/dashboard/dashboardCardStyles';
+import { formatDashboardCurrency } from '../components/dashboard/dashboardFormatters';
 
 import { SalesOverviewSection } from '../components/dashboard/SalesOverviewSection';
 
@@ -10,7 +13,12 @@ import { SectionHeader } from '../components/dashboard/SectionHeader';
 
 import { WeeklySalesList } from '../components/dashboard/WeeklySalesList';
 
-import { DASHBOARD_SHADOW_GUTTER } from '../components/dashboard/dashboardCardStyles';
+import {
+  dashboardGutterPbSx,
+  dashboardGutterPtSx,
+  dashboardGutterSx,
+  useDashboardLayout,
+} from '../components/dashboard/useDashboardLayout';
 
 import { useDashboardMetrics } from '../hooks/useDashboard';
 
@@ -18,6 +26,7 @@ import { useDashboardMetrics } from '../hooks/useDashboard';
 
 export default function DashboardPage() {
   const { data: metrics, isLoading, error } = useDashboardMetrics();
+  const { isMobile } = useDashboardLayout();
 
   const showInitialLoad = isLoading && !metrics;
 
@@ -47,15 +56,21 @@ export default function DashboardPage() {
 
         flex: 1,
 
-        minHeight: 0,
-
-        height: '100%',
-
-        display: 'grid',
-
-        gridTemplateRows: 'minmax(0, 1fr) auto',
-
-        gap: 2,
+        ...(isMobile
+          ? {
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              height: 'auto',
+              minHeight: 'auto',
+            }
+          : {
+              display: 'grid',
+              gridTemplateRows: 'minmax(0, 1fr) auto',
+              height: '100%',
+              minHeight: 0,
+              gap: 2,
+            }),
 
         overflow: 'visible',
 
@@ -67,7 +82,9 @@ export default function DashboardPage() {
 
         sx={{
 
-          minHeight: 0,
+          ...(isMobile
+            ? { minHeight: 'auto' }
+            : { minHeight: 0 }),
 
           display: 'flex',
 
@@ -77,9 +94,9 @@ export default function DashboardPage() {
 
           overflow: 'visible',
 
-          px: DASHBOARD_SHADOW_GUTTER,
+          ...dashboardGutterSx,
 
-          pt: DASHBOARD_SHADOW_GUTTER,
+          ...dashboardGutterPtSx,
 
         }}
 
@@ -91,17 +108,66 @@ export default function DashboardPage() {
 
           hint="Daily completed POS sales over 90 days, with weekly totals."
 
+          action={
+            isMobile ? (
+              <Box
+                sx={{
+                  px: 1.15,
+                  py: 0.65,
+                  minWidth: 88,
+                  borderRadius: 2,
+                  textAlign: 'right',
+                  ...dashboardRaisedStatSx,
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                  lineHeight={1}
+                  sx={{ fontSize: '0.66rem', textTransform: 'uppercase', letterSpacing: 0.7, fontWeight: 700 }}
+                >
+                  Today&apos;s Sales
+                </Typography>
+                <Typography variant="subtitle2" fontWeight={800} lineHeight={1.35}>
+                  {formatDashboardCurrency(metrics.sales.today)}
+                </Typography>
+              </Box>
+            ) : undefined
+          }
+
         />
 
-        <Grid container spacing={1.5} sx={{ flex: 1, minHeight: 0, height: 0, overflow: 'visible' }}>
+        <Grid
+          container
+          spacing={1.5}
+          sx={{
+            ...(isMobile
+              ? { flex: 'none', minHeight: 'auto', height: 'auto' }
+              : { flex: 1, minHeight: 0, height: 0 }),
+            overflow: 'visible',
+          }}
+        >
 
-          <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', minHeight: 0, height: '100%' }}>
+          <Grid
+            size={{ xs: 12, md: 6 }}
+            sx={{
+              display: 'flex',
+              ...(isMobile ? { minHeight: 260 } : { minHeight: 0, height: '100%' }),
+            }}
+          >
 
             <SalesOverviewSection sales={metrics.sales} />
 
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', minHeight: 0, height: '100%' }}>
+          <Grid
+            size={{ xs: 12, md: 6 }}
+            sx={{
+              display: 'flex',
+              ...(isMobile ? { minHeight: 320 } : { minHeight: 0, height: '100%' }),
+            }}
+          >
 
             <WeeklySalesList
 
@@ -133,9 +199,9 @@ export default function DashboardPage() {
 
           overflow: 'visible',
 
-          px: DASHBOARD_SHADOW_GUTTER,
+          ...dashboardGutterSx,
 
-          pb: DASHBOARD_SHADOW_GUTTER,
+          ...dashboardGutterPbSx,
 
         }}
 
@@ -145,7 +211,9 @@ export default function DashboardPage() {
 
           title="Departments"
 
-          hint="Per-department weekly metrics. Hover a card for details."
+          hintDesktop="Per-department weekly metrics. Hover a card for details."
+
+          hintMobile="Per-department weekly metrics. Tap a card for week detail."
 
         />
 
@@ -158,5 +226,4 @@ export default function DashboardPage() {
   );
 
 }
-
 

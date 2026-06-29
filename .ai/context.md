@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-26 (TARS consolidated to /restoration/tars) -->
+<!-- Last updated: 2026-06-29 (dashboard mobile responsive v2.37.0) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary

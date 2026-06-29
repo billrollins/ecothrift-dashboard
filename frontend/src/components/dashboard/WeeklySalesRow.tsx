@@ -1,15 +1,14 @@
 import type { ReactElement } from 'react';
-import { Box, Tooltip, Typography } from '@mui/material';
+import { Box, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import type { SalesWeeklyRow as SalesWeeklyRowType } from '../../types/pos.types';
 import {
   dayMonthTitle,
   formatDashboardCurrency,
-  formatDashboardCurrencyExact,
-  formatItemsSold,
   longDayTitle,
   weekDateRange,
 } from './dashboardFormatters';
 import { dashboardPalette } from './dashboardCardStyles';
+import { SalesDayDetailContent } from './SalesDayDetailContent';
 
 interface WeeklySalesRowProps {
   week: SalesWeeklyRowType;
@@ -56,10 +55,14 @@ function SalesHoverTooltip({
   itemsSold: number;
   children: ReactElement;
 }) {
+  const hoverCapable = useMediaQuery('(hover: hover)');
+
   return (
     <Tooltip
-      followCursor
+      followCursor={hoverCapable}
       disableInteractive
+      disableHoverListener={!hoverCapable}
+      disableTouchListener={false}
       enterDelay={250}
       leaveDelay={0}
       slotProps={{
@@ -78,22 +81,13 @@ function SalesHoverTooltip({
         },
       }}
       title={
-        <Box>
-          <Typography variant="subtitle2" fontWeight={800} lineHeight={1.25} sx={{ mb: subheadline ? 0.25 : 0.75 }}>
-            {headline}
-          </Typography>
-          {subheadline ?
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75 }}>
-              {subheadline}
-            </Typography>
-          : null}
-          <Typography variant="body2" lineHeight={1.5} sx={{ m: 0 }}>
-            {salesLabel}: {formatDashboardCurrencyExact(revenue)}
-          </Typography>
-          <Typography variant="body2" lineHeight={1.5} sx={{ m: 0 }}>
-            Items Sold: {formatItemsSold(itemsSold)}
-          </Typography>
-        </Box>
+        <SalesDayDetailContent
+          headline={headline}
+          subheadline={subheadline}
+          salesLabel={salesLabel}
+          revenue={revenue}
+          itemsSold={itemsSold}
+        />
       }
     >
       {children}

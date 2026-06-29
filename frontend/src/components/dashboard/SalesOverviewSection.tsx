@@ -21,6 +21,7 @@ import {
   shortDate,
 } from './dashboardFormatters';
 import { SalesGoalDialog } from './SalesGoalDialog';
+import { useDashboardLayout } from './useDashboardLayout';
 import {
   dashboardCardHoverLiftSx,
   dashboardPalette,
@@ -164,6 +165,7 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: ChartTo
 
 export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
   const { user } = useAuth();
+  const { isCompact, isMobile } = useDashboardLayout();
   const isSuperuser = Boolean(user?.is_superuser);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
 
@@ -260,8 +262,12 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
   }, [dailyPoints]);
 
   const mondayTicks = useMemo(
-    () => sales.daily_last_90_days.filter((d) => d.day === 'Monday').map((d) => d.date),
-    [sales.daily_last_90_days],
+    () =>
+      sales.daily_last_90_days
+        .filter((d) => d.day === 'Monday')
+        .filter((_, i) => !isCompact || i % 2 === 0)
+        .map((d) => d.date),
+    [sales.daily_last_90_days, isCompact],
   );
 
   const todayShort = dailyPoints.length
@@ -301,7 +307,16 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
             '&:last-child': { pb: 1.5 },
           }}
         >
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.25, gap: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', sm: 'row' },
+              justifyContent: 'space-between',
+              alignItems: { xs: 'stretch', sm: 'flex-start' },
+              mb: 1.25,
+              gap: { xs: 1, sm: 2 },
+            }}
+          >
             <Tooltip
               title="90 days: solid = trailing 7-day sales total. Dotted = sum of past 4 weeks ÷ 4 (avg weekly)."
               arrow
@@ -320,7 +335,24 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
                 </Typography>
               </Box>
             </Tooltip>
-            <Stack direction="row" spacing={2}>
+            <Stack
+              direction="row"
+              spacing={2}
+              sx={{
+                flexShrink: 0,
+                ...(isCompact
+                  ? {
+                      overflowX: 'auto',
+                      flexWrap: 'nowrap',
+                      pb: 0.25,
+                      mx: -0.5,
+                      px: 0.5,
+                      WebkitOverflowScrolling: 'touch',
+                      '& > *': { flexShrink: 0 },
+                    }
+                  : {}),
+              }}
+            >
               {canOpenGoal && (
                 <GoalStat
                   amountLabel={goalAmountLabel}
@@ -331,17 +363,19 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
                 label={todayShort ? `Last ${todayShort}` : 'Last wk'}
                 value={sales.same_weekday_last_week}
               />
-              <CompactStat
-                label={todayShort ? `Today (${todayShort})` : 'Today'}
-                value={sales.today}
-              />
+              {!isMobile && (
+                <CompactStat
+                  label={todayShort ? `Today (${todayShort})` : 'Today'}
+                  value={sales.today}
+                />
+              )}
             </Stack>
           </Box>
           <Box
             sx={{
               width: '100%',
               flex: 1,
-              minHeight: 140,
+              minHeight: { xs: 220, md: 140 },
               minWidth: 200,
               overflow: 'hidden',
               pt: 0.5,
@@ -396,10 +430,12 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
                     strokeWidth={1.5}
                     ifOverflow="extendDomain"
                     label={{
-                      value: `GOAL ${formatDashboardCurrencyExact(String(goalAmount))}`,
+                      value: isCompact
+                        ? `GOAL ${formatDashboardCurrency(String(goalAmount))}`
+                        : `GOAL ${formatDashboardCurrencyExact(String(goalAmount))}`,
                       position: 'insideTopRight',
                       fill: dashboardPalette.goldDark,
-                      fontSize: 11,
+                      fontSize: isCompact ? 10 : 11,
                       fontWeight: 900,
                     }}
                   />

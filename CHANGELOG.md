@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.36.0] — 2026-06-29 -->
-<!-- Last reviewed: 2026-06-29 (release v2.36.0 — TARS end-to-end lifecycle + Restoration Returns) -->
+<!-- Line 1 release: ## [2.37.0] — 2026-06-29 -->
+<!-- Last reviewed: 2026-06-29 (release v2.37.0 — dashboard mobile responsive) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,25 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.37.0] — 2026-06-29
+
+User-facing theme: **Dashboard is fully usable on phone — natural scroll, touch-first weekly sales, expandable department detail, and today's sales at a glance in the header.**
+
+### Added
+
+- **Dashboard / mobile weekly book** — **`WeeklySalesWeekList`**: This Week day list + accordion for past weeks; tap a day opens revenue + items detail via shared **`SalesDayDetailContent`**.
+- **Dashboard / mobile department detail** — **`DepartmentWeekDetailDialog`**: full-width 2-week grid from **View week detail** on compact cards.
+- **Dashboard / layout helper** — **`useDashboardLayout`** (`isMobile` / `isCompact`) + responsive gutter `sx` for section padding.
+
+### Changed
+
+- **Dashboard / page shell** — **`DashboardPage`**: mobile flex scroll (no `height: 0` squash); chart + weekly book min-heights for reliable Recharts; **Today's Sales** pill on the Sales section header (mobile only).
+- **Dashboard / sales chart** — **`SalesOverviewSection`**: stacked header + horizontal stat scroll on compact; taller chart on xs; every-2nd Monday X ticks; shorter goal label on phone.
+- **Dashboard / department cards** — **`DepartmentMetricCards`**: `xs:12 sm:6 md:3`; inline micro-grid hidden on compact; goal/actual stack vertically on xs in **`DepartmentStatCard`**.
+- **Dashboard / chrome** — **`MainLayout`**: reduced dashboard padding on xs; AppBar user name hidden on xs; **`SectionHeader`** mobile hint copy for Departments.
 
 ---
 

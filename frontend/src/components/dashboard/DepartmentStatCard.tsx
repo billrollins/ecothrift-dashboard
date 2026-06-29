@@ -1,4 +1,4 @@
-import { Box, Card, CardContent, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import {
   dashboardAccentLeftSx,
@@ -17,6 +17,8 @@ interface DepartmentStatCardProps {
   onGoalClick: () => void;
   footer?: ReactNode;
   subStat?: ReactNode;
+  onViewWeekDetail?: () => void;
+  showWeekDetailButton?: boolean;
 }
 
 const GOLD = dashboardPalette.gold;
@@ -31,6 +33,8 @@ export function DepartmentStatCard({
   onGoalClick,
   footer,
   subStat,
+  onViewWeekDetail,
+  showWeekDetailButton = false,
 }: DepartmentStatCardProps) {
   return (
     <Card
@@ -88,7 +92,8 @@ export function DepartmentStatCard({
         <Box
           sx={{
             display: 'flex',
-            alignItems: 'flex-end',
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: { xs: 'stretch', sm: 'flex-end' },
             justifyContent: 'space-between',
             gap: 1,
             py: 0.35,
@@ -135,7 +140,7 @@ export function DepartmentStatCard({
             </Typography>
           </Box>
 
-          <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'flex-end' }}>
+          <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
             <Typography
               variant="caption"
               display="block"
@@ -160,6 +165,11 @@ export function DepartmentStatCard({
         </Box>
 
         {subStat}
+        {showWeekDetailButton && onViewWeekDetail ?
+          <Button size="small" variant="text" onClick={onViewWeekDetail} sx={{ alignSelf: 'flex-start', px: 0, minHeight: 28 }}>
+            View week detail
+          </Button>
+        : null}
         {footer}
       </CardContent>
     </Card>

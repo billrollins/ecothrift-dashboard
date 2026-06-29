@@ -1,7 +1,9 @@
 import { Box, Card, CardContent, Typography } from '@mui/material';
 import type { SalesWeeklyRow as SalesWeeklyRowType } from '../../types/pos.types';
 import { dashboardCardHoverLiftSx, dashboardPalette, dashboardRaisedCardSx } from './dashboardCardStyles';
+import { useDashboardLayout } from './useDashboardLayout';
 import { WeeklySalesRow } from './WeeklySalesRow';
+import { WeeklySalesWeekList } from './WeeklySalesWeekList';
 
 interface WeeklySalesListProps {
   weeks: SalesWeeklyRowType[];
@@ -10,6 +12,8 @@ interface WeeklySalesListProps {
 }
 
 export function WeeklySalesList({ weeks, todayIso, todayDay }: WeeklySalesListProps) {
+  const { isCompact } = useDashboardLayout();
+
   return (
     <Card
       elevation={0}
@@ -42,11 +46,11 @@ export function WeeklySalesList({ weeks, todayIso, todayDay }: WeeklySalesListPr
           sx={{
             flex: 1,
             minHeight: 0,
-            overflowY: 'auto',
+            overflowY: isCompact ? 'visible' : 'auto',
             display: 'flex',
             flexDirection: 'column',
             gap: 0.5,
-            pr: 0.25,
+            pr: isCompact ? 0 : 0.25,
             '&::-webkit-scrollbar': { width: 8 },
             '&::-webkit-scrollbar-thumb': {
               bgcolor: `${dashboardPalette.muted}52`,
@@ -54,15 +58,18 @@ export function WeeklySalesList({ weeks, todayIso, todayDay }: WeeklySalesListPr
             },
           }}
         >
-          {weeks.map((week) => (
-            <WeeklySalesRow
-              key={week.week_start}
-              week={week}
-              isThisWeek={week.label === 'This Week'}
-              todayIso={todayIso}
-              todayDay={todayDay}
-            />
-          ))}
+          {isCompact ?
+            <WeeklySalesWeekList weeks={weeks} todayIso={todayIso} todayDay={todayDay} />
+          : weeks.map((week) => (
+              <WeeklySalesRow
+                key={week.week_start}
+                week={week}
+                isThisWeek={week.label === 'This Week'}
+                todayIso={todayIso}
+                todayDay={todayDay}
+              />
+            ))
+          }
         </Box>
       </CardContent>
     </Card>
