@@ -1,6 +1,10 @@
-<!-- Last updated: 2026-06-29 (dashboard mobile responsive v2.37.0) -->
+<!-- Last updated: 2026-06-29 (retail QA wizard + dashboard week totals) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-06-29 (WIP) — Admin / Quality Audit:** **`QualityAuditHubPage`**, **`QualityAuditWizardPage`**, **`QualityAuditFormEditorPage`** under **`/admin/quality-audit`**; **`useQualityAudit`** / **`useQualityAuditForms`**; mobile checklist components in **`components/quality-audit/`**.
+
+**2026-06-29 (WIP) — Dashboard grids:** week totals under week date in **`WeeklySalesRow`** + **`DepartmentCardGrid`**; **`compactWeekDateRange`**; **`getWeekTotal`** per department card.
 
 **2026-06-29 (v2.37.0) — Dashboard mobile:** **`useDashboardLayout`** (`isMobile` / `isCompact`); **`DashboardPage`** flex scroll on phone; **`WeeklySalesWeekList`** (This Week list + accordion); **`SalesDayDetailContent`** for tap/hover day detail; **`DepartmentWeekDetailDialog`**; Today's Sales in Sales **`SectionHeader`** on mobile; desktop layout unchanged at `md+`.
 

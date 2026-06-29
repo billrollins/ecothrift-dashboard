@@ -1,6 +1,10 @@
 import { Box, Typography } from '@mui/material';
 import type { DepartmentDailyMetric, DepartmentDailyWeek } from '../../types/pos.types';
-import { formatDashboardCurrencyCompact, shortDate } from './dashboardFormatters';
+import {
+  formatDashboardCurrencyCompact,
+  parseDashboardAmount,
+  shortDate,
+} from './dashboardFormatters';
 import { dashboardPalette } from './dashboardCardStyles';
 
 const DAY_HEADS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -8,6 +12,7 @@ const DAY_HEADS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 interface DepartmentCardGridProps {
   weeks: DepartmentDailyWeek[];
   getValue: (day: DepartmentDailyMetric) => string;
+  getWeekTotal: (week: DepartmentDailyWeek) => string;
   todayIso?: string;
 }
 
@@ -42,7 +47,38 @@ function weekRowLabel(week: DepartmentDailyWeek): string {
   return shortDate(week.week_start);
 }
 
-export function DepartmentCardGrid({ weeks, getValue, todayIso }: DepartmentCardGridProps) {
+function WeekLabelCell({ week, total }: { week: DepartmentDailyWeek; total: string }) {
+  return (
+    <Box sx={{ alignSelf: 'center', textAlign: 'center', minWidth: 0, px: 0.1 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        fontWeight={700}
+        noWrap
+        sx={{ fontSize: '0.53rem', lineHeight: 1.15, display: 'block' }}
+      >
+        {weekRowLabel(week)}
+      </Typography>
+      <Typography
+        variant="caption"
+        fontWeight={900}
+        noWrap
+        sx={{ fontSize: '0.5rem', lineHeight: 1.15, display: 'block', color: 'text.primary' }}
+      >
+        {total}
+      </Typography>
+    </Box>
+  );
+}
+
+export function sumDepartmentWeek(
+  week: DepartmentDailyWeek,
+  pick: (day: DepartmentDailyMetric) => number,
+): number {
+  return week.days.reduce((sum, day) => (day.is_future ? sum : sum + pick(day)), 0);
+}
+
+export function DepartmentCardGrid({ weeks, getValue, getWeekTotal, todayIso }: DepartmentCardGridProps) {
   const orderedWeeks = [...weeks].reverse();
 
   return (
@@ -56,7 +92,7 @@ export function DepartmentCardGrid({ weeks, getValue, todayIso }: DepartmentCard
         borderColor: 'divider',
       }}
     >
-      <Box sx={{ display: 'grid', gridTemplateColumns: '30px repeat(7, minmax(0, 1fr))', gap: 0.25 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))', gap: 0.25 }}>
         <Box />
         {DAY_HEADS.map((head, idx) => (
           <Typography
@@ -73,26 +109,9 @@ export function DepartmentCardGrid({ weeks, getValue, todayIso }: DepartmentCard
       {orderedWeeks.map((week) => (
         <Box
           key={week.week_start}
-          sx={{ display: 'grid', gridTemplateColumns: '30px repeat(7, minmax(0, 1fr))', gap: 0.25 }}
+          sx={{ display: 'grid', gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))', gap: 0.25 }}
         >
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            fontWeight={700}
-            noWrap
-            sx={{
-              fontSize: '0.53rem',
-              lineHeight: 1.2,
-              alignSelf: 'center',
-              textAlign: 'center',
-              px: 0.25,
-              py: 0.2,
-              borderRadius: 0.75,
-              bgcolor: 'transparent',
-            }}
-          >
-            {weekRowLabel(week)}
-          </Typography>
+          <WeekLabelCell week={week} total={getWeekTotal(week)} />
           {week.days.map((day) => (
             <GridCell key={day.date} value={getValue(day)} isToday={!!todayIso && day.date === todayIso} />
           ))}
@@ -106,12 +125,28 @@ export function buyingGridValue(day: DepartmentDailyMetric): string {
   return day.is_future ? '—' : formatDashboardCurrencyCompact(day.buying);
 }
 
+export function buyingWeekTotal(week: DepartmentDailyWeek): string {
+  return formatDashboardCurrencyCompact(
+    String(sumDepartmentWeek(week, (day) => parseDashboardAmount(day.buying))),
+  );
+}
+
 export function processingGridValue(day: DepartmentDailyMetric): string {
   return day.is_future ? '—' : formatDashboardCurrencyCompact(day.processing);
 }
 
+export function processingWeekTotal(week: DepartmentDailyWeek): string {
+  return formatDashboardCurrencyCompact(
+    String(sumDepartmentWeek(week, (day) => parseDashboardAmount(day.processing))),
+  );
+}
+
 export function restorationGridValue(day: DepartmentDailyMetric): string {
   return day.is_future ? '—' : String(day.restoration);
+}
+
+export function restorationWeekTotal(week: DepartmentDailyWeek): string {
+  return String(sumDepartmentWeek(week, (day) => day.restoration));
 }
 
 export function retailGridValue(day: DepartmentDailyMetric): string {

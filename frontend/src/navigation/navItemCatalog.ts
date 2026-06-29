@@ -209,4 +209,18 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'schedule',
     superuserOnly: true,
   },
+  qualityAudit: {
+    id: 'qualityAudit',
+    path: '/admin/quality-audit',
+    label: 'Quality Audit',
+    icon: 'factCheck',
+    roles: ['Manager', 'Admin'],
+  },
+  qualityAuditForms: {
+    id: 'qualityAuditForms',
+    path: '/admin/quality-audit/forms',
+    label: 'QA Forms',
+    icon: 'tune',
+    superuserOnly: true,
+  },
 };

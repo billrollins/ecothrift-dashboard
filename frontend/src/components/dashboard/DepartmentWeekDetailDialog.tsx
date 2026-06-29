@@ -17,6 +17,7 @@ interface DepartmentWeekDetailDialogProps {
   label: string;
   weeks: DepartmentDailyWeek[];
   getValue: (day: DepartmentDailyMetric) => string;
+  getWeekTotal: (week: DepartmentDailyWeek) => string;
   todayIso?: string;
 }
 
@@ -47,6 +48,7 @@ export function DepartmentWeekDetailDialog({
   label,
   weeks,
   getValue,
+  getWeekTotal,
   todayIso,
 }: DepartmentWeekDetailDialogProps) {
   const orderedWeeks = [...weeks].reverse();
@@ -56,7 +58,7 @@ export function DepartmentWeekDetailDialog({
       <DialogTitle sx={{ pb: 1 }}>{label} — weekly detail</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: '44px repeat(7, minmax(0, 1fr))', gap: 0.35 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '48px repeat(7, minmax(0, 1fr))', gap: 0.35 }}>
             <Box />
             {DAY_HEADS.map((head) => (
               <Typography
@@ -73,16 +75,25 @@ export function DepartmentWeekDetailDialog({
           {orderedWeeks.map((week) => (
             <Box
               key={week.week_start}
-              sx={{ display: 'grid', gridTemplateColumns: '44px repeat(7, minmax(0, 1fr))', gap: 0.35 }}
+              sx={{ display: 'grid', gridTemplateColumns: '48px repeat(7, minmax(0, 1fr))', gap: 0.35 }}
             >
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                fontWeight={700}
-                sx={{ fontSize: '0.65rem', alignSelf: 'center', textAlign: 'center' }}
-              >
-                {shortDate(week.week_start)}
-              </Typography>
+              <Box sx={{ alignSelf: 'center', textAlign: 'center' }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  fontWeight={700}
+                  sx={{ fontSize: '0.65rem', lineHeight: 1.15, display: 'block' }}
+                >
+                  {shortDate(week.week_start)}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  fontWeight={900}
+                  sx={{ fontSize: '0.6rem', lineHeight: 1.15, display: 'block' }}
+                >
+                  {getWeekTotal(week)}
+                </Typography>
+              </Box>
               {week.days.map((day) => (
                 <GridCell
                   key={day.date}

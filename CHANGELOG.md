@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.37.0] — 2026-06-29 -->
-<!-- Last reviewed: 2026-06-29 (release v2.37.0 — dashboard mobile responsive) -->
+<!-- Last reviewed: 2026-06-29 (Retail Quality Audit MVP — [Unreleased]) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,28 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+User-facing theme: **Managers can run a mobile Retail floor QA from Admin and see the grade on the dashboard.**
+
+Initiative: [`.ai/initiatives/retail_quality_audit.md`](.ai/initiatives/retail_quality_audit.md)
+
+### Added
+
+- **Admin / Quality Audit** — **`/admin/quality-audit`**: type picker (Retail live; Processing placeholder); **`QualityAuditForm`** + **`QualityAudit`** (migrations **`0008`–`0009`**); **`GET/POST/PATCH /api/pos/quality-audit-forms/`** + **`/api/pos/quality-audits/`** + **`…/submit/`** (Manager+).
+- **Admin / Retail QA wizard** — Mobile-first 5-section checklist (25 floor checks: front of house, aisles, shelving, cleanliness, tags/pricing); Pass/Fail/N/A + fail notes; summary review with section edit + submit confirm.
+- **Dashboard / Retail QA card** — Latest submitted audit with **`feeds_dashboard=True`** **`overall_grade`** replaces placeholder; **`invalidate_dashboard_metrics_cache`** on submit.
+
+### Changed
+
+- **Dashboard / weekly labels** — Week totals under week date in sales book (`WeeklySalesRow`) and department card grids (`DepartmentCardGrid`, week detail dialog); compact date range helper **`compactWeekDateRange`**.
+
+### Fixed
+
+- **Dashboard / processing grid** — **`processing_by_day`** now spans last week through today (Mon–Sun department grid); last week showed **`0`** because aggregate used Sunday week start only.
 
 ---
 

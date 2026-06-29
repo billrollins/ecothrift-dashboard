@@ -3,7 +3,7 @@ from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal, DashboardSalesGoal,
-    DashboardDepartmentGoal,
+    DashboardDepartmentGoal, QualityAudit, QualityAuditForm,
 )
 
 
@@ -195,3 +195,93 @@ class DashboardDepartmentGoalSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class QualityAuditSerializer(serializers.ModelSerializer):
+    conducted_by_name = serializers.CharField(
+        source='conducted_by.full_name',
+        read_only=True,
+        default=None,
+    )
+    form_title = serializers.CharField(source='form.title', read_only=True, default=None)
+    form_slug = serializers.CharField(source='form.slug', read_only=True, default=None)
+
+    class Meta:
+        model = QualityAudit
+        fields = [
+            'id',
+            'form',
+            'form_slug',
+            'form_title',
+            'audit_type',
+            'status',
+            'conducted_by',
+            'conducted_by_name',
+            'started_at',
+            'submitted_at',
+            'responses',
+            'overall_grade',
+            'summary_notes',
+        ]
+        read_only_fields = [
+            'id',
+            'form',
+            'form_slug',
+            'form_title',
+            'status',
+            'conducted_by',
+            'conducted_by_name',
+            'started_at',
+            'submitted_at',
+            'overall_grade',
+        ]
+
+
+class QualityAuditFormSummarySerializer(serializers.ModelSerializer):
+    section_count = serializers.SerializerMethodField()
+    check_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = QualityAuditForm
+        fields = [
+            'id', 'slug', 'title', 'intro', 'icon',
+            'is_system', 'feeds_dashboard', 'is_active',
+            'section_count', 'check_count', 'updated_at',
+        ]
+        read_only_fields = fields
+
+    def _definition(self, obj):
+        return obj.definition or {}
+
+    def get_section_count(self, obj) -> int:
+        return len(self._definition(obj).get('sections') or [])
+
+    def get_check_count(self, obj) -> int:
+        total = 0
+        for section in self._definition(obj).get('sections') or []:
+            total += len(section.get('checks') or [])
+        return total
+
+
+class QualityAuditFormSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(
+        source='created_by.full_name',
+        read_only=True,
+        default=None,
+    )
+    updated_by_name = serializers.CharField(
+        source='updated_by.full_name',
+        read_only=True,
+        default=None,
+    )
+
+    class Meta:
+        model = QualityAuditForm
+        fields = [
+            'id', 'slug', 'title', 'intro', 'icon', 'definition',
+            'is_system', 'feeds_dashboard', 'is_active',
+            'created_by', 'created_by_name',
+            'updated_by', 'updated_by_name',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'is_system', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name', 'created_at', 'updated_at']

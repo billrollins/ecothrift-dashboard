@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { Box, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import type { SalesWeeklyRow as SalesWeeklyRowType } from '../../types/pos.types';
 import {
+  compactWeekDateRange,
   dayMonthTitle,
   formatDashboardCurrency,
   longDayTitle,
@@ -123,7 +124,15 @@ function WeekTotalCell({
       <Typography variant="caption" lineHeight={1} noWrap sx={{ fontSize: '0.6rem', fontWeight: 800, m: 0, letterSpacing: 0.2 }}>
         {label}
       </Typography>
-      <Typography variant="body2" fontWeight={900} lineHeight={1.08} noWrap sx={{ m: 0 }}>
+      <Typography
+        variant="caption"
+        lineHeight={1}
+        noWrap
+        sx={{ fontSize: '0.5rem', fontWeight: 700, m: 0, opacity: 0.92, letterSpacing: 0.05 }}
+      >
+        {compactWeekDateRange(weekStart, weekEnd)}
+      </Typography>
+      <Typography variant="body2" fontWeight={900} lineHeight={1.05} noWrap sx={{ m: 0, fontSize: '0.82rem' }}>
         {value}
       </Typography>
     </Box>

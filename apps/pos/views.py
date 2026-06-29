@@ -18,7 +18,7 @@ from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal, HistoricalTransaction, DashboardSalesGoal,
-    DashboardDepartmentGoal,
+    DashboardDepartmentGoal, QualityAudit, QualityAuditForm,
 )
 from .serializers import (
     RegisterSerializer, DrawerSerializer,
@@ -27,7 +27,8 @@ from .serializers import (
     BankTransactionSerializer,
     CartSerializer, CartLineSerializer, ReceiptSerializer,
     RevenueGoalSerializer, DashboardSalesGoalSerializer,
-    DashboardDepartmentGoalSerializer,
+    DashboardDepartmentGoalSerializer, QualityAuditSerializer,
+    QualityAuditFormSerializer, QualityAuditFormSummarySerializer,
 )
 from .filters import CartFilter, DrawerFilter
 
@@ -770,6 +771,221 @@ class RevenueGoalViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['location', 'date']
+
+
+class QualityAuditViewSet(viewsets.ModelViewSet):
+    serializer_class = QualityAuditSerializer
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = QualityAudit.objects.select_related('conducted_by', 'form').all()
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        form_slug = self.request.query_params.get('form')
+        if form_slug:
+            qs = qs.filter(form__slug=form_slug)
+        audit_type = self.request.query_params.get('audit_type')
+        if audit_type:
+            qs = qs.filter(audit_type=audit_type)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        form_ref = request.data.get('form') or request.data.get('form_slug') or request.data.get('audit_type')
+        if not form_ref:
+            return Response(
+                {'detail': 'form (slug or id) is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        form = None
+        if isinstance(form_ref, int):
+            form = QualityAuditForm.objects.filter(pk=form_ref).first()
+        else:
+            form = QualityAuditForm.objects.filter(slug=str(form_ref)).first()
+        if form is None:
+            return Response(
+                {'detail': 'Form not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not form.is_active:
+            return Response(
+                {'detail': 'This form is inactive and cannot be used.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from apps.pos.quality_audit_controls import build_responses_from_definition
+
+        audit = QualityAudit.objects.create(
+            form=form,
+            audit_type=form.slug,
+            status=QualityAudit.STATUS_DRAFT,
+            conducted_by=request.user,
+            responses=build_responses_from_definition(form.definition or {'sections': []}),
+        )
+        return Response(
+            QualityAuditSerializer(audit).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        audit = self.get_object()
+        if audit.status != QualityAudit.STATUS_DRAFT:
+            return Response(
+                {'detail': 'Submitted audits cannot be edited.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from apps.pos.services.quality_audit import normalize_responses
+
+        data = {}
+        if 'responses' in request.data:
+            data['responses'] = normalize_responses(request.data['responses'])
+        if 'summary_notes' in request.data:
+            data['summary_notes'] = (request.data.get('summary_notes') or '').strip()
+        if not data:
+            return Response(
+                {'detail': 'No updatable fields provided.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        for field, value in data.items():
+            setattr(audit, field, value)
+        audit.save(update_fields=[*data.keys()])
+        return Response(QualityAuditSerializer(audit).data)
+
+    @action(detail=True, methods=['post'])
+    def submit(self, request, pk=None):
+        audit = self.get_object()
+        if audit.status != QualityAudit.STATUS_DRAFT:
+            return Response(
+                {'detail': 'This audit has already been submitted.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from apps.pos.services.dashboard_metrics import invalidate_dashboard_metrics_cache
+        from apps.pos.services.quality_audit import compute_overall_grade, validate_responses_complete
+
+        if 'responses' in request.data:
+            from apps.pos.services.quality_audit import normalize_responses
+            audit.responses = normalize_responses(request.data['responses'])
+        if 'summary_notes' in request.data:
+            audit.summary_notes = (request.data.get('summary_notes') or '').strip()
+
+        errors = validate_responses_complete(audit.responses)
+        if errors:
+            return Response({'detail': errors[0], 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        audit.overall_grade = compute_overall_grade(audit.responses)
+        audit.status = QualityAudit.STATUS_SUBMITTED
+        audit.submitted_at = timezone.now()
+        audit.save(
+            update_fields=['responses', 'summary_notes', 'overall_grade', 'status', 'submitted_at'],
+        )
+        invalidate_dashboard_metrics_cache()
+        return Response(QualityAuditSerializer(audit).data)
+
+
+class QualityAuditFormViewSet(viewsets.ModelViewSet):
+    queryset = QualityAuditForm.objects.select_related('created_by', 'updated_by').all()
+    pagination_class = None
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return QualityAuditFormSummarySerializer
+        return QualityAuditFormSerializer
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated(), IsManagerOrAdmin()]
+        return [IsAuthenticated(), IsSuperAdmin()]
+
+    def get_queryset(self):
+        qs = QualityAuditForm.objects.select_related('created_by', 'updated_by').all()
+        active = self.request.query_params.get('active')
+        if active is not None:
+            qs = qs.filter(is_active=(active.lower() in ('1', 'true', 'yes')))
+        return qs
+
+    def _validate(self, data, instance=None):
+        from apps.pos.quality_audit_controls import validate_definition
+
+        errors: dict[str, str] = {}
+        slug = (data.get('slug') or '').strip().lower()
+        if not slug:
+            errors['slug'] = 'Slug is required.'
+        else:
+            qs = QualityAuditForm.objects.filter(slug=slug)
+            if instance is not None:
+                qs = qs.exclude(pk=instance.pk)
+            if qs.exists():
+                errors['slug'] = 'That slug is already in use.'
+        title = (data.get('title') or '').strip()
+        if not title:
+            errors['title'] = 'Title is required.'
+        definition = data.get('definition')
+        if not isinstance(definition, dict):
+            errors['definition'] = 'Definition is required.'
+        else:
+            def_errors = validate_definition(definition)
+            if def_errors:
+                errors['definition'] = ' '.join(def_errors)
+        return errors
+
+    def create(self, request, *args, **kwargs):
+        data = request.data
+        errors = self._validate(data)
+        feeds_dashboard = bool(data.get('feeds_dashboard'))
+        if feeds_dashboard and QualityAuditForm.objects.filter(feeds_dashboard=True).exists():
+            errors['feeds_dashboard'] = 'Another form already feeds the dashboard (only one allowed).'
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        form = QualityAuditForm.objects.create(
+            slug=(data.get('slug') or '').strip().lower(),
+            title=(data.get('title') or '').strip(),
+            intro=(data.get('intro') or '').strip(),
+            icon=(data.get('icon') or '').strip(),
+            definition=data.get('definition') or {'sections': []},
+            is_system=False,
+            feeds_dashboard=feeds_dashboard,
+            is_active=bool(data.get('is_active', True)),
+            created_by=request.user,
+            updated_by=request.user,
+        )
+        return Response(QualityAuditFormSerializer(form).data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        form = self.get_object()
+        data = request.data
+        # System form: slug + is_system + feeds_dashboard are locked.
+        if form.is_system and ('slug' in data or 'is_system' in data or 'feeds_dashboard' in data):
+            return Response(
+                {'detail': 'System form slug and dashboard binding cannot be changed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        merged = {**QualityAuditFormSerializer(form).data, **data}
+        errors = self._validate(merged, instance=form)
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        for field in ('title', 'intro', 'icon', 'definition', 'is_active'):
+            if field in data:
+                setattr(form, field, data[field] if field != 'definition' else (data[field] or {'sections': []}))
+        form.updated_by = request.user
+        form.save()
+        return Response(QualityAuditFormSerializer(form).data)
+
+    def destroy(self, request, *args, **kwargs):
+        form = self.get_object()
+        if form.is_system:
+            return Response(
+                {'detail': 'System forms cannot be deleted.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if form.audits.exists():
+            return Response(
+                {'detail': 'Cannot delete a form that has audits. Deactivate it instead.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        form.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ── Dashboard Metrics ─────────────────────────────────────────────────────────

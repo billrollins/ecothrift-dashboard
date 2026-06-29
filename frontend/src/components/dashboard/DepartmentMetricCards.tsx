@@ -6,12 +6,15 @@ import PrecisionManufacturing from '@mui/icons-material/PrecisionManufacturing';
 import Handyman from '@mui/icons-material/Handyman';
 import WorkspacePremium from '@mui/icons-material/WorkspacePremium';
 import { useAuth } from '../../hooks/useAuth';
-import type { DepartmentGoalKey, DepartmentMetrics } from '../../types/pos.types';
+import type { DepartmentDailyMetric, DepartmentDailyWeek, DepartmentGoalKey, DepartmentMetrics } from '../../types/pos.types';
 import {
   DepartmentCardGrid,
   buyingGridValue,
+  buyingWeekTotal,
   processingGridValue,
+  processingWeekTotal,
   restorationGridValue,
+  restorationWeekTotal,
   retailGridValue,
 } from './DepartmentCardGrid';
 import { DepartmentStatCard } from './DepartmentStatCard';
@@ -21,10 +24,9 @@ import {
   type DepartmentGoalConfig,
   type DepartmentGoalKind,
 } from './DepartmentGoalDialog';
-import { DepartmentWeekDetailDialog } from './DepartmentWeekDetailDialog';
 import { formatDashboardCurrency } from './dashboardFormatters';
+import { DepartmentWeekDetailDialog } from './DepartmentWeekDetailDialog';
 import { dashboardPalette } from './dashboardCardStyles';
-import type { DepartmentDailyMetric } from '../../types/pos.types';
 import { useDashboardLayout } from './useDashboardLayout';
 
 interface DepartmentMetricCardsProps {
@@ -41,6 +43,7 @@ interface CardConfig {
   placeholder?: boolean;
   subStat?: ReactNode;
   getValue: (day: DepartmentDailyMetric) => string;
+  getWeekTotal: (week: DepartmentDailyWeek) => string;
 }
 
 export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
@@ -70,6 +73,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
       icon: <ShoppingBag />,
       actual: formatDashboardCurrency(buying.week),
       getValue: buyingGridValue,
+      getWeekTotal: buyingWeekTotal,
     },
     {
       key: 'processing',
@@ -79,6 +83,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
       icon: <PrecisionManufacturing />,
       actual: formatDashboardCurrency(processing.week),
       getValue: processingGridValue,
+      getWeekTotal: processingWeekTotal,
     },
     {
       key: 'restoration',
@@ -103,6 +108,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
         </Typography>
       ),
       getValue: restorationGridValue,
+      getWeekTotal: restorationWeekTotal,
     },
     {
       key: 'retail',
@@ -113,6 +119,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
       actual: retail.ready && retail.last_grade ? retail.last_grade : '—',
       placeholder: !retail.ready,
       getValue: retailGridValue,
+      getWeekTotal: () => '—',
     },
   ];
 
@@ -142,7 +149,12 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
                 onViewWeekDetail={() => setWeekDetailKey(card.key)}
                 footer={
                   isCompact ? undefined : (
-                    <DepartmentCardGrid weeks={daily_weeks} getValue={card.getValue} todayIso={todayIso} />
+                    <DepartmentCardGrid
+                      weeks={daily_weeks}
+                      getValue={card.getValue}
+                      getWeekTotal={card.getWeekTotal}
+                      todayIso={todayIso}
+                    />
                   )
                 }
               />
@@ -168,6 +180,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
           label={weekDetailCard.label}
           weeks={daily_weeks}
           getValue={weekDetailCard.getValue}
+          getWeekTotal={weekDetailCard.getWeekTotal}
           todayIso={todayIso}
         />
       : null}

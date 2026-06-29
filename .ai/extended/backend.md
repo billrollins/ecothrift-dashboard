@@ -1,6 +1,10 @@
-<!-- Last updated: 2026-06-26 (TARS 2 bench live + parts orders + dashboard metrics) -->
+<!-- Last updated: 2026-06-29 (Quality Audit + dashboard metrics retail grade) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-06-29 (WIP) — POS / Quality Audit:** **`QualityAuditForm`** + **`QualityAudit`** (migrations **`0008`–`0009`**); **`GET/POST/PATCH /api/pos/quality-audit-forms/`** + **`/api/pos/quality-audits/`** + **`…/submit/`** (Manager+); grade calc in **`apps/pos/services/quality_audit.py`**; dashboard retail card reads latest **`feeds_dashboard`** submit via **`build_department_metrics`**.
+
+**2026-06-29 (WIP) — POS / dashboard metrics:** **`processing_by_day`** spans Mon-based last week through today for department grid; **`invalidate_dashboard_metrics_cache`** on QA submit.
 
 **2026-06-26 (v2.34.0) — POS dashboard metrics:** **`GET /api/pos/dashboard/metrics/`** — cached 45s aggregate (sales run-rate, department cards, buying/processing/restoration rollups); **`DashboardSalesGoal`** + **`DashboardDepartmentGoal`** (migrations **`0005`–`0006`**); goal CRUD endpoints under **`/api/pos/dashboard/`**; **`Cart`** index **`cart_dash_completed_idx`** (migration **`0007`**); **`ItemHistory`** dashboard index **`itemhist_dash_on_shelf_idx`** (migration **`0075`**). Service: **`apps/pos/services/dashboard_metrics.py`**.
 

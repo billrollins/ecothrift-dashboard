@@ -13,7 +13,7 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from apps.inventory.models import ItemHistory, PurchaseOrder, RestorationJob
-from apps.pos.models import Cart, CartLine, DashboardDepartmentGoal, DashboardSalesGoal
+from apps.pos.models import Cart, CartLine, DashboardDepartmentGoal, DashboardSalesGoal, QualityAudit
 DASHBOARD_CACHE_SECONDS = 45
 QUICK_REPRICE_NOTE = 'Quick reprice'
 
@@ -397,8 +397,33 @@ def build_department_metrics(today: date | None = None) -> dict[str, Any]:
     last_week_start = this_week_start - timedelta(days=7)
 
     buying_by_day = _buying_by_day(last_week_start, today)
-    processing_week_total, processing_by_day = _processing_on_shelf_aggregate(week_start, today)
+    processing_week_total, _ = _processing_on_shelf_aggregate(week_start, today)
+    _, processing_by_day = _processing_on_shelf_aggregate(last_week_start, today)
     restoration_by_day = _restoration_done_by_day(last_week_start, today)
+
+    latest_retail = (
+        QualityAudit.objects.filter(
+            form__feeds_dashboard=True,
+            status=QualityAudit.STATUS_SUBMITTED,
+        )
+        .order_by('-submitted_at')
+        .only('overall_grade', 'submitted_at')
+        .first()
+    )
+    if latest_retail and latest_retail.overall_grade:
+        retail_metrics = {
+            'ready': True,
+            'average_grade': latest_retail.overall_grade,
+            'last_grade': latest_retail.overall_grade,
+            'note': None,
+        }
+    else:
+        retail_metrics = {
+            'ready': False,
+            'average_grade': None,
+            'last_grade': None,
+            'note': 'No retail QA submitted yet.',
+        }
 
     return {
         'buying': {
@@ -410,12 +435,7 @@ def build_department_metrics(today: date | None = None) -> dict[str, Any]:
             'today': _str_dec(processing_by_day.get(today, Decimal('0'))),
         },
         'restoration': _restoration_metrics(today),
-        'retail': {
-            'ready': False,
-            'average_grade': None,
-            'last_grade': None,
-            'note': 'Retail QA scoring not yet implemented.',
-        },
+        'retail': retail_metrics,
         'goals': _department_goals(),
         'daily_weeks': _department_daily_weeks(
             today,
@@ -432,6 +452,12 @@ def build_dashboard_metrics(today: date | None = None) -> dict[str, Any]:
         'sales': build_sales_metrics(today),
         'department_metrics': build_department_metrics(today),
     }
+
+
+def invalidate_dashboard_metrics_cache(today: date | None = None) -> None:
+    """Clear cached dashboard metrics (e.g. after QA submit)."""
+    today = today or timezone.now().date()
+    cache.delete(f'dashboard:metrics:{today.isoformat()}')
 
 
 def get_dashboard_metrics(today: date | None = None) -> dict[str, Any]:

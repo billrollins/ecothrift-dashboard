@@ -200,6 +200,35 @@ class DashboardMetricsTests(TestCase):
         self.assertEqual(weeks[0]['days'][0]['day'], 'Monday')
         self.assertEqual(weeks[0]['days'][-1]['day'], 'Sunday')
 
+    def test_processing_daily_weeks_include_last_week(self):
+        """Processing by-day must span last week for the department grid."""
+        from apps.pos.services.dashboard_metrics import _week_start_monday
+
+        this_week_start = _week_start_monday(self.today)
+        last_week_start = this_week_start - timedelta(days=7)
+        last_week_day = last_week_start + timedelta(days=2)
+        created_at = timezone.make_aware(datetime.combine(last_week_day, datetime.min.time()))
+
+        item = Item.objects.create(
+            sku='TST0000002',
+            product=self.product,
+            price=Decimal('40.00'),
+            status='on_shelf',
+        )
+        history = ItemHistory.objects.create(
+            item=item,
+            event_type='status_change',
+            old_value='processing',
+            new_value='on_shelf',
+        )
+        ItemHistory.objects.filter(pk=history.pk).update(created_at=created_at)
+
+        payload = build_dashboard_metrics(self.today)
+        last_week = payload['department_metrics']['daily_weeks'][0]
+        last_week_day_payload = next(d for d in last_week['days'] if d['date'] == last_week_day.isoformat())
+
+        self.assertEqual(last_week_day_payload['processing'], '40.00')
+
     def test_get_dashboard_metrics_uses_cache(self):
         from unittest.mock import patch
         from django.core.cache import cache

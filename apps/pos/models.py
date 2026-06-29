@@ -378,6 +378,84 @@ class DashboardDepartmentGoal(models.Model):
         return f'{self.get_department_display()} goal: {self.value}'
 
 
+class QualityAuditForm(models.Model):
+    """A configurable QA checklist form (super-admin editable)."""
+
+    slug = models.SlugField(max_length=60, unique=True)
+    title = models.CharField(max_length=120)
+    intro = models.CharField(max_length=255, blank=True, default='')
+    icon = models.CharField(max_length=40, blank=True, default='')
+    definition = models.JSONField(default=dict)
+    is_system = models.BooleanField(default=False)
+    feeds_dashboard = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quality_audit_forms_created',
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quality_audit_forms_updated',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['title']
+
+    def __str__(self):
+        return self.title
+
+
+class QualityAudit(models.Model):
+    """Floor quality audit checklist (retail and future types)."""
+
+    STATUS_DRAFT = 'draft'
+    STATUS_SUBMITTED = 'submitted'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_SUBMITTED, 'Submitted'),
+    ]
+
+    form = models.ForeignKey(
+        QualityAuditForm,
+        on_delete=models.PROTECT,
+        related_name='audits',
+        null=True,
+        blank=True,
+    )
+    audit_type = models.CharField(max_length=60, blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    conducted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quality_audits_conducted',
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    responses = models.JSONField(default=dict)
+    overall_grade = models.CharField(max_length=4, blank=True, default='')
+    summary_notes = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['form', 'status', '-submitted_at']),
+        ]
+
+    def __str__(self):
+        label = self.form.title if self.form_id else (self.audit_type or 'QA')
+        return f'{label} ({self.get_status_display()}) — {self.started_at:%Y-%m-%d}'
+
+
 class HistoricalTransaction(models.Model):
     """Imported transaction records from DB1 and DB2 for historical revenue reporting.
 

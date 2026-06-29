@@ -87,3 +87,8 @@ export function formatItemsSold(count: number): string {
 export function weekDateRange(weekStart: string, weekEnd: string): string {
   return `${formatIsoDateLong(weekStart)} – ${formatIsoDateLong(weekEnd)}`;
 }
+
+/** Compact Mon-start label for tight grid cells, e.g. `6/23–6/29`. */
+export function compactWeekDateRange(weekStart: string, weekEnd: string): string {
+  return `${shortDate(weekStart)}–${shortDate(weekEnd)}`;
+}

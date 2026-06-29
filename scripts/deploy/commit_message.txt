@@ -1,13 +1,11 @@
-feat(dashboard): mobile-responsive layout and today's sales header
+feat(admin): retail quality audit MVP and dashboard grid fixes
 
-Release: v2.37.0
+Release: v2.38.0 (when pushed)
 
-- Dashboard usable on phone without changing desktop layout at md+ (≥900px).
-- useDashboardLayout (isMobile/isCompact) + responsive section gutters.
-- DashboardPage: flex scroll on mobile; chart/weekly min-heights; Today's Sales pill on Sales header (mobile).
-- WeeklySalesWeekList: This Week day list + accordion for past weeks; tap day for revenue/items detail.
-- SalesDayDetailContent shared by desktop tooltips and mobile popovers.
-- DepartmentWeekDetailDialog from View week detail on compact cards; xs:12 card grid.
-- SalesOverviewSection: stacked header, stat pill scroll row, taller chart + sparser ticks on xs.
-- MainLayout: tighter dashboard padding on xs; AppBar user name hidden on xs.
-- SectionHeader mobile hint copy for Departments.
+- Admin Quality Audit hub + mobile retail wizard (25 checks, Pass/Fail/N/A, submit).
+- QualityAuditForm + QualityAudit models (migrations 0008–0009); Manager+ API.
+- Dashboard Retail QA card shows latest submitted grade; cache invalidates on submit.
+- Dashboard: week totals under week date in sales book + department grids.
+- Fix processing last-week daily grid (processing_by_day now spans Mon last week through today).
+
+Initiative: .ai/initiatives/retail_quality_audit.md

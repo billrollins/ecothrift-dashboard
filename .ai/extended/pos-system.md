@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-06T20:30:00-05:00 -->
+<!-- Last updated: 2026-06-29 (Quality Audit API + dashboard retail grade) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -190,6 +190,6 @@ Hooks: `useRegisters`, `useDrawers` (accepts `options.enabled`), `useCarts` (acc
 
 ## Revenue Goals & Dashboard Metrics
 
-- **RevenueGoal** — per location, per date
-- **dashboard_metrics** (`GET /pos/dashboard/metrics/`): today's revenue, today's goal, weekly (Sun–Sat), 4-week comparison, items sold today, active drawers, clocked-in employees
-- **dashboard_alerts** (`GET /pos/dashboard/alerts/`): pending time entries, pending sick leave, open drawers
+- **DashboardSalesGoal** / **DashboardDepartmentGoal** — weekly targets; CRUD under **`/api/pos/dashboard/`**
+- **dashboard_metrics** (`GET /api/pos/dashboard/metrics/`): sales run-rate (90-day chart, 14-week book), department cards (buying, processing, restoration, retail QA), cached 45s — **`apps/pos/services/dashboard_metrics.py`**
+- **Quality Audit (WIP):** **`QualityAuditForm`** + **`QualityAudit`**; **`GET/POST/PATCH /api/pos/quality-audit-forms/`** + **`/api/pos/quality-audits/`** + **`…/submit/`** (Manager+); latest **`feeds_dashboard`** submit drives retail QA card grade

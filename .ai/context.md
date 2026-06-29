@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-29 (dashboard mobile responsive v2.37.0) -->
+<!-- Last updated: 2026-06-29 (retail QA MVP WIP + dashboard grid fixes) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,6 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
+- **Retail Quality Audit (active):** [`retail_quality_audit`](initiatives/retail_quality_audit.md) — Admin **Quality Audit** mobile retail wizard; dashboard **Retail QA** grade from latest submit (**WIP**, `[Unreleased]`).
 - **TARS Restoration (active):** [`tars_restoration_workspace`](initiatives/tars_restoration_workspace.md) — `/restoration/queue` (send) + `/restoration/tars` (live bench workstation); shipped **v2.34.0**.
 - **HR Time Clock (shipped):** archived [`hr_time_clock_mvp`](initiatives/_archived/_completed/hr_time_clock_mvp.md) — time clock, **Employees**, **Time & payroll**, soft delete; legacy HR pages removed. Shipped **v2.33.0**–**v2.33.1**.
 - **Product/Item CRUD → Processing (shipped):** archived [`product_item_crud_and_processing`](initiatives/_archived/_completed/product_item_crud_and_processing.md) — **v2.29.0–v2.32.0** (Catalog, processing integration, unmanifested lines). Semantic embedding search on hold.

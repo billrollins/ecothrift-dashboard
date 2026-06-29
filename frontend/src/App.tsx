@@ -49,6 +49,9 @@ import WebOrdersPage from './pages/admin/WebOrdersPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import AssumptionsPage from './pages/admin/AssumptionsPage';
+import QualityAuditHubPage from './pages/admin/QualityAuditHubPage';
+import QualityAuditWizardPage from './pages/admin/QualityAuditWizardPage';
+import QualityAuditFormEditorPage from './pages/admin/QualityAuditFormEditorPage';
 import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
@@ -233,6 +236,50 @@ export default function App() {
               <AssumptionsPage />
             </ManagerRoute>
           }
+        />
+        <Route
+          path="/admin/quality-audit"
+          element={
+            <ManagerRoute>
+              <QualityAuditHubPage />
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/admin/quality-audit/run/:formSlug/:auditId"
+          element={
+            <ManagerRoute>
+              <QualityAuditWizardPage />
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/admin/quality-audit/forms"
+          element={
+            <SuperAdminRoute>
+              <QualityAuditFormEditorPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/admin/quality-audit/forms/new"
+          element={
+            <SuperAdminRoute>
+              <QualityAuditFormEditorPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/admin/quality-audit/forms/:formId"
+          element={
+            <SuperAdminRoute>
+              <QualityAuditFormEditorPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/admin/quality-audit/retail/:auditId"
+          element={<Navigate to="/admin/quality-audit" replace />}
         />
       </Route>
 

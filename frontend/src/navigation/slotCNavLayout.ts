@@ -52,7 +52,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'admin',
     label: 'Admin',
     roles: ['Manager', 'Admin'],
-    itemIds: ['assumptions', 'posSetup', 'webStore', 'webOrders', 'users', 'customers', 'permissions', 'settings', 'blogStudio', 'payrollHours'],
+    itemIds: ['assumptions', 'posSetup', 'webStore', 'webOrders', 'users', 'customers', 'permissions', 'settings', 'blogStudio', 'payrollHours', 'qualityAudit', 'qualityAuditForms'],
   },
 ];
 

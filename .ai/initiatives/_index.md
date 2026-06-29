@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-26 — TARS Session 3: bench live + parts orders -->
+<!-- Last updated: 2026-06-29 (retail_quality_audit active) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,6 +11,7 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
+| [retail_quality_audit](./retail_quality_audit.md) | MVP — retail mobile QA | **Admin → Quality Audit**; retail checklist + dashboard grade. |
 | [tars_restoration_workspace](./tars_restoration_workspace.md) | Phase 1–3 — bench live | **`/restoration/queue`** + **`/restoration/tars`** live workstation with parts orders. |
 
 **Parked (off this index):** [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.
