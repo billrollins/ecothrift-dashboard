@@ -188,6 +188,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'localShipping',
     roles: ['Manager', 'Admin'],
   },
+  restorationReturns: {
+    id: 'restorationReturns',
+    path: '/inventory/restoration-returns',
+    label: 'Restoration Returns',
+    icon: 'assignmentReturned',
+  },
   blogStudio: {
     id: 'blogStudio',
     path: '/blog-studio',

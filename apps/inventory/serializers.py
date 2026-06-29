@@ -1407,6 +1407,7 @@ class RestorationJobSerializer(serializers.ModelSerializer):
             'spent_hours',
             'spent_parts_cost',
             'dispositioned_at',
+            'processing_handled_at',
         ]
         read_only_fields = fields
 

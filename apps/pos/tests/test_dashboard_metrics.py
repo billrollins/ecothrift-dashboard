@@ -151,6 +151,45 @@ class DashboardMetricsTests(TestCase):
         self.assertFalse(retail['ready'])
         self.assertIsNone(retail['average_grade'])
 
+    def test_restoration_active_jobs_counts_active_stages(self):
+        from apps.inventory.models import ItemCheckIn, RestorationJob
+
+        order = PurchaseOrder.objects.create(
+            vendor=self.vendor,
+            order_number='PO-DASH-REST',
+            ordered_date=self.today,
+            purchase_cost=Decimal('10.00'),
+            retail_value=Decimal('50.00'),
+            status='processing',
+        )
+
+        def _make_job(stage):
+            check_in = ItemCheckIn.objects.create(
+                purchase_order=order,
+                product=self.product,
+                origin=ItemCheckIn.ORIGIN_PRODUCT_AD_HOC,
+                quantity=1,
+                created_by=self.user,
+            )
+            return RestorationJob.objects.create(
+                item_check_in=check_in,
+                product=self.product,
+                purchase_order=order,
+                quantity=1,
+                stage=stage,
+            )
+
+        _make_job(RestorationJob.STAGE_BENCH)
+        _make_job(RestorationJob.STAGE_PENDING)
+        # Done is not active.
+        _make_job(RestorationJob.STAGE_DONE)
+
+        payload = build_dashboard_metrics(self.today)
+        restoration = payload['department_metrics']['restoration']
+        self.assertTrue(restoration['ready'])
+        self.assertEqual(restoration['active_jobs'], 2)
+        self.assertEqual(restoration['awaiting_parts'], 1)
+
     def test_department_daily_weeks_are_monday_sunday(self):
         payload = build_dashboard_metrics(self.today)
         weeks = payload['department_metrics']['daily_weeks']

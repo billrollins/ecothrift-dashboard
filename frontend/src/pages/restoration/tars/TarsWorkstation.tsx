@@ -80,7 +80,6 @@ import type { TarsHoldSubmit } from './TarsHoldDialog';
 
 export type TarsWorkstationNavState = {
   selectJobId?: number;
-  focusSection?: 'queue' | 'bench' | 'pending';
 };
 
 function timeValue(iso: string | null | undefined): number {
@@ -135,8 +134,6 @@ export function TarsWorkstation() {
   const [doneOpen, setDoneOpen] = useState(false);
 
   const [holdOpen, setHoldOpen] = useState(false);
-
-  const [holdDialogMode, setHoldDialogMode] = useState<'new' | 'update'>('new');
 
   const [evalGrade, setEvalGrade] = useState<string | null>(null);
   const [scanMessageDialog, setScanMessageDialog] = useState<{ title: string; message: string } | null>(null);
@@ -462,7 +459,8 @@ export function TarsWorkstation() {
   );
 
   const requestPartsForGrade = useCallback(
-    async (grade: string | null) => {
+    async (grade: string | null, options?: { autoHold?: boolean }) => {
+      const autoHold = options?.autoHold !== false;
       if (!displayJob) return;
       if (!grade) {
         enqueueSnackbar('Select a grade option before requesting parts.', { variant: 'warning' });
@@ -477,14 +475,33 @@ export function TarsWorkstation() {
           submit: true,
           evalSnapshot: snapshot ? { ...snapshot } : undefined,
         });
-        enqueueSnackbar(`Parts request submitted for grade ${grade}`, { variant: 'success' });
+        // "Put in order and send to pending": a parts request from the bench
+        // parks the item in Pending so it leaves the active bench.
+        if (autoHold && displayJob.stage === 'bench') {
+          await holdJob.mutateAsync({
+            id: displayJob.id,
+            payload: {
+              reason: 'parts_needed',
+              notes: `Parts requested for grade ${grade}`,
+              storage_location: '',
+            },
+          });
+          setEvalGrade(null);
+          setSelectedRowKey(null);
+          enqueueSnackbar(`Parts request submitted for ${grade} — item moved to Pending`, {
+            variant: 'success',
+          });
+          focusScanInput();
+        } else {
+          enqueueSnackbar(`Parts request submitted for grade ${grade}`, { variant: 'success' });
+        }
       } catch (err) {
         enqueueSnackbar(err instanceof Error ? err.message : 'Could not request parts', {
           variant: 'error',
         });
       }
     },
-    [displayJob, evaluation, flushWorkSessionSave, upsertParts, enqueueSnackbar],
+    [displayJob, evaluation, flushWorkSessionSave, upsertParts, holdJob, enqueueSnackbar, focusScanInput],
   );
 
   const openEval = useCallback(
@@ -525,26 +542,6 @@ export function TarsWorkstation() {
   const handleHoldSubmit = async (info: TarsHoldSubmit) => {
     if (!selectedJob) return;
 
-    if (holdDialogMode === 'update') {
-      const session = (selectedJob.work_session as unknown as TarsWorkSession | undefined) ?? createEmptyWorkSession('pending');
-
-      await updateWorkSession(selectedJob.id, {
-        ...session,
-        workState: 'pending',
-        pending: {
-          reason: info.reason,
-          notes: info.notes,
-          storageLocation: info.storageLocation,
-          pendingStartedAt: info.pendingStartedAt ?? selectedJob.pending_started_at ?? new Date().toISOString(),
-        },
-      });
-
-      setHoldOpen(false);
-      enqueueSnackbar('Pending info updated', { variant: 'success' });
-      focusScanInput();
-      return;
-    }
-
     try {
       await holdJob.mutateAsync({
         id: selectedJob.id,
@@ -558,7 +555,8 @@ export function TarsWorkstation() {
       setHoldOpen(false);
       enqueueSnackbar('Item placed on hold', { variant: 'info' });
       if (info.requestParts) {
-        await requestPartsForGrade(info.requestGrade);
+        // Hold already parked it in Pending — don't double-hold.
+        await requestPartsForGrade(info.requestGrade, { autoHold: false });
       }
       focusScanInput();
     } catch (err) {
@@ -680,6 +678,12 @@ export function TarsWorkstation() {
         </Alert>
       : null}
 
+      {isPendingSelected && displayItem.workSession?.pending?.partsReceived ?
+        <Alert severity="success" sx={{ py: 0.75, flexShrink: 0 }}>
+          Parts received — ready to finish. Resume the item to install parts, or disposition it now.
+        </Alert>
+      : null}
+
       <Box sx={{ flexShrink: 0, minWidth: 0, width: '100%' }}>
         <TarsBenchItemCard
           item={displayItem}
@@ -697,14 +701,13 @@ export function TarsWorkstation() {
             selectedJob?.stage === 'bench'
               ? () => {
                   runWithTimerGuard(selectedJob, 'hold', () => {
-                    setHoldDialogMode('new');
                     setHoldOpen(true);
                   });
                 }
               : undefined
           }
           onDone={
-            selectedJob?.stage === 'bench'
+            selectedJob && (selectedJob.stage === 'bench' || selectedJob.stage === 'pending')
               ? () => {
                   runWithTimerGuard(selectedJob, 'done', () => setDoneOpen(true));
                 }
@@ -984,7 +987,7 @@ export function TarsWorkstation() {
 
         open={doneOpen}
 
-        job={selectedJob?.stage === 'bench' ? selectedJob : null}
+        job={selectedJob && (selectedJob.stage === 'bench' || selectedJob.stage === 'pending') ? selectedJob : null}
 
         evaluation={evaluation}
 
@@ -1011,9 +1014,9 @@ export function TarsWorkstation() {
       {selectedJob && (selectedJob.stage === 'bench' || selectedJob.stage === 'pending') ?
         <TarsHoldDialog
           open={holdOpen}
-          title={holdDialogMode === 'update' ? 'Update pending shelf' : 'Place on hold'}
+          title="Place on hold"
           initial={displayItem?.workSession?.pending}
-          canRequestParts={holdDialogMode === 'new'}
+          canRequestParts
           gradeOptions={gradeOptions}
           selectedGrade={displayItem?.workSession?.selectedGrade ?? null}
           requesting={upsertParts.isPending}

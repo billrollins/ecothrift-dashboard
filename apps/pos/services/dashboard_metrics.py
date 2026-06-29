@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 from django.core.cache import cache
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
@@ -306,7 +306,28 @@ def _restoration_metrics(today: date) -> dict[str, Any]:
     )
     today_jobs = [job for job in week_jobs if job.updated_at.date() == today]
 
+    active_stages = (
+        RestorationJob.STAGE_QUEUED,
+        RestorationJob.STAGE_SENT,
+        RestorationJob.STAGE_BENCH,
+        RestorationJob.STAGE_PENDING,
+    )
+    active_jobs = RestorationJob.objects.filter(stage__in=active_stages).count()
+    awaiting_parts = RestorationJob.objects.filter(stage=RestorationJob.STAGE_PENDING).count()
+    returns_pending = RestorationJob.objects.filter(
+        processing_handled_at__isnull=True,
+    ).filter(
+        Q(stage=RestorationJob.STAGE_DONE, bench_disposition=RestorationJob.BENCH_DISPOSITION_PROCESSING)
+        | Q(
+            stage=RestorationJob.STAGE_RETURNED,
+            return_disposition_type=RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED,
+        ),
+    ).count()
+
     return {
+        'active_jobs': active_jobs,
+        'awaiting_parts': awaiting_parts,
+        'returns_pending': returns_pending,
         'week_jobs_done': week_jobs_done,
         'today_jobs_done': today_jobs_done,
         'week_tested': _count_tars_actions(week_jobs, 'test'),
@@ -317,8 +338,7 @@ def _restoration_metrics(today: date) -> dict[str, Any]:
         'today_repairs': _count_tars_actions(today_jobs, 'repair'),
         'today_assembled': _count_tars_actions(today_jobs, 'assemble'),
         'today_salvaged': _count_tars_actions(today_jobs, 'salvage'),
-        'ready': False,
-        'note': 'TARS detail counts are derived from work session actions; full reporting pending.',
+        'ready': True,
     }
 
 

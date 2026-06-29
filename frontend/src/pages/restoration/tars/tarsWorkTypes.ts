@@ -89,6 +89,9 @@ export interface TarsPendingInfo {
   notes: string;
   storageLocation: string;
   pendingStartedAt: string;
+  /** Set by the backend when a linked parts request is received. */
+  partsReceived?: boolean;
+  partsReceivedAt?: string;
 }
 
 export interface TarsWorkSession {

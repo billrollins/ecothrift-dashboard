@@ -980,6 +980,7 @@ export interface RestorationJobDTO {
   spent_hours: string | null;
   spent_parts_cost: string | null;
   dispositioned_at: string | null;
+  processing_handled_at: string | null;
 }
 
 export type RestorationQueueAddStatus =

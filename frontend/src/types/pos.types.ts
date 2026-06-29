@@ -235,6 +235,9 @@ export interface DepartmentPeriodMetric {
 }
 
 export interface RestorationMetrics {
+  active_jobs: number;
+  awaiting_parts: number;
+  returns_pending: number;
   week_jobs_done: number;
   today_jobs_done: number;
   week_tested: number;

@@ -8413,6 +8413,38 @@ class RestorationJobViewSet(
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
         return Response(out.data)
 
+    @action(detail=False, methods=['get'])
+    def returns(self, request):
+        """Items returned to Processing from restoration that still need a
+        retag / reprice. Covers bench disposition to Processing (stage=done)
+        and queue 'TARS completed' returns (stage=returned)."""
+        from django.db.models import Q
+
+        qs = (
+            self.get_queryset()
+            .filter(processing_handled_at__isnull=True)
+            .filter(
+                Q(stage=RestorationJob.STAGE_DONE, bench_disposition=RestorationJob.BENCH_DISPOSITION_PROCESSING)
+                | Q(
+                    stage=RestorationJob.STAGE_RETURNED,
+                    return_disposition_type=RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED,
+                ),
+            )
+            .order_by('-dispositioned_at', '-returned_at', '-updated_at')
+        )
+        ser = RestorationJobSerializer(qs, many=True, context=self.get_serializer_context())
+        return Response(ser.data)
+
+    @action(detail=True, methods=['post'], url_path='mark-handled')
+    def mark_handled(self, request, pk=None):
+        job = self.get_object()
+        if job.processing_handled_at is None:
+            job.processing_handled_at = timezone.now()
+            job.processing_handled_by = request.user
+            job.save(update_fields=['processing_handled_at', 'processing_handled_by', 'updated_at'])
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
 
 class RestorationPartsRequestViewSet(
     mixins.ListModelMixin,

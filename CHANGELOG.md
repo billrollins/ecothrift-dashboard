@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.35.0] — 2026-06-26 -->
-<!-- Last reviewed: 2026-06-26 (release v2.35.0 — TARS MVP + parts request detail) -->
+<!-- Line 1 release: ## [2.36.0] — 2026-06-29 -->
+<!-- Last reviewed: 2026-06-29 (release v2.36.0 — TARS end-to-end lifecycle + Restoration Returns) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,27 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.36.0] — 2026-06-29
+
+User-facing theme: **TARS restoration closes the full lifecycle — bench Disposition returns items to Processing with achieved grade, parts flow parks/resumes cleanly, and Processing gets a dedicated Restoration Returns list.**
+
+Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md)
+
+### Added
+
+- **Restoration / bench disposition** — `complete_restoration_job` moves items by destination (`processing`, `back_storage`, `salvage`, `online_sales`), writes `ItemHistory`, stamps `restoration_return_grade`/`scale` on check-in snapshot, and refreshes processing denorm; `'processing'` added to `DISPATCH_VALUES`.
+- **Restoration / returns API** — Migration `0077`: `RestorationJob.processing_handled_at` + `processing_handled_by`; `GET …/restoration-jobs/returns/` lists unhandled processing returns; `POST …/{id}/mark-handled/` clears them.
+- **Restoration / parts received signal** — `receive_parts_request` sets `work_session.pending.partsReceived` when the linked job is pending.
+- **Inventory / Restoration Returns page** — `/inventory/restoration-returns` table (SKU, product, achieved grade, returned date) with inline **Print tag**, **Set price**, **Mark handled**; nav item under Processing.
+- **POS / dashboard** — `_restoration_metrics` ships `active_jobs`, `awaiting_parts`, `returns_pending` with `ready: true`; Restoration card headline binds to active count with returns sub-stat.
+
+### Changed
+
+- **Restoration / TARS bench** — Request parts auto-holds item to Pending; Disposition enabled from Pending; green **Parts received — ready to finish** banner when parts arrive.
+- **Restoration / cleanup** — Removed dead hold-update branch, unused `focusSection` nav state, orphan `executing` rail label, and unused `useSendRestorationJob` / `usePatchRestorationJobGrade` hooks.
 
 ---
 

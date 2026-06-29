@@ -1,12 +1,11 @@
-release(v2.35.0): TARS MVP bench + parts request order detail and actuals
+release(v2.36.0): TARS end-to-end lifecycle and Restoration Returns
 
-Release: v2.35.0
+Release: v2.36.0
 
-TARS restoration workspace — MVP simplification and parts-request purchasing lifecycle.
+Close the TARS restoration lifecycle so bench Disposition actually returns items to Processing with the achieved grade, parts-needed flows park and resume cleanly, and Processing can find returned items to retag and price.
 
-- Redesign work_session (parts/orders/gradePlans/benchRows); TarsWorkBenchTable action log; TarsGradeEvalDialog; grade-scoped Request parts
-- Parts requests page: Open/Received tabs, Approve with vendor URL + per-line actual cost, full order detail, Open in TARS
-- Migration 0076 supplier_url; record-order accepts supplier_url and line unit_cost
-- receive parts request endpoint; eval card choose vs open split; hold/done trims; queue scale fix
-- Order dialog polish; absoluteUrl fixes bare-domain part links
-- Remove legacy verb action panels; dashboard weekly sales rollups
+- complete_restoration_job moves items by destination, writes ItemHistory + grade snapshot, refreshes processing denorm (migration 0077 processing_handled_at)
+- GET restoration-jobs/returns/ and POST mark-handled/ for Processing handoff tracking
+- receive_parts_request sets pending.partsReceived on the bench
+- Dashboard active_jobs / returns_pending metrics; Restoration Returns page with print tag, set price, mark handled
+- TARS bench: request parts auto-pending, disposition from pending, parts-received banner; dead UI removed

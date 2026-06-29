@@ -55,6 +55,7 @@ import WatchlistPage from './pages/buying/WatchlistPage';
 import TarsQueuePage from './pages/restoration/tars/TarsQueuePage';
 import TarsPage from './pages/restoration/tars/TarsPage';
 import TarsPartsRequestsPage from './pages/restoration/TarsPartsRequestsPage';
+import RestorationReturnsPage from './pages/inventory/RestorationReturnsPage';
 import RestorationLayout from './pages/restoration/RestorationLayout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -135,6 +136,7 @@ export default function App() {
         <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
         <Route path="/inventory/processing" element={<ProcessingEntryRedirect />} />
         <Route path="/inventory/processing/:id" element={<ProcessingWorkspacePage />} />
+        <Route path="/inventory/restoration-returns" element={<RestorationReturnsPage />} />
         <Route path="/inventory/workbench" element={<InventoryWorkbenchPage />} />
         <Route path="/inventory/manage-products" element={<LegacyManageProductsRedirect />} />
         <Route path="/inventory/manage-items" element={<LegacyManageItemsRedirect />} />

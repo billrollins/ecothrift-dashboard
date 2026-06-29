@@ -10,6 +10,7 @@ export type NavIconKey =
   | 'localShipping'
   | 'inventory'
   | 'assignmentTurnedIn'
+  | 'assignmentReturned'
   | 'balance'
   | 'search'
   | 'localOffer'

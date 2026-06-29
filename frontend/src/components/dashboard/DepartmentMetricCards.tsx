@@ -1,4 +1,4 @@
-import { Box, Grid } from '@mui/material';
+import { Box, Grid, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import ShoppingBag from '@mui/icons-material/ShoppingBag';
@@ -37,6 +37,7 @@ interface CardConfig {
   icon: ReactNode;
   actual: string;
   placeholder?: boolean;
+  subStat?: ReactNode;
   getValue: (day: DepartmentDailyMetric) => string;
 }
 
@@ -81,8 +82,16 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
       kind: 'count',
       accent: dashboardPalette.violet,
       icon: <Handyman />,
-      actual: String(restoration.week_jobs_done),
-      placeholder: !restoration.ready,
+      actual: String(restoration.active_jobs),
+      placeholder: false,
+      subStat: (
+        <Typography
+          variant="caption"
+          sx={{ fontSize: '0.62rem', fontWeight: 800, color: 'text.secondary', lineHeight: 1.2 }}
+        >
+          {restoration.active_jobs} in restoration · {restoration.returns_pending} awaiting retag
+        </Typography>
+      ),
       getValue: restorationGridValue,
     },
     {
@@ -115,6 +124,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
                 goalDisplay={formatDepartmentGoalValue(card.kind, goals[card.key]?.value ?? '')}
                 actualDisplay={card.actual}
                 placeholder={card.placeholder}
+                subStat={card.subStat}
                 onGoalClick={() => setOpenKey(card.key)}
                 footer={
                   <DepartmentCardGrid weeks={daily_weeks} getValue={card.getValue} todayIso={todayIso} />

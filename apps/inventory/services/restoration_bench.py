@@ -309,7 +309,81 @@ def complete_restoration_job(
             'work_session',
         ],
     )
+    _move_items_for_disposition(
+        job,
+        destination=destination,
+        final_grade=final_grade,
+        notes=notes or '',
+        user=user,
+    )
     return job
+
+
+# Bench disposition destinations -> Item.location values.
+_DISPOSITION_LOCATION = {
+    RestorationJob.BENCH_DISPOSITION_PROCESSING: 'processing',
+    RestorationJob.BENCH_DISPOSITION_STORAGE: 'back_storage',
+    RestorationJob.BENCH_DISPOSITION_SALVAGE: 'salvage',
+    RestorationJob.BENCH_DISPOSITION_ONLINE_SALES: 'online_sales',
+}
+
+
+def _move_items_for_disposition(
+    job: RestorationJob,
+    *,
+    destination: str,
+    final_grade: str,
+    notes: str,
+    user,
+) -> None:
+    """Move the job's items to the disposition location and, for Processing,
+    record the achieved grade on the check-in snapshot so Processing can retag."""
+    from apps.inventory.models import ItemCheckIn, ItemHistory
+
+    new_location = _DISPOSITION_LOCATION.get(destination)
+    if not new_location or not job.item_check_in_id:
+        return
+
+    check_in = ItemCheckIn.objects.select_for_update().get(pk=job.item_check_in_id)
+
+    if destination == RestorationJob.BENCH_DISPOSITION_PROCESSING:
+        snapshot = dict(check_in.defaults_snapshot or {})
+        snapshot['dispatch'] = 'processing'
+        snapshot['location'] = 'processing'
+        snapshot['restoration_return_disposition_type'] = RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED
+        snapshot['restoration_return_reason'] = ''
+        snapshot['restoration_return_scale'] = job.scale or ''
+        snapshot['restoration_return_grade'] = final_grade
+        snapshot['restoration_return_notes'] = notes
+        check_in.defaults_snapshot = snapshot
+        check_in.save(update_fields=['defaults_snapshot', 'updated_at'])
+
+    histories: list[ItemHistory] = []
+    for item in check_in.items.select_for_update().all():
+        if item.status == 'sold' or item.sold_at:
+            continue
+        old_location = item.location or ''
+        if old_location == new_location:
+            continue
+        item.location = new_location
+        item.save(update_fields=['location', 'updated_at'])
+        histories.append(
+            ItemHistory(
+                item=item,
+                event_type='location_change',
+                old_value=old_location,
+                new_value=new_location,
+                note=f'TARS disposition to {destination} (grade {final_grade})',
+                created_by=user,
+            ),
+        )
+    if histories:
+        ItemHistory.objects.bulk_create(histories)
+
+    if destination == RestorationJob.BENCH_DISPOSITION_PROCESSING:
+        from apps.inventory.services.processing_workspace import refresh_processing_rows_denorm
+
+        refresh_processing_rows_denorm(job.purchase_order_id)
 
 
 def timer_state_payload(job: RestorationJob) -> dict:
@@ -519,4 +593,18 @@ def receive_parts_request(request: RestorationPartsRequest) -> RestorationPartsR
     RestorationPartsRequestLine.objects.filter(site__parts_request=request).update(
         status=RestorationPartsRequestLine.STATUS_RECEIVED,
     )
+
+    # Signal the bench: if the job is parked in Pending waiting on these parts,
+    # flag it so the workstation shows "parts in — ready to finish".
+    if request.job_id:
+        job = RestorationJob.objects.select_for_update().get(pk=request.job_id)
+        if job.stage == RestorationJob.STAGE_PENDING:
+            session = dict(job.work_session or {})
+            pending = dict(session.get('pending') or {})
+            pending['partsReceived'] = True
+            pending['partsReceivedAt'] = timezone.now().isoformat()
+            session['pending'] = pending
+            job.work_session = session
+            job.save(update_fields=['work_session', 'updated_at'])
+
     return request

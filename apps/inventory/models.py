@@ -998,6 +998,16 @@ class RestorationJob(models.Model):
         blank=True,
         related_name='restoration_jobs_dispositioned',
     )
+    # Set when Processing has retagged/repriced a returned item — clears it from
+    # the Restoration Returns list. Null = still needs Processing handling.
+    processing_handled_at = models.DateTimeField(null=True, blank=True)
+    processing_handled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_jobs_processing_handled',
+    )
 
     class Meta:
         ordering = ['-updated_at', '-id']

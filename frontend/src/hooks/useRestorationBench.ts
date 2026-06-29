@@ -6,6 +6,8 @@ import {
   getRestorationPartsRequest,
   listRestorationJobs,
   listRestorationPartsRequests,
+  listRestorationReturns,
+  markRestorationJobHandled,
   moveRestorationJobBackToQueue,
   patchRestorationJobWorkSession,
   pauseRestorationJobTimer,
@@ -100,6 +102,32 @@ export function useTarsBenchJobs() {
       const byId = new Map<number, RestorationJobDTO>();
       for (const job of merged) byId.set(job.id, job);
       return expandRestorationJobsForTars(Array.from(byId.values()));
+    },
+  });
+}
+
+export const restorationReturnsQueryKey = ['restoration-returns'] as const;
+
+export function useRestorationReturns() {
+  return useQuery({
+    queryKey: restorationReturnsQueryKey,
+    queryFn: async () => {
+      const { data } = await listRestorationReturns();
+      return data;
+    },
+  });
+}
+
+export function useMarkRestorationJobHandled() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await markRestorationJobHandled(id);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: restorationReturnsQueryKey });
+      invalidateBenchJobs(queryClient);
     },
   });
 }
@@ -296,28 +324,6 @@ export function useRecordRestorationPartsOrder() {
       queryClient.invalidateQueries({ queryKey: ['restoration-parts-requests'] });
       queryClient.invalidateQueries({ queryKey: ['restoration-parts-request', requestId] });
     },
-  });
-}
-
-export function usePatchRestorationJobGrade() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      id,
-      selectedGrade,
-      workSession,
-    }: {
-      id: number;
-      selectedGrade: string;
-      workSession: Record<string, unknown>;
-    }) => {
-      const { data } = await patchRestorationJobWorkSession(id, {
-        ...workSession,
-        selectedGrade,
-      });
-      return data;
-    },
-    onSuccess: () => invalidateBenchJobs(queryClient),
   });
 }
 

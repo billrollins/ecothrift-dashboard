@@ -16,6 +16,7 @@ interface DepartmentStatCardProps {
   placeholder?: boolean;
   onGoalClick: () => void;
   footer?: ReactNode;
+  subStat?: ReactNode;
 }
 
 const GOLD = dashboardPalette.gold;
@@ -29,6 +30,7 @@ export function DepartmentStatCard({
   placeholder = false,
   onGoalClick,
   footer,
+  subStat,
 }: DepartmentStatCardProps) {
   return (
     <Card
@@ -157,6 +159,7 @@ export function DepartmentStatCard({
           </Box>
         </Box>
 
+        {subStat}
         {footer}
       </CardContent>
     </Card>

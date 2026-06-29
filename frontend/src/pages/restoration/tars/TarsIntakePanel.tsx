@@ -635,9 +635,8 @@ export function TarsIntakePanel() {
 
   const handleGoToBlocked = useCallback(() => {
     if (!blockedDialog) return;
-    const focusSection = blockedDialog.location === 'on_bench' ? 'bench' : 'pending';
     navigate('/restoration/tars', {
-      state: { selectJobId: blockedDialog.jobId, focusSection },
+      state: { selectJobId: blockedDialog.jobId },
     });
     setBlockedDialog(null);
   }, [blockedDialog, navigate]);

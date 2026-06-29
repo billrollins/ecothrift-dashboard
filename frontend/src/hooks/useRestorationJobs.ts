@@ -5,7 +5,6 @@ import {
   listRestorationJobs,
   patchRestorationJob,
   returnRestorationJobToProcessing,
-  sendRestorationJob,
   splitRestorationJob,
 } from '../api/inventory.api';
 import type {
@@ -63,18 +62,6 @@ export function usePatchRestorationJob() {
         (prev) => (prev ? prev.map((job) => (job.id === data.id ? data : job)) : prev),
       );
     },
-  });
-}
-
-export function useSendRestorationJob() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: number) => {
-      const { data } = await sendRestorationJob(id);
-      return data;
-    },
-    onSuccess: () => invalidateQueuedJobs(queryClient),
   });
 }
 

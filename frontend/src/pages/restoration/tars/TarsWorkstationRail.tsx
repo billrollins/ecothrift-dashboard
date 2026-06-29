@@ -159,8 +159,6 @@ function stageLabel(stage: RestorationJobDTO['stage']): string {
 
     pending: 'Pending',
 
-    executing: 'Executing',
-
     done: 'Done',
 
     returned: 'Returned',

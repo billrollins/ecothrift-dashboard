@@ -2,6 +2,7 @@ import Dashboard from '@mui/icons-material/Dashboard';
 import AccountBalance from '@mui/icons-material/AccountBalance';
 import Article from '@mui/icons-material/Article';
 import AssignmentTurnedIn from '@mui/icons-material/AssignmentTurnedIn';
+import AssignmentReturned from '@mui/icons-material/AssignmentReturned';
 import Balance from '@mui/icons-material/Balance';
 import LocalShipping from '@mui/icons-material/LocalShipping';
 import LocalOffer from '@mui/icons-material/LocalOffer';
@@ -34,6 +35,7 @@ export const NAV_ICON_MAP: Record<NavIconKey, ComponentType<SvgIconProps>> = {
   localShipping: LocalShipping,
   inventory: Inventory,
   assignmentTurnedIn: AssignmentTurnedIn,
+  assignmentReturned: AssignmentReturned,
   balance: Balance,
   search: Search,
   localOffer: LocalOffer,

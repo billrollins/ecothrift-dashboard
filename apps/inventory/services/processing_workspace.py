@@ -58,7 +58,7 @@ def condition_ui_to_db(ui_val: str) -> str:
 
 
 DISPATCH_VALUES = frozenset(
-    {'on_shelf', 'restoration', 'back_storage', 'online_sales', 'salvage'},
+    {'on_shelf', 'restoration', 'back_storage', 'online_sales', 'salvage', 'processing'},
 )
 
 

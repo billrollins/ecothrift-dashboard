@@ -1020,6 +1020,115 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertEqual(resp.data['final_grade'], 'Working')
         self.assertEqual(resp.data['spent_hours'], '1.25')
 
+    def test_done_returns_item_to_processing_with_grade(self):
+        job = self._sent_job()
+        self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        resp = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/done/',
+            {'destination': 'processing', 'final_grade': 'Working', 'notes': 'Floor ready'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        job.refresh_from_db()
+        check_in = job.item_check_in
+        for item in check_in.items.all():
+            self.assertEqual(item.location, 'processing')
+        snapshot = check_in.defaults_snapshot or {}
+        self.assertEqual(snapshot.get('restoration_return_grade'), 'Working')
+        self.assertEqual(snapshot.get('restoration_return_scale'), job.scale)
+        self.assertEqual(snapshot.get('location'), 'processing')
+
+    def test_done_to_storage_moves_item_to_back_storage(self):
+        job = self._sent_job()
+        self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        resp = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/done/',
+            {'destination': 'storage', 'final_grade': 'Working'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        job.refresh_from_db()
+        for item in job.item_check_in.items.all():
+            self.assertEqual(item.location, 'back_storage')
+
+    def test_returns_list_and_mark_handled(self):
+        job = self._sent_job()
+        self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/done/',
+            {'destination': 'processing', 'final_grade': 'Working'},
+            format='json',
+        )
+        listing = self.client.get('/api/inventory/restoration-jobs/returns/')
+        self.assertEqual(listing.status_code, 200, listing.data)
+        ids = [row['id'] for row in listing.data]
+        self.assertIn(job.id, ids)
+        returned_row = next(row for row in listing.data if row['id'] == job.id)
+        self.assertEqual(returned_row['final_grade'], 'Working')
+
+        handled = self.client.post(f'/api/inventory/restoration-jobs/{job.id}/mark-handled/')
+        self.assertEqual(handled.status_code, 200, handled.data)
+        self.assertIsNotNone(handled.data['processing_handled_at'])
+
+        listing2 = self.client.get('/api/inventory/restoration-jobs/returns/')
+        self.assertNotIn(job.id, [row['id'] for row in listing2.data])
+
+    def test_receive_parts_sets_pending_flag(self):
+        from apps.inventory.models import RestorationPartsRequest
+
+        job = self._sent_job()
+        self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        work_session = {
+            'workState': 'bench',
+            'selectedGrade': 'Working',
+            'parts': [{
+                'id': 'p1', 'partNumber': 'TH-01', 'description': 'Thumbstick',
+                'url': 'https://example.com/p1', 'qty': 1, 'unitPriceEstimate': 6,
+                'unitPriceActual': 0, 'status': 'planned', 'procurementGroupId': 'g1',
+            }],
+            'orders': [{
+                'id': 'g1', 'supplierName': 'Amazon', 'partIds': ['p1'],
+                'shipping': 5, 'tax': 1, 'fees': 0,
+            }],
+            'gradePlans': {'Working': {'estimateHours': 1.5, 'orderIds': ['g1']}},
+            'benchRows': [],
+        }
+        self.client.patch(
+            f'/api/inventory/restoration-jobs/{job.id}/work-session/',
+            {'work_session': work_session},
+            format='json',
+        )
+        upsert = self.client.post(
+            f'/api/inventory/restoration-parts-requests/upsert-from-job/{job.id}/?submit=true',
+            {'grade': 'Working', 'eval_snapshot': {'grade': 'Working'}},
+            format='json',
+        )
+        self.assertEqual(upsert.status_code, 200, upsert.data)
+        req = RestorationPartsRequest.objects.get(pk=upsert.data['id'])
+        site = req.sites.first()
+        line = site.lines.first()
+        self.client.post(
+            f'/api/inventory/restoration-parts-requests/{req.id}/record-order/',
+            {
+                'site_id': site.id, 'po_number': 'PO-9100', 'supplier_name': 'Amazon',
+                'subtotal': '6.00', 'shipping': '5.00', 'tax': '1.00', 'fees': '0.00',
+                'lines': [{'id': line.id, 'unit_cost': '6.00'}],
+            },
+            format='json',
+        )
+        # Park the job in pending (waiting on parts), then receive.
+        self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/hold/',
+            {'reason': 'parts_needed'},
+            format='json',
+        )
+        receive = self.client.post(
+            f'/api/inventory/restoration-parts-requests/{req.id}/receive/',
+        )
+        self.assertEqual(receive.status_code, 200, receive.data)
+        job.refresh_from_db()
+        self.assertTrue((job.work_session.get('pending') or {}).get('partsReceived'))
+
     def test_parts_request_upsert_and_order(self):
         from apps.inventory.models import RestorationPartsRequest
 

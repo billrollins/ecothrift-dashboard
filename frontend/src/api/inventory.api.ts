@@ -2229,6 +2229,14 @@ export function completeRestorationJob(
   return api.post(`/inventory/restoration-jobs/${id}/done/`, payload);
 }
 
+export function listRestorationReturns(): Promise<{ data: RestorationJobDTO[] }> {
+  return api.get('/inventory/restoration-jobs/returns/');
+}
+
+export function markRestorationJobHandled(id: number): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/mark-handled/`);
+}
+
 export function listRestorationPartsRequests(params?: {
   status?: string;
   job?: number;
