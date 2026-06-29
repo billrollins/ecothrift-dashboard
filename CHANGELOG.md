@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.37.0] — 2026-06-29 -->
-<!-- Last reviewed: 2026-06-29 (Retail Quality Audit MVP — [Unreleased]) -->
+<!-- Line 1 release: ## [2.38.0] — 2026-06-29 -->
+<!-- Last reviewed: 2026-06-29 (Retail Quality Audit — editable forms + UX supercharge) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,17 +10,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.38.0] — 2026-06-29
 
-User-facing theme: **Managers can run a mobile Retail floor QA from Admin and see the grade on the dashboard.**
+User-facing theme: **Managers run mobile floor QAs from configurable forms; Super Admins edit checklists; the dashboard Retail QA card shows the latest letter grade.**
 
 Initiative: [`.ai/initiatives/retail_quality_audit.md`](.ai/initiatives/retail_quality_audit.md)
 
 ### Added
 
-- **Admin / Quality Audit** — **`/admin/quality-audit`**: type picker (Retail live; Processing placeholder); **`QualityAuditForm`** + **`QualityAudit`** (migrations **`0008`–`0009`**); **`GET/POST/PATCH /api/pos/quality-audit-forms/`** + **`/api/pos/quality-audits/`** + **`…/submit/`** (Manager+).
-- **Admin / Retail QA wizard** — Mobile-first 5-section checklist (25 floor checks: front of house, aisles, shelving, cleanliness, tags/pricing); Pass/Fail/N/A + fail notes; summary review with section edit + submit confirm.
-- **Dashboard / Retail QA card** — Latest submitted audit with **`feeds_dashboard=True`** **`overall_grade`** replaces placeholder; **`invalidate_dashboard_metrics_cache`** on submit.
+- **Admin / Quality Audit hub** — **`/admin/quality-audit`**: start cards for each active form; latest submitted grade badge; Super Admin **Manage forms** entry.
+- **Admin / QA wizard** — **`/admin/quality-audit/run/:formSlug/:auditId`**: mobile-first shell (gradient hero, live grade ring, section chip rail, sticky footer); 5 sections × 25 checks driven by form definition; summary with projected grade, section bars, fail list, submit confirm.
+- **Admin / QA form editor** (Super Admin) — **`/admin/quality-audit/forms`**: CRUD for **`QualityAuditForm`**; section/check builder with 15 control kinds (yes/no, thumbs, rating, emoji, severity, slider, chips, counter, zone, photo, confidence, toggle, priority, comment, letter grade); system retail form locked (slug + dashboard binding); **`QA Forms`** nav item.
+- **Backend / QA models + API** — **`QualityAuditForm`** + **`QualityAudit`** (migrations **`0008`–`0009`**); seeded retail system form (`feeds_dashboard=True`); **`GET/POST/PATCH/DELETE /api/pos/quality-audit-forms/`** (Super Admin write, Manager+ read) + **`GET/POST/PATCH /api/pos/quality-audits/`** + **`…/submit/`**; definition validation + server-side **`derive_result`** per control kind.
+- **Dashboard / Retail QA card** — Latest submitted audit on a **`feeds_dashboard`** form **`overall_grade`**; cache invalidates on submit.
 
 ### Changed
 

@@ -1,11 +1,12 @@
-feat(admin): retail quality audit MVP and dashboard grid fixes
+release(v2.38.0): retail quality audit — editable forms and mobile UX
 
-Release: v2.38.0 (when pushed)
+Release: v2.38.0
 
-- Admin Quality Audit hub + mobile retail wizard (25 checks, Pass/Fail/N/A, submit).
-- QualityAuditForm + QualityAudit models (migrations 0008–0009); Manager+ API.
-- Dashboard Retail QA card shows latest submitted grade; cache invalidates on submit.
-- Dashboard: week totals under week date in sales book + department grids.
-- Fix processing last-week daily grid (processing_by_day now spans Mon last week through today).
+- Admin Quality Audit hub with start cards per active form and latest grade badge.
+- Mobile QA wizard: gradient hero, live grade ring, section chip rail, 15 control widgets, summary submit.
+- Super Admin QA Forms editor: CRUD, section/check builder, system retail form locked, feeds dashboard.
+- Backend QualityAuditForm + QualityAudit (migrations 0008–0009); Manager+ audit API; Super Admin form API.
+- Dashboard Retail QA card shows latest submitted grade from feeds_dashboard form; cache invalidates on submit.
+- Dashboard: week totals under week date in sales book and department grids; fix processing last-week daily grid.
 
 Initiative: .ai/initiatives/retail_quality_audit.md
