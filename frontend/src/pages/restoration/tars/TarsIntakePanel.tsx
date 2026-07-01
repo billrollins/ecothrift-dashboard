@@ -39,6 +39,7 @@ import { TarsItemBlockedDialog, type TarsBlockedLocation } from './TarsItemBlock
 import { TarsNeedsPricesDialog } from './TarsNeedsPricesDialog';
 import { TarsScanMessageDialog } from './TarsScanMessageDialog';
 import { stackSkuSummary } from './tarsStackDisplay';
+import { formatUsdWhole as formatUsd, parseMoneyOpt as parseMoney } from './tarsMoney';
 import {
   useCombineRestorationJobs,
   useCreateRestorationJobFromSku,
@@ -69,7 +70,7 @@ type BulkAction = 'combine' | 'split' | 'return' | 'clear';
 const QUEUE_HEADER_MIN_HEIGHT = 158;
 
 function SourceDot({ source }: { source: TarsSource }) {
-  const color = source ? TARS_SOURCE_COLORS[source] : '#94a3b8';
+  const color = (source ? TARS_SOURCE_COLORS[source] : undefined) ?? '#94a3b8';
   return (
     <Box
       component="span"
@@ -84,19 +85,6 @@ function SourceDot({ source }: { source: TarsSource }) {
   );
 }
 
-function formatUsd(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function parseMoney(raw: string | null | undefined): number | undefined {
-  if (raw == null || raw === '') return undefined;
-  const n = parseFloat(raw);
-  return Number.isFinite(n) ? n : undefined;
-}
 
 function gradeCompletion(job: RestorationJobDTO, scales: Record<string, string[]>) {
   const grades = gradesForScale(job.scale, scales);
@@ -451,7 +439,12 @@ export function TarsIntakePanel() {
     Record<number, { scale: string; values: Record<string, number> }>
   >({});
   const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingPatchRef = useRef<{ id: number; payload: { scale?: string; grade_values?: Record<string, number> } } | null>(null);
+  // One pending payload per job id — payloads for the same job merge (scale
+  // merges with grade edits; grade_values replaces wholesale since callers
+  // always send the full values map).
+  const pendingPatchesRef = useRef(
+    new Map<number, { scale?: string; grade_values?: Record<string, number> }>(),
+  );
 
   const displayForJob = useCallback(
     (job: RestorationJobDTO) =>
@@ -459,20 +452,36 @@ export function TarsIntakePanel() {
     [localEdits],
   );
 
-  const flushPatch = useCallback(() => {
-    const pending = pendingPatchRef.current;
-    if (!pending) return;
-    pendingPatchRef.current = null;
-    patchJob.mutate(pending);
+  const flushPatches = useCallback(() => {
+    if (patchTimerRef.current) {
+      clearTimeout(patchTimerRef.current);
+      patchTimerRef.current = null;
+    }
+    const pending = pendingPatchesRef.current;
+    if (pending.size === 0) return;
+    const entries = Array.from(pending.entries());
+    pending.clear();
+    for (const [id, payload] of entries) {
+      patchJob.mutate({ id, payload });
+    }
   }, [patchJob]);
+
+  const flushPatchesRef = useRef(flushPatches);
+  useEffect(() => {
+    flushPatchesRef.current = flushPatches;
+  }, [flushPatches]);
+
+  // Flush any pending edits synchronously on unmount so they aren't dropped.
+  useEffect(() => () => flushPatchesRef.current(), []);
 
   const schedulePatch = useCallback(
     (id: number, payload: { scale?: string; grade_values?: Record<string, number> }) => {
-      pendingPatchRef.current = { id, payload };
+      const prev = pendingPatchesRef.current.get(id);
+      pendingPatchesRef.current.set(id, { ...prev, ...payload });
       if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
-      patchTimerRef.current = setTimeout(flushPatch, 400);
+      patchTimerRef.current = setTimeout(() => flushPatchesRef.current(), 400);
     },
-    [flushPatch],
+    [],
   );
 
   useEffect(() => {
@@ -482,18 +491,23 @@ export function TarsIntakePanel() {
     return () => clearTimeout(handle);
   }, [searchInput]);
 
+  // Consume router nav state exactly once — window.history.replaceState does
+  // not clear react-router state, which previously re-selected the job and
+  // reopened the dismissed "Needs prices" dialog on every refetch.
+  const navStateConsumedRef = useRef(false);
   useEffect(() => {
-    if (!navState?.selectJobId) return;
+    if (navStateConsumedRef.current || !navState?.selectJobId) return;
+    const job = jobs.find((entry) => entry.id === navState.selectJobId);
+    // Wait for the queue to load before consuming when we need the job's SKU.
+    if (navState.showNeedsPricesDialog && !job && isLoading) return;
+    navStateConsumedRef.current = true;
     setSelectedJobId(navState.selectJobId);
-    if (navState.showNeedsPricesDialog) {
-      const job = jobs.find((entry) => entry.id === navState.selectJobId);
-      if (job) {
-        const sku = job.sku ?? job.items[0]?.sku ?? 'Item';
-        setNeedsPricesDialog({ sku });
-      }
+    if (navState.showNeedsPricesDialog && job) {
+      const sku = job.sku ?? job.items[0]?.sku ?? 'Item';
+      setNeedsPricesDialog({ sku });
     }
-    window.history.replaceState({}, document.title);
-  }, [jobs, navState?.selectJobId, navState?.showNeedsPricesDialog]);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [isLoading, jobs, location.pathname, navState, navigate]);
 
   const visibleJobs = useMemo(
     () =>
@@ -556,6 +570,15 @@ export function TarsIntakePanel() {
     whiteSpace: 'nowrap',
     flexShrink: 0,
   } as const;
+
+  const handleSelectJob = useCallback(
+    (id: number) => {
+      // Flush pending debounced edits before switching so nothing is dropped.
+      flushPatches();
+      setSelectedJobId(id);
+    },
+    [flushPatches],
+  );
 
   const queuePatch = useCallback(
     (id: number, payload: { scale?: string; grade_values?: Record<string, number> }) => {
@@ -774,11 +797,12 @@ export function TarsIntakePanel() {
       ...ed,
       [activeJob.id]: { scale: activeDisplay.scale, values: normalizedValues },
     }));
-    if (patchTimerRef.current) {
+    // The explicit Save below supersedes any debounced patch for this job.
+    pendingPatchesRef.current.delete(activeJob.id);
+    if (pendingPatchesRef.current.size === 0 && patchTimerRef.current) {
       clearTimeout(patchTimerRef.current);
       patchTimerRef.current = null;
     }
-    pendingPatchRef.current = null;
     patchJob.mutate(
       {
         id: activeJob.id,
@@ -814,7 +838,7 @@ export function TarsIntakePanel() {
       clearTimeout(patchTimerRef.current);
       patchTimerRef.current = null;
     }
-    pendingPatchRef.current = null;
+    pendingPatchesRef.current.clear();
     setLocalEdits({});
     try {
       const result = await refetch();
@@ -1314,7 +1338,7 @@ export function TarsIntakePanel() {
                   selected={activeJob?.id === job.id}
                   checked={selectedStackIds.includes(job.id)}
                   onToggleChecked={() => toggleStackSelection(job.id)}
-                  onSelect={() => setSelectedJobId(job.id)}
+                  onSelect={() => handleSelectJob(job.id)}
                   scales={gradeScales}
                 />
               ))}

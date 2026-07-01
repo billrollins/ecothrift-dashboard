@@ -101,7 +101,6 @@ export interface TarsWorkSession {
   orders: TarsProcurementGroup[];
   gradePlans: Record<string, TarsGradePlan>;
   benchRows: TarsWorkBenchRow[];
-  benchStartedAt?: string;
   pending?: TarsPendingInfo;
 }
 

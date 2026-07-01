@@ -253,28 +253,40 @@ def _restoration_done_by_day(start: date, end: date) -> dict[date, int]:
     rows = (
         RestorationJob.objects.filter(
             stage=RestorationJob.STAGE_DONE,
-            updated_at__date__gte=start,
-            updated_at__date__lte=end,
+            dispositioned_at__date__gte=start,
+            dispositioned_at__date__lte=end,
         )
-        .values('updated_at__date')
+        .values('dispositioned_at__date')
         .annotate(count=Count('id'))
     )
-    return {row['updated_at__date']: row['count'] for row in rows}
+    return {row['dispositioned_at__date']: row['count'] for row in rows}
 
 
 def _count_tars_actions(jobs, action_type: str) -> int:
+    """Count bench actions across work sessions — fully defensive against
+    malformed work_session payloads (never raises)."""
+
     count = 0
     for job in jobs:
-        session = job.work_session or {}
-        for action in session.get('actions') or []:
+        session = job.work_session if isinstance(job.work_session, dict) else {}
+        actions = session.get('actions')
+        if not isinstance(actions, list):
+            continue
+        for action in actions:
+            if not isinstance(action, dict):
+                continue
             if action.get('type') != action_type:
                 continue
             if action_type == 'test':
-                tests = action.get('tests') or []
+                tests = action.get('tests')
+                if not isinstance(tests, list):
+                    tests = []
                 count += len(tests) if tests else 1
             elif action_type == 'assemble':
-                steps = action.get('steps') or []
-                done_steps = [s for s in steps if s.get('status') == 'done']
+                steps = action.get('steps')
+                if not isinstance(steps, list):
+                    steps = []
+                done_steps = [s for s in steps if isinstance(s, dict) and s.get('status') == 'done']
                 count += len(done_steps) if done_steps else (
                     1 if action.get('status') == 'complete' else 0
                 )
@@ -289,13 +301,13 @@ def _restoration_metrics(today: date) -> dict[str, Any]:
 
     done_filter = {
         'stage': RestorationJob.STAGE_DONE,
-        'updated_at__date__gte': week_start,
-        'updated_at__date__lte': today,
+        'dispositioned_at__date__gte': week_start,
+        'dispositioned_at__date__lte': today,
     }
     week_jobs_done = RestorationJob.objects.filter(**done_filter).count()
     today_jobs_done = RestorationJob.objects.filter(
         stage=RestorationJob.STAGE_DONE,
-        updated_at__date=today,
+        dispositioned_at__date=today,
     ).count()
 
     week_jobs = list(

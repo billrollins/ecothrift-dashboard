@@ -1,8 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   combineRestorationJobs,
   createRestorationJobFromSku,
-  listRestorationJobs,
   patchRestorationJob,
   returnRestorationJobToProcessing,
   splitRestorationJob,
@@ -14,27 +13,7 @@ import type {
   RestorationJobReturnPayload,
   RestorationJobSplitPayload,
 } from '../types/inventory.types';
-
-export const restorationJobsQueryKey = (stage = 'queued') =>
-  ['restoration-jobs', { stage }] as const;
-
-export function useRestorationJobs(options?: { stage?: string; enabled?: boolean }) {
-  const stage = options?.stage ?? 'queued';
-
-  return useQuery({
-    queryKey: restorationJobsQueryKey(stage),
-    queryFn: async () => {
-      const { data } = await listRestorationJobs({ stage, page_size: 200 });
-      return data.results;
-    },
-    enabled: options?.enabled !== false,
-  });
-}
-
-function invalidateQueuedJobs(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: ['restoration-jobs'] });
-  queryClient.invalidateQueries({ queryKey: ['restoration-queue-jobs'] });
-}
+import { invalidateBenchJobs, restorationReturnsQueryKey } from './useRestorationBench';
 
 export function useCreateRestorationJobFromSku() {
   const queryClient = useQueryClient();
@@ -44,7 +23,7 @@ export function useCreateRestorationJobFromSku() {
       const { data } = await createRestorationJobFromSku(sku);
       return data;
     },
-    onSuccess: () => invalidateQueuedJobs(queryClient),
+    onSuccess: () => invalidateBenchJobs(queryClient),
   });
 }
 
@@ -57,10 +36,15 @@ export function usePatchRestorationJob() {
       return data;
     },
     onSuccess: (data) => {
+      // The queue page renders from the merged queued+sent cache — patch it in
+      // place so debounced edits don't trigger a refetch that clobbers typing.
       queryClient.setQueryData<RestorationJobDTO[]>(
-        restorationJobsQueryKey('queued'),
+        ['restoration-queue-jobs'],
         (prev) => (prev ? prev.map((job) => (job.id === data.id ? data : job)) : prev),
       );
+      // The bench cache stores expanded per-item rows; a surgical update is
+      // fragile there, so just invalidate it.
+      queryClient.invalidateQueries({ queryKey: ['tars-bench-jobs'] });
     },
   });
 }
@@ -73,7 +57,10 @@ export function useReturnRestorationJobToProcessing() {
       const { data } = await returnRestorationJobToProcessing(id, payload);
       return data;
     },
-    onSuccess: () => invalidateQueuedJobs(queryClient),
+    onSuccess: () => {
+      invalidateBenchJobs(queryClient);
+      queryClient.invalidateQueries({ queryKey: restorationReturnsQueryKey });
+    },
   });
 }
 
@@ -85,7 +72,7 @@ export function useSplitRestorationJob() {
       const { data } = await splitRestorationJob(id, payload);
       return data;
     },
-    onSuccess: () => invalidateQueuedJobs(queryClient),
+    onSuccess: () => invalidateBenchJobs(queryClient),
   });
 }
 
@@ -97,6 +84,6 @@ export function useCombineRestorationJobs() {
       const { data } = await combineRestorationJobs(payload);
       return data;
     },
-    onSuccess: () => invalidateQueuedJobs(queryClient),
+    onSuccess: () => invalidateBenchJobs(queryClient),
   });
 }

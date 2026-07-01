@@ -11,8 +11,14 @@ import type {
 
 export type { TarsWorkSession };
 
+/** Coerce possibly-missing/NaN numeric fields from legacy work_session data. */
+function num(v: number | null | undefined): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
 function partUnit(part: TarsPartLine): number {
-  return part.unitPriceActual > 0 ? part.unitPriceActual : part.unitPriceEstimate;
+  const actual = num(part.unitPriceActual);
+  return actual > 0 ? actual : num(part.unitPriceEstimate);
 }
 
 /** Grand total for one order: selected parts (with order qty overrides) + shipping + tax + fees. */
@@ -21,11 +27,11 @@ function orderTotal(parts: TarsPartLine[], order: TarsProcurementGroup): number 
   const subtotal = order.partIds.reduce((sum, id) => {
     const part = byId.get(id);
     if (!part) return sum;
-    const override = order.partQtyOverrides?.[id];
-    const qty = override != null && override > 0 ? override : part.qty || 1;
+    const override = num(order.partQtyOverrides?.[id]);
+    const qty = override > 0 ? override : num(part.qty) || 1;
     return sum + partUnit(part) * qty;
   }, 0);
-  return subtotal + order.shipping + order.tax + order.fees;
+  return subtotal + num(order.shipping) + num(order.tax) + num(order.fees);
 }
 
 /**
@@ -49,7 +55,7 @@ export function evaluateWorkSession(
     .filter((grade) => (values[grade] ?? 0) > 0)
     .map((grade) => {
       const plan = resolved.gradePlans?.[grade];
-      const estimateHours = plan?.estimateHours ?? 0;
+      const estimateHours = num(plan?.estimateHours);
       const orderIds = plan?.orderIds ?? [];
       const attachedOrders = resolved.orders.filter((o) => orderIds.includes(o.id));
       const laborCost = estimateHours * laborRate;

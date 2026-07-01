@@ -8153,20 +8153,19 @@ class RestorationJobViewSet(
 
     def create(self, request, *args, **kwargs):
         from apps.inventory.services.restoration import (
-            _find_item_by_identifier,
+            RestorationItemNotFound,
             queue_add_restoration_item,
         )
 
         ser = RestorationJobCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         sku = ser.validated_data['sku']
-        item = _find_item_by_identifier(sku)
-        if item is None:
-            return Response({'detail': f'No item found for {sku.strip()}.'}, status=status.HTTP_404_NOT_FOUND)
         try:
             result = queue_add_restoration_item(sku, request.user)
-        except ValueError as exc:
+        except RestorationItemNotFound as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         job = self.get_queryset().get(pk=result.job.pk)
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
         payload = {
@@ -8180,16 +8179,18 @@ class RestorationJobViewSet(
 
     def partial_update(self, request, *args, **kwargs):
         job = self.get_object()
-        if job.stage != RestorationJob.STAGE_QUEUED:
-            return Response(
-                {'detail': 'Only queued restoration jobs can be edited.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        ser = RestorationJobPatchSerializer(data=request.data, context={'job': job})
-        ser.is_valid(raise_exception=True)
-        job.scale = ser.validated_data['scale']
-        job.grade_values = ser.validated_data['grade_values']
-        job.save(update_fields=['scale', 'grade_values', 'updated_at'])
+        with transaction.atomic():
+            job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+            if job.stage != RestorationJob.STAGE_QUEUED:
+                return Response(
+                    {'detail': 'Only queued restoration jobs can be edited.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            ser = RestorationJobPatchSerializer(data=request.data, context={'job': job})
+            ser.is_valid(raise_exception=True)
+            job.scale = ser.validated_data['scale']
+            job.grade_values = ser.validated_data['grade_values']
+            job.save(update_fields=['scale', 'grade_values', 'updated_at'])
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
         return Response(out.data)
 
@@ -8200,10 +8201,9 @@ class RestorationJobViewSet(
             RestorationJob.STAGE_SENT,
             RestorationJob.STAGE_BENCH,
             RestorationJob.STAGE_PENDING,
-            RestorationJob.STAGE_EXECUTING,
         ):
             return Response(
-                {'detail': 'Work session can only be updated for sent, bench, pending, or executing jobs.'},
+                {'detail': 'Work session can only be updated for sent, bench, or pending jobs.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         ser = RestorationJobWorkSessionSerializer(data=request.data)
@@ -8435,12 +8435,39 @@ class RestorationJobViewSet(
         ser = RestorationJobSerializer(qs, many=True, context=self.get_serializer_context())
         return Response(ser.data)
 
+    @staticmethod
+    def _is_returns_eligible(job):
+        """Match the returns queryset condition — bench disposition to Processing
+        (stage=done) or queue 'TARS completed' return (stage=returned)."""
+        return (
+            job.stage == RestorationJob.STAGE_DONE
+            and job.bench_disposition == RestorationJob.BENCH_DISPOSITION_PROCESSING
+        ) or (
+            job.stage == RestorationJob.STAGE_RETURNED
+            and job.return_disposition_type == RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED
+        )
+
     @action(detail=True, methods=['post'], url_path='mark-handled')
     def mark_handled(self, request, pk=None):
         job = self.get_object()
+        if not self._is_returns_eligible(job):
+            return Response(
+                {'detail': 'Only restoration jobs returned to Processing can be marked handled.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if job.processing_handled_at is None:
             job.processing_handled_at = timezone.now()
             job.processing_handled_by = request.user
+            job.save(update_fields=['processing_handled_at', 'processing_handled_by', 'updated_at'])
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='unmark-handled')
+    def unmark_handled(self, request, pk=None):
+        job = self.get_object()
+        if job.processing_handled_at is not None:
+            job.processing_handled_at = None
+            job.processing_handled_by = None
             job.save(update_fields=['processing_handled_at', 'processing_handled_by', 'updated_at'])
         job = self.get_queryset().get(pk=job.pk)
         return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
@@ -8497,7 +8524,10 @@ class RestorationPartsRequestViewSet(
                 grade=ser.validated_data.get('grade') or None,
                 eval_snapshot=ser.validated_data.get('eval_snapshot'),
             )
-            if request.query_params.get('submit') == 'true':
+            if (
+                request.query_params.get('submit') == 'true'
+                and req.status == RestorationPartsRequest.STATUS_DRAFT
+            ):
                 req = submit_parts_request(req)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)

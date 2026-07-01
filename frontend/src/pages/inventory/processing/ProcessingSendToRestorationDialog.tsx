@@ -11,7 +11,7 @@ import {
   IconButton,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   createEmptyGradeValuesForScale,
   gradeValuesComplete,
@@ -19,6 +19,7 @@ import {
   type RestorationGradeConfig,
   type TarsGradeValuesCardItem,
 } from '../../restoration/tars/TarsGradeValuesCard';
+import { parseMoneyOpt } from '../../restoration/tars/tarsMoney';
 import { useGradeScales } from '../../../hooks/useGradeScales';
 import { processingTokens } from './processingTokens';
 
@@ -45,16 +46,23 @@ export function ProcessingSendToRestorationDialog({
   const [scale, setScale] = useState('');
   const [values, setValues] = useState<Record<string, number>>({});
 
+  // Read scales via a ref inside the reset effect so a grade-scale refetch
+  // (new record identity) can't wipe values typed while the dialog is open.
+  const gradeScalesRef = useRef(gradeScales);
+  useEffect(() => {
+    gradeScalesRef.current = gradeScales;
+  }, [gradeScales]);
+
   useEffect(() => {
     if (!open) return;
     const nextScale = initialConfig?.scale ?? '';
     setScale(nextScale);
     setValues(
       nextScale ?
-        createEmptyGradeValuesForScale(nextScale, gradeScales, initialConfig?.values ?? {})
+        createEmptyGradeValuesForScale(nextScale, gradeScalesRef.current, initialConfig?.values ?? {})
       : {},
     );
-  }, [open, initialConfig?.scale, initialConfig?.values, gradeScales]);
+  }, [open, initialConfig?.scale, initialConfig?.values]);
 
   const canSend = useMemo(
     () => gradeValuesComplete(scale, values, gradeScales),
@@ -163,12 +171,6 @@ export function buildRestorationCardItemFromProcessing(input: {
   vendorName?: string | null;
   sku?: string | null;
 }): TarsGradeValuesCardItem {
-  const parseMoney = (raw: string | number | null | undefined): number | undefined => {
-    if (raw == null || raw === '') return undefined;
-    const n = typeof raw === 'number' ? raw : Number.parseFloat(String(raw));
-    return Number.isFinite(n) ? n : undefined;
-  };
-
   return {
     sku: input.sku?.trim() || undefined,
     name: input.productTitle.trim() || 'Product',
@@ -178,8 +180,8 @@ export function buildRestorationCardItemFromProcessing(input: {
     upc: input.upc?.trim() || undefined,
     category: input.category != null ? String(input.category) : 'General',
     condition: input.condition?.trim() || undefined,
-    retail: parseMoney(input.retail),
-    price: parseMoney(input.price),
+    retail: parseMoneyOpt(input.retail),
+    price: parseMoneyOpt(input.price),
     source: mapVendorNameToTarsSource(input.vendorName),
   };
 }

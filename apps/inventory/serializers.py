@@ -1447,7 +1447,8 @@ class RestorationJobSerializer(serializers.ModelSerializer):
         cached = getattr(obj, '_first_item_cache', None)
         if cached is not None:
             return cached
-        item = obj.item_check_in.items.order_by('id').first() if obj.item_check_in_id else None
+        items = self._check_in_items(obj)
+        item = items[0] if items else None
         obj._first_item_cache = item
         return item
 
@@ -1550,7 +1551,28 @@ class RestorationJobPatchSerializer(serializers.Serializer):
 
 
 class RestorationJobWorkSessionSerializer(serializers.Serializer):
+    MAX_WORK_SESSION_BYTES = 100_000
+
     work_session = serializers.DictField()
+
+    def validate_work_session(self, value):
+        import json
+
+        actions = value.get('actions')
+        if actions is not None:
+            if not isinstance(actions, list):
+                raise serializers.ValidationError('work_session.actions must be a list.')
+            if not all(isinstance(action, dict) for action in actions):
+                raise serializers.ValidationError('Each entry in work_session.actions must be an object.')
+        try:
+            size = len(json.dumps(value, default=str).encode('utf-8'))
+        except (TypeError, ValueError):
+            raise serializers.ValidationError('work_session must be JSON-serializable.')
+        if size > self.MAX_WORK_SESSION_BYTES:
+            raise serializers.ValidationError(
+                f'work_session payload is too large ({size} bytes; max {self.MAX_WORK_SESSION_BYTES}).',
+            )
+        return value
 
 
 class RestorationJobHoldSerializer(serializers.Serializer):

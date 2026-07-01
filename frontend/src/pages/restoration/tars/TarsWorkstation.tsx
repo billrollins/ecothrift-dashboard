@@ -179,10 +179,7 @@ export function TarsWorkstation() {
     return [...bench].sort((a, b) => {
       const aTimerStarted = timeValue(a.timer_started_at);
       const bTimerStarted = timeValue(b.timer_started_at);
-      if (aTimerStarted || bTimerStarted) {
-        if (aTimerStarted !== bTimerStarted) return bTimerStarted - aTimerStarted;
-        return benchSortValue(a) - benchSortValue(b);
-      }
+      if (aTimerStarted !== bTimerStarted) return bTimerStarted - aTimerStarted;
       return benchSortValue(a) - benchSortValue(b);
     });
   }, [jobs]);
@@ -214,6 +211,8 @@ export function TarsWorkstation() {
         enqueueSnackbar(err instanceof Error ? err.message : 'Failed to save work session', {
           variant: 'error',
         });
+        // Rethrow so callers (draft hook, action flows) know the save failed.
+        throw err;
       }
     },
     [jobById, patchWorkSession, enqueueSnackbar],
@@ -244,6 +243,13 @@ export function TarsWorkstation() {
     [jobs, currentUserId],
   );
   const runningRowKey = runningJob ? tarsJobRowKey(runningJob) : null;
+
+  // Timer-switch confirmations are only good for the timer that was running
+  // when the user acknowledged them.
+  useEffect(() => {
+    timerSwitchAckRef.current.clear();
+  }, [runningRowKey]);
+
   const activeBenchRowKey = useMemo(() => {
     const activeJob = myActiveBenchRestorationJob(benchJobs, currentUserId);
     return activeJob ? tarsJobRowKey(activeJob) : null;
@@ -295,13 +301,14 @@ export function TarsWorkstation() {
 
     if (navState?.selectJobId) {
       const match = jobs.find((j) => j.id === navState.selectJobId);
+      navigate(location.pathname, { replace: true, state: {} });
       if (match) {
         setSelectedRowKey(tarsJobRowKey(match));
         appliedInitialSelectionRef.current = true;
         focusScanInput();
-        window.history.replaceState({}, document.title);
+        return;
       }
-      return;
+      // No matching job — fall through to normal selection.
     }
 
     const active =
@@ -313,7 +320,7 @@ export function TarsWorkstation() {
     }
     appliedInitialSelectionRef.current = true;
     focusScanInput();
-  }, [isLoading, authLoading, jobs, benchJobs, navState?.selectJobId, focusScanInput, currentUserId]);
+  }, [isLoading, authLoading, jobs, benchJobs, navState?.selectJobId, focusScanInput, currentUserId, navigate, location.pathname]);
 
   const actionsBusy =
     checkIn.isPending
@@ -325,6 +332,32 @@ export function TarsWorkstation() {
 
   const timerBusy = startTimer.isPending || pauseTimer.isPending || adjustTimer.isPending || timerSwitchDialog != null;
 
+  const startTimerSafe = useCallback(
+    async (jobId: number) => {
+      try {
+        await startTimer.mutateAsync(jobId);
+      } catch (err) {
+        enqueueSnackbar(err instanceof Error ? err.message : 'Could not start the timer', {
+          variant: 'error',
+        });
+      }
+    },
+    [startTimer, enqueueSnackbar],
+  );
+
+  const pauseTimerSafe = useCallback(
+    async (jobId: number) => {
+      try {
+        await pauseTimer.mutateAsync(jobId);
+      } catch (err) {
+        enqueueSnackbar(err instanceof Error ? err.message : 'Could not pause the timer', {
+          variant: 'error',
+        });
+      }
+    },
+    [pauseTimer, enqueueSnackbar],
+  );
+
   const runWithTimerGuard = useCallback(
     (targetJob: RestorationJobDTO, action: TimerGuardAction, proceed: () => void | Promise<void>) => {
       const activeRunning = myRunningRestorationJob(jobs, currentUserId);
@@ -332,12 +365,28 @@ export function TarsWorkstation() {
         void proceed();
         return;
       }
-      const key = timerGuardKey(action, tarsJobRowKey(targetJob));
-      if (timerSwitchAckRef.current.has(key)) {
-        void (async () => {
+      const key = timerGuardKey(action, tarsJobRowKey(activeRunning), tarsJobRowKey(targetJob));
+      const pauseThenProceed = async () => {
+        try {
           await pauseTimer.mutateAsync(activeRunning.id);
+        } catch (err) {
+          enqueueSnackbar(err instanceof Error ? err.message : 'Could not pause the running timer', {
+            variant: 'error',
+          });
+          return false;
+        }
+        try {
           await proceed();
-        })();
+        } catch (err) {
+          enqueueSnackbar(err instanceof Error ? err.message : 'Action failed', {
+            variant: 'error',
+          });
+          return false;
+        }
+        return true;
+      };
+      if (timerSwitchAckRef.current.has(key)) {
+        void pauseThenProceed();
         return;
       }
       setTimerSwitchDialog({
@@ -345,15 +394,15 @@ export function TarsWorkstation() {
         targetJob,
         action,
         onConfirm: async () => {
-          timerSwitchAckRef.current.add(key);
           setTimerSwitchDialog(null);
-          await pauseTimer.mutateAsync(activeRunning.id);
-          await proceed();
+          const ok = await pauseThenProceed();
+          if (!ok) return;
+          timerSwitchAckRef.current.add(key);
           focusScanInput();
         },
       });
     },
-    [jobs, currentUserId, pauseTimer, focusScanInput],
+    [jobs, currentUserId, pauseTimer, enqueueSnackbar, focusScanInput],
   );
 
   const handleCheckIn = useCallback(
@@ -423,7 +472,7 @@ export function TarsWorkstation() {
       title: 'No matching item',
       message: `No queue, bench, or pending item found for ${v.toUpperCase()}.`,
     });
-  }, [benchScanInput, benchJobs, pendingJobs, queueJobs, handleCheckIn, navigate, focusScanInput]);
+  }, [benchScanInput, benchJobs, pendingJobs, queueJobs, handleCheckIn, navigate]);
 
 
 
@@ -448,13 +497,18 @@ export function TarsWorkstation() {
 
       if (!job) return;
 
-      const session = (job.work_session as unknown as TarsWorkSession | undefined) ?? createEmptyWorkSession('bench');
+      // Base on the local draft (may hold in-flight debounced edits) when this
+      // is the displayed job; otherwise fall back to the cached session.
+      const session =
+        displayJob?.id === jobId && draftWorkSession
+          ? draftWorkSession
+          : (job.work_session as unknown as TarsWorkSession | undefined) ?? createEmptyWorkSession('bench');
 
       await updateWorkSession(jobId, { ...session, selectedGrade: grade });
 
     },
 
-    [jobById, updateWorkSession],
+    [jobById, updateWorkSession, displayJob?.id, draftWorkSession],
 
   );
 
@@ -515,7 +569,8 @@ export function TarsWorkstation() {
   const chooseGrade = useCallback(
     (grade: string) => {
       if (!displayJob) return;
-      void selectDirectionGrade(displayJob.id, grade);
+      // Persist errors already surface via the persist callback's snackbar.
+      selectDirectionGrade(displayJob.id, grade).catch(() => {});
     },
     [displayJob, selectDirectionGrade],
   );
@@ -543,6 +598,7 @@ export function TarsWorkstation() {
     if (!selectedJob) return;
 
     try {
+      await flushWorkSessionSave();
       await holdJob.mutateAsync({
         id: selectedJob.id,
         payload: {
@@ -829,8 +885,8 @@ export function TarsWorkstation() {
               job={headerTimerJob}
               detached={timerDetached}
               busy={timerBusy}
-              onStart={() => runWithTimerGuard(headerTimerJob, 'startTimer', () => void startTimer.mutateAsync(headerTimerJob.id))}
-              onPause={() => void pauseTimer.mutateAsync(headerTimerJob.id)}
+              onStart={() => runWithTimerGuard(headerTimerJob, 'startTimer', () => startTimerSafe(headerTimerJob.id))}
+              onPause={() => void pauseTimerSafe(headerTimerJob.id)}
               onAdjustSeconds={(activeSeconds) => adjustTimer.mutateAsync({ id: headerTimerJob.id, activeSeconds })}
               onSelectRunningItem={
                 timerDetached && headerTimerRowKey
@@ -998,12 +1054,12 @@ export function TarsWorkstation() {
         timerBusy={timerBusy}
 
         onTimerStart={() => {
-          if (selectedJob) runWithTimerGuard(selectedJob, 'startTimer', () => void startTimer.mutateAsync(selectedJob.id));
+          if (selectedJob) runWithTimerGuard(selectedJob, 'startTimer', () => startTimerSafe(selectedJob.id));
         }}
 
         onTimerPause={() => {
 
-          if (selectedJob?.stage === 'bench') void pauseTimer.mutateAsync(selectedJob.id);
+          if (selectedJob?.stage === 'bench') void pauseTimerSafe(selectedJob.id);
 
         }}
 

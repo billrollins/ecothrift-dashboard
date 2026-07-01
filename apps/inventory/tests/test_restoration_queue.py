@@ -533,7 +533,7 @@ class RestorationJobApiTests(RestorationQueueTestBase):
             {'sku': item.sku},
             format='json',
         )
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 400)
         self.assertIn('no purchase order', resp.data['detail'].lower())
 
     def test_list_includes_items_and_quantity(self):
@@ -1242,6 +1242,179 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertIn('restoration_timer_paused_job_id', resp.data)
         job.refresh_from_db()
         self.assertFalse(job.timer_is_running)
+
+    def test_scan_of_done_job_requeues_with_lifecycle_cleared(self):
+        job = self._sent_job()
+        self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        done = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/done/',
+            {
+                'destination': 'storage',
+                'final_grade': 'Working',
+                'spent_hours': '1.00',
+                'spent_parts_cost': '3.00',
+            },
+            format='json',
+        )
+        self.assertEqual(done.status_code, 200, done.data)
+        item = Item.objects.filter(check_in_id=job.item_check_in_id).first()
+
+        resp = self.client.post(
+            '/api/inventory/restoration-jobs/',
+            {'sku': item.sku},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data['queue_add_status'], 'requeued')
+
+        job.refresh_from_db()
+        self.assertEqual(job.stage, RestorationJob.STAGE_QUEUED)
+        self.assertIsNone(job.sent_at)
+        self.assertEqual(job.bench_disposition, '')
+        self.assertEqual(job.final_grade, '')
+        self.assertIsNone(job.dispositioned_at)
+        self.assertIsNone(job.dispositioned_by)
+        self.assertIsNone(job.spent_hours)
+        self.assertIsNone(job.spent_parts_cost)
+        self.assertEqual(job.active_seconds, 0)
+        self.assertFalse(job.timer_is_running)
+        self.assertIsNone(job.timer_started_at)
+        self.assertIsNone(job.timer_started_by)
+        self.assertIsNone(job.bench_started_at)
+        self.assertEqual(job.work_session, {})
+        self.assertIsNone(job.processing_handled_at)
+        self.assertEqual(job.return_disposition_type, '')
+        self.assertEqual(job.return_grade, '')
+        self.assertIsNone(job.returned_at)
+
+    def test_mark_handled_rejects_queued_job_and_unmark_handled_works(self):
+        # Queued job — mark-handled must 400.
+        order, pr, product = self._restoration_order(order_number='PO-REST-HANDLED')
+        check_in = self._check_in_restoration(order, pr, product)
+        queued_job = RestorationJob.objects.get(item_check_in_id=check_in.data['item_check_in_id'])
+        blocked = self.client.post(f'/api/inventory/restoration-jobs/{queued_job.id}/mark-handled/')
+        self.assertEqual(blocked.status_code, 400, blocked.data)
+        queued_job.refresh_from_db()
+        self.assertIsNone(queued_job.processing_handled_at)
+
+        # Done-to-processing job — mark then unmark.
+        job = self._sent_job()
+        self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/done/',
+            {'destination': 'processing', 'final_grade': 'Working'},
+            format='json',
+        )
+        handled = self.client.post(f'/api/inventory/restoration-jobs/{job.id}/mark-handled/')
+        self.assertEqual(handled.status_code, 200, handled.data)
+        self.assertIsNotNone(handled.data['processing_handled_at'])
+
+        unmarked = self.client.post(f'/api/inventory/restoration-jobs/{job.id}/unmark-handled/')
+        self.assertEqual(unmarked.status_code, 200, unmarked.data)
+        self.assertIsNone(unmarked.data['processing_handled_at'])
+
+        listing = self.client.get('/api/inventory/restoration-jobs/returns/')
+        self.assertIn(job.id, [row['id'] for row in listing.data])
+
+    def test_record_order_requires_site_on_multi_site_request(self):
+        from apps.inventory.models import (
+            RestorationPartsRequest,
+            RestorationPartsRequestLine,
+        )
+
+        job = self._sent_job()
+        self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        work_session = {
+            'workState': 'bench',
+            'selectedGrade': 'Working',
+            'parts': [
+                {
+                    'id': 'p1', 'partNumber': 'TH-01', 'description': 'Thumbstick',
+                    'url': 'https://example.com/p1', 'qty': 1, 'unitPriceEstimate': 6,
+                    'unitPriceActual': 0, 'status': 'planned', 'procurementGroupId': 'g1',
+                },
+                {
+                    'id': 'p2', 'partNumber': 'SH-02', 'description': 'Shell',
+                    'url': 'https://example.com/p2', 'qty': 1, 'unitPriceEstimate': 9,
+                    'unitPriceActual': 0, 'status': 'planned', 'procurementGroupId': 'g2',
+                },
+            ],
+            'orders': [
+                {'id': 'g1', 'supplierName': 'Amazon', 'partIds': ['p1']},
+                {'id': 'g2', 'supplierName': 'DigiKey', 'partIds': ['p2']},
+            ],
+            'gradePlans': {'Working': {'estimateHours': 1.5, 'orderIds': ['g1', 'g2']}},
+            'benchRows': [],
+        }
+        self.client.patch(
+            f'/api/inventory/restoration-jobs/{job.id}/work-session/',
+            {'work_session': work_session},
+            format='json',
+        )
+        upsert = self.client.post(
+            f'/api/inventory/restoration-parts-requests/upsert-from-job/{job.id}/?submit=true',
+            {'grade': 'Working'},
+            format='json',
+        )
+        self.assertEqual(upsert.status_code, 200, upsert.data)
+        req = RestorationPartsRequest.objects.get(pk=upsert.data['id'])
+        self.assertEqual(req.sites.count(), 2)
+
+        amazon_site = req.sites.get(supplier_name='Amazon')
+        digikey_site = req.sites.get(supplier_name='DigiKey')
+        skipped_line = digikey_site.lines.first()
+        skipped_line.status = RestorationPartsRequestLine.STATUS_SKIPPED
+        skipped_line.save(update_fields=['status'])
+
+        blocked = self.client.post(
+            f'/api/inventory/restoration-parts-requests/{req.id}/record-order/',
+            {'po_number': 'PO-9200', 'supplier_name': 'Amazon', 'subtotal': '6.00'},
+            format='json',
+        )
+        self.assertEqual(blocked.status_code, 400, blocked.data)
+        self.assertIn('site_id', blocked.data['detail'])
+
+        ok = self.client.post(
+            f'/api/inventory/restoration-parts-requests/{req.id}/record-order/',
+            {
+                'site_id': amazon_site.id, 'po_number': 'PO-9201',
+                'supplier_name': 'Amazon', 'subtotal': '6.00',
+            },
+            format='json',
+        )
+        self.assertEqual(ok.status_code, 200, ok.data)
+        amazon_line = amazon_site.lines.first()
+        amazon_line.refresh_from_db()
+        skipped_line.refresh_from_db()
+        self.assertEqual(amazon_line.status, RestorationPartsRequestLine.STATUS_ORDERED)
+        self.assertEqual(skipped_line.status, RestorationPartsRequestLine.STATUS_SKIPPED)
+
+    def test_count_tars_actions_survives_malformed_work_session(self):
+        from apps.pos.services.dashboard_metrics import _count_tars_actions
+
+        jobs = [
+            RestorationJob(work_session={'actions': ['not-a-dict', 42]}),
+            RestorationJob(work_session={'actions': 'not-a-list'}),
+            RestorationJob(work_session={'actions': [{'type': 'test', 'tests': 'oops'}]}),
+            RestorationJob(work_session={'actions': [{'type': 'assemble', 'steps': ['x', {'status': 'done'}]}]}),
+            RestorationJob(work_session=None),
+        ]
+        self.assertEqual(_count_tars_actions(jobs, 'test'), 1)
+        self.assertEqual(_count_tars_actions(jobs, 'assemble'), 1)
+        self.assertEqual(_count_tars_actions(jobs, 'repair'), 0)
+
+    def test_done_rejects_final_grade_not_in_scale(self):
+        job = self._sent_job()
+        self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        resp = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/done/',
+            {'destination': 'processing', 'final_grade': 'Not A Grade'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400, resp.data)
+        self.assertIn('grade', resp.data['detail'].lower())
+        job.refresh_from_db()
+        self.assertEqual(job.stage, RestorationJob.STAGE_BENCH)
 
     def test_hr_clock_out_pauses_restoration_timer(self):
         from apps.hr.models import TimeEntry

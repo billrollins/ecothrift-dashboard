@@ -39,7 +39,9 @@ function parseStackSizes(raw: string, maxItems: number): number[] | null {
     sizes.push(n);
   }
   const total = sizes.reduce((sum, n) => sum + n, 0);
-  if (total >= maxItems) return null;
+  // Sizes may cover the whole stack — the backend deletes the source job when
+  // no items remain — but may not exceed it.
+  if (total > maxItems) return null;
   return sizes;
 }
 
@@ -61,6 +63,11 @@ export function TarsSplitDialog({ open, job, pending, onClose, onSplit }: TarsSp
     () => (mode === 'stacks' ? parseStackSizes(stackSizesRaw, items.length) : null),
     [items.length, mode, stackSizesRaw],
   );
+
+  const stackSizesError =
+    mode === 'stacks' && stackSizesRaw.trim() !== '' && stackSizes == null ?
+      `Enter positive whole numbers totaling at most ${items.length}.`
+    : null;
 
   const stackPreview = useMemo(() => {
     if (!stackSizes || items.length === 0) return [];
@@ -167,7 +174,11 @@ export function TarsSplitDialog({ open, job, pending, onClose, onSplit }: TarsSp
                 placeholder="e.g. 4, 3"
                 value={stackSizesRaw}
                 onChange={(e) => setStackSizesRaw(e.target.value)}
-                helperText="Comma-separated counts taken from the front of this stack (by item order)."
+                error={stackSizesError != null}
+                helperText={
+                  stackSizesError ??
+                  'Comma-separated counts taken from the front of this stack (by item order).'
+                }
                 fullWidth
               />
               {stackPreview.length > 0 ?

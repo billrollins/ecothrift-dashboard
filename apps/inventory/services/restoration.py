@@ -249,10 +249,76 @@ def _find_item_by_identifier(identifier: str) -> Item | None:
 QueueAddStatus = Literal['created', 'already_queued', 'requeued', 'on_bench', 'on_pending']
 
 
+class RestorationItemNotFound(ValueError):
+    """Scanned identifier did not match any Item."""
+
+
 def _requeue_restoration_job(job: RestorationJob) -> RestorationJob:
+    """Reset the full lifecycle so a done/returned item re-enters the queue clean.
+
+    Parts requests/orders live in their own tables, so clearing work_session
+    loses nothing that matters for purchasing history.
+    """
+
     job.stage = RestorationJob.STAGE_QUEUED
     job.sent_at = None
-    job.save(update_fields=['stage', 'sent_at', 'updated_at'])
+    job.work_session = {}
+    job.bench_started_at = None
+    job.timer_started_at = None
+    job.timer_started_by = None
+    job.timer_is_running = False
+    job.active_seconds = 0
+    job.pending_reason = ''
+    job.pending_notes = ''
+    job.pending_storage_location = ''
+    job.pending_started_at = None
+    job.bench_disposition = ''
+    job.final_grade = ''
+    job.disposition_notes = ''
+    job.spent_hours = None
+    job.spent_parts_cost = None
+    job.dispositioned_at = None
+    job.dispositioned_by = None
+    job.processing_handled_at = None
+    job.processing_handled_by = None
+    job.return_disposition_type = ''
+    job.return_reason = ''
+    job.return_scale = ''
+    job.return_grade = ''
+    job.return_notes = ''
+    job.returned_at = None
+    job.returned_by = None
+    job.save(update_fields=[
+        'stage',
+        'sent_at',
+        'work_session',
+        'bench_started_at',
+        'timer_started_at',
+        'timer_started_by',
+        'timer_is_running',
+        'active_seconds',
+        'pending_reason',
+        'pending_notes',
+        'pending_storage_location',
+        'pending_started_at',
+        'bench_disposition',
+        'final_grade',
+        'disposition_notes',
+        'spent_hours',
+        'spent_parts_cost',
+        'dispositioned_at',
+        'dispositioned_by',
+        'processing_handled_at',
+        'processing_handled_by',
+        'return_disposition_type',
+        'return_reason',
+        'return_scale',
+        'return_grade',
+        'return_notes',
+        'returned_at',
+        'returned_by',
+        'updated_at',
+    ])
     return job
 
 
@@ -391,20 +457,18 @@ def _job_defaults_from_check_in(check_in: ItemCheckIn) -> tuple[str, dict[str, f
 
 
 def create_restoration_job_for_check_in(check_in: ItemCheckIn, user) -> RestorationJob:
-    existing = RestorationJob.objects.filter(item_check_in=check_in).first()
-    if existing:
-        return existing
-
     scale, grade_values = _job_defaults_from_check_in(check_in)
-    job = RestorationJob.objects.create(
+    job, _created = RestorationJob.objects.get_or_create(
         item_check_in=check_in,
-        product=check_in.product,
-        purchase_order=check_in.purchase_order,
-        quantity=check_in.quantity,
-        stage=RestorationJob.STAGE_QUEUED,
-        scale=scale,
-        grade_values=grade_values,
-        created_by=user,
+        defaults={
+            'product': check_in.product,
+            'purchase_order': check_in.purchase_order,
+            'quantity': check_in.quantity,
+            'stage': RestorationJob.STAGE_QUEUED,
+            'scale': scale,
+            'grade_values': grade_values,
+            'created_by': user,
+        },
     )
     return job
 
@@ -440,7 +504,7 @@ def queue_add_restoration_item(identifier: str, user) -> QueueAddResult:
 
     item = _find_item_by_identifier(raw)
     if item is None:
-        raise ValueError(f'No item found for {raw}.')
+        raise RestorationItemNotFound(f'No item found for {raw}.')
 
     if item.status in ('sold', 'lost', 'scrapped'):
         raise ValueError(f'{item.sku} cannot be queued (status: {item.status}).')
@@ -461,7 +525,7 @@ def queue_add_restoration_item(identifier: str, user) -> QueueAddResult:
     if existing:
         if existing.stage in (RestorationJob.STAGE_QUEUED, RestorationJob.STAGE_SENT):
             return QueueAddResult(job=existing, status='already_queued', scanned_item=item)
-        if existing.stage in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_EXECUTING):
+        if existing.stage == RestorationJob.STAGE_BENCH:
             return QueueAddResult(job=existing, status='on_bench', scanned_item=item)
         if existing.stage == RestorationJob.STAGE_PENDING:
             return QueueAddResult(job=existing, status='on_pending', scanned_item=item)
@@ -479,6 +543,7 @@ def create_or_get_restoration_job_for_sku(sku: str, user) -> RestorationJob:
 
 @transaction.atomic
 def send_restoration_job(job: RestorationJob) -> RestorationJob:
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage != RestorationJob.STAGE_QUEUED:
         raise ValueError('Only queued restoration jobs can be sent.')
     if restoration_job_needs_setup(job):
@@ -809,6 +874,7 @@ def return_restoration_job_to_processing(
     item_ids: list[int] | None = None,
     user,
 ) -> RestorationJob:
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage not in (RestorationJob.STAGE_QUEUED, RestorationJob.STAGE_SENT):
         raise ValueError('Only queued or bench-ready restoration jobs can be returned to Processing.')
 

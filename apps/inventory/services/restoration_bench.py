@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from django.utils import timezone
@@ -33,7 +33,9 @@ PENDING_REASONS = {
 def elapsed_active_seconds(job: RestorationJob) -> int:
     extra = 0
     if job.timer_is_running and job.timer_started_at:
-        extra = int((timezone.now() - job.timer_started_at).total_seconds())
+        # Clamp against clock skew — a timer_started_at in the future must not
+        # subtract from the accumulated total.
+        extra = max(int((timezone.now() - job.timer_started_at).total_seconds()), 0)
     return int(job.active_seconds or 0) + extra
 
 
@@ -260,6 +262,23 @@ def adjust_restoration_timer(job: RestorationJob, *, active_seconds: int) -> Res
     return job
 
 
+def _actual_parts_cost_for_job(job: RestorationJob) -> Decimal:
+    """Sum of ordered/received line costs (qty x actual unit price) across the
+    job's parts requests — the default spend when the payload omits it."""
+
+    total = Decimal('0')
+    lines = RestorationPartsRequestLine.objects.filter(
+        site__parts_request__job=job,
+        status__in=[
+            RestorationPartsRequestLine.STATUS_ORDERED,
+            RestorationPartsRequestLine.STATUS_RECEIVED,
+        ],
+    )
+    for line in lines:
+        total += (line.unit_price_actual or Decimal('0')) * line.qty
+    return total
+
+
 @transaction.atomic
 def complete_restoration_job(
     job: RestorationJob,
@@ -279,6 +298,13 @@ def complete_restoration_job(
         raise ValueError('Invalid disposition destination.')
     if not final_grade:
         raise ValueError('Final grade is required.')
+    if job.scale:
+        from apps.inventory.services.restoration import grades_for_scale
+
+        if final_grade not in grades_for_scale(job.scale):
+            raise ValueError('Choose a final grade from the job grade scale.')
+    if spent_parts_cost is None:
+        spent_parts_cost = _actual_parts_cost_for_job(job)
 
     _pause_timer(job)
     now = timezone.now()
@@ -288,7 +314,7 @@ def complete_restoration_job(
     job.final_grade = final_grade
     job.disposition_notes = notes or ''
     job.spent_hours = Decimal(str(spent_hours if spent_hours is not None else default_hours))
-    job.spent_parts_cost = Decimal(str(spent_parts_cost if spent_parts_cost is not None else 0))
+    job.spent_parts_cost = Decimal(str(spent_parts_cost))
     job.dispositioned_at = now
     job.dispositioned_by = user
     _sync_work_state(job, 'done')
@@ -398,6 +424,26 @@ def timer_state_payload(job: RestorationJob) -> dict:
     }
 
 
+def _parse_line_qty(value, *, field: str) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f'Invalid {field}: {value!r} is not a whole number.') from exc
+
+
+def _parse_line_price(value, *, field: str) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(f'Invalid {field}: {value!r} is not a number.') from exc
+
+
+def _truncate_for_field(model, field_name: str, value) -> str:
+    text = str(value or '')
+    max_length = model._meta.get_field(field_name).max_length
+    return text[:max_length] if max_length else text
+
+
 @transaction.atomic
 def upsert_parts_request_from_work_session(
     job: RestorationJob,
@@ -460,6 +506,7 @@ def upsert_parts_request_from_work_session(
         if not isinstance(order, dict):
             continue
         supplier = str(order.get('supplierName') or '').strip() or 'Unassigned'
+        supplier = _truncate_for_field(RestorationPartsRequestSite, 'supplier_name', supplier)
         site = site_map.get(supplier)
         if site is None:
             site = RestorationPartsRequestSite.objects.create(
@@ -469,22 +516,41 @@ def upsert_parts_request_from_work_session(
             )
             site_map[supplier] = site
         overrides = order.get('partQtyOverrides') or {}
+        if not isinstance(overrides, dict):
+            overrides = {}
         for part_id in order.get('partIds') or []:
             part = parts_by_id.get(part_id)
             if not isinstance(part, dict):
                 continue
             override_qty = overrides.get(part_id)
-            qty = int(override_qty) if override_qty not in (None, 0) else int(part.get('qty') or 1)
+            if override_qty not in (None, 0):
+                qty = _parse_line_qty(override_qty, field='part quantity override')
+            else:
+                qty = _parse_line_qty(part.get('qty') or 1, field='part quantity')
             RestorationPartsRequestLine.objects.create(
                 site=site,
-                part_number=str(part.get('partNumber') or ''),
-                description=str(part.get('description') or ''),
-                url=str(part.get('url') or ''),
+                part_number=_truncate_for_field(
+                    RestorationPartsRequestLine, 'part_number', part.get('partNumber'),
+                ),
+                description=_truncate_for_field(
+                    RestorationPartsRequestLine, 'description', part.get('description'),
+                ),
+                url=_truncate_for_field(RestorationPartsRequestLine, 'url', part.get('url')),
                 qty=max(qty, 1),
-                unit_price_estimate=Decimal(str(part.get('unitPriceEstimate') or 0)),
-                unit_price_actual=Decimal(str(part.get('unitPriceActual') or 0)),
-                status=str(part.get('status') or RestorationPartsRequestLine.STATUS_PLANNED),
-                linked_grade=selected_grade,
+                unit_price_estimate=_parse_line_price(
+                    part.get('unitPriceEstimate') or 0, field='part price estimate',
+                ),
+                unit_price_actual=_parse_line_price(
+                    part.get('unitPriceActual') or 0, field='part actual price',
+                ),
+                status=_truncate_for_field(
+                    RestorationPartsRequestLine,
+                    'status',
+                    part.get('status') or RestorationPartsRequestLine.STATUS_PLANNED,
+                ),
+                linked_grade=_truncate_for_field(
+                    RestorationPartsRequestLine, 'linked_grade', selected_grade,
+                ),
             )
 
     return request
@@ -492,11 +558,10 @@ def upsert_parts_request_from_work_session(
 
 @transaction.atomic
 def submit_parts_request(request: RestorationPartsRequest) -> RestorationPartsRequest:
-    if request.status not in (
-        RestorationPartsRequest.STATUS_DRAFT,
-        RestorationPartsRequest.STATUS_SUBMITTED,
-    ):
-        raise ValueError('Request cannot be submitted in its current status.')
+    if request.status != RestorationPartsRequest.STATUS_DRAFT:
+        raise ValueError(
+            f'Request cannot be submitted — it is already {request.get_status_display().lower()}.',
+        )
     request.status = RestorationPartsRequest.STATUS_SUBMITTED
     request.save(update_fields=['status', 'updated_at'])
     return request
@@ -520,9 +585,21 @@ def record_parts_order(
     supplier_url: str = '',
     lines: list[dict] | None = None,
 ) -> RestorationPartsOrder:
+    if request.status in (
+        RestorationPartsRequest.STATUS_RECEIVED,
+        RestorationPartsRequest.STATUS_CANCELLED,
+    ):
+        raise ValueError(
+            f'Cannot record an order on a {request.get_status_display().lower()} parts request.',
+        )
     site = None
     if site_id:
         site = request.sites.filter(pk=site_id).first()
+    elif not line_ids and request.sites.count() > 1:
+        raise ValueError(
+            'This parts request spans multiple supplier sites — specify site_id or line_ids '
+            'so the order is recorded against the right lines.',
+        )
     sub = Decimal(str(subtotal))
     ship = Decimal(str(shipping))
     tax_amt = Decimal(str(tax))
@@ -557,7 +634,9 @@ def record_parts_order(
             cost = Decimal('0')
         if cost > 0:
             line_costs[lid] = cost
-    lines_qs = RestorationPartsRequestLine.objects.filter(site__parts_request=request)
+    lines_qs = RestorationPartsRequestLine.objects.filter(site__parts_request=request).exclude(
+        status=RestorationPartsRequestLine.STATUS_SKIPPED,
+    )
     if site:
         lines_qs = lines_qs.filter(site=site)
     if line_ids:
@@ -590,7 +669,9 @@ def receive_parts_request(request: RestorationPartsRequest) -> RestorationPartsR
     request.orders.exclude(status=RestorationPartsOrder.STATUS_RECEIVED).update(
         status=RestorationPartsOrder.STATUS_RECEIVED,
     )
-    RestorationPartsRequestLine.objects.filter(site__parts_request=request).update(
+    RestorationPartsRequestLine.objects.filter(site__parts_request=request).exclude(
+        status=RestorationPartsRequestLine.STATUS_SKIPPED,
+    ).update(
         status=RestorationPartsRequestLine.STATUS_RECEIVED,
     )
 

@@ -31,11 +31,7 @@ import { TARS_PENDING_REASON_LABELS } from './tarsWorkTypes';
 
 
 
-export const RAIL_MIN_WIDTH = 284;
-
 export const RAIL_MAX_WIDTH = 520;
-
-export const RAIL_DEFAULT_WIDTH = 284;
 
 /** Show inline SKU / order / condition when rail is at least this wide. */
 

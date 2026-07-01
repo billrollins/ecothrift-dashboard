@@ -34,6 +34,7 @@ import {
   type GradeSuggestionDims,
 } from './tarsGradeSuggestions';
 import { gradeValuesComplete, gradesForScale, emptyValuesForScale } from './tarsProfit';
+import { formatUsdWhole as formatUsd } from './tarsMoney';
 import { formatRichSearch, inventoryWorkbenchUrl, itemCatalogWorkbenchUrl, productCatalogWorkbenchUrl } from '../../../utils/richInventorySearch';
 import {
   useCreateRestorationGradeScale,
@@ -41,14 +42,6 @@ import {
 } from '../../../hooks/useGradeScales';
 
 const CARD_HEADER_MIN_HEIGHT = 132;
-
-function formatUsd(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value);
-}
 
 function formatMoneyInput(value: number): string {
   return Number.isFinite(value) && value > 0 ? value.toFixed(2) : '';
@@ -58,9 +51,10 @@ function formatPctInput(value: number | null): string {
   return value != null && Number.isFinite(value) ? String(value) : '';
 }
 
+/** Parse a money/percent string with decoration ($, %, commas); negatives clamp to 0. */
 function parseDecoratedNumber(raw: string): number {
   const value = Number.parseFloat(raw.replace(/[$,%\s,]/g, ''));
-  return Number.isFinite(value) ? value : 0;
+  return Number.isFinite(value) ? Math.max(value, 0) : 0;
 }
 
 export const hideNumberSpinnerSx = {

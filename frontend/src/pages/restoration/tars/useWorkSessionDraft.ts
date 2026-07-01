@@ -36,8 +36,15 @@ export function useWorkSessionDraft(
     const payload = sessionRef.current;
     const version = ++saveVersionRef.current;
     dirtyRef.current = false;
-    await persistRef.current(jobId, payload);
+    try {
+      await persistRef.current(jobId, payload);
+    } catch (err) {
+      // Persist failed — stay dirty so a refetch can't silently replace local edits.
+      dirtyRef.current = true;
+      throw err;
+    }
     if (saveVersionRef.current !== version) {
+      // New edits arrived while the save was in flight.
       dirtyRef.current = true;
     }
   }, [clearSaveTimer]);
@@ -51,7 +58,17 @@ export function useWorkSessionDraft(
         if (jobIdRef.current !== jobId || !sessionRef.current) return;
         if (saveVersionRef.current !== version) return;
         dirtyRef.current = false;
-        void persistRef.current(jobId, sessionRef.current);
+        persistRef.current(jobId, sessionRef.current)
+          .then(() => {
+            if (saveVersionRef.current !== version) {
+              // New edits arrived while the save was in flight.
+              dirtyRef.current = true;
+            }
+          })
+          .catch(() => {
+            // Persist failed — stay dirty so a refetch can't silently replace local edits.
+            dirtyRef.current = true;
+          });
       }, SAVE_DELAY_MS);
     },
     [clearSaveTimer],
@@ -59,7 +76,7 @@ export function useWorkSessionDraft(
 
   useEffect(() => {
     if (!job) {
-      void flushSave();
+      flushSave().catch(() => {});
       jobIdRef.current = null;
       sessionRef.current = null;
       setSession(null);
@@ -67,7 +84,7 @@ export function useWorkSessionDraft(
     }
 
     if (jobIdRef.current !== job.id) {
-      void flushSave();
+      flushSave().catch(() => {});
       jobIdRef.current = job.id;
       const next = restorationJobToTarsItem(job).workSession ?? createEmptyWorkSession('bench');
       sessionRef.current = next;
@@ -102,7 +119,12 @@ export function useWorkSessionDraft(
       sessionRef.current = next;
       setSession(next);
       dirtyRef.current = false;
-      await persistRef.current(jobIdRef.current, next);
+      try {
+        await persistRef.current(jobIdRef.current, next);
+      } catch (err) {
+        dirtyRef.current = true;
+        throw err;
+      }
     },
     [clearSaveTimer],
   );
@@ -111,7 +133,7 @@ export function useWorkSessionDraft(
     () => () => {
       clearSaveTimer();
       if (dirtyRef.current && jobIdRef.current != null && sessionRef.current) {
-        void persistRef.current(jobIdRef.current, sessionRef.current);
+        persistRef.current(jobIdRef.current, sessionRef.current).catch(() => {});
       }
     },
     [clearSaveTimer],

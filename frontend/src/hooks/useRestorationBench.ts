@@ -23,17 +23,39 @@ import type {
   RestorationJobDonePayload,
   RestorationJobHoldPayload,
   RestorationPartsOrderCreatePayload,
+  RestorationPartsRequestDTO,
 } from '../types/inventory.types';
+import type { PaginatedResponse } from '../types/common.types';
 import { expandRestorationJobsForTars } from '../pages/restoration/tars/tarsJobAdapter';
-import { restorationJobsQueryKey } from './useRestorationJobs';
 
 const BENCH_STAGES = ['queued', 'sent', 'bench', 'pending'] as const;
+
+const LIST_PAGE_SIZE = 200;
+const MAX_LIST_PAGES = 10;
+
+/** Follow `next` links so large lists aren't silently truncated at one page. */
+async function fetchAllPages<T>(
+  fetchPage: (page: number) => Promise<{ data: PaginatedResponse<T> }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let page = 1; page <= MAX_LIST_PAGES; page += 1) {
+    const { data } = await fetchPage(page);
+    rows.push(...data.results);
+    if (!data.next) break;
+  }
+  return rows;
+}
+
+function fetchAllRestorationJobs(stage: string): Promise<RestorationJobDTO[]> {
+  return fetchAllPages<RestorationJobDTO>((page) =>
+    listRestorationJobs({ stage, page, page_size: LIST_PAGE_SIZE }),
+  );
+}
 
 export const restorationPartsRequestsQueryKey = (status?: string) =>
   ['restoration-parts-requests', { status }] as const;
 
-function invalidateBenchJobs(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: ['restoration-jobs'] });
+export function invalidateBenchJobs(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ['tars-bench-jobs'] });
   queryClient.invalidateQueries({ queryKey: ['restoration-queue-jobs'] });
 }
@@ -72,10 +94,7 @@ export function useRestorationQueueJobs() {
     queryKey: ['restoration-queue-jobs'] as const,
     queryFn: async () => {
       const results = await Promise.all(
-        (['queued', 'sent'] as const).map(async (stage) => {
-          const { data } = await listRestorationJobs({ stage, page_size: 200 });
-          return data.results;
-        }),
+        (['queued', 'sent'] as const).map((stage) => fetchAllRestorationJobs(stage)),
       );
       const byId = new Map<number, RestorationJobDTO>();
       for (const job of results.flat()) byId.set(job.id, job);
@@ -93,10 +112,7 @@ export function useTarsBenchJobs() {
     queryKey: ['tars-bench-jobs'] as const,
     queryFn: async () => {
       const results = await Promise.all(
-        BENCH_STAGES.map(async (stage) => {
-          const { data } = await listRestorationJobs({ stage, page_size: 200 });
-          return data.results;
-        }),
+        BENCH_STAGES.map((stage) => fetchAllRestorationJobs(stage)),
       );
       const merged = results.flat();
       const byId = new Map<number, RestorationJobDTO>();
@@ -135,13 +151,14 @@ export function useMarkRestorationJobHandled() {
 export function useRestorationPartsRequests(options?: { status?: string; enabled?: boolean }) {
   return useQuery({
     queryKey: restorationPartsRequestsQueryKey(options?.status),
-    queryFn: async () => {
-      const { data } = await listRestorationPartsRequests({
-        status: options?.status,
-        page_size: 200,
-      });
-      return data.results;
-    },
+    queryFn: () =>
+      fetchAllPages<RestorationPartsRequestDTO>((page) =>
+        listRestorationPartsRequests({
+          status: options?.status,
+          page,
+          page_size: LIST_PAGE_SIZE,
+        }),
+      ),
     enabled: options?.enabled !== false,
   });
 }
@@ -231,7 +248,10 @@ export function useCompleteRestorationJob() {
       const { data } = await completeRestorationJob(id, payload);
       return data;
     },
-    onSuccess: () => invalidateBenchJobs(queryClient),
+    onSuccess: () => {
+      invalidateBenchJobs(queryClient);
+      queryClient.invalidateQueries({ queryKey: restorationReturnsQueryKey });
+    },
   });
 }
 
@@ -275,6 +295,7 @@ export function useUpsertRestorationPartsRequest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['restoration-parts-requests'] });
+      invalidateBenchJobs(queryClient);
     },
   });
 }
@@ -326,5 +347,3 @@ export function useRecordRestorationPartsOrder() {
     },
   });
 }
-
-export { restorationJobsQueryKey };

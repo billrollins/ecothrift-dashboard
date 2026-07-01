@@ -14,6 +14,7 @@ import {
 import PlayArrow from '@mui/icons-material/PlayArrow';
 import Stop from '@mui/icons-material/Stop';
 import Timer from '@mui/icons-material/Timer';
+import { useSnackbar } from 'notistack';
 import { useEffect, useState } from 'react';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { formatStopwatch, jobSkuLabel, liveElapsedSeconds } from './tarsJobAdapter';
@@ -41,6 +42,7 @@ export function TarsBenchTimer({
   onSelectRunningItem,
   onAdjustSeconds,
 }: TarsBenchTimerProps) {
+  const { enqueueSnackbar } = useSnackbar();
   const running = job.timer_is_running;
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -65,16 +67,28 @@ export function TarsBenchTimer({
     setAdjustSeconds(String(current % 60));
     setAdjustOpen(true);
   };
+  const clampInt = (raw: string, max?: number) => {
+    const n = Number.parseInt(raw || '0', 10);
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return max != null ? Math.min(n, max) : n;
+  };
   const parsedAdjustSeconds =
-    Math.max(Number.parseInt(adjustHours || '0', 10) || 0, 0) * 3600
-    + Math.max(Number.parseInt(adjustMinutes || '0', 10) || 0, 0) * 60
-    + Math.max(Number.parseInt(adjustSeconds || '0', 10) || 0, 0);
+    clampInt(adjustHours) * 3600
+    + clampInt(adjustMinutes, 59) * 60
+    + clampInt(adjustSeconds, 59);
   const requestAdjust = (nextSeconds: number) => {
     setPendingAdjustSeconds(Math.max(Math.floor(nextSeconds), 0));
   };
   const confirmAdjust = async () => {
     if (pendingAdjustSeconds == null) return;
-    await onAdjustSeconds?.(pendingAdjustSeconds);
+    try {
+      await onAdjustSeconds?.(pendingAdjustSeconds);
+    } catch (err) {
+      enqueueSnackbar(err instanceof Error ? err.message : 'Could not adjust the timer', {
+        variant: 'error',
+      });
+      return;
+    }
     setPendingAdjustSeconds(null);
     setAdjustOpen(false);
   };

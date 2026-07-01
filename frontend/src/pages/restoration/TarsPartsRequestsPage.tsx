@@ -39,6 +39,7 @@ import type {
   RestorationPartsOrderLineDTO,
 } from '../../types/inventory.types';
 import { TarsGradeDirectionCards } from './tars/TarsGradeDirectionCards';
+import { parseMoney as parseMoneyStr } from './tars/tarsMoney';
 import { fmtUsd } from './tars/tarsProfit';
 import { absoluteUrl, urlDomain } from './tars/tarsUrl';
 import type { TarsGradeDirectionRow } from './tars/tarsWorkTypes';
@@ -49,13 +50,18 @@ function fmtUsdSafe(value: string | number | null | undefined): string {
   return Number.isFinite(n) ? fmtUsd(n) : String(value);
 }
 
-function parseMoneyStr(raw: string): number {
-  const n = Number.parseFloat(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+/** Returns an error message for a money field, or null when the value is valid. */
+function moneyFieldError(raw: string, required = false): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return required ? 'Required' : null;
+  const n = Number.parseFloat(trimmed);
+  if (!Number.isFinite(n)) return 'Enter a number';
+  if (n < 0) return 'Must be 0 or more';
+  return null;
 }
 
-function EvalSnapshotCards({ snapshot }: { snapshot: Record<string, unknown> }) {
-  const directions: TarsGradeDirectionRow[] = Array.isArray(snapshot.directions)
+function EvalSnapshotCards({ snapshot }: { snapshot: Record<string, unknown> | null }) {
+  const directions: TarsGradeDirectionRow[] = snapshot && Array.isArray(snapshot.directions)
     ? (snapshot.directions as TarsGradeDirectionRow[])
     : snapshot && typeof snapshot.grade === 'string'
       ? [snapshot as unknown as TarsGradeDirectionRow]
@@ -159,9 +165,15 @@ function OrderRecordDialog({
     );
   };
 
+  const subtotalError = moneyFieldError(subtotal, true);
+  const shippingError = moneyFieldError(shipping);
+  const taxError = moneyFieldError(tax);
+  const feesError = moneyFieldError(fees);
+  const hasMoneyError = Boolean(subtotalError || shippingError || taxError || feesError);
+
   const handleSave = async () => {
-    if (!subtotal.trim()) {
-      enqueueSnackbar('Subtotal required', { variant: 'warning' });
+    if (hasMoneyError) {
+      enqueueSnackbar('Fix the highlighted amounts before approving.', { variant: 'warning' });
       return;
     }
     try {
@@ -287,11 +299,40 @@ function OrderRecordDialog({
             type="number"
             value={subtotal}
             onChange={(e) => setSubtotal(e.target.value)}
+            error={subtotalError != null}
+            helperText={subtotalError}
           />
           <Stack direction="row" spacing={1}>
-            <TextField size="small" label="Shipping" type="number" value={shipping} onChange={(e) => setShipping(e.target.value)} fullWidth />
-            <TextField size="small" label="Tax" type="number" value={tax} onChange={(e) => setTax(e.target.value)} fullWidth />
-            <TextField size="small" label="Fees" type="number" value={fees} onChange={(e) => setFees(e.target.value)} fullWidth />
+            <TextField
+              size="small"
+              label="Shipping"
+              type="number"
+              value={shipping}
+              onChange={(e) => setShipping(e.target.value)}
+              error={shippingError != null}
+              helperText={shippingError}
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Tax"
+              type="number"
+              value={tax}
+              onChange={(e) => setTax(e.target.value)}
+              error={taxError != null}
+              helperText={taxError}
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Fees"
+              type="number"
+              value={fees}
+              onChange={(e) => setFees(e.target.value)}
+              error={feesError != null}
+              helperText={feesError}
+              fullWidth
+            />
           </Stack>
           <TextField size="small" label="PO number (optional)" value={poNumber} onChange={(e) => setPoNumber(e.target.value)} />
           <TextField size="small" label="Ship-to address" multiline minRows={2} value={shipTo} onChange={(e) => setShipTo(e.target.value)} />
@@ -308,7 +349,7 @@ function OrderRecordDialog({
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={recordOrder.isPending} onClick={() => void handleSave()}>
+        <Button variant="contained" disabled={recordOrder.isPending || hasMoneyError} onClick={() => void handleSave()}>
           Approve
         </Button>
       </DialogActions>

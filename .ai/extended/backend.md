@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-06-29 (Quality Audit + dashboard metrics retail grade) -->
+<!-- Last updated: 2026-07-01 (TARS restoration hardening pass) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-07-01 (Unreleased) — Restoration hardening (migration `0078`):** dead **`executing`** stage removed (lifecycle is now `queued → sent → bench → pending → done` + `returned`); scan-requeue of `done`/`returned` jobs fully resets lifecycle fields; **`work_session`** PATCH validated (dict shape, `actions` list-of-dicts, 100KB cap) and dashboard **`_count_tars_actions`** defensive; parts-order **`record-order`** requires `site_id`/`line_ids` on multi-site requests and excludes skipped lines; **`mark-handled`** guarded to returns-eligible jobs + new **`POST …/unmark-handled/`**; bench Done validates **`final_grade`** against the job scale and defaults **`spent_parts_cost`** from actual ordered lines; queue transitions use `select_for_update`; scan-create returns **400** for validation (404 only for unknown SKU via **`RestorationItemNotFound`**); job-list serializer N+1 fixed; partial index **`restjob_disp_unhandled_idx`** for the Returns list. Done metrics keyed by **`dispositioned_at`**.
 
 **2026-06-29 (WIP) — POS / Quality Audit:** **`QualityAuditForm`** + **`QualityAudit`** (migrations **`0008`–`0009`**); **`GET/POST/PATCH /api/pos/quality-audit-forms/`** + **`/api/pos/quality-audits/`** + **`…/submit/`** (Manager+); grade calc in **`apps/pos/services/quality_audit.py`**; dashboard retail card reads latest **`feeds_dashboard`** submit via **`build_department_metrics`**.
 

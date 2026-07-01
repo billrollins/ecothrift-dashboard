@@ -880,7 +880,6 @@ class RestorationJob(models.Model):
     STAGE_SENT = 'sent'
     STAGE_BENCH = 'bench'
     STAGE_PENDING = 'pending'
-    STAGE_EXECUTING = 'executing'
     STAGE_DONE = 'done'
     STAGE_RETURNED = 'returned'
     STAGE_CHOICES = [
@@ -888,7 +887,6 @@ class RestorationJob(models.Model):
         (STAGE_SENT, 'Sent'),
         (STAGE_BENCH, 'Bench'),
         (STAGE_PENDING, 'Pending'),
-        (STAGE_EXECUTING, 'Executing'),
         (STAGE_DONE, 'Done'),
         (STAGE_RETURNED, 'Returned to Processing'),
     ]
@@ -1013,6 +1011,11 @@ class RestorationJob(models.Model):
         ordering = ['-updated_at', '-id']
         indexes = [
             models.Index(fields=['stage', 'updated_at']),
+            models.Index(
+                fields=['dispositioned_at'],
+                name='restjob_disp_unhandled_idx',
+                condition=models.Q(processing_handled_at__isnull=True),
+            ),
         ]
 
     def __str__(self):

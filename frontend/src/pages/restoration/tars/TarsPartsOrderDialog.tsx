@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TarsPartLine, TarsProcurementGroup } from './tarsWorkTypes';
 import { newId } from './tarsWorkRollup';
 import { newPartLine, orderPartLineTotal, partUnitPrice } from './tarsPartsListSession';
+import { formatUsd as fmtMoney2, parseMoney, parseQty } from './tarsMoney';
 import { absoluteUrl, urlDomain } from './tarsUrl';
 
 export type TarsPartsOrderSavePayload = {
@@ -50,35 +51,18 @@ const NEBRASKA_TAX_PCT = 7;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-function fmtMoney2(n: number): string {
-  return n.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
 function fmtAmountField(raw: string): string {
   const n = Number.parseFloat(raw);
   if (!Number.isFinite(n)) return '';
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // No thousands separators — commas render as an empty value in
+  // <input type="number">.
+  return n.toFixed(2);
 }
 
 function fmtPctField(raw: string): string {
   const n = Number.parseFloat(raw);
   if (!Number.isFinite(n)) return '';
   return n.toFixed(2);
-}
-
-function parseQty(raw: string): number {
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : 1;
-}
-
-function parseMoney(raw: string): number {
-  const n = Number.parseFloat(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
 const ORDER_PART_GRID =
@@ -273,28 +257,73 @@ export function TarsPartsOrderDialog({
   const [taxFocused, setTaxFocused] = useState(false);
   const [fees, setFees] = useState('');
   const [notes, setNotes] = useState('');
+  const initialSnapshotRef = useRef('');
 
   useEffect(() => {
     if (!open) return;
-    setDraftParts(Object.fromEntries(parts.map((p) => [p.id, { ...p }])));
-    setExtraPartIds([]);
-    setSelectedPartIds(existing?.partIds ?? []);
+    const nextDraftParts = Object.fromEntries(parts.map((p) => [p.id, { ...p }]));
+    const nextSelected = existing?.partIds ?? [];
     const overrides: Record<string, number> = { ...(existing?.partQtyOverrides ?? {}) };
-    for (const id of existing?.partIds ?? []) {
+    for (const id of nextSelected) {
       if (overrides[id] == null) {
         const part = parts.find((p) => p.id === id);
         if (part) overrides[id] = part.qty || 1;
       }
     }
+    const nextName = existing?.supplierName ?? '';
+    const nextShipping = existing != null ? String(existing.shipping) : '';
+    const nextTax = existing != null ? String(existing.tax) : '';
+    const nextFees = existing != null ? String(existing.fees) : '';
+    const nextNotes = existing?.notes ?? '';
+    setDraftParts(nextDraftParts);
+    setExtraPartIds([]);
+    setSelectedPartIds(nextSelected);
     setPartQtyOverrides(overrides);
-    setName(existing?.supplierName ?? '');
-    setShipping(existing != null ? String(existing.shipping) : '');
+    setName(nextName);
+    setShipping(nextShipping);
     setTaxMode('amount');
-    setTaxInput(existing != null ? String(existing.tax) : '');
+    setTaxInput(nextTax);
     setTaxFocused(false);
-    setFees(existing != null ? String(existing.fees) : '');
-    setNotes(existing?.notes ?? '');
+    setFees(nextFees);
+    setNotes(nextNotes);
+    initialSnapshotRef.current = JSON.stringify({
+      draftParts: nextDraftParts,
+      extraPartIds: [],
+      selectedPartIds: nextSelected,
+      partQtyOverrides: overrides,
+      name: nextName,
+      shipping: nextShipping,
+      taxInput: nextTax,
+      fees: nextFees,
+      notes: nextNotes,
+    });
   }, [open, existing, parts]);
+
+  const isDirty = () =>
+    JSON.stringify({
+      draftParts,
+      extraPartIds,
+      selectedPartIds,
+      partQtyOverrides,
+      name,
+      shipping,
+      taxInput,
+      fees,
+      notes,
+    }) !== initialSnapshotRef.current;
+
+  const handleDialogClose = (_event: unknown, reason?: string) => {
+    // Guard against accidental data loss on backdrop click / escape — the
+    // explicit Cancel and close buttons still discard immediately.
+    if (
+      (reason === 'backdropClick' || reason === 'escapeKeyDown') &&
+      isDirty() &&
+      !window.confirm('Discard unsaved order changes?')
+    ) {
+      return;
+    }
+    onClose();
+  };
 
   const selectedSet = useMemo(() => new Set(selectedPartIds), [selectedPartIds]);
 
@@ -443,7 +472,7 @@ export function TarsPartsOrderDialog({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleDialogClose}
       fullWidth
       maxWidth="md"
       slotProps={{

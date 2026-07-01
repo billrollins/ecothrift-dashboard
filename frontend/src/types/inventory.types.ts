@@ -900,7 +900,7 @@ export interface ReceivingPatchPayload {
   pallets?: Array<{ pallet_number: number; damaged?: boolean }> | null;
 }
 
-export type RestorationJobStage = 'queued' | 'sent' | 'bench' | 'pending' | 'executing' | 'done' | 'returned';
+export type RestorationJobStage = 'queued' | 'sent' | 'bench' | 'pending' | 'done' | 'returned';
 
 export type RestorationBenchDisposition = 'processing' | 'storage' | 'salvage' | 'online_sales';
 
@@ -1065,7 +1065,7 @@ export interface RestorationPartsRequestDTO {
   job_name: string;
   status: string;
   selected_grade: string;
-  eval_snapshot: Record<string, unknown>;
+  eval_snapshot: Record<string, unknown> | null;
   notes: string;
   requested_by: number | null;
   sites: RestorationPartsRequestSiteDTO[];

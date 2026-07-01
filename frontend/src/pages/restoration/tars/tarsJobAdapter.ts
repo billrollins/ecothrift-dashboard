@@ -5,7 +5,10 @@ import type { TarsPendingInfo, TarsPendingReason, TarsWorkSession } from './tars
 
 function normalizeSource(source: string | null): TarsDisplaySource {
   if (source === 'Amazon' || source === 'Walmart' || source === 'Target') return source;
-  return 'Target';
+  if (!source?.trim()) return 'Other' as TarsDisplaySource;
+  const raw = source.trim();
+  // Display-only value: don't mislabel unknown sources as a known retailer.
+  return (raw.charAt(0).toUpperCase() + raw.slice(1)) as TarsDisplaySource;
 }
 
 function parseMoney(value: string | null | undefined): number | undefined {
@@ -41,7 +44,6 @@ function mergeWorkSession(job: RestorationJobDTO): TarsWorkSession {
     orders: base.orders ?? [],
     gradePlans: base.gradePlans ?? {},
     benchRows: base.benchRows ?? [],
-    benchStartedAt: base.benchStartedAt,
   };
 }
 
@@ -136,14 +138,6 @@ export function liveElapsedSeconds(job: RestorationJobDTO, nowMs = Date.now()): 
     }
   }
   return total;
-}
-
-/** Timer ownership — active/running bench state is per user; queue rails are shared. */
-export function isRestorationTimerOwnedByUser(
-  job: RestorationJobDTO,
-  userId: number | undefined,
-): boolean {
-  return userId != null && job.timer_started_by_id === userId;
 }
 
 export function myRunningRestorationJob(

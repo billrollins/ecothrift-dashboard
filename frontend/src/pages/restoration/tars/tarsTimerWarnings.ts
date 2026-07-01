@@ -1,4 +1,5 @@
 import type { RestorationJobDTO } from '../../../types/inventory.types';
+import { liveElapsedSeconds } from './tarsJobAdapter';
 
 /** Minutes on bench with zero tracked time before idle warning. */
 export const BENCH_IDLE_WARN_MINUTES = 10;
@@ -11,13 +12,17 @@ export const DONE_TIME_HIGH_HOURS = 4;
 
 export type TimerGuardAction = 'checkIn' | 'startTimer' | 'hold' | 'done' | 'moveBack';
 
-export function timerGuardKey(action: TimerGuardAction, rowKey: string): string {
-  return `${action}:${rowKey}`;
+export function timerGuardKey(
+  action: TimerGuardAction,
+  runningRowKey: string,
+  targetRowKey: string,
+): string {
+  return `${action}:${runningRowKey}->${targetRowKey}`;
 }
 
 export function isBenchIdleWithoutTimer(job: RestorationJobDTO): boolean {
   if (job.stage !== 'bench' || job.timer_is_running) return false;
-  if ((job.elapsed_seconds ?? 0) > 0) return false;
+  if (liveElapsedSeconds(job) > 0) return false;
   if (!job.bench_started_at) return false;
   const started = new Date(job.bench_started_at).getTime();
   if (!Number.isFinite(started)) return false;
@@ -35,7 +40,7 @@ export type DoneTimeWarningKind = 'low' | 'high' | null;
 
 export function doneTimeWarning(spentHoursRaw: string | number): DoneTimeWarningKind {
   const minutes = spentHoursToMinutes(spentHoursRaw);
-  if (minutes > 0 && minutes < DONE_TIME_LOW_MINUTES) return 'low';
+  if (minutes < DONE_TIME_LOW_MINUTES) return 'low';
   if (minutes / 60 > DONE_TIME_HIGH_HOURS) return 'high';
   return null;
 }

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createRestorationGradeScale,
@@ -27,9 +28,12 @@ export function useGradeScales() {
     staleTime: 60_000,
   });
 
-  const scalesRecord = query.data?.length
-    ? gradeScalesToRecord(query.data)
-    : TARS_GRADE_SCALES;
+  // Memoized so consumers can safely use the record in effect dependency lists
+  // without re-running on every render.
+  const scalesRecord = useMemo(
+    () => (query.data?.length ? gradeScalesToRecord(query.data) : TARS_GRADE_SCALES),
+    [query.data],
+  );
 
   return {
     ...query,

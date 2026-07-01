@@ -26,6 +26,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import type { TarsPartLine, TarsProcurementGroup, TarsWorkSession } from './tarsWorkTypes';
 import { fmtUsd } from './tarsProfit';
+import { parseMoney, parseQty } from './tarsMoney';
 import { absoluteUrl } from './tarsUrl';
 import { TarsPartsOrderDialog, orderPartLines } from './TarsPartsOrderDialog';
 import {
@@ -57,16 +58,6 @@ interface TarsPartsListPanelProps {
 }
 
 type PartsTab = 'parts' | 'orders';
-
-function parseQty(raw: string): number {
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : 1;
-}
-
-function parseMoney(raw: string): number {
-  const n = Number.parseFloat(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
-}
 
 function PartLineRow({
   part,
@@ -243,7 +234,7 @@ export function TarsPartsListPanel({
     setRequestGrade(selectedGrade ?? gradeOptions[0] ?? '');
   }, [requestOpen, selectedGrade, gradeOptions]);
 
-  const parts = session ? collectSessionParts(session) : [];
+  const parts = useMemo(() => (session ? collectSessionParts(session) : []), [session]);
   const partLines = useMemo(() => parts.map((row) => row.part), [parts]);
   const orders = session ? listSessionOrders(session) : [];
   const canEdit = Boolean(session && onSessionChange && !readOnly);

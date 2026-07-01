@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-06-29 (retail QA wizard + dashboard week totals) -->
+<!-- Last updated: 2026-07-01 (TARS restoration hardening pass) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-07-01 (Unreleased) — Restoration / TARS hardening:** **`useGradeScales`** record memoized (fixes **`ProcessingSendToRestorationDialog`** render loop that wiped typed grade values); bench draft dirty-tracking survives failed saves; grade direction cards merge onto the local draft; queue patches per-job map with flush on unmount/switch; dead **`useRestorationJobs`** hook removed — patch mutation now updates **`['restoration-queue-jobs']`** + invalidates bench; complete/return invalidate **`['restoration-returns']`**; list hooks follow pagination (`data.next`, 10-page cap); shared **`tarsMoney.ts`** (parse/format, negatives clamped); `'executing'` removed from **`RestorationJobStage`**.
 
 **2026-06-29 (WIP) — Admin / Quality Audit:** **`QualityAuditHubPage`**, **`QualityAuditWizardPage`**, **`QualityAuditFormEditorPage`** under **`/admin/quality-audit`**; **`useQualityAudit`** / **`useQualityAuditForms`**; mobile checklist components in **`components/quality-audit/`**.
 

@@ -1,5 +1,5 @@
 <!-- initiative: slug=tars-restoration-workspace status=active updated=2026-06-24 -->
-<!-- Last updated: 2026-06-26 (Session 3 — TARS 2 bench live + parts orders) -->
+<!-- Last updated: 2026-07-01 (Session 4 — full review fix pass) -->
 
 # Initiative: TARS Restoration Workspace
 
@@ -87,7 +87,25 @@ Restoration staff can **receive items sent from Processing**, **price grade outc
 
 ## Sessions
 
-### Session 3 — 2026-06-26
+### Session 4 — 2026-07-01
+
+**Goal:** Full TARS quality pass — fix all confirmed bugs and land the easy upgrades from the 2026-07-01 four-track code review (backend services, bench workstation, queue/parts UI, API contract).
+
+**Finish line:** All review findings fixed or explicitly deferred; Django restoration tests green; `npm run build` green.
+
+**Scope:** Backend — requeue lifecycle reset, `work_session` validation + defensive metrics, parts-order site guard, mark-handled guard + unmark, final-grade validation, locking, N+1, dead `executing` stage. Frontend — grade-scales render loop, draft-save races, cache-invalidation gaps (Returns list, queue patches), pagination follow-up, negative-value clamps, timer/error UX, dead code.
+
+**Out of scope:** Phase 4 steering (time premium), grade-values float→Decimal storage, returns endpoint pagination redesign.
+
+**Est:** half day. **Start:** 2026-07-01
+
+**Updates (2026-07-01):**
+
+- Four-track review (backend / bench / queue+parts / API contract) produced ~30 findings; all confirmed items fixed in one pass (three parallel fix tracks, disjoint file ownership).
+- Backend: requeue lifecycle reset, `work_session` validation + defensive dashboard metrics, multi-site parts-order guard, mark/unmark-handled, final-grade validation, `spent_parts_cost` from actuals, row locking, N+1 fix, dead `executing` stage removed — migration **`0078`** (stage choices + partial Returns index). +5 tests (55 → green).
+- Frontend: `useGradeScales` memo (send-dialog render loop that wiped typed grade values), bench draft dirty-tracking + grade-card draft merge, per-job queue patch map, cache invalidation gaps (Returns list, queue cache, bench list), pagination follow-`next`, negative-money clamps, shared **`tarsMoney`** util, dead code removed.
+- Verified: `manage.py test` inventory restoration + pos dashboard metrics (65 OK); `npm run build` green.
+- Deferred (noted, out of scope): grade-values float storage, returns endpoint pagination, `TarsDisplaySource` union widening in `tarsTypes.ts`, `TarsQueuePreviewContent` whitespace cleanup.
 
 **Goal:** Ship **TARS 2** live bench workstation, parts-list orders CRUD, dashboard metrics.
 

@@ -16,10 +16,12 @@ import {
   Typography,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { processingPatchItem } from '../../api/inventory.api';
 import {
+  restorationReturnsQueryKey,
   useMarkRestorationJobHandled,
   useRestorationReturns,
 } from '../../hooks/useRestorationBench';
@@ -42,6 +44,7 @@ function fmtDate(iso: string | null): string {
 
 function ReturnRow({ job }: { job: RestorationJobDTO }) {
   const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
   const markHandled = useMarkRestorationJobHandled();
   const [price, setPrice] = useState(job.price ?? '');
   const [printing, setPrinting] = useState(false);
@@ -84,6 +87,11 @@ function ReturnRow({ job }: { job: RestorationJobDTO }) {
       } else {
         enqueueSnackbar(`Printed ${result.succeeded} tag(s).`, { variant: 'success' });
       }
+    } catch (err) {
+      enqueueSnackbar(
+        err instanceof Error ? err.message : 'Could not print tags. Check the label printer.',
+        { variant: 'error' },
+      );
     } finally {
       setPrinting(false);
     }
@@ -95,9 +103,15 @@ function ReturnRow({ job }: { job: RestorationJobDTO }) {
       enqueueSnackbar('Enter a price first.', { variant: 'warning' });
       return;
     }
+    const parsed = Number.parseFloat(trimmed);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      enqueueSnackbar('Enter a valid price of 0 or more.', { variant: 'warning' });
+      return;
+    }
     setSavingPrice(true);
     try {
       await Promise.all(job.items.map((it) => processingPatchItem(it.id, { price: trimmed })));
+      await queryClient.invalidateQueries({ queryKey: restorationReturnsQueryKey });
       enqueueSnackbar('Price saved.', { variant: 'success' });
     } catch (err) {
       enqueueSnackbar(
