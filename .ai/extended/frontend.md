@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-07-02 (floorplan editor + TARS v2.39.0) -->
+<!-- Last updated: 2026-07-02 (floorplan DB palette) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-07-02 (Unreleased) — Floorplan / DB palette:** palette/legend/canvas resolve element kinds via **`useFloorPlanElementKinds`** + `kindIndex` (static `palette.ts` array is a loading placeholder only); sharp rect corners default, per-kind `corner_radius`/circle; Super Admin **`ElementKindDialog`** from the palette sidebar; legacy "Custom" asset palette section removed.
 
 **2026-07-02 (v2.39.0) — Floor Ops / floorplan:** **`FloorplanListPage`** + lazy **`FloorplanEditorPage`** (`/floor-ops/floorplans`, `/floor-ops/floorplans/:id/edit`); editor in **`features/floorplan/`** (SVG canvas, undo/redo, grouping, image assets via **`useFloorPlanAssets`**); hooks **`useFloorplans`**.
 

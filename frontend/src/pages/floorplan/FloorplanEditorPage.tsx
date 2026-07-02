@@ -28,7 +28,8 @@ import { isAxiosError } from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useFloorPlan, useSaveFloorPlan } from '../../hooks/useFloorplans';
 import { useFloorPlanAssets, useUploadFloorPlanAsset } from '../../hooks/useFloorplanAssets';
-import type { PlanElement, PlanInfoBlock } from '../../types/floorplan.types';
+import { useFloorPlanElementKinds } from '../../hooks/useFloorplanElementKinds';
+import type { FloorPlanElementKind, PlanElement, PlanInfoBlock } from '../../types/floorplan.types';
 import {
   addElement,
   addInfoBlock,
@@ -48,9 +49,16 @@ import {
 } from '../../features/floorplan/editorState';
 import { migratePlanDocument, UnsupportedSchemaError } from '../../features/floorplan/migrations';
 import type { Viewport, Point } from '../../features/floorplan/geometry';
-import type { PaletteEntry } from '../../features/floorplan/palette';
+import {
+  buildPaletteIndex,
+  elementKindToPaletteEntry,
+  paletteCategories,
+  STATIC_PALETTE,
+  type PaletteEntry,
+} from '../../features/floorplan/palette';
 import FloorplanCanvas, { defaultInfoBlock, type DrawStroke } from '../../features/floorplan/FloorplanCanvas';
 import { EditorToolbar, PaletteSidebar, PropertiesPanel, ScaleBarOverlay } from '../../features/floorplan/EditorChrome';
+import ElementKindDialog from '../../features/floorplan/ElementKindDialog';
 import { exportPlanJson, exportPlanPng } from '../../features/floorplan/exportPlan';
 
 const EMPTY_DOC_STATE = initialEditorState({
@@ -70,6 +78,7 @@ export default function FloorplanEditorPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
   const readOnly = !user?.role || !['Manager', 'Admin'].includes(user.role);
+  const canManageKinds = Boolean(user?.is_superuser);
 
   const planQuery = useFloorPlan(Number.isFinite(planId) ? planId : null);
   const saveMutation = useSaveFloorPlan();
@@ -82,6 +91,20 @@ export default function FloorplanEditorPage() {
     () => new Map(assets.map((a) => [a.id, a.data])),
     [assets],
   );
+
+  // Element kind catalog (DB-backed palette). The static mirror of the seeded
+  // built-ins keeps first paint correct while the query loads.
+  const kindsQuery = useFloorPlanElementKinds();
+  const paletteEntries = useMemo(
+    () => (kindsQuery.data ? kindsQuery.data.map(elementKindToPaletteEntry) : STATIC_PALETTE),
+    [kindsQuery.data],
+  );
+  const kindIndex = useMemo(() => buildPaletteIndex(paletteEntries), [paletteEntries]);
+  const kindCategories = useMemo(() => paletteCategories(paletteEntries), [paletteEntries]);
+  const [kindDialog, setKindDialog] = useState<{ open: boolean; kind: FloorPlanElementKind | null }>({
+    open: false,
+    kind: null,
+  });
 
   const handleUploadAsset = useCallback(
     async (file: File) => {
@@ -542,6 +565,7 @@ export default function FloorplanEditorPage() {
 
       <Stack direction="row" sx={{ flex: 1, minHeight: 0 }}>
         <PaletteSidebar
+          entries={paletteEntries}
           pendingPlacement={pendingPlacement}
           onPick={setPendingPlacement}
           onAddInfoBlock={handleAddInfoBlock}
@@ -549,7 +573,12 @@ export default function FloorplanEditorPage() {
           onDrawStrokeChange={setDrawStroke}
           activeTool={state.tool}
           readOnly={readOnly}
-          assets={assets}
+          canManageKinds={canManageKinds}
+          onCreateKind={() => setKindDialog({ open: true, kind: null })}
+          onEditKind={(entry) => {
+            const kind = kindsQuery.data?.find((k) => k.id === entry.kindId) ?? null;
+            if (kind) setKindDialog({ open: true, kind });
+          }}
         />
         <Box sx={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex' }}>
           <FloorplanCanvas
@@ -563,6 +592,7 @@ export default function FloorplanEditorPage() {
             svgRef={svgRef}
             readOnly={readOnly}
             assets={assetMap}
+            kindIndex={kindIndex}
           />
           <ScaleBarOverlay viewport={viewport} />
         </Box>
@@ -575,6 +605,17 @@ export default function FloorplanEditorPage() {
           onUploadAsset={handleUploadAsset}
         />
       </Stack>
+
+      {canManageKinds && (
+        <ElementKindDialog
+          open={kindDialog.open}
+          kind={kindDialog.kind}
+          categories={kindCategories}
+          assets={assets}
+          onUploadAsset={handleUploadAsset}
+          onClose={() => setKindDialog({ open: false, kind: null })}
+        />
+      )}
 
       {/* Save conflict dialog */}
       <Dialog open={Boolean(conflict)} onClose={() => setConflict(null)}>

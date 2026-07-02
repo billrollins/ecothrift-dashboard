@@ -56,6 +56,73 @@ class FloorPlan(models.Model):
         return f'{self.name} ({self.location_id})'
 
 
+class FloorPlanElementKind(models.Model):
+    """A reusable element type available in the editor palette.
+
+    Seeded from the original hardcoded frontend palette (migration 0003);
+    Super Admin can add or edit kinds. Plan documents reference kinds by the
+    stable `kind` slug via `element.kind`; unknown slugs still render as a
+    generic rectangle on the client, so deactivating a kind never breaks a
+    saved plan.
+    """
+    SHAPE_RECT = 'rect'
+    SHAPE_CIRCLE = 'circle'
+    SHAPE_CHOICES = [
+        (SHAPE_RECT, 'Rectangle'),
+        (SHAPE_CIRCLE, 'Circle / ellipse'),
+    ]
+
+    kind = models.SlugField(
+        max_length=64,
+        unique=True,
+        help_text='Stable slug persisted in plan documents; immutable after create.',
+    )
+    label = models.CharField(max_length=128)
+    category = models.CharField(max_length=64, default='Misc')
+    default_w = models.FloatField(help_text='Default width in inches.')
+    default_h = models.FloatField(help_text='Default depth in inches.')
+    fill_color = models.CharField(
+        max_length=7,
+        default='#9e9e9e',
+        help_text='Hex fill, used when the element has no image.',
+    )
+    default_image = models.ForeignKey(
+        'FloorPlanAsset',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='element_kinds',
+        help_text='Optional image preset applied to newly placed elements.',
+    )
+    shape = models.CharField(max_length=10, choices=SHAPE_CHOICES, default=SHAPE_RECT)
+    corner_radius = models.FloatField(
+        default=0,
+        help_text='Corner radius in inches; only meaningful when shape=rect.',
+    )
+    resizable = models.BooleanField(default=True)
+    is_system = models.BooleanField(
+        default=False,
+        help_text='Seeded built-in; editable but not deletable, slug locked.',
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category', 'sort_order', 'id']
+
+    def __str__(self):
+        return f'{self.label} ({self.kind})'
+
+
 class FloorPlanAsset(models.Model):
     """An uploaded image (SVG/PNG/JPG) usable by floorplan elements.
 

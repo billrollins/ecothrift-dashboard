@@ -146,3 +146,45 @@ export interface FloorPlanAsset {
   content_type: string;
   created_at: string;
 }
+
+export type ElementKindShape = 'rect' | 'circle';
+
+/** DB-backed palette entry (`/api/floorplan/element-kinds/`). */
+export interface FloorPlanElementKind {
+  id: number;
+  /** Stable slug persisted in plan documents via `element.kind`; immutable */
+  kind: string;
+  label: string;
+  category: string;
+  /** Default footprint in inches */
+  default_w: number;
+  default_h: number;
+  /** Hex fill used when the element has no image */
+  fill_color: string;
+  /** Optional FloorPlanAsset id preset on newly placed elements */
+  default_image: number | null;
+  shape: ElementKindShape;
+  /** Inches; only meaningful when shape=rect (0 = sharp corners) */
+  corner_radius: number;
+  resizable: boolean;
+  /** Seeded built-in: editable but not deletable, slug locked */
+  is_system: boolean;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FloorPlanElementKindPayload {
+  kind?: string;
+  label: string;
+  category: string;
+  default_w: number;
+  default_h: number;
+  fill_color: string;
+  default_image?: number | null;
+  shape: ElementKindShape;
+  corner_radius: number;
+  resizable: boolean;
+  sort_order?: number;
+}

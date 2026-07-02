@@ -8,7 +8,7 @@ import type {
   PlanZone,
 } from '../../types/floorplan.types';
 import { DEFAULT_LABEL_SETTINGS } from '../../types/floorplan.types';
-import { paletteEntryFor, PALETTE_BY_KIND } from './palette';
+import { paletteEntryFor, type PaletteIndex } from './palette';
 
 /** Stroke width in inches that stays readable at typical zooms. */
 const HAIRLINE = 0.75;
@@ -18,17 +18,20 @@ export function ElementShape({
   selected,
   labelSettings = DEFAULT_LABEL_SETTINGS,
   imageHref,
+  kindIndex,
 }: {
   element: PlanElement;
   selected: boolean;
   labelSettings?: PlanLabelSettings;
   /** Resolved data URI for element.image; base rect stays as fallback */
   imageHref?: string;
+  /** Element kind catalog; unknown kinds fall back to a generic rect */
+  kindIndex?: PaletteIndex;
 }) {
-  const entry = paletteEntryFor(element.kind);
+  const entry = paletteEntryFor(element.kind, kindIndex);
   const cx = element.x + element.w / 2;
   const cy = element.y + element.h / 2;
-  const round = element.kind === 'rackRound' || element.kind === 'column';
+  const round = entry.shape === 'circle';
   // Uniform caption size across all elements, clamped so tiny footprints don't overflow.
   const fontSize = Math.min(labelSettings.fontSize, Math.max(3, Math.min(element.w, element.h) * 0.45));
   return (
@@ -54,7 +57,7 @@ export function ElementShape({
           y={element.y}
           width={element.w}
           height={element.h}
-          rx={1.5}
+          rx={entry.cornerRadius || 0}
           fill={imageHref ? '#fff' : entry.color}
           fillOpacity={imageHref ? 0.9 : 0.85}
           stroke={selected ? '#1565c0' : '#37474f'}
@@ -63,13 +66,15 @@ export function ElementShape({
         />
       )}
       {imageHref && (
+        // Stretch to fill the footprint so resizing an element squishes its
+        // image instead of letterboxing (e.g. a 48×22 gondola from a 48×48 art)
         <image
           href={imageHref}
           x={element.x}
           y={element.y}
           width={element.w}
           height={element.h}
-          preserveAspectRatio="xMidYMid meet"
+          preserveAspectRatio="none"
           pointerEvents="none"
         />
       )}
@@ -167,19 +172,22 @@ export function LabelShape({ label, selected }: { label: PlanLabel; selected: bo
   );
 }
 
-function usedKinds(elements: PlanElement[]): string[] {
-  return [...new Set(elements.map((e) => e.kind))].filter((k) => PALETTE_BY_KIND[k]);
+function usedKinds(elements: PlanElement[], kindIndex: PaletteIndex): string[] {
+  return [...new Set(elements.map((e) => e.kind))].filter((k) => kindIndex[k]);
 }
 
 export function InfoBlockShape({
   block,
   elements,
   selected,
+  kindIndex = {},
 }: {
   block: PlanInfoBlock;
   /** Placed elements, used by the legend block */
   elements: PlanElement[];
   selected: boolean;
+  /** Element kind catalog, used by the legend block */
+  kindIndex?: PaletteIndex;
 }) {
   const frame = (
     <rect
@@ -252,7 +260,7 @@ export function InfoBlockShape({
       );
     }
     case 'legend': {
-      const kinds = usedKinds(elements);
+      const kinds = usedKinds(elements, kindIndex);
       const fontSize = Math.min(7, block.h * 0.12);
       const rowH = fontSize * 1.6;
       const maxRows = Math.max(0, Math.floor((block.h - pad * 2 - fontSize * 1.8) / rowH));
@@ -263,7 +271,7 @@ export function InfoBlockShape({
             LEGEND
           </text>
           {kinds.slice(0, maxRows).map((kind, i) => {
-            const entry = PALETTE_BY_KIND[kind];
+            const entry = kindIndex[kind];
             const y = block.y + pad + fontSize * 1.8 + i * rowH;
             return (
               <g key={kind}>

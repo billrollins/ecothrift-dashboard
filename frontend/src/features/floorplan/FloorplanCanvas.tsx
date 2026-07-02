@@ -37,7 +37,7 @@ import {
   type Viewport,
 } from './geometry';
 import { snapPoint, snapSize, snapValue } from './snapping';
-import type { PaletteEntry } from './palette';
+import type { PaletteEntry, PaletteIndex } from './palette';
 import { ElementShape, InfoBlockShape, LabelShape, PathShape, ZoneShape } from './objectRenderers';
 
 const MIN_SIZE = 2; // inches
@@ -61,6 +61,8 @@ interface FloorplanCanvasProps {
   readOnly: boolean;
   /** Asset id -> data URI, for elements with an assigned image */
   assets?: Map<number, string>;
+  /** Element kind catalog for shape/color resolution (legend, footprints) */
+  kindIndex?: PaletteIndex;
 }
 
 type HandleId = 'nw' | 'ne' | 'sw' | 'se';
@@ -100,12 +102,12 @@ const ZoneRow = memo(function ZoneRow({ zone, selected, labelSettings, onObjectP
   );
 });
 
-const ElementRow = memo(function ElementRow({ element, selected, labelSettings, imageHref, onObjectPointerDown }: {
-  element: PlanElement; selected: boolean; labelSettings: PlanLabelSettings; imageHref?: string; onObjectPointerDown: ObjectPointerDown;
+const ElementRow = memo(function ElementRow({ element, selected, labelSettings, imageHref, kindIndex, onObjectPointerDown }: {
+  element: PlanElement; selected: boolean; labelSettings: PlanLabelSettings; imageHref?: string; kindIndex?: PaletteIndex; onObjectPointerDown: ObjectPointerDown;
 }) {
   return (
     <g onPointerDown={(e) => onObjectPointerDown(e, { kind: 'element', id: element.id })}>
-      <ElementShape element={element} selected={selected} labelSettings={labelSettings} imageHref={imageHref} />
+      <ElementShape element={element} selected={selected} labelSettings={labelSettings} imageHref={imageHref} kindIndex={kindIndex} />
     </g>
   );
 });
@@ -136,12 +138,12 @@ const LabelRow = memo(function LabelRow({ label, selected, onObjectPointerDown }
   );
 });
 
-const InfoBlockRow = memo(function InfoBlockRow({ block, elements, selected, onObjectPointerDown }: {
-  block: PlanInfoBlock; elements: PlanElement[]; selected: boolean; onObjectPointerDown: ObjectPointerDown;
+const InfoBlockRow = memo(function InfoBlockRow({ block, elements, selected, kindIndex, onObjectPointerDown }: {
+  block: PlanInfoBlock; elements: PlanElement[]; selected: boolean; kindIndex?: PaletteIndex; onObjectPointerDown: ObjectPointerDown;
 }) {
   return (
     <g onPointerDown={(e) => onObjectPointerDown(e, { kind: 'infoBlock', id: block.id })}>
-      <InfoBlockShape block={block} elements={elements} selected={selected} />
+      <InfoBlockShape block={block} elements={elements} selected={selected} kindIndex={kindIndex} />
     </g>
   );
 });
@@ -170,6 +172,7 @@ export default function FloorplanCanvas({
   svgRef,
   readOnly,
   assets,
+  kindIndex,
 }: FloorplanCanvasProps) {
   const { doc, selection, tool } = state;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -611,7 +614,7 @@ export default function FloorplanCanvas({
 
         {/* Elements */}
         {doc.elements.map((element) => (
-          <ElementRow key={element.id} element={element} selected={isSelected('element', element.id)} labelSettings={labelSettings} imageHref={element.image != null ? assets?.get(element.image) : undefined} onObjectPointerDown={stableObjectPointerDown} />
+          <ElementRow key={element.id} element={element} selected={isSelected('element', element.id)} labelSettings={labelSettings} imageHref={element.image != null ? assets?.get(element.image) : undefined} kindIndex={kindIndex} onObjectPointerDown={stableObjectPointerDown} />
         ))}
 
         {/* Freehand paths (with a wide invisible hit stroke) */}
@@ -626,7 +629,7 @@ export default function FloorplanCanvas({
 
         {/* Info blocks */}
         {doc.infoBlocks.map((block) => (
-          <InfoBlockRow key={block.id} block={block} elements={doc.elements} selected={isSelected('infoBlock', block.id)} onObjectPointerDown={stableObjectPointerDown} />
+          <InfoBlockRow key={block.id} block={block} elements={doc.elements} selected={isSelected('infoBlock', block.id)} kindIndex={kindIndex} onObjectPointerDown={stableObjectPointerDown} />
         ))}
 
         {/* Editor-only overlays (stripped from PNG export) */}
@@ -692,18 +695,34 @@ export default function FloorplanCanvas({
 
           {/* Placement ghost */}
           {pendingPlacement && ghost && (
-            <rect
-              x={ghost.x - pendingPlacement.w / 2}
-              y={ghost.y - pendingPlacement.h / 2}
-              width={pendingPlacement.w}
-              height={pendingPlacement.h}
-              fill={pendingPlacement.color}
-              fillOpacity={0.4}
-              stroke={pendingPlacement.color}
-              strokeWidth={1 / viewport.scale}
-              strokeDasharray={`${4 / viewport.scale} ${3 / viewport.scale}`}
-              pointerEvents="none"
-            />
+            pendingPlacement.shape === 'circle' ? (
+              <ellipse
+                cx={ghost.x}
+                cy={ghost.y}
+                rx={pendingPlacement.w / 2}
+                ry={pendingPlacement.h / 2}
+                fill={pendingPlacement.color}
+                fillOpacity={0.4}
+                stroke={pendingPlacement.color}
+                strokeWidth={1 / viewport.scale}
+                strokeDasharray={`${4 / viewport.scale} ${3 / viewport.scale}`}
+                pointerEvents="none"
+              />
+            ) : (
+              <rect
+                x={ghost.x - pendingPlacement.w / 2}
+                y={ghost.y - pendingPlacement.h / 2}
+                width={pendingPlacement.w}
+                height={pendingPlacement.h}
+                rx={pendingPlacement.cornerRadius || 0}
+                fill={pendingPlacement.color}
+                fillOpacity={0.4}
+                stroke={pendingPlacement.color}
+                strokeWidth={1 / viewport.scale}
+                strokeDasharray={`${4 / viewport.scale} ${3 / viewport.scale}`}
+                pointerEvents="none"
+              />
+            )
           )}
         </g>
       </svg>

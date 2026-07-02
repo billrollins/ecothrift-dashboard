@@ -4,12 +4,13 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
+from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
 
-from .models import CURRENT_SCHEMA_VERSION, FloorPlan, FloorPlanAsset
+from .models import CURRENT_SCHEMA_VERSION, FloorPlan, FloorPlanAsset, FloorPlanElementKind
 from .serializers import (
     FloorPlanAssetSerializer,
     FloorPlanAssetUploadSerializer,
+    FloorPlanElementKindSerializer,
     FloorPlanListSerializer,
     FloorPlanSerializer,
 )
@@ -87,6 +88,42 @@ class FloorPlanViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        instance.is_active = False
+        instance.save(update_fields=['is_active', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FloorPlanElementKindViewSet(viewsets.ModelViewSet):
+    """Element type catalog for the editor palette.
+
+    - All staff can list/retrieve (the palette).
+    - Only Super Admin (`is_superuser`) can create/edit/delete.
+    - System (seeded) kinds are editable but not deletable; the `kind` slug is
+      immutable for every row because saved plans reference it.
+    - Delete is a soft delete (`is_active=False`).
+    """
+    lookup_value_regex = r'\d+'
+    serializer_class = FloorPlanElementKindSerializer
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated(), IsStaff()]
+        return [IsAuthenticated(), IsSuperAdmin()]
+
+    def get_queryset(self):
+        return FloorPlanElementKind.objects.filter(is_active=True)
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.is_system:
+            return Response(
+                {'detail': 'Built-in element types cannot be deleted.', 'code': 'system_kind'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         instance.is_active = False
         instance.save(update_fields=['is_active', 'updated_at'])
         return Response(status=status.HTTP_204_NO_CONTENT)

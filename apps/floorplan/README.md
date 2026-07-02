@@ -7,6 +7,7 @@ Store/room layout editor integrated into the staff dashboard.
   `frontend/src/types/floorplan.types.ts` (document types), `frontend/src/api/floorplan.api.ts`.
 - Routes: plan list at `/floor-ops/floorplans` (inside the dashboard layout, Floor Ops workspace);
   full-screen editor at `/floor-ops/floorplans/:id/edit` (lazy-loaded chunk).
+- **Element SVG sources:** `apps/floorplan/element-svg/` (by category; see that README). Generation prompts: `PROMPTS_svg_generation.md`.
 
 ## Units and coordinate system
 
@@ -49,8 +50,9 @@ Notes:
   - `group` (string) on any object in `elements` / `zones` / `paths` / `labels` / `infoBlocks` —
     objects sharing a group id select, move, and delete together.
   - `image` (integer) on an element — id of a `FloorPlanAsset` whose picture renders inside the
-    element footprint (`preserveAspectRatio: meet`). Missing/deleted assets fall back to the
-    element's solid palette color.
+    element footprint, stretched to fill it (`preserveAspectRatio: none`) so resizing squishes
+    the image rather than letterboxing. Missing/deleted assets fall back to the element's solid
+    palette color.
 - `rotation` is limited to 90° increments (0/90/180/270) about the element center.
 - `infoBlocks.type` ∈ `titleBlock | notes | legend | northArrow | scaleBar`; block-specific data
   lives in `props` (title/subtitle/date, notes `text`, north `rotation`, scale-bar `length`).
@@ -99,10 +101,27 @@ Base: `/api/floorplan/` — JWT auth (standard dashboard auth). All staff roles 
 Uploaded element images live in `FloorPlanAsset` rows as **sanitized data URIs** (no media-file
 serving required). SVG uploads are parsed and re-serialized server-side with `script` /
 `foreignObject` elements, `on*` event attributes, external `href`s, and DOCTYPE/entity
-declarations stripped; PNG/JPEG are verified with Pillow. In the editor, assets appear in a
-"Custom" palette category (placing one creates a `genericRect` element with `image` preset) and
-in the element properties panel (assign / upload / remove per instance). Because images are data
-URIs, PNG export inlines them automatically.
+declarations stripped; PNG/JPEG are verified with Pillow. In the editor, assets appear in the
+element properties panel (assign / upload / remove per instance) and as the optional
+`default_image` of an element kind. Because images are data URIs, PNG export inlines them
+automatically.
+
+### Element kinds (palette catalog)
+
+The palette is DB-backed: `FloorPlanElementKind` rows at `element-kinds/` (staff read;
+**Super Admin** write). Each kind has a stable `kind` slug (persisted in plan documents,
+immutable after create), label, category, default W×H (inches), `fill_color`, optional
+`default_image` (asset preset applied on placement), `shape` (`rect` | `circle`), and
+`corner_radius` (inches; rects render **sharp** by default). The 19 original built-ins are
+seeded by migration `0004` with `is_system=True` — editable, not deletable (`DELETE` → 400
+`code: system_kind`); custom kinds soft-delete. `column` and `rackRound` are seeded as
+circles. Create without a `kind` slug auto-slugifies the label with a uniqueness suffix.
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `element-kinds/` | Active kinds, ordered by category + sort order (staff) |
+| POST / PATCH | `element-kinds/{id}/` | Super Admin; `kind` slug immutable on PATCH |
+| DELETE | `element-kinds/{id}/` | Soft delete; rejected for `is_system` rows |
 
 ### Concurrency: optimistic locking
 
@@ -131,16 +150,17 @@ keep placing more. The clipboard is in-memory per editor session (not the OS cli
 
 ## How to add a new palette element
 
-Edit `frontend/src/features/floorplan/palette.ts` and append an entry:
+Super Admins add element types in the editor: **New element type** at the top of the palette
+sidebar (or the pencil icon on a row to edit). Name, category (free text — new categories appear
+automatically), default size, fill color or default image, footprint shape (rectangle with
+optional corner radius, or circle/oval), and resizable flag are all editable; the `kind` slug is
+generated from the name and locked forever because saved plans reference it.
 
-```ts
-{ kind: 'endCap', label: 'End cap', category: 'Fixtures', w: 48, h: 24, color: '#26a69a', resizable: true },
-```
-
-- `kind` must be unique and **stable forever** — it is persisted in saved plans.
-- Sizes are in inches; `category` groups entries in the sidebar (new categories appear automatically).
-- No backend change needed. Unknown `kind`s in old documents still render as generic rectangles,
-  so removing an entry from the palette does not break saved plans.
+- Unknown `kind`s in old documents still render as generic rectangles, so removing a kind from
+  the palette never breaks saved plans.
+- `frontend/src/features/floorplan/palette.ts` keeps `STATIC_PALETTE` as a mirror of the seeded
+  built-ins, used only as a loading placeholder — keep it in sync if a seed migration ever
+  changes the built-ins.
 
 ## Testing
 

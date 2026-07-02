@@ -1,14 +1,16 @@
-release(v2.39.0): floorplan builder, TARS hardening, vendor order dropdown
+release(v2.40.0): floorplan DB element kinds and shape control
 
-Release: v2.39.0
+Release: v2.40.0
 
-### Added
-- Floorplan builder — Django `apps/floorplan` (plans + image assets API), SVG editor under Floor Ops, nav entry, JSON/PNG export
-- Custom element images — per-location asset library (SVG/PNG/JPEG), assignable per element or placed from Custom palette
+- FloorPlanElementKind model (migrations 0003-0004): 19 legacy palette kinds seeded; shape rect|circle + corner_radius; column/rackRound seeded as circles.
+- /api/floorplan/element-kinds/ — staff read, Super Admin write; system kinds editable but not deletable; kind slug immutable, auto-slugified from label.
+- Editor palette, legend, and canvas resolve kinds from the DB catalog (useFloorPlanElementKinds + kindIndex); static palette.ts kept only as loading placeholder.
+- Rectangles render sharp by default (hardcoded rx=1.5 removed); per-kind corner radius; placement ghost matches shape.
+- Super Admin in-editor management: New element type + per-row edit (ElementKindDialog) — name, category, size, color, shape, resizable, default image with upload.
+- Element images stretch to fill the footprint on resize (preserveAspectRatio none); legacy "Custom" asset palette section removed.
+- Tests: 12 new element-kind API tests (apps.floorplan 43 OK); palette vitest; tsc + production build green.
 
-### Changed
-- TARS restoration hardening — bench drafts, queue patches, parts orders, work_session validation, migration 0078 (remove executing stage)
+Initiative: .ai/initiatives/floorplan_builder.md
+Plan: apps/floorplan/PLAN_element_kinds.md
 
-### Fixed
-- Add Order vendor dropdown — show all active vendors instead of hardcoded seven-name whitelist
-- TARS bugs — send dialog render loop, requeue reset, cache invalidation, money validation, dashboard done metrics
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>

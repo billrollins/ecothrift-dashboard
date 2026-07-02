@@ -43,6 +43,8 @@ import CropSquareIcon from '@mui/icons-material/CropSquare';
 import GestureIcon from '@mui/icons-material/Gesture';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 import type {
   FloorPlanAsset,
   GridStyle,
@@ -59,7 +61,7 @@ import { getObject, selectionIsGrouped } from './editorState';
 import { DEFAULT_LABEL_SETTINGS } from '../../types/floorplan.types';
 import { formatInches, parseInches, pickScaleBarLength, type Viewport } from './geometry';
 import { SNAP_OPTIONS } from './snapping';
-import { PALETTE, PALETTE_CATEGORIES, type PaletteEntry } from './palette';
+import { paletteCategories, type PaletteEntry } from './palette';
 import type { DrawStroke } from './FloorplanCanvas';
 
 /** Plan dimension limits (inches): 2 ft – 1000 ft, well under the backend cap. */
@@ -377,6 +379,8 @@ function GridOptionsPopover({ anchorEl, onClose, grid, snap, onChange, readOnly 
 // ── Palette sidebar ──────────────────────────────────────────────────────────
 
 interface PaletteSidebarProps {
+  /** Element kinds to offer, ordered by category + sort order */
+  entries: PaletteEntry[];
   pendingPlacement: PaletteEntry | null;
   onPick: (entry: PaletteEntry | null) => void;
   onAddInfoBlock: (type: PlanInfoBlock['type']) => void;
@@ -384,22 +388,10 @@ interface PaletteSidebarProps {
   onDrawStrokeChange: (stroke: DrawStroke) => void;
   activeTool: Tool;
   readOnly: boolean;
-  /** Uploaded image assets, shown as a placeable "Custom" category */
-  assets?: FloorPlanAsset[];
-}
-
-/** Palette entry for placing an uploaded asset as a new element. */
-export function assetPaletteEntry(asset: FloorPlanAsset): PaletteEntry {
-  return {
-    kind: 'genericRect',
-    label: asset.name,
-    category: 'Custom',
-    w: 48,
-    h: 48,
-    color: '#9e9e9e',
-    resizable: true,
-    image: asset.id,
-  };
+  /** Super Admin: show "New element type" + per-kind edit affordances */
+  canManageKinds?: boolean;
+  onCreateKind?: () => void;
+  onEditKind?: (entry: PaletteEntry) => void;
 }
 
 const INFO_BLOCK_TYPES: { type: PlanInfoBlock['type']; label: string }[] = [
@@ -410,10 +402,10 @@ const INFO_BLOCK_TYPES: { type: PlanInfoBlock['type']; label: string }[] = [
   { type: 'scaleBar', label: 'Scale reference' },
 ];
 
-export function PaletteSidebar({ pendingPlacement, onPick, onAddInfoBlock, drawStroke, onDrawStrokeChange, activeTool, readOnly, assets = [] }: PaletteSidebarProps) {
+export function PaletteSidebar({ entries, pendingPlacement, onPick, onAddInfoBlock, drawStroke, onDrawStrokeChange, activeTool, readOnly, canManageKinds = false, onCreateKind, onEditKind }: PaletteSidebarProps) {
   const grouped = useMemo(
-    () => PALETTE_CATEGORIES.map((cat) => ({ cat, entries: PALETTE.filter((e) => e.category === cat) })),
-    [],
+    () => paletteCategories(entries).map((cat) => ({ cat, entries: entries.filter((e) => e.category === cat) })),
+    [entries],
   );
 
   return (
@@ -423,60 +415,62 @@ export function PaletteSidebar({ pendingPlacement, onPick, onAddInfoBlock, drawS
           View only — Manager or Admin role required to edit.
         </Typography>
       )}
+      {canManageKinds && onCreateKind && (
+        <Box sx={{ px: 1, pt: 1 }}>
+          <Button size="small" fullWidth variant="outlined" startIcon={<AddIcon />} onClick={onCreateKind} sx={{ textTransform: 'none' }}>
+            New element type
+          </Button>
+        </Box>
+      )}
       <List dense disablePadding subheader={<li />} sx={{ '& ul': { p: 0 } }}>
-        {grouped.map(({ cat, entries }) => (
+        {grouped.map(({ cat, entries: catEntries }) => (
           <li key={cat}>
             <ul>
               <ListSubheader sx={{ lineHeight: '28px' }}>{cat}</ListSubheader>
-              {entries.map((entry) => (
+              {catEntries.map((entry) => (
                 <ListItemButton
                   key={entry.kind}
                   dense
                   selected={pendingPlacement?.kind === entry.kind}
                   disabled={readOnly}
                   onClick={() => onPick(pendingPlacement?.kind === entry.kind ? null : entry)}
+                  sx={{ '&:hover .kind-edit': { opacity: 1 } }}
                 >
-                  <Box sx={{ width: 12, height: 12, bgcolor: entry.color, borderRadius: 0.5, mr: 1, flexShrink: 0 }} />
+                  <Box
+                    sx={{
+                      width: 12,
+                      height: 12,
+                      bgcolor: entry.color,
+                      borderRadius: entry.shape === 'circle' ? '50%' : 0.5,
+                      mr: 1,
+                      flexShrink: 0,
+                    }}
+                  />
                   <ListItemText
                     primary={entry.label}
                     secondary={`${formatInches(entry.w)} × ${formatInches(entry.h)}`}
                     primaryTypographyProps={{ variant: 'body2' }}
                     secondaryTypographyProps={{ variant: 'caption' }}
                   />
+                  {canManageKinds && onEditKind && entry.kindId != null && (
+                    <IconButton
+                      className="kind-edit"
+                      size="small"
+                      aria-label={`Edit ${entry.label}`}
+                      sx={{ opacity: { xs: 1, md: 0 }, transition: 'opacity 120ms' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditKind(entry);
+                      }}
+                    >
+                      <EditIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  )}
                 </ListItemButton>
               ))}
             </ul>
           </li>
         ))}
-        {assets.length > 0 && (
-          <li>
-            <ul>
-              <ListSubheader sx={{ lineHeight: '28px' }}>Custom</ListSubheader>
-              {assets.map((asset) => (
-                <ListItemButton
-                  key={asset.id}
-                  dense
-                  selected={pendingPlacement?.image === asset.id}
-                  disabled={readOnly}
-                  onClick={() => onPick(pendingPlacement?.image === asset.id ? null : assetPaletteEntry(asset))}
-                >
-                  <Box
-                    component="img"
-                    src={asset.data}
-                    alt=""
-                    sx={{ width: 20, height: 20, objectFit: 'contain', mr: 1, flexShrink: 0 }}
-                  />
-                  <ListItemText
-                    primary={asset.name}
-                    secondary="Uploaded image"
-                    primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                    secondaryTypographyProps={{ variant: 'caption' }}
-                  />
-                </ListItemButton>
-              ))}
-            </ul>
-          </li>
-        )}
         <li>
           <ul>
             <ListSubheader sx={{ lineHeight: '28px' }}>Plan info</ListSubheader>

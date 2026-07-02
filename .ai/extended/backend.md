@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-07-02 (floorplan app + TARS v2.39.0) -->
+<!-- Last updated: 2026-07-02 (floorplan element kinds) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-07-02 (Unreleased) — Floorplan / element kinds:** **`FloorPlanElementKind`** catalog (migrations **`0003`–`0004`**, 19 seeded built-ins; `shape` rect|circle + `corner_radius`); **`/api/floorplan/element-kinds/`** — staff read, **`IsSuperAdmin`** write; system kinds editable-not-deletable, `kind` slug immutable, auto-slug from label. See **`apps/floorplan/README.md`**.
 
 **2026-07-02 (v2.39.0) — Floorplan (`apps/floorplan`):** **`FloorPlan`** JSON document + optimistic **`revision`** locking; **`FloorPlanAsset`** sanitized image library (SVG/PNG/JPEG data URIs); **`GET/POST/PATCH/DELETE /api/floorplan/plans/`** + **`/api/floorplan/assets/`** (staff read, Manager/Admin write). See **`apps/floorplan/README.md`**.
 

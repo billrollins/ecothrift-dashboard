@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.39.0] — 2026-07-02 -->
-<!-- Last reviewed: 2026-07-02 (floorplan builder + TARS hardening + vendor dropdown) -->
+<!-- Line 1 release: ## [2.40.0] — 2026-07-02 -->
+<!-- Last reviewed: 2026-07-02 (floorplan DB element kinds release) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,29 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.40.0] — 2026-07-02
+
+User-facing theme: **Floorplan element types live in the database — Super Admins create and edit palette entries (size, color, image, shape) from inside the editor.**
+
+Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md); plan: [`apps/floorplan/PLAN_element_kinds.md`](apps/floorplan/PLAN_element_kinds.md).
+
+### Added
+
+- **Floorplan / element kind catalog** — **`FloorPlanElementKind`** model (migrations **`0003`–`0004`**, 19 built-ins seeded from the legacy hardcoded palette); **`GET/POST/PATCH/DELETE /api/floorplan/element-kinds/`** (staff read, Super Admin write); system kinds editable but not deletable, `kind` slug immutable; auto slug from label.
+- **Floorplan / shape control** — per-kind footprint **`shape`** (`rect` | `circle`) and **`corner_radius`** (inches); rectangles now render **sharp** by default (replaces the hardcoded `rx=1.5`); `column`/`rackRound` seeded as circles so existing plans render unchanged; placement ghost matches shape.
+- **Floorplan / in-editor kind management** (Super Admin) — **New element type** button + per-row edit in the palette sidebar (**`ElementKindDialog`**): name, category (free text w/ autocomplete), default size, fill color, shape/radius, resizable, optional default image (pick or upload); custom kinds removable with confirm.
+
+### Changed
+
+- **Floorplan / palette** — editor palette, legend, and canvas resolve kinds from the DB catalog (**`useFloorPlanElementKinds`**, `kindIndex` threading); static `palette.ts` array retained only as a loading placeholder mirroring the seed; kinds with a **`default_image`** place with the image preset.
+- **Floorplan / element images** — images stretch to fill the element footprint on resize (**`preserveAspectRatio="none"`**) instead of letterboxing, so one image serves any W×H.
+
+### Removed
+
+- **Floorplan / legacy "Custom" palette section** — raw uploaded assets are no longer a placeable palette category; create an element kind with a default image instead (per-instance image assignment in the properties panel is unchanged).
 
 ---
 

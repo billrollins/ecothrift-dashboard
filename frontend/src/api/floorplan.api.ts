@@ -1,5 +1,11 @@
 import type { PaginatedResponse } from '../types/common.types';
-import type { FloorPlanDetail, FloorPlanListItem, PlanDocument } from '../types/floorplan.types';
+import type {
+  FloorPlanDetail,
+  FloorPlanElementKind,
+  FloorPlanElementKindPayload,
+  FloorPlanListItem,
+  PlanDocument,
+} from '../types/floorplan.types';
 import api from './client';
 
 export function getFloorPlans(params?: { location?: number; page?: number; page_size?: number }) {
@@ -28,4 +34,22 @@ export function renameFloorPlan(id: number, name: string) {
 
 export function deleteFloorPlan(id: number) {
   return api.delete(`/floorplan/plans/${id}/`);
+}
+
+// ── Element kinds (palette catalog) ──────────────────────────────────────────
+
+export function getFloorPlanElementKinds(params?: { page?: number; page_size?: number }) {
+  return api.get<PaginatedResponse<FloorPlanElementKind>>('/floorplan/element-kinds/', { params });
+}
+
+export function createFloorPlanElementKind(payload: FloorPlanElementKindPayload) {
+  return api.post<FloorPlanElementKind>('/floorplan/element-kinds/', payload);
+}
+
+export function updateFloorPlanElementKind(id: number, payload: Partial<FloorPlanElementKindPayload>) {
+  return api.patch<FloorPlanElementKind>(`/floorplan/element-kinds/${id}/`, payload);
+}
+
+export function deleteFloorPlanElementKind(id: number) {
+  return api.delete(`/floorplan/element-kinds/${id}/`);
 }

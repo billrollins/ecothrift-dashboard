@@ -1,8 +1,19 @@
+import re
+
+from django.utils.text import slugify
 from rest_framework import serializers
 
 from .assets import sanitize_asset_upload
-from .models import FloorPlan, FloorPlanAsset
+from .models import FloorPlan, FloorPlanAsset, FloorPlanElementKind
 from .validation import validate_plan_document
+
+HEX_COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+# Sanity caps for element kind footprints (inches). Matches the plan
+# dimension cap used by the editor.
+MIN_KIND_DIM = 1
+MAX_KIND_DIM = 12_000
+MAX_CORNER_RADIUS = 60
 
 
 class FloorPlanListSerializer(serializers.ModelSerializer):
@@ -36,6 +47,89 @@ class FloorPlanSerializer(FloorPlanListSerializer):
     def validate_data(self, value):
         validate_plan_document(value)
         return value
+
+
+class FloorPlanElementKindSerializer(serializers.ModelSerializer):
+    """Element kind catalog entry.
+
+    - `kind` is optional on create (auto-slugified from `label`, made unique
+      with a numeric suffix) and immutable afterwards.
+    - `is_system` is server-controlled (seed migration only).
+    - `shape=circle` normalizes `corner_radius` to 0.
+    """
+    kind = serializers.SlugField(max_length=64, required=False)
+
+    class Meta:
+        model = FloorPlanElementKind
+        fields = [
+            'id', 'kind', 'label', 'category', 'default_w', 'default_h',
+            'fill_color', 'default_image', 'shape', 'corner_radius',
+            'resizable', 'is_system', 'sort_order', 'is_active',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['is_system', 'is_active', 'created_at', 'updated_at']
+
+    def validate_fill_color(self, value):
+        if not HEX_COLOR_RE.match(value or ''):
+            raise serializers.ValidationError('Fill color must be a hex value like #7986cb.')
+        return value.lower()
+
+    def validate_label(self, value):
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError('Label is required.')
+        return value
+
+    def validate_category(self, value):
+        value = (value or '').strip()
+        return value or 'Misc'
+
+    def _validate_dim(self, value):
+        if value is None or not (MIN_KIND_DIM <= value <= MAX_KIND_DIM):
+            raise serializers.ValidationError(
+                f'Must be between {MIN_KIND_DIM} and {MAX_KIND_DIM} inches.'
+            )
+        return value
+
+    def validate_default_w(self, value):
+        return self._validate_dim(value)
+
+    def validate_default_h(self, value):
+        return self._validate_dim(value)
+
+    def validate_corner_radius(self, value):
+        if value is None or value < 0 or value > MAX_CORNER_RADIUS:
+            raise serializers.ValidationError(
+                f'Corner radius must be between 0 and {MAX_CORNER_RADIUS} inches.'
+            )
+        return value
+
+    def validate(self, attrs):
+        if self.instance is not None and 'kind' in attrs and attrs['kind'] != self.instance.kind:
+            raise serializers.ValidationError(
+                {'kind': 'The kind slug is referenced by saved plans and cannot be changed.'}
+            )
+        shape = attrs.get('shape', getattr(self.instance, 'shape', FloorPlanElementKind.SHAPE_RECT))
+        if shape == FloorPlanElementKind.SHAPE_CIRCLE:
+            attrs['corner_radius'] = 0
+        if self.instance is None:
+            if attrs.get('kind'):
+                if FloorPlanElementKind.objects.filter(kind=attrs['kind']).exists():
+                    raise serializers.ValidationError(
+                        {'kind': 'An element type with this slug already exists.'}
+                    )
+            else:
+                attrs['kind'] = self._unique_slug(attrs.get('label', ''))
+        return attrs
+
+    def _unique_slug(self, label):
+        base = slugify(label)[:56] or 'element'
+        slug = base
+        n = 2
+        while FloorPlanElementKind.objects.filter(kind=slug).exists():
+            slug = f'{base}-{n}'
+            n += 1
+        return slug
 
 
 class FloorPlanAssetSerializer(serializers.ModelSerializer):
