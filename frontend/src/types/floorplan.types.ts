@@ -28,6 +28,13 @@ export interface PlanLabelSettings {
 
 export const DEFAULT_LABEL_SETTINGS: PlanLabelSettings = { show: true, fontSize: 8 };
 
+/** Tab metadata for a layout configuration (variant) within one plan. */
+export interface PlanConfigMeta {
+  id: string;
+  /** Short tab label, e.g. "1" or "Holiday" */
+  name: string;
+}
+
 export interface PlanSettings {
   /** Plan (room) width in inches */
   planWidth: number;
@@ -38,6 +45,10 @@ export interface PlanSettings {
   snap: number;
   /** Element/zone caption settings; optional in stored docs, defaulted on load */
   labels?: PlanLabelSettings;
+  /** Layout configuration tabs; absent = single implicit configuration */
+  configs?: PlanConfigMeta[];
+  /** Which configuration the top-level collections currently hold */
+  activeConfigId?: string;
 }
 
 export interface PlanElement {
@@ -56,6 +67,10 @@ export interface PlanElement {
   group?: string;
   /** Optional FloorPlanAsset id; the asset image renders inside the footprint */
   image?: number;
+  /** Suppress the caption even when plan-level labels are shown */
+  labelHidden?: boolean;
+  /** Inert: renders normally but ignores all pointer interaction */
+  locked?: boolean;
 }
 
 export interface PlanZone {
@@ -68,6 +83,7 @@ export interface PlanZone {
   color: string;
   opacity: number;
   group?: string;
+  locked?: boolean;
 }
 
 export interface PlanPath {
@@ -77,6 +93,7 @@ export interface PlanPath {
   stroke: string;
   width: number;
   group?: string;
+  locked?: boolean;
 }
 
 export interface PlanLabel {
@@ -88,6 +105,7 @@ export interface PlanLabel {
   fontSize: number;
   color: string;
   group?: string;
+  locked?: boolean;
 }
 
 export type InfoBlockType = 'titleBlock' | 'notes' | 'legend' | 'northArrow' | 'scaleBar';
@@ -101,16 +119,27 @@ export interface PlanInfoBlock {
   h: number;
   props: Record<string, unknown>;
   group?: string;
+  locked?: boolean;
 }
 
-export interface PlanDocument {
-  schema_version: number;
-  settings: PlanSettings;
+/** The five object collections a configuration owns. */
+export interface PlanLayers {
   elements: PlanElement[];
   zones: PlanZone[];
   paths: PlanPath[];
   labels: PlanLabel[];
   infoBlocks: PlanInfoBlock[];
+}
+
+export interface PlanDocument extends PlanLayers {
+  schema_version: number;
+  settings: PlanSettings;
+  /**
+   * Layers of INACTIVE configurations, keyed by config id. The active
+   * configuration always lives in the top-level collections so old clients,
+   * the backend validator, rendering, and export keep working unchanged.
+   */
+  configStore?: Record<string, PlanLayers>;
 }
 
 /** Any selectable object on the canvas */

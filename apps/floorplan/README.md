@@ -53,6 +53,13 @@ Notes:
     element footprint, stretched to fill it (`preserveAspectRatio: none`) so resizing squishes
     the image rather than letterboxing. Missing/deleted assets fall back to the element's solid
     palette color.
+  - `labelHidden` (bool) on an element — suppress its caption even when plan labels are shown.
+  - `locked` (bool) on any object — inert: renders normally but ignores all pointer
+    interaction; managed via the editor's toolbar lock list.
+  - `settings.configs` (`[{id, name}]`) + `settings.activeConfigId` + top-level `configStore`
+    (`{configId: {elements, zones, paths, labels, infoBlocks}}`) — layout **configuration
+    tabs**. The active configuration always lives in the top-level collections (so validation,
+    rendering, and export are unchanged); `configStore` holds the inactive ones.
 - `rotation` is limited to 90° increments (0/90/180/270) about the element center.
 - `infoBlocks.type` ∈ `titleBlock | notes | legend | northArrow | scaleBar`; block-specific data
   lives in `props` (title/subtitle/date, notes `text`, north `rotation`, scale-bar `length`).

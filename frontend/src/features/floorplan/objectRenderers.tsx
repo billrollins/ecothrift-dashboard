@@ -82,7 +82,7 @@ export function ElementShape({
           pointerEvents="none"
         />
       )}
-      {labelSettings.show && (
+      {labelSettings.show && !element.labelHidden && (
         // Counter-rotate so the caption stays horizontal regardless of element rotation
         <text
           x={cx}

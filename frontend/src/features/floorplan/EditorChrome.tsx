@@ -45,6 +45,9 @@ import TextFieldsIcon from '@mui/icons-material/TextFields';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
+import Rotate90DegreesCwIcon from '@mui/icons-material/Rotate90DegreesCw';
 import AlignHorizontalLeftIcon from '@mui/icons-material/AlignHorizontalLeft';
 import AlignHorizontalCenterIcon from '@mui/icons-material/AlignHorizontalCenter';
 import AlignHorizontalRightIcon from '@mui/icons-material/AlignHorizontalRight';
@@ -66,7 +69,7 @@ import type {
   PlanPath,
   PlanZone,
 } from '../../types/floorplan.types';
-import type { AlignMode, EditorAction, EditorState, SelectionRef, Tool } from './editorState';
+import type { AlignMode, EditorAction, EditorState, LockedObjectInfo, SelectionRef, Tool } from './editorState';
 import { getObject, selectionIsGrouped } from './editorState';
 import { DEFAULT_LABEL_SETTINGS } from '../../types/floorplan.types';
 import {
@@ -108,6 +111,13 @@ interface ToolbarProps {
   onUngroupSelection: () => void;
   onAlignSelection: (mode: AlignMode) => void;
   onDistributeSelection: (axis: 'h' | 'v') => void;
+  /** Rotate each selected object 90° about its own center */
+  onRotateEachSelection: () => void;
+  /** Make the current selection inert (locked) */
+  onLockSelection: () => void;
+  lockedObjects: LockedObjectInfo[];
+  onUnlockObject: (ref: SelectionRef) => void;
+  onUnlockAll: () => void;
   readOnly: boolean;
 }
 
@@ -132,12 +142,18 @@ export function EditorToolbar({
   onUngroupSelection,
   onAlignSelection,
   onDistributeSelection,
+  onRotateEachSelection,
+  onLockSelection,
+  lockedObjects,
+  onUnlockObject,
+  onUnlockAll,
   readOnly,
 }: ToolbarProps) {
   const { doc, tool, selection } = state;
   const grid = doc.settings.grid;
   const labels = doc.settings.labels ?? DEFAULT_LABEL_SETTINGS;
   const [gridAnchor, setGridAnchor] = useState<HTMLElement | null>(null);
+  const [lockAnchor, setLockAnchor] = useState<HTMLElement | null>(null);
 
   const setSettings = (patch: Partial<PlanDocument['settings']>) =>
     dispatch({ type: 'commit', doc: { ...doc, settings: { ...doc.settings, ...patch } } });
@@ -228,17 +244,77 @@ export function EditorToolbar({
         </IconButton>
       </Tooltip>
 
+      {lockedObjects.length > 0 && (
+        <>
+          <Tooltip title={`${lockedObjects.length} locked object${lockedObjects.length > 1 ? 's' : ''}`}>
+            <Button
+              size="small"
+              color="inherit"
+              startIcon={<LockIcon fontSize="small" />}
+              onClick={(e) => setLockAnchor(e.currentTarget)}
+              sx={{ textTransform: 'none', color: 'text.secondary', minWidth: 0 }}
+              aria-label="Locked objects"
+            >
+              {lockedObjects.length}
+            </Button>
+          </Tooltip>
+          <Popover
+            open={Boolean(lockAnchor)}
+            anchorEl={lockAnchor}
+            onClose={() => setLockAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          >
+            <Stack spacing={0.5} sx={{ p: 1.5, minWidth: 240, maxHeight: 320, overflowY: 'auto' }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Typography variant="subtitle2">Locked objects</Typography>
+                {!readOnly && (
+                  <Button size="small" onClick={() => { onUnlockAll(); setLockAnchor(null); }} sx={{ textTransform: 'none' }}>
+                    Unlock all
+                  </Button>
+                )}
+              </Stack>
+              {lockedObjects.map(({ ref, label }) => (
+                <Stack key={`${ref.kind}:${ref.id}`} direction="row" spacing={1} alignItems="center">
+                  <Typography variant="body2" noWrap sx={{ flex: 1, minWidth: 0 }}>
+                    {label}
+                  </Typography>
+                  {!readOnly && (
+                    <Tooltip title="Unlock (selects it)">
+                      <IconButton size="small" onClick={() => onUnlockObject(ref)} aria-label={`Unlock ${label}`}>
+                        <LockOpenIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Stack>
+              ))}
+            </Stack>
+          </Popover>
+        </>
+      )}
+
       {selection.length > 0 && !readOnly && (
         <>
           <Divider orientation="vertical" flexItem />
           <Chip size="small" label={grouped ? `${selection.length} selected (grouped)` : `${selection.length} selected`} />
           {hasRotatable && (
-            <Tooltip title="Rotate 90° (R)">
+            <Tooltip title={selection.length > 1 ? 'Rotate as one unit 90° (R)' : 'Rotate 90° (R)'}>
               <IconButton size="small" onClick={onRotateSelection} aria-label="Rotate selection">
                 <RotateRightIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
+          {selection.length > 1 && (
+            <Tooltip title="Rotate each in place 90° (Shift+R)">
+              <IconButton size="small" onClick={onRotateEachSelection} aria-label="Rotate each selected object in place">
+                <Rotate90DegreesCwIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          <Tooltip title="Lock (make inert; unlock from the toolbar lock list)">
+            <IconButton size="small" onClick={onLockSelection} aria-label="Lock selection">
+              <LockIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Copy (Ctrl+C)">
             <IconButton size="small" onClick={onCopySelection} aria-label="Copy selection">
               <ContentCopyIcon fontSize="small" />
@@ -595,6 +671,8 @@ interface PropertiesPanelProps {
   onApplyImageToSelection?: (image: number | null) => void;
   /** Resets every selected element's image to its kind's current default */
   onResetSelectionImages?: () => void;
+  /** Bulk hide/show captions on every selected element */
+  onSetSelectionLabelsHidden?: (hidden: boolean) => void;
 }
 
 function ElementImagePicker({
@@ -808,7 +886,7 @@ function DimensionField({ label, value, onCommit, disabled }: { label: string; v
   );
 }
 
-export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [], onUploadAsset, kindIndex, onApplyImageToSelection, onResetSelectionImages }: PropertiesPanelProps) {
+export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [], onUploadAsset, kindIndex, onApplyImageToSelection, onResetSelectionImages, onSetSelectionLabelsHidden }: PropertiesPanelProps) {
   const { doc, selection } = state;
   const selectedElementCount = selection.filter((s) => s.kind === 'element').length;
 
@@ -876,6 +954,16 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
                 ? `${selection.length} objects selected (grouped). They move and delete together; Ctrl+Shift+G to ungroup.`
                 : `${selection.length} objects selected. Drag to move, Delete to remove, Ctrl+G to group.`}
             </Typography>
+            {selectedElementCount > 0 && !readOnly && onSetSelectionLabelsHidden && (
+              <Stack direction="row" spacing={1}>
+                <Button size="small" variant="outlined" onClick={() => onSetSelectionLabelsHidden(true)} sx={{ textTransform: 'none' }}>
+                  Hide labels
+                </Button>
+                <Button size="small" variant="outlined" onClick={() => onSetSelectionLabelsHidden(false)} sx={{ textTransform: 'none' }}>
+                  Show labels
+                </Button>
+              </Stack>
+            )}
             {selectedElementCount > 0 && !readOnly && onApplyImageToSelection && (
               <MultiElementImageTools
                 count={selectedElementCount}
@@ -914,6 +1002,16 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
           return (
             <>
               <TextField size="small" label="Label" value={el.label} disabled={readOnly} onChange={(e) => patch({ label: e.target.value })} />
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="caption" color="text.secondary">Show label on plan</Typography>
+                <Switch
+                  size="small"
+                  checked={!el.labelHidden}
+                  disabled={readOnly}
+                  onChange={(_, v) => patch({ labelHidden: v ? undefined : true })}
+                  inputProps={{ 'aria-label': 'Show label on plan' }}
+                />
+              </Stack>
               <Stack direction="row" spacing={1} justifyContent="space-between">
                 <DimensionField label="Width" value={visual.w} disabled={readOnly} onCommit={(w) => commitVisual({ w: Math.max(2, w) })} />
                 <DimensionField label="Depth" value={visual.h} disabled={readOnly} onCommit={(h) => commitVisual({ h: Math.max(2, h) })} />

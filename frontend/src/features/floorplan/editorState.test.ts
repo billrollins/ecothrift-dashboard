@@ -1,18 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanDocument, PlanElement } from '../../types/floorplan.types';
 import {
+  activeConfigId,
+  addConfig,
   addElement,
   alignObjects,
   cloneObjects,
+  configMetas,
+  deleteConfig,
   deleteObjects,
   distributeObjects,
   editorReducer,
   expandSelectionToGroups,
   groupObjects,
   initialEditorState,
+  listLockedObjects,
   moveObjects,
   rotateObjects90,
+  rotateObjectsEachInPlace,
   selectionIsGrouped,
+  setObjectsLocked,
+  switchConfig,
   ungroupObjects,
   updateObject,
   type EditorState,
@@ -387,5 +395,70 @@ describe('alignObjects / distributeObjects', () => {
   it('distribute is a no-op with fewer than 3 objects', () => {
     const doc = threeElements();
     expect(distributeObjects(doc, refs.slice(0, 2), 'h')).toBe(doc);
+  });
+});
+
+describe('rotateObjectsEachInPlace', () => {
+  it('rotates each element about its own center without moving it', () => {
+    let doc = emptyDoc();
+    doc = addElement(doc, { ...el('a', 0, 0), w: 10, h: 40 });
+    doc = addElement(doc, { ...el('b', 100, 100), w: 20, h: 20 });
+    const next = rotateObjectsEachInPlace(doc, [
+      { kind: 'element', id: 'a' },
+      { kind: 'element', id: 'b' },
+    ]);
+    const [a, b] = next.elements;
+    expect(a.rotation).toBe(90);
+    expect(b.rotation).toBe(90);
+    // Raw rect untouched (rotation happens about the center at render time)
+    expect({ x: a.x, y: a.y, w: a.w, h: a.h }).toEqual({ x: 0, y: 0, w: 10, h: 40 });
+  });
+});
+
+describe('locked objects', () => {
+  it('locks, lists, and unlocks', () => {
+    let doc = addElement(emptyDoc(), el('a'));
+    doc = setObjectsLocked(doc, [{ kind: 'element', id: 'a' }], true);
+    expect(listLockedObjects(doc)).toHaveLength(1);
+    expect(listLockedObjects(doc)[0].ref).toEqual({ kind: 'element', id: 'a' });
+    doc = setObjectsLocked(doc, [{ kind: 'element', id: 'a' }], false);
+    expect(listLockedObjects(doc)).toHaveLength(0);
+    expect((doc.elements[0] as { locked?: boolean }).locked).toBeUndefined();
+  });
+});
+
+describe('layout configurations', () => {
+  it('adds a duplicate config and switches back and forth losslessly', () => {
+    let doc = addElement(emptyDoc(), el('a', 10, 10));
+    doc = addConfig(doc, 'Holiday');
+    // New config is active, duplicated, with fresh ids
+    expect(configMetas(doc)).toHaveLength(2);
+    expect(configMetas(doc)[1].name).toBe('Holiday');
+    expect(doc.elements).toHaveLength(1);
+    expect(doc.elements[0].id).not.toBe('a');
+    // Mutate the new config only
+    doc = moveObjects(doc, [{ kind: 'element', id: doc.elements[0].id }], 50, 0);
+    expect(doc.elements[0].x).toBe(60);
+    // Switch back to the original: element 'a' untouched
+    const firstId = configMetas(doc)[0].id;
+    doc = switchConfig(doc, firstId);
+    expect(activeConfigId(doc)).toBe(firstId);
+    expect(doc.elements[0].id).toBe('a');
+    expect(doc.elements[0].x).toBe(10);
+    // And forward again: the moved duplicate is preserved
+    doc = switchConfig(doc, configMetas(doc)[1].id);
+    expect(doc.elements[0].x).toBe(60);
+  });
+
+  it('deleteConfig removes the layout and never deletes the last config', () => {
+    let doc = addElement(emptyDoc(), el('a'));
+    const single = doc;
+    expect(deleteConfig(single, configMetas(single)[0].id)).toBe(single);
+    doc = addConfig(doc);
+    const secondId = activeConfigId(doc);
+    doc = deleteConfig(doc, secondId);
+    expect(configMetas(doc)).toHaveLength(1);
+    expect(doc.elements[0].id).toBe('a');
+    expect(doc.configStore?.[secondId]).toBeUndefined();
   });
 });

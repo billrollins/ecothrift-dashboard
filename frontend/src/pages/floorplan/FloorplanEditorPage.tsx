@@ -31,26 +31,37 @@ import { useFloorPlanAssets, useUploadFloorPlanAsset } from '../../hooks/useFloo
 import { useFloorPlanElementKinds } from '../../hooks/useFloorplanElementKinds';
 import type { FloorPlanElementKind, PlanElement, PlanInfoBlock } from '../../types/floorplan.types';
 import {
+  activeConfigId,
+  addConfig,
   addElement,
   addInfoBlock,
   alignObjects,
   cloneObjects,
   collectionKeyFor,
+  configMetas,
+  deleteConfig,
   deleteObjects,
   distributeObjects,
   editorReducer,
   getObject,
   groupObjects,
   initialEditorState,
+  listLockedObjects,
   moveObjects,
+  renameConfig,
   rotateObjects90,
+  rotateObjectsEachInPlace,
   newId,
   selectionIsGrouped,
+  setObjectsLocked,
+  switchConfig,
   ungroupObjects,
   updateObject,
   type AlignMode,
   type SelectionRef,
 } from '../../features/floorplan/editorState';
+import { parsePlanFile } from '../../features/floorplan/planFile';
+import { ConfigTabs } from '../../features/floorplan/ConfigTabs';
 import { migratePlanDocument, UnsupportedSchemaError } from '../../features/floorplan/migrations';
 import type { Viewport, Point } from '../../features/floorplan/geometry';
 import {
@@ -345,6 +356,78 @@ export default function FloorplanEditorPage() {
     dispatch({ type: 'commit', doc: moveObjects(current.doc, current.selection, dx, dy) });
   }, []);
 
+  const rotateEachSelection = useCallback(() => {
+    const current = stateRef.current;
+    if (current.selection.length === 0) return;
+    const doc = rotateObjectsEachInPlace(current.doc, current.selection);
+    if (doc !== current.doc) dispatch({ type: 'commit', doc });
+  }, []);
+
+  // ── Locked (inert) objects ─────────────────────────────────────────────────
+
+  const lockSelection = useCallback(() => {
+    const current = stateRef.current;
+    if (current.selection.length === 0) return;
+    dispatch({ type: 'commit', doc: setObjectsLocked(current.doc, current.selection, true) });
+    dispatch({ type: 'setSelection', selection: [] });
+  }, []);
+
+  const unlockObject = useCallback((ref: SelectionRef) => {
+    const current = stateRef.current;
+    dispatch({ type: 'commit', doc: setObjectsLocked(current.doc, [ref], false) });
+    dispatch({ type: 'setSelection', selection: [ref] });
+  }, []);
+
+  const unlockAll = useCallback(() => {
+    const current = stateRef.current;
+    const locked = listLockedObjects(current.doc).map((info) => info.ref);
+    if (locked.length === 0) return;
+    dispatch({ type: 'commit', doc: setObjectsLocked(current.doc, locked, false) });
+    dispatch({ type: 'setSelection', selection: locked });
+  }, []);
+
+  const setSelectionLabelsHidden = useCallback((hidden: boolean) => {
+    const current = stateRef.current;
+    let doc = current.doc;
+    for (const ref of current.selection) {
+      if (ref.kind !== 'element') continue;
+      doc = updateObject(doc, ref, { labelHidden: hidden || undefined });
+    }
+    if (doc !== current.doc) dispatch({ type: 'commit', doc });
+  }, []);
+
+  // ── Layout configurations (tabs) ───────────────────────────────────────────
+
+  const handleConfigSwitch = useCallback((id: string) => {
+    const current = stateRef.current;
+    const doc = switchConfig(current.doc, id);
+    if (doc !== current.doc) {
+      dispatch({ type: 'commit', doc });
+      dispatch({ type: 'setSelection', selection: [] });
+    }
+  }, []);
+
+  const handleConfigAdd = useCallback(() => {
+    const current = stateRef.current;
+    dispatch({ type: 'commit', doc: addConfig(current.doc) });
+    dispatch({ type: 'setSelection', selection: [] });
+  }, []);
+
+  const handleConfigRename = useCallback((id: string, name: string) => {
+    const current = stateRef.current;
+    const doc = renameConfig(current.doc, id, name);
+    if (doc !== current.doc) dispatch({ type: 'commit', doc });
+  }, []);
+
+  const handleConfigDelete = useCallback((id: string) => {
+    const current = stateRef.current;
+    const doc = deleteConfig(current.doc, id);
+    if (doc !== current.doc) {
+      dispatch({ type: 'commit', doc });
+      dispatch({ type: 'setSelection', selection: [] });
+    }
+  }, []);
+
   const rotateSelection = useCallback(() => {
     const current = stateRef.current;
     let doc = current.doc;
@@ -508,6 +591,10 @@ export default function FloorplanEditorPage() {
         case 'r':
           rotateSelection();
           break;
+        case 'R':
+          // Shift+R: rotate each selected object in place
+          rotateEachSelection();
+          break;
         case 'g': {
           const doc = stateRef.current.doc;
           dispatch({
@@ -529,7 +616,7 @@ export default function FloorplanEditorPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [doSave, deleteSelection, rotateSelection, zoomBy, readOnly, copySelection, cutSelection, pasteClipboard, duplicateSelection, groupSelection, ungroupSelection, nudgeSelection, selectAll]);
+  }, [doSave, deleteSelection, rotateSelection, rotateEachSelection, zoomBy, readOnly, copySelection, cutSelection, pasteClipboard, duplicateSelection, groupSelection, ungroupSelection, nudgeSelection, selectAll]);
 
   // ── Export ────────────────────────────────────────────────────────────────
 
@@ -538,6 +625,29 @@ export default function FloorplanEditorPage() {
   const handleExportJson = () => {
     exportPlanJson(stateRef.current.doc, planName);
     setExportAnchor(null);
+  };
+
+  // Load a JSON/YAML plan file into the editor as the new draft (undoable;
+  // nothing persists until Save).
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const handleImportDraft = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = parsePlanFile(String(reader.result ?? ''));
+        dispatch({ type: 'commit', doc: parsed.document });
+        dispatch({ type: 'setSelection', selection: [] });
+        enqueueSnackbar(
+          `Loaded ${parsed.objectCount} objects from "${parsed.name || file.name}". Review, then Save.`,
+          { variant: 'info' },
+        );
+      } catch (err) {
+        enqueueSnackbar(err instanceof Error ? err.message : 'Could not read the file.', { variant: 'error' });
+      }
+    };
+    reader.onerror = () => enqueueSnackbar('Could not read the file.', { variant: 'error' });
+    reader.readAsText(file);
   };
 
   const handleExportPng = async () => {
@@ -564,6 +674,10 @@ export default function FloorplanEditorPage() {
       state.doc.labels.length + state.doc.infoBlocks.length,
     [state.doc],
   );
+
+  const lockedObjects = useMemo(() => listLockedObjects(state.doc), [state.doc]);
+  const configs = useMemo(() => configMetas(state.doc), [state.doc]);
+  const activeConfig = activeConfigId(state.doc);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -616,7 +730,27 @@ export default function FloorplanEditorPage() {
           <Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}>
             <MenuItem onClick={handleExportJson}>JSON (backup / interchange)</MenuItem>
             <MenuItem onClick={handleExportPng}>PNG image</MenuItem>
+            {!readOnly && (
+              <MenuItem
+                onClick={() => {
+                  setExportAnchor(null);
+                  importInputRef.current?.click();
+                }}
+              >
+                Load from file (JSON / YAML)…
+              </MenuItem>
+            )}
           </Menu>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json,.yaml,.yml,application/json,text/yaml"
+            hidden
+            onChange={(e) => {
+              handleImportDraft(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
           {!readOnly && (
             <Button
               size="small"
@@ -643,6 +777,11 @@ export default function FloorplanEditorPage() {
         onUngroupSelection={ungroupSelection}
         onAlignSelection={alignSelection}
         onDistributeSelection={distributeSelection}
+        onRotateEachSelection={rotateEachSelection}
+        onLockSelection={lockSelection}
+        lockedObjects={lockedObjects}
+        onUnlockObject={unlockObject}
+        onUnlockAll={unlockAll}
         readOnly={readOnly}
       />
 
@@ -678,6 +817,15 @@ export default function FloorplanEditorPage() {
             kindIndex={kindIndex}
           />
           <ScaleBarOverlay viewport={viewport} />
+          <ConfigTabs
+            configs={configs}
+            activeId={activeConfig}
+            readOnly={readOnly}
+            onSwitch={handleConfigSwitch}
+            onAdd={handleConfigAdd}
+            onRename={handleConfigRename}
+            onDelete={handleConfigDelete}
+          />
         </Box>
         <PropertiesPanel
           state={state}
@@ -689,6 +837,7 @@ export default function FloorplanEditorPage() {
           kindIndex={kindIndex}
           onApplyImageToSelection={applyImageToSelection}
           onResetSelectionImages={resetSelectionImages}
+          onSetSelectionLabelsHidden={setSelectionLabelsHidden}
         />
       </Stack>
 

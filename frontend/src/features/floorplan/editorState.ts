@@ -1,8 +1,10 @@
 import type {
+  PlanConfigMeta,
   PlanDocument,
   PlanElement,
   PlanInfoBlock,
   PlanLabel,
+  PlanLayers,
   PlanObjectKind,
   PlanPath,
   PlanZone,
@@ -494,6 +496,215 @@ export function distributeObjects(doc: PlanDocument, refs: SelectionRef[], axis:
     cursor += size(it.bounds) + gap;
   }
   return next;
+}
+
+/**
+ * Rotate each referenced object 90° clockwise IN PLACE about its own center
+ * (unlike rotateObjects90, which rotates the selection as one rigid unit).
+ * Text labels have no rotation and are left untouched.
+ */
+export function rotateObjectsEachInPlace(doc: PlanDocument, refs: SelectionRef[]): PlanDocument {
+  let next = doc;
+  for (const ref of refs) {
+    const obj = getObject(next, ref);
+    if (!obj) continue;
+    if (ref.kind === 'element') {
+      const el = obj as PlanElement;
+      next = updateObject<PlanElement>(next, ref, { rotation: (el.rotation + 90) % 360 });
+    } else if (ref.kind === 'zone' || ref.kind === 'infoBlock') {
+      const r = obj as unknown as Rect;
+      const cx = r.x + r.w / 2;
+      const cy = r.y + r.h / 2;
+      next = updateObject(next, ref, { x: cx - r.h / 2, y: cy - r.w / 2, w: r.h, h: r.w });
+    } else if (ref.kind === 'path') {
+      const path = obj as PlanPath;
+      const b = pathBounds(path.points);
+      const cx = b.x + b.w / 2;
+      const cy = b.y + b.h / 2;
+      next = updateObject<PlanPath>(next, ref, {
+        points: path.points.map(([x, y]) => [cx - (y - cy), cy + (x - cx)] as [number, number]),
+      });
+    }
+  }
+  return next;
+}
+
+// ── Locked (inert) objects ───────────────────────────────────────────────────
+
+export function setObjectsLocked(doc: PlanDocument, refs: SelectionRef[], locked: boolean): PlanDocument {
+  let next = doc;
+  for (const ref of refs) {
+    next = updateObject(next, ref, { locked: locked || undefined });
+  }
+  return next;
+}
+
+export interface LockedObjectInfo {
+  ref: SelectionRef;
+  /** Human-readable description for the unlock list */
+  label: string;
+}
+
+export function listLockedObjects(doc: PlanDocument): LockedObjectInfo[] {
+  const out: LockedObjectInfo[] = [];
+  for (const el of doc.elements) {
+    if (el.locked) out.push({ ref: { kind: 'element', id: el.id }, label: el.label || el.kind });
+  }
+  for (const zone of doc.zones) {
+    if (zone.locked) out.push({ ref: { kind: 'zone', id: zone.id }, label: `Zone: ${zone.label || 'untitled'}` });
+  }
+  for (const path of doc.paths) {
+    if (path.locked) out.push({ ref: { kind: 'path', id: path.id }, label: `Drawing (${path.points.length} pts)` });
+  }
+  for (const label of doc.labels) {
+    if (label.locked) out.push({ ref: { kind: 'label', id: label.id }, label: `Label: ${label.text.slice(0, 24)}` });
+  }
+  for (const block of doc.infoBlocks) {
+    if (block.locked) out.push({ ref: { kind: 'infoBlock', id: block.id }, label: `Info: ${block.type}` });
+  }
+  return out;
+}
+
+export function isObjectLocked(doc: PlanDocument, ref: SelectionRef): boolean {
+  return Boolean((getObject(doc, ref) as { locked?: boolean } | undefined)?.locked);
+}
+
+// ── Layout configurations (tabs) ─────────────────────────────────────────────
+
+const LAYER_KEYS = ['elements', 'zones', 'paths', 'labels', 'infoBlocks'] as const;
+
+function extractLayers(doc: PlanDocument): PlanLayers {
+  return {
+    elements: doc.elements,
+    zones: doc.zones,
+    paths: doc.paths,
+    labels: doc.labels,
+    infoBlocks: doc.infoBlocks,
+  };
+}
+
+function cloneLayers(layers: PlanLayers): PlanLayers {
+  return JSON.parse(JSON.stringify(layers)) as PlanLayers;
+}
+
+function emptyLayers(): PlanLayers {
+  return { elements: [], zones: [], paths: [], labels: [], infoBlocks: [] };
+}
+
+/** Tab metadata; docs without configs behave as one implicit config. */
+export function configMetas(doc: PlanDocument): PlanConfigMeta[] {
+  return doc.settings.configs?.length ? doc.settings.configs : [{ id: 'cfg_default', name: '1' }];
+}
+
+export function activeConfigId(doc: PlanDocument): string {
+  return doc.settings.activeConfigId ?? configMetas(doc)[0].id;
+}
+
+/** Materialize the implicit single config so config operations have ids to work with. */
+function ensureConfigs(doc: PlanDocument): PlanDocument {
+  if (doc.settings.configs?.length) return doc;
+  const metas = configMetas(doc);
+  return { ...doc, settings: { ...doc.settings, configs: metas, activeConfigId: metas[0].id } };
+}
+
+/** Add a new configuration (duplicating the current layout) and switch to it. */
+export function addConfig(doc: PlanDocument, name?: string, duplicate = true): PlanDocument {
+  const base = ensureConfigs(doc);
+  const metas = base.settings.configs!;
+  const meta: PlanConfigMeta = { id: newId('cfg'), name: (name ?? '').trim() || String(metas.length + 1) };
+  const currentId = activeConfigId(base);
+  // Stash the current layout, then make the new config active. New ids for
+  // duplicated objects so the two configs never share object identity.
+  const stashed = { ...(base.configStore ?? {}), [currentId]: extractLayers(base) };
+  const newLayers = duplicate ? remapLayerIds(cloneLayers(extractLayers(base))) : emptyLayers();
+  return {
+    ...base,
+    ...newLayers,
+    configStore: stashed,
+    settings: { ...base.settings, configs: [...metas, meta], activeConfigId: meta.id },
+  };
+}
+
+function remapLayerIds(layers: PlanLayers): PlanLayers {
+  const groupMap = new Map<string, string>();
+  const remapGroup = (group?: string): string | undefined => {
+    if (!group) return undefined;
+    if (!groupMap.has(group)) groupMap.set(group, newId('gr'));
+    return groupMap.get(group);
+  };
+  const remap = <T extends { id: string; group?: string }>(list: T[], prefix: string): T[] =>
+    list.map((obj) => {
+      const copy = { ...obj, id: newId(prefix) };
+      const group = remapGroup(obj.group);
+      if (group) copy.group = group;
+      else delete copy.group;
+      return copy;
+    });
+  return {
+    elements: remap(layers.elements, 'el'),
+    zones: remap(layers.zones, 'zn'),
+    paths: remap(layers.paths, 'pa'),
+    labels: remap(layers.labels, 'lb'),
+    infoBlocks: remap(layers.infoBlocks, 'ib'),
+  };
+}
+
+/** Switch the active configuration (no-op for unknown/current ids). */
+export function switchConfig(doc: PlanDocument, id: string): PlanDocument {
+  const base = ensureConfigs(doc);
+  const currentId = activeConfigId(base);
+  if (id === currentId) return doc;
+  if (!base.settings.configs!.some((c) => c.id === id)) return doc;
+  const store = { ...(base.configStore ?? {}) };
+  const incoming = store[id] ?? emptyLayers();
+  delete store[id];
+  store[currentId] = extractLayers(base);
+  return {
+    ...base,
+    ...incoming,
+    configStore: store,
+    settings: { ...base.settings, activeConfigId: id },
+  };
+}
+
+export function renameConfig(doc: PlanDocument, id: string, name: string): PlanDocument {
+  const base = ensureConfigs(doc);
+  const trimmed = name.trim();
+  if (!trimmed) return doc;
+  return {
+    ...base,
+    settings: {
+      ...base.settings,
+      configs: base.settings.configs!.map((c) => (c.id === id ? { ...c, name: trimmed.slice(0, 20) } : c)),
+    },
+  };
+}
+
+/** Delete a configuration (never the last one); switches away first if active. */
+export function deleteConfig(doc: PlanDocument, id: string): PlanDocument {
+  const base = ensureConfigs(doc);
+  const metas = base.settings.configs!;
+  if (metas.length <= 1 || !metas.some((c) => c.id === id)) return doc;
+  let next = base;
+  if (activeConfigId(base) === id) {
+    const fallback = metas.find((c) => c.id !== id)!;
+    next = switchConfig(base, fallback.id);
+  }
+  const store = { ...(next.configStore ?? {}) };
+  delete store[id];
+  return {
+    ...next,
+    configStore: store,
+    settings: { ...next.settings, configs: next.settings.configs!.filter((c) => c.id !== id) },
+  };
+}
+
+/** Total object count across the active layout and every stored config. */
+export function totalObjectCount(doc: PlanDocument): number {
+  const layerCount = (layers: PlanLayers) => LAYER_KEYS.reduce((sum, key) => sum + layers[key].length, 0);
+  let total = layerCount(extractLayers(doc));
+  for (const layers of Object.values(doc.configStore ?? {})) total += layerCount(layers);
+  return total;
 }
 
 /** Translate all selected objects by (dx, dy) inches. */

@@ -1,7 +1,15 @@
-release(v2.43.1): fix 400 saving system QA form
+release(v2.44.0): floorplan configs, file round-trip, lock/rotate/label tools
 
-Release: v2.43.1
+Release: v2.44.0
 
-- QA form editor: saving a system form (e.g. retail, id 1) returned 400 because the payload always included slug and the backend locks slug on system forms. Updates now omit slug when locked or unchanged.
+- File round-trip: plans export as wrapped JSON; Import on the list page creates a plan from JSON or YAML (tolerant parse: missing ids generated, collections defaulted); editor Export menu gains Load-from-file to replace the draft. Old bare-document backups still import. Server validation unchanged.
+- Configuration tabs: compact tabs bottom-right of the canvas switch layout variants stored in one plan (configStore + settings.configs; active config stays in top-level collections for back-compat). + duplicates current layout, double-click renames, x deletes (never the last). Undoable.
+- Rotate each in place (Shift+R / toolbar): every selected object spins 90 degrees about its own center, unlike R's rigid-unit rotate.
+- Per-item label control: element.labelHidden - single "Show label" switch + bulk Hide/Show labels; hidden stays hidden when plan labels are on.
+- Locked (inert) objects: Lock button makes selection ignore all pointer interaction while rendering normally; toolbar lock chip lists them with Unlock / Unlock all.
+- Mouse wheel pans (Shift/trackpad horizontal); Ctrl or pinch zooms at cursor.
+- Tests: 4 new vitest suites (217 OK); tsc + production build green. No backend changes (plan validator is forward-compatible).
+
+Initiative: .ai/initiatives/floorplan_builder.md
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>

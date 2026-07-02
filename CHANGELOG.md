@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.43.1] — 2026-07-02 -->
-<!-- Last reviewed: 2026-07-02 (system form save hotfix) -->
+<!-- Line 1 release: ## [2.44.0] — 2026-07-02 -->
+<!-- Last reviewed: 2026-07-02 (floorplan configs, file round-trip, lock/rotate/labels) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,26 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.44.0] — 2026-07-02
+
+User-facing theme: **Floorplan power tools — layout configuration tabs, JSON/YAML round-trip, lockable objects, per-item labels, rotate-in-place, and scroll-to-pan.**
+
+Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md).
+
+### Added
+
+- **Floorplan / file round-trip** — plans export as JSON (**wrapped** `ecothrift-floorplan` document; old bare-document backups still import); **Import** on the list page creates a plan from a JSON or YAML file (name/location dialog), and the editor's Export menu gains **Load from file** to replace the current draft. New **`planFile.ts`** — tolerant parsing (missing ids generated, collections defaulted) + standard schema migration; server validation still gates saves.
+- **Floorplan / configuration tabs** — compact tabs in the canvas's bottom-right corner switch between layout **configurations** stored in one plan (`configStore` + `settings.configs`, active config stays in the top-level collections for back-compat); **+** duplicates the current layout into a new tab, double-click renames, × deletes (never the last). Each switch/edit is undoable.
+- **Floorplan / rotate each in place** — multi-select **Shift+R** (or the second rotate button) rotates every selected object 90° about its own center, unlike R which rotates the selection as one rigid unit (**`rotateObjectsEachInPlace`**).
+- **Floorplan / per-item labels** — `element.labelHidden`: single-element "Show label" switch + bulk Hide/Show labels on multi-select; hidden labels stay hidden even when plan labels are on.
+- **Floorplan / locked (inert) objects** — Lock button makes the selection ignore all pointer interaction (clicks pass through, marquee skips them) while rendering normally; a toolbar lock chip with a count opens a popover listing locked objects with per-object **Unlock** (selects it) and **Unlock all**.
+
+### Changed
+
+- **Floorplan / mouse wheel** — scrolling pans (vertical; Shift or trackpad for horizontal); **Ctrl/Cmd + wheel** (and trackpad pinch) zooms at the cursor. Zoom buttons and +/- keys unchanged.
 
 ---
 

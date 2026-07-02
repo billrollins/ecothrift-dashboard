@@ -1,4 +1,5 @@
 import type { PlanDocument } from '../../types/floorplan.types';
+import { serializePlanExport } from './planFile';
 
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -16,7 +17,9 @@ function safeFilename(name: string): string {
 }
 
 export function exportPlanJson(doc: PlanDocument, planName: string): void {
-  const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+  // Wrapped export (kind + name + document) so imports can prefill the plan
+  // name; parsePlanFile also still accepts bare documents from old backups.
+  const blob = new Blob([serializePlanExport(doc, planName)], { type: 'application/json' });
   downloadBlob(blob, `${safeFilename(planName)}.json`);
 }
 

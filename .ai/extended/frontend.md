@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-07-02 (QA forms list + file round-trip) -->
+<!-- Last updated: 2026-07-02 (floorplan power tools v2.44.0) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-07-02 (v2.44.0) — Floorplan power tools:** **`planFile.ts`** JSON export / JSON+YAML import (list Import → new plan; editor Load-from-file); **`ConfigTabs.tsx`** layout configuration tabs (`configStore`, active config in top-level collections); rotate-each-in-place (Shift+R); `element.labelHidden` + bulk; `locked` inert objects w/ toolbar unlock popover; wheel pans, Ctrl+wheel zooms.
 
 **2026-07-02 (v2.43.0) — Admin / QA forms:** **`QualityAuditFormListPage`** (list-first `/admin/quality-audit/forms`; editor only via Edit/New); editor decluttered (accordion sections, control dropdown, sticky save bar); **`qaFormFile.ts`** JSON/YAML export + tolerant import (`js-yaml`; missing ids generated, slug-match update-vs-create, editor Load-from-file).
 

@@ -97,7 +97,7 @@ const ZoneRow = memo(function ZoneRow({ zone, selected, labelSettings, onObjectP
   zone: PlanZone; selected: boolean; labelSettings: PlanLabelSettings; onObjectPointerDown: ObjectPointerDown;
 }) {
   return (
-    <g onPointerDown={(e) => onObjectPointerDown(e, { kind: 'zone', id: zone.id })}>
+    <g pointerEvents={zone.locked ? 'none' : undefined} onPointerDown={(e) => onObjectPointerDown(e, { kind: 'zone', id: zone.id })}>
       <ZoneShape zone={zone} selected={selected} labelSettings={labelSettings} />
     </g>
   );
@@ -107,7 +107,7 @@ const ElementRow = memo(function ElementRow({ element, selected, labelSettings, 
   element: PlanElement; selected: boolean; labelSettings: PlanLabelSettings; imageHref?: string; kindIndex?: PaletteIndex; onObjectPointerDown: ObjectPointerDown;
 }) {
   return (
-    <g onPointerDown={(e) => onObjectPointerDown(e, { kind: 'element', id: element.id })}>
+    <g pointerEvents={element.locked ? 'none' : undefined} onPointerDown={(e) => onObjectPointerDown(e, { kind: 'element', id: element.id })}>
       <ElementShape element={element} selected={selected} labelSettings={labelSettings} imageHref={imageHref} kindIndex={kindIndex} />
     </g>
   );
@@ -117,7 +117,7 @@ const PathRow = memo(function PathRow({ path, selected, hitWidth, onObjectPointe
   path: PlanPath; selected: boolean; hitWidth: number; onObjectPointerDown: ObjectPointerDown;
 }) {
   return (
-    <g onPointerDown={(e) => onObjectPointerDown(e, { kind: 'path', id: path.id })}>
+    <g pointerEvents={path.locked ? 'none' : undefined} onPointerDown={(e) => onObjectPointerDown(e, { kind: 'path', id: path.id })}>
       <path
         d={path.points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x} ${y}`).join(' ')}
         fill="none"
@@ -133,7 +133,7 @@ const LabelRow = memo(function LabelRow({ label, selected, onObjectPointerDown }
   label: PlanLabel; selected: boolean; onObjectPointerDown: ObjectPointerDown;
 }) {
   return (
-    <g onPointerDown={(e) => onObjectPointerDown(e, { kind: 'label', id: label.id })}>
+    <g pointerEvents={label.locked ? 'none' : undefined} onPointerDown={(e) => onObjectPointerDown(e, { kind: 'label', id: label.id })}>
       <LabelShape label={label} selected={selected} />
     </g>
   );
@@ -143,7 +143,7 @@ const InfoBlockRow = memo(function InfoBlockRow({ block, elements, selected, kin
   block: PlanInfoBlock; elements: PlanElement[]; selected: boolean; kindIndex?: PaletteIndex; onObjectPointerDown: ObjectPointerDown;
 }) {
   return (
-    <g onPointerDown={(e) => onObjectPointerDown(e, { kind: 'infoBlock', id: block.id })}>
+    <g pointerEvents={block.locked ? 'none' : undefined} onPointerDown={(e) => onObjectPointerDown(e, { kind: 'infoBlock', id: block.id })}>
       <InfoBlockShape block={block} elements={elements} selected={selected} kindIndex={kindIndex} />
     </g>
   );
@@ -197,19 +197,31 @@ export default function FloorplanCanvas({
     [svgRef],
   );
 
-  // Wheel zoom (non-passive so preventDefault works)
+  // Wheel: scroll pans (vertical; Shift or trackpad deltaX for horizontal);
+  // Ctrl/Cmd + wheel (including trackpad pinch) zooms at the cursor.
+  // Non-passive so preventDefault works.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const svg = svgRef.current;
-      if (!svg) return;
-      const rect = svg.getBoundingClientRect();
-      const factor = Math.exp(-e.deltaY * 0.0015);
-      onViewportChange(
-        zoomAt(viewportRef.current, { x: e.clientX - rect.left, y: e.clientY - rect.top }, factor),
-      );
+      const vp = viewportRef.current;
+      if (e.ctrlKey || e.metaKey) {
+        const svg = svgRef.current;
+        if (!svg) return;
+        const rect = svg.getBoundingClientRect();
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        onViewportChange(zoomAt(vp, { x: e.clientX - rect.left, y: e.clientY - rect.top }, factor));
+        return;
+      }
+      let dx = e.deltaX;
+      let dy = e.deltaY;
+      if (e.shiftKey && dx === 0) {
+        // Mice don't emit deltaX; Shift+scroll means horizontal
+        dx = dy;
+        dy = 0;
+      }
+      onViewportChange({ ...vp, x: vp.x + dx / vp.scale, y: vp.y + dy / vp.scale });
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -503,8 +515,9 @@ export default function FloorplanCanvas({
       case 'marquee': {
         if (marquee && (marquee.w > 0.5 || marquee.h > 0.5)) {
           const hits: SelectionRef[] = [];
-          const collect = (kind: SelectionRef['kind'], list: { id: string }[]) => {
+          const collect = (kind: SelectionRef['kind'], list: { id: string; locked?: boolean }[]) => {
             for (const obj of list) {
+              if (obj.locked) continue; // inert objects never marquee-select
               const bounds = objectBounds(doc, { kind, id: obj.id });
               if (bounds && rectsIntersect(marquee, bounds)) hits.push({ kind, id: obj.id });
             }

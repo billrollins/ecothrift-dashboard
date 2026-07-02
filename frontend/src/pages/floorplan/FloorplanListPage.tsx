@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -23,9 +23,12 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 import MapIcon from '@mui/icons-material/Map';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
+import { getFloorPlan } from '../../api/floorplan.api';
 import { getLocations } from '../../api/core.api';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -33,7 +36,10 @@ import {
   useDeleteFloorPlan,
   useFloorPlans,
   useRenameFloorPlan,
+  useSaveFloorPlan,
 } from '../../hooks/useFloorplans';
+import { exportPlanJson } from '../../features/floorplan/exportPlan';
+import { parsePlanFile, type ParsedPlanFile } from '../../features/floorplan/planFile';
 import type { FloorPlanListItem } from '../../types/floorplan.types';
 
 export default function FloorplanListPage() {
@@ -50,6 +56,7 @@ export default function FloorplanListPage() {
   const createMutation = useCreateFloorPlan();
   const renameMutation = useRenameFloorPlan();
   const deleteMutation = useDeleteFloorPlan();
+  const saveMutation = useSaveFloorPlan();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -89,6 +96,62 @@ export default function FloorplanListPage() {
     );
   };
 
+  // ── Import (create a plan from a JSON/YAML file) ──────────────────────────
+
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importState, setImportState] = useState<{ parsed: ParsedPlanFile; name: string; location: number | '' } | null>(null);
+
+  const handleImportFile = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = parsePlanFile(String(reader.result ?? ''));
+        setImportState({
+          parsed,
+          name: parsed.name || file.name.replace(/\.(json|ya?ml)$/i, ''),
+          location: locations.length === 1 ? locations[0].id : '',
+        });
+      } catch (err) {
+        enqueueSnackbar(err instanceof Error ? err.message : 'Could not read the file.', { variant: 'error' });
+      }
+    };
+    reader.onerror = () => enqueueSnackbar('Could not read the file.', { variant: 'error' });
+    reader.readAsText(file);
+  };
+
+  const handleImportCreate = () => {
+    if (!importState || !importState.name.trim() || importState.location === '') return;
+    createMutation.mutate(
+      { name: importState.name.trim(), location: importState.location },
+      {
+        onSuccess: (plan) => {
+          saveMutation.mutate(
+            { id: plan.id, data: importState.parsed.document, revision: plan.revision },
+            {
+              onSuccess: () => {
+                setImportState(null);
+                enqueueSnackbar(`Imported ${importState.parsed.objectCount} objects.`, { variant: 'success' });
+                navigate(`/floor-ops/floorplans/${plan.id}/edit`);
+              },
+              onError: () => enqueueSnackbar('Plan created but the imported layout failed validation.', { variant: 'error' }),
+            },
+          );
+        },
+        onError: () => enqueueSnackbar('Failed to create floorplan.', { variant: 'error' }),
+      },
+    );
+  };
+
+  const handleExport = async (plan: FloorPlanListItem) => {
+    try {
+      const { data } = await getFloorPlan(plan.id);
+      exportPlanJson(data.data, data.name);
+    } catch {
+      enqueueSnackbar('Export failed — could not load the plan.', { variant: 'error' });
+    }
+  };
+
   const closeDeleteDialog = () => {
     setDeleteTarget(null);
     setDeleteConfirmText('');
@@ -110,11 +173,26 @@ export default function FloorplanListPage() {
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 600 }}>Floorplans</Typography>
         {canEdit && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>
-            New floorplan
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button startIcon={<FileUploadIcon />} onClick={() => importInputRef.current?.click()}>
+              Import
+            </Button>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>
+              New floorplan
+            </Button>
+          </Stack>
         )}
       </Stack>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".json,.yaml,.yml,application/json,text/yaml"
+        hidden
+        onChange={(e) => {
+          handleImportFile(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
 
       {plansQuery.isLoading && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
@@ -148,6 +226,11 @@ export default function FloorplanListPage() {
             </CardActionArea>
             {canEdit && (
               <Stack direction="row" justifyContent="flex-end" sx={{ px: 1, pb: 1 }}>
+                <Tooltip title="Export JSON">
+                  <IconButton size="small" aria-label={`Export ${plan.name}`} onClick={() => void handleExport(plan)}>
+                    <FileDownloadIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
                 <Tooltip title="Rename">
                   <IconButton
                     size="small"
@@ -170,6 +253,46 @@ export default function FloorplanListPage() {
           </Card>
         ))}
       </Box>
+
+      {/* Import dialog */}
+      <Dialog open={Boolean(importState)} onClose={() => setImportState(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Import floorplan</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              {importState?.parsed.objectCount ?? 0} objects will be imported into a new plan.
+            </Typography>
+            <TextField
+              label="Plan name"
+              value={importState?.name ?? ''}
+              onChange={(e) => importState && setImportState({ ...importState, name: e.target.value })}
+              autoFocus
+              fullWidth
+            />
+            <TextField
+              select
+              label="Store location"
+              value={importState?.location ?? ''}
+              onChange={(e) => importState && setImportState({ ...importState, location: Number(e.target.value) })}
+              fullWidth
+            >
+              {locations.map((loc) => (
+                <MenuItem key={loc.id} value={loc.id}>{loc.name}</MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImportState(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleImportCreate}
+            disabled={!importState?.name.trim() || importState?.location === '' || createMutation.isPending || saveMutation.isPending}
+          >
+            {createMutation.isPending || saveMutation.isPending ? 'Importing…' : 'Import'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Create dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="xs">
