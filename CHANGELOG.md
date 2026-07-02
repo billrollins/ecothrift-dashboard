@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.38.0] — 2026-06-29 -->
-<!-- Last reviewed: 2026-07-01 (TARS hardening pass in [Unreleased]) -->
+<!-- Line 1 release: ## [2.39.0] — 2026-07-02 -->
+<!-- Last reviewed: 2026-07-02 (floorplan builder + TARS hardening + vendor dropdown) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,14 +10,26 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.39.0] — 2026-07-02
 
-User-facing theme: **TARS restoration hardening — a four-track code review fixed all confirmed bugs and landed the easy upgrades across the bench, queue, parts, and backend.**
+User-facing theme: **Floorplan builder ships in Floor Ops; TARS restoration hardening lands; Add Order shows all active vendors.**
 
-Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md) (Session 4).
+Initiatives: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md) (Session 4 hardening).
+
+### Added
+
+- **Floor Ops / floorplan builder** — new `apps/floorplan` app with `FloorPlan` + `FloorPlanAsset` models (migrations `0001`–`0002`); **`GET/POST/PATCH/DELETE /api/floorplan/plans/`** with optimistic locking (`revision` / HTTP 409); **`GET/POST/DELETE /api/floorplan/assets/`** for sanitized SVG/PNG/JPEG uploads (data URIs, ≤512 KB).
+- **Floor Ops / editor** — lazy-loaded routes **`/floor-ops/floorplans`** (list) and **`/floor-ops/floorplans/:id/edit`** (SVG canvas editor): palette placement, zones/paths/labels, grid/snap popover, copy/paste/duplicate, grouping, rigid group rotation, upright labels, custom image assets on elements, JSON/PNG export.
+- **Floor Ops / nav** — **Floorplans** entry under Floor Ops workspace.
+
+### Changed
+
+- **Restoration / API** — `final_grade` on bench Done validated against the job's grade scale; omitted `spent_parts_cost` defaults to actual ordered-parts cost; `mark-handled` guarded to returns-eligible jobs + new `unmark-handled`; scan-create returns 400 for validation errors (404 only for unknown SKU); queue transitions row-locked (`select_for_update`); job-list serializer reuses prefetch (N+1 removed); race-safe job backfill (`get_or_create`).
+- **Restoration / cleanup** — dead `executing` stage removed (migration `0078`, + partial index for the Returns list); dead `useRestorationJobs` hook and unused exports removed; stage lists follow pagination (no silent 200-row cap); shared `tarsMoney` util replaces five divergent money parsers; new tests cover requeue reset, mark-handled guard, multi-site orders, malformed `work_session`, and grade validation.
 
 ### Fixed
 
+- **Inventory / Add Order** — **`CreatePurchaseOrderDialog`** vendor dropdown now lists all active vendors (`useVendors({ is_active: true, page_size: 200 })`) instead of a hardcoded seven-name whitelist; newly created vendors appear immediately after save.
 - **Restoration / send dialog** — `useGradeScales` record memoized; **`ProcessingSendToRestorationDialog`** no longer re-render-loops and wipes typed grade values while open.
 - **Restoration / requeue** — scanning a `done`/`returned` item back into the queue now fully resets the job lifecycle (disposition, final grade, timer, `work_session`, handled flags) instead of resurrecting stale state.
 - **Restoration / work_session** — server-side validation (dict shape, `actions` list-of-dicts, 100KB cap); dashboard `_count_tars_actions` fully defensive (malformed sessions can no longer 500 `/api/pos/dashboard/`); parts upsert parses qty/price safely and truncates strings to column widths.
@@ -27,11 +39,6 @@ Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/ta
 - **Restoration / parts orders** — recording an order on a multi-site request requires `site_id`/`line_ids` (no more cross-supplier blanket ordering); skipped lines excluded from order/receive updates; submit only from draft; order dialog confirms before discarding a dirty draft on backdrop close; tax/amount fields no longer blank at ≥ $1,000.
 - **Restoration / crashes + validation** — null `eval_snapshot` no longer crashes Parts Requests; negative money rejected/clamped everywhere (grade values, approve dialog, Returns set-price); split dialog allows exact full coverage and shows inline errors; timer start/pause/adjust surface errors instead of failing silently.
 - **Dashboard / restoration metrics** — done counts keyed by `dispositioned_at` (marking an old job handled no longer counts it as done today).
-
-### Changed
-
-- **Restoration / API** — `final_grade` on bench Done validated against the job's grade scale; omitted `spent_parts_cost` defaults to actual ordered-parts cost; `mark-handled` guarded to returns-eligible jobs + new `unmark-handled`; scan-create returns 400 for validation errors (404 only for unknown SKU); queue transitions row-locked (`select_for_update`); job-list serializer reuses prefetch (N+1 removed); race-safe job backfill (`get_or_create`).
-- **Restoration / cleanup** — dead `executing` stage removed (migration `0078`, + partial index for the Returns list); dead `useRestorationJobs` hook and unused exports removed; stage lists follow pagination (no silent 200-row cap); shared `tarsMoney` util replaces five divergent money parsers; new tests cover requeue reset, mark-handled guard, multi-site orders, malformed `work_session`, and grade validation.
 
 ---
 

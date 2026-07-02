@@ -16,7 +16,6 @@ import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useCreatePurchaseOrder, useVendors } from '../../hooks/useInventory';
 import type { PurchaseOrderCondition, Vendor } from '../../types/inventory.types';
-import { isPurchaseOrderDashboardVendorName } from '../../constants/purchaseOrdersDashboard';
 import {
   preventWheelChangeNumber,
   sanitizeDecimalPaste,
@@ -336,10 +335,10 @@ export interface CreatePurchaseOrderDialogProps {
 export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurchaseOrderDialogProps) {
   const navigate = useNavigate();
   const createOrder = useCreatePurchaseOrder();
-  const { data: vendorsData } = useVendors();
+  const { data: vendorsData } = useVendors({ is_active: true, page_size: 200 });
 
   const vendorOptions = useMemo(
-    () => (vendorsData?.results ?? []).filter((v) => isPurchaseOrderDashboardVendorName(v.name)),
+    () => vendorsData?.results ?? [],
     [vendorsData?.results],
   );
 

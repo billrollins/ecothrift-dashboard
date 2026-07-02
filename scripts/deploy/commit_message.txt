@@ -1,12 +1,14 @@
-release(v2.38.0): retail quality audit — editable forms and mobile UX
+release(v2.39.0): floorplan builder, TARS hardening, vendor order dropdown
 
-Release: v2.38.0
+Release: v2.39.0
 
-- Admin Quality Audit hub with start cards per active form and latest grade badge.
-- Mobile QA wizard: gradient hero, live grade ring, section chip rail, 15 control widgets, summary submit.
-- Super Admin QA Forms editor: CRUD, section/check builder, system retail form locked, feeds dashboard.
-- Backend QualityAuditForm + QualityAudit (migrations 0008–0009); Manager+ audit API; Super Admin form API.
-- Dashboard Retail QA card shows latest submitted grade from feeds_dashboard form; cache invalidates on submit.
-- Dashboard: week totals under week date in sales book and department grids; fix processing last-week daily grid.
+### Added
+- Floorplan builder — Django `apps/floorplan` (plans + image assets API), SVG editor under Floor Ops, nav entry, JSON/PNG export
+- Custom element images — per-location asset library (SVG/PNG/JPEG), assignable per element or placed from Custom palette
 
-Initiative: .ai/initiatives/retail_quality_audit.md
+### Changed
+- TARS restoration hardening — bench drafts, queue patches, parts orders, work_session validation, migration 0078 (remove executing stage)
+
+### Fixed
+- Add Order vendor dropdown — show all active vendors instead of hardcoded seven-name whitelist
+- TARS bugs — send dialog render loop, requeue reset, cache invalidation, money validation, dashboard done metrics

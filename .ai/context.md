@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-29 (retail QA v2.38.0 shipped) -->
+<!-- Last updated: 2026-07-02 (floorplan v2.39.0 + TARS hardening) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -14,7 +14,8 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 ## Active work (compass)
 
 - **Retail Quality Audit (shipped):** [`retail_quality_audit`](initiatives/retail_quality_audit.md) — Admin **Quality Audit** hub + mobile wizard; Super Admin editable **`QualityAuditForm`**; dashboard **Retail QA** grade from latest submit. Shipped **v2.38.0**.
-- **TARS Restoration (active):** [`tars_restoration_workspace`](initiatives/tars_restoration_workspace.md) — `/restoration/queue` (send) + `/restoration/tars` (live bench workstation); shipped **v2.34.0**.
+- **Floorplan builder (shipped):** **`/floor-ops/floorplans`** — store layout editor (SVG canvas, save/load, image assets, export). Shipped **v2.39.0**. Docs: **`apps/floorplan/README.md`**.
+- **TARS Restoration (active):** [`tars_restoration_workspace`](initiatives/tars_restoration_workspace.md) — `/restoration/queue` (send) + `/restoration/tars` (live bench workstation); hardening pass shipped **v2.39.0** (bench/queue/parts/API).
 - **HR Time Clock (shipped):** archived [`hr_time_clock_mvp`](initiatives/_archived/_completed/hr_time_clock_mvp.md) — time clock, **Employees**, **Time & payroll**, soft delete; legacy HR pages removed. Shipped **v2.33.0**–**v2.33.1**.
 - **Product/Item CRUD → Processing (shipped):** archived [`product_item_crud_and_processing`](initiatives/_archived/_completed/product_item_crud_and_processing.md) — **v2.29.0–v2.32.0** (Catalog, processing integration, unmanifested lines). Semantic embedding search on hold.
 - **AI cleanup (shipped):** archived [`preprocessing_ai_cleanup_review`](initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md) — Step 2 **Run AI Cleanup** browser batch pool (`ai-cleanup-batch`/`-status`/`-complete`), chunked offline apply, gthread Procfile, legacy `ai-cleanup-rows` 410. Shipped **v2.28.0**.

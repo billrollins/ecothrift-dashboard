@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     'apps.buying',
     'apps.webstore',
     'apps.blog',
+    'apps.floorplan',
 ]
 
 MIDDLEWARE = [

@@ -9,6 +9,10 @@ import { ConsigneeLayout } from './components/layout/ConsigneeLayout';
 // TipTap editor bundle never lands in the main staff chunk.
 const BlogStudioPage = lazy(() => import('./pages/blog/BlogStudioPage'));
 
+// Full-screen floorplan editor — lazy so the SVG editor bundle stays out of the main chunk.
+const FloorplanEditorPage = lazy(() => import('./pages/floorplan/FloorplanEditorPage'));
+import FloorplanListPage from './pages/floorplan/FloorplanListPage';
+
 // Pages
 import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -148,6 +152,7 @@ export default function App() {
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
         <Route path="/inventory/inbound" element={<InboundFulfillmentPlaceholderPage />} />
         <Route path="/inventory/quick-reprice" element={<QuickRepricePage />} />
+        <Route path="/floor-ops/floorplans" element={<FloorplanListPage />} />
         <Route path="/inventory/inbound/receiving" element={<Navigate to="/inventory/receiving" replace />} />
         <Route
           path="/inventory/inbound/finalization"
@@ -307,6 +312,20 @@ export default function App() {
                 <BlogStudioPage />
               </Suspense>
             </SuperAdminRoute>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Floorplan editor — full-screen (no dashboard chrome) so the canvas owns the window */}
+      <Route
+        path="/floor-ops/floorplans/:id/edit"
+        element={
+          <ProtectedRoute>
+            <StaffRoute>
+              <Suspense fallback={<LoadingScreen message="Loading floorplan editor…" />}>
+                <FloorplanEditorPage />
+              </Suspense>
+            </StaffRoute>
           </ProtectedRoute>
         }
       />
