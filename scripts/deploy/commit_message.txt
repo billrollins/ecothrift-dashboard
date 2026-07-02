@@ -1,16 +1,9 @@
-release(v2.40.0): floorplan DB element kinds and shape control
+release(v2.40.1): heroku-24 stack and Node 22 build toolchain
 
-Release: v2.40.0
+Release: v2.40.1
 
-- FloorPlanElementKind model (migrations 0003-0004): 19 legacy palette kinds seeded; shape rect|circle + corner_radius; column/rackRound seeded as circles.
-- /api/floorplan/element-kinds/ — staff read, Super Admin write; system kinds editable but not deletable; kind slug immutable, auto-slugified from label.
-- Editor palette, legend, and canvas resolve kinds from the DB catalog (useFloorPlanElementKinds + kindIndex); static palette.ts kept only as loading placeholder.
-- Rectangles render sharp by default (hardcoded rx=1.5 removed); per-kind corner radius; placement ghost matches shape.
-- Super Admin in-editor management: New element type + per-row edit (ElementKindDialog) — name, category, size, color, shape, resizable, default image with upload.
-- Element images stretch to fill the footprint on resize (preserveAspectRatio none); legacy "Custom" asset palette section removed.
-- Tests: 12 new element-kind API tests (apps.floorplan 43 OK); palette vitest; tsc + production build green.
-
-Initiative: .ai/initiatives/floorplan_builder.md
-Plan: apps/floorplan/PLAN_element_kinds.md
+- Heroku stack upgraded heroku-22 -> heroku-24 (heroku stack:set; effective this deploy).
+- Root package.json engines: Node 18.x -> 22.x, npm 9.x -> 10.x (clears Vite 7 Node-version build warning).
+- No app code changes.
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>

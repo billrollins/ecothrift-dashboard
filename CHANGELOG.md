@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.40.0] — 2026-07-02 -->
-<!-- Last reviewed: 2026-07-02 (floorplan DB element kinds release) -->
+<!-- Line 1 release: ## [2.40.1] — 2026-07-02 -->
+<!-- Last reviewed: 2026-07-02 (heroku-24 stack + Node 22 build) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,17 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.40.1] — 2026-07-02
+
+User-facing theme: **Infrastructure — Heroku stack upgraded to heroku-24; builds use Node 22.**
+
+### Changed
+
+- **Ops / Heroku stack** — app moved from deprecated **heroku-22** (EOL 2027-04) to **heroku-24** (`heroku stack:set`; takes effect with this deploy).
+- **Ops / build toolchain** — root `package.json` `engines` bumped **Node 18.x → 22.x**, npm **9.x → 10.x**; clears the Vite 7 "requires Node 20.19+" build warning. No app code changes.
 
 ---
 
