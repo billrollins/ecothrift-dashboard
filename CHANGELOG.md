@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.43.0] — 2026-07-02 -->
-<!-- Last reviewed: 2026-07-02 (QA forms list UX + JSON/YAML round-trip) -->
+<!-- Line 1 release: ## [2.43.1] — 2026-07-02 -->
+<!-- Last reviewed: 2026-07-02 (system form save hotfix) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,16 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.43.1] — 2026-07-02
+
+User-facing theme: **Hotfix — saving the system retail QA form works again.**
+
+### Fixed
+
+- **Admin / QA form editor** — saving a **system** form returned 400: the editor always sent `slug` and the backend rejects any system-form PATCH containing it. Updates now omit `slug` when it is locked or unchanged (`QualityAuditFormEditorPage.handleSave`).
 
 ---
 

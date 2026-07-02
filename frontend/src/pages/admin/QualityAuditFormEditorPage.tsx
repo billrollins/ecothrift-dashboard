@@ -200,7 +200,11 @@ export default function QualityAuditFormEditorPage() {
         enqueueSnackbar('Form created.', { variant: 'success' });
         navigate(`/admin/quality-audit/forms/${created.id}`, { replace: true });
       } else if (editingId != null) {
-        await updateForm.mutateAsync({ id: editingId, input });
+        // The backend rejects any PATCH containing `slug` on system forms,
+        // so only send it when it actually changed.
+        const { slug: nextSlug, ...rest } = input;
+        const patch = locked || nextSlug === existing?.slug ? rest : { ...rest, slug: nextSlug };
+        await updateForm.mutateAsync({ id: editingId, input: patch });
         enqueueSnackbar('Form saved.', { variant: 'success' });
       }
     } catch (err: unknown) {

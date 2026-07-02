@@ -1,13 +1,7 @@
-release(v2.43.0): QA forms list UX and JSON/YAML round-trip
+release(v2.43.1): fix 400 saving system QA form
 
-Release: v2.43.0
+Release: v2.43.1
 
-- /admin/quality-audit/forms is now a clean list-first page (QualityAuditFormListPage): form rows with chips + section/check counts, Edit / Export / Delete actions, New form + Import buttons. Editor opens only via Edit or New (no more blank editor under the list).
-- Editor decluttered: collapsible accordion sections (reorder/delete in header), compact control dropdown replacing the 15-button toggle wall, sticky Save/Cancel/Delete action bar.
-- Export any form (or the current editor draft) as JSON or YAML; Import parses either format, generates missing section/check ids, previews contents, and creates a new form or updates the slug-matched existing one. Editor "Load from file" replaces the draft for review before saving. New qaFormFile.ts helpers (js-yaml dep); server-side validate_definition unchanged and still gates saves.
-- Floorplan: deleting a floorplan now requires typing its name to confirm (type-to-confirm dialog).
-- Tests: QA forms 10 OK, vitest 213 OK, tsc + production build green.
-
-Initiative: .ai/initiatives/retail_quality_audit.md
+- QA form editor: saving a system form (e.g. retail, id 1) returned 400 because the payload always included slug and the backend locks slug on system forms. Updates now omit slug when locked or unchanged.
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
