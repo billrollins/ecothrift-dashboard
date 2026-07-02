@@ -7,6 +7,7 @@ import type {
   PlanPath,
   PlanZone,
 } from '../../types/floorplan.types';
+import { pathBounds, rotatedBounds, type Rect } from './geometry';
 
 export type Tool = 'select' | 'pan' | 'zone' | 'draw' | 'label';
 
@@ -408,6 +409,89 @@ export function rotateObjects90(doc: PlanDocument, refs: SelectionRef[]): PlanDo
         h: r.w,
       });
     }
+  }
+  return next;
+}
+
+/**
+ * On-floor (visual) bounding box of any object — elements account for their
+ * rotation, labels use the same width heuristic as the canvas overlay.
+ */
+export function visualBounds(doc: PlanDocument, ref: SelectionRef): Rect | null {
+  const obj = getObject(doc, ref);
+  if (!obj) return null;
+  if (ref.kind === 'path') return pathBounds((obj as PlanPath).points);
+  if (ref.kind === 'label') {
+    const label = obj as PlanLabel;
+    return { x: label.x, y: label.y, w: label.text.length * label.fontSize * 0.55, h: label.fontSize * 1.2 };
+  }
+  const r = obj as unknown as Rect;
+  if (ref.kind === 'element') return rotatedBounds(r, (obj as PlanElement).rotation);
+  return { x: r.x, y: r.y, w: r.w, h: r.h };
+}
+
+export type AlignMode = 'left' | 'centerH' | 'right' | 'top' | 'middleV' | 'bottom';
+
+/**
+ * Align the visual bounds of all referenced objects (translation only, so
+ * element rotation and path shapes are preserved). Needs ≥ 2 objects.
+ */
+export function alignObjects(doc: PlanDocument, refs: SelectionRef[], mode: AlignMode): PlanDocument {
+  const items = refs
+    .map((ref) => ({ ref, bounds: visualBounds(doc, ref) }))
+    .filter((it): it is { ref: SelectionRef; bounds: Rect } => it.bounds != null);
+  if (items.length < 2) return doc;
+
+  const minX = Math.min(...items.map((it) => it.bounds.x));
+  const maxX = Math.max(...items.map((it) => it.bounds.x + it.bounds.w));
+  const minY = Math.min(...items.map((it) => it.bounds.y));
+  const maxY = Math.max(...items.map((it) => it.bounds.y + it.bounds.h));
+
+  let next = doc;
+  for (const { ref, bounds } of items) {
+    let dx = 0;
+    let dy = 0;
+    switch (mode) {
+      case 'left': dx = minX - bounds.x; break;
+      case 'centerH': dx = (minX + maxX) / 2 - (bounds.x + bounds.w / 2); break;
+      case 'right': dx = maxX - (bounds.x + bounds.w); break;
+      case 'top': dy = minY - bounds.y; break;
+      case 'middleV': dy = (minY + maxY) / 2 - (bounds.y + bounds.h / 2); break;
+      case 'bottom': dy = maxY - (bounds.y + bounds.h); break;
+    }
+    if (dx !== 0 || dy !== 0) next = moveObjects(next, [ref], dx, dy);
+  }
+  return next;
+}
+
+/**
+ * Distribute the referenced objects along an axis with equal gaps between
+ * their visual bounds. The outermost objects stay put. Needs ≥ 3 objects.
+ */
+export function distributeObjects(doc: PlanDocument, refs: SelectionRef[], axis: 'h' | 'v'): PlanDocument {
+  const items = refs
+    .map((ref) => ({ ref, bounds: visualBounds(doc, ref) }))
+    .filter((it): it is { ref: SelectionRef; bounds: Rect } => it.bounds != null);
+  if (items.length < 3) return doc;
+
+  const pos = (b: Rect) => (axis === 'h' ? b.x : b.y);
+  const size = (b: Rect) => (axis === 'h' ? b.w : b.h);
+  const sorted = [...items].sort((a, b) => (pos(a.bounds) + size(a.bounds) / 2) - (pos(b.bounds) + size(b.bounds) / 2));
+
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const span = pos(last.bounds) + size(last.bounds) - pos(first.bounds);
+  const totalSize = sorted.reduce((sum, it) => sum + size(it.bounds), 0);
+  const gap = (span - totalSize) / (sorted.length - 1);
+
+  let next = doc;
+  let cursor = pos(first.bounds) + size(first.bounds) + gap;
+  for (const it of sorted.slice(1, -1)) {
+    const delta = cursor - pos(it.bounds);
+    if (delta !== 0) {
+      next = moveObjects(next, [it.ref], axis === 'h' ? delta : 0, axis === 'h' ? 0 : delta);
+    }
+    cursor += size(it.bounds) + gap;
   }
   return next;
 }

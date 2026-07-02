@@ -65,6 +65,21 @@ export function rotatedBounds(rect: Rect, rotation: number): Rect {
   return { ...rect };
 }
 
+/**
+ * Inverse of `rotatedBounds`: given the desired on-floor (visual) footprint of
+ * an element rotated by 0/90/180/270, return the raw unrotated rect to store.
+ * The visual rect's center is preserved; at 90/270 w/h swap back.
+ */
+export function rawRectFromVisual(visual: Rect, rotation: number): Rect {
+  const rot = ((rotation % 360) + 360) % 360;
+  if (rot === 90 || rot === 270) {
+    const cx = visual.x + visual.w / 2;
+    const cy = visual.y + visual.h / 2;
+    return { x: cx - visual.h / 2, y: cy - visual.w / 2, w: visual.h, h: visual.w };
+  }
+  return { ...visual };
+}
+
 export function rectsIntersect(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }

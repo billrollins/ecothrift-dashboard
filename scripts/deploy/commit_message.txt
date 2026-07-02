@@ -1,9 +1,14 @@
-release(v2.40.1): heroku-24 stack and Node 22 build toolchain
+release(v2.41.0): floorplan editor precision — align, nudge, rotation, snap
 
-Release: v2.40.1
+Release: v2.41.0
 
-- Heroku stack upgraded heroku-22 -> heroku-24 (heroku stack:set; effective this deploy).
-- Root package.json engines: Node 18.x -> 22.x, npm 9.x -> 10.x (clears Vite 7 Node-version build warning).
-- No app code changes.
+- Align tools on multi-select: left / h-center / right / top / v-center / bottom; distribute horizontally/vertically with equal gaps (3+ objects, outer stay put). Rotation-aware bounds; unit tested.
+- Arrow keys nudge selection 1" per press, 1' with Shift; one undo step each.
+- Element borders draw inside the footprint (stroke inset) so W×H is exact.
+- Rotated elements: resize handles on visual corners, resize math in on-floor space (rawRectFromVisual), properties panel shows/edits visual X/Y/Width/Depth.
+- Move snapping is absolute to the grid (object at 1'8" snaps to 2', not 2'8"); dragged object anchors the snap, others keep relative offsets.
+- 8 new vitest cases (align/distribute, rawRectFromVisual round-trip); tsc + build green.
+
+Initiative: .ai/initiatives/floorplan_builder.md
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>

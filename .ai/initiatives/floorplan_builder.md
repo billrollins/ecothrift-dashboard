@@ -43,3 +43,8 @@ Staff design store layouts in a browser editor (elements, zones, paths, labels, 
 - Verified: tsc clean, vitest 205 OK (new `palette.test.ts`), `npm run build` green, dev DB migrated + seeded. Plan file checklist all checked (one manual UI click-through suggested).
 
 **Result:** Plan implemented end-to-end; element images stretch on resize (`preserveAspectRatio: none`). Released **v2.40.0** (2026-07-02).
+
+**Updates (2026-07-02, later):**
+
+- **v2.40.1** — Heroku stack **heroku-22 → heroku-24** (`stack:set` + redeploy, release v280 verified); root `engines` Node 18.x → 22.x / npm 10.x.
+- **Editor precision pass (v2.41.0):** align (6 modes) + equal-gap distribute on multi-select (`alignObjects`/`distributeObjects` in `editorState.ts`, toolbar buttons); arrow-key nudge 1"/1'; element strokes inset inside the footprint; rotated elements — handles on visual corners, resize in visual space via `rawRectFromVisual`, properties panel shows visual X/Y/W/Depth; move snapping absolute (position, not delta). 8 new vitest cases; tsc + build green.

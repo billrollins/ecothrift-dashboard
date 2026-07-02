@@ -28,6 +28,7 @@ import {
 import {
   normalizeRect,
   pathBounds,
+  rawRectFromVisual,
   rectsIntersect,
   rotatedBounds,
   screenToWorld,
@@ -70,8 +71,8 @@ type HandleId = 'nw' | 'ne' | 'sw' | 'se';
 type DragState =
   | { mode: 'pan'; startClient: Point; startVp: Viewport }
   | { mode: 'maybeMove'; startClient: Point; startWorld: Point; ref: SelectionRef; additive: boolean }
-  | { mode: 'move'; startWorld: Point; baseDoc: PlanDocument; refs: SelectionRef[] }
-  | { mode: 'resize'; ref: SelectionRef; handle: HandleId; baseRect: Rect; baseDoc: PlanDocument }
+  | { mode: 'move'; startWorld: Point; baseDoc: PlanDocument; refs: SelectionRef[]; anchor: Point }
+  | { mode: 'resize'; ref: SelectionRef; handle: HandleId; baseRect: Rect; rotation: number; baseDoc: PlanDocument }
   | { mode: 'marquee'; startWorld: Point }
   | { mode: 'zone'; startWorld: Point; id: string; baseDoc: PlanDocument }
   | { mode: 'draw'; id: string; points: [number, number][]; baseDoc: PlanDocument };
@@ -287,6 +288,7 @@ export default function FloorplanCanvas({
       ref,
       handle,
       baseRect: { x: obj.x, y: obj.y, w: obj.w, h: obj.h },
+      rotation: ref.kind === 'element' ? ((obj as unknown as PlanElement).rotation ?? 0) : 0,
       baseDoc: doc,
     };
   };
@@ -370,31 +372,47 @@ export default function FloorplanCanvas({
         const dist = Math.hypot(e.clientX - drag.startClient.x, e.clientY - drag.startClient.y);
         if (dist < DRAG_THRESHOLD_PX) return;
         const refs = selection.length > 0 ? selection : [drag.ref];
+        // Anchor absolute snapping on the dragged object's visual top-left
+        const anchorBounds = objectBounds(doc, drag.ref);
         dispatch({ type: 'gestureStart' });
-        dragRef.current = { mode: 'move', startWorld: drag.startWorld, baseDoc: doc, refs };
+        dragRef.current = {
+          mode: 'move',
+          startWorld: drag.startWorld,
+          baseDoc: doc,
+          refs,
+          anchor: anchorBounds ? { x: anchorBounds.x, y: anchorBounds.y } : drag.startWorld,
+        };
         break;
       }
       case 'move': {
-        const dx = snapValue(world.x - drag.startWorld.x, snap);
-        const dy = snapValue(world.y - drag.startWorld.y, snap);
+        // Snap the dragged object's resulting position to the absolute grid
+        // (1' 8" + move snaps to 2', not 2' 8"); other selected objects keep
+        // their relative offsets.
+        const rawDx = world.x - drag.startWorld.x;
+        const rawDy = world.y - drag.startWorld.y;
+        const dx = snapValue(drag.anchor.x + rawDx, snap) - drag.anchor.x;
+        const dy = snapValue(drag.anchor.y + rawDy, snap) - drag.anchor.y;
         dispatch({ type: 'gestureUpdate', doc: moveObjects(drag.baseDoc, drag.refs, dx, dy) });
         break;
       }
       case 'resize': {
-        const { baseRect, handle } = drag;
+        // Resize math runs in visual (on-floor) space so handles track the
+        // cursor on rotated elements; the result maps back to the raw rect.
+        const { baseRect, handle, rotation } = drag;
+        const baseVisual = rotatedBounds(baseRect, rotation);
         const px = snapValue(world.x, snap);
         const py = snapValue(world.y, snap);
-        const anchorX = handle === 'nw' || handle === 'sw' ? baseRect.x + baseRect.w : baseRect.x;
-        const anchorY = handle === 'nw' || handle === 'ne' ? baseRect.y + baseRect.h : baseRect.y;
+        const anchorX = handle === 'nw' || handle === 'sw' ? baseVisual.x + baseVisual.w : baseVisual.x;
+        const anchorY = handle === 'nw' || handle === 'ne' ? baseVisual.y + baseVisual.h : baseVisual.y;
         const raw = normalizeRect({ x: anchorX, y: anchorY, w: px - anchorX, h: py - anchorY });
-        const next: Rect = {
+        const nextVisual: Rect = {
           ...raw,
           w: snapSize(raw.w, snap, MIN_SIZE),
           h: snapSize(raw.h, snap, MIN_SIZE),
         };
         dispatch({
           type: 'gestureUpdate',
-          doc: updateObject(drag.baseDoc, drag.ref, next),
+          doc: updateObject(drag.baseDoc, drag.ref, rawRectFromVisual(nextVisual, rotation)),
         });
         break;
       }
@@ -533,7 +551,12 @@ export default function FloorplanCanvas({
     single && (single.kind === 'element' || single.kind === 'zone' || single.kind === 'infoBlock')
       ? single
       : null;
-  const singleRect = singleRectRef ? (getObject(doc, singleRectRef) as unknown as Rect | undefined) : undefined;
+  const singleRectRaw = singleRectRef ? (getObject(doc, singleRectRef) as unknown as Rect | undefined) : undefined;
+  // Handles sit on the visual (rotated) footprint corners
+  const singleRect =
+    singleRectRaw && singleRectRef?.kind === 'element'
+      ? rotatedBounds(singleRectRaw, (getObject(doc, singleRectRef) as PlanElement).rotation)
+      : singleRectRaw;
   const handleSize = 9 / viewport.scale;
 
   const isSelected = (kind: SelectionRef['kind'], id: string) =>

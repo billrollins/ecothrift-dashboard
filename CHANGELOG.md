@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.40.1] — 2026-07-02 -->
-<!-- Last reviewed: 2026-07-02 (heroku-24 stack + Node 22 build) -->
+<!-- Line 1 release: ## [2.41.0] — 2026-07-02 -->
+<!-- Last reviewed: 2026-07-02 (floorplan editor precision pass) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,25 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.41.0] — 2026-07-02
+
+User-facing theme: **Floorplan editor precision — align/distribute tools, arrow-key nudging, exact footprints, correct rotated resize, and absolute grid snapping.**
+
+Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md) (Session 1 continued).
+
+### Added
+
+- **Floorplan / align + distribute** — with 2+ objects selected the toolbar offers align left / horizontal-center / right / top / vertical-center / bottom; with 3+, distribute horizontally/vertically with equal gaps (outer objects stay put). Pure helpers **`alignObjects`** / **`distributeObjects`** work on visual (rotation-aware) bounds; unit tested.
+- **Floorplan / arrow-key nudge** — arrow keys move the selection **1"** per press (**Shift** = 1'); each press is one undo step.
+
+### Fixed
+
+- **Floorplan / element footprints** — borders now draw fully **inside** the element (`stroke` inset by half its width), so an element never renders larger than its stated W×H.
+- **Floorplan / rotated elements** — resize handles sit on the **visual** (rotated) corners and resize math runs in on-floor space (**`rawRectFromVisual`**); the properties panel shows and edits the visual X/Y/Width/Depth (a rotated 48×144 gondola reads 144 wide × 48 deep).
+- **Floorplan / snapping is absolute** — dragging snaps the moved object's position to the grid itself, not the drag delta: an object at 1' 8" with 1' snap lands on 2', not 2' 8". Other selected objects keep their relative offsets.
 
 ---
 

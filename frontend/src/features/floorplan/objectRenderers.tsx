@@ -32,6 +32,10 @@ export function ElementShape({
   const cx = element.x + element.w / 2;
   const cy = element.y + element.h / 2;
   const round = entry.shape === 'circle';
+  // Stroke is drawn fully INSIDE the footprint (inset by half the stroke
+  // width) so the border never makes an element render larger than w×h.
+  const strokeW = selected ? HAIRLINE * 2 : HAIRLINE;
+  const inset = strokeW / 2;
   // Uniform caption size across all elements, clamped so tiny footprints don't overflow.
   const fontSize = Math.min(labelSettings.fontSize, Math.max(3, Math.min(element.w, element.h) * 0.45));
   return (
@@ -43,25 +47,25 @@ export function ElementShape({
         <ellipse
           cx={cx}
           cy={cy}
-          rx={element.w / 2}
-          ry={element.h / 2}
+          rx={Math.max(0.1, element.w / 2 - inset)}
+          ry={Math.max(0.1, element.h / 2 - inset)}
           fill={entry.color}
           fillOpacity={0.85}
           stroke={selected ? '#1565c0' : '#37474f'}
-          strokeWidth={selected ? HAIRLINE * 2 : HAIRLINE}
+          strokeWidth={strokeW}
           strokeDasharray={element.active ? undefined : '4 3'}
         />
       ) : (
         <rect
-          x={element.x}
-          y={element.y}
-          width={element.w}
-          height={element.h}
-          rx={entry.cornerRadius || 0}
+          x={element.x + inset}
+          y={element.y + inset}
+          width={Math.max(0.1, element.w - strokeW)}
+          height={Math.max(0.1, element.h - strokeW)}
+          rx={Math.max(0, (entry.cornerRadius || 0) - inset)}
           fill={imageHref ? '#fff' : entry.color}
           fillOpacity={imageHref ? 0.9 : 0.85}
           stroke={selected ? '#1565c0' : '#37474f'}
-          strokeWidth={selected ? HAIRLINE * 2 : HAIRLINE}
+          strokeWidth={strokeW}
           strokeDasharray={element.active ? undefined : '4 3'}
         />
       )}

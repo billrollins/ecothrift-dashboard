@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { PlanDocument, PlanElement } from '../../types/floorplan.types';
 import {
   addElement,
+  alignObjects,
   cloneObjects,
   deleteObjects,
+  distributeObjects,
   editorReducer,
   expandSelectionToGroups,
   groupObjects,
@@ -321,5 +323,69 @@ describe('grouping', () => {
     const { doc } = groupObjects(twoElements(), [refs[0]]);
     expect(selectionIsGrouped(doc, refs)).toBe(false);
     expect(selectionIsGrouped(doc, [])).toBe(false);
+  });
+});
+
+describe('alignObjects / distributeObjects', () => {
+  function threeElements(): PlanDocument {
+    let doc = emptyDoc();
+    doc = addElement(doc, { ...el('a', 0, 0), w: 10, h: 10 });
+    doc = addElement(doc, { ...el('b', 40, 30), w: 20, h: 20 });
+    doc = addElement(doc, { ...el('c', 100, 80), w: 10, h: 40 });
+    return doc;
+  }
+  const refs = [
+    { kind: 'element' as const, id: 'a' },
+    { kind: 'element' as const, id: 'b' },
+    { kind: 'element' as const, id: 'c' },
+  ];
+
+  it('aligns left edges to the leftmost object', () => {
+    const doc = alignObjects(threeElements(), refs, 'left');
+    expect(doc.elements.map((e) => e.x)).toEqual([0, 0, 0]);
+    // y untouched
+    expect(doc.elements.map((e) => e.y)).toEqual([0, 30, 80]);
+  });
+
+  it('aligns right edges to the rightmost extent', () => {
+    const doc = alignObjects(threeElements(), refs, 'right');
+    expect(doc.elements.map((e) => e.x + e.w)).toEqual([110, 110, 110]);
+  });
+
+  it('aligns bottom edges and vertical centers', () => {
+    const bottom = alignObjects(threeElements(), refs, 'bottom');
+    expect(bottom.elements.map((e) => e.y + e.h)).toEqual([120, 120, 120]);
+    const mid = alignObjects(threeElements(), refs, 'middleV');
+    expect(mid.elements.map((e) => e.y + e.h / 2)).toEqual([60, 60, 60]);
+  });
+
+  it('uses the rotated footprint of elements', () => {
+    let doc = emptyDoc();
+    // 10×40 element rotated 90° occupies a 40×10 visual footprint centered on (20, 20)
+    doc = addElement(doc, { ...el('rot', 15, 0), w: 10, h: 40, rotation: 90 });
+    doc = addElement(doc, { ...el('flat', 100, 100), w: 10, h: 10 });
+    const aligned = alignObjects(doc, [
+      { kind: 'element', id: 'rot' },
+      { kind: 'element', id: 'flat' },
+    ], 'left');
+    const rot = aligned.elements.find((e) => e.id === 'rot')!;
+    // Visual left edge of the rotated element is x_center - h/2 = 20 - 20 = 0 → already leftmost
+    expect(rot.x).toBe(15);
+    const flat = aligned.elements.find((e) => e.id === 'flat')!;
+    expect(flat.x).toBe(0);
+  });
+
+  it('distributes with equal gaps keeping outer objects fixed', () => {
+    const doc = distributeObjects(threeElements(), refs, 'h');
+    const [a, b, c] = doc.elements;
+    expect(a.x).toBe(0);
+    expect(c.x).toBe(100);
+    // span 0..110, total widths 40 → free 70 → gap 35; middle starts at 10+35=45
+    expect(b.x).toBe(45);
+  });
+
+  it('distribute is a no-op with fewer than 3 objects', () => {
+    const doc = threeElements();
+    expect(distributeObjects(doc, refs.slice(0, 2), 'h')).toBe(doc);
   });
 });

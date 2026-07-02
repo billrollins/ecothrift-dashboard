@@ -132,3 +132,25 @@ describe('pickScaleBarLength', () => {
     expect([60, 120]).toContain(len);
   });
 });
+
+describe('rawRectFromVisual', () => {
+  it('round-trips with rotatedBounds at every 90° step', async () => {
+    const { rotatedBounds, rawRectFromVisual } = await import('./geometry');
+    const raw = { x: 10, y: 20, w: 48, h: 144 };
+    for (const rot of [0, 90, 180, 270]) {
+      const visual = rotatedBounds(raw, rot);
+      expect(rawRectFromVisual(visual, rot)).toEqual(raw);
+    }
+  });
+
+  it('maps a resized visual footprint back to swapped raw w/h at 90°', async () => {
+    const { rawRectFromVisual } = await import('./geometry');
+    // Want a 144-wide × 22-deep visual footprint at rotation 90
+    const raw = rawRectFromVisual({ x: 0, y: 0, w: 144, h: 22 }, 90);
+    expect(raw.w).toBe(22);
+    expect(raw.h).toBe(144);
+    // Center preserved: visual center (72, 11) == raw center
+    expect(raw.x + raw.w / 2).toBe(72);
+    expect(raw.y + raw.h / 2).toBe(11);
+  });
+});

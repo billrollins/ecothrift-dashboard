@@ -45,6 +45,16 @@ import TextFieldsIcon from '@mui/icons-material/TextFields';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import AlignHorizontalLeftIcon from '@mui/icons-material/AlignHorizontalLeft';
+import AlignHorizontalCenterIcon from '@mui/icons-material/AlignHorizontalCenter';
+import AlignHorizontalRightIcon from '@mui/icons-material/AlignHorizontalRight';
+import AlignVerticalTopIcon from '@mui/icons-material/AlignVerticalTop';
+import AlignVerticalCenterIcon from '@mui/icons-material/AlignVerticalCenter';
+import AlignVerticalBottomIcon from '@mui/icons-material/AlignVerticalBottom';
+// This @mui/icons-material version has no HorizontalDistribute/VerticalDistribute;
+// evenly-spaced column/row glyphs read the same way.
+import HorizontalDistributeIcon from '@mui/icons-material/ViewWeek';
+import VerticalDistributeIcon from '@mui/icons-material/ViewStream';
 import type {
   FloorPlanAsset,
   GridStyle,
@@ -56,10 +66,18 @@ import type {
   PlanPath,
   PlanZone,
 } from '../../types/floorplan.types';
-import type { EditorAction, EditorState, SelectionRef, Tool } from './editorState';
+import type { AlignMode, EditorAction, EditorState, SelectionRef, Tool } from './editorState';
 import { getObject, selectionIsGrouped } from './editorState';
 import { DEFAULT_LABEL_SETTINGS } from '../../types/floorplan.types';
-import { formatInches, parseInches, pickScaleBarLength, type Viewport } from './geometry';
+import {
+  formatInches,
+  parseInches,
+  pickScaleBarLength,
+  rawRectFromVisual,
+  rotatedBounds,
+  type Rect,
+  type Viewport,
+} from './geometry';
 import { SNAP_OPTIONS } from './snapping';
 import { paletteCategories, type PaletteEntry } from './palette';
 import type { DrawStroke } from './FloorplanCanvas';
@@ -88,8 +106,19 @@ interface ToolbarProps {
   onDuplicateSelection: () => void;
   onGroupSelection: () => void;
   onUngroupSelection: () => void;
+  onAlignSelection: (mode: AlignMode) => void;
+  onDistributeSelection: (axis: 'h' | 'v') => void;
   readOnly: boolean;
 }
+
+const ALIGN_ACTIONS: { mode: AlignMode; label: string; icon: React.ReactNode }[] = [
+  { mode: 'left', label: 'Align left edges', icon: <AlignHorizontalLeftIcon fontSize="small" /> },
+  { mode: 'centerH', label: 'Align horizontal centers', icon: <AlignHorizontalCenterIcon fontSize="small" /> },
+  { mode: 'right', label: 'Align right edges', icon: <AlignHorizontalRightIcon fontSize="small" /> },
+  { mode: 'top', label: 'Align top edges', icon: <AlignVerticalTopIcon fontSize="small" /> },
+  { mode: 'middleV', label: 'Align vertical centers', icon: <AlignVerticalCenterIcon fontSize="small" /> },
+  { mode: 'bottom', label: 'Align bottom edges', icon: <AlignVerticalBottomIcon fontSize="small" /> },
+];
 
 export function EditorToolbar({
   state,
@@ -101,6 +130,8 @@ export function EditorToolbar({
   onDuplicateSelection,
   onGroupSelection,
   onUngroupSelection,
+  onAlignSelection,
+  onDistributeSelection,
   readOnly,
 }: ToolbarProps) {
   const { doc, tool, selection } = state;
@@ -231,6 +262,42 @@ export function EditorToolbar({
                 <WorkspacesOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
+          )}
+          {selection.length > 1 && (
+            <>
+              <Divider orientation="vertical" flexItem />
+              {ALIGN_ACTIONS.map(({ mode, label, icon }) => (
+                <Tooltip key={mode} title={label}>
+                  <IconButton size="small" onClick={() => onAlignSelection(mode)} aria-label={label}>
+                    {icon}
+                  </IconButton>
+                </Tooltip>
+              ))}
+              <Tooltip title={selection.length < 3 ? 'Distribute horizontally (needs 3+)' : 'Distribute horizontally'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={selection.length < 3}
+                    onClick={() => onDistributeSelection('h')}
+                    aria-label="Distribute horizontally"
+                  >
+                    <HorizontalDistributeIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title={selection.length < 3 ? 'Distribute vertically (needs 3+)' : 'Distribute vertically'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={selection.length < 3}
+                    onClick={() => onDistributeSelection('v')}
+                    aria-label="Distribute vertically"
+                  >
+                    <VerticalDistributeIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </>
           )}
           <Tooltip title="Delete (Del)">
             <IconButton size="small" color="error" onClick={onDeleteSelection} aria-label="Delete selection">
@@ -723,16 +790,22 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
 
         {ref.kind === 'element' && (() => {
           const el = obj as PlanElement;
+          // Display/edit the on-floor (visual) footprint: at 90°/270° the raw
+          // w/h are swapped, so a rotated 48×144 gondola shows 144 wide × 48 deep.
+          const visual = rotatedBounds({ x: el.x, y: el.y, w: el.w, h: el.h }, el.rotation);
+          const commitVisual = (patchVisual: Partial<Rect>) => {
+            patch({ ...rawRectFromVisual({ ...visual, ...patchVisual }, el.rotation) });
+          };
           return (
             <>
               <TextField size="small" label="Label" value={el.label} disabled={readOnly} onChange={(e) => patch({ label: e.target.value })} />
               <Stack direction="row" spacing={1} justifyContent="space-between">
-                <DimensionField label="Width" value={el.w} disabled={readOnly} onCommit={(w) => patch({ w: Math.max(2, w) })} />
-                <DimensionField label="Depth" value={el.h} disabled={readOnly} onCommit={(h) => patch({ h: Math.max(2, h) })} />
+                <DimensionField label="Width" value={visual.w} disabled={readOnly} onCommit={(w) => commitVisual({ w: Math.max(2, w) })} />
+                <DimensionField label="Depth" value={visual.h} disabled={readOnly} onCommit={(h) => commitVisual({ h: Math.max(2, h) })} />
               </Stack>
               <Stack direction="row" spacing={1} justifyContent="space-between">
-                <DimensionField label="X" value={el.x} disabled={readOnly} onCommit={(x) => patch({ x })} />
-                <DimensionField label="Y" value={el.y} disabled={readOnly} onCommit={(y) => patch({ y })} />
+                <DimensionField label="X" value={visual.x} disabled={readOnly} onCommit={(x) => commitVisual({ x })} />
+                <DimensionField label="Y" value={visual.y} disabled={readOnly} onCommit={(y) => commitVisual({ y })} />
               </Stack>
               <Typography variant="caption" color="text.secondary">Rotation: {el.rotation}°</Typography>
               <Stack direction="row" spacing={1} alignItems="center">

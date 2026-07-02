@@ -33,18 +33,22 @@ import type { FloorPlanElementKind, PlanElement, PlanInfoBlock } from '../../typ
 import {
   addElement,
   addInfoBlock,
+  alignObjects,
   cloneObjects,
   collectionKeyFor,
   deleteObjects,
+  distributeObjects,
   editorReducer,
   getObject,
   groupObjects,
   initialEditorState,
+  moveObjects,
   rotateObjects90,
   newId,
   selectionIsGrouped,
   ungroupObjects,
   updateObject,
+  type AlignMode,
   type SelectionRef,
 } from '../../features/floorplan/editorState';
 import { migratePlanDocument, UnsupportedSchemaError } from '../../features/floorplan/migrations';
@@ -281,6 +285,27 @@ export default function FloorplanEditorPage() {
     dispatch({ type: 'commit', doc: ungroupObjects(current.doc, current.selection) });
   }, []);
 
+  const alignSelection = useCallback((mode: AlignMode) => {
+    const current = stateRef.current;
+    if (current.selection.length < 2) return;
+    const doc = alignObjects(current.doc, current.selection, mode);
+    if (doc !== current.doc) dispatch({ type: 'commit', doc });
+  }, []);
+
+  const distributeSelection = useCallback((axis: 'h' | 'v') => {
+    const current = stateRef.current;
+    if (current.selection.length < 3) return;
+    const doc = distributeObjects(current.doc, current.selection, axis);
+    if (doc !== current.doc) dispatch({ type: 'commit', doc });
+  }, []);
+
+  // Arrow keys nudge the selection by the smallest increment (1"), 1' with Shift.
+  const nudgeSelection = useCallback((dx: number, dy: number) => {
+    const current = stateRef.current;
+    if (current.selection.length === 0) return;
+    dispatch({ type: 'commit', doc: moveObjects(current.doc, current.selection, dx, dy) });
+  }, []);
+
   const rotateSelection = useCallback(() => {
     const current = stateRef.current;
     let doc = current.doc;
@@ -401,6 +426,18 @@ export default function FloorplanEditorPage() {
         }
       }
       switch (e.key) {
+        case 'ArrowLeft':
+        case 'ArrowRight':
+        case 'ArrowUp':
+        case 'ArrowDown': {
+          if (stateRef.current.selection.length === 0) break;
+          e.preventDefault();
+          const step = e.shiftKey ? 12 : 1;
+          const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+          const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+          nudgeSelection(dx, dy);
+          break;
+        }
         case 'Delete':
         case 'Backspace':
           deleteSelection();
@@ -448,7 +485,7 @@ export default function FloorplanEditorPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [doSave, deleteSelection, rotateSelection, zoomBy, readOnly, copySelection, cutSelection, pasteClipboard, duplicateSelection, groupSelection, ungroupSelection]);
+  }, [doSave, deleteSelection, rotateSelection, zoomBy, readOnly, copySelection, cutSelection, pasteClipboard, duplicateSelection, groupSelection, ungroupSelection, nudgeSelection]);
 
   // ── Export ────────────────────────────────────────────────────────────────
 
@@ -560,6 +597,8 @@ export default function FloorplanEditorPage() {
         onDuplicateSelection={duplicateSelection}
         onGroupSelection={groupSelection}
         onUngroupSelection={ungroupSelection}
+        onAlignSelection={alignSelection}
+        onDistributeSelection={distributeSelection}
         readOnly={readOnly}
       />
 
