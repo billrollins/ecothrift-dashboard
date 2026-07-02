@@ -6,7 +6,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.core.models import WorkLocation
-from apps.floorplan.models import FloorPlanAsset
+from apps.floorplan.models import FloorPlan, FloorPlanAsset, default_plan_document
 
 from .test_floorplan_api import make_user
 
@@ -121,12 +121,29 @@ class FloorPlanAssetApiTests(TestCase):
         names = {a['name'] for a in results(resp)}
         self.assertEqual(names, {'shared', 'mine'})
 
-    def test_soft_delete(self):
+    def test_delete_purges_unreferenced_asset(self):
+        # Unreferenced assets are hard-deleted by the orphan sweep that runs
+        # after the soft delete (see services.purge_orphan_assets).
         asset = FloorPlanAsset.objects.create(name='gone', data='data:image/png;base64,x', content_type='image/png')
+        self.client.force_authenticate(user=self.manager)
+        resp = self.client.delete(f'/api/floorplan/assets/{asset.id}/')
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(FloorPlanAsset.objects.filter(pk=asset.pk).exists())
+        resp = self.client.get('/api/floorplan/assets/')
+        self.assertEqual(len(results(resp)), 0)
+
+    def test_delete_keeps_row_when_still_referenced_by_plan(self):
+        # A deleted-but-referenced asset stays as a soft-deleted row so any
+        # plan elements pointing at it degrade gracefully.
+        asset = FloorPlanAsset.objects.create(name='in use', data='data:image/png;base64,x', content_type='image/png')
+        doc = default_plan_document()
+        doc['elements'] = [{
+            'id': 'el_1', 'kind': 'gondola', 'x': 0, 'y': 0, 'w': 48, 'h': 144,
+            'rotation': 0, 'label': '', 'active': True, 'image': asset.pk,
+        }]
+        FloorPlan.objects.create(name='Plan', location=self.location, data=doc)
         self.client.force_authenticate(user=self.manager)
         resp = self.client.delete(f'/api/floorplan/assets/{asset.id}/')
         self.assertEqual(resp.status_code, 204)
         asset.refresh_from_db()
         self.assertFalse(asset.is_active)
-        resp = self.client.get('/api/floorplan/assets/')
-        self.assertEqual(len(results(resp)), 0)

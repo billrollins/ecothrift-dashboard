@@ -94,7 +94,7 @@ Base: `/api/floorplan/` — JWT auth (standard dashboard auth). All staff roles 
 | DELETE | `plans/{id}/` | Soft delete (`is_active=False`) |
 | GET | `assets/` | Image asset library. `?location=<id>` returns that location's assets plus shared (location-less) ones |
 | POST | `assets/` | Multipart upload: `file` (SVG/PNG/JPEG, ≤512 KB) + optional `name`, `location`. Manager/Admin only |
-| DELETE | `assets/{id}/` | Soft delete. Elements referencing a deleted asset fall back to solid color |
+| DELETE | `assets/{id}/` | Soft delete + orphan sweep: unreferenced assets are hard-deleted; still-referenced ones stay soft-deleted and elements fall back to solid color |
 
 ### Image assets
 
@@ -105,6 +105,12 @@ declarations stripped; PNG/JPEG are verified with Pillow. In the editor, assets 
 element properties panel (assign / upload / remove per instance) and as the optional
 `default_image` of an element kind. Because images are data URIs, PNG export inlines them
 automatically.
+
+**Orphan cleanup:** `services.purge_orphan_assets()` hard-deletes assets referenced by no
+active plan element and no active kind default. It runs after plan content saves, kind
+create/edit/delete, and asset deletes. Fresh uploads get a **24-hour grace window** (so an
+image uploaded for a not-yet-saved plan can't be swept); soft-deleted assets are exempt from
+the grace window and purge as soon as nothing references them.
 
 ### Element kinds (palette catalog)
 

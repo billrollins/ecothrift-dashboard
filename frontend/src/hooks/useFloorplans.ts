@@ -37,6 +37,8 @@ export function useSaveFloorPlan() {
     onSuccess: (result) => {
       queryClient.setQueryData(['floorplan', result.id], result);
       queryClient.invalidateQueries({ queryKey: ['floorplans'] });
+      // Saving sweeps orphaned images server-side — refresh the asset library
+      queryClient.invalidateQueries({ queryKey: ['floorplan-assets'] });
     },
   });
 }

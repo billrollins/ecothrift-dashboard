@@ -42,8 +42,9 @@ Set `viewBox="0 0 W H"` to the kind’s **default footprint in inches** (same ra
 | Fixtures | `bookcase` | 12×36 | `fixtures/bookcase.svg` |
 | Fixtures | `glassCase` | 24×48 | `fixtures/glassCase.svg` |
 | Fixtures | `binTable` | 48×48 | `fixtures/binTable.svg` |
-| Fixtures | *(custom)* | **48×24 single-sided shelf** | `fixtures/shelfSingle48x24.svg` |
-| Fixtures | *(custom)* | **48×48 double-sided shelf** | `fixtures/shelfDouble48x48.svg` |
+| Fixtures | *(custom)* | **48×48 double-sided shelf (4×4 gondola)** | `fixtures/shelfDouble48x48.svg` |
+| Fixtures | *(custom)* | **48×24 single-sided shelf (half gondola)** | `fixtures/shelfSingle48x24.svg` |
+| Fixtures | *(custom)* | **48×48 gondola (same as shelfDouble48x48)** | `fixtures/gondola48x48.svg` |
 | Service | `checkoutCounter` | 96×30 | `service/checkoutCounter.svg` |
 | Service | `register` | 18×18 | `service/register.svg` |
 | Service | `fittingRoom` | 48×48 | `service/fittingRoom.svg` |

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.41.0] — 2026-07-02 -->
-<!-- Last reviewed: 2026-07-02 (floorplan editor precision pass) -->
+<!-- Line 1 release: ## [2.42.0] — 2026-07-02 -->
+<!-- Last reviewed: 2026-07-02 (floorplan image lifecycle + bulk selection) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,24 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.42.0] — 2026-07-02
+
+User-facing theme: **Floorplan bulk image editing — select all, set or reset images across a whole selection, and unused images clean themselves up.**
+
+Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md) (Session 1 continued).
+
+### Added
+
+- **Floorplan / select all** — **Ctrl+A** selects every object on the plan.
+- **Floorplan / bulk image tools** — with multiple elements selected, the properties panel sets one image across all of them (pick from library or **Choose from file…** upload), clears them to solid color, or **Reset to kind defaults** — each element re-adopts its kind's *current* default image, so re-running it after a kind default changes updates every instance to the newest image.
+- **Floorplan / single-element reset** — per-element **Reset to kind default** image action; upload buttons relabeled **Choose from file…** everywhere (instance panel + kind dialog).
+
+### Changed
+
+- **Floorplan / orphan image cleanup** — server-side sweep (**`apps/floorplan/services.purge_orphan_assets`**) hard-deletes image assets no active plan element or element kind references, with a 24h grace window for fresh uploads; runs after plan content saves, kind create/edit/delete, and asset delete (an unreferenced asset now deletes outright instead of lingering soft-deleted). Asset pickers refresh automatically after saves.
 
 ---
 

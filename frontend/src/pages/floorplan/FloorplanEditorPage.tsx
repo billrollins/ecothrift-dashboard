@@ -285,6 +285,45 @@ export default function FloorplanEditorPage() {
     dispatch({ type: 'commit', doc: ungroupObjects(current.doc, current.selection) });
   }, []);
 
+  const selectAll = useCallback(() => {
+    const doc = stateRef.current.doc;
+    const refs: SelectionRef[] = [
+      ...doc.elements.map((o) => ({ kind: 'element' as const, id: o.id })),
+      ...doc.zones.map((o) => ({ kind: 'zone' as const, id: o.id })),
+      ...doc.paths.map((o) => ({ kind: 'path' as const, id: o.id })),
+      ...doc.labels.map((o) => ({ kind: 'label' as const, id: o.id })),
+      ...doc.infoBlocks.map((o) => ({ kind: 'infoBlock' as const, id: o.id })),
+    ];
+    if (refs.length > 0) dispatch({ type: 'setSelection', selection: refs });
+  }, []);
+
+  /** Set (or clear, with null) the image on every selected element. */
+  const applyImageToSelection = useCallback((image: number | null) => {
+    const current = stateRef.current;
+    let doc = current.doc;
+    for (const ref of current.selection) {
+      if (ref.kind !== 'element') continue;
+      doc = updateObject(doc, ref, { image: image ?? undefined });
+    }
+    if (doc !== current.doc) dispatch({ type: 'commit', doc });
+  }, []);
+
+  /**
+   * Reset every selected element's image to its kind's CURRENT default —
+   * re-running this after a kind's default image changes adopts the new one.
+   */
+  const resetSelectionImages = useCallback(() => {
+    const current = stateRef.current;
+    let doc = current.doc;
+    for (const ref of current.selection) {
+      if (ref.kind !== 'element') continue;
+      const el = getObject(doc, ref) as PlanElement | undefined;
+      if (!el) continue;
+      doc = updateObject(doc, ref, { image: kindIndex[el.kind]?.image ?? undefined });
+    }
+    if (doc !== current.doc) dispatch({ type: 'commit', doc });
+  }, [kindIndex]);
+
   const alignSelection = useCallback((mode: AlignMode) => {
     const current = stateRef.current;
     if (current.selection.length < 2) return;
@@ -397,6 +436,11 @@ export default function FloorplanEditorPage() {
         dispatch({ type: 'redo' });
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        selectAll();
+        return;
+      }
       if (readOnly) return;
       if (e.ctrlKey || e.metaKey) {
         switch (e.key.toLowerCase()) {
@@ -485,7 +529,7 @@ export default function FloorplanEditorPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [doSave, deleteSelection, rotateSelection, zoomBy, readOnly, copySelection, cutSelection, pasteClipboard, duplicateSelection, groupSelection, ungroupSelection, nudgeSelection]);
+  }, [doSave, deleteSelection, rotateSelection, zoomBy, readOnly, copySelection, cutSelection, pasteClipboard, duplicateSelection, groupSelection, ungroupSelection, nudgeSelection, selectAll]);
 
   // ── Export ────────────────────────────────────────────────────────────────
 
@@ -642,6 +686,9 @@ export default function FloorplanEditorPage() {
           readOnly={readOnly}
           assets={assets}
           onUploadAsset={handleUploadAsset}
+          kindIndex={kindIndex}
+          onApplyImageToSelection={applyImageToSelection}
+          onResetSelectionImages={resetSelectionImages}
         />
       </Stack>
 

@@ -306,7 +306,7 @@ export default function ElementKindDialog({ open, kind, categories, assets, onUp
                   onClick={() => fileInputRef.current?.click()}
                   sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
                 >
-                  {uploading ? 'Uploading…' : 'Upload new image'}
+                  {uploading ? 'Uploading…' : 'Choose from file…'}
                 </Button>
               </>
             )}

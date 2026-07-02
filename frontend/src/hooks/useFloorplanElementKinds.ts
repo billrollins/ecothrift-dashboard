@@ -15,12 +15,19 @@ export function useFloorPlanElementKinds() {
   });
 }
 
+// Kind writes trigger a server-side orphan-image sweep, so the asset library
+// is refreshed alongside the catalog.
+function invalidateKindQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: elementKindsQueryKey });
+  queryClient.invalidateQueries({ queryKey: ['floorplan-assets'] });
+}
+
 export function useCreateFloorPlanElementKind() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: FloorPlanElementKindPayload) =>
       floorplanApi.createFloorPlanElementKind(payload).then((r) => r.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: elementKindsQueryKey }),
+    onSuccess: () => invalidateKindQueries(queryClient),
   });
 }
 
@@ -29,7 +36,7 @@ export function useUpdateFloorPlanElementKind() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: Partial<FloorPlanElementKindPayload> }) =>
       floorplanApi.updateFloorPlanElementKind(id, payload).then((r) => r.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: elementKindsQueryKey }),
+    onSuccess: () => invalidateKindQueries(queryClient),
   });
 }
 
@@ -37,6 +44,6 @@ export function useDeleteFloorPlanElementKind() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => floorplanApi.deleteFloorPlanElementKind(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: elementKindsQueryKey }),
+    onSuccess: () => invalidateKindQueries(queryClient),
   });
 }

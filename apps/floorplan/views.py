@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
 
 from .models import CURRENT_SCHEMA_VERSION, FloorPlan, FloorPlanAsset, FloorPlanElementKind
+from .services import purge_orphan_assets
 from .serializers import (
     FloorPlanAssetSerializer,
     FloorPlanAssetUploadSerializer,
@@ -82,6 +83,8 @@ class FloorPlanViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         if 'data' in request.data:
             serializer.save(revision=instance.revision + 1)
+            # References are current after a content save — sweep unused images.
+            purge_orphan_assets()
         else:
             serializer.save()
         return Response(serializer.data)
@@ -116,6 +119,12 @@ class FloorPlanElementKindViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+        purge_orphan_assets()
+
+    def perform_update(self, serializer):
+        serializer.save()
+        # Replacing a kind's default image can orphan the previous one.
+        purge_orphan_assets()
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -126,6 +135,7 @@ class FloorPlanElementKindViewSet(viewsets.ModelViewSet):
             )
         instance.is_active = False
         instance.save(update_fields=['is_active', 'updated_at'])
+        purge_orphan_assets()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -168,4 +178,7 @@ class FloorPlanAssetViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         instance.is_active = False
         instance.save(update_fields=['is_active', 'updated_at'])
+        # Hard-delete immediately when nothing references it (soft-deleted
+        # rows are exempt from the upload grace window).
+        purge_orphan_assets()
         return Response(status=status.HTTP_204_NO_CONTENT)

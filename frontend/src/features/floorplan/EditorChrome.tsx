@@ -79,7 +79,7 @@ import {
   type Viewport,
 } from './geometry';
 import { SNAP_OPTIONS } from './snapping';
-import { paletteCategories, type PaletteEntry } from './palette';
+import { paletteCategories, type PaletteEntry, type PaletteIndex } from './palette';
 import type { DrawStroke } from './FloorplanCanvas';
 
 /** Plan dimension limits (inches): 2 ft – 1000 ft, well under the backend cap. */
@@ -589,6 +589,12 @@ interface PropertiesPanelProps {
   assets?: FloorPlanAsset[];
   /** Uploads a file to the library; resolves to the new asset or null on failure */
   onUploadAsset?: (file: File) => Promise<FloorPlanAsset | null>;
+  /** Element kind catalog (for "reset to kind default" image actions) */
+  kindIndex?: PaletteIndex;
+  /** Sets (or clears with null) the image on every selected element */
+  onApplyImageToSelection?: (image: number | null) => void;
+  /** Resets every selected element's image to its kind's current default */
+  onResetSelectionImages?: () => void;
 }
 
 function ElementImagePicker({
@@ -597,12 +603,15 @@ function ElementImagePicker({
   onUploadAsset,
   patch,
   readOnly,
+  defaultImage,
 }: {
   element: PlanElement;
   assets: FloorPlanAsset[];
   onUploadAsset?: (file: File) => Promise<FloorPlanAsset | null>;
   patch: (p: Record<string, unknown>) => void;
   readOnly: boolean;
+  /** The element kind's current default image id, if any */
+  defaultImage?: number;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -673,10 +682,104 @@ function ElementImagePicker({
             onClick={() => fileInputRef.current?.click()}
             sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
           >
-            {uploading ? 'Uploading…' : 'Upload new image'}
+            {uploading ? 'Uploading…' : 'Choose from file…'}
           </Button>
         </>
       )}
+      {defaultImage !== element.image && (
+        <Button
+          size="small"
+          variant="text"
+          disabled={readOnly}
+          onClick={() => patch({ image: defaultImage })}
+          sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
+        >
+          Reset to kind default
+        </Button>
+      )}
+    </Stack>
+  );
+}
+
+/** Bulk image actions shown when multiple elements are selected. */
+function MultiElementImageTools({
+  count,
+  assets,
+  onUploadAsset,
+  onApplyImage,
+  onResetImages,
+}: {
+  count: number;
+  assets: FloorPlanAsset[];
+  onUploadAsset?: (file: File) => Promise<FloorPlanAsset | null>;
+  onApplyImage: (image: number | null) => void;
+  onResetImages?: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file || !onUploadAsset) return;
+    setUploading(true);
+    const asset = await onUploadAsset(file);
+    setUploading(false);
+    if (asset) onApplyImage(asset.id);
+  };
+
+  return (
+    <Stack spacing={0.75}>
+      <Divider />
+      <Typography variant="subtitle2">{`Image — ${count} element${count > 1 ? 's' : ''}`}</Typography>
+      <Select<number | ''>
+        size="small"
+        displayEmpty
+        value=""
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v !== '' && v != null) onApplyImage(Number(v));
+        }}
+        renderValue={() => 'Set image for all…'}
+        aria-label="Set image on all selected elements"
+      >
+        {assets.map((asset) => (
+          <MenuItem key={asset.id} value={asset.id}>
+            <Box component="img" src={asset.data} alt="" sx={{ width: 18, height: 18, objectFit: 'contain', mr: 1 }} />
+            {asset.name}
+          </MenuItem>
+        ))}
+      </Select>
+      {onUploadAsset && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/svg+xml,image/png,image/jpeg"
+            hidden
+            onChange={(e) => {
+              void handleFile(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<UploadFileIcon />}
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+            sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
+          >
+            {uploading ? 'Uploading…' : 'Choose from file…'}
+          </Button>
+        </>
+      )}
+      {onResetImages && (
+        <Button size="small" variant="text" onClick={onResetImages} sx={{ alignSelf: 'flex-start', textTransform: 'none' }}>
+          Reset to kind defaults
+        </Button>
+      )}
+      <Button size="small" variant="text" color="inherit" onClick={() => onApplyImage(null)} sx={{ alignSelf: 'flex-start', textTransform: 'none' }}>
+        Clear images (solid color)
+      </Button>
     </Stack>
   );
 }
@@ -705,8 +808,9 @@ function DimensionField({ label, value, onCommit, disabled }: { label: string; v
   );
 }
 
-export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [], onUploadAsset }: PropertiesPanelProps) {
+export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [], onUploadAsset, kindIndex, onApplyImageToSelection, onResetSelectionImages }: PropertiesPanelProps) {
   const { doc, selection } = state;
+  const selectedElementCount = selection.filter((s) => s.kind === 'element').length;
 
   if (selection.length !== 1) {
     const setPlanSize = (patch: Partial<Pick<PlanDocument['settings'], 'planWidth' | 'planHeight'>>) =>
@@ -766,11 +870,22 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
             </Typography>
           </Stack>
         ) : (
-          <Typography variant="body2" color="text.secondary">
-            {selectionIsGrouped(doc, selection)
-              ? `${selection.length} objects selected (grouped). They move and delete together; Ctrl+Shift+G to ungroup.`
-              : `${selection.length} objects selected. Drag to move, Delete to remove, Ctrl+G to group.`}
-          </Typography>
+          <Stack spacing={1.5}>
+            <Typography variant="body2" color="text.secondary">
+              {selectionIsGrouped(doc, selection)
+                ? `${selection.length} objects selected (grouped). They move and delete together; Ctrl+Shift+G to ungroup.`
+                : `${selection.length} objects selected. Drag to move, Delete to remove, Ctrl+G to group.`}
+            </Typography>
+            {selectedElementCount > 0 && !readOnly && onApplyImageToSelection && (
+              <MultiElementImageTools
+                count={selectedElementCount}
+                assets={assets}
+                onUploadAsset={onUploadAsset}
+                onApplyImage={onApplyImageToSelection}
+                onResetImages={onResetSelectionImages}
+              />
+            )}
+          </Stack>
         )}
       </Box>
     );
@@ -823,6 +938,7 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
                 onUploadAsset={onUploadAsset}
                 patch={patch}
                 readOnly={readOnly}
+                defaultImage={kindIndex?.[el.kind]?.image}
               />
             </>
           );
