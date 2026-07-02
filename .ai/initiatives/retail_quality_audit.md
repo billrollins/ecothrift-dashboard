@@ -1,5 +1,5 @@
-<!-- initiative: slug=retail_quality_audit status=active updated=2026-06-29 -->
-<!-- Last updated: 2026-06-29 -->
+<!-- initiative: slug=retail_quality_audit status=active updated=2026-07-02 -->
+<!-- Last updated: 2026-07-02 (Session 2 — forms list UX + JSON/YAML round-trip) -->
 # Initiative: Retail Quality Audit
 
 Mobile-first floor QA checklists under **Admin → Quality Audit**, starting with **Retail** (5 sections × 5 checks). Submitted audits store auditor + timestamp and feed the dashboard **Retail QA** grade card.
@@ -28,6 +28,12 @@ Mobile-first floor QA checklists under **Admin → Quality Audit**, starting wit
 ---
 
 ## Sessions
+
+### Session 2 — 2026-07-02
+
+- **Goal:** Clean up the QA Forms admin UX and add a JSON/YAML export/import round-trip so forms can be redesigned externally (e.g. by an AI) and re-imported.
+- **Updates:** `/admin/quality-audit/forms` split into a list-first page (**`QualityAuditFormListPage`** — rows with chips/counts, Edit / Export / Delete, New form + Import) and a decluttered editor (accordion sections, dropdown control picker, sticky save bar; no more blank editor under the list). **`qaFormFile.ts`** (`js-yaml`) handles export (JSON/YAML), tolerant import (missing ids generated, controls validated client-side), slug-match update-vs-create on import, and editor **Load from file**. Server `validate_definition` unchanged and still gates saves.
+- **Result:** Shipped **v2.43.0** (2026-07-02); QA forms tests 10 OK, vitest 213 OK, build green.
 
 ### Session 1 — 2026-06-29
 

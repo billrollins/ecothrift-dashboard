@@ -56,6 +56,7 @@ import AssumptionsPage from './pages/admin/AssumptionsPage';
 import QualityAuditHubPage from './pages/admin/QualityAuditHubPage';
 import QualityAuditWizardPage from './pages/admin/QualityAuditWizardPage';
 import QualityAuditFormEditorPage from './pages/admin/QualityAuditFormEditorPage';
+import QualityAuditFormListPage from './pages/admin/QualityAuditFormListPage';
 import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
@@ -262,7 +263,7 @@ export default function App() {
           path="/admin/quality-audit/forms"
           element={
             <SuperAdminRoute>
-              <QualityAuditFormEditorPage />
+              <QualityAuditFormListPage />
             </SuperAdminRoute>
           }
         />

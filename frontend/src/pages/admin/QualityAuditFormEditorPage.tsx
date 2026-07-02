@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -8,26 +11,29 @@ import {
   CardContent,
   Chip,
   IconButton,
+  Menu,
+  MenuItem,
   Stack,
   Switch,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
+  Tooltip,
   Typography,
   alpha,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import DeleteOutlineIcon from '@mui/icons-material/Delete';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import {
   useCreateQualityAuditForm,
   useDeleteQualityAuditForm,
   useQualityAuditForm,
-  useQualityAuditForms,
   useUpdateQualityAuditForm,
 } from '../../hooks/useQualityAuditForms';
 import { useSnackbar } from 'notistack';
@@ -37,8 +43,8 @@ import {
   type QaFormDefinition,
   type QaFormDefinitionCheck,
   type QaFormDefinitionSection,
-  type QualityAuditFormSummary,
 } from '../../types/qualityAudit.types';
+import { downloadQaForm, parseQaFormFile, qaFormToFileObject, serializeQaForm } from './qaFormFile';
 
 let idCounter = 0;
 function newId(prefix: string): string {
@@ -60,11 +66,10 @@ export default function QualityAuditFormEditorPage() {
   const { formId } = useParams<{ formId: string }>();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
-  const editingId = formId ? Number.parseInt(formId, 10) : null;
-  const isCreating = !Number.isFinite(editingId);
+  const editingId = formId && formId !== 'new' ? Number.parseInt(formId, 10) : null;
+  const isCreating = editingId == null || !Number.isFinite(editingId);
 
-  const { data: list } = useQualityAuditForms();
-  const { data: existing, isLoading } = useQualityAuditForm(Number.isFinite(editingId) ? editingId : null);
+  const { data: existing, isLoading } = useQualityAuditForm(isCreating ? null : editingId);
   const createForm = useCreateQualityAuditForm();
   const updateForm = useUpdateQualityAuditForm();
   const deleteForm = useDeleteQualityAuditForm();
@@ -77,6 +82,9 @@ export default function QualityAuditFormEditorPage() {
   const [definition, setDefinition] = useState<QaFormDefinition>(emptyDefinition());
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isCreating) {
@@ -85,7 +93,9 @@ export default function QualityAuditFormEditorPage() {
       setIntro('');
       setIcon('');
       setIsActive(true);
-      setDefinition(emptyDefinition());
+      const def = emptyDefinition();
+      setDefinition(def);
+      setExpandedSection(def.sections[0].id);
     }
   }, [isCreating]);
 
@@ -96,58 +106,75 @@ export default function QualityAuditFormEditorPage() {
     setIntro(existing.intro);
     setIcon(existing.icon);
     setIsActive(existing.is_active);
-    setDefinition(existing.definition || emptyDefinition());
+    const def = existing.definition || emptyDefinition();
+    setDefinition(def);
+    setExpandedSection(def.sections[0]?.id ?? null);
   }, [existing]);
 
   const locked = Boolean(existing?.is_system);
   const feedsDashboard = Boolean(existing?.feeds_dashboard);
 
-  function updateDefinition(next: QaFormDefinition) {
-    setDefinition(next);
-  }
-
   function patchSection(sectionIndex: number, patch: Partial<QaFormDefinitionSection>) {
-    updateDefinition({
-      ...definition,
-      sections: definition.sections.map((s, i) => (i === sectionIndex ? { ...s, ...patch } : s)),
-    });
+    setDefinition((def) => ({
+      ...def,
+      sections: def.sections.map((s, i) => (i === sectionIndex ? { ...s, ...patch } : s)),
+    }));
   }
   function moveSection(index: number, dir: -1 | 1) {
-    const target = index + dir;
-    if (target < 0 || target >= definition.sections.length) return;
-    const sections = [...definition.sections];
-    [sections[index], sections[target]] = [sections[target], sections[index]];
-    updateDefinition({ ...definition, sections });
+    setDefinition((def) => {
+      const target = index + dir;
+      if (target < 0 || target >= def.sections.length) return def;
+      const sections = [...def.sections];
+      [sections[index], sections[target]] = [sections[target], sections[index]];
+      return { ...def, sections };
+    });
   }
   function addSection() {
-    updateDefinition({ ...definition, sections: [...definition.sections, emptySection()] });
+    const section = emptySection();
+    setDefinition((def) => ({ ...def, sections: [...def.sections, section] }));
+    setExpandedSection(section.id);
   }
   function removeSection(index: number) {
-    if (definition.sections.length <= 1) return;
-    updateDefinition({ ...definition, sections: definition.sections.filter((_, i) => i !== index) });
+    setDefinition((def) =>
+      def.sections.length <= 1 ? def : { ...def, sections: def.sections.filter((_, i) => i !== index) });
   }
 
   function patchCheck(sectionIndex: number, checkIndex: number, patch: Partial<QaFormDefinitionCheck>) {
-    const section = definition.sections[sectionIndex];
-    const checks = section.checks.map((c, i) => (i === checkIndex ? { ...c, ...patch } : c));
-    patchSection(sectionIndex, { checks });
+    setDefinition((def) => {
+      const section = def.sections[sectionIndex];
+      const checks = section.checks.map((c, i) => (i === checkIndex ? { ...c, ...patch } : c));
+      return { ...def, sections: def.sections.map((s, i) => (i === sectionIndex ? { ...s, checks } : s)) };
+    });
   }
   function moveCheck(sectionIndex: number, checkIndex: number, dir: -1 | 1) {
-    const section = definition.sections[sectionIndex];
-    const target = checkIndex + dir;
-    if (target < 0 || target >= section.checks.length) return;
-    const checks = [...section.checks];
-    [checks[checkIndex], checks[target]] = [checks[target], checks[checkIndex]];
-    patchSection(sectionIndex, { checks });
+    setDefinition((def) => {
+      const section = def.sections[sectionIndex];
+      const target = checkIndex + dir;
+      if (target < 0 || target >= section.checks.length) return def;
+      const checks = [...section.checks];
+      [checks[checkIndex], checks[target]] = [checks[target], checks[checkIndex]];
+      return { ...def, sections: def.sections.map((s, i) => (i === sectionIndex ? { ...s, checks } : s)) };
+    });
   }
   function addCheck(sectionIndex: number) {
-    const section = definition.sections[sectionIndex];
-    patchSection(sectionIndex, { checks: [...section.checks, emptyCheck()] });
+    setDefinition((def) => {
+      const section = def.sections[sectionIndex];
+      return {
+        ...def,
+        sections: def.sections.map((s, i) => (i === sectionIndex ? { ...s, checks: [...section.checks, emptyCheck()] } : s)),
+      };
+    });
   }
   function removeCheck(sectionIndex: number, checkIndex: number) {
-    const section = definition.sections[sectionIndex];
-    if (section.checks.length <= 1) return;
-    patchSection(sectionIndex, { checks: section.checks.filter((_, i) => i !== checkIndex) });
+    setDefinition((def) => {
+      const section = def.sections[sectionIndex];
+      if (section.checks.length <= 1) return def;
+      return {
+        ...def,
+        sections: def.sections.map((s, i) =>
+          i === sectionIndex ? { ...s, checks: section.checks.filter((_, ci) => ci !== checkIndex) } : s),
+      };
+    });
   }
 
   const totalChecks = useMemo(
@@ -155,9 +182,18 @@ export default function QualityAuditFormEditorPage() {
     [definition],
   );
 
+  const draftAsForm = () => ({
+    slug: slug.trim(),
+    title: title.trim(),
+    intro: intro.trim(),
+    icon: icon.trim(),
+    is_active: isActive,
+    definition,
+  });
+
   async function handleSave() {
     setSaveError(null);
-    const input = { slug: slug.trim(), title: title.trim(), intro: intro.trim(), icon: icon.trim(), definition, is_active: isActive };
+    const input = draftAsForm();
     try {
       if (isCreating) {
         const created = await createForm.mutateAsync(input);
@@ -184,7 +220,7 @@ export default function QualityAuditFormEditorPage() {
       await deleteForm.mutateAsync(deleteTarget.id);
       enqueueSnackbar('Form deleted.', { variant: 'success' });
       setDeleteTarget(null);
-      if (editingId === deleteTarget.id) navigate('/admin/quality-audit/forms', { replace: true });
+      navigate('/admin/quality-audit/forms', { replace: true });
     } catch (err: unknown) {
       const data = (err as { response?: { data?: { detail?: string } } })?.response?.data;
       enqueueSnackbar(data?.detail ?? 'Could not delete form.', { variant: 'error' });
@@ -192,39 +228,98 @@ export default function QualityAuditFormEditorPage() {
     }
   }
 
+  // ── Export / import of the current draft ───────────────────────────────────
+
+  function handleExportDraft(format: 'json' | 'yaml') {
+    setExportAnchor(null);
+    const file = qaFormToFileObject(draftAsForm());
+    const text = serializeQaForm(file, format);
+    const blob = new Blob([text], { type: format === 'json' ? 'application/json' : 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `qa-form-${file.slug || 'draft'}.${format === 'json' ? 'json' : 'yaml'}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleLoadFromFile(file: File | undefined) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = parseQaFormFile(String(reader.result ?? ''));
+        setTitle(parsed.file.title);
+        setIntro(parsed.file.intro);
+        setIcon(parsed.file.icon);
+        setIsActive(parsed.file.is_active);
+        if (!locked && parsed.file.slug) setSlug(parsed.file.slug);
+        setDefinition(parsed.file.definition);
+        setExpandedSection(parsed.file.definition.sections[0]?.id ?? null);
+        enqueueSnackbar(
+          `Loaded "${parsed.file.title}" (${parsed.sectionCount} sections, ${parsed.checkCount} checks). Review and save.`,
+          { variant: 'info' },
+        );
+      } catch (err) {
+        enqueueSnackbar(err instanceof Error ? err.message : 'Could not read the file.', { variant: 'error' });
+      }
+    };
+    reader.onerror = () => enqueueSnackbar('Could not read the file.', { variant: 'error' });
+    reader.readAsText(file);
+  }
+
   if (isLoading) {
     return <LoadingScreen message="Loading form…" />;
   }
 
+  const saving = createForm.isPending || updateForm.isPending;
+
   return (
-    <Box sx={{ maxWidth: 820, mx: 'auto' }}>
+    <Box sx={{ maxWidth: 820, mx: 'auto', pb: 12 }}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-        <IconButton onClick={() => navigate('/admin/quality-audit/forms')} sx={{ minHeight: 44 }}>
+        <IconButton onClick={() => navigate('/admin/quality-audit/forms')} sx={{ minHeight: 44 }} aria-label="Back to forms">
           <ArrowBackIcon />
         </IconButton>
-        <Typography variant="h5" fontWeight={800}>
-          {isCreating ? 'New QA form' : 'Edit QA form'}
-        </Typography>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h5" fontWeight={800} noWrap>
+            {isCreating ? 'New QA form' : title || 'Edit QA form'}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {definition.sections.length} sections · {totalChecks} checks
+          </Typography>
+        </Box>
         <Box sx={{ flex: 1 }} />
-        {existing ? (
-          <Stack direction="row" spacing={0.75} flexWrap="wrap">
-            {locked ? <Chip size="small" label="System" color="warning" /> : null}
-            {feedsDashboard ? <Chip size="small" label="Feeds dashboard" color="primary" /> : null}
-            {existing.is_active ? null : <Chip size="small" label="Inactive" color="default" />}
-          </Stack>
-        ) : null}
+        <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+          {locked ? <Chip size="small" label="System" color="warning" variant="outlined" /> : null}
+          {feedsDashboard ? <Chip size="small" label="Feeds dashboard" color="primary" variant="outlined" /> : null}
+          {existing && !existing.is_active ? <Chip size="small" label="Inactive" /> : null}
+        </Stack>
+        <Tooltip title="Export this draft (JSON / YAML)">
+          <IconButton onClick={(e) => setExportAnchor(e.currentTarget)} sx={{ minHeight: 44 }} aria-label="Export form">
+            <FileDownloadIcon />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Load draft from a JSON / YAML file">
+          <IconButton onClick={() => importInputRef.current?.click()} sx={{ minHeight: 44 }} aria-label="Load form from file">
+            <FileUploadIcon />
+          </IconButton>
+        </Tooltip>
       </Stack>
 
-      {/* Forms index list */}
-      {isCreating && list ? (
-        <Box sx={{ mb: 3 }}>
-          <FormsIndex
-            forms={list}
-            onEdit={(id) => navigate(`/admin/quality-audit/forms/${id}`)}
-            onDelete={(form) => setDeleteTarget(form)}
-          />
-        </Box>
-      ) : null}
+      <Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}>
+        <MenuItem onClick={() => handleExportDraft('json')}>Export as JSON</MenuItem>
+        <MenuItem onClick={() => handleExportDraft('yaml')}>Export as YAML</MenuItem>
+      </Menu>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".json,.yaml,.yml,application/json,text/yaml"
+        hidden
+        onChange={(e) => {
+          handleLoadFromFile(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
 
       <Card variant="outlined" sx={{ borderRadius: 3, mb: 2 }}>
         <CardContent>
@@ -276,22 +371,23 @@ export default function QualityAuditFormEditorPage() {
       </Card>
 
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-        <Typography variant="subtitle1" fontWeight={800}>
-          Sections ({definition.sections.length}) · {totalChecks} checks
-        </Typography>
+        <Typography variant="subtitle1" fontWeight={800}>Sections</Typography>
         <Button startIcon={<AddIcon />} onClick={addSection} sx={{ minHeight: 44 }}>
           Add section
         </Button>
       </Stack>
 
-      <Stack spacing={1.5}>
+      <Stack spacing={1}>
         {definition.sections.map((section, sIndex) => (
           <SectionEditor
             key={section.id}
             section={section}
             sectionNumber={sIndex + 1}
+            expanded={expandedSection === section.id}
+            onToggle={() => setExpandedSection(expandedSection === section.id ? null : section.id)}
             canMoveUp={sIndex > 0}
             canMoveDown={sIndex < definition.sections.length - 1}
+            canRemove={definition.sections.length > 1}
             onPatch={(patch) => patchSection(sIndex, patch)}
             onMove={(dir) => moveSection(sIndex, dir)}
             onRemove={() => removeSection(sIndex)}
@@ -305,21 +401,47 @@ export default function QualityAuditFormEditorPage() {
 
       {saveError ? <Alert severity="error" sx={{ mt: 2 }}>{saveError}</Alert> : null}
 
-      <Stack direction="row" spacing={1.5} sx={{ mt: 2, pb: 4 }} flexWrap="wrap">
-        <Button variant="contained" onClick={handleSave} disabled={createForm.isPending || updateForm.isPending} sx={{ minHeight: 48, fontWeight: 800, px: 4 }}>
-          {createForm.isPending || updateForm.isPending ? 'Saving…' : 'Save form'}
+      {/* Sticky action bar */}
+      <Box
+        sx={{
+          position: 'sticky',
+          bottom: 0,
+          mt: 2,
+          py: 1.5,
+          px: 2,
+          mx: -2,
+          display: 'flex',
+          gap: 1.5,
+          alignItems: 'center',
+          bgcolor: 'background.paper',
+          borderTop: 1,
+          borderColor: 'divider',
+          zIndex: 2,
+        }}
+      >
+        <Button
+          variant="contained"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          sx={{ minHeight: 48, fontWeight: 800, px: 4 }}
+        >
+          {saving ? 'Saving…' : isCreating ? 'Create form' : 'Save form'}
         </Button>
+        <Button onClick={() => navigate('/admin/quality-audit/forms')} sx={{ minHeight: 48 }}>
+          Cancel
+        </Button>
+        <Box sx={{ flex: 1 }} />
         {existing && !locked ? (
           <Button
-            variant="outlined"
+            variant="text"
             color="error"
             onClick={() => setDeleteTarget(existing)}
             sx={{ minHeight: 48 }}
           >
-            Delete
+            Delete form
           </Button>
         ) : null}
-      </Stack>
+      </Box>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
@@ -335,72 +457,16 @@ export default function QualityAuditFormEditorPage() {
   );
 }
 
-// ── Forms index list ────────────────────────────────────────────────────────
-
-function FormsIndex({
-  forms,
-  onEdit,
-  onDelete,
-}: {
-  forms: QualityAuditFormSummary[];
-  onEdit: (id: number) => void;
-  onDelete: (form: { id: number; title: string }) => void;
-}) {
-  const navigate = useNavigate();
-  return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
-      <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-          <Typography variant="subtitle1" fontWeight={800}>Existing forms</Typography>
-          <Button startIcon={<AddIcon />} onClick={() => navigate('/admin/quality-audit/forms/new')} sx={{ minHeight: 44 }}>
-            New form
-          </Button>
-        </Stack>
-        <Stack spacing={1}>
-          {forms.map((form) => (
-            <Stack
-              key={form.id}
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              sx={{ p: 1.25, borderRadius: 2, border: 1, borderColor: 'divider' }}
-            >
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
-                  <Typography fontWeight={700} noWrap>{form.title}</Typography>
-                  <Typography variant="caption" color="text.secondary">/{form.slug}</Typography>
-                  {form.is_system ? <Chip size="small" label="System" color="warning" /> : null}
-                  {form.feeds_dashboard ? <Chip size="small" label="Dashboard" color="primary" /> : null}
-                  {!form.is_active ? <Chip size="small" label="Inactive" /> : null}
-                </Stack>
-                <Typography variant="caption" color="text.secondary">
-                  {form.section_count} sections · {form.check_count} checks
-                </Typography>
-              </Box>
-              <Button size="small" onClick={() => onEdit(form.id)} sx={{ minHeight: 44 }}>Edit</Button>
-              {!form.is_system ? (
-                <IconButton size="small" onClick={() => onDelete(form)} sx={{ minHeight: 44 }}>
-                  <DeleteOutlineIcon />
-                </IconButton>
-              ) : null}
-            </Stack>
-          ))}
-        </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          Editing below creates a brand-new form. To edit an existing one, pick it from the list above.
-        </Typography>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Section editor ──────────────────────────────────────────────────────────
+// ── Section editor (collapsible) ────────────────────────────────────────────
 
 function SectionEditor({
   section,
   sectionNumber,
+  expanded,
+  onToggle,
   canMoveUp,
   canMoveDown,
+  canRemove,
   onPatch,
   onMove,
   onRemove,
@@ -411,8 +477,11 @@ function SectionEditor({
 }: {
   section: QaFormDefinitionSection;
   sectionNumber: number;
+  expanded: boolean;
+  onToggle: () => void;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  canRemove: boolean;
   onPatch: (patch: Partial<QaFormDefinitionSection>) => void;
   onMove: (dir: -1 | 1) => void;
   onRemove: () => void;
@@ -422,15 +491,50 @@ function SectionEditor({
   onRemoveCheck: (checkIndex: number) => void;
 }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3 }}>
-      <CardContent>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-          <Typography variant="overline" color="text.secondary">Section {sectionNumber}</Typography>
-          <Box sx={{ flex: 1 }} />
-          <IconButton size="small" disabled={!canMoveUp} onClick={() => onMove(-1)}><ArrowUpwardIcon fontSize="small" /></IconButton>
-          <IconButton size="small" disabled={!canMoveDown} onClick={() => onMove(1)}><ArrowDownwardIcon fontSize="small" /></IconButton>
-          <IconButton size="small" onClick={onRemove}><DeleteOutlineIcon fontSize="small" /></IconButton>
-        </Stack>
+    <Accordion
+      variant="outlined"
+      disableGutters
+      expanded={expanded}
+      onChange={onToggle}
+      sx={{ borderRadius: '12px !important', '&::before': { display: 'none' } }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ '& .MuiAccordionSummary-content': { alignItems: 'center', gap: 1, minWidth: 0 } }}>
+        <Typography variant="overline" color="text.secondary" sx={{ flexShrink: 0 }}>
+          {sectionNumber}
+        </Typography>
+        <Typography fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0 }}>
+          {section.title || 'Untitled section'}
+        </Typography>
+        <Chip size="small" label={`${section.checks.length} checks`} sx={{ mr: 0.5 }} />
+        <IconButton
+          size="small"
+          component="span"
+          disabled={!canMoveUp}
+          onClick={(e) => { e.stopPropagation(); onMove(-1); }}
+          aria-label="Move section up"
+        >
+          <ArrowUpwardIcon fontSize="small" />
+        </IconButton>
+        <IconButton
+          size="small"
+          component="span"
+          disabled={!canMoveDown}
+          onClick={(e) => { e.stopPropagation(); onMove(1); }}
+          aria-label="Move section down"
+        >
+          <ArrowDownwardIcon fontSize="small" />
+        </IconButton>
+        <IconButton
+          size="small"
+          component="span"
+          disabled={!canRemove}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          aria-label="Delete section"
+        >
+          <DeleteOutlineIcon fontSize="small" />
+        </IconButton>
+      </AccordionSummary>
+      <AccordionDetails>
         <Stack spacing={1.5}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <TextField
@@ -464,6 +568,7 @@ function SectionEditor({
                 checkNumber={ci + 1}
                 canMoveUp={ci > 0}
                 canMoveDown={ci < section.checks.length - 1}
+                canRemove={section.checks.length > 1}
                 onPatch={(patch) => onPatchCheck(ci, patch)}
                 onMove={(dir) => onMoveCheck(ci, dir)}
                 onRemove={() => onRemoveCheck(ci)}
@@ -475,8 +580,8 @@ function SectionEditor({
             Add check
           </Button>
         </Stack>
-      </CardContent>
-    </Card>
+      </AccordionDetails>
+    </Accordion>
   );
 }
 
@@ -487,6 +592,7 @@ function CheckEditor({
   checkNumber,
   canMoveUp,
   canMoveDown,
+  canRemove,
   onPatch,
   onMove,
   onRemove,
@@ -495,6 +601,7 @@ function CheckEditor({
   checkNumber: number;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  canRemove: boolean;
   onPatch: (patch: Partial<QaFormDefinitionCheck>) => void;
   onMove: (dir: -1 | 1) => void;
   onRemove: () => void;
@@ -505,8 +612,7 @@ function CheckEditor({
   const options = check.options || [];
 
   function patchOption(index: number, value: string) {
-    const next = options.map((o, i) => (i === index ? value : o));
-    onPatch({ options: next });
+    onPatch({ options: options.map((o, i) => (i === index ? value : o)) });
   }
   function addOption() {
     onPatch({ options: [...options, ''] });
@@ -520,18 +626,38 @@ function CheckEditor({
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
         <Typography variant="overline" color="text.secondary">Check {checkNumber}</Typography>
         <Box sx={{ flex: 1 }} />
-        <IconButton size="small" disabled={!canMoveUp} onClick={() => onMove(-1)}><ArrowUpwardIcon fontSize="small" /></IconButton>
-        <IconButton size="small" disabled={!canMoveDown} onClick={() => onMove(1)}><ArrowDownwardIcon fontSize="small" /></IconButton>
-        <IconButton size="small" onClick={onRemove}><DeleteOutlineIcon fontSize="small" /></IconButton>
+        <IconButton size="small" disabled={!canMoveUp} onClick={() => onMove(-1)} aria-label="Move check up">
+          <ArrowUpwardIcon fontSize="small" />
+        </IconButton>
+        <IconButton size="small" disabled={!canMoveDown} onClick={() => onMove(1)} aria-label="Move check down">
+          <ArrowDownwardIcon fontSize="small" />
+        </IconButton>
+        <IconButton size="small" disabled={!canRemove} onClick={onRemove} aria-label="Delete check">
+          <DeleteOutlineIcon fontSize="small" />
+        </IconButton>
       </Stack>
       <Stack spacing={1.25}>
-        <TextField
-          label="Check label"
-          value={check.label}
-          onChange={(e) => onPatch({ label: e.target.value })}
-          size="small"
-          fullWidth
-        />
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
+          <TextField
+            label="Check label"
+            value={check.label}
+            onChange={(e) => onPatch({ label: e.target.value })}
+            size="small"
+            sx={{ flex: 2 }}
+          />
+          <TextField
+            select
+            label="Control"
+            value={control}
+            onChange={(e) => onPatch({ control: e.target.value as QaControlKind })}
+            size="small"
+            sx={{ flex: 1, minWidth: 190 }}
+          >
+            {QA_CONTROL_CATALOG.map((m) => (
+              <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
+            ))}
+          </TextField>
+        </Stack>
         <TextField
           label="Hint (what good looks like)"
           value={check.hint || ''}
@@ -539,28 +665,6 @@ function CheckEditor({
           size="small"
           fullWidth
         />
-        <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-            Feedback control
-          </Typography>
-          <ToggleButtonGroup
-            exclusive
-            size="small"
-            value={control}
-            sx={{ flexWrap: 'wrap', maxWidth: '100%', '& .MuiToggleButtonGroup-grouped': { minHeight: 40 } }}
-          >
-            {QA_CONTROL_CATALOG.map((m) => (
-              <ToggleButton
-                key={m.value}
-                value={m.value}
-                onClick={() => onPatch({ control: m.value })}
-                sx={{ py: 0.5, px: 1.25, textTransform: 'none', fontWeight: 600, fontSize: '0.75rem' }}
-              >
-                {m.label}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-        </Box>
         {needsOptions ? (
           <Box>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
@@ -575,7 +679,9 @@ function CheckEditor({
                     size="small"
                     sx={{ flex: 1 }}
                   />
-                  <IconButton size="small" onClick={() => removeOption(i)}><DeleteOutlineIcon fontSize="small" /></IconButton>
+                  <IconButton size="small" onClick={() => removeOption(i)} aria-label="Remove option">
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
                 </Stack>
               ))}
               <Button size="small" startIcon={<AddIcon />} onClick={addOption} sx={{ alignSelf: 'flex-start', minHeight: 40 }}>

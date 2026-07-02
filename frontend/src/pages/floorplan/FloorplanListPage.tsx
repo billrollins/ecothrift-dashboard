@@ -57,6 +57,9 @@ export default function FloorplanListPage() {
   const [renameTarget, setRenameTarget] = useState<FloorPlanListItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<FloorPlanListItem | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const deleteConfirmed =
+    deleteTarget != null && deleteConfirmText.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase();
 
   const locations = locationsQuery.data?.results ?? [];
 
@@ -86,11 +89,16 @@ export default function FloorplanListPage() {
     );
   };
 
+  const closeDeleteDialog = () => {
+    setDeleteTarget(null);
+    setDeleteConfirmText('');
+  };
+
   const handleDelete = () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !deleteConfirmed) return;
     deleteMutation.mutate(deleteTarget.id, {
       onSuccess: () => {
-        setDeleteTarget(null);
+        closeDeleteDialog();
         enqueueSnackbar('Floorplan deleted.', { variant: 'success' });
       },
       onError: () => enqueueSnackbar('Failed to delete floorplan.', { variant: 'error' }),
@@ -221,17 +229,37 @@ export default function FloorplanListPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Delete dialog */}
-      <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)}>
+      {/* Delete dialog — requires typing the plan name to arm the button */}
+      <Dialog open={Boolean(deleteTarget)} onClose={closeDeleteDialog} fullWidth maxWidth="xs">
         <DialogTitle>Delete floorplan?</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            “{deleteTarget?.name}” will be removed from the list. This cannot be undone from the app.
+          <DialogContentText sx={{ mb: 2 }}>
+            “{deleteTarget?.name}” and everything drawn on it will be removed. This cannot be
+            undone from the app. Type the floorplan name to confirm.
           </DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label="Floorplan name"
+            placeholder={deleteTarget?.name ?? ''}
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            error={deleteConfirmText.length > 0 && !deleteConfirmed}
+            helperText={deleteConfirmText.length > 0 && !deleteConfirmed ? 'Name does not match.' : ' '}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && deleteConfirmed) handleDelete();
+            }}
+          />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={handleDelete} disabled={deleteMutation.isPending}>
+          <Button onClick={closeDeleteDialog}>Cancel</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleDelete}
+            disabled={!deleteConfirmed || deleteMutation.isPending}
+          >
             Delete
           </Button>
         </DialogActions>

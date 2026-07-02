@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-07-02 (floorplan DB palette) -->
+<!-- Last updated: 2026-07-02 (QA forms list + file round-trip) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-07-02 (v2.43.0) — Admin / QA forms:** **`QualityAuditFormListPage`** (list-first `/admin/quality-audit/forms`; editor only via Edit/New); editor decluttered (accordion sections, control dropdown, sticky save bar); **`qaFormFile.ts`** JSON/YAML export + tolerant import (`js-yaml`; missing ids generated, slug-match update-vs-create, editor Load-from-file).
 
 **2026-07-02 (Unreleased) — Floorplan / DB palette:** palette/legend/canvas resolve element kinds via **`useFloorPlanElementKinds`** + `kindIndex` (static `palette.ts` array is a loading placeholder only); sharp rect corners default, per-kind `corner_radius`/circle; Super Admin **`ElementKindDialog`** from the palette sidebar; legacy "Custom" asset palette section removed.
 

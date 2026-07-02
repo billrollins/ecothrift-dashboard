@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.42.0] — 2026-07-02 -->
-<!-- Last reviewed: 2026-07-02 (floorplan image lifecycle + bulk selection) -->
+<!-- Line 1 release: ## [2.43.0] — 2026-07-02 -->
+<!-- Last reviewed: 2026-07-02 (QA forms list UX + JSON/YAML round-trip) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,24 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.43.0] — 2026-07-02
+
+User-facing theme: **QA Forms get a clean list-first admin page and a JSON/YAML round-trip — export a form, redesign it (or hand it to an AI), and import it back.**
+
+Initiative: [`.ai/initiatives/retail_quality_audit.md`](.ai/initiatives/retail_quality_audit.md).
+
+### Added
+
+- **Admin / QA form export + import** — every form exports as **JSON or YAML** (list row menu, or the editor header for the current draft); **Import** on the list page parses either format, generates any missing section/check ids, previews sections/checks, and creates a new form or (on slug match) updates the existing one; the editor's **Load from file** replaces the current draft for review before saving. New **`qaFormFile.ts`** helpers (`js-yaml`); server-side `validate_definition` still gates every save.
+
+### Changed
+
+- **Admin / QA Forms page** — **`/admin/quality-audit/forms`** is now a clean list page (**`QualityAuditFormListPage`**): form rows with status chips, section/check counts, Edit / Export / Delete actions, and New form + Import up top. The editor no longer renders a blank form under the list — it opens only via **Edit** or **New form**.
+- **Admin / QA form editor** — decluttered: sections are collapsible accordions (title + check count + reorder/delete in the header, one open at a time), the 15-button control picker is a compact dropdown, and Save/Cancel/Delete live in a sticky action bar.
+- **Floorplan / delete guard** — deleting a floorplan now requires typing its name to arm the Delete button (`FloorplanListPage` type-to-confirm dialog).
 
 ---
 
