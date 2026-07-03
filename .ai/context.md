@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-03 (inventory check-in + floorplan is_wall WIP) -->
+<!-- Last updated: 2026-07-03 (catalog product check-in hotfix) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary

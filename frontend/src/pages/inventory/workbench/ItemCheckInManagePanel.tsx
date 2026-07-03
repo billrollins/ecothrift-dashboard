@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import {
   Box,
@@ -20,7 +20,7 @@ import {
   productCheckIn,
   processingUpdateItemCheckIn,
 } from '../../../api/inventory.api';
-import type { ProductCheckInOrderOption } from '../../../api/inventory.api';
+import type { ProductCheckInOrderOption, ProductCheckInResponse } from '../../../api/inventory.api';
 import type { ItemCheckInCatalog, ItemCondition, Product } from '../../../types/inventory.types';
 import { moneyValuesEqual } from '../../../utils/formInputs';
 import type { WorkbenchSelection } from '../../../utils/richInventorySearch';
@@ -74,6 +74,54 @@ export interface ItemCheckInManagePanelProps {
 function strDefault(v: unknown): string {
   if (v == null || v === '') return '';
   return String(v);
+}
+
+async function handleProductCheckInCreated(
+  data: ProductCheckInResponse,
+  doPrint: boolean,
+  ctx: {
+    enqueueSnackbar: (msg: string, opts?: { variant?: 'success' | 'warning' | 'error' }) => void;
+    queryClient: QueryClient;
+    onDone?: (checkInId: number) => void;
+  },
+): Promise<boolean> {
+  if (!data.created_count || !data.item_check_in_id) {
+    ctx.enqueueSnackbar('Check-in did not create any items.', { variant: 'error' });
+    return false;
+  }
+
+  if (doPrint && data.printed_items_preview?.length) {
+    const result = await printProcessingLabelsAndMarkPrinted(
+      printedPreviewToLabelInputs(data.printed_items_preview),
+    );
+    if (result.failed > 0) {
+      ctx.enqueueSnackbar(
+        `Created check-in with ${data.created_count}; ${result.failed} label(s) failed`,
+        { variant: 'warning' },
+      );
+    } else if (result.succeeded > 0) {
+      ctx.enqueueSnackbar(
+        `Created check-in with ${data.created_count} and printed ${result.succeeded} label(s)`,
+        { variant: 'success' },
+      );
+    }
+    if (result.markFailed) {
+      ctx.enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
+    }
+  } else if (doPrint) {
+    ctx.enqueueSnackbar(
+      `Created check-in with ${data.created_count} item(s), but no label data was returned for printing.`,
+      { variant: 'warning' },
+    );
+  } else {
+    ctx.enqueueSnackbar(`Created check-in with ${data.created_count} item(s).`, { variant: 'success' });
+  }
+
+  await ctx.queryClient.invalidateQueries({ queryKey: ['item-check-ins'] });
+  await ctx.queryClient.invalidateQueries({ queryKey: ['items'] });
+  await ctx.queryClient.invalidateQueries({ queryKey: ['products'] });
+  ctx.onDone?.(data.item_check_in_id);
+  return true;
 }
 
 function normalizeProcessingDispatch(raw: string | null | undefined): string {
@@ -354,26 +402,15 @@ function ItemCheckInEditPanel({
       return { data, doPrint };
     },
     onSuccess: async ({ data, doPrint }) => {
-      if (doPrint && data.printed_items_preview?.length) {
-        const result = await printProcessingLabelsAndMarkPrinted(
-          printedPreviewToLabelInputs(data.printed_items_preview),
-        );
-        if (result.failed > 0) {
-          enqueueSnackbar(`Created check-in with ${data.created_count}; ${result.failed} label(s) failed`, { variant: 'warning' });
-        } else if (result.succeeded > 0) {
-          enqueueSnackbar(`Created check-in with ${data.created_count} and printed ${result.succeeded} label(s)`, { variant: 'success' });
-        }
-        if (result.markFailed) {
-          enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
-        }
-      } else {
-        enqueueSnackbar(`Created check-in with ${data.created_count} item(s).`, { variant: 'success' });
-      }
-      await queryClient.invalidateQueries({ queryKey: ['item-check-ins'] });
-      await queryClient.invalidateQueries({ queryKey: ['items'] });
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
-      setIsDuplicateDraft(false);
-      if (data.item_check_in_id) onCheckInDuplicated?.(data.item_check_in_id);
+      const ok = await handleProductCheckInCreated(data, doPrint, {
+        enqueueSnackbar,
+        queryClient,
+        onDone: (checkInId) => {
+          setIsDuplicateDraft(false);
+          onCheckInDuplicated?.(checkInId);
+        },
+      });
+      if (!ok) return;
     },
     onError: (err: unknown) => {
       if (err instanceof Error && err.message === 'Shelf price is required.') {
@@ -912,25 +949,11 @@ function ItemCheckInCreatePanel({
       return { data, doPrint };
     },
     onSuccess: async ({ data, doPrint }) => {
-      if (doPrint && data.printed_items_preview?.length) {
-        const result = await printProcessingLabelsAndMarkPrinted(
-          printedPreviewToLabelInputs(data.printed_items_preview),
-        );
-        if (result.failed > 0) {
-          enqueueSnackbar(`Created check-in with ${data.created_count}; ${result.failed} label(s) failed`, { variant: 'warning' });
-        } else if (result.succeeded > 0) {
-          enqueueSnackbar(`Created check-in with ${data.created_count} and printed ${result.succeeded} label(s)`, { variant: 'success' });
-        }
-        if (result.markFailed) {
-          enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
-        }
-      } else {
-        enqueueSnackbar(`Created check-in with ${data.created_count} item(s).`, { variant: 'success' });
-      }
-      await queryClient.invalidateQueries({ queryKey: ['item-check-ins'] });
-      await queryClient.invalidateQueries({ queryKey: ['items'] });
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
-      if (data.item_check_in_id) onCheckInCreated?.(data.item_check_in_id);
+      await handleProductCheckInCreated(data, doPrint, {
+        enqueueSnackbar,
+        queryClient,
+        onDone: onCheckInCreated,
+      });
     },
     onError: (err: unknown) => {
       if (err instanceof Error && err.message === 'Shelf price is required.') {

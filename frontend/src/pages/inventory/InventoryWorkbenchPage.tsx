@@ -555,8 +555,19 @@ export default function InventoryWorkbenchPage() {
   const handleCheckInCreated = useCallback((checkInId: number) => {
     setDraftCheckIn(false);
     setDraftCheckInProductId(null);
-    selectRecord({ type: 'checkin', id: checkInId, label: `Check-in #${checkInId}` }, { tab: 'checkins' });
-  }, [selectRecord]);
+    const q = checkInRichSearch({ checkin: checkInId });
+    const sel: WorkbenchSelection = {
+      type: 'checkin',
+      id: checkInId,
+      label: `Check-in #${checkInId}`,
+    };
+    tabSelectionMemory.current.checkins = sel;
+    tableAutoSelectRef.current = tableAutoSelectKey('checkins', q);
+    setSearch(q);
+    setDebouncedSearch(q);
+    setSelected(sel);
+    syncUrl({ tab: 'checkins', q, selected: sel, draft: null });
+  }, [syncUrl]);
 
   const applyCheckInSearch = useCallback((checkInId: number) => {
     const q = checkInRichSearch({ checkin: checkInId });

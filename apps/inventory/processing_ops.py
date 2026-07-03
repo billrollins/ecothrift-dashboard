@@ -2266,14 +2266,21 @@ def product_check_in(user, product: Product, data: dict) -> dict:
         'category': category_name,
     }
     result = processing_add_item(user, order, payload)
+    row_id = result.get('processing_row_id')
+    if not row_id:
+        raise ValueError('Could not create processing row for check-in')
+
+    check_in_result = processing_row_check_in(user, order, row_id, payload)
+    created_item_ids = [item['id'] for item in check_in_result.get('items', [])]
+
     return {
         'product_id': product.pk,
         'purchase_order_id': order.pk,
-        'created_count': result['created_count'],
-        'created_item_ids': result['created_item_ids'],
-        'processing_row_id': result['processing_row_id'],
-        'item_check_in_id': result.get('item_check_in_id'),
-        'printed_items_preview': result.get('printed_items_preview') or [],
+        'created_count': check_in_result['created_count'],
+        'created_item_ids': created_item_ids,
+        'processing_row_id': row_id,
+        'item_check_in_id': check_in_result.get('item_check_in_id'),
+        'printed_items_preview': check_in_result.get('printed_items_preview') or [],
     }
 
 

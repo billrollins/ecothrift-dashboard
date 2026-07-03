@@ -1,10 +1,12 @@
-<!-- Last updated: 2026-07-03 (inventory workbench check-in + floorplan is_wall) -->
+<!-- Last updated: 2026-07-03 (catalog product check-in hotfix) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
-**2026-07-03 (Unreleased) — Inventory / Catalog check-in:** workbench new check-ins from **Products → Check in items** only (create panel on Check-ins tab); create/duplicate footers match processing (**Check in without printing** / **Check in & print**); edit check-in keeps **Reprint** + **Save** (`ItemCheckInManagePanel`, `InventoryWorkbenchPage`).
+**2026-07-03 (Unreleased) — Inventory / product check-in hotfix:** **`product_check_in()`** backend now runs **`processing_row_check_in()`** so catalog check-ins create items; workbench navigates to **`{checkin=<id>}`** after success and errors on zero-item responses.
 
-**2026-07-03 (Unreleased) — Floorplan / wall kinds:** DB `is_wall` on element kinds (migration **`floorplan.0005`**); wall resize + group scale keep thickness (`palette.ts`, `editorState.ts`, **`ElementKindDialog`**).
+**2026-07-03 (v2.46.0) — Inventory / Catalog check-in UX:** workbench new check-ins from **Products → Check in items** only; create/duplicate footers match processing (**Check in without printing** / **Check in & print**); edit keeps **Reprint** + **Save** (`ItemCheckInManagePanel`, `InventoryWorkbenchPage`).
+
+**2026-07-03 (v2.46.0) — Floorplan / wall element class:** DB `is_wall` on element kinds (migration **`floorplan.0005`**); wall resize + group scale keep thickness (`palette.ts`, `editorState.ts`, **`ElementKindDialog`**).
 
 **2026-07-03 (v2.45.0) — Floorplan drafting aids:** Shift = axis-locked move/resize; group scale handles (`scaleObjects`, walls keep depth); flip H/V (`flipObjects`, `flipH`/`flipV`); **`PrintDialog.tsx`** print preview w/ toggles (B&W, image/fill/outline, layers, grid, border weight) + Outline preset.
 

@@ -1,12 +1,12 @@
-release(v2.47.0): floorplan wall cutter tool
+fix: catalog product check-in creates items again
 
-Release: v2.47.0
+### Fixed
+- product_check_in() now calls processing_row_check_in() after processing_add_item
+  so POST /inventory/products/:id/check-in/ creates ItemCheckIn, Items, and label preview
+  (regression since v2.32 unmanifested row split)
 
-- New Cut tool (toolbar scissors, key C): hover a wall to see a dashed grid-snapped cut line; click to split it into two independent segments (cutWallAt - rotation-aware split along the wall's length; both pieces keep kind, thickness, rotation, flip, group; both selected after; tool stays active for repeated cuts).
-- Only wall-kind elements respond; locked walls and cuts that would leave a stub are ignored.
-- Fix: removed stray UTF-8 BOM from root package.json (broke local vitest resolution; npm/Heroku unaffected).
-- Tests: 3 new cutWallAt cases (vitest 229 OK); tsc + production build green.
+### Changed
+- Workbench navigates to {checkin=<id>} search after successful create check-in
+- No success toast when API returns created_count 0
 
-Initiative: .ai/initiatives/floorplan_builder.md
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Deploy: backend required (processing_ops.py); frontend recommended for navigation/errors.

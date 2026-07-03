@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.47.0] — 2026-07-03 -->
-<!-- Last reviewed: 2026-07-03 (wall cutter tool) -->
+<!-- Last reviewed: 2026-07-03 (catalog product check-in hotfix) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,20 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+User-facing theme: **Catalog product check-in creates real items again.**
+
+### Fixed
+
+- **Inventory / product check-in** — `POST /inventory/products/:id/check-in/` returned 201 with `created_count: 0` since v2.32 split `processing_add_item` (row-only) from row check-in; **`product_check_in()`** now calls **`processing_row_check_in()`** after creating the added row so items, **`ItemCheckIn`**, and label preview are created (`processing_ops.py`). Regression covered by **`test_product_check_in`**.
+
+### Changed
+
+- **Inventory / Catalog workbench** — after a successful create check-in, search updates to **`{checkin=<id>}`** and selects that check-in; UI no longer shows success when the API returns zero items (`InventoryWorkbenchPage`, **`ItemCheckInManagePanel`**).
 
 ---
 
