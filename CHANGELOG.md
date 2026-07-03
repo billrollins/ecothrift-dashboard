@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.45.0] — 2026-07-03 -->
-<!-- Last reviewed: 2026-07-03 (inventory workbench check-in + floorplan is_wall) -->
+<!-- Line 1 release: ## [2.46.0] — 2026-07-03 -->
+<!-- Last reviewed: 2026-07-03 (wall element class + selection sizing + catalog check-in parity) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,14 +10,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.46.0] — 2026-07-03
 
-User-facing theme: **Inventory Catalog check-in parity with processing, plus floorplan wall kinds that scale correctly.**
+User-facing theme: **Walls become a first-class element type — typed selection sizing with aspect lock, bulk wall thickness, wall-group palette shortcuts — plus Catalog check-in parity with processing.**
+
+Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md).
+
+### Added
+
+- **Floorplan / selection size** — multi-select properties panel shows the combined **Width × Height** and both are typeable: entering a value scales the whole selection about its top-left, with a **link icon** toggling aspect lock (locked = proportional, unlocked = one-axis stretch). Walls keep their thickness through any of it.
+- **Floorplan / wall groups in the palette** — **2 walls (L)**, **3 walls (U)**, **4 walls (room)** under Structural: frontend-defined composites that place standard 8'×6" `wall` segments pre-grouped (corners overlap, segments stay uniform 8'); each wall is individually editable after placement (**`WALL_COMPOSITES`** + **`compositeToElements`**).
+- **Floorplan / bulk wall thickness** — with walls selected, a **Thickness** field applies to every selected wall at once (shows the common value, or "mixed — type to unify"); the panel header reports composition (**N walls, M elements, K other**), and image tools are scoped to non-wall elements.
 
 ### Changed
 
+- **Floorplan / wall element class** — `FloorPlanElementKind.is_wall` (migration **`floorplan.0005`**; seeded `wall` kind flagged; Super Admin toggle in the kind dialog). For wall elements: raw height **is** the thickness — it survives rotation (a rotated wall's depth is never its length), corner-drag resize changes **length only**, group scaling uses the flag instead of the aspect-ratio guess, and the single-wall panel edits **Length / Thickness** instead of visual Width/Depth.
 - **Inventory / Catalog workbench** — new check-ins start only from **Products → Check in items**, opening the create check-in panel on the Check-ins tab (no **New check-in** toolbar button). Create and duplicate flows use processing-style actions: **Cancel**, **Check in without printing**, **Check in & print** (`ItemCheckInManagePanel`, `InventoryWorkbenchPage`). Existing check-in edit keeps **Reprint** + **Save**. Standalone product check-in dialog/form (`ProductCheckInDialog`, `ProductCheckInForm`) use the same two-button print split (print toggle removed).
-- **Floorplan / wall kinds** — `FloorPlanElementKind.is_wall` (migration **`floorplan.0005`**) marks wall-like palette entries: raw height is thickness, resize drags change length only, and group scaling never fattens walls (`palette.ts`, `editorState.ts`, **`ElementKindDialog`** toggle). Seeded **`wall`** kind flagged on migrate.
 
 ---
 
