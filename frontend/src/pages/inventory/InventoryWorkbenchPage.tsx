@@ -311,8 +311,8 @@ export default function InventoryWorkbenchPage() {
   ) => {
     const tab = opts?.tab ?? activeTab;
     tabSelectionMemory.current[tab] = sel;
-    setSelected(sel);
     setDraftCheckIn(false);
+    setSelected(sel);
     syncUrl({ selected: sel, tab, draft: null });
   }, [activeTab, syncUrl]);
 
@@ -326,7 +326,6 @@ export default function InventoryWorkbenchPage() {
     const q = formatRichSearch({ filters: { product: productId }, entity: 'products' });
     setSearch(q);
     setDebouncedSearch(q);
-    setDraftCheckIn(false);
     productAutoSelectRef.current = null;
     const sel: WorkbenchSelection = {
       type: 'product',
@@ -334,7 +333,7 @@ export default function InventoryWorkbenchPage() {
       label: label || `Product #${productId}`,
     };
     setSelected(sel);
-    syncUrl({ tab: 'products', q, selected: sel, draft: null });
+    syncUrl({ tab: 'products', q, selected: sel });
   }, [syncUrl]);
 
   const selectItemFromTable = useCallback((it: Item) => {
@@ -351,8 +350,7 @@ export default function InventoryWorkbenchPage() {
       setDebouncedSearch(q);
     }
     setSelected(sel);
-    setDraftCheckIn(false);
-    syncUrl({ tab: 'items', q, selected: sel, draft: null });
+    syncUrl({ tab: 'items', q, selected: sel });
   }, [querySearch, syncUrl]);
 
   const applyProductSearch = useCallback((productId: number) => {
@@ -412,7 +410,6 @@ export default function InventoryWorkbenchPage() {
       tab: 'checkins',
       q,
       selected: null,
-      draft: null,
     });
   }, [navigateWorkbenchTab, selected]);
 
@@ -427,12 +424,11 @@ export default function InventoryWorkbenchPage() {
       setSearch(q);
       setDebouncedSearch(q);
       setSelected(sel);
-      setDraftCheckIn(false);
-      syncUrl({ tab: 'checkins', q, selected: sel, draft: null });
+        syncUrl({ tab: 'checkins', q, selected: sel });
       return;
     }
     tableAutoSelectRef.current = null;
-    navigateWorkbenchTab({ tab: 'checkins', q, selected: null, draft: null });
+    navigateWorkbenchTab({ tab: 'checkins', q, selected: null });
   }, [navigateWorkbenchTab, syncUrl]);
 
   const filterCheckInsByOrder = useCallback((orderId: number, keepCheckInId?: number) => {
@@ -446,12 +442,11 @@ export default function InventoryWorkbenchPage() {
       setSearch(q);
       setDebouncedSearch(q);
       setSelected(sel);
-      setDraftCheckIn(false);
-      syncUrl({ tab: 'checkins', q, selected: sel, draft: null });
+        syncUrl({ tab: 'checkins', q, selected: sel });
       return;
     }
     tableAutoSelectRef.current = null;
-    navigateWorkbenchTab({ tab: 'checkins', q, selected: null, draft: null });
+    navigateWorkbenchTab({ tab: 'checkins', q, selected: null });
   }, [navigateWorkbenchTab, syncUrl]);
 
   const filterItemsInPlace = useCallback((q: string) => {
@@ -462,12 +457,10 @@ export default function InventoryWorkbenchPage() {
     }
     setSearch(q);
     setDebouncedSearch(q);
-    setDraftCheckIn(false);
     syncUrl({
       tab: 'items',
       q,
       selected: keepItem,
-      draft: null,
     });
   }, [selected, syncUrl]);
 
@@ -491,8 +484,7 @@ export default function InventoryWorkbenchPage() {
     setSearch(q);
     setDebouncedSearch(q);
     setSelected(keepCheckIn);
-    setDraftCheckIn(false);
-    syncUrl({ tab: 'checkins', q, selected: keepCheckIn, draft: null });
+    syncUrl({ tab: 'checkins', q, selected: keepCheckIn });
   }, [syncUrl]);
 
   const filterItemBySkuInPlace = useCallback((sku: string, itemId: number) => {
@@ -503,8 +495,7 @@ export default function InventoryWorkbenchPage() {
     setSearch(q);
     setDebouncedSearch(q);
     setSelected(keepItem);
-    setDraftCheckIn(false);
-    syncUrl({ tab: 'items', q, selected: keepItem, draft: null });
+    syncUrl({ tab: 'items', q, selected: keepItem });
   }, [syncUrl]);
 
   const openItemsForCheckIn = useCallback((checkInId: number, keepItemId?: number, keepItemLabel?: string) => {
@@ -520,8 +511,7 @@ export default function InventoryWorkbenchPage() {
       setSearch(q);
       setDebouncedSearch(q);
       setSelected(sel);
-      setDraftCheckIn(false);
-      syncUrl({ tab: 'items', q, selected: sel, draft: null });
+        syncUrl({ tab: 'items', q, selected: sel });
       return;
     }
     tableAutoSelectRef.current = null;
@@ -529,7 +519,6 @@ export default function InventoryWorkbenchPage() {
       tab: 'items',
       q,
       selected: null,
-      draft: null,
     });
   }, [navigateWorkbenchTab, syncUrl]);
 
@@ -539,7 +528,6 @@ export default function InventoryWorkbenchPage() {
       tab: 'checkins',
       q: checkInRichSearch({ checkin: checkInId }),
       selected: null,
-      draft: null,
     });
   }, [navigateWorkbenchTab]);
 
@@ -548,7 +536,6 @@ export default function InventoryWorkbenchPage() {
       tab: 'items',
       q: itemRichSearch({ product: productId, status }),
       selected: null,
-      draft: null,
     });
   }, [navigateWorkbenchTab]);
 
@@ -556,13 +543,6 @@ export default function InventoryWorkbenchPage() {
     setSelected(null);
     setDraftCheckIn(true);
     setDraftCheckInProductId(productId);
-    syncUrl({ tab: 'checkins', selected: null, draft: 'checkin' });
-  }, [syncUrl]);
-
-  const startBlankCheckIn = useCallback(() => {
-    setSelected(null);
-    setDraftCheckIn(true);
-    setDraftCheckInProductId(null);
     syncUrl({ tab: 'checkins', selected: null, draft: 'checkin' });
   }, [syncUrl]);
 
@@ -591,7 +571,6 @@ export default function InventoryWorkbenchPage() {
       tab: 'checkins',
       q,
       selected: sel,
-      draft: null,
     });
   }, [navigateWorkbenchTab]);
 
@@ -599,7 +578,7 @@ export default function InventoryWorkbenchPage() {
     const q = itemRichSearch({ sku });
     setSearch(q);
     setDebouncedSearch(q);
-    syncUrl({ tab: 'items', q, draft: null });
+    syncUrl({ tab: 'items', q });
   }, [syncUrl]);
 
   useEffect(() => {
@@ -848,10 +827,6 @@ export default function InventoryWorkbenchPage() {
       <Button size="small" startIcon={<AddOutlinedIcon />} variant="outlined" onClick={startNewProduct}>
         New product
       </Button>
-    : activeTab === 'checkins' ?
-      <Button size="small" startIcon={<AddOutlinedIcon />} variant="outlined" onClick={startBlankCheckIn}>
-        New check-in
-      </Button>
     : null;
 
   const tablePane = (
@@ -975,7 +950,7 @@ export default function InventoryWorkbenchPage() {
         : (
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
             <Typography variant="body2" color="text.secondary" align="center">
-              Select a check-in from the table, or click New check-in above the table.
+              Select a check-in from the table, or check in items from the Products tab.
             </Typography>
           </Box>
         )

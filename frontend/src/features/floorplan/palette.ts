@@ -8,7 +8,18 @@
  * query loads, so saved plans render with the right colors on first paint.
  * Unknown kinds in old documents still render as generic rectangles.
  */
-import type { FloorPlanElementKind } from '../../types/floorplan.types';
+import type { FloorPlanElementKind, PlanElement } from '../../types/floorplan.types';
+import { rawRectFromVisual, type Rect } from './geometry';
+
+/** One segment of a composite palette entry, positioned in visual space. */
+export interface CompositePart {
+  /** Visual (on-floor) footprint relative to the composite's top-left */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation: number;
+}
 
 export interface PaletteEntry {
   kind: string;
@@ -29,12 +40,20 @@ export interface PaletteEntry {
   kindId?: number;
   /** Seeded built-in — editable, not deletable, slug locked */
   isSystem?: boolean;
+  /** Wall behavior: raw h = thickness, resize changes length only */
+  isWall?: boolean;
+  /**
+   * Multi-element shortcut: placing this entry creates one element of
+   * `composite.kind` per part, pre-grouped. The entry itself is never
+   * persisted in plan documents.
+   */
+  composite?: { kind: string; parts: CompositePart[] };
 }
 
 /** Placeholder mirror of the seeded catalog; server data wins once loaded. */
 export const STATIC_PALETTE: PaletteEntry[] = [
   // Structural
-  { kind: 'wall', label: 'Wall segment', category: 'Structural', w: 96, h: 6, color: '#455a64', resizable: true },
+  { kind: 'wall', label: 'Wall segment', category: 'Structural', w: 96, h: 6, color: '#455a64', resizable: true, isWall: true },
   { kind: 'door', label: 'Door', category: 'Structural', w: 36, h: 6, color: '#8d6e63', resizable: true },
   { kind: 'window', label: 'Window', category: 'Structural', w: 48, h: 6, color: '#90caf9', resizable: true },
   { kind: 'column', label: 'Column', category: 'Structural', w: 12, h: 12, color: '#78909c', resizable: true, shape: 'circle' },
@@ -86,7 +105,83 @@ export function elementKindToPaletteEntry(kind: FloorPlanElementKind): PaletteEn
     ...(kind.default_image != null ? { image: kind.default_image } : {}),
     kindId: kind.id,
     isSystem: kind.is_system,
+    isWall: kind.is_wall,
   };
+}
+
+// ── Wall composites (frontend-defined multi-place shortcuts) ─────────────────
+
+const WALL_LEN = 96; // standard 8' segment
+const WALL_THICK = 6;
+
+// Segments stay exactly 8' and overlap at the corners (invisible — same color).
+const WALL_TOP: CompositePart = { x: 0, y: 0, w: WALL_LEN, h: WALL_THICK, rotation: 0 };
+const WALL_LEFT: CompositePart = { x: 0, y: 0, w: WALL_THICK, h: WALL_LEN, rotation: 90 };
+const WALL_RIGHT: CompositePart = { x: WALL_LEN - WALL_THICK, y: 0, w: WALL_THICK, h: WALL_LEN, rotation: 90 };
+const WALL_BOTTOM: CompositePart = { x: 0, y: WALL_LEN - WALL_THICK, w: WALL_LEN, h: WALL_THICK, rotation: 0 };
+
+/** Pre-grouped wall arrangements built from standard 8' wall segments. */
+export const WALL_COMPOSITES: PaletteEntry[] = [
+  {
+    kind: 'wallsL',
+    label: '2 walls (L)',
+    category: 'Structural',
+    w: WALL_LEN,
+    h: WALL_LEN,
+    color: '#455a64',
+    resizable: true,
+    isWall: true,
+    composite: { kind: 'wall', parts: [WALL_TOP, WALL_LEFT] },
+  },
+  {
+    kind: 'wallsU',
+    label: '3 walls (U)',
+    category: 'Structural',
+    w: WALL_LEN,
+    h: WALL_LEN,
+    color: '#455a64',
+    resizable: true,
+    isWall: true,
+    composite: { kind: 'wall', parts: [WALL_TOP, WALL_LEFT, WALL_RIGHT] },
+  },
+  {
+    kind: 'wallsRoom',
+    label: '4 walls (room)',
+    category: 'Structural',
+    w: WALL_LEN,
+    h: WALL_LEN,
+    color: '#455a64',
+    resizable: true,
+    isWall: true,
+    composite: { kind: 'wall', parts: [WALL_TOP, WALL_LEFT, WALL_RIGHT, WALL_BOTTOM] },
+  },
+];
+
+/**
+ * Build the elements a composite entry places, top-left at (originX, originY).
+ * Each part's visual rect maps back to a raw rect via its rotation; ids and
+ * the shared group id come from the caller so this stays pure.
+ */
+export function compositeToElements(
+  entry: PaletteEntry,
+  origin: { x: number; y: number },
+  makeId: () => string,
+  groupId: string,
+): PlanElement[] {
+  if (!entry.composite) return [];
+  return entry.composite.parts.map((part) => {
+    const visual: Rect = { x: origin.x + part.x, y: origin.y + part.y, w: part.w, h: part.h };
+    const raw = rawRectFromVisual(visual, part.rotation);
+    return {
+      id: makeId(),
+      kind: entry.composite!.kind,
+      ...raw,
+      rotation: part.rotation,
+      label: '',
+      active: true,
+      group: groupId,
+    };
+  });
 }
 
 export type PaletteIndex = Record<string, PaletteEntry>;

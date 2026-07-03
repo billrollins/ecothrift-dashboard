@@ -200,6 +200,8 @@ export interface FloorPlanElementKind {
   /** Inches; only meaningful when shape=rect (0 = sharp corners) */
   corner_radius: number;
   resizable: boolean;
+  /** Wall behavior: raw h is the thickness (survives rotation), resize changes length only */
+  is_wall: boolean;
   /** Seeded built-in: editable but not deletable, slug locked */
   is_system: boolean;
   sort_order: number;
@@ -219,5 +221,6 @@ export interface FloorPlanElementKindPayload {
   shape: ElementKindShape;
   corner_radius: number;
   resizable: boolean;
+  is_wall?: boolean;
   sort_order?: number;
 }

@@ -35,6 +35,8 @@ import {
   activeConfigId,
   addConfig,
   addElement,
+  scaleObjects,
+  visualBounds,
   addInfoBlock,
   alignObjects,
   cloneObjects,
@@ -68,9 +70,11 @@ import { migratePlanDocument, UnsupportedSchemaError } from '../../features/floo
 import type { Viewport, Point } from '../../features/floorplan/geometry';
 import {
   buildPaletteIndex,
+  compositeToElements,
   elementKindToPaletteEntry,
   paletteCategories,
   STATIC_PALETTE,
+  WALL_COMPOSITES,
   type PaletteEntry,
 } from '../../features/floorplan/palette';
 import FloorplanCanvas, { defaultInfoBlock, type DrawStroke } from '../../features/floorplan/FloorplanCanvas';
@@ -113,10 +117,13 @@ export default function FloorplanEditorPage() {
   // Element kind catalog (DB-backed palette). The static mirror of the seeded
   // built-ins keeps first paint correct while the query loads.
   const kindsQuery = useFloorPlanElementKinds();
-  const paletteEntries = useMemo(
-    () => (kindsQuery.data ? kindsQuery.data.map(elementKindToPaletteEntry) : STATIC_PALETTE),
-    [kindsQuery.data],
-  );
+  const paletteEntries = useMemo(() => {
+    const base = kindsQuery.data ? kindsQuery.data.map(elementKindToPaletteEntry) : STATIC_PALETTE;
+    // Wall composites are frontend-defined shortcuts that place plain 'wall'
+    // elements; only offer them while the wall kind actually exists.
+    const hasWall = base.some((entry) => entry.kind === 'wall');
+    return hasWall ? [...base, ...WALL_COMPOSITES] : base;
+  }, [kindsQuery.data]);
   const kindIndex = useMemo(() => buildPaletteIndex(paletteEntries), [paletteEntries]);
   const kindCategories = useMemo(() => paletteCategories(paletteEntries), [paletteEntries]);
   const [kindDialog, setKindDialog] = useState<{ open: boolean; kind: FloorPlanElementKind | null }>({
@@ -360,6 +367,50 @@ export default function FloorplanEditorPage() {
     dispatch({ type: 'commit', doc: moveObjects(current.doc, current.selection, dx, dy) });
   }, []);
 
+  /** Scale the selection so its combined bounds take the typed width/height. */
+  const resizeSelection = useCallback((patch: { w?: number; h?: number }, lockAspect: boolean) => {
+    const current = stateRef.current;
+    if (current.selection.length === 0) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const ref of current.selection) {
+      const b = visualBounds(current.doc, ref);
+      if (!b) continue;
+      minX = Math.min(minX, b.x);
+      minY = Math.min(minY, b.y);
+      maxX = Math.max(maxX, b.x + b.w);
+      maxY = Math.max(maxY, b.y + b.h);
+    }
+    if (!Number.isFinite(minX)) return;
+    const w = Math.max(1, maxX - minX);
+    const h = Math.max(1, maxY - minY);
+    let sx = patch.w != null ? patch.w / w : 1;
+    let sy = patch.h != null ? patch.h / h : 1;
+    if (lockAspect) {
+      const s = patch.w != null ? sx : sy;
+      sx = s;
+      sy = s;
+    }
+    if (sx <= 0 || sy <= 0 || (sx === 1 && sy === 1)) return;
+    const doc = scaleObjects(current.doc, current.selection, { x: minX, y: minY }, sx, sy, 2, kindIndex);
+    if (doc !== current.doc) dispatch({ type: 'commit', doc });
+  }, [kindIndex]);
+
+  /** Set the thickness (raw h) of every selected wall element. */
+  const setWallThickness = useCallback((thickness: number) => {
+    const current = stateRef.current;
+    let doc = current.doc;
+    for (const ref of current.selection) {
+      if (ref.kind !== 'element') continue;
+      const el = getObject(doc, ref) as PlanElement | undefined;
+      if (!el || !kindIndex[el.kind]?.isWall) continue;
+      doc = updateObject(doc, ref, { h: Math.max(1, thickness) });
+    }
+    if (doc !== current.doc) dispatch({ type: 'commit', doc });
+  }, [kindIndex]);
+
   const flipSelection = useCallback((axis: 'h' | 'v') => {
     const current = stateRef.current;
     if (current.selection.length === 0) return;
@@ -457,6 +508,18 @@ export default function FloorplanEditorPage() {
 
   const handlePlace = useCallback((entry: PaletteEntry, position: Point, keepPlacing?: boolean) => {
     const current = stateRef.current;
+    if (entry.composite) {
+      // Composite: place N grouped elements (e.g. an L/U/room of wall segments)
+      const origin = { x: position.x - entry.w / 2, y: position.y - entry.h / 2 };
+      const groupId = newId('gr');
+      const parts = compositeToElements(entry, origin, () => newId('el'), groupId);
+      let doc = current.doc;
+      for (const part of parts) doc = addElement(doc, part);
+      dispatch({ type: 'commit', doc });
+      dispatch({ type: 'setSelection', selection: parts.map((p) => ({ kind: 'element' as const, id: p.id })) });
+      if (!keepPlacing) setPendingPlacement(null);
+      return;
+    }
     const element: PlanElement = {
       id: newId('el'),
       kind: entry.kind,
@@ -853,6 +916,8 @@ export default function FloorplanEditorPage() {
           onApplyImageToSelection={applyImageToSelection}
           onResetSelectionImages={resetSelectionImages}
           onSetSelectionLabelsHidden={setSelectionLabelsHidden}
+          onResizeSelection={resizeSelection}
+          onSetWallThickness={setWallThickness}
         />
       </Stack>
 

@@ -10,6 +10,7 @@ import type {
   PlanZone,
 } from '../../types/floorplan.types';
 import { pathBounds, rawRectFromVisual, rotatedBounds, type Rect } from './geometry';
+import type { PaletteIndex } from './palette';
 
 export type Tool = 'select' | 'pan' | 'zone' | 'draw' | 'label';
 
@@ -581,8 +582,9 @@ export function flipObjects(doc: PlanDocument, refs: SelectionRef[], axis: 'h' |
 
 /**
  * Scale the referenced objects' visual bounds about `origin` by (sx, sy).
- * Wall-like thin elements (aspect ratio ≥ 3) keep their thin dimension —
- * scaling a room outline lengthens the walls without fattening them.
+ * Wall elements (kind `isWall`, falling back to an aspect-ratio ≥ 3 heuristic
+ * when the catalog is unavailable) keep their thickness — scaling a room
+ * outline lengthens the walls without fattening them.
  */
 export function scaleObjects(
   doc: PlanDocument,
@@ -591,6 +593,7 @@ export function scaleObjects(
   sx: number,
   sy: number,
   minSize = 2,
+  kindIndex?: PaletteIndex,
 ): PlanDocument {
   const mapX = (x: number) => origin.x + (x - origin.x) * sx;
   const mapY = (y: number) => origin.y + (y - origin.y) * sy;
@@ -616,11 +619,20 @@ export function scaleObjects(
     let w = Math.max(minSize, bounds.w * sx);
     let h = Math.max(minSize, bounds.h * sy);
     if (ref.kind === 'element') {
-      const thin = Math.max(bounds.w, bounds.h) / Math.max(1, Math.min(bounds.w, bounds.h)) >= 3;
-      if (thin) {
-        // Preserve the depth of wall-like elements; only their length scales.
-        if (bounds.w <= bounds.h) w = bounds.w;
+      const el = obj as PlanElement;
+      const entry = kindIndex?.[el.kind];
+      const rot = ((el.rotation % 360) + 360) % 360;
+      if (entry?.isWall) {
+        // Thickness is the raw h; at 90/270 it shows up as the visual width.
+        if (rot === 90 || rot === 270) w = bounds.w;
         else h = bounds.h;
+      } else if (!entry) {
+        // Unknown kind (no catalog entry): thin-aspect fallback heuristic
+        const thin = Math.max(bounds.w, bounds.h) / Math.max(1, Math.min(bounds.w, bounds.h)) >= 3;
+        if (thin) {
+          if (bounds.w <= bounds.h) w = bounds.w;
+          else h = bounds.h;
+        }
       }
     }
     // Anchor each object by its scaled center so the arrangement stays true

@@ -64,7 +64,7 @@ class FloorPlanElementKindSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'kind', 'label', 'category', 'default_w', 'default_h',
             'fill_color', 'default_image', 'shape', 'corner_radius',
-            'resizable', 'is_system', 'sort_order', 'is_active',
+            'resizable', 'is_wall', 'is_system', 'sort_order', 'is_active',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['is_system', 'is_active', 'created_at', 'updated_at']

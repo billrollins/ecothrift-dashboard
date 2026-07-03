@@ -159,3 +159,23 @@ class ElementKindApiTests(TestCase):
             BASE, valid_payload(shape='circle', corner_radius=6), format='json')
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data['corner_radius'], 0)
+
+
+class WallFlagTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.superadmin = make_user('super2', 'Admin', is_superuser=True)
+        self.client.force_authenticate(user=self.superadmin)
+
+    def test_seeded_wall_kind_is_flagged(self):
+        wall = FloorPlanElementKind.objects.get(kind='wall')
+        self.assertTrue(wall.is_wall)
+        self.assertFalse(FloorPlanElementKind.objects.get(kind='gondola').is_wall)
+
+    def test_superuser_can_flag_custom_kind_as_wall(self):
+        resp = self.client.post(BASE, valid_payload(is_wall=True), format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.data['is_wall'])
+        resp2 = self.client.patch(f"{BASE}{resp.data['id']}/", {'is_wall': False}, format='json')
+        self.assertEqual(resp2.status_code, 200)
+        self.assertFalse(resp2.data['is_wall'])

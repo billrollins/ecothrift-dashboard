@@ -46,6 +46,8 @@ import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import FlipIcon from '@mui/icons-material/Flip';
+import LinkIcon from '@mui/icons-material/Link';
+import LinkOffIcon from '@mui/icons-material/LinkOff';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import Rotate90DegreesCwIcon from '@mui/icons-material/Rotate90DegreesCw';
@@ -71,7 +73,7 @@ import type {
   PlanZone,
 } from '../../types/floorplan.types';
 import type { AlignMode, EditorAction, EditorState, LockedObjectInfo, SelectionRef, Tool } from './editorState';
-import { getObject, selectionIsGrouped } from './editorState';
+import { getObject, selectionIsGrouped, visualBounds } from './editorState';
 import { DEFAULT_LABEL_SETTINGS } from '../../types/floorplan.types';
 import {
   formatInches,
@@ -687,6 +689,10 @@ interface PropertiesPanelProps {
   onResetSelectionImages?: () => void;
   /** Bulk hide/show captions on every selected element */
   onSetSelectionLabelsHidden?: (hidden: boolean) => void;
+  /** Scale the whole selection so its combined bounds get the given size */
+  onResizeSelection?: (patch: { w?: number; h?: number }, lockAspect: boolean) => void;
+  /** Set the thickness (raw h) of every selected wall element */
+  onSetWallThickness?: (thickness: number) => void;
 }
 
 function ElementImagePicker({
@@ -789,6 +795,69 @@ function ElementImagePicker({
           Reset to kind default
         </Button>
       )}
+    </Stack>
+  );
+}
+
+/** Combined selection size — type a new width/height to scale the selection. */
+function SelectionSizeSection({
+  doc,
+  selection,
+  readOnly,
+  onResize,
+}: {
+  doc: EditorState['doc'];
+  selection: SelectionRef[];
+  readOnly: boolean;
+  onResize: (patch: { w?: number; h?: number }, lockAspect: boolean) => void;
+}) {
+  const [lockAspect, setLockAspect] = useState(true);
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const ref of selection) {
+    const b = visualBounds(doc, ref);
+    if (!b) continue;
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.w);
+    maxY = Math.max(maxY, b.y + b.h);
+  }
+  if (!Number.isFinite(minX)) return null;
+  const w = maxX - minX;
+  const h = maxY - minY;
+
+  return (
+    <Stack spacing={0.5}>
+      <Typography variant="caption" color="text.secondary">Selection size</Typography>
+      <Stack direction="row" spacing={0.5} alignItems="center">
+        <DimensionField
+          label="Width"
+          value={w}
+          disabled={readOnly}
+          onCommit={(next) => next > 0 && onResize({ w: next }, lockAspect)}
+        />
+        <Tooltip title={lockAspect ? 'Aspect locked — unlock to stretch one axis' : 'Aspect unlocked'}>
+          <IconButton
+            size="small"
+            onClick={() => setLockAspect((v) => !v)}
+            aria-label={lockAspect ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
+            color={lockAspect ? 'primary' : 'default'}
+          >
+            {lockAspect ? <LinkIcon fontSize="small" /> : <LinkOffIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+        <DimensionField
+          label="Height"
+          value={h}
+          disabled={readOnly}
+          onCommit={(next) => next > 0 && onResize({ h: next }, lockAspect)}
+        />
+      </Stack>
+      <Typography variant="caption" color="text.secondary">
+        Scales the whole selection; walls keep their thickness.
+      </Typography>
     </Stack>
   );
 }
@@ -900,9 +969,24 @@ function DimensionField({ label, value, onCommit, disabled }: { label: string; v
   );
 }
 
-export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [], onUploadAsset, kindIndex, onApplyImageToSelection, onResetSelectionImages, onSetSelectionLabelsHidden }: PropertiesPanelProps) {
+export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [], onUploadAsset, kindIndex, onApplyImageToSelection, onResetSelectionImages, onSetSelectionLabelsHidden, onResizeSelection, onSetWallThickness }: PropertiesPanelProps) {
   const { doc, selection } = state;
   const selectedElementCount = selection.filter((s) => s.kind === 'element').length;
+
+  // Selection composition: walls vs other elements vs everything else
+  const isWallRef = (ref: SelectionRef) =>
+    ref.kind === 'element' &&
+    Boolean(kindIndex?.[(getObject(doc, ref) as PlanElement | undefined)?.kind ?? '']?.isWall);
+  const wallRefs = selection.filter(isWallRef);
+  const wallCount = wallRefs.length;
+  const nonWallElementCount = selectedElementCount - wallCount;
+  const otherCount = selection.length - selectedElementCount;
+
+  // Uniform thickness across selected walls ('' when mixed)
+  const wallThicknesses = new Set(
+    wallRefs.map((ref) => (getObject(doc, ref) as PlanElement).h),
+  );
+  const commonWallThickness = wallThicknesses.size === 1 ? [...wallThicknesses][0] : null;
 
   if (selection.length !== 1) {
     const setPlanSize = (patch: Partial<Pick<PlanDocument['settings'], 'planWidth' | 'planHeight'>>) =>
@@ -963,11 +1047,52 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
           </Stack>
         ) : (
           <Stack spacing={1.5}>
-            <Typography variant="body2" color="text.secondary">
-              {selectionIsGrouped(doc, selection)
-                ? `${selection.length} objects selected (grouped). They move and delete together; Ctrl+Shift+G to ungroup.`
-                : `${selection.length} objects selected. Drag to move, Delete to remove, Ctrl+G to group.`}
+            <Typography variant="subtitle2">
+              {`${selection.length} selected`}
+              {wallCount > 0 || otherCount > 0
+                ? ` — ${[
+                    wallCount > 0 ? `${wallCount} wall${wallCount > 1 ? 's' : ''}` : null,
+                    nonWallElementCount > 0 ? `${nonWallElementCount} element${nonWallElementCount > 1 ? 's' : ''}` : null,
+                    otherCount > 0 ? `${otherCount} other` : null,
+                  ].filter(Boolean).join(', ')}`
+                : ''}
             </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {selectionIsGrouped(doc, selection)
+                ? 'Grouped — moves and deletes together; Ctrl+Shift+G to ungroup.'
+                : 'Drag to move, Delete to remove, Ctrl+G to group.'}
+            </Typography>
+
+            {onResizeSelection && (
+              <SelectionSizeSection
+                doc={doc}
+                selection={selection}
+                readOnly={readOnly}
+                onResize={onResizeSelection}
+              />
+            )}
+
+            {wallCount > 0 && onSetWallThickness && (
+              <Stack spacing={0.5}>
+                <Typography variant="caption" color="text.secondary">
+                  {wallCount === selection.length
+                    ? 'Wall thickness (all selected walls)'
+                    : `Wall thickness (applies to the ${wallCount} wall${wallCount > 1 ? 's' : ''})`}
+                </Typography>
+                <DimensionField
+                  label="Thickness"
+                  value={commonWallThickness ?? 0}
+                  disabled={readOnly}
+                  onCommit={(t) => onSetWallThickness(Math.max(1, t))}
+                />
+                {commonWallThickness == null && (
+                  <Typography variant="caption" color="text.secondary">
+                    Mixed thicknesses — type a value to unify.
+                  </Typography>
+                )}
+              </Stack>
+            )}
+
             {selectedElementCount > 0 && !readOnly && onSetSelectionLabelsHidden && (
               <Stack direction="row" spacing={1}>
                 <Button size="small" variant="outlined" onClick={() => onSetSelectionLabelsHidden(true)} sx={{ textTransform: 'none' }}>
@@ -978,7 +1103,7 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
                 </Button>
               </Stack>
             )}
-            {selectedElementCount > 0 && !readOnly && onApplyImageToSelection && (
+            {nonWallElementCount > 0 && !readOnly && onApplyImageToSelection && (
               <MultiElementImageTools
                 count={selectedElementCount}
                 assets={assets}
@@ -1007,6 +1132,7 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
 
         {ref.kind === 'element' && (() => {
           const el = obj as PlanElement;
+          const isWall = Boolean(kindIndex?.[el.kind]?.isWall);
           // Display/edit the on-floor (visual) footprint: at 90°/270° the raw
           // w/h are swapped, so a rotated 48×144 gondola shows 144 wide × 48 deep.
           const visual = rotatedBounds({ x: el.x, y: el.y, w: el.w, h: el.h }, el.rotation);
@@ -1026,10 +1152,18 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
                   inputProps={{ 'aria-label': 'Show label on plan' }}
                 />
               </Stack>
-              <Stack direction="row" spacing={1} justifyContent="space-between">
-                <DimensionField label="Width" value={visual.w} disabled={readOnly} onCommit={(w) => commitVisual({ w: Math.max(2, w) })} />
-                <DimensionField label="Depth" value={visual.h} disabled={readOnly} onCommit={(h) => commitVisual({ h: Math.max(2, h) })} />
-              </Stack>
+              {isWall ? (
+                // Walls are structural: Length + Thickness (raw dims) survive rotation
+                <Stack direction="row" spacing={1} justifyContent="space-between">
+                  <DimensionField label="Length" value={el.w} disabled={readOnly} onCommit={(w) => patch({ w: Math.max(2, w) })} />
+                  <DimensionField label="Thickness" value={el.h} disabled={readOnly} onCommit={(h) => patch({ h: Math.max(1, h) })} />
+                </Stack>
+              ) : (
+                <Stack direction="row" spacing={1} justifyContent="space-between">
+                  <DimensionField label="Width" value={visual.w} disabled={readOnly} onCommit={(w) => commitVisual({ w: Math.max(2, w) })} />
+                  <DimensionField label="Depth" value={visual.h} disabled={readOnly} onCommit={(h) => commitVisual({ h: Math.max(2, h) })} />
+                </Stack>
+              )}
               <Stack direction="row" spacing={1} justifyContent="space-between">
                 <DimensionField label="X" value={visual.x} disabled={readOnly} onCommit={(x) => commitVisual({ x })} />
                 <DimensionField label="Y" value={visual.y} disabled={readOnly} onCommit={(y) => commitVisual({ y })} />

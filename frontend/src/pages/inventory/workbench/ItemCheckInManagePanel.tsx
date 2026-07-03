@@ -11,6 +11,7 @@ import {
   Typography,
 } from '@mui/material';
 import LocalPrintshopOutlinedIcon from '@mui/icons-material/LocalPrintshopOutlined';
+import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import {
@@ -26,7 +27,10 @@ import type { WorkbenchSelection } from '../../../utils/richInventorySearch';
 import { formatNumber } from '../../../utils/format';
 import { productDisplayLabel } from '../../../utils/productCatalog';
 import { ProductSearchAutocomplete } from '../../../components/inventory/ProductSearchAutocomplete';
-import { MAX_CHECK_IN_QUANTITY } from '../processing/largeCheckIn';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
+import { printedPreviewToLabelInputs } from '../../../hooks/useProcessingWorkspace';
+import { MAX_CHECK_IN_QUANTITY, isLargeCheckIn } from '../processing/largeCheckIn';
+import { LargeCheckInConfirmDialog } from '../processing/LargeCheckInConfirmDialog';
 import { printProcessingLabelsAndMarkPrinted } from '../processing/printProcessingLabel';
 import {
   normalizeProcessingCondition,
@@ -181,6 +185,9 @@ function ItemCheckInEditPanel({
   const [specifications, setSpecifications] = useState<Record<string, string>>({});
   const [selectedOrder, setSelectedOrder] = useState<ProductCheckInOrderOption | null>(null);
   const [isDuplicateDraft, setIsDuplicateDraft] = useState(false);
+  const [duplicateVolumeConfirm, setDuplicateVolumeConfirm] = useState<boolean | null>(null);
+  const [duplicateRetailConfirmOpen, setDuplicateRetailConfirmOpen] = useState(false);
+  const [duplicatePendingPrint, setDuplicatePendingPrint] = useState(false);
 
   const checkInQuery = useQuery({
     queryKey: ['item-check-ins', 'manage', checkInId],
@@ -331,7 +338,7 @@ function ItemCheckInEditPanel({
   };
 
   const duplicateMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (doPrint: boolean) => {
       if (!checkIn?.product || !selectedOrder) throw new Error('Check-in not loaded.');
       if (!isValidCheckInPrice(price)) throw new Error('Shelf price is required.');
       const { data } = await productCheckIn(checkIn.product, {
@@ -344,10 +351,24 @@ function ItemCheckInEditPanel({
         notes: notes.trim() || undefined,
         specifications,
       });
-      return data;
+      return { data, doPrint };
     },
-    onSuccess: async (data) => {
-      enqueueSnackbar(`Created check-in with ${data.created_count} item(s).`, { variant: 'success' });
+    onSuccess: async ({ data, doPrint }) => {
+      if (doPrint && data.printed_items_preview?.length) {
+        const result = await printProcessingLabelsAndMarkPrinted(
+          printedPreviewToLabelInputs(data.printed_items_preview),
+        );
+        if (result.failed > 0) {
+          enqueueSnackbar(`Created check-in with ${data.created_count}; ${result.failed} label(s) failed`, { variant: 'warning' });
+        } else if (result.succeeded > 0) {
+          enqueueSnackbar(`Created check-in with ${data.created_count} and printed ${result.succeeded} label(s)`, { variant: 'success' });
+        }
+        if (result.markFailed) {
+          enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
+        }
+      } else {
+        enqueueSnackbar(`Created check-in with ${data.created_count} item(s).`, { variant: 'success' });
+      }
       await queryClient.invalidateQueries({ queryKey: ['item-check-ins'] });
       await queryClient.invalidateQueries({ queryKey: ['items'] });
       await queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -380,10 +401,34 @@ function ItemCheckInEditPanel({
   const handleCancelDuplicate = () => {
     applyBaselineFromCheckIn();
     setIsDuplicateDraft(false);
+    setDuplicateVolumeConfirm(null);
+    setDuplicateRetailConfirmOpen(false);
   };
 
-  const handleCreateDuplicate = () => {
-    duplicateMutation.mutate();
+  const runDuplicateCheckIn = (doPrint: boolean) => {
+    duplicateMutation.mutate(doPrint);
+  };
+
+  const continueDuplicateCheckIn = (doPrint: boolean) => {
+    if (!retail.trim()) {
+      setDuplicatePendingPrint(doPrint);
+      setDuplicateRetailConfirmOpen(true);
+      return;
+    }
+    runDuplicateCheckIn(doPrint);
+  };
+
+  const submitDuplicateDraft = (doPrint: boolean) => {
+    if (!checkIn?.product || !selectedOrder) return;
+    if (!isValidCheckInPrice(price)) {
+      enqueueSnackbar('Shelf price is required', { variant: 'warning' });
+      return;
+    }
+    if (isLargeCheckIn(qtyValue)) {
+      setDuplicateVolumeConfirm(doPrint);
+      return;
+    }
+    continueDuplicateCheckIn(doPrint);
   };
 
   const canCreateDuplicate = Boolean(checkIn?.product && selectedOrder && isValidCheckInPrice(price));
@@ -706,20 +751,31 @@ function ItemCheckInEditPanel({
               >
                 Cancel
               </Button>
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={
-                  duplicateMutation.isPending ?
-                    <CircularProgress size={14} color="inherit" />
-                  : undefined
-                }
-                disabled={!canCreateDuplicate || duplicateMutation.isPending}
-                onClick={handleCreateDuplicate}
-                sx={{ bgcolor: processingTokens.primary, '&:hover': { bgcolor: processingTokens.primaryDark }, fontWeight: 800 }}
-              >
-                Check in {qtyValue} item{qtyValue === 1 ? '' : 's'}
-              </Button>
+              <Stack direction="row" spacing={0.75}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={!canCreateDuplicate || duplicateMutation.isPending}
+                  onClick={() => submitDuplicateDraft(false)}
+                  sx={{ borderColor: workbenchDetailTokens.borderSubtle, color: processingTokens.textSoft, bgcolor: '#fff' }}
+                >
+                  Check in without printing
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  startIcon={
+                    duplicateMutation.isPending ?
+                      <CircularProgress size={14} color="inherit" />
+                    : <LocalPrintshop />
+                  }
+                  disabled={!canCreateDuplicate || duplicateMutation.isPending}
+                  onClick={() => submitDuplicateDraft(true)}
+                  sx={{ bgcolor: processingTokens.primary, '&:hover': { bgcolor: processingTokens.primaryDark }, fontWeight: 800 }}
+                >
+                  Check in & print
+                </Button>
+              </Stack>
             </>
           : <>
               <Button
@@ -749,6 +805,32 @@ function ItemCheckInEditPanel({
     </Box>
     {ConfirmDialogHost}
     {SavePrintDialogHost}
+    <LargeCheckInConfirmDialog
+      open={duplicateVolumeConfirm != null}
+      quantity={qtyValue}
+      printLabels={duplicateVolumeConfirm === true}
+      loading={duplicateMutation.isPending}
+      onCancel={() => setDuplicateVolumeConfirm(null)}
+      onConfirm={() => {
+        const doPrint = duplicateVolumeConfirm === true;
+        setDuplicateVolumeConfirm(null);
+        continueDuplicateCheckIn(doPrint);
+      }}
+    />
+    <ConfirmDialog
+      open={duplicateRetailConfirmOpen}
+      title="Check in without retail?"
+      message="Retail / cost basis is empty. Check in anyway, or go back and add a retail value for margin tracking."
+      confirmLabel="Check in anyway"
+      cancelLabel="Go back"
+      severity="warning"
+      loading={duplicateMutation.isPending}
+      onCancel={() => setDuplicateRetailConfirmOpen(false)}
+      onConfirm={() => {
+        setDuplicateRetailConfirmOpen(false);
+        runDuplicateCheckIn(duplicatePendingPrint);
+      }}
+    />
     </>
   );
 }
@@ -780,6 +862,9 @@ function ItemCheckInCreatePanel({
   const [retail, setRetail] = useState('');
   const [notes, setNotes] = useState('');
   const [specifications, setSpecifications] = useState<Record<string, string>>({});
+  const [createVolumeConfirm, setCreateVolumeConfirm] = useState<boolean | null>(null);
+  const [createRetailConfirmOpen, setCreateRetailConfirmOpen] = useState(false);
+  const [createPendingPrint, setCreatePendingPrint] = useState(false);
 
   useEffect(() => {
     setPickedProduct(null);
@@ -811,7 +896,7 @@ function ItemCheckInCreatePanel({
   const canCreate = showForm && isValidCheckInPrice(price);
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (doPrint: boolean) => {
       if (!product || !selectedOrder) throw new Error('Order and product are required.');
       if (!isValidCheckInPrice(price)) throw new Error('Shelf price is required.');
       const { data } = await productCheckIn(product.id, {
@@ -824,10 +909,24 @@ function ItemCheckInCreatePanel({
         notes: notes.trim() || undefined,
         specifications,
       });
-      return data;
+      return { data, doPrint };
     },
-    onSuccess: async (data) => {
-      enqueueSnackbar(`Created check-in with ${data.created_count} item(s).`, { variant: 'success' });
+    onSuccess: async ({ data, doPrint }) => {
+      if (doPrint && data.printed_items_preview?.length) {
+        const result = await printProcessingLabelsAndMarkPrinted(
+          printedPreviewToLabelInputs(data.printed_items_preview),
+        );
+        if (result.failed > 0) {
+          enqueueSnackbar(`Created check-in with ${data.created_count}; ${result.failed} label(s) failed`, { variant: 'warning' });
+        } else if (result.succeeded > 0) {
+          enqueueSnackbar(`Created check-in with ${data.created_count} and printed ${result.succeeded} label(s)`, { variant: 'success' });
+        }
+        if (result.markFailed) {
+          enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
+        }
+      } else {
+        enqueueSnackbar(`Created check-in with ${data.created_count} item(s).`, { variant: 'success' });
+      }
       await queryClient.invalidateQueries({ queryKey: ['item-check-ins'] });
       await queryClient.invalidateQueries({ queryKey: ['items'] });
       await queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -846,6 +945,32 @@ function ItemCheckInCreatePanel({
   const bumpQuantity = (delta: number) => {
     const next = Math.max(1, Math.min(MAX_CHECK_IN_QUANTITY, parseCheckInQty(quantity) + delta));
     setQuantity(String(next));
+  };
+
+  const runCreateCheckIn = (doPrint: boolean) => {
+    createMutation.mutate(doPrint);
+  };
+
+  const continueCreateCheckIn = (doPrint: boolean) => {
+    if (!retail.trim()) {
+      setCreatePendingPrint(doPrint);
+      setCreateRetailConfirmOpen(true);
+      return;
+    }
+    runCreateCheckIn(doPrint);
+  };
+
+  const submitCreateCheckIn = (doPrint: boolean) => {
+    if (!product || !selectedOrder) return;
+    if (!isValidCheckInPrice(price)) {
+      enqueueSnackbar('Shelf price is required', { variant: 'warning' });
+      return;
+    }
+    if (isLargeCheckIn(qtyValue)) {
+      setCreateVolumeConfirm(doPrint);
+      return;
+    }
+    continueCreateCheckIn(doPrint);
   };
 
   if (loadingPresetProduct) {
@@ -1105,23 +1230,60 @@ function ItemCheckInCreatePanel({
             </Button>
           : <Box />}
           {showForm ?
-            <Button
-              size="small"
-              variant="contained"
-              startIcon={
-                createMutation.isPending ?
-                  <CircularProgress size={14} color="inherit" />
-                : undefined
-              }
-              disabled={!canCreate || createMutation.isPending}
-              onClick={() => createMutation.mutate()}
-              sx={{ bgcolor: processingTokens.primary, '&:hover': { bgcolor: processingTokens.primaryDark }, fontWeight: 800 }}
-            >
-              Check in {qtyValue} item{qtyValue === 1 ? '' : 's'}
-            </Button>
+            <Stack direction="row" spacing={0.75}>
+              <Button
+                size="small"
+                variant="outlined"
+                disabled={!canCreate || createMutation.isPending}
+                onClick={() => submitCreateCheckIn(false)}
+                sx={{ borderColor: workbenchDetailTokens.borderSubtle, color: processingTokens.textSoft, bgcolor: '#fff' }}
+              >
+                Check in without printing
+              </Button>
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={
+                  createMutation.isPending ?
+                    <CircularProgress size={14} color="inherit" />
+                  : <LocalPrintshop />
+                }
+                disabled={!canCreate || createMutation.isPending}
+                onClick={() => submitCreateCheckIn(true)}
+                sx={{ bgcolor: processingTokens.primary, '&:hover': { bgcolor: processingTokens.primaryDark }, fontWeight: 800 }}
+              >
+                Check in & print
+              </Button>
+            </Stack>
           : null}
         </Stack>
       </Box>
+      <LargeCheckInConfirmDialog
+        open={createVolumeConfirm != null}
+        quantity={qtyValue}
+        printLabels={createVolumeConfirm === true}
+        loading={createMutation.isPending}
+        onCancel={() => setCreateVolumeConfirm(null)}
+        onConfirm={() => {
+          const doPrint = createVolumeConfirm === true;
+          setCreateVolumeConfirm(null);
+          continueCreateCheckIn(doPrint);
+        }}
+      />
+      <ConfirmDialog
+        open={createRetailConfirmOpen}
+        title="Check in without retail?"
+        message="Retail / cost basis is empty. Check in anyway, or go back and add a retail value for margin tracking."
+        confirmLabel="Check in anyway"
+        cancelLabel="Go back"
+        severity="warning"
+        loading={createMutation.isPending}
+        onCancel={() => setCreateRetailConfirmOpen(false)}
+        onConfirm={() => {
+          setCreateRetailConfirmOpen(false);
+          runCreateCheckIn(createPendingPrint);
+        }}
+      />
     </Box>
   );
 }

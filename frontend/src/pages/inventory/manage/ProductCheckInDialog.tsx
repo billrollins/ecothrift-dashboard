@@ -10,15 +10,14 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
   IconButton,
   MenuItem,
   Stack,
-  Switch,
   TextField,
   Typography,
 } from '@mui/material';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
+import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import type { Product } from '../../../types/inventory.types';
 import type { ItemCondition } from '../../../types/inventory.types';
 import type { ProductCheckInOrderOption } from '../../../api/inventory.api';
@@ -77,6 +76,12 @@ function isValidPrice(value: string): boolean {
   return Number.isFinite(n) && n >= 0;
 }
 
+export interface ProductCheckInSuccessResult {
+  created_count: number;
+  item_check_in_id: number | null;
+  created_item_ids: number[];
+}
+
 export interface ProductCheckInDialogProps {
   open: boolean;
   product: Product;
@@ -84,6 +89,8 @@ export interface ProductCheckInDialogProps {
   onClose: () => void;
   /** Return to product CRUD without closing the parent product modal. */
   onOpenProduct: () => void;
+  /** When set (workbench embedded), skip navigate-to-manage and call this instead. */
+  onSuccess?: (result: ProductCheckInSuccessResult) => void;
 }
 
 export function ProductCheckInDialog({
@@ -92,6 +99,7 @@ export function ProductCheckInDialog({
   loading: parentLoading = false,
   onClose,
   onOpenProduct,
+  onSuccess,
 }: ProductCheckInDialogProps) {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
@@ -103,7 +111,6 @@ export function ProductCheckInDialog({
   const [price, setPrice] = useState('');
   const [retail, setRetail] = useState('');
   const [notes, setNotes] = useState('');
-  const [printLabels, setPrintLabels] = useState(readPrintPref);
   const [selectedOrder, setSelectedOrder] = useState<ProductCheckInOrderOption | null>(null);
   const [orderSearch, setOrderSearch] = useState('');
   const [volumeConfirm, setVolumeConfirm] = useState<boolean | null>(null);
@@ -127,7 +134,6 @@ export function ProductCheckInDialog({
     setPrice('');
     setRetail('');
     setNotes('');
-    setPrintLabels(readPrintPref());
     setSelectedOrder(null);
     setOrderSearch('');
     setVolumeConfirm(null);
@@ -196,16 +202,24 @@ export function ProductCheckInDialog({
       } else {
         enqueueSnackbar(`Checked in ${data.created_count} item(s)`, { variant: 'success' });
       }
-      const filters: Record<string, string | number> = { product: product.id };
-      if (data.item_check_in_id) {
-        filters.checkin = data.item_check_in_id;
-      } else if (
-        data.created_item_ids.length > 0
-        && data.created_item_ids.length <= MAX_IDS_IN_URL
-      ) {
-        filters.ids = data.created_item_ids.join(',');
+      if (onSuccess) {
+        onSuccess({
+          created_count: data.created_count,
+          item_check_in_id: data.item_check_in_id ?? null,
+          created_item_ids: data.created_item_ids ?? [],
+        });
+      } else {
+        const filters: Record<string, string | number> = { product: product.id };
+        if (data.item_check_in_id) {
+          filters.checkin = data.item_check_in_id;
+        } else if (
+          data.created_item_ids.length > 0
+          && data.created_item_ids.length <= MAX_IDS_IN_URL
+        ) {
+          filters.ids = data.created_item_ids.join(',');
+        }
+        navigate(manageItemsSearchUrl({ filters }));
       }
-      navigate(manageItemsSearchUrl({ filters }));
       onClose();
     } catch (err: unknown) {
       const detail =
@@ -216,7 +230,7 @@ export function ProductCheckInDialog({
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (doPrint: boolean) => {
     if (!selectedOrder) {
       enqueueSnackbar('Select a purchase order', { variant: 'warning' });
       return;
@@ -227,10 +241,10 @@ export function ProductCheckInDialog({
       return;
     }
     if (isLargeCheckIn(qtyValue)) {
-      setVolumeConfirm(printLabels);
+      setVolumeConfirm(doPrint);
       return;
     }
-    continueCheckIn(printLabels);
+    continueCheckIn(doPrint);
   };
 
   const priceError = priceTouched && !isValidPrice(price);
@@ -395,31 +409,22 @@ export function ProductCheckInDialog({
                 sx={{ gridColumn: '1 / -1' }}
               />
             </Box>
-
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={printLabels}
-                  onChange={(e) => setPrintLabels(e.target.checked)}
-                  color="primary"
-                />
-              }
-              label="Print tags after check-in"
-            />
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose} disabled={busy}>
+        <DialogActions sx={{ px: 2, py: 1, gap: 0.75, borderTop: 1, borderColor: processingTokens.border, flexWrap: 'wrap' }}>
+          <Button onClick={onClose} disabled={busy} sx={{ mr: 'auto' }}>
             Cancel
+          </Button>
+          <Button variant="outlined" disabled={!canSubmit} onClick={() => handleSubmit(false)}>
+            Check in without printing
           </Button>
           <Button
             variant="contained"
-            onClick={handleSubmit}
+            startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <LocalPrintshop />}
             disabled={!canSubmit}
-            startIcon={busy ? <CircularProgress size={16} color="inherit" /> : undefined}
+            onClick={() => handleSubmit(true)}
           >
-            Check in {qtyValue} item{qtyValue === 1 ? '' : 's'}
-            {printLabels ? ' & print' : ''}
+            Check in & print
           </Button>
         </DialogActions>
       </Dialog>

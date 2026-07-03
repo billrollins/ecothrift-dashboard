@@ -1,13 +1,15 @@
-release(v2.45.0): floorplan print dialog, flip, constrained move/scale
+feat: inventory check-in parity and floorplan wall kinds
 
-Release: v2.45.0
+### Inventory / Catalog workbench
+- New check-ins start from Products → Check in items (create panel on Check-ins tab)
+- Remove New check-in toolbar button on Check-ins tab
+- Create/duplicate: Cancel, Check in without printing, Check in & print
+- Edit existing check-in: Reprint + Save unchanged
+- ProductCheckInDialog/Form: same two-button print split (toggle removed)
 
-- Print dialog (editor header): live preview + toggles - black/white, element style (images / solid fill / outline only), element labels, zones + zone labels, drawings, text labels, info blocks, grid, border weight, plan border, inactive elements; one-click Outline preset for printing blank layouts to sketch new configurations on. Landscape browser print via dedicated window.
-- Flip horizontal/vertical: single elements mirror their content (flipH/flipV, rotation-aware, captions stay readable); multi-selections mirror the arrangement about the center; paths mirror point-wise.
-- Group scaling: multi-select corner handles scale positions and sizes about the opposite corner; wall-like thin elements (aspect >= 3) keep their depth so scaling a room outline lengthens walls without fattening them.
-- Shift constrains: moving locks to the dominant axis (no diagonals); resizing (single or group) changes exactly one dimension.
-- Tests: 5 new vitest cases (222 OK); tsc + production build green.
+### Floorplan
+- FloorPlanElementKind.is_wall (migration floorplan.0005)
+- Wall thickness preserved on resize and group scale
+- ElementKindDialog is_wall toggle; seeded wall kind flagged
 
-Initiative: .ai/initiatives/floorplan_builder.md
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Initiatives: product_item_crud_and_processing (archived), floorplan_builder

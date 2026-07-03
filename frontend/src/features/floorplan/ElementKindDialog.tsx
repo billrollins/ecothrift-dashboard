@@ -58,6 +58,7 @@ interface FormState {
   shape: ElementKindShape;
   radiusText: string;
   resizable: boolean;
+  isWall: boolean;
   defaultImage: number | null;
 }
 
@@ -71,6 +72,7 @@ function formFromKind(kind: FloorPlanElementKind | null): FormState {
     shape: kind?.shape ?? 'rect',
     radiusText: kind ? formatInches(kind.corner_radius) : '0"',
     resizable: kind?.resizable ?? true,
+    isWall: kind?.is_wall ?? false,
     defaultImage: kind?.default_image ?? null,
   };
 }
@@ -142,6 +144,7 @@ export default function ElementKindDialog({ open, kind, categories, assets, onUp
       shape: form.shape,
       corner_radius: parsed.radius ?? 0,
       resizable: form.resizable,
+      is_wall: form.isWall,
     };
     try {
       if (kind) {
@@ -256,6 +259,20 @@ export default function ElementKindDialog({ open, kind, categories, assets, onUp
               onChange={(e) => set({ resizable: e.target.checked })}
               inputProps={{ 'aria-label': 'Resizable' }}
             />
+          </Stack>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Switch
+              size="small"
+              checked={form.isWall}
+              onChange={(e) => set({ isWall: e.target.checked })}
+              inputProps={{ 'aria-label': 'Wall behavior' }}
+            />
+            <Box>
+              <Typography variant="body2">Wall behavior</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Thickness survives rotation; resizing changes length only; group scaling never fattens it.
+              </Typography>
+            </Box>
           </Stack>
           <Stack spacing={0.75}>
             <Typography variant="caption" color="text.secondary">Default image (optional)</Typography>

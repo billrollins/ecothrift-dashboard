@@ -100,6 +100,14 @@ class FloorPlanElementKind(models.Model):
         help_text='Corner radius in inches; only meaningful when shape=rect.',
     )
     resizable = models.BooleanField(default=True)
+    is_wall = models.BooleanField(
+        default=False,
+        help_text=(
+            'Wall behavior: the raw height is the wall THICKNESS (survives '
+            'rotation), resize drags change length only, and group scaling '
+            'never fattens it.'
+        ),
+    )
     is_system = models.BooleanField(
         default=False,
         help_text='Seeded built-in; editable but not deletable, slug locked.',

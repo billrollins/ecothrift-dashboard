@@ -4,11 +4,9 @@ import {
   Box,
   Button,
   CircularProgress,
-  FormControlLabel,
   Stack,
-  Switch,
-  Typography,
 } from '@mui/material';
+import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import type { ItemCondition, Product } from '../../../types/inventory.types';
 import type { ProductCheckInOrderOption } from '../../../api/inventory.api';
 import { ProductDisplayLine } from '../../../components/inventory/ProductDisplayLine';
@@ -28,16 +26,6 @@ import { CheckInDetailsEditor } from '../workbench/CheckInDetailsLayout';
 import { ItemSpecificationsEditor, normalizeItemSpecObject } from '../workbench/ItemSpecificationsEditor';
 
 const LS_PRINT_ON_CHECKIN = 'productCheckIn.printLabels';
-
-function readPrintPref(): boolean {
-  try {
-    const v = localStorage.getItem(LS_PRINT_ON_CHECKIN);
-    if (v === null) return true;
-    return v === 'true' || v === '1';
-  } catch {
-    return true;
-  }
-}
 
 function parseCheckInQuantity(raw: string): number {
   const n = Number.parseInt(raw, 10);
@@ -83,7 +71,6 @@ export function ProductCheckInForm({
   const [retail, setRetail] = useState('');
   const [notes, setNotes] = useState('');
   const [specifications, setSpecifications] = useState<Record<string, string>>({});
-  const [printLabels, setPrintLabels] = useState(readPrintPref);
   const [selectedOrder, setSelectedOrder] = useState<ProductCheckInOrderOption | null>(null);
   const [volumeConfirm, setVolumeConfirm] = useState<boolean | null>(null);
   const [retailConfirmOpen, setRetailConfirmOpen] = useState(false);
@@ -102,7 +89,6 @@ export function ProductCheckInForm({
     setRetail('');
     setNotes('');
     setSpecifications(normalizeItemSpecObject(product.specifications));
-    setPrintLabels(readPrintPref());
     setSelectedOrder(null);
     setVolumeConfirm(null);
     setRetailConfirmOpen(false);
@@ -172,7 +158,7 @@ export function ProductCheckInForm({
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (doPrint: boolean) => {
     if (!selectedOrder) {
       enqueueSnackbar('Select a purchase order', { variant: 'warning' });
       return;
@@ -183,10 +169,10 @@ export function ProductCheckInForm({
       return;
     }
     if (isLargeCheckIn(qtyValue)) {
-      setVolumeConfirm(printLabels);
+      setVolumeConfirm(doPrint);
       return;
     }
-    continueCheckIn(printLabels);
+    continueCheckIn(doPrint);
   };
 
   const priceError = priceTouched && !isValidPrice(price);
@@ -237,39 +223,33 @@ export function ProductCheckInForm({
         helperText="Starts from product catalog specs — saved on each item as additions, not replacements."
       />
 
-      <FormControlLabel
-        sx={{ mt: 0.75, ml: 0 }}
-        control={
-          <Switch
-            size="small"
-            checked={printLabels}
-            onChange={(e) => setPrintLabels(e.target.checked)}
-            color="primary"
-          />
-        }
-        label={<Typography variant="caption">Print tags after check-in</Typography>}
-      />
-
       <Stack direction="row" spacing={0.75} justifyContent="flex-end" sx={{ mt: 0.85 }}>
         {onCancel ?
-          <Button size="small" variant="outlined" onClick={onCancel} disabled={busy}>
+          <Button size="small" variant="outlined" onClick={onCancel} disabled={busy} sx={{ mr: 'auto' }}>
             Cancel
           </Button>
         : null}
         <Button
           size="small"
-          variant="contained"
-          onClick={handleSubmit}
+          variant="outlined"
+          onClick={() => handleSubmit(false)}
           disabled={!canSubmit}
-          startIcon={busy ? <CircularProgress size={16} color="inherit" /> : undefined}
+        >
+          Check in without printing
+        </Button>
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => handleSubmit(true)}
+          disabled={!canSubmit}
+          startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <LocalPrintshop />}
           sx={{
             bgcolor: processingTokens.primary,
             '&:hover': { bgcolor: processingTokens.primaryDark },
             fontWeight: 800,
           }}
         >
-          Check in {qtyValue} item{qtyValue === 1 ? '' : 's'}
-          {printLabels ? ' & print' : ''}
+          Check in & print
         </Button>
       </Stack>
 

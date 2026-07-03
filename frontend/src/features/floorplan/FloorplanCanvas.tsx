@@ -73,7 +73,7 @@ type DragState =
   | { mode: 'pan'; startClient: Point; startVp: Viewport }
   | { mode: 'maybeMove'; startClient: Point; startWorld: Point; ref: SelectionRef; additive: boolean }
   | { mode: 'move'; startWorld: Point; baseDoc: PlanDocument; refs: SelectionRef[]; anchor: Point }
-  | { mode: 'resize'; ref: SelectionRef; handle: HandleId; baseRect: Rect; rotation: number; baseDoc: PlanDocument }
+  | { mode: 'resize'; ref: SelectionRef; handle: HandleId; baseRect: Rect; rotation: number; isWall: boolean; baseDoc: PlanDocument }
   | { mode: 'groupResize'; refs: SelectionRef[]; handle: HandleId; baseBounds: Rect; baseDoc: PlanDocument }
   | { mode: 'marquee'; startWorld: Point }
   | { mode: 'zone'; startWorld: Point; id: string; baseDoc: PlanDocument }
@@ -311,6 +311,9 @@ export default function FloorplanCanvas({
       handle,
       baseRect: { x: obj.x, y: obj.y, w: obj.w, h: obj.h },
       rotation: ref.kind === 'element' ? ((obj as unknown as PlanElement).rotation ?? 0) : 0,
+      isWall:
+        ref.kind === 'element' &&
+        Boolean(kindIndex?.[(obj as unknown as PlanElement).kind]?.isWall),
       baseDoc: doc,
     };
   };
@@ -424,16 +427,21 @@ export default function FloorplanCanvas({
       case 'resize': {
         // Resize math runs in visual (on-floor) space so handles track the
         // cursor on rotated elements; the result maps back to the raw rect.
-        const { baseRect, handle, rotation } = drag;
+        const { baseRect, handle, rotation, isWall } = drag;
         const baseVisual = rotatedBounds(baseRect, rotation);
         const anchorX = handle === 'nw' || handle === 'sw' ? baseVisual.x + baseVisual.w : baseVisual.x;
         const anchorY = handle === 'nw' || handle === 'ne' ? baseVisual.y + baseVisual.h : baseVisual.y;
         let px = snapValue(world.x, snap);
         let py = snapValue(world.y, snap);
-        if (e.shiftKey) {
+        const dcX = anchorX === baseVisual.x ? baseVisual.x + baseVisual.w : baseVisual.x;
+        const dcY = anchorY === baseVisual.y ? baseVisual.y + baseVisual.h : baseVisual.y;
+        if (isWall) {
+          // Walls: dragging changes LENGTH only; thickness is typed, never dragged.
+          const rot = ((rotation % 360) + 360) % 360;
+          if (rot === 90 || rot === 270) px = dcX;
+          else py = dcY;
+        } else if (e.shiftKey) {
           // Shift: resize ONE dimension only — hold the axis the cursor moved less on
-          const dcX = anchorX === baseVisual.x ? baseVisual.x + baseVisual.w : baseVisual.x;
-          const dcY = anchorY === baseVisual.y ? baseVisual.y + baseVisual.h : baseVisual.y;
           if (Math.abs(world.x - dcX) >= Math.abs(world.y - dcY)) py = dcY;
           else px = dcX;
         }
@@ -467,7 +475,7 @@ export default function FloorplanCanvas({
         const sy = Math.max(0.02, Math.abs(py - anchorY) / Math.max(1, baseBounds.h));
         dispatch({
           type: 'gestureUpdate',
-          doc: scaleObjects(drag.baseDoc, refs, { x: anchorX, y: anchorY }, sx, sy, MIN_SIZE),
+          doc: scaleObjects(drag.baseDoc, refs, { x: anchorX, y: anchorY }, sx, sy, MIN_SIZE, kindIndex),
         });
         break;
       }

@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.45.0] — 2026-07-03 -->
-<!-- Last reviewed: 2026-07-03 (floorplan print dialog, flip, constrained scale) -->
+<!-- Last reviewed: 2026-07-03 (inventory workbench check-in + floorplan is_wall) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,17 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+User-facing theme: **Inventory Catalog check-in parity with processing, plus floorplan wall kinds that scale correctly.**
+
+### Changed
+
+- **Inventory / Catalog workbench** — new check-ins start only from **Products → Check in items**, opening the create check-in panel on the Check-ins tab (no **New check-in** toolbar button). Create and duplicate flows use processing-style actions: **Cancel**, **Check in without printing**, **Check in & print** (`ItemCheckInManagePanel`, `InventoryWorkbenchPage`). Existing check-in edit keeps **Reprint** + **Save**. Standalone product check-in dialog/form (`ProductCheckInDialog`, `ProductCheckInForm`) use the same two-button print split (print toggle removed).
+- **Floorplan / wall kinds** — `FloorPlanElementKind.is_wall` (migration **`floorplan.0005`**) marks wall-like palette entries: raw height is thickness, resize drags change length only, and group scaling never fattens walls (`palette.ts`, `editorState.ts`, **`ElementKindDialog`** toggle). Seeded **`wall`** kind flagged on migrate.
 
 ---
 

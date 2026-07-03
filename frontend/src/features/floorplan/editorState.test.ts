@@ -536,3 +536,28 @@ describe('scaleObjects', () => {
     expect(table.h).toBe(40);
   });
 });
+
+describe('scaleObjects with a kind catalog', () => {
+  const wallIndex = {
+    wall: { kind: 'wall', label: 'Wall', category: 'Structural', w: 96, h: 6, color: '#455a64', resizable: true, isWall: true },
+    binTable: { kind: 'binTable', label: 'Bin', category: 'Fixtures', w: 48, h: 48, color: '#ffb74d', resizable: true },
+  };
+
+  it('a rotated (vertical) wall keeps its thickness when scaling', () => {
+    let doc = emptyDoc();
+    // Vertical wall: raw 96 long x 6 thick, rotated 90 → visual 6 wide x 96 tall
+    doc = addElement(doc, { ...el('vwall', 0, 0), kind: 'wall', w: 96, h: 6, rotation: 90 });
+    const next = scaleObjects(doc, [{ kind: 'element', id: 'vwall' }], { x: 0, y: 0 }, 2, 2, 2, wallIndex);
+    const wall = next.elements[0];
+    expect(wall.w).toBe(192); // raw length doubles
+    expect(wall.h).toBe(6);   // raw thickness (visual width) preserved
+  });
+
+  it('catalog says not-a-wall: a thin element scales fully (no heuristic)', () => {
+    let doc = emptyDoc();
+    doc = addElement(doc, { ...el('shelf', 0, 0), kind: 'binTable', w: 96, h: 6 });
+    const next = scaleObjects(doc, [{ kind: 'element', id: 'shelf' }], { x: 0, y: 0 }, 2, 2, 2, wallIndex);
+    expect(next.elements[0].w).toBe(192);
+    expect(next.elements[0].h).toBe(12); // scales — catalog overrides the aspect guess
+  });
+});
