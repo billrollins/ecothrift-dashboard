@@ -7,6 +7,7 @@ import {
   alignObjects,
   cloneObjects,
   configMetas,
+  cutWallAt,
   deleteConfig,
   deleteObjects,
   distributeObjects,
@@ -25,6 +26,7 @@ import {
   switchConfig,
   ungroupObjects,
   updateObject,
+  visualBounds,
   type EditorState,
 } from './editorState';
 
@@ -559,5 +561,47 @@ describe('scaleObjects with a kind catalog', () => {
     const next = scaleObjects(doc, [{ kind: 'element', id: 'shelf' }], { x: 0, y: 0 }, 2, 2, 2, wallIndex);
     expect(next.elements[0].w).toBe(192);
     expect(next.elements[0].h).toBe(12); // scales — catalog overrides the aspect guess
+  });
+});
+
+describe('cutWallAt', () => {
+  it('splits a horizontal wall into two pieces at the cut point', () => {
+    let doc = emptyDoc();
+    doc = addElement(doc, { ...el('wall', 0, 0), kind: 'wall', w: 96, h: 6 });
+    const result = cutWallAt(doc, { kind: 'element', id: 'wall' }, { x: 40, y: 3 });
+    expect(result).not.toBeNull();
+    const pieces = result!.doc.elements;
+    expect(pieces).toHaveLength(2);
+    const first = pieces.find((e) => e.id === 'wall')!;
+    const second = pieces.find((e) => e.id !== 'wall')!;
+    expect({ x: first.x, w: first.w, h: first.h }).toEqual({ x: 0, w: 40, h: 6 });
+    expect({ x: second.x, w: second.w, h: second.h }).toEqual({ x: 40, w: 56, h: 6 });
+    expect(second.kind).toBe('wall');
+    expect(result!.newRef.id).toBe(second.id);
+  });
+
+  it('splits a rotated (vertical) wall along its length, keeping thickness', () => {
+    let doc = emptyDoc();
+    doc = addElement(doc, { ...el('vwall', 45, -45), kind: 'wall', w: 96, h: 6, rotation: 90 });
+    const before = visualBounds(doc, { kind: 'element', id: 'vwall' })!;
+    expect({ w: before.w, h: before.h }).toEqual({ w: 6, h: 96 }); // vertical footprint
+    const cutY = before.y + 30;
+    const result = cutWallAt(doc, { kind: 'element', id: 'vwall' }, { x: before.x + 3, y: cutY });
+    expect(result).not.toBeNull();
+    const pieces = result!.doc.elements;
+    expect(pieces).toHaveLength(2);
+    // Both pieces keep raw thickness 6 and rotation 90; lengths sum to 96
+    for (const piece of pieces) {
+      expect(piece.h).toBe(6);
+      expect(piece.rotation).toBe(90);
+    }
+    expect(pieces[0].w + pieces[1].w).toBe(96);
+  });
+
+  it('refuses cuts too close to an end', () => {
+    let doc = emptyDoc();
+    doc = addElement(doc, { ...el('wall', 0, 0), kind: 'wall', w: 96, h: 6 });
+    expect(cutWallAt(doc, { kind: 'element', id: 'wall' }, { x: 1, y: 3 })).toBeNull();
+    expect(cutWallAt(doc, { kind: 'element', id: 'wall' }, { x: 95.5, y: 3 })).toBeNull();
   });
 });

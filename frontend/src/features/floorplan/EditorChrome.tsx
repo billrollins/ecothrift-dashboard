@@ -41,6 +41,7 @@ import WorkspacesOutlinedIcon from '@mui/icons-material/WorkspacesOutlined';
 import PanToolIcon from '@mui/icons-material/PanTool';
 import CropSquareIcon from '@mui/icons-material/CropSquare';
 import GestureIcon from '@mui/icons-material/Gesture';
+import ContentCutIcon from '@mui/icons-material/ContentCut';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AddIcon from '@mui/icons-material/Add';
@@ -100,6 +101,7 @@ const TOOLS: { id: Tool; label: string; icon: React.ReactNode; shortcut: string 
   { id: 'zone', label: 'Zone (Z)', icon: <CropSquareIcon fontSize="small" />, shortcut: 'z' },
   { id: 'draw', label: 'Draw (D)', icon: <GestureIcon fontSize="small" />, shortcut: 'd' },
   { id: 'label', label: 'Label (T)', icon: <TextFieldsIcon fontSize="small" />, shortcut: 't' },
+  { id: 'cut', label: 'Cut wall (C) — click a wall to split it', icon: <ContentCutIcon fontSize="small" />, shortcut: 'c' },
 ];
 
 interface ToolbarProps {

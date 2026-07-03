@@ -16,6 +16,7 @@ import {
   addPath,
   addZone,
   collectionKeyFor,
+  cutWallAt,
   expandSelectionToGroups,
   getObject,
   moveObjects,
@@ -30,6 +31,7 @@ import {
   normalizeRect,
   pathBounds,
   rawRectFromVisual,
+  rectContainsPoint,
   rectsIntersect,
   rotatedBounds,
   screenToWorld,
@@ -186,6 +188,8 @@ export default function FloorplanCanvas({
   const [marquee, setMarquee] = useState<Rect | null>(null);
   const [ghost, setGhost] = useState<Point | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
+  /** Cut-tool hover indicator: the line where a click would slice the wall */
+  const [cutHover, setCutHover] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
 
   const snap = doc.settings.snap;
 
@@ -255,7 +259,34 @@ export default function FloorplanCanvas({
 
   // ── Pointer handlers ────────────────────────────────────────────────────
 
+  /** Topmost unlocked wall element under the given world point. */
+  const findWallAt = (world: Point): PlanElement | null => {
+    for (let i = doc.elements.length - 1; i >= 0; i -= 1) {
+      const el = doc.elements[i];
+      if (el.locked || !kindIndex?.[el.kind]?.isWall) continue;
+      if (rectContainsPoint(rotatedBounds({ x: el.x, y: el.y, w: el.w, h: el.h }, el.rotation), world)) {
+        return el;
+      }
+    }
+    return null;
+  };
+
   const onObjectPointerDown = (e: ReactPointerEvent, ref: SelectionRef) => {
+    if (tool === 'cut') {
+      if (readOnly || isPanGesture(e)) return;
+      e.stopPropagation();
+      if (ref.kind !== 'element') return;
+      const el = getObject(doc, ref) as PlanElement | undefined;
+      if (!el || !kindIndex?.[el.kind]?.isWall) return;
+      const world = clientToWorld(e.clientX, e.clientY);
+      const result = cutWallAt(doc, ref, snapPoint(world, snap), Math.max(2, snap || 0));
+      if (result) {
+        dispatch({ type: 'commit', doc: result.doc });
+        dispatch({ type: 'setSelection', selection: [ref, result.newRef] });
+        setCutHover(null);
+      }
+      return;
+    }
     if (isPanGesture(e) || tool !== 'select' || readOnly) return;
     e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
@@ -381,6 +412,34 @@ export default function FloorplanCanvas({
   const onPointerMove = (e: ReactPointerEvent) => {
     if (pendingPlacement) {
       setGhost(snapPoint(clientToWorld(e.clientX, e.clientY), snap));
+    }
+    if (tool === 'cut' && !dragRef.current) {
+      const world = clientToWorld(e.clientX, e.clientY);
+      const wall = findWallAt(world);
+      if (wall) {
+        const rot = ((wall.rotation % 360) + 360) % 360;
+        const visual = rotatedBounds({ x: wall.x, y: wall.y, w: wall.w, h: wall.h }, rot);
+        const horizontal = !(rot === 90 || rot === 270);
+        const minPiece = Math.max(2, snap || 0);
+        const overhang = Math.max(4, 8 / viewportRef.current.scale);
+        if (horizontal) {
+          const cut = snapValue(world.x, snap);
+          setCutHover(
+            cut >= visual.x + minPiece && cut <= visual.x + visual.w - minPiece
+              ? { x1: cut, y1: visual.y - overhang, x2: cut, y2: visual.y + visual.h + overhang }
+              : null,
+          );
+        } else {
+          const cut = snapValue(world.y, snap);
+          setCutHover(
+            cut >= visual.y + minPiece && cut <= visual.y + visual.h - minPiece
+              ? { x1: visual.x - overhang, y1: cut, x2: visual.x + visual.w + overhang, y2: cut }
+              : null,
+          );
+        }
+      } else {
+        setCutHover(null);
+      }
     }
     const drag = dragRef.current;
     if (!drag) return;
@@ -648,11 +707,16 @@ export default function FloorplanCanvas({
     ? 'copy'
     : tool === 'pan' || spaceDown
       ? 'grab'
-      : tool === 'draw'
+      : tool === 'draw' || tool === 'cut'
         ? 'crosshair'
         : tool === 'zone' || tool === 'label'
           ? 'crosshair'
           : 'default';
+
+  // Drop any stale cut indicator when leaving the cut tool
+  useEffect(() => {
+    if (tool !== 'cut') setCutHover(null);
+  }, [tool]);
 
   const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
   useEffect(() => {
@@ -816,6 +880,20 @@ export default function FloorplanCanvas({
                 );
               })}
             </>
+          )}
+
+          {/* Cut-tool indicator */}
+          {tool === 'cut' && cutHover && (
+            <line
+              x1={cutHover.x1}
+              y1={cutHover.y1}
+              x2={cutHover.x2}
+              y2={cutHover.y2}
+              stroke="#d32f2f"
+              strokeWidth={1.5 / viewport.scale}
+              strokeDasharray={`${4 / viewport.scale} ${3 / viewport.scale}`}
+              pointerEvents="none"
+            />
           )}
 
           {/* Marquee */}

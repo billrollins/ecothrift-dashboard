@@ -12,7 +12,7 @@ import type {
 import { pathBounds, rawRectFromVisual, rotatedBounds, type Rect } from './geometry';
 import type { PaletteIndex } from './palette';
 
-export type Tool = 'select' | 'pan' | 'zone' | 'draw' | 'label';
+export type Tool = 'select' | 'pan' | 'zone' | 'draw' | 'label' | 'cut';
 
 export interface SelectionRef {
   kind: PlanObjectKind;
@@ -647,6 +647,49 @@ export function scaleObjects(
     }
   }
   return next;
+}
+
+/**
+ * Split an element in two at `point` along its length axis (the visual axis
+ * its length runs on, so rotated walls cut correctly). The original keeps its
+ * id and becomes the first piece; the second piece is a copy with a new id
+ * (same kind, thickness, rotation, flip, group). Returns null when the cut
+ * would leave a piece shorter than `minPiece`. Wall-ness is the caller's
+ * check — this is pure geometry.
+ */
+export function cutWallAt(
+  doc: PlanDocument,
+  ref: SelectionRef,
+  point: { x: number; y: number },
+  minPiece = 2,
+): { doc: PlanDocument; newRef: SelectionRef } | null {
+  if (ref.kind !== 'element') return null;
+  const el = getObject(doc, ref) as PlanElement | undefined;
+  if (!el) return null;
+  const rot = ((el.rotation % 360) + 360) % 360;
+  const visual = rotatedBounds({ x: el.x, y: el.y, w: el.w, h: el.h }, rot);
+  // Length runs along x for horizontal walls, along y at 90/270
+  const horizontal = !(rot === 90 || rot === 270);
+  const start = horizontal ? visual.x : visual.y;
+  const size = horizontal ? visual.w : visual.h;
+  const cut = horizontal ? point.x : point.y;
+  if (cut < start + minPiece || cut > start + size - minPiece) return null;
+
+  const first: Rect = horizontal
+    ? { x: visual.x, y: visual.y, w: cut - visual.x, h: visual.h }
+    : { x: visual.x, y: visual.y, w: visual.w, h: cut - visual.y };
+  const second: Rect = horizontal
+    ? { x: cut, y: visual.y, w: visual.x + visual.w - cut, h: visual.h }
+    : { x: visual.x, y: cut, w: visual.w, h: visual.y + visual.h - cut };
+
+  const secondEl: PlanElement = {
+    ...el,
+    ...rawRectFromVisual(second, rot),
+    id: newId('el'),
+  };
+  let next = updateObject(doc, ref, rawRectFromVisual(first, rot));
+  next = { ...next, elements: [...next.elements, secondEl] };
+  return { doc: next, newRef: { kind: 'element', id: secondEl.id } };
 }
 
 // ── Locked (inert) objects ───────────────────────────────────────────────────

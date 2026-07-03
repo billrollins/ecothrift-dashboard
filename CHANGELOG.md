@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.46.0] — 2026-07-03 -->
-<!-- Last reviewed: 2026-07-03 (wall element class + selection sizing + catalog check-in parity) -->
+<!-- Line 1 release: ## [2.47.0] — 2026-07-03 -->
+<!-- Last reviewed: 2026-07-03 (wall cutter tool) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,22 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.47.0] — 2026-07-03
+
+User-facing theme: **Wall cutter — a knife tool that splits a wall into two segments where you click.**
+
+Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md).
+
+### Added
+
+- **Floorplan / cut tool** — new scissors tool in the toolbar (**C**): hovering a wall shows a dashed, grid-snapped cut line across it; clicking splits the wall into two independent segments at that point (**`cutWallAt`**). Both pieces keep the kind, thickness, rotation, flip, and group; both are selected after the cut, and the tool stays active for repeated cuts. Works only on wall-kind elements (rotation-aware — vertical walls cut along their length); locked walls and cuts that would leave a stub are ignored.
+
+### Fixed
+
+- **Build tooling** — root `package.json` lost a stray UTF-8 BOM (introduced by a scripted edit in v2.46.0) that broke local vitest module resolution; npm/Heroku builds were unaffected.
 
 ---
 

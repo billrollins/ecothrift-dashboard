@@ -662,6 +662,9 @@ export default function FloorplanEditorPage() {
         case 't':
           dispatch({ type: 'setTool', tool: 'label' });
           break;
+        case 'c':
+          dispatch({ type: 'setTool', tool: 'cut' });
+          break;
         case 'r':
           rotateSelection();
           break;

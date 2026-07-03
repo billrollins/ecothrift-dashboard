@@ -1,17 +1,11 @@
-release(v2.46.0): wall element class, selection sizing, catalog check-in parity
+release(v2.47.0): floorplan wall cutter tool
 
-Release: v2.46.0
+Release: v2.47.0
 
-Floorplan:
-- Walls are a first-class element type: FloorPlanElementKind.is_wall (migration floorplan.0005; seeded wall flagged; Super Admin toggle). Thickness = raw height, survives rotation; corner-drag resize changes length only; group scaling keys off the flag instead of the aspect guess; single-wall panel edits Length/Thickness.
-- Selection size: multi-select shows combined Width x Height, both typeable - scales the selection about its top-left with an aspect-lock link toggle. Walls keep thickness.
-- Bulk wall thickness field (common value or "mixed - type to unify"); panel header reports composition (N walls, M elements, K other); image tools scoped to non-walls.
-- Palette wall groups under Structural: 2 walls (L), 3 walls (U), 4 walls (room) - pre-grouped standard 8'x6" segments, individually editable after placement.
-
-Inventory (parallel Cursor session, commit f737d17):
-- Catalog workbench check-in parity: new check-ins only via Products -> Check in items; processing-style Cancel / Check in without printing / Check in & print on create+duplicate; edit keeps Reprint + Save; ProductCheckInDialog/Form two-button print split.
-
-Tests: floorplan backend 14 OK (2 new), vitest 226 OK (6 new); tsc + production build green.
+- New Cut tool (toolbar scissors, key C): hover a wall to see a dashed grid-snapped cut line; click to split it into two independent segments (cutWallAt - rotation-aware split along the wall's length; both pieces keep kind, thickness, rotation, flip, group; both selected after; tool stays active for repeated cuts).
+- Only wall-kind elements respond; locked walls and cuts that would leave a stub are ignored.
+- Fix: removed stray UTF-8 BOM from root package.json (broke local vitest resolution; npm/Heroku unaffected).
+- Tests: 3 new cutWallAt cases (vitest 229 OK); tsc + production build green.
 
 Initiative: .ai/initiatives/floorplan_builder.md
 
