@@ -1,4 +1,4 @@
-<!-- Line 1 release: ## [2.47.0] — 2026-07-03 -->
+<!-- Line 1 release: ## [2.47.1] — 2026-07-03 -->
 <!-- Last reviewed: 2026-07-03 (catalog product check-in hotfix) -->
 # Changelog
 
@@ -10,13 +10,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.47.1] — 2026-07-03
 
-User-facing theme: **Catalog product check-in creates real items again.**
+User-facing theme: **Hotfix — Catalog product check-in creates real items (and prints) again.**
 
 ### Fixed
 
-- **Inventory / product check-in** — `POST /inventory/products/:id/check-in/` returned 201 with `created_count: 0` since v2.32 split `processing_add_item` (row-only) from row check-in; **`product_check_in()`** now calls **`processing_row_check_in()`** after creating the added row so items, **`ItemCheckIn`**, and label preview are created (`processing_ops.py`). Regression covered by **`test_product_check_in`**.
+- **Inventory / product check-in** — `POST /inventory/products/:id/check-in/` returned 201 with `created_count: 0` since v2.32 split `processing_add_item` (row-only) from row check-in; **`product_check_in()`** now calls **`processing_row_check_in()`** after creating the added row so items, **`ItemCheckIn`**, and the label print preview are created (`processing_ops.py`; fix authored by a Cursor session, no automated regression test yet).
 
 ### Changed
 

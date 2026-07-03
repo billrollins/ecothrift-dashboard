@@ -1,12 +1,9 @@
-fix: catalog product check-in creates items again
+release(v2.47.1): fix catalog product check-in creating zero items
 
-### Fixed
-- product_check_in() now calls processing_row_check_in() after processing_add_item
-  so POST /inventory/products/:id/check-in/ creates ItemCheckIn, Items, and label preview
-  (regression since v2.32 unmanifested row split)
+Release: v2.47.1
 
-### Changed
-- Workbench navigates to {checkin=<id>} search after successful create check-in
-- No success toast when API returns created_count 0
+- product_check_in() now calls processing_row_check_in() after processing_add_item, so POST /inventory/products/:id/check-in/ creates the ItemCheckIn, Items, and label print preview (regression since the v2.32 unmanifested-row split; fix authored by Cursor session, commit 734689c).
+- Workbench navigates to {checkin=<id>} search and selects the new check-in after a successful create; no success toast when the API returns zero items.
+- Note: no automated regression test yet for product_check_in - flagged for follow-up.
 
-Deploy: backend required (processing_ops.py); frontend recommended for navigation/errors.
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
