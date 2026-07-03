@@ -12,7 +12,8 @@ from collections import defaultdict
 from decimal import Decimal
 from typing import Any, Iterable
 
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, DecimalField, F, Q, Sum, Value
+from django.db.models.functions import Coalesce
 
 from apps.inventory.models import Item, ItemCheckIn, ManifestRow, ProcessingDataBuild, ProcessingRow, PurchaseOrder, Product
 from apps.inventory.product_identity import merge_identifiers, product_upc
@@ -528,16 +529,27 @@ PROCESSING_WORKSPACE_ROW_VALUE_FIELDS = (
 )
 
 
-def collapse_rollups_for_order(order: PurchaseOrder | int) -> dict[int, dict[str, Any]]:
+def collapse_rollups_for_order(
+    order: PurchaseOrder | int,
+    *,
+    master_ids: Iterable[int] | None = None,
+) -> dict[int, dict[str, Any]]:
     """Map master row pk → combined group rollup (P7 collapse).
 
     {'memberRowNumbers': [...], 'memberRowIds': [...], 'totalQty', 'totalDispositioned'}
-    Totals include the master itself.
+    Totals include the master itself. ``master_ids`` scopes the scan to those masters
+    (e.g. just the rows on the current page); rollups still cover ALL their members.
     """
     oid = order.pk if isinstance(order, PurchaseOrder) else int(order)
     rollups: dict[int, dict[str, Any]] = {}
+    members_qs = ProcessingRow.objects.filter(purchase_order_id=oid, collapse_master_id__isnull=False)
+    if master_ids is not None:
+        master_id_set = {int(x) for x in master_ids}
+        if not master_id_set:
+            return {}
+        members_qs = members_qs.filter(collapse_master_id__in=master_id_set)
     members = (
-        ProcessingRow.objects.filter(purchase_order_id=oid, collapse_master_id__isnull=False)
+        members_qs
         .values_list('collapse_master_id', 'id', 'row_number', 'quantity', 'qty_dispositioned')
         .order_by('row_number')
     )
@@ -670,17 +682,31 @@ def _minimal_list_product(prod: Product) -> dict[str, Any]:
     }
 
 
-def _same_product_peers_for_order(order: PurchaseOrder | int) -> dict[int, list[int]]:
-    """Map processing_row pk → peer row_numbers sharing the same matched_product_id."""
+def _same_product_peers_for_order(
+    order: PurchaseOrder | int,
+    *,
+    product_ids: Iterable[int] | None = None,
+) -> dict[int, list[int]]:
+    """Map processing_row pk → peer row_numbers sharing the same matched_product_id.
+
+    ``product_ids`` scopes the scan to those matched products (e.g. just the products
+    on the current page); peer lists still cover ALL rows in the PO for those products.
+    """
     from collections import defaultdict
 
     oid = order.pk if isinstance(order, PurchaseOrder) else int(order)
+    peers_qs = ProcessingRow.objects.filter(
+        purchase_order_id=oid,
+        matched_product_id__isnull=False,
+    )
+    if product_ids is not None:
+        product_id_set = {int(x) for x in product_ids}
+        if not product_id_set:
+            return {}
+        peers_qs = peers_qs.filter(matched_product_id__in=product_id_set)
     by_product: dict[int, list[tuple[int, int]]] = defaultdict(list)
     for row_id, product_id, row_number in (
-        ProcessingRow.objects.filter(
-            purchase_order_id=oid,
-            matched_product_id__isnull=False,
-        ).values_list('id', 'matched_product_id', 'row_number')
+        peers_qs.values_list('id', 'matched_product_id', 'row_number')
     ):
         by_product[int(product_id)].append((int(row_id), int(row_number)))
 
@@ -1388,11 +1414,13 @@ def compute_order_processing_rollups(order: PurchaseOrder) -> dict[str, Any]:
         on_shelf_value=Sum('price', filter=Q(status='on_shelf')),
     )
 
-    expected_retail = Decimal('0')
-    for pr in linked_rows.only('quantity', 'unit_retail'):
-        q = int(pr.quantity or 0)
-        ur = pr.unit_retail or Decimal('0')
-        expected_retail += Decimal(q) * ur
+    retail_agg = linked_rows.aggregate(
+        total=Sum(
+            F('quantity') * Coalesce(F('unit_retail'), Value(Decimal('0'))),
+            output_field=DecimalField(max_digits=14, decimal_places=2),
+        ),
+    )
+    expected_retail = retail_agg['total'] or Decimal('0')
 
     remaining_qty = max(0, expected_qty - dispositioned_qty)
     overage_qty = max(0, dispositioned_qty - expected_qty)
@@ -1508,8 +1536,8 @@ def build_processing_workspace(
     slice_qs = filtered_qs[safe_offset : safe_offset + safe_limit]
 
     raw_rows = list(slice_qs.values(*PROCESSING_WORKSPACE_ROW_VALUE_FIELDS))
-    peers_by_row_id = _same_product_peers_for_order(order)
     matched_ids = {int(r['matched_product_id']) for r in raw_rows if r.get('matched_product_id')}
+    peers_by_row_id = _same_product_peers_for_order(order, product_ids=matched_ids)
     products_by_id = (
         {p.id: p for p in Product.objects.filter(pk__in=matched_ids)}
         if matched_ids else {}
@@ -1525,7 +1553,10 @@ def build_processing_workspace(
     ]
 
     # P7 collapse: masters carry the combined group rollup for collapsed display.
-    collapse_map = collapse_rollups_for_order(order)
+    collapse_map = collapse_rollups_for_order(
+        order,
+        master_ids=[int(rw['id']) for rw in raw_rows],
+    )
     if collapse_map:
         for row_payload in out_rows:
             group = collapse_map.get(int(row_payload['processing_row_id']))
@@ -1583,13 +1614,16 @@ def build_workspace_patch(order: PurchaseOrder, *, touched_processing_row_ids: I
     raw_touched = list(
         ProcessingRow.objects.filter(pk__in=touched, purchase_order=order).values(*PROCESSING_WORKSPACE_ROW_VALUE_FIELDS),
     )
-    peers_by_row_id = _same_product_peers_for_order(order)
     matched_ids = {int(r['matched_product_id']) for r in raw_touched if r.get('matched_product_id')}
+    peers_by_row_id = _same_product_peers_for_order(order, product_ids=matched_ids)
     products_by_id = (
         {p.id: p for p in Product.objects.filter(pk__in=matched_ids)}
         if matched_ids else {}
     )
-    collapse_map = collapse_rollups_for_order(order)
+    collapse_map = collapse_rollups_for_order(
+        order,
+        master_ids=[int(rw['id']) for rw in raw_touched],
+    )
     rows_out = [
         serialize_processing_workspace_list_row_values(
             rw,

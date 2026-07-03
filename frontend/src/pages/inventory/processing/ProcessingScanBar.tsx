@@ -46,6 +46,7 @@ export function ProcessingScanBar({
 }: ProcessingScanBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
+  const blurTimerRef = useRef<number | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState<string[]>([]);
 
@@ -59,6 +60,10 @@ export function ProcessingScanBar({
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => () => {
+    if (blurTimerRef.current != null) window.clearTimeout(blurTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -173,7 +178,11 @@ export function ProcessingScanBar({
                 }
               }}
               onBlur={() => {
-                window.setTimeout(() => setHistoryOpen(false), 120);
+                if (blurTimerRef.current != null) window.clearTimeout(blurTimerRef.current);
+                blurTimerRef.current = window.setTimeout(() => {
+                  blurTimerRef.current = null;
+                  setHistoryOpen(false);
+                }, 120);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {

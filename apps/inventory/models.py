@@ -241,6 +241,7 @@ class PurchaseOrder(models.Model):
         ordering = ['-ordered_date']
         indexes = [
             models.Index(fields=['status', '-ordered_date'], name='inv_po_status_ordered_dt'),
+            GinIndex(name='po_searchtext_trgm', fields=['search_text'], opclasses=['gin_trgm_ops']),
         ]
 
     def __str__(self):
@@ -1577,6 +1578,8 @@ class Item(models.Model):
         indexes = [
             models.Index(fields=['status', 'sold_at']),
             models.Index(fields=['purchase_order', 'status']),
+            models.Index(fields=['-checked_in_at', '-created_at'], name='item_checkedin_created_idx'),
+            GinIndex(name='item_searchtext_trgm', fields=['search_text'], opclasses=['gin_trgm_ops']),
         ]
 
     def __str__(self):

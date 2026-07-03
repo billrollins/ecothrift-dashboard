@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-07-03 (catalog product check-in hotfix) -->
+<!-- Last updated: 2026-07-03 (perf pass v2.47.2) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-07-03 (v2.47.2) — Performance (no UI change):** processing workspace query `gcTime` 60s + active-only refetches + `refetchType:'none'` PO-picker invalidations; stable row callbacks; virtualizer spacer `sx`→`style` (Emotion rule accumulation); `measureTextWidth` memo; header tick gated. Workbench: memoized right-hand panels + stable open handlers; column-resize persists on mouseup w/ unmount cleanup; scoped post-check-in invalidations; timeout cleanups; stable `EMPTY_RESULTS` fallbacks; `ProductManageDrawer` category menu/draft/dirty memoized.
 
 **2026-07-03 (Unreleased) — Inventory / product check-in hotfix:** **`product_check_in()`** backend now runs **`processing_row_check_in()`** so catalog check-ins create items; workbench navigates to **`{checkin=<id>}`** after success and errors on zero-item responses.
 

@@ -371,6 +371,19 @@ export default function ProcessingWorkspacePage() {
     [confirm, deleteAddedRow, detailProcessingRowId, enqueueSnackbar],
   );
 
+  /** Stable identity so memo'd ProcessingQueueRow doesn't re-render on every page render. */
+  const handleFilterProduct = useCallback((row: ProcessingWorkspaceRowDTO) => {
+    if (row.productId == null) return;
+    setProductFilterProductId(row.productId);
+    setProductFilterTitle(row.product?.title);
+  }, []);
+
+  /** Stable identity so memo'd ProcessingQueueRow doesn't re-render on every page render. */
+  const handleDeleteAddedRowClick = useCallback(
+    (row: ProcessingWorkspaceRowDTO) => void handleDeleteAddedRow(row),
+    [handleDeleteAddedRow],
+  );
+
   const handleRefreshDetail = useCallback(async () => {
     if (orderId == null || detailProcessingRowId == null || detailRefreshPending) return;
     setDetailRefreshPending(true);
@@ -1030,15 +1043,9 @@ export default function ProcessingWorkspacePage() {
                     selectedRowIds={selectedRowIds}
                     onToggleRow={toggleRowSelection}
                     onSelectAllVisible={selectAllVisibleRows}
-                    onOpenDetail={(id, options) => {
-                      openDetail(id, options);
-                    }}
-                    onFilterProduct={(row) => {
-                      if (row.productId == null) return;
-                      setProductFilterProductId(row.productId);
-                      setProductFilterTitle(row.product?.title);
-                    }}
-                    onDeleteAddedRow={(row) => void handleDeleteAddedRow(row)}
+                    onOpenDetail={openDetail}
+                    onFilterProduct={handleFilterProduct}
+                    onDeleteAddedRow={handleDeleteAddedRowClick}
                     deleteAddedRowLoadingId={
                       deleteAddedRow.isPending ? (deleteAddedRow.variables ?? null) : null
                     }

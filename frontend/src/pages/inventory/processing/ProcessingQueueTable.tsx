@@ -867,8 +867,10 @@ export function ProcessingQueueTable({
           </TableHead>
           <TableBody>
             {paddingTop > 0 ?
-              <TableRow aria-hidden sx={{ height: paddingTop, pointerEvents: 'none', visibility: 'hidden' }}>
-                <TableCell colSpan={tableColumnCount} sx={{ p: 0, border: 0, height: paddingTop }} />
+              // Dynamic height goes on `style`, not `sx` — every distinct sx value mints a
+              // permanent Emotion CSS rule, which accumulates across a day of scrolling.
+              <TableRow aria-hidden style={{ height: paddingTop }} sx={{ pointerEvents: 'none', visibility: 'hidden' }}>
+                <TableCell colSpan={tableColumnCount} style={{ height: paddingTop }} sx={{ p: 0, border: 0 }} />
               </TableRow>
             : null}
             {virtualItems.map((virtualRow) => {
@@ -891,8 +893,8 @@ export function ProcessingQueueTable({
               );
             })}
             {paddingBottom > 0 ?
-              <TableRow aria-hidden sx={{ height: paddingBottom, pointerEvents: 'none', visibility: 'hidden' }}>
-                <TableCell colSpan={tableColumnCount} sx={{ p: 0, border: 0, height: paddingBottom }} />
+              <TableRow aria-hidden style={{ height: paddingBottom }} sx={{ pointerEvents: 'none', visibility: 'hidden' }}>
+                <TableCell colSpan={tableColumnCount} style={{ height: paddingBottom }} sx={{ p: 0, border: 0 }} />
               </TableRow>
             : null}
           </TableBody>

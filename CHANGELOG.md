@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.47.1] — 2026-07-03 -->
-<!-- Last reviewed: 2026-07-03 (catalog product check-in hotfix) -->
+<!-- Line 1 release: ## [2.47.2] — 2026-07-03 -->
+<!-- Last reviewed: 2026-07-03 (inventory/processing performance pass) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,20 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.47.2] — 2026-07-03
+
+User-facing theme: **Performance — inventory, processing, and the dashboard stay fast through a full workday (no UI changes).**
+
+### Changed
+
+- **Backend / dashboard metrics** — all date filters rewritten from non-sargable `__date` casts to indexed timestamp ranges (`_day_range` helper): the every-45s metrics rebuild no longer seq-scans the all-time `Cart`, `CartLine`, `ItemHistory`, and `RestorationJob` tables; the on-shelf aggregate now runs **one** query over the wide window instead of two overlapping ones (`apps/pos/services/dashboard_metrics.py`; identical outputs, dashboard tests green).
+- **Backend / indexes** — migration **`inventory.0079`**: `pg_trgm` extension + trigram GIN indexes on `Item.search_text` and `PurchaseOrder.search_text` (so `icontains` search stops scanning every row) and `Item` index `(-checked_in_at, -created_at)` matching the item list's sort; `ItemViewSet` also `select_related`s `product__category` (removes a per-row category query).
+- **Backend / processing workspace** — per-request whole-PO scans page-scoped: same-product peers and collapse rollups now query only the products/masters on the returned page (identical output for those rows); `expected_retail` computed with a DB aggregate instead of hydrating every linked row.
+- **Frontend / processing workspace** — workspace query cache bounded (`gcTime` 60s; each distinct search previously held a full 10k-row copy for 5 min); refresh refetches only **active** queries (was: every cached search variant in parallel); per-scan invalidations no longer force-refetch the 100-row PO picker; row-callback identities stabilized so scanner keystrokes stop re-rendering every visible row; virtualizer spacer heights moved from `sx` to `style` (Emotion was permanently accumulating a CSS rule per scroll step — the main long-tab degrader); canvas text measurement memoized; the header's 1 Hz rate tick now runs only once a session has started.
+- **Frontend / Catalog workbench** — right-hand panels memoized with stable callbacks (scan-bar keystrokes no longer re-render the ~500-option category select and dirty-check serialization); table row-open handlers stabilized (memoized rows actually skip re-renders); column-resize persists to localStorage on release instead of every mousemove and cleans up window listeners on mid-drag unmount; post-check-in invalidations scoped to the mounted workbench queries and parallelized; copy-chip/scan-bar timeouts cleaned up; stable empty-array fallbacks stop effect churn during loads.
 
 ---
 

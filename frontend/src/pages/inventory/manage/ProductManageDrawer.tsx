@@ -120,6 +120,9 @@ const EMPTY_EDITOR: ProductEditorState = {
   isActive: true,
 };
 
+/** Stable fallback so the categories list keeps one identity while loading. */
+const EMPTY_CATEGORIES: Category[] = [];
+
 const editorSurface = '#fbfcfb';
 const headerSurface = '#ffffff';
 const headerSubtle = '#f6f8f6';
@@ -500,7 +503,17 @@ export function ProductManagePanel({
   });
 
   const isEditing = state.productId != null;
-  const categories = categoriesQuery.data ?? [];
+  const categories = categoriesQuery.data ?? EMPTY_CATEGORIES;
+
+  const categoryMenuItems = useMemo(
+    () =>
+      categories.map((cat) => (
+        <MenuItem key={cat.id} value={String(cat.id)}>
+          {categoryLabel(cat)}
+        </MenuItem>
+      )),
+    [categories],
+  );
 
   useEffect(() => {
     if (!open || initialProduct || !rowDetailsSeed?.categoryName || categories.length === 0) return;
@@ -513,7 +526,7 @@ export function ProductManagePanel({
     setBaselineState((prev) => ({ ...prev, categoryRef: mapped.categoryRef }));
   }, [open, initialProduct, rowDetailsSeed, rowDetailsSeedKey, categories]);
 
-  const draft = editorDraft(state);
+  const draft = useMemo(() => editorDraft(state), [state]);
 
   const titleVal = displayValueForProductField('title', draft, ai, categories) as string;
   const brandVal = displayValueForProductField('brand', draft, ai, categories) as string;
@@ -617,6 +630,9 @@ export function ProductManagePanel({
   const canSaveProduct = Boolean(titleVal.trim() && categoryRefVal) && !saveMutation.isPending;
   const requestCloseRef = useRef(requestClose);
   requestCloseRef.current = requestClose;
+  // v5 mutate is identity-stable; depending on it (not the mutation object)
+  // keeps the window keydown listener from re-subscribing every render.
+  const saveProduct = saveMutation.mutate;
 
   useEffect(() => {
     if (!open || checkInOpen) return;
@@ -649,12 +665,12 @@ export function ProductManagePanel({
       if (!canSaveProduct) return;
 
       e.preventDefault();
-      saveMutation.mutate();
+      saveProduct();
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, checkInOpen, confirmLeaveOpen, canSaveProduct, saveMutation]);
+  }, [open, checkInOpen, confirmLeaveOpen, canSaveProduct, saveProduct]);
 
   const openCheckIn = async () => {
     if (!state.productId) {
@@ -1160,11 +1176,7 @@ export function ProductManagePanel({
             slotProps={{ input: { endAdornment: renderAiAdornment('categoryRef') } }}
           >
             <MenuItem value="">Select category</MenuItem>
-            {categories.map((cat) => (
-              <MenuItem key={cat.id} value={String(cat.id)}>
-                {categoryLabel(cat)}
-              </MenuItem>
-            ))}
+            {categoryMenuItems}
           </TextField>
           <TextField
             size="small"

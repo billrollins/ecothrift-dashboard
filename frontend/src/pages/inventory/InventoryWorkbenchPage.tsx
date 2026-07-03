@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
@@ -18,7 +18,7 @@ import {
   getProduct,
   getProducts,
 } from '../../api/inventory.api';
-import type { Item } from '../../types/inventory.types';
+import type { Item, ItemCheckInCatalog, Product } from '../../types/inventory.types';
 import {
   checkInFiltersToApiParams,
   checkInRichSearch,
@@ -45,6 +45,17 @@ import { ItemManagePanel } from './workbench/ItemManagePanel';
 import { processingTokens } from './processing/processingTokens';
 
 const PAGE_SIZE = 200;
+
+/** Stable empty-array fallback so loading states don't mint a new [] each render. */
+const EMPTY_RESULTS: never[] = [];
+
+/**
+ * Memoized workspace panels — keeps the right-hand pane from re-rendering on
+ * every keystroke in the scan bar (raw `search` state lives at the page root).
+ */
+const MemoProductManagePanel = memo(ProductManagePanel);
+const MemoItemCheckInManagePanel = memo(ItemCheckInManagePanel);
+const MemoItemManagePanel = memo(ItemManagePanel);
 
 function parseTab(raw: string | null): WorkbenchTab {
   if (raw === 'checkins' || raw === 'items') return raw;
@@ -281,9 +292,9 @@ export default function InventoryWorkbenchPage() {
     placeholderData: keepPreviousData,
   });
 
-  const products = productsQuery.data?.results ?? [];
-  const checkIns = checkInsQuery.data?.results ?? [];
-  const items = itemsQuery.data?.results ?? [];
+  const products = productsQuery.data?.results ?? EMPTY_RESULTS;
+  const checkIns = checkInsQuery.data?.results ?? EMPTY_RESULTS;
+  const items = itemsQuery.data?.results ?? EMPTY_RESULTS;
 
   const productCount = productsQuery.data?.count ?? products.length;
   const checkInCount = checkInsQuery.data?.count ?? checkIns.length;
@@ -316,11 +327,42 @@ export default function InventoryWorkbenchPage() {
     syncUrl({ selected: sel, tab, draft: null });
   }, [activeTab, syncUrl]);
 
+  /**
+   * Latest-value refs so table-row and panel callbacks can stay identity-stable
+   * (memo'd rows/panels) even though selectRecord/selectItemFromTable re-create
+   * when search/selection state changes.
+   */
+  const selectRecordRef = useRef(selectRecord);
+  selectRecordRef.current = selectRecord;
+
+  const handleOpenProduct = useCallback((p: Product) => {
+    selectRecordRef.current({
+      type: 'product',
+      id: p.id,
+      label: p.title || p.product_number || `#${p.id}`,
+    });
+  }, []);
+
+  const handleOpenCheckIn = useCallback((ci: ItemCheckInCatalog) => {
+    selectRecordRef.current({ type: 'checkin', id: ci.id, label: `Check-in #${ci.id}` });
+  }, []);
+
+  const handleProductSaved = useCallback((product: Product) => {
+    selectRecordRef.current(
+      {
+        type: 'product',
+        id: product.id,
+        label: product.title || product.product_number || `#${product.id}`,
+      },
+      { tab: 'products' },
+    );
+  }, []);
+
   const navigateRelated = useCallback((sel: WorkbenchSelection) => {
     const tab: WorkbenchTab =
       sel.type === 'product' ? 'products' : sel.type === 'checkin' ? 'checkins' : 'items';
-    selectRecord(sel, { tab });
-  }, [selectRecord]);
+    selectRecordRef.current(sel, { tab });
+  }, []);
 
   const openProductTab = useCallback((productId: number, label?: string) => {
     const q = formatRichSearch({ filters: { product: productId }, entity: 'products' });
@@ -352,6 +394,13 @@ export default function InventoryWorkbenchPage() {
     setSelected(sel);
     syncUrl({ tab: 'items', q, selected: sel });
   }, [querySearch, syncUrl]);
+
+  const selectItemFromTableRef = useRef(selectItemFromTable);
+  selectItemFromTableRef.current = selectItemFromTable;
+
+  const handleOpenItem = useCallback((it: Item) => {
+    selectItemFromTableRef.current(it);
+  }, []);
 
   const applyProductSearch = useCallback((productId: number) => {
     const q = formatRichSearch({
@@ -874,7 +923,7 @@ export default function InventoryWorkbenchPage() {
             products={products}
             search={querySearch}
             selectedProductId={selected?.type === 'product' ? selected.id : null}
-            onOpenProduct={(p) => selectRecord({ type: 'product', id: p.id, label: p.title || p.product_number || `#${p.id}` })}
+            onOpenProduct={handleOpenProduct}
             onRegisterColumnReset={registerColumnReset}
           />
         : activeTab === 'checkins' ?
@@ -882,14 +931,14 @@ export default function InventoryWorkbenchPage() {
             rows={checkIns}
             search={querySearch}
             selectedCheckInId={selected?.type === 'checkin' ? selected.id : null}
-            onOpenCheckIn={(ci) => selectRecord({ type: 'checkin', id: ci.id, label: `Check-in #${ci.id}` })}
+            onOpenCheckIn={handleOpenCheckIn}
             onRegisterColumnReset={registerColumnReset}
           />
         : <ItemCatalogTable
             items={items}
             search={querySearch}
             selectedItemId={selected?.type === 'item' ? selected.id : null}
-            onOpenItem={selectItemFromTable}
+            onOpenItem={handleOpenItem}
             onRegisterColumnReset={registerColumnReset}
           />}
       </Box>
@@ -911,18 +960,13 @@ export default function InventoryWorkbenchPage() {
       }}
     >
       {activeTab === 'products' ?
-        <ProductManagePanel
+        <MemoProductManagePanel
           key={selectedProductId ?? 'new-product'}
           open
           embedded
           initialProduct={productEditorInitialProduct}
           onClose={startNewProduct}
-          onProductSaved={(product) => {
-            selectRecord(
-              { type: 'product', id: product.id, label: product.title || product.product_number || `#${product.id}` },
-              { tab: 'products' },
-            );
-          }}
+          onProductSaved={handleProductSaved}
           onApplyProductSearch={applyProductSearch}
           onStartProductCheckIn={startNewCheckIn}
           onOpenProductCheckIns={openProductCheckInsTab}
@@ -930,7 +974,7 @@ export default function InventoryWorkbenchPage() {
         />
       : activeTab === 'checkins' ?
         draftCheckIn ?
-          <ItemCheckInManagePanel
+          <MemoItemCheckInManagePanel
             key={`draft-checkin-${draftCheckInProductId ?? 'blank'}`}
             mode="create"
             productId={draftCheckInProductId}
@@ -944,7 +988,7 @@ export default function InventoryWorkbenchPage() {
             onCheckInCreated={handleCheckInCreated}
           />
         : selected?.type === 'checkin' ?
-          <ItemCheckInManagePanel
+          <MemoItemCheckInManagePanel
             key={selected.id}
             mode="edit"
             checkInId={selected.id}
@@ -966,7 +1010,7 @@ export default function InventoryWorkbenchPage() {
           </Box>
         )
       : selected?.type === 'item' ?
-        <ItemManagePanel
+        <MemoItemManagePanel
           key={selected.id}
           itemId={selected.id}
           onFilterItemsByProduct={filterItemsByProduct}

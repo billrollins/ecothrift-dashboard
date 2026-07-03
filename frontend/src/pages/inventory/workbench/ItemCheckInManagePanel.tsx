@@ -117,9 +117,17 @@ async function handleProductCheckInCreated(
     ctx.enqueueSnackbar(`Created check-in with ${data.created_count} item(s).`, { variant: 'success' });
   }
 
-  await ctx.queryClient.invalidateQueries({ queryKey: ['item-check-ins'] });
-  await ctx.queryClient.invalidateQueries({ queryKey: ['items'] });
-  await ctx.queryClient.invalidateQueries({ queryKey: ['products'] });
+  // Actively refetch only what the workbench mounts; mark everything else
+  // stale (refetchType: 'none') so other screens refetch on their next mount
+  // instead of firing every product/item query in the app right now.
+  await Promise.all([
+    ctx.queryClient.invalidateQueries({ queryKey: ['item-check-ins', 'workbench'] }),
+    ctx.queryClient.invalidateQueries({ queryKey: ['items', 'workbench'] }),
+    ctx.queryClient.invalidateQueries({ queryKey: ['products', 'workbench'] }),
+    ctx.queryClient.invalidateQueries({ queryKey: ['item-check-ins'], refetchType: 'none' }),
+    ctx.queryClient.invalidateQueries({ queryKey: ['items'], refetchType: 'none' }),
+    ctx.queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'none' }),
+  ]);
   ctx.onDone?.(data.item_check_in_id);
   return true;
 }

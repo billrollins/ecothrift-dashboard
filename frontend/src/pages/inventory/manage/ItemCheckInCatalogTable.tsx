@@ -287,6 +287,10 @@ export function ItemCheckInCatalogTable({
     return () => onRegisterColumnReset?.(null);
   }, [onRegisterColumnReset, resetColumnWidths]);
 
+  /** Tears down the in-flight drag listeners; also run on unmount mid-drag. */
+  const activeResizeCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => activeResizeCleanupRef.current?.(), []);
+
   const startColumnResize = (
     leftKey: CheckInSortField,
     rightKey: CheckInSortField,
@@ -295,6 +299,7 @@ export function ItemCheckInCatalogTable({
     event.preventDefault();
     event.stopPropagation();
     const startX = event.clientX;
+    let latestWidths: CheckInColumnWidths | null = null;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const next = resizeColumnPair(
@@ -305,21 +310,28 @@ export function ItemCheckInCatalogTable({
         tableWidth,
         CHECKIN_CATALOG_COLUMN_ORDER,
       );
+      latestWidths = next;
       setColumnWidths(next);
-      persistColumnWidths(CHECKIN_CATALOG_WIDTHS_KEY, next);
     };
 
-    const onMouseUp = () => {
+    const stopResize = () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      activeResizeCleanupRef.current = null;
+    };
+
+    const onMouseUp = () => {
+      if (latestWidths) persistColumnWidths(CHECKIN_CATALOG_WIDTHS_KEY, latestWidths);
+      stopResize();
     };
 
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+    activeResizeCleanupRef.current = stopResize;
   };
 
   const colgroup = (

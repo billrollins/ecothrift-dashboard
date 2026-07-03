@@ -105,6 +105,9 @@ export function useProcessingWorkspace(orderId: number | null, listParams: Proce
     },
     enabled: orderId != null && listParams != null,
     staleTime: PROCESSING_WORKSPACE_STALE_MS,
+    // Search is part of the key: every distinct search caches a full (up to 10k-row)
+    // workspace. Keep unused variants for only 1 min instead of the default 5.
+    gcTime: 60_000,
     placeholderData: keepPreviousData,
   });
 }
@@ -133,10 +136,12 @@ export async function refreshProcessingDetailData(
   void qc.invalidateQueries({ queryKey: ['products', 'processing-row-editor'] });
   void qc.invalidateQueries({ queryKey: ['products', 'processing-check-in-dialog'] });
   await Promise.all([
-    qc.refetchQueries({ queryKey: ['processing-workspace', orderId] }),
-    qc.refetchQueries({ queryKey: ['processing-row-detail', orderId, processingRowId] }),
-    qc.refetchQueries({ queryKey: ['products', 'processing-row-editor'] }),
-    qc.refetchQueries({ queryKey: ['products', 'processing-check-in-dialog'] }),
+    // type: 'active' — without it, refetchQueries also refires every INACTIVE cache
+    // variant (one per past search/filter combo) in parallel.
+    qc.refetchQueries({ queryKey: ['processing-workspace', orderId], type: 'active' }),
+    qc.refetchQueries({ queryKey: ['processing-row-detail', orderId, processingRowId], type: 'active' }),
+    qc.refetchQueries({ queryKey: ['products', 'processing-row-editor'], type: 'active' }),
+    qc.refetchQueries({ queryKey: ['products', 'processing-check-in-dialog'], type: 'active' }),
   ]);
 }
 
@@ -180,7 +185,7 @@ export function useProcessingPrintAndCheckIn(orderId: number) {
     onSuccess: (data: ProcessingPrintAndCheckInResponse) => {
       applyWorkspacePatch(qc, orderId, data.workspace_patch);
       invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });
     },
@@ -197,7 +202,7 @@ export function useProcessingRowCheckIn(orderId: number) {
     onSuccess: (data: ProcessingRowCheckInResponse) => {
       applyWorkspacePatch(qc, orderId, data.workspace_patch);
       invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });
     },
@@ -214,7 +219,7 @@ export function useProcessingCheckInTogether(orderId: number) {
     onSuccess: (data: ProcessingCheckInTogetherResponse) => {
       applyWorkspacePatch(qc, orderId, data.workspace_patch);
       invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });
     },
@@ -231,7 +236,7 @@ export function useProcessingAssignSharedProduct(orderId: number) {
     onSuccess: (data: ProcessingAssignSharedProductResponse) => {
       applyWorkspacePatch(qc, orderId, data.workspace_patch);
       invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
     },
   });
@@ -343,7 +348,7 @@ export function useRemapItemCheckInProduct(orderId: number) {
         qc.setQueryData(['processing-row-detail', orderId, rowId], data.row);
       }
       invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });
     },
@@ -361,7 +366,7 @@ function applyRowProductMutationResult(
     qc.setQueryData(['processing-row-detail', orderId, rowId], data.row);
   }
   invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
-  qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+  qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
   qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
   qc.invalidateQueries({ queryKey: ['items'] });
 }
@@ -413,7 +418,7 @@ export function useProcessingAddItem(orderId: number) {
         qc.setQueryData(['processing-row-detail', orderId, rowId], data.row);
       }
       invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });
     },
@@ -464,7 +469,7 @@ export function useProcessingPrintMultiple(orderId: number) {
     onSuccess: (data: ProcessingPrintMultipleResponse) => {
       applyWorkspacePatch(qc, orderId, data.workspace_patch);
       invalidateTouchedProcessingRowDetails(qc, orderId, data.workspace_patch);
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });
     },
@@ -481,7 +486,7 @@ export function useProcessingDispute(orderId: number) {
     onSuccess: (patch) => {
       applyWorkspacePatch(qc, orderId, patch);
       invalidateTouchedProcessingRowDetails(qc, orderId, patch);
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });
     },
@@ -498,7 +503,7 @@ export function useProcessingBulkDisposition(orderId: number) {
     onSuccess: (patch) => {
       applyWorkspacePatch(qc, orderId, patch);
       invalidateTouchedProcessingRowDetails(qc, orderId, patch);
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });
     },
@@ -549,7 +554,7 @@ export function useClearProcessingData(orderId: number) {
       qc.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
       qc.invalidateQueries({ queryKey: ['processing-row-detail', orderId] });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['items'] });
       qc.invalidateQueries({ queryKey: ['batchGroups'] });
       qc.invalidateQueries({ queryKey: ['processing-data-build', orderId] });
@@ -577,7 +582,7 @@ export function useBuildProcessingData(orderId: number) {
       qc.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
       qc.invalidateQueries({ queryKey: ['processing-row-detail', orderId] });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
-      qc.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      qc.invalidateQueries({ queryKey: ['purchaseOrders'], refetchType: 'none' });
       qc.invalidateQueries({ queryKey: ['items'] });
       qc.invalidateQueries({ queryKey: ['batchGroups'] });
       qc.invalidateQueries({ queryKey: ['processing-data-build', orderId] });

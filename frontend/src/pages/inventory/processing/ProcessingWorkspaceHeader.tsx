@@ -192,9 +192,12 @@ export function ProcessingWorkspaceHeader({
   const [orderAnchorEl, setOrderAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
+    // The 1 Hz tick only feeds the items/hour rate, which renders as a static
+    // placeholder until the session starts — don't re-render the header until then.
+    if (sessionStartedAt == null) return;
     const id = window.setInterval(() => tick((t) => t + 1), 1000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [sessionStartedAt]);
 
   const disp = hasManifestRows && manifestTotalQty > 0 ? manifestDispositioned : itemTotal > 0 ? itemDispositioned : 0;
   const tot = hasManifestRows && manifestTotalQty > 0 ? manifestTotalQty : itemTotal > 0 ? itemTotal : 0;

@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-07-02 (floorplan element kinds) -->
+<!-- Last updated: 2026-07-03 (perf pass v2.47.2) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-07-03 (v2.47.2) — Performance:** dashboard metrics date filters → sargable timestamp ranges (`_day_range`); on-shelf aggregate single-query; migration **`inventory.0079`** — `pg_trgm` + trigram GIN on `Item.search_text`/`PurchaseOrder.search_text`, `Item (-checked_in_at, -created_at)` index; `ItemViewSet` `select_related('product__category')`; processing workspace peers/collapse rollups page-scoped, `expected_retail` via DB aggregate. `django.contrib.postgres` added to INSTALLED_APPS.
 
 **2026-07-02 (Unreleased) — Floorplan / element kinds:** **`FloorPlanElementKind`** catalog (migrations **`0003`–`0004`**, 19 seeded built-ins; `shape` rect|circle + `corner_radius`); **`/api/floorplan/element-kinds/`** — staff read, **`IsSuperAdmin`** write; system kinds editable-not-deletable, `kind` slug immutable, auto-slug from label. See **`apps/floorplan/README.md`**.
 

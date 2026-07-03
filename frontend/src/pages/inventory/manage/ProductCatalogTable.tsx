@@ -300,6 +300,10 @@ export function ProductCatalogTable({
     return () => onRegisterColumnReset?.(null);
   }, [onRegisterColumnReset, resetColumnWidths]);
 
+  /** Tears down the in-flight drag listeners; also run on unmount mid-drag. */
+  const activeResizeCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => activeResizeCleanupRef.current?.(), []);
+
   const startColumnResize = (
     leftKey: ProductSortField,
     rightKey: ProductSortField,
@@ -308,6 +312,7 @@ export function ProductCatalogTable({
     event.preventDefault();
     event.stopPropagation();
     const startX = event.clientX;
+    let latestWidths: ProductColumnWidths | null = null;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const next = resizeColumnPair(
@@ -318,21 +323,28 @@ export function ProductCatalogTable({
         tableWidth,
         PRODUCT_CATALOG_COLUMN_ORDER,
       );
+      latestWidths = next;
       setColumnWidths(next);
-      persistColumnWidths(PRODUCT_CATALOG_WIDTHS_KEY, next);
     };
 
-    const onMouseUp = () => {
+    const stopResize = () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      activeResizeCleanupRef.current = null;
+    };
+
+    const onMouseUp = () => {
+      if (latestWidths) persistColumnWidths(PRODUCT_CATALOG_WIDTHS_KEY, latestWidths);
+      stopResize();
     };
 
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+    activeResizeCleanupRef.current = stopResize;
   };
 
   const colgroup = (

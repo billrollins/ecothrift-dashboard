@@ -1,9 +1,18 @@
-release(v2.47.1): fix catalog product check-in creating zero items
+release(v2.47.2): inventory/processing/dashboard performance pass
 
-Release: v2.47.1
+Release: v2.47.2 (no UI or API changes)
 
-- product_check_in() now calls processing_row_check_in() after processing_add_item, so POST /inventory/products/:id/check-in/ creates the ItemCheckIn, Items, and label print preview (regression since the v2.32 unmanifested-row split; fix authored by Cursor session, commit 734689c).
-- Workbench navigates to {checkin=<id>} search and selects the new check-in after a successful create; no success toast when the API returns zero items.
-- Note: no automated regression test yet for product_check_in - flagged for follow-up.
+Backend:
+- Dashboard metrics: all __date filters rewritten to indexed timestamp ranges (_day_range helper) - the 45s metrics rebuild stops seq-scanning all-time Cart/CartLine/ItemHistory/RestorationJob tables; on-shelf aggregate runs once over the wide window (outputs identical, tests green).
+- Migration inventory.0079: pg_trgm extension + trigram GIN indexes on Item.search_text and PurchaseOrder.search_text; Item(-checked_in_at,-created_at) index for the item list sort. django.contrib.postgres added to INSTALLED_APPS.
+- ItemViewSet select_related(product__category) removes a per-row query; processing workspace peers/collapse rollups page-scoped; expected_retail via DB aggregate.
+
+Frontend (processing workspace):
+- Workspace query gcTime 60s (each search cached a full 10k-row copy for 5 min); refetch active queries only; PO-picker invalidations refetchType none (was a 100-row fetch per scan); stable row callbacks; virtualizer spacer heights sx->style (Emotion permanently accumulated a CSS rule per scroll step - the long-tab degrader); measureTextWidth memo cache; header 1Hz tick gated on session start.
+
+Frontend (catalog workbench):
+- Right-hand panels memoized + stable callbacks (keystrokes stop re-rendering the 500-option category select); stable table row-open handlers; column resize persists on mouseup + listener cleanup on unmount; post-check-in invalidations scoped + parallel; timeout cleanups; stable empty-array fallbacks.
+
+Verified: dashboard + processing backend suites 33 OK, vitest 229 OK, tsc + production build green. Deploy runs migration 0079 (pg_trgm + 3 indexes).
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>

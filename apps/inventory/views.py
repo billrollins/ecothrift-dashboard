@@ -7013,7 +7013,7 @@ class ItemViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Item.objects.select_related(
-            'product', 'purchase_order', 'manifest_row',
+            'product', 'product__category', 'purchase_order', 'manifest_row',
         ).all()
         request = self.request
 

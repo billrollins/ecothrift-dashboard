@@ -1,4 +1,4 @@
-import { useCallback, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Box, Chip, type ChipProps } from '@mui/material';
 import { processingTokens } from '../processing/processingTokens';
 
@@ -48,6 +48,11 @@ export function WorkbenchCopyableChip({
 }: WorkbenchCopyableChipProps) {
   const [copiedKey, setCopiedKey] = useState(0);
   const [showCopied, setShowCopied] = useState(false);
+  const copiedTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (copiedTimerRef.current != null) window.clearTimeout(copiedTimerRef.current);
+  }, []);
 
   const textToCopy = copyText ?? (typeof label === 'string' ? label : '');
   const canInteract = Boolean(textToCopy);
@@ -59,7 +64,11 @@ export function WorkbenchCopyableChip({
     if (!copied) return;
     setCopiedKey((k) => k + 1);
     setShowCopied(true);
-    window.setTimeout(() => setShowCopied(false), 1400);
+    if (copiedTimerRef.current != null) window.clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = window.setTimeout(() => {
+      copiedTimerRef.current = null;
+      setShowCopied(false);
+    }, 1400);
     onBadgeClick?.();
   }, [textToCopy, onBadgeClick]);
 

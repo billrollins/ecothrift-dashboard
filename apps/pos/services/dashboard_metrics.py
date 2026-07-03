@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -36,12 +36,25 @@ def _week_start_monday(day: date) -> date:
     return day - timedelta(days=day.weekday())
 
 
+def _day_range(start: date, end: date) -> tuple[datetime, datetime]:
+    """Aware [start 00:00, end+1day 00:00) bounds for the active timezone.
+
+    Equivalent to ``field__date__gte=start, field__date__lte=end`` but sargable —
+    plain range filters use the datetime indexes instead of a per-row date cast.
+    """
+    tz = timezone.get_current_timezone()
+    start_dt = timezone.make_aware(datetime.combine(start, time.min), tz)
+    end_dt = timezone.make_aware(datetime.combine(end + timedelta(days=1), time.min), tz)
+    return start_dt, end_dt
+
+
 def _daily_sales_series(start: date, end: date) -> dict[date, Decimal]:
+    start_dt, end_dt = _day_range(start, end)
     rows = (
         Cart.objects.filter(
             status='completed',
-            completed_at__date__gte=start,
-            completed_at__date__lte=end,
+            completed_at__gte=start_dt,
+            completed_at__lt=end_dt,
         )
         .values('completed_at__date')
         .annotate(total=Sum('total'))
@@ -50,11 +63,12 @@ def _daily_sales_series(start: date, end: date) -> dict[date, Decimal]:
 
 
 def _daily_items_sold_series(start: date, end: date) -> dict[date, int]:
+    start_dt, end_dt = _day_range(start, end)
     rows = (
         CartLine.objects.filter(
             cart__status='completed',
-            cart__completed_at__date__gte=start,
-            cart__completed_at__date__lte=end,
+            cart__completed_at__gte=start_dt,
+            cart__completed_at__lt=end_dt,
         )
         .values('cart__completed_at__date')
         .annotate(total=Sum('quantity'))
@@ -182,14 +196,23 @@ def _buying_total(start: date, end: date, *, buying_by_day: dict[date, Decimal] 
 def _processing_on_shelf_aggregate(
     start: date,
     end: date,
+    *,
+    total_start: date | None = None,
 ) -> tuple[Decimal, dict[date, Decimal]]:
-    """Return week-range total (unique items) and per-day totals."""
+    """Return range total (unique items) and per-day totals.
+
+    ``total_start`` narrows the unique-item total to ``[total_start, end]`` while
+    ``by_day`` still spans ``[start, end]`` — one query serves both windows.
+    """
+    if total_start is None:
+        total_start = start
+    start_dt, end_dt = _day_range(start, end)
     base_qs = (
         ItemHistory.objects.filter(
             event_type='status_change',
             new_value='on_shelf',
-            created_at__date__gte=start,
-            created_at__date__lte=end,
+            created_at__gte=start_dt,
+            created_at__lt=end_dt,
         )
         .exclude(old_value='on_shelf')
         .exclude(old_value='sold')
@@ -203,15 +226,9 @@ def _processing_on_shelf_aggregate(
         .values('item_id', 'day', 'item__price', 'item__retail', 'item__check_in_id')
     )
 
-    unique_rows = list(
-        base_qs.order_by('item_id', '-created_at')
-        .distinct('item_id')
-        .values('item_id', 'item__price', 'item__retail', 'item__check_in_id')
-    )
-
     check_in_ids = {
         row['item__check_in_id']
-        for row in (*daily_rows, *unique_rows)
+        for row in daily_rows
         if row['item__check_in_id']
     }
     restoration_check_ins: set[int] = set()
@@ -230,16 +247,19 @@ def _processing_on_shelf_aggregate(
         check_in_id = row['item__check_in_id']
         return bool(check_in_id and check_in_id in restoration_check_ins)
 
-    range_total = sum(
-        (_shelf_value(row) for row in unique_rows if not _skip(row)),
-        Decimal('0'),
-    )
-
+    # Unique-item total for [total_start, end]: shelf value comes from the item
+    # join, so it is identical on every history row for a given item — counting
+    # each item once from the per-(day, item) rows matches a distinct-item scan.
+    range_total = Decimal('0')
+    counted_items: set[int] = set()
     by_day: dict[date, Decimal] = defaultdict(lambda: Decimal('0'))
     for row in daily_rows:
         if _skip(row):
             continue
         by_day[row['day']] += _shelf_value(row)
+        if row['day'] >= total_start and row['item_id'] not in counted_items:
+            counted_items.add(row['item_id'])
+            range_total += _shelf_value(row)
 
     return range_total, dict(by_day)
 
@@ -250,11 +270,12 @@ def _processing_on_shelf_value(start: date, end: date) -> Decimal:
 
 
 def _restoration_done_by_day(start: date, end: date) -> dict[date, int]:
+    start_dt, end_dt = _day_range(start, end)
     rows = (
         RestorationJob.objects.filter(
             stage=RestorationJob.STAGE_DONE,
-            dispositioned_at__date__gte=start,
-            dispositioned_at__date__lte=end,
+            dispositioned_at__gte=start_dt,
+            dispositioned_at__lt=end_dt,
         )
         .values('dispositioned_at__date')
         .annotate(count=Count('id'))
@@ -299,21 +320,24 @@ def _count_tars_actions(jobs, action_type: str) -> int:
 def _restoration_metrics(today: date) -> dict[str, Any]:
     week_start = _week_start_sunday(today)
 
-    done_filter = {
-        'stage': RestorationJob.STAGE_DONE,
-        'dispositioned_at__date__gte': week_start,
-        'dispositioned_at__date__lte': today,
-    }
-    week_jobs_done = RestorationJob.objects.filter(**done_filter).count()
+    week_start_dt, week_end_dt = _day_range(week_start, today)
+    today_start_dt, today_end_dt = _day_range(today, today)
+
+    week_jobs_done = RestorationJob.objects.filter(
+        stage=RestorationJob.STAGE_DONE,
+        dispositioned_at__gte=week_start_dt,
+        dispositioned_at__lt=week_end_dt,
+    ).count()
     today_jobs_done = RestorationJob.objects.filter(
         stage=RestorationJob.STAGE_DONE,
-        dispositioned_at__date=today,
+        dispositioned_at__gte=today_start_dt,
+        dispositioned_at__lt=today_end_dt,
     ).count()
 
     week_jobs = list(
         RestorationJob.objects.filter(
-            updated_at__date__gte=week_start,
-            updated_at__date__lte=today,
+            updated_at__gte=week_start_dt,
+            updated_at__lt=week_end_dt,
         ).only('work_session', 'updated_at'),
     )
     today_jobs = [job for job in week_jobs if job.updated_at.date() == today]
@@ -409,8 +433,13 @@ def build_department_metrics(today: date | None = None) -> dict[str, Any]:
     last_week_start = this_week_start - timedelta(days=7)
 
     buying_by_day = _buying_by_day(last_week_start, today)
-    processing_week_total, _ = _processing_on_shelf_aggregate(week_start, today)
-    _, processing_by_day = _processing_on_shelf_aggregate(last_week_start, today)
+    # One pass over the wide window: by-day spans (last_week_start, today) for the
+    # daily grid while the unique-item week total is narrowed to (week_start, today).
+    processing_week_total, processing_by_day = _processing_on_shelf_aggregate(
+        min(last_week_start, week_start),
+        today,
+        total_start=week_start,
+    )
     restoration_by_day = _restoration_done_by_day(last_week_start, today)
 
     latest_retail = (
