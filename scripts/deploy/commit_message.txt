@@ -1,14 +1,12 @@
-release(v2.44.0): floorplan configs, file round-trip, lock/rotate/label tools
+release(v2.45.0): floorplan print dialog, flip, constrained move/scale
 
-Release: v2.44.0
+Release: v2.45.0
 
-- File round-trip: plans export as wrapped JSON; Import on the list page creates a plan from JSON or YAML (tolerant parse: missing ids generated, collections defaulted); editor Export menu gains Load-from-file to replace the draft. Old bare-document backups still import. Server validation unchanged.
-- Configuration tabs: compact tabs bottom-right of the canvas switch layout variants stored in one plan (configStore + settings.configs; active config stays in top-level collections for back-compat). + duplicates current layout, double-click renames, x deletes (never the last). Undoable.
-- Rotate each in place (Shift+R / toolbar): every selected object spins 90 degrees about its own center, unlike R's rigid-unit rotate.
-- Per-item label control: element.labelHidden - single "Show label" switch + bulk Hide/Show labels; hidden stays hidden when plan labels are on.
-- Locked (inert) objects: Lock button makes selection ignore all pointer interaction while rendering normally; toolbar lock chip lists them with Unlock / Unlock all.
-- Mouse wheel pans (Shift/trackpad horizontal); Ctrl or pinch zooms at cursor.
-- Tests: 4 new vitest suites (217 OK); tsc + production build green. No backend changes (plan validator is forward-compatible).
+- Print dialog (editor header): live preview + toggles - black/white, element style (images / solid fill / outline only), element labels, zones + zone labels, drawings, text labels, info blocks, grid, border weight, plan border, inactive elements; one-click Outline preset for printing blank layouts to sketch new configurations on. Landscape browser print via dedicated window.
+- Flip horizontal/vertical: single elements mirror their content (flipH/flipV, rotation-aware, captions stay readable); multi-selections mirror the arrangement about the center; paths mirror point-wise.
+- Group scaling: multi-select corner handles scale positions and sizes about the opposite corner; wall-like thin elements (aspect >= 3) keep their depth so scaling a room outline lengthens walls without fattening them.
+- Shift constrains: moving locks to the dominant axis (no diagonals); resizing (single or group) changes exactly one dimension.
+- Tests: 5 new vitest cases (222 OK); tsc + production build green.
 
 Initiative: .ai/initiatives/floorplan_builder.md
 

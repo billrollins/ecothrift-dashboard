@@ -45,6 +45,7 @@ import TextFieldsIcon from '@mui/icons-material/TextFields';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import FlipIcon from '@mui/icons-material/Flip';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import Rotate90DegreesCwIcon from '@mui/icons-material/Rotate90DegreesCw';
@@ -113,6 +114,8 @@ interface ToolbarProps {
   onDistributeSelection: (axis: 'h' | 'v') => void;
   /** Rotate each selected object 90° about its own center */
   onRotateEachSelection: () => void;
+  /** Mirror the selection horizontally/vertically about its center */
+  onFlipSelection: (axis: 'h' | 'v') => void;
   /** Make the current selection inert (locked) */
   onLockSelection: () => void;
   lockedObjects: LockedObjectInfo[];
@@ -143,6 +146,7 @@ export function EditorToolbar({
   onAlignSelection,
   onDistributeSelection,
   onRotateEachSelection,
+  onFlipSelection,
   onLockSelection,
   lockedObjects,
   onUnlockObject,
@@ -310,6 +314,16 @@ export function EditorToolbar({
               </IconButton>
             </Tooltip>
           )}
+          <Tooltip title="Flip horizontally">
+            <IconButton size="small" onClick={() => onFlipSelection('h')} aria-label="Flip selection horizontally">
+              <FlipIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Flip vertically">
+            <IconButton size="small" onClick={() => onFlipSelection('v')} aria-label="Flip selection vertically">
+              <FlipIcon fontSize="small" sx={{ transform: 'rotate(90deg)' }} />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Lock (make inert; unlock from the toolbar lock list)">
             <IconButton size="small" onClick={onLockSelection} aria-label="Lock selection">
               <LockIcon fontSize="small" />

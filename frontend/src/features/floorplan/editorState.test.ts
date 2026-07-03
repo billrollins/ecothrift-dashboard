@@ -12,12 +12,14 @@ import {
   distributeObjects,
   editorReducer,
   expandSelectionToGroups,
+  flipObjects,
   groupObjects,
   initialEditorState,
   listLockedObjects,
   moveObjects,
   rotateObjects90,
   rotateObjectsEachInPlace,
+  scaleObjects,
   selectionIsGrouped,
   setObjectsLocked,
   switchConfig,
@@ -460,5 +462,77 @@ describe('layout configurations', () => {
     expect(configMetas(doc)).toHaveLength(1);
     expect(doc.elements[0].id).toBe('a');
     expect(doc.configStore?.[secondId]).toBeUndefined();
+  });
+});
+
+describe('flipObjects', () => {
+  it('mirrors positions about the selection center and toggles content flip', () => {
+    let doc = emptyDoc();
+    doc = addElement(doc, { ...el('a', 0, 0), w: 10, h: 10 });
+    doc = addElement(doc, { ...el('b', 90, 0), w: 10, h: 10 });
+    const next = flipObjects(doc, [
+      { kind: 'element', id: 'a' },
+      { kind: 'element', id: 'b' },
+    ], 'h');
+    const a = next.elements.find((e) => e.id === 'a')!;
+    const b = next.elements.find((e) => e.id === 'b')!;
+    // Selection spans 0..100; a (0..10) mirrors to 90..100 and vice versa
+    expect(a.x).toBe(90);
+    expect(b.x).toBe(0);
+    expect(a.flipH).toBe(true);
+    expect(b.flipH).toBe(true);
+    // Flip back restores everything
+    const back = flipObjects(next, [
+      { kind: 'element', id: 'a' },
+      { kind: 'element', id: 'b' },
+    ], 'h');
+    expect(back.elements.find((e) => e.id === 'a')!.x).toBe(0);
+    expect(back.elements.find((e) => e.id === 'a')!.flipH).toBeUndefined();
+  });
+
+  it('a 90°-rotated element flips its pre-rotation vertical content on horizontal flip', () => {
+    let doc = emptyDoc();
+    doc = addElement(doc, { ...el('rot', 0, 0), w: 10, h: 40, rotation: 90 });
+    const next = flipObjects(doc, [{ kind: 'element', id: 'rot' }], 'h');
+    const rot = next.elements[0];
+    expect(rot.flipV).toBe(true);
+    expect(rot.flipH).toBeUndefined();
+  });
+
+  it('mirrors path points', () => {
+    const doc: PlanDocument = {
+      ...emptyDoc(),
+      paths: [{ id: 'p1', points: [[0, 0], [10, 5]], stroke: '#000', width: 2 }],
+    };
+    const next = flipObjects(doc, [{ kind: 'path', id: 'p1' }], 'h');
+    // Bounds 0..10, center 5: x mirrors as 10-x
+    expect(next.paths[0].points).toEqual([[10, 0], [0, 5]]);
+  });
+});
+
+describe('scaleObjects', () => {
+  it('scales positions and sizes about the origin', () => {
+    let doc = emptyDoc();
+    doc = addElement(doc, { ...el('sq', 10, 10), w: 20, h: 20 });
+    const next = scaleObjects(doc, [{ kind: 'element', id: 'sq' }], { x: 0, y: 0 }, 2, 2);
+    const sq = next.elements[0];
+    expect({ x: sq.x, y: sq.y, w: sq.w, h: sq.h }).toEqual({ x: 20, y: 20, w: 40, h: 40 });
+  });
+
+  it('keeps the depth of wall-like elements while lengths scale', () => {
+    let doc = emptyDoc();
+    // A 96x6 wall (aspect 16) and a 20x20 table
+    doc = addElement(doc, { ...el('wall', 0, 0), w: 96, h: 6 });
+    doc = addElement(doc, { ...el('table', 0, 50), w: 20, h: 20 });
+    const next = scaleObjects(doc, [
+      { kind: 'element', id: 'wall' },
+      { kind: 'element', id: 'table' },
+    ], { x: 0, y: 0 }, 2, 2);
+    const wall = next.elements.find((e) => e.id === 'wall')!;
+    const table = next.elements.find((e) => e.id === 'table')!;
+    expect(wall.w).toBe(192); // length doubles
+    expect(wall.h).toBe(6);   // depth preserved
+    expect(table.w).toBe(40); // regular elements scale fully
+    expect(table.h).toBe(40);
   });
 });

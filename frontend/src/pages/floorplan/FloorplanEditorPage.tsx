@@ -23,6 +23,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import PrintIcon from '@mui/icons-material/Print';
 import { useSnackbar } from 'notistack';
 import { isAxiosError } from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
@@ -43,6 +44,7 @@ import {
   deleteObjects,
   distributeObjects,
   editorReducer,
+  flipObjects,
   getObject,
   groupObjects,
   initialEditorState,
@@ -75,6 +77,7 @@ import FloorplanCanvas, { defaultInfoBlock, type DrawStroke } from '../../featur
 import { EditorToolbar, PaletteSidebar, PropertiesPanel, ScaleBarOverlay } from '../../features/floorplan/EditorChrome';
 import ElementKindDialog from '../../features/floorplan/ElementKindDialog';
 import { exportPlanJson, exportPlanPng } from '../../features/floorplan/exportPlan';
+import PrintDialog from '../../features/floorplan/PrintDialog';
 
 const EMPTY_DOC_STATE = initialEditorState({
   schema_version: 1,
@@ -150,6 +153,7 @@ export default function FloorplanEditorPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const revisionRef = useRef<number>(1);
   const loadedRef = useRef(false);
@@ -354,6 +358,13 @@ export default function FloorplanEditorPage() {
     const current = stateRef.current;
     if (current.selection.length === 0) return;
     dispatch({ type: 'commit', doc: moveObjects(current.doc, current.selection, dx, dy) });
+  }, []);
+
+  const flipSelection = useCallback((axis: 'h' | 'v') => {
+    const current = stateRef.current;
+    if (current.selection.length === 0) return;
+    const doc = flipObjects(current.doc, current.selection, axis);
+    if (doc !== current.doc) dispatch({ type: 'commit', doc });
   }, []);
 
   const rotateEachSelection = useCallback(() => {
@@ -724,6 +735,9 @@ export default function FloorplanEditorPage() {
             </Tooltip>
           )}
           <Box sx={{ flex: 1 }} />
+          <Button size="small" startIcon={<PrintIcon />} onClick={() => setPrintOpen(true)}>
+            Print
+          </Button>
           <Button size="small" startIcon={<FileDownloadIcon />} onClick={(e) => setExportAnchor(e.currentTarget)}>
             Export
           </Button>
@@ -778,6 +792,7 @@ export default function FloorplanEditorPage() {
         onAlignSelection={alignSelection}
         onDistributeSelection={distributeSelection}
         onRotateEachSelection={rotateEachSelection}
+        onFlipSelection={flipSelection}
         onLockSelection={lockSelection}
         lockedObjects={lockedObjects}
         onUnlockObject={unlockObject}
@@ -840,6 +855,15 @@ export default function FloorplanEditorPage() {
           onSetSelectionLabelsHidden={setSelectionLabelsHidden}
         />
       </Stack>
+
+      <PrintDialog
+        open={printOpen}
+        onClose={() => setPrintOpen(false)}
+        doc={state.doc}
+        planName={planName}
+        assets={assetMap}
+        kindIndex={kindIndex}
+      />
 
       {canManageKinds && (
         <ElementKindDialog

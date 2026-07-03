@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.44.0] — 2026-07-02 -->
-<!-- Last reviewed: 2026-07-02 (floorplan configs, file round-trip, lock/rotate/labels) -->
+<!-- Line 1 release: ## [2.45.0] — 2026-07-03 -->
+<!-- Last reviewed: 2026-07-03 (floorplan print dialog, flip, constrained scale) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,24 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.45.0] — 2026-07-03
+
+User-facing theme: **Floorplan drafting aids — Shift-constrained moves, group scaling that respects wall depth, flip, and a print dialog built for outline printouts.**
+
+Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md).
+
+### Added
+
+- **Floorplan / print dialog** — **Print** in the editor header opens a live preview with comprehensive toggles: black & white, element style (**images / solid fill / outline only**), element labels, zones + zone labels, freehand drawings, text labels, info blocks, grid, border weight (thin→extra heavy), plan border, inactive elements — plus a one-click **Outline preset** for printing a blank layout to sketch new configurations on. Prints landscape-fit via the browser (**`PrintDialog.tsx`**, dedicated print renderer).
+- **Floorplan / flip** — toolbar Flip horizontal / Flip vertical: a single element mirrors its content (`flipH`/`flipV`, rotation-aware; captions stay readable), a multi-selection mirrors the whole arrangement about its center; freehand paths mirror point-wise (**`flipObjects`**).
+- **Floorplan / group scaling** — multi-selections get corner scale handles on the combined bounds: positions and sizes scale about the opposite corner, and **wall-like thin elements (aspect ≥ 3) keep their depth** — scaling a room outline lengthens walls without fattening them (**`scaleObjects`**).
+
+### Changed
+
+- **Floorplan / Shift constrains** — holding **Shift** while moving locks to the dominant axis (pure left/right or up/down, no diagonals); while resizing (single or group) it changes exactly one dimension.
 
 ---
 

@@ -71,6 +71,10 @@ export interface PlanElement {
   labelHidden?: boolean;
   /** Inert: renders normally but ignores all pointer interaction */
   locked?: boolean;
+  /** Mirror the element's content horizontally (applied before rotation) */
+  flipH?: boolean;
+  /** Mirror the element's content vertically (applied before rotation) */
+  flipV?: boolean;
 }
 
 export interface PlanZone {

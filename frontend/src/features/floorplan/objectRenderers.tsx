@@ -38,11 +38,17 @@ export function ElementShape({
   const inset = strokeW / 2;
   // Uniform caption size across all elements, clamped so tiny footprints don't overflow.
   const fontSize = Math.min(labelSettings.fontSize, Math.max(3, Math.min(element.w, element.h) * 0.45));
+  // Mirror shape + image about the element center; the caption stays readable
+  const flipTransform =
+    element.flipH || element.flipV
+      ? `translate(${cx} ${cy}) scale(${element.flipH ? -1 : 1} ${element.flipV ? -1 : 1}) translate(${-cx} ${-cy})`
+      : undefined;
   return (
     <g
       transform={`rotate(${element.rotation} ${cx} ${cy})`}
       opacity={element.active ? 1 : 0.45}
     >
+      <g transform={flipTransform}>
       {round ? (
         <ellipse
           cx={cx}
@@ -82,6 +88,7 @@ export function ElementShape({
           pointerEvents="none"
         />
       )}
+      </g>
       {labelSettings.show && !element.labelHidden && (
         // Counter-rotate so the caption stays horizontal regardless of element rotation
         <text

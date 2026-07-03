@@ -20,6 +20,7 @@ import {
   getObject,
   moveObjects,
   newId,
+  scaleObjects,
   updateObject,
   type EditorAction,
   type EditorState,
@@ -73,6 +74,7 @@ type DragState =
   | { mode: 'maybeMove'; startClient: Point; startWorld: Point; ref: SelectionRef; additive: boolean }
   | { mode: 'move'; startWorld: Point; baseDoc: PlanDocument; refs: SelectionRef[]; anchor: Point }
   | { mode: 'resize'; ref: SelectionRef; handle: HandleId; baseRect: Rect; rotation: number; baseDoc: PlanDocument }
+  | { mode: 'groupResize'; refs: SelectionRef[]; handle: HandleId; baseBounds: Rect; baseDoc: PlanDocument }
   | { mode: 'marquee'; startWorld: Point }
   | { mode: 'zone'; startWorld: Point; id: string; baseDoc: PlanDocument }
   | { mode: 'draw'; id: string; points: [number, number][]; baseDoc: PlanDocument };
@@ -288,6 +290,14 @@ export default function FloorplanCanvas({
     objectPointerDownRef.current(e, ref);
   }, []);
 
+  const onGroupHandlePointerDown = (e: ReactPointerEvent, handle: HandleId, baseBounds: Rect) => {
+    if (readOnly) return;
+    e.stopPropagation();
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    dispatch({ type: 'gestureStart' });
+    dragRef.current = { mode: 'groupResize', refs: selection, handle, baseBounds, baseDoc: doc };
+  };
+
   const onHandlePointerDown = (e: ReactPointerEvent, ref: SelectionRef, handle: HandleId) => {
     if (readOnly) return;
     e.stopPropagation();
@@ -399,9 +409,13 @@ export default function FloorplanCanvas({
       case 'move': {
         // Snap the dragged object's resulting position to the absolute grid
         // (1' 8" + move snaps to 2', not 2' 8"); other selected objects keep
-        // their relative offsets.
-        const rawDx = world.x - drag.startWorld.x;
-        const rawDy = world.y - drag.startWorld.y;
+        // their relative offsets. Shift constrains to the dominant axis only.
+        let rawDx = world.x - drag.startWorld.x;
+        let rawDy = world.y - drag.startWorld.y;
+        if (e.shiftKey) {
+          if (Math.abs(rawDx) >= Math.abs(rawDy)) rawDy = 0;
+          else rawDx = 0;
+        }
         const dx = snapValue(drag.anchor.x + rawDx, snap) - drag.anchor.x;
         const dy = snapValue(drag.anchor.y + rawDy, snap) - drag.anchor.y;
         dispatch({ type: 'gestureUpdate', doc: moveObjects(drag.baseDoc, drag.refs, dx, dy) });
@@ -412,10 +426,17 @@ export default function FloorplanCanvas({
         // cursor on rotated elements; the result maps back to the raw rect.
         const { baseRect, handle, rotation } = drag;
         const baseVisual = rotatedBounds(baseRect, rotation);
-        const px = snapValue(world.x, snap);
-        const py = snapValue(world.y, snap);
         const anchorX = handle === 'nw' || handle === 'sw' ? baseVisual.x + baseVisual.w : baseVisual.x;
         const anchorY = handle === 'nw' || handle === 'ne' ? baseVisual.y + baseVisual.h : baseVisual.y;
+        let px = snapValue(world.x, snap);
+        let py = snapValue(world.y, snap);
+        if (e.shiftKey) {
+          // Shift: resize ONE dimension only — hold the axis the cursor moved less on
+          const dcX = anchorX === baseVisual.x ? baseVisual.x + baseVisual.w : baseVisual.x;
+          const dcY = anchorY === baseVisual.y ? baseVisual.y + baseVisual.h : baseVisual.y;
+          if (Math.abs(world.x - dcX) >= Math.abs(world.y - dcY)) py = dcY;
+          else px = dcX;
+        }
         const raw = normalizeRect({ x: anchorX, y: anchorY, w: px - anchorX, h: py - anchorY });
         const nextVisual: Rect = {
           ...raw,
@@ -425,6 +446,28 @@ export default function FloorplanCanvas({
         dispatch({
           type: 'gestureUpdate',
           doc: updateObject(drag.baseDoc, drag.ref, rawRectFromVisual(nextVisual, rotation)),
+        });
+        break;
+      }
+      case 'groupResize': {
+        // Scale the whole selection about the anchor (opposite) corner.
+        const { baseBounds, handle, refs } = drag;
+        const anchorX = handle === 'nw' || handle === 'sw' ? baseBounds.x + baseBounds.w : baseBounds.x;
+        const anchorY = handle === 'nw' || handle === 'ne' ? baseBounds.y + baseBounds.h : baseBounds.y;
+        let px = snapValue(world.x, snap);
+        let py = snapValue(world.y, snap);
+        if (e.shiftKey) {
+          // Shift: scale along one axis only
+          const dcX = anchorX === baseBounds.x ? baseBounds.x + baseBounds.w : baseBounds.x;
+          const dcY = anchorY === baseBounds.y ? baseBounds.y + baseBounds.h : baseBounds.y;
+          if (Math.abs(world.x - dcX) >= Math.abs(world.y - dcY)) py = dcY;
+          else px = dcX;
+        }
+        const sx = Math.max(0.02, Math.abs(px - anchorX) / Math.max(1, baseBounds.w));
+        const sy = Math.max(0.02, Math.abs(py - anchorY) / Math.max(1, baseBounds.h));
+        dispatch({
+          type: 'gestureUpdate',
+          doc: scaleObjects(drag.baseDoc, refs, { x: anchorX, y: anchorY }, sx, sy, MIN_SIZE),
         });
         break;
       }
@@ -490,6 +533,7 @@ export default function FloorplanCanvas({
         break;
       case 'move':
       case 'resize':
+      case 'groupResize':
         dispatch({ type: 'gestureEnd' });
         break;
       case 'zone': {
@@ -570,6 +614,23 @@ export default function FloorplanCanvas({
     singleRectRaw && singleRectRef?.kind === 'element'
       ? rotatedBounds(singleRectRaw, (getObject(doc, singleRectRef) as PlanElement).rotation)
       : singleRectRaw;
+  // Combined bounds for multi-selection group scaling
+  let groupRect: Rect | null = null;
+  if (selection.length > 1) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const ref of selection) {
+      const b = objectBounds(doc, ref);
+      if (!b) continue;
+      minX = Math.min(minX, b.x);
+      minY = Math.min(minY, b.y);
+      maxX = Math.max(maxX, b.x + b.w);
+      maxY = Math.max(maxY, b.y + b.h);
+    }
+    if (Number.isFinite(minX)) groupRect = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
   const handleSize = 9 / viewport.scale;
 
   const isSelected = (kind: SelectionRef['kind'], id: string) =>
@@ -708,6 +769,41 @@ export default function FloorplanCanvas({
                     strokeWidth={1.2 / viewport.scale}
                     style={{ cursor: h === 'nw' || h === 'se' ? 'nwse-resize' : 'nesw-resize' }}
                     onPointerDown={(e) => onHandlePointerDown(e, singleRectRef, h)}
+                  />
+                );
+              })}
+            </>
+          )}
+
+          {/* Group scale handles for multi-selection (walls keep their depth) */}
+          {groupRect && !readOnly && (
+            <>
+              <rect
+                x={groupRect.x}
+                y={groupRect.y}
+                width={groupRect.w}
+                height={groupRect.h}
+                fill="none"
+                stroke="#1565c0"
+                strokeWidth={1 / viewport.scale}
+                strokeDasharray={`${5 / viewport.scale} ${4 / viewport.scale}`}
+                pointerEvents="none"
+              />
+              {(['nw', 'ne', 'sw', 'se'] as HandleId[]).map((h) => {
+                const hx = h === 'nw' || h === 'sw' ? groupRect.x : groupRect.x + groupRect.w;
+                const hy = h === 'nw' || h === 'ne' ? groupRect.y : groupRect.y + groupRect.h;
+                return (
+                  <rect
+                    key={`grp-${h}`}
+                    x={hx - handleSize / 2}
+                    y={hy - handleSize / 2}
+                    width={handleSize}
+                    height={handleSize}
+                    fill="#1565c0"
+                    stroke="#fff"
+                    strokeWidth={1.2 / viewport.scale}
+                    style={{ cursor: h === 'nw' || h === 'se' ? 'nwse-resize' : 'nesw-resize' }}
+                    onPointerDown={(e) => onGroupHandlePointerDown(e, h, groupRect)}
                   />
                 );
               })}

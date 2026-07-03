@@ -9,7 +9,7 @@ import type {
   PlanPath,
   PlanZone,
 } from '../../types/floorplan.types';
-import { pathBounds, rotatedBounds, type Rect } from './geometry';
+import { pathBounds, rawRectFromVisual, rotatedBounds, type Rect } from './geometry';
 
 export type Tool = 'select' | 'pan' | 'zone' | 'draw' | 'label';
 
@@ -524,6 +524,114 @@ export function rotateObjectsEachInPlace(doc: PlanDocument, refs: SelectionRef[]
       next = updateObject<PlanPath>(next, ref, {
         points: path.points.map(([x, y]) => [cx - (y - cy), cy + (x - cx)] as [number, number]),
       });
+    }
+  }
+  return next;
+}
+
+/**
+ * Mirror the referenced objects across the selection's center line. Elements
+ * toggle their content flip flag (rotation-aware: mirroring a 90°-rotated
+ * element across a vertical axis mirrors its pre-rotation vertical content);
+ * paths mirror point-wise; other objects just move to the mirrored position.
+ */
+export function flipObjects(doc: PlanDocument, refs: SelectionRef[], axis: 'h' | 'v'): PlanDocument {
+  const items = refs
+    .map((ref) => ({ ref, bounds: visualBounds(doc, ref) }))
+    .filter((it): it is { ref: SelectionRef; bounds: Rect } => it.bounds != null);
+  if (items.length === 0) return doc;
+
+  const minX = Math.min(...items.map((it) => it.bounds.x));
+  const maxX = Math.max(...items.map((it) => it.bounds.x + it.bounds.w));
+  const minY = Math.min(...items.map((it) => it.bounds.y));
+  const maxY = Math.max(...items.map((it) => it.bounds.y + it.bounds.h));
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+
+  let next = doc;
+  for (const { ref, bounds } of items) {
+    const dx = axis === 'h' ? 2 * cx - (bounds.x + bounds.w) - bounds.x : 0;
+    const dy = axis === 'v' ? 2 * cy - (bounds.y + bounds.h) - bounds.y : 0;
+
+    if (ref.kind === 'path') {
+      const path = getObject(next, ref) as PlanPath;
+      next = updateObject<PlanPath>(next, ref, {
+        points: path.points.map(([x, y]) =>
+          (axis === 'h' ? [2 * cx - x, y] : [x, 2 * cy - y]) as [number, number]),
+      });
+      continue;
+    }
+    if (dx !== 0 || dy !== 0) next = moveObjects(next, [ref], dx, dy);
+    if (ref.kind === 'element') {
+      const el = getObject(next, ref) as PlanElement;
+      const rot = ((el.rotation % 360) + 360) % 360;
+      const swapAxes = rot === 90 || rot === 270;
+      const flipContentH = axis === 'h' ? !swapAxes : swapAxes;
+      next = updateObject<PlanElement>(
+        next,
+        ref,
+        flipContentH
+          ? { flipH: el.flipH ? undefined : true }
+          : { flipV: el.flipV ? undefined : true },
+      );
+    }
+  }
+  return next;
+}
+
+/**
+ * Scale the referenced objects' visual bounds about `origin` by (sx, sy).
+ * Wall-like thin elements (aspect ratio ≥ 3) keep their thin dimension —
+ * scaling a room outline lengthens the walls without fattening them.
+ */
+export function scaleObjects(
+  doc: PlanDocument,
+  refs: SelectionRef[],
+  origin: { x: number; y: number },
+  sx: number,
+  sy: number,
+  minSize = 2,
+): PlanDocument {
+  const mapX = (x: number) => origin.x + (x - origin.x) * sx;
+  const mapY = (y: number) => origin.y + (y - origin.y) * sy;
+
+  let next = doc;
+  for (const ref of refs) {
+    const obj = getObject(next, ref);
+    if (!obj) continue;
+    if (ref.kind === 'path') {
+      const path = obj as PlanPath;
+      next = updateObject<PlanPath>(next, ref, {
+        points: path.points.map(([x, y]) => [mapX(x), mapY(y)] as [number, number]),
+      });
+      continue;
+    }
+    if (ref.kind === 'label') {
+      const label = obj as PlanLabel;
+      next = updateObject(next, ref, { x: mapX(label.x), y: mapY(label.y) });
+      continue;
+    }
+    const bounds = visualBounds(next, ref);
+    if (!bounds) continue;
+    let w = Math.max(minSize, bounds.w * sx);
+    let h = Math.max(minSize, bounds.h * sy);
+    if (ref.kind === 'element') {
+      const thin = Math.max(bounds.w, bounds.h) / Math.max(1, Math.min(bounds.w, bounds.h)) >= 3;
+      if (thin) {
+        // Preserve the depth of wall-like elements; only their length scales.
+        if (bounds.w <= bounds.h) w = bounds.w;
+        else h = bounds.h;
+      }
+    }
+    // Anchor each object by its scaled center so the arrangement stays true
+    const centerX = mapX(bounds.x + bounds.w / 2);
+    const centerY = mapY(bounds.y + bounds.h / 2);
+    const nextVisual: Rect = { x: centerX - w / 2, y: centerY - h / 2, w, h };
+    if (ref.kind === 'element') {
+      const rotation = (obj as PlanElement).rotation;
+      next = updateObject(next, ref, rawRectFromVisual(nextVisual, rotation));
+    } else {
+      next = updateObject(next, ref, nextVisual);
     }
   }
   return next;
