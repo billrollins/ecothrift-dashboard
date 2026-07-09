@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.47.2] — 2026-07-03 -->
-<!-- Last reviewed: 2026-07-03 (inventory/processing performance pass) -->
+<!-- Line 1 release: ## [2.48.0] — 2026-07-09 -->
+<!-- Last reviewed: 2026-07-09 (Label Studio v2.48.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,29 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.48.0] — 2026-07-09
+
+User-facing theme: **Label Studio — design, AI-assist, save, and print custom labels (PDF or template) × N.**
+
+Initiative: [`.ai/initiatives/custom_label_studio.md`](.ai/initiatives/custom_label_studio.md).
+
+### Added
+
+- **Admin / Label Studio** — **`/admin/label-studio`** library (Manager+): **PDF labels** (S3 upload, print × N) and **template labels**. New backend app **`apps.labels`** (`CustomLabel`, validated `definition` JSON, uploads, staff media proxy, soft archive, **duplicate**, **restore**) at `/api/labels/`.
+- **Label Studio designer (Phase 2)** — full-page **`/admin/label-studio/:id`**: drag text/QR/Code128 on an aspect-correct mono canvas, variables rail, properties panel, background upload, 5% snap; New Template creates then opens the designer. PDF edit stays a dialog.
+- **Template elements** — definition schema supports `text` (optional **bold**), **`qr`** (ecc L/M/Q/H, square `w_pct`/`h_pct`), **`barcode`** (Code128, `show_text`); client renderer uses `qrcode` + `jsbarcode` at 203 DPI for preview and print.
+- **AI Create for me (Phase 3)** — designer dialog: LLM proposes validated `definition` JSON (`AI_MODEL_LABEL_STRUCTURE`); xAI Grok Imagine generates a monochrome background preview (`AI_MODEL_LABEL_IMAGE` → `/v1/images/generations`); user must **Apply** / **Use as background** before Save. Endpoints: `POST …/ai/propose-structure/`, `POST …/ai/generate-background/`.
+- **Variables + increment** — designer variables are **Name** + **Default** (text) or **Start / Step / Format** (increment). Element Source picks a variable by Name (preview uses default or Name). Print: text fields + per-increment start/step + Qty; when any increment exists, each copy is rasterized separately (`start + i × step`).
+- **Label Studio final polish** — zero-training workflow: saved/unsaved status + leave protection; visible draft background/definition exactly matches print; starter template, selectable/layered element list, keyboard nudge, delete/AI-replace confirmations; exact print thumbnail with increment copy browsing, examples, printer health/progress/partial-failure recovery; library search, archived view + restore, PDF-create guard, and friendly errors.
+- **Print server 1.4.0 / 1.4.1** — `POST /print/image-copies` and `POST /print/pdf-copies`; **1.4.1** adds payload/page/raster bounds and exact-size template rasters (`fit_to_printable=False`); **distributed** 2026-07-09 (`PrintServerRelease` current **1.4.1**).
+
+### Changed
+
+- **Label Studio harden (Phase 4)** — orphan `label-studio/` S3 media purge (24h grace; soft-archived labels still protect FKs); Manager+ permission coverage on AI routes; print-server physical smoke checklist in initiative / print-server extended doc.
+- **Label Studio production hardening** — AI endpoint throttles; upload magic-byte checks; retryable storage cleanup + `purge_label_media` command; bounded custom print payloads/pages/rasters; exact-size template printing in print-server **1.4.1**.
 
 ---
 
@@ -42,7 +65,7 @@ User-facing theme: **Hotfix — Catalog product check-in creates real items (and
 
 User-facing theme: **Wall cutter — a knife tool that splits a wall into two segments where you click.**
 
-Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md).
+Initiative: [`.ai/initiatives/_archived/_completed/floorplan_builder.md`](.ai/initiatives/_archived/_completed/floorplan_builder.md).
 
 ### Added
 
@@ -58,7 +81,7 @@ Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_b
 
 User-facing theme: **Walls become a first-class element type — typed selection sizing with aspect lock, bulk wall thickness, wall-group palette shortcuts — plus Catalog check-in parity with processing.**
 
-Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md).
+Initiative: [`.ai/initiatives/_archived/_completed/floorplan_builder.md`](.ai/initiatives/_archived/_completed/floorplan_builder.md).
 
 ### Added
 
@@ -77,7 +100,7 @@ Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_b
 
 User-facing theme: **Floorplan drafting aids — Shift-constrained moves, group scaling that respects wall depth, flip, and a print dialog built for outline printouts.**
 
-Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md).
+Initiative: [`.ai/initiatives/_archived/_completed/floorplan_builder.md`](.ai/initiatives/_archived/_completed/floorplan_builder.md).
 
 ### Added
 
@@ -95,7 +118,7 @@ Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_b
 
 User-facing theme: **Floorplan power tools — layout configuration tabs, JSON/YAML round-trip, lockable objects, per-item labels, rotate-in-place, and scroll-to-pan.**
 
-Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md).
+Initiative: [`.ai/initiatives/_archived/_completed/floorplan_builder.md`](.ai/initiatives/_archived/_completed/floorplan_builder.md).
 
 ### Added
 
@@ -125,7 +148,7 @@ User-facing theme: **Hotfix — saving the system retail QA form works again.**
 
 User-facing theme: **QA Forms get a clean list-first admin page and a JSON/YAML round-trip — export a form, redesign it (or hand it to an AI), and import it back.**
 
-Initiative: [`.ai/initiatives/retail_quality_audit.md`](.ai/initiatives/retail_quality_audit.md).
+Initiative: [`.ai/initiatives/_archived/_completed/retail_quality_audit.md`](.ai/initiatives/_archived/_completed/retail_quality_audit.md).
 
 ### Added
 
@@ -143,7 +166,7 @@ Initiative: [`.ai/initiatives/retail_quality_audit.md`](.ai/initiatives/retail_q
 
 User-facing theme: **Floorplan bulk image editing — select all, set or reset images across a whole selection, and unused images clean themselves up.**
 
-Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md) (Session 1 continued).
+Initiative: [`.ai/initiatives/_archived/_completed/floorplan_builder.md`](.ai/initiatives/_archived/_completed/floorplan_builder.md) (Session 1 continued).
 
 ### Added
 
@@ -161,7 +184,7 @@ Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_b
 
 User-facing theme: **Floorplan editor precision — align/distribute tools, arrow-key nudging, exact footprints, correct rotated resize, and absolute grid snapping.**
 
-Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md) (Session 1 continued).
+Initiative: [`.ai/initiatives/_archived/_completed/floorplan_builder.md`](.ai/initiatives/_archived/_completed/floorplan_builder.md) (Session 1 continued).
 
 ### Added
 
@@ -191,7 +214,7 @@ User-facing theme: **Infrastructure — Heroku stack upgraded to heroku-24; buil
 
 User-facing theme: **Floorplan element types live in the database — Super Admins create and edit palette entries (size, color, image, shape) from inside the editor.**
 
-Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_builder.md); plan: [`apps/floorplan/PLAN_element_kinds.md`](apps/floorplan/PLAN_element_kinds.md).
+Initiative: [`.ai/initiatives/_archived/_completed/floorplan_builder.md`](.ai/initiatives/_archived/_completed/floorplan_builder.md); plan: [`apps/floorplan/PLAN_element_kinds.md`](apps/floorplan/PLAN_element_kinds.md).
 
 ### Added
 
@@ -214,7 +237,7 @@ Initiative: [`.ai/initiatives/floorplan_builder.md`](.ai/initiatives/floorplan_b
 
 User-facing theme: **Floorplan builder ships in Floor Ops; TARS restoration hardening lands; Add Order shows all active vendors.**
 
-Initiatives: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md) (Session 4 hardening).
+Initiatives: [`.ai/initiatives/_archived/_pending/tars_restoration_workspace.md`](.ai/initiatives/_archived/_pending/tars_restoration_workspace.md) (Session 4 hardening).
 
 ### Added
 
@@ -246,7 +269,7 @@ Initiatives: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/t
 
 User-facing theme: **Managers run mobile floor QAs from configurable forms; Super Admins edit checklists; the dashboard Retail QA card shows the latest letter grade.**
 
-Initiative: [`.ai/initiatives/retail_quality_audit.md`](.ai/initiatives/retail_quality_audit.md)
+Initiative: [`.ai/initiatives/_archived/_completed/retail_quality_audit.md`](.ai/initiatives/_archived/_completed/retail_quality_audit.md)
 
 ### Added
 
@@ -289,7 +312,7 @@ User-facing theme: **Dashboard is fully usable on phone — natural scroll, touc
 
 User-facing theme: **TARS restoration closes the full lifecycle — bench Disposition returns items to Processing with achieved grade, parts flow parks/resumes cleanly, and Processing gets a dedicated Restoration Returns list.**
 
-Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md)
+Initiative: [`.ai/initiatives/_archived/_pending/tars_restoration_workspace.md`](.ai/initiatives/_archived/_pending/tars_restoration_workspace.md)
 
 ### Added
 
@@ -310,7 +333,7 @@ Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/ta
 
 User-facing theme: **TARS bench MVP — simplified work session, grade-scoped parts requests with full order detail and per-part actual costs.**
 
-Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md)
+Initiative: [`.ai/initiatives/_archived/_pending/tars_restoration_workspace.md`](.ai/initiatives/_archived/_pending/tars_restoration_workspace.md)
 
 ### Added
 
@@ -339,7 +362,7 @@ Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/ta
 
 User-facing theme: **Single TARS route at `/restoration/tars` — legacy tars-2 duplicate removed.**
 
-Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md)
+Initiative: [`.ai/initiatives/_archived/_pending/tars_restoration_workspace.md`](.ai/initiatives/_archived/_pending/tars_restoration_workspace.md)
 
 ### Changed
 
@@ -356,7 +379,7 @@ Initiative: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/ta
 
 User-facing theme: **Restoration bench goes live on TARS 2, dashboard metrics ship with goals, and parts-list orders get full CRUD with order-specific qty.**
 
-Initiatives: [`.ai/initiatives/tars_restoration_workspace.md`](.ai/initiatives/tars_restoration_workspace.md); [`.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md`](.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md) (payroll polish)
+Initiatives: [`.ai/initiatives/_archived/_pending/tars_restoration_workspace.md`](.ai/initiatives/_archived/_pending/tars_restoration_workspace.md); [`.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md`](.ai/initiatives/_archived/_completed/hr_time_clock_mvp.md) (payroll polish)
 
 ### Added
 

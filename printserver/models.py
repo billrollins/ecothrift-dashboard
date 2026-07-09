@@ -64,6 +64,29 @@ class TestPrintRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Custom labels (Label Studio)
+# ---------------------------------------------------------------------------
+
+class ImageCopiesPrintRequest(BaseModel):
+    """A pre-rendered raster printed N times (dashboard renders the template)."""
+
+    image_base64: str = Field(..., description="Base64-encoded PNG/JPEG, ready to print")
+    copies: int = Field(1, ge=1, le=100)
+    printer_name: str | None = None
+    dpi: int | None = Field(None, description="Source DPI of the raster (default LABEL_DPI)")
+    doc_name: str | None = None
+
+
+class PdfCopiesPrintRequest(BaseModel):
+    """A PDF printed N times (rasterized per page on the print server)."""
+
+    pdf_base64: str = Field(..., description="Base64-encoded PDF bytes")
+    copies: int = Field(1, ge=1, le=100)
+    printer_name: str | None = None
+    doc_name: str | None = None
+
+
+# ---------------------------------------------------------------------------
 # Receipt printing
 # ---------------------------------------------------------------------------
 

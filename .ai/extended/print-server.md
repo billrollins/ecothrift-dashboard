@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-16T20:35:00-05:00 (V2 reference path removed) -->
+<!-- Last updated: 2026-07-09T15:10:00-05:00 (Label Studio Phase 3–4; 1.4.0 smoke checklist) -->
 
 # Print Server — Extended Context
 
@@ -61,9 +61,22 @@ Labels (GDI + Pillow), receipts (GDI text), cash drawer (ESC/POS). Built-in UI: 
 
 **Labels (shipped in source, v1.2.x):** “Concept C” side stripe — raster in [`printserver/services/label_printer.py`](../../printserver/services/label_printer.py); 203 DPI presets `3x2` / `1.5x1`. Price band: smaller `$` top-left; larger dollar digits and cents; dollar digits left-aligned with extra inset from the stripe edge when whole dollars > 0 (see `_draw_price_block`). **Sub-dollar** prices (e.g. `$0.75`): **`$` + cents only** — no large middle `0`. Fit loop tries scales **1.0 → 0.5** step **0.01** (integer font sizes may repeat across steps). Optional `price_fit_stats` on `generate_label` fills `first_fit_scale` and `used_fallback` for tooling. **Fringe harness:** [`printserver/scripts/label_price_fringe_grid.py`](../../printserver/scripts/label_price_fringe_grid.py) writes PNGs + a console summary under `printserver/output_label_fringe_review/` (gitignored). **GDI:** `printer_manager.send_image` fits the bitmap to `HORZRES`×`VERTRES`, centers horizontally, top-aligns vertically (thermal drivers). Reference PNGs + notes: [`.ai/reference/Consult Label/to-be-checked/`](../reference/Consult%20Label/to-be-checked/). Quick local print: [`printserver/dev_print_e2e_3_labels.bat`](../../printserver/dev_print_e2e_3_labels.bat).
 
+## Custom labels (Label Studio, v1.4.1)
+
+[`printserver/routers/custom.py`](../../printserver/routers/custom.py) — **`POST /print/image-copies`** prints a base64 pre-rendered raster × N (dashboard renders templates at 203 DPI in the browser, `renderTemplate.ts`); **`POST /print/pdf-copies`** rasterizes a base64 PDF per page with **PyMuPDF** (grayscale, 203 DPI) and prints × N. Both use `resolve_printer(role="label")` + GDI `send_image`; copies capped at 100. v1.4.1 adds decoded 5 MiB image / 20 MiB PDF limits, a 10-page PDF cap, safe raster bounds, and `fit_to_printable=False` for pre-sized template images so designer dimensions remain physical dimensions. PDF fitting is unchanged pending physical driver smoke. **Current release:** **1.4.1** (distributed 2026-07-09). Dashboard: `/admin/label-studio` + `apps.labels` (`/api/labels/`, including AI Create propose/generate). Initiative: [`custom_label_studio.md`](../initiatives/custom_label_studio.md).
+
+### Label Studio physical smoke (1.4.1)
+
+1. Settings → install/update print server **1.4.1**.
+2. Confirm health on `127.0.0.1:8888`.
+3. Label Studio: PDF label → print × 2.
+4. Fixed template → print × 2 and measure designer dimensions.
+5. Increment template → print × 3 and verify sequence.
+6. AI Create background/structure → approve, save, and print once.
+
 ## Initiatives (labels + receipts)
 
-**Receipts (pending):** [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](../initiatives/_archived/_pending/print_server_receipt_format.md). **Labels — Concept C (closed):** [`.ai/initiatives/_archived/_completed/print_server_label_design.md`](../initiatives/_archived/_completed/print_server_label_design.md). **Labels — price layout & fringe (closed):** [`.ai/initiatives/_archived/_completed/print_server_label_price_layout.md`](../initiatives/_archived/_completed/print_server_label_price_layout.md). **Migration/install (closed):** [`print_server_v3_testing_and_migration.md`](../initiatives/_archived/_completed/print_server_v3_testing_and_migration.md).
+**Custom labels (active):** [`.ai/initiatives/custom_label_studio.md`](../initiatives/custom_label_studio.md). **Receipts (pending):** [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](../initiatives/_archived/_pending/print_server_receipt_format.md). **Labels — Concept C (closed):** [`.ai/initiatives/_archived/_completed/print_server_label_design.md`](../initiatives/_archived/_completed/print_server_label_design.md). **Labels — price layout & fringe (closed):** [`.ai/initiatives/_archived/_completed/print_server_label_price_layout.md`](../initiatives/_archived/_completed/print_server_label_price_layout.md). **Migration/install (closed):** [`print_server_v3_testing_and_migration.md`](../initiatives/_archived/_completed/print_server_v3_testing_and_migration.md).
 
 ## Current integration
 

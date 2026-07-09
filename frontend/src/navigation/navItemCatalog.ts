@@ -175,6 +175,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'settings',
     roles: ['Manager', 'Admin'],
   },
+  labelStudio: {
+    id: 'labelStudio',
+    path: '/admin/label-studio',
+    label: 'Label Studio',
+    icon: 'localOffer',
+    roles: ['Manager', 'Admin'],
+  },
   restorationQueue: {
     id: 'restorationQueue',
     path: '/restoration/queue',

@@ -1,6 +1,6 @@
 # Floorplan — DB element kinds & shape control
 
-**Status:** **Implemented** 2026-07-02 — released **v2.40.0** (initiative `.ai/initiatives/floorplan_builder.md` Session 1)  
+**Status:** **Implemented** 2026-07-02 — released **v2.40.0** (initiative `.ai/initiatives/_archived/_completed/floorplan_builder.md` Session 1)  
 **Last updated:** 2026-07-02
 
 **Decisions taken (per §Open decisions):** A global catalog · B in-editor management only · C system kinds editable-not-deletable, slug immutable for **all** kinds · D auto slug from label + uniqueness suffix (explicit slug optional on create) · E free-text category with autocomplete of existing · F `rect` + `corner_radius` + separate `circle` (circle normalizes radius to 0; ovals allowed) · G kind-level fill/image only · H legacy "Custom" asset palette section **removed** · I no schema bump · J legend reads the kinds map, swatch from `fill_color`.

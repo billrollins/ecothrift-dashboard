@@ -1,6 +1,9 @@
-<!-- initiative: slug=retail_quality_audit status=active updated=2026-07-02 -->
-<!-- Last updated: 2026-07-02 (Session 2 — forms list UX + JSON/YAML round-trip) -->
+<!-- initiative: slug=retail_quality_audit status=completed updated=2026-07-09 -->
+<!-- Archived 2026-07-09: disposition=completed (Retail QA MVP + editable forms/import; shipped v2.38.0 / v2.43.0) -->
+<!-- Last updated: 2026-07-09 (archived → _completed/) -->
 # Initiative: Retail Quality Audit
+
+**Status:** **Completed** (2026-07-09) — Retail QA MVP shipped **v2.38.0**; forms list + JSON/YAML round-trip **v2.43.0**. See [`CHANGELOG`](../../../../CHANGELOG.md) `[2.38.0]` / `[2.43.0]`.
 
 Mobile-first floor QA checklists under **Admin → Quality Audit**, starting with **Retail** (5 sections × 5 checks). Submitted audits store auditor + timestamp and feed the dashboard **Retail QA** grade card.
 
@@ -21,9 +24,9 @@ Mobile-first floor QA checklists under **Admin → Quality Audit**, starting wit
 
 ## See also
 
-- [`apps/pos/models.py`](../../apps/pos/models.py) — `QualityAudit`
-- [`apps/pos/quality_audit_templates.py`](../../apps/pos/quality_audit_templates.py) — checklist template
-- [`frontend/src/pages/admin/QualityAuditHubPage.tsx`](../../frontend/src/pages/admin/QualityAuditHubPage.tsx)
+- [`apps/pos/models.py`](../../../../apps/pos/models.py) — `QualityAudit`
+- [`apps/pos/quality_audit_templates.py`](../../../../apps/pos/quality_audit_templates.py) — checklist template
+- [`frontend/src/pages/admin/QualityAuditHubPage.tsx`](../../../../frontend/src/pages/admin/QualityAuditHubPage.tsx)
 
 ---
 
@@ -43,4 +46,4 @@ Mobile-first floor QA checklists under **Admin → Quality Audit**, starting wit
 - **Estimated time:** est 3h
 - **Started:** 2026-06-29T12:00:00-05:00
 
-**Result:** (pending session close)
+**Result:** Shipped Retail QA MVP (**v2.38.0**); Session 2 forms UX closed under **v2.43.0**. Initiative archived completed 2026-07-09.

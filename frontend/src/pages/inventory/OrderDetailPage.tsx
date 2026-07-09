@@ -225,7 +225,7 @@ export default function OrderDetailPage() {
 
   const pendingRef = useRef<Record<string, unknown>>({});
   const patchInFlightRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerRef = useRef<number | null>(null);
   const [successFlashKey, setSuccessFlashKey] = useState<string | null>(null);
   const [errorFlashKey, setErrorFlashKey] = useState<string | null>(null);
 

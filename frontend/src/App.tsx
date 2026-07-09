@@ -52,6 +52,8 @@ import WebStorePage from './pages/admin/WebStorePage';
 import WebOrdersPage from './pages/admin/WebOrdersPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
+import LabelStudioPage from './pages/admin/labelStudio/LabelStudioPage';
+import LabelDesignerPage from './pages/admin/labelStudio/LabelDesignerPage';
 import AssumptionsPage from './pages/admin/AssumptionsPage';
 import QualityAuditHubPage from './pages/admin/QualityAuditHubPage';
 import QualityAuditWizardPage from './pages/admin/QualityAuditWizardPage';
@@ -232,6 +234,22 @@ export default function App() {
           element={
             <ManagerRoute>
               <SettingsPage />
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/admin/label-studio"
+          element={
+            <ManagerRoute>
+              <LabelStudioPage />
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/admin/label-studio/:id"
+          element={
+            <ManagerRoute>
+              <LabelDesignerPage />
             </ManagerRoute>
           }
         />

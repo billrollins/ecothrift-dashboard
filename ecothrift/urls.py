@@ -31,6 +31,7 @@ urlpatterns = [
     path('api/webstore/', include('apps.webstore.urls')),
     path('api/blog/', include('apps.blog.urls')),
     path('api/floorplan/', include('apps.floorplan.urls')),
+    path('api/labels/', include('apps.labels.urls')),
 ]
 
 # Serve the React SPA for all non-API routes in production

@@ -5,7 +5,18 @@ Run `python distribute.py` from this directory to build and publish a new releas
 
 ---
 
-## [Unreleased]
+## [1.4.1] — 2026-07-09
+
+### Fixed
+- **Custom label print safety:** image/PDF requests now enforce decoded 5 MiB/20 MiB limits, PDFs are capped at 10 pages, and raster dimensions/pixel counts are validated before printing. Invalid jobs return a clean failed response.
+- **Pre-sized image labels:** `POST /print/image-copies` bypasses printable-area fitting so dashboard rasters keep their intended physical size; PDF jobs retain printable-area fitting.
+
+---
+
+## [1.4.0] — 2026-07-09
+
+### Added
+- **Custom label printing (Label Studio):** `POST /print/image-copies` prints a pre-rendered raster N times; `POST /print/pdf-copies` rasterizes a PDF (PyMuPDF, grayscale, 203 DPI) and prints it N times. Both use the existing GDI `send_image` path and the label printer role. Dependency: `pymupdf`.
 
 ### Fixed
 - **Installer / legacy cleanup:** the V2 Startup-shortcut sweep only matched `Eco-Thrift Print Server.vbs`; real V2 installs also wrote `EcoThrift Print Server.vbs` (no hyphen), so the dead pointer survived upgrades. Both `installer/setup.py` and `installer/uninstall_legacy_prior.bat` now remove both name variants. (Found 2026-06-10 on the owner's machine: dead VBS pointing at the removed `C:\DashPrintServer\start.bat` alongside the correct HKCU Run-key autostart; VBS deleted manually there.)

@@ -34,7 +34,7 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 from config import HOST, PORT, VERSION  # noqa: E402
-from routers import drawer, health, labels, manage, printers, receipts, settings  # noqa: E402
+from routers import custom, drawer, health, labels, manage, printers, receipts, settings  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -63,6 +63,7 @@ app.include_router(settings.router)
 app.include_router(health.router)
 app.include_router(printers.router)
 app.include_router(labels.router)
+app.include_router(custom.router)
 app.include_router(receipts.router)
 app.include_router(drawer.router)
 app.include_router(manage.router)

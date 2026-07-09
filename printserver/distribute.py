@@ -140,7 +140,7 @@ def main() -> None:
         print("  Update VERSION and RELEASE_NOTES in config.py, then re-run.")
         sys.exit(1)
     if current:
-        print(f"  Replacing: v{current}  →  v{version}")
+        print(f"  Replacing: v{current}  ->  v{version}")
 
     env = _load_env()
     if not all([env.get("AWS_STORAGE_BUCKET_NAME"), env.get("AWS_ACCESS_KEY_ID"), env.get("AWS_SECRET_ACCESS_KEY")]):

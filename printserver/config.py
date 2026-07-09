@@ -1,11 +1,36 @@
-VERSION = "1.3.0"
-RELEASE_NOTES = "Batch label printing: POST /print/labels spools a whole check-in in one request."
+VERSION = "1.4.1"
+RELEASE_NOTES = "Hardens custom label printing with upload, page-count, and raster safety limits; pre-sized image jobs retain their physical dimensions."
 
 # Default URL for the public version-check endpoint on the dashboard backend.
 # Users can override this in settings.json via the /manage page (useful for local dev).
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.4.1] — 2026-07-09
+
+### Fixed
+- **Custom label print safety:** image/PDF requests now enforce decoded upload limits,
+  PDFs are capped at 10 pages, and raster dimensions/pixel counts are validated before
+  printing. Invalid jobs return a clean failed response.
+- **Pre-sized image labels:** image-copy jobs bypass printable-area fitting so dashboard
+  rasters keep their intended physical size; PDF jobs retain printable-area fitting.
+
+---
+
+## [1.4.0] — 2026-07-09
+
+### Added
+- **Custom label printing (Label Studio):** ``POST /print/image-copies`` prints a pre-rendered
+  raster N times; ``POST /print/pdf-copies`` rasterizes a PDF (PyMuPDF, grayscale, 203 DPI) and
+  prints it N times. Both use the existing GDI ``send_image`` path and the label printer role.
+  Dependency: ``pymupdf``.
+
+### Fixed
+- **Installer / legacy cleanup:** V2 Startup-shortcut sweep now removes both
+  ``Eco-Thrift Print Server.vbs`` and ``EcoThrift Print Server.vbs`` (no hyphen).
+
+---
+
 ## [1.3.0] — 2026-06-12
 
 ### Added

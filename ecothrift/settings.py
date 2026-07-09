@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'apps.webstore',
     'apps.blog',
     'apps.floorplan',
+    'apps.labels',
 ]
 
 MIDDLEWARE = [
@@ -192,6 +193,10 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    'DEFAULT_THROTTLE_RATES': {
+        'labels_propose_structure': '30/hour',
+        'labels_generate_background': '10/hour',
+    },
 }
 
 # ── SimpleJWT ─────────────────────────────────────────────────────────────────
@@ -323,6 +328,8 @@ AI_MODEL_SUGGEST_ITEM = _ai_model_setting('AI_MODEL_SUGGEST_ITEM', AI_MODEL_FAST
 AI_MODEL_SUGGEST_PRODUCT = _ai_model_setting('AI_MODEL_SUGGEST_PRODUCT', AI_MODEL_SUGGEST_ITEM)
 AI_MODEL_SUGGEST_FINALIZATION = _ai_model_setting('AI_MODEL_SUGGEST_FINALIZATION', AI_MODEL)
 AI_MODEL_AI_CHAT = _ai_model_setting('AI_MODEL_AI_CHAT', AI_MODEL)
+AI_MODEL_LABEL_STRUCTURE = _ai_model_setting('AI_MODEL_LABEL_STRUCTURE', AI_MODEL_AI_CHAT)
+AI_MODEL_LABEL_IMAGE = _ai_model_setting('AI_MODEL_LABEL_IMAGE', 'grok-imagine-image-quality')
 AI_MODEL_MANIFEST_TEMPLATE = _ai_model_setting('AI_MODEL_MANIFEST_TEMPLATE', AI_MODEL)
 AI_MODEL_CATEGORY_AI = _ai_model_setting('AI_MODEL_CATEGORY_AI', AI_MODEL)
 AI_MODEL_KEY_MAPPING = _ai_model_setting('AI_MODEL_KEY_MAPPING', AI_MODEL)

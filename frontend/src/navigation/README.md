@@ -14,7 +14,7 @@ Workspaces (lifecycle order):
 4. **Inventory** — Catalog
 5. **Floor Ops** — Quick reprice *(more coming)*
 6. **Cashier** — Terminal, Transactions, Drawers, Cash Management
-7. **Admin** (Manager/Admin) — Assumptions, POS setup, Web store, Web orders, Users, Customers, Permissions, Settings
+7. **Admin** (Manager/Admin) — Assumptions, POS setup, Label Studio, Web store, Web orders, Users, Customers, Permissions, Settings
 
 ## Shared data
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-22 (product_item_crud_and_processing → _completed/) -->
+<!-- Last updated: 2026-07-09 (floorplan + retail QA → _completed/; TARS → _pending/) -->
 # Archive index — initiatives
 
 **Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
@@ -51,6 +51,8 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [floorplan_builder.md](./_completed/floorplan_builder.md) | Floorplan builder: SVG editor, DB element kinds + Super Admin CRUD, walls/cut/print/drafting aids. Shipped **v2.39.0**–**v2.47.0**. | 2026-07-09 |
+| [retail_quality_audit.md](./_completed/retail_quality_audit.md) | Retail Quality Audit: Admin hub + mobile wizard, dashboard grade, editable forms + JSON/YAML import. Shipped **v2.38.0** / **v2.43.0**. | 2026-07-09 |
 | [hr_time_clock_mvp.md](./_completed/hr_time_clock_mvp.md) | HR Time Clock MVP: clock in/out/break, overtime banner, **Employees** admin (pay rate), **Time & payroll** (roster, payroll $, mod requests approve/reject), soft delete; legacy HR pages removed. Shipped **v2.33.0**–**v2.33.1**. | 2026-06-23 |
 | [product_item_crud_and_processing.md](./_completed/product_item_crud_and_processing.md) | Product & Item CRUD → Processing: Manage Products/Items, **Inventory Catalog** (**v2.30.0**), product-linked check-ins (**v2.31.0**), unmanifested lines + queue resume (**v2.32.0**). Semantic search on hold. | 2026-06-22 |
 | [intake_processing_improvements.md](./_completed/intake_processing_improvements.md) | Intake → Processing product-identity roadmap **P1–P9 shipped** (Sessions 3–11: matching, Final Decisions, precedence, split/collapse, check-in UX, break apart/make set). **Superseded** by **`product_item_crud_and_processing`** — remaining backlog moved 2026-06-13. | 2026-06-13 |
@@ -93,6 +95,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [tars_restoration_workspace.md](./_pending/tars_restoration_workspace.md) | TARS Restoration: queue + live bench (Phases 0–2 + hardening). **Resume:** Phase 3 execute workflows + Phase 4 steering. | 2026-07-09 |
 | [bstock_scraper.md](./_pending/bstock_scraper.md) | B-Stock notebook scraper; Phase 1 package in place; manifests/pipeline deferred (moved from `_backlog` 2026-03-27). | 2026-03-27 |
 | [historical_data_export.md](./_pending/historical_data_export.md) | **Phase 1 done** (pickles + manifest). **Phase 2** (seed V3, reporting slice, DS/embeddings) paused off main index. | 2026-03-28 |
 | [create_location_label.md](./_pending/create_location_label.md) | **Inventory-scan** thermal location label (3×2, QR + aisle/shelf/category); full layer spec was under **`.ai/reference/ecothrift_label_spec.txt`** (reference tree removed). Workspace render/CLI may exist locally; **product integration** deferred. | 2026-03-28 |

@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from config import VERSION
+
 ROOT = Path(__file__).resolve().parent
 EXE_NAME = "ecothrift-printserver.exe"
 
@@ -20,9 +22,53 @@ def kill_running_server() -> None:
         print(f"  Stopped running {EXE_NAME} (was locked).")
 
 
+def write_version_metadata() -> Path:
+    """Create PyInstaller Windows version metadata from the release version."""
+    parts = [int(part) for part in VERSION.split(".")]
+    if len(parts) > 4:
+        raise ValueError(f"VERSION has too many components: {VERSION}")
+    version_tuple = tuple((parts + [0] * 4)[:4])
+    metadata_path = ROOT / "build" / "version_info.txt"
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata_path.write_text(
+        f"""VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={version_tuple},
+    prodvers={version_tuple},
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0),
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '040904B0',
+        [
+          StringStruct('CompanyName', 'Eco-Thrift'),
+          StringStruct('FileDescription', 'Eco-Thrift Print Server'),
+          StringStruct('FileVersion', '{VERSION}'),
+          StringStruct('InternalName', 'ecothrift-printserver'),
+          StringStruct('OriginalFilename', '{EXE_NAME}'),
+          StringStruct('ProductName', 'Eco-Thrift Print Server'),
+          StringStruct('ProductVersion', '{VERSION}'),
+        ],
+      ),
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])]),
+  ],
+)""",
+        encoding="utf-8",
+    )
+    return metadata_path
+
+
 def build() -> None:
     kill_running_server()
     logo = ROOT / "assets" / "ecothrift_logo_bw.png"
+    version_metadata = write_version_metadata()
     cmd = [
         sys.executable,
         "-m",
@@ -31,6 +77,8 @@ def build() -> None:
         "--noconsole",
         "--name",
         "ecothrift-printserver",
+        "--version-file",
+        str(version_metadata),
         # PyInstaller discovers config, routers.*, services.* via import analysis.
         # These hidden imports cover libraries that use dynamic/lazy loading.
         "--hidden-import",
@@ -51,6 +99,8 @@ def build() -> None:
         "uvicorn.lifespan.off",
         "--hidden-import",
         "label_test_data",
+        "--hidden-import",
+        "fitz",
     ]
     if logo.exists():
         # Windows: source;dest inside bundle (extracted to _MEIPASS/assets/)

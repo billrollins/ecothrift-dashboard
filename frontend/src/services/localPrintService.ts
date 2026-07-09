@@ -46,6 +46,23 @@ export interface LocalPrintBatchResponse {
   errors: string[];
 }
 
+/** Ready-to-print raster × N copies; matches `ImageCopiesPrintRequest` in `printserver/models.py`. */
+export interface ImageCopiesRequest {
+  image_base64: string;
+  copies: number;
+  printer_name?: string;
+  dpi?: number;
+  doc_name?: string;
+}
+
+/** PDF × N copies; matches `PdfCopiesPrintRequest` in `printserver/models.py`. */
+export interface PdfCopiesRequest {
+  pdf_base64: string;
+  copies: number;
+  printer_name?: string;
+  doc_name?: string;
+}
+
 /** Persisted on the print server (`settings.json`); matches `PrinterSettings` in `printserver/models.py`. */
 export type LabelSizePreset = '3x2' | '1.5x1';
 
@@ -74,7 +91,15 @@ class LocalPrintService {
           ...options?.headers,
         },
       });
+      if (!response.ok) {
+        throw new Error(`Print server request failed (${response.status}).`);
+      }
       return await response.json();
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Print server request timed out.');
+      }
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -149,6 +174,52 @@ class LocalPrintService {
         throw new Error(`Batch label endpoint unavailable (${response.status})`);
       }
       return (await response.json()) as LocalPrintBatchResponse;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Print a pre-rendered raster N times (Label Studio templates).
+   * Throws when the installed print server predates `/print/image-copies`
+   * so callers can show an "update the print server" message.
+   */
+  async printImageCopies(request: ImageCopiesRequest): Promise<LocalPrintResponse> {
+    return this.requireEndpoint<LocalPrintResponse>('/print/image-copies', request);
+  }
+
+  /** Print a PDF N times (Label Studio PDF labels). Throws on old print servers. */
+  async printPdfCopies(request: PdfCopiesRequest): Promise<LocalPrintResponse> {
+    return this.requireEndpoint<LocalPrintResponse>('/print/pdf-copies', request);
+  }
+
+  /** POST that treats 404 (endpoint missing on old exe) as a hard error. */
+  private async requireEndpoint<T>(path: string, body: unknown): Promise<T> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.printTimeout);
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        throw new Error(
+          response.status === 404
+            ? 'This print server does not support custom labels yet — update it from Admin → Settings.'
+            : `Print request failed (${response.status})`,
+        );
+      }
+      return (await response.json()) as T;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Print timed out — check the printer queue and try fewer copies.');
+      }
+      if (error instanceof TypeError) {
+        throw new Error('Local print server is unavailable — start it or open Admin Settings.');
+      }
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }

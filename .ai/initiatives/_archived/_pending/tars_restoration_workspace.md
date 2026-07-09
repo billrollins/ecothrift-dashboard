@@ -1,9 +1,12 @@
-<!-- initiative: slug=tars-restoration-workspace status=active updated=2026-06-24 -->
-<!-- Last updated: 2026-07-01 (Session 4 — full review fix pass) -->
+<!-- initiative: slug=tars-restoration-workspace status=pending updated=2026-07-09 -->
+<!-- Archived 2026-07-09: disposition=pending paused off main index (Phases 0–2 + hardening shipped; resume Phase 3–4) -->
+<!-- Last updated: 2026-07-09 (archived → _pending/) -->
 
 # Initiative: TARS Restoration Workspace
 
-**Status:** **Active** — Queue live + **TARS 2 bench live** (parts orders, work session persistence).
+**Status:** **Pending** (parked off main index, 2026-07-09) — Queue + **TARS 2** bench live (parts orders, work session persistence); hardening through **v2.39.0**. Phases 0–2 done.
+
+**Resume when:** ready for **Phase 3** (per-verb detail panels; complete → `Item.location` / dispatch) and/or **Phase 4** (time premium / steering from `AppSetting`).
 
 **Routes:** `/restoration/queue` (Send to Restoration), `/restoration/tars` (live bench workstation).
 
@@ -122,7 +125,7 @@ Restoration staff can **receive items sent from Processing**, **price grade outc
 
 **Goal:** Finish **Queue** page design, then redesign **TARS** page to match reference UX — still client mock only.
 
-**Finish line:** Queue design complete and signed off; TARS page (bench + evaluation + verb queues) visually aligned with [TARS prototype](../reference/TARS%20Restoration%20Processing%20App/TARS.dc.html).
+**Finish line:** Queue design complete and signed off; TARS page (bench + evaluation + verb queues) visually aligned with [TARS prototype](../../../reference/TARS%20Restoration%20Processing%20App/TARS.dc.html).
 
 **Scope:** Phase 0 mock UI polish — `TarsIntakePanel` / `TarsQueuePage`, then `TarsBenchPanel`, `TarsExecutePanel`, `TarsPage`. Shared mock store unchanged unless design needs it.
 
@@ -160,7 +163,7 @@ Restoration staff can **receive items sent from Processing**, **price grade outc
 
 ## See also
 
-- Prototype: [TARS.dc.html](../reference/TARS%20Restoration%20Processing%20App/TARS.dc.html)
-- Nav: [`slotCNavLayout.ts`](../../frontend/src/navigation/slotCNavLayout.ts), [`navItemCatalog.ts`](../../frontend/src/navigation/navItemCatalog.ts)
-- Processing dispatch `restoration`: [`processingItemFormOptions.ts`](../../frontend/src/pages/inventory/processing/processingItemFormOptions.ts)
+- Prototype: [TARS.dc.html](../../../reference/TARS%20Restoration%20Processing%20App/TARS.dc.html)
+- Nav: [`slotCNavLayout.ts`](../../../../frontend/src/navigation/slotCNavLayout.ts), [`navItemCatalog.ts`](../../../../frontend/src/navigation/navItemCatalog.ts)
+- Processing dispatch `restoration`: [`processingItemFormOptions.ts`](../../../../frontend/src/pages/inventory/processing/processingItemFormOptions.ts)
 - Prior placeholder: shipped in **v2.25.0** staff nav (`staff_nav_redesign`)
