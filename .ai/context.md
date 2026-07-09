@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-09 (custom_label_studio final polish) -->
+<!-- Last updated: 2026-07-09 (custom_label_studio v2.48.1 hotfix) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary

@@ -12,7 +12,7 @@ import os
 import uuid
 
 from django.core.files.storage import default_storage
-from django.http import FileResponse, Http404, HttpResponseRedirect
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import filters, viewsets
 from rest_framework.decorators import action
@@ -236,20 +236,23 @@ class CustomLabelViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path=r'media/(?P<attr>background|pdf_file)')
     def media(self, request, pk=None, attr=None):
-        """Staff proxy for label media: redirect to presigned S3 URL or stream locally."""
+        """Staff proxy for label media — always stream bytes (never 302 to S3).
+
+        The designer/print dialog fetch media with axios ``arraybuffer`` + JWT.
+        A 302 to a presigned S3 URL fails in the browser (cross-origin XHR body
+        blocked without bucket CORS). Streaming keeps the response same-origin.
+        """
         label = self.get_object()
         s3_file = getattr(label, attr, None)
         if not s3_file:
             raise Http404('No file attached.')
-        key = s3_file.key
         try:
-            url = default_storage.url(key)
-        except Exception:
-            url = None
-        if url and str(url).lower().startswith(('http://', 'https://')):
-            return HttpResponseRedirect(url)
-        try:
-            handle = default_storage.open(key, 'rb')
+            handle = default_storage.open(s3_file.key, 'rb')
         except (OSError, FileNotFoundError):
             raise Http404('File missing from storage.')
-        return FileResponse(handle, content_type=s3_file.content_type or 'application/octet-stream')
+        response = FileResponse(
+            handle,
+            content_type=s3_file.content_type or 'application/octet-stream',
+        )
+        response['Cache-Control'] = 'private, max-age=300'
+        return response

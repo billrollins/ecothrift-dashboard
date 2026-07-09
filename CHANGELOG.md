@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.48.0] — 2026-07-09 -->
-<!-- Last reviewed: 2026-07-09 (Label Studio v2.48.0) -->
+<!-- Line 1 release: ## [2.48.1] — 2026-07-09 -->
+<!-- Last reviewed: 2026-07-09 (Label Studio media stream + print-server prod register) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,17 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.48.1] — 2026-07-09
+
+User-facing theme: **Label Studio backgrounds load on production; Settings shows print-server 1.4.1.**
+
+### Fixed
+
+- **Label Studio / media proxy** — staff `GET …/media/{background|pdf_file}/` always streams bytes through Django instead of 302 to presigned S3, so authenticated axios `arraybuffer` fetches work on `dash.ecothrift.us` (cross-origin S3 bodies were blocked). Fixes blank backgrounds and PDF print after save/reload.
+- **Print server release on prod** — registered **1.4.1** in Heroku Postgres (`publish_printserver`); Settings download link was still **1.2.38** because `distribute.py` only writes the local DB.
 
 ---
 

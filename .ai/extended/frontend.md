@@ -1,8 +1,10 @@
-<!-- Last updated: 2026-07-09 (Label Studio final polish) -->
+<!-- Last updated: 2026-07-09 (Label Studio media stream fix v2.48.1) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
-**2026-07-09 (Unreleased) — Label Studio final polish:** Admin **`/admin/label-studio`** library has search, archive confirmation/show/restore, and PDF-create guard. Designer **`/admin/label-studio/:id`** has a starter layout, Saved/Unsaved status + leave guard, authenticated background handoff, exact draft-to-print parity, element list/layers, keyboard nudge, and safe AI/delete confirmations. Variables are Name+Default or increment Start/Step/Format. Print dialog renders the exact draft thumbnail, browses increment copies, shows examples/printer status/progress, and reports partial failures. Pure helpers have Vitest coverage. API: `labels.api.ts` → `/api/labels/`; print via `localPrintService.printImageCopies` / `printPdfCopies`.
+**2026-07-09 (v2.48.1) — Label Studio media on prod:** staff media proxy streams bytes (no S3 302) so designer/print `fetchLabelMediaBytes` works on `dash.ecothrift.us`.
+
+**2026-07-09 (v2.48.0) — Label Studio final polish:** Admin **`/admin/label-studio`** library has search, archive confirmation/show/restore, and PDF-create guard. Designer **`/admin/label-studio/:id`** has a starter layout, Saved/Unsaved status + leave guard, authenticated background handoff, exact draft-to-print parity, element list/layers, keyboard nudge, and safe AI/delete confirmations. Variables are Name+Default or increment Start/Step/Format. Print dialog renders the exact draft thumbnail, browses increment copies, shows examples/printer status/progress, and reports partial failures. Pure helpers have Vitest coverage. API: `labels.api.ts` → `/api/labels/`; print via `localPrintService.printImageCopies` / `printPdfCopies`.
 
 **2026-07-03 (v2.47.2) — Performance (no UI change):** processing workspace query `gcTime` 60s + active-only refetches + `refetchType:'none'` PO-picker invalidations; stable row callbacks; virtualizer spacer `sx`→`style` (Emotion rule accumulation); `measureTextWidth` memo; header tick gated. Workbench: memoized right-hand panels + stable open handlers; column-resize persists on mouseup w/ unmount cleanup; scoped post-check-in invalidations; timeout cleanups; stable `EMPTY_RESULTS` fallbacks; `ProductManageDrawer` category menu/draft/dirty memoized.
 

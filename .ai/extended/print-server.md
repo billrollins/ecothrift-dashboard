@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-09T15:10:00-05:00 (Label Studio Phase 3–4; 1.4.0 smoke checklist) -->
+<!-- Last updated: 2026-07-09 (1.4.1 registered on Heroku; Label Studio media streams) -->
 
 # Print Server — Extended Context
 

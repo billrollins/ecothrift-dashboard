@@ -505,11 +505,25 @@ class MediaApiTests(APITestCase):
         )
 
     @patch('apps.labels.views.default_storage.open', side_effect=FileNotFoundError)
-    @patch('apps.labels.views.default_storage.url', side_effect=ValueError)
-    def test_missing_storage_object_returns_404(self, _mock_url, _mock_open):
+    def test_missing_storage_object_returns_404(self, _mock_open):
         self.client.force_authenticate(self.manager)
         resp = self.client.get(f'{BASE}{self.label.pk}/media/pdf_file/')
         self.assertEqual(resp.status_code, 404)
+
+    @patch('apps.labels.views.default_storage.url', return_value='https://bucket.example/presigned')
+    @patch('apps.labels.views.default_storage.open')
+    def test_media_streams_bytes_even_when_s3_url_exists(self, mock_open, _mock_url):
+        """Prod must not 302 to S3 — axios arraybuffer cannot read cross-origin bodies."""
+        from io import BytesIO
+
+        mock_open.return_value = BytesIO(b'%PDF-1.4 stream-me')
+        self.client.force_authenticate(self.manager)
+        resp = self.client.get(f'{BASE}{self.label.pk}/media/pdf_file/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(resp.status_code, (301, 302, 303, 307, 308))
+        self.assertEqual(b''.join(resp.streaming_content), b'%PDF-1.4 stream-me')
+        self.assertEqual(resp['Content-Type'], 'application/pdf')
+        mock_open.assert_called_once()
 
 
 class AspectRatioHelperTests(TestCase):
