@@ -254,5 +254,8 @@ class CustomLabelViewSet(viewsets.ModelViewSet):
             handle,
             content_type=s3_file.content_type or 'application/octet-stream',
         )
-        response['Cache-Control'] = 'private, max-age=300'
+        # URL is stable per label (`…/media/background/`); never cache — replacing
+        # the FK would otherwise keep serving the previous image for minutes.
+        response['Cache-Control'] = 'private, no-store, no-cache, must-revalidate'
+        response['Pragma'] = 'no-cache'
         return response

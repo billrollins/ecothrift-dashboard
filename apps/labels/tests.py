@@ -523,6 +523,7 @@ class MediaApiTests(APITestCase):
         self.assertNotIn(resp.status_code, (301, 302, 303, 307, 308))
         self.assertEqual(b''.join(resp.streaming_content), b'%PDF-1.4 stream-me')
         self.assertEqual(resp['Content-Type'], 'application/pdf')
+        self.assertIn('no-store', resp['Cache-Control'])
         mock_open.assert_called_once()
 
 

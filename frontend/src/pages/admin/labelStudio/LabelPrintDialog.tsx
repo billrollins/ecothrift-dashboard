@@ -146,7 +146,11 @@ export default function LabelPrintDialog({
       if (backgroundOverride?.mode === 'file') {
         objectUrl = URL.createObjectURL(backgroundOverride.file);
       } else if (label.background_file) {
-        const bytes = await fetchLabelMediaBytes(label.id, 'background');
+        const bytes = await fetchLabelMediaBytes(
+          label.id,
+          'background',
+          label.background_file.id,
+        );
         objectUrl = URL.createObjectURL(new Blob([bytes]));
       } else {
         setBackground(null);
@@ -206,7 +210,11 @@ export default function LabelPrintDialog({
     try {
       if (label.kind === 'pdf') {
         if (!label.pdf) throw new Error('Upload a PDF before printing this label.');
-        const bytes = await fetchLabelMediaBytes(label.id, 'pdf_file');
+        const bytes = await fetchLabelMediaBytes(
+          label.id,
+          'pdf_file',
+          label.pdf?.id,
+        );
         const response = await localPrintService.printPdfCopies({
           pdf_base64: arrayBufferToBase64(bytes),
           copies,

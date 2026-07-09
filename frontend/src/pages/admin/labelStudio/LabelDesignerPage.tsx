@@ -229,7 +229,7 @@ export default function LabelDesignerPage() {
     }
     let cancelled = false;
     let objectUrl: string | null = null;
-    void fetchLabelMediaBytes(labelId, 'background')
+    void fetchLabelMediaBytes(labelId, 'background', backgroundFileId)
       .then((bytes) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(new Blob([bytes]));
@@ -287,32 +287,8 @@ export default function LabelDesignerPage() {
     },
     onSuccess: async (saved) => {
       setSaveError(null);
-      if (saved.background_file) {
-        try {
-          const bytes = await fetchLabelMediaBytes(labelId, 'background');
-          const nextRemoteUrl = URL.createObjectURL(
-            new Blob([bytes], { type: bgUpload?.type || 'image/png' }),
-          );
-          setRemoteBgUrl((prev) => {
-            if (prev) URL.revokeObjectURL(prev);
-            return nextRemoteUrl;
-          });
-          setBackgroundError(null);
-        } catch {
-          setBackgroundError('Saved, but the background preview could not reload. Try again.');
-        }
-      } else {
-        setRemoteBgUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return null;
-        });
-      }
-      setBgUpload(null);
-      setClearBg(false);
-      setLocalBgUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
+      // Update React Query first so backgroundFileId matches the new S3 row before
+      // we drop the local preview (otherwise the load effect re-fetches the old id).
       queryClient.setQueryData(['custom-label', labelId], saved);
       queryClient.invalidateQueries({ queryKey: ['custom-labels'] });
       const savedDefinition = normalizeDefinition(saved.definition);
@@ -326,6 +302,33 @@ export default function LabelDesignerPage() {
           backgroundFileId: saved.background_file?.id ?? null,
         }),
       );
+
+      let nextRemoteUrl: string | null = null;
+      if (saved.background_file) {
+        try {
+          const bytes = await fetchLabelMediaBytes(
+            labelId,
+            'background',
+            saved.background_file.id,
+          );
+          nextRemoteUrl = URL.createObjectURL(
+            new Blob([bytes], { type: bgUpload?.type || 'image/png' }),
+          );
+          setBackgroundError(null);
+        } catch {
+          setBackgroundError('Saved, but the background preview could not reload. Try again.');
+        }
+      }
+      setRemoteBgUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return nextRemoteUrl;
+      });
+      setBgUpload(null);
+      setClearBg(false);
+      setLocalBgUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
       enqueueSnackbar('Label saved', { variant: 'success' });
     },
     onError: (exc: unknown) => {

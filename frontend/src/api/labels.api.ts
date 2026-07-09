@@ -168,9 +168,16 @@ export function uploadLabelPdf(id: number, file: File): Promise<{ data: CustomLa
 export async function fetchLabelMediaBytes(
   id: number,
   attr: 'background' | 'pdf_file',
+  /** Bust browser/CDN cache when the same path serves a replaced S3 object. */
+  cacheBust?: string | number | null,
 ): Promise<ArrayBuffer> {
   const resp = await api.get(`/labels/labels/${id}/media/${attr}/`, {
     responseType: 'arraybuffer',
+    params: cacheBust != null && cacheBust !== '' ? { v: cacheBust } : undefined,
+    headers: {
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
   });
   return resp.data as ArrayBuffer;
 }

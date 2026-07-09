@@ -1,6 +1,5 @@
-release(v2.48.1): fix Label Studio backgrounds on prod; register print-server 1.4.1
+release(v2.48.2): fix Label Studio background replace reverting after Save
 
-Release: v2.48.1
+Release: v2.48.2
 
-- Stream label media through Django (no 302 to S3) so axios arraybuffer works on dash.ecothrift.us
-- Print-server 1.4.1 registered in Heroku Postgres (Settings download was still 1.2.38)
+- Media proxy no-store + cache-bust query so replaced backgrounds are not served from browser cache

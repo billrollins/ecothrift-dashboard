@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.48.1] — 2026-07-09 -->
-<!-- Last reviewed: 2026-07-09 (Label Studio media stream + print-server prod register) -->
+<!-- Line 1 release: ## [2.48.2] — 2026-07-09 -->
+<!-- Last reviewed: 2026-07-09 (Label Studio background replace cache bust) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,16 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.48.2] — 2026-07-09
+
+User-facing theme: **Replacing a Label Studio background no longer reverts to the previous image after Save.**
+
+### Fixed
+
+- **Label Studio / background replace** — media proxy uses `Cache-Control: no-store` and clients fetch with `?v=<s3_file_id>` so a new upload is not served from a cached response for the stable `…/media/background/` path.
 
 ---
 
