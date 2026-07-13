@@ -1,7 +1,13 @@
 import type { RestorationJobDTO } from '../../../types/inventory.types';
+import { normalizeDecisionWork } from './tarsDecisionEngine';
 import { createEmptyWorkSession } from './tarsWorkRollup';
 import type { TarsItem, TarsDisplaySource } from './tarsTypes';
-import type { TarsPendingInfo, TarsPendingReason, TarsWorkSession } from './tarsWorkTypes';
+import type {
+  TarsPendingInfo,
+  TarsPendingReason,
+  TarsWorkSession,
+  TarsWorkState,
+} from './tarsWorkTypes';
 
 function normalizeSource(source: string | null): TarsDisplaySource {
   if (source === 'Amazon' || source === 'Walmart' || source === 'Target') return source;
@@ -27,8 +33,38 @@ function pendingFromJob(job: RestorationJobDTO): TarsPendingInfo | undefined {
   };
 }
 
+export function normalizeWorkSession(
+  value: unknown,
+  fallbackWorkState: TarsWorkState = 'queue',
+): TarsWorkSession {
+  const empty = createEmptyWorkSession(fallbackWorkState);
+  const raw = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Partial<TarsWorkSession>
+    : {};
+  const workState: TarsWorkState =
+    raw.workState === 'bench' ||
+    raw.workState === 'pending' ||
+    raw.workState === 'done' ||
+    raw.workState === 'returned'
+      ? raw.workState
+      : fallbackWorkState;
+  return {
+    workState,
+    selectedGrade: typeof raw.selectedGrade === 'string' ? raw.selectedGrade : null,
+    parts: Array.isArray(raw.parts) ? raw.parts : [],
+    orders: Array.isArray(raw.orders) ? raw.orders : [],
+    gradePlans:
+      typeof raw.gradePlans === 'object' && raw.gradePlans !== null && !Array.isArray(raw.gradePlans)
+        ? raw.gradePlans
+        : {},
+    benchRows: Array.isArray(raw.benchRows) ? raw.benchRows : [],
+    decisionWork: normalizeDecisionWork(raw.decisionWork ?? empty.decisionWork),
+    pending: raw.pending,
+  };
+}
+
 function mergeWorkSession(job: RestorationJobDTO): TarsWorkSession {
-  const base = (job.work_session as Partial<TarsWorkSession> | undefined) ?? createEmptyWorkSession();
+  const base = normalizeWorkSession(job.work_session, 'queue');
   const pending = pendingFromJob(job);
   const workState =
     job.stage === 'bench' ? 'bench'
@@ -44,6 +80,7 @@ function mergeWorkSession(job: RestorationJobDTO): TarsWorkSession {
     orders: base.orders ?? [],
     gradePlans: base.gradePlans ?? {},
     benchRows: base.benchRows ?? [],
+    decisionWork: base.decisionWork,
   };
 }
 

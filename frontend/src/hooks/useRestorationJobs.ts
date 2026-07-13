@@ -45,6 +45,8 @@ export function usePatchRestorationJob() {
       // The bench cache stores expanded per-item rows; a surgical update is
       // fragile there, so just invalidate it.
       queryClient.invalidateQueries({ queryKey: ['tars-bench-jobs'] });
+      queryClient.invalidateQueries({ queryKey: restorationReturnsQueryKey });
+      queryClient.invalidateQueries({ queryKey: ['restoration-job', data.id] });
     },
   });
 }

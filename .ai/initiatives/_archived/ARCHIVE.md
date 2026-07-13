@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-09 (floorplan + retail QA → _completed/; TARS → _pending/) -->
+<!-- Last updated: 2026-07-10 (custom_label_studio → _completed/) -->
 # Archive index — initiatives
 
 **Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
@@ -51,6 +51,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [custom_label_studio.md](./_completed/custom_label_studio.md) | Custom Label Studio: Admin library + designer (PDF/template, variables/increment, QR/Code128, AI Create), print × N, print-server **1.4.1**. Shipped **v2.48.0**–**v2.48.2**. | 2026-07-10 |
 | [floorplan_builder.md](./_completed/floorplan_builder.md) | Floorplan builder: SVG editor, DB element kinds + Super Admin CRUD, walls/cut/print/drafting aids. Shipped **v2.39.0**–**v2.47.0**. | 2026-07-09 |
 | [retail_quality_audit.md](./_completed/retail_quality_audit.md) | Retail Quality Audit: Admin hub + mobile wizard, dashboard grade, editable forms + JSON/YAML import. Shipped **v2.38.0** / **v2.43.0**. | 2026-07-09 |
 | [hr_time_clock_mvp.md](./_completed/hr_time_clock_mvp.md) | HR Time Clock MVP: clock in/out/break, overtime banner, **Employees** admin (pay rate), **Time & payroll** (roster, payroll $, mod requests approve/reject), soft delete; legacy HR pages removed. Shipped **v2.33.0**–**v2.33.1**. | 2026-06-23 |

@@ -1,4 +1,5 @@
 import { TARS_GRADE_SCALES } from './tarsConstants';
+import { createEmptyDecisionWork } from './tarsDecisionTypes';
 import { effectiveLaborRate, gradesForScale } from './tarsProfit';
 import type { TarsItem } from './tarsTypes';
 import type {
@@ -88,6 +89,7 @@ export function createEmptyWorkSession(
     orders: [],
     gradePlans: {},
     benchRows: [],
+    decisionWork: createEmptyDecisionWork(),
   };
 }
 

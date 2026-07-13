@@ -8180,17 +8180,34 @@ class RestorationJobViewSet(
     def partial_update(self, request, *args, **kwargs):
         job = self.get_object()
         with transaction.atomic():
-            job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+            job = (
+                RestorationJob.objects.select_for_update()
+                .select_related('item_check_in')
+                .get(pk=job.pk)
+            )
             if job.stage != RestorationJob.STAGE_QUEUED:
                 return Response(
                     {'detail': 'Only queued restoration jobs can be edited.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            ser = RestorationJobPatchSerializer(data=request.data, context={'job': job})
+            ser = RestorationJobPatchSerializer(data=request.data, context={'job': job, 'user': request.user})
             ser.is_valid(raise_exception=True)
             job.scale = ser.validated_data['scale']
             job.grade_values = ser.validated_data['grade_values']
             job.save(update_fields=['scale', 'grade_values', 'updated_at'])
+            handoff = ser.validated_data.get('processing_handoff')
+            if handoff is not None and job.item_check_in_id:
+                from apps.inventory.services.restoration import merge_restoration_into_defaults_snapshot
+
+                check_in = job.item_check_in
+                check_in.defaults_snapshot = merge_restoration_into_defaults_snapshot(
+                    check_in.defaults_snapshot if isinstance(check_in.defaults_snapshot, dict) else {},
+                    job.scale,
+                    job.grade_values or {},
+                    processing_handoff=handoff,
+                )
+                check_in.save(update_fields=['defaults_snapshot', 'updated_at'])
+        job = self.get_queryset().get(pk=job.pk)
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
         return Response(out.data)
 
@@ -8206,7 +8223,10 @@ class RestorationJobViewSet(
                 {'detail': 'Work session can only be updated for sent, bench, or pending jobs.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        ser = RestorationJobWorkSessionSerializer(data=request.data)
+        ser = RestorationJobWorkSessionSerializer(
+            data=request.data,
+            context={'job': job, 'user': request.user},
+        )
         ser.is_valid(raise_exception=True)
         job.work_session = ser.validated_data['work_session']
         job.save(update_fields=['work_session', 'updated_at'])
@@ -8415,9 +8435,11 @@ class RestorationJobViewSet(
 
     @action(detail=False, methods=['get'])
     def returns(self, request):
-        """Items returned to Processing from restoration that still need a
-        retag / reprice. Covers bench disposition to Processing (stage=done)
-        and queue 'TARS completed' returns (stage=returned)."""
+        """Processing Restorations FROM desk: unhandled worked + untouched returns.
+
+        Includes bench disposition to Processing (stage=done), TARS-completed
+        returns, and untouched returns. Each row carries desk summary badges.
+        """
         from django.db.models import Q
 
         qs = (
@@ -8427,7 +8449,10 @@ class RestorationJobViewSet(
                 Q(stage=RestorationJob.STAGE_DONE, bench_disposition=RestorationJob.BENCH_DISPOSITION_PROCESSING)
                 | Q(
                     stage=RestorationJob.STAGE_RETURNED,
-                    return_disposition_type=RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED,
+                    return_disposition_type__in=[
+                        RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED,
+                        RestorationJob.RETURN_DISPOSITION_UNTOUCHED,
+                    ],
                 ),
             )
             .order_by('-dispositioned_at', '-returned_at', '-updated_at')
@@ -8437,15 +8462,9 @@ class RestorationJobViewSet(
 
     @staticmethod
     def _is_returns_eligible(job):
-        """Match the returns queryset condition — bench disposition to Processing
-        (stage=done) or queue 'TARS completed' return (stage=returned)."""
-        return (
-            job.stage == RestorationJob.STAGE_DONE
-            and job.bench_disposition == RestorationJob.BENCH_DISPOSITION_PROCESSING
-        ) or (
-            job.stage == RestorationJob.STAGE_RETURNED
-            and job.return_disposition_type == RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED
-        )
+        from apps.inventory.services.restoration import is_processing_desk_from_eligible
+
+        return is_processing_desk_from_eligible(job)
 
     @action(detail=True, methods=['post'], url_path='mark-handled')
     def mark_handled(self, request, pk=None):

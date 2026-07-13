@@ -27,6 +27,7 @@ import {
 import { alpha } from '@mui/material/styles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
@@ -42,7 +43,11 @@ import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
 import { checkInPrintActionLabel } from './checkedInPrintedAggregate';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import { ProductSearchAutocomplete } from '../../../components/inventory/ProductSearchAutocomplete';
-import { getProduct, type ProcessingRestartSummary } from '../../../api/inventory.api';
+import {
+  getProduct,
+  type ProcessingCheckInPayload,
+  type ProcessingRestartSummary,
+} from '../../../api/inventory.api';
 import type {
   Product,
   ProcessingWorkspaceItemDTO,
@@ -1279,7 +1284,7 @@ export interface ProcessingActiveCardProps {
   activeItem: ProcessingWorkspaceItemDTO | null;
   onSelectItemId: (itemId: number) => void;
   onBackToQueue: () => void;
-  onCheckIn: (payload: Record<string, unknown>, options?: { printLabels?: boolean }) => Promise<boolean>;
+  onCheckIn: (payload: ProcessingCheckInPayload, options?: { printLabels?: boolean }) => Promise<boolean>;
   checkInLoading: boolean;
   onPatchCheckedIn: (payload: Record<string, unknown>) => void;
   patchLoading: boolean;
@@ -1315,6 +1320,7 @@ export function ProcessingActiveCard({
   detailRefreshing,
 }: ProcessingActiveCardProps) {
   const { enqueueSnackbar } = useSnackbar();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialogHost } = useWorkbenchConfirmDialog();
   const priorCheckInsRef = useRef<HTMLDivElement | null>(null);
@@ -1685,7 +1691,7 @@ export function ProcessingActiveCard({
   /** Edit mode of the detailed dialog: update the clicked ItemCheckIn in place. */
   async function handleUpdateItemCheckIn(
     itemCheckInId: number,
-    payload: Record<string, unknown>,
+    payload: ProcessingCheckInPayload,
     options: { printLabels: boolean },
   ): Promise<boolean> {
     try {
@@ -1703,6 +1709,12 @@ export function ProcessingActiveCard({
         if (result.markFailed) {
           enqueueSnackbar('Labels printed but printed status could not be saved.', { variant: 'warning' });
         }
+      }
+      if (payload.dispatch === 'restoration' && data.restoration_job_id) {
+        const from = `/inventory/processing/${orderId}`;
+        navigate(
+          `/inventory/restorations?lane=to&job=${data.restoration_job_id}&from=${encodeURIComponent(from)}`,
+        );
       }
       return true;
     } catch (err) {

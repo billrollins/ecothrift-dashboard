@@ -33,6 +33,8 @@ import {
   runProcessingDataBuildChunk,
   type ProcessingPrintAndCheckInResponse,
   type ProcessingPrintMultipleResponse,
+  type ProcessingCheckInPayload,
+  type ProcessingRowCheckInPayload,
   type ProcessingRowCheckInResponse,
   type ProcessingCheckInTogetherResponse,
   type ProcessingAssignSharedProductResponse,
@@ -195,7 +197,7 @@ export function useProcessingPrintAndCheckIn(orderId: number) {
 export function useProcessingRowCheckIn(orderId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: Record<string, unknown>) => {
+    mutationFn: async (payload: ProcessingRowCheckInPayload) => {
       const { data } = await processingRowCheckIn(orderId, payload);
       return data;
     },
@@ -385,7 +387,13 @@ export function useProcessingSetRowProduct(orderId: number) {
 export function useProcessingUpdateItemCheckIn(orderId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ itemCheckInId, payload }: { itemCheckInId: number; payload: Record<string, unknown> }) => {
+    mutationFn: async ({
+      itemCheckInId,
+      payload,
+    }: {
+      itemCheckInId: number;
+      payload: Partial<ProcessingCheckInPayload>;
+    }) => {
       const { data } = await processingUpdateItemCheckIn(orderId, itemCheckInId, payload);
       return data;
     },

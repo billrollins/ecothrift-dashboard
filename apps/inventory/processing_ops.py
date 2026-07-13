@@ -437,10 +437,19 @@ def _check_in_processing_row(
         raise ValueError('Restoration check-in is one item at a time. Set quantity to 1.')
     restoration_scale = ''
     restoration_grade_values: dict[str, float] = {}
+    processing_handoff = None
     if dispatch == 'restoration':
-        from apps.inventory.services.restoration import validate_restoration_check_in_payload
+        from apps.inventory.services.restoration import (
+            normalize_processing_handoff,
+            validate_restoration_check_in_payload,
+        )
 
         restoration_scale, restoration_grade_values = validate_restoration_check_in_payload(data)
+        if 'processing_handoff' in data:
+            processing_handoff = normalize_processing_handoff(
+                data.get('processing_handoff'),
+                user=user,
+            )
     notes = str(data.get('notes') or '')
     title = str(data.get('title') or '').strip()
     brand = str(data.get('brand') or '').strip()
@@ -533,6 +542,7 @@ def _check_in_processing_row(
             defaults_snapshot,
             restoration_scale,
             restoration_grade_values,
+            processing_handoff,
         )
     batch = ItemCheckIn.objects.create(
         purchase_order=order,
@@ -674,11 +684,15 @@ def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, 
                 touched_ids.append(member.pk)
 
     refresh_processing_rows_denorm(order, processing_row_ids=touched_ids or [processing_row_id])
+    from apps.inventory.services.restoration import restoration_job_id_for_check_in
+
+    first_batch_id = batches[0].id if batches else None
     return {
         'items': ItemSerializer(all_items, many=True).data,
         'created_count': len(all_items),
-        'item_check_in_id': batches[0].id if batches else None,
+        'item_check_in_id': first_batch_id,
         'item_check_in_ids': [b.id for b in batches],
+        'restoration_job_id': restoration_job_id_for_check_in(first_batch_id),
         'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched_ids or [processing_row_id]),
         'printed_items_preview': printed_items_preview([item.id for item in all_items]),
     }
@@ -1609,6 +1623,7 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
         _sync_item_check_in_quantity(check_in)
         snapshot = dict(check_in.defaults_snapshot or {})
         prior_dispatch = snapshot.get('dispatch')
+        effective_dispatch = dispatch or prior_dispatch
         for key, src in (
             ('condition', updates.get('condition')),
             ('status', updates.get('status')),
@@ -1620,18 +1635,72 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
         ):
             if src is not None:
                 snapshot[key] = src
+
+        handoff_present = 'processing_handoff' in data
+        if handoff_present:
+            if effective_dispatch != 'restoration':
+                raise ValueError('processing_handoff is only valid for restoration check-ins.')
+            from apps.inventory.services.restoration import normalize_processing_handoff
+
+            snapshot['processing_handoff'] = normalize_processing_handoff(
+                data.get('processing_handoff'),
+                user=user,
+            )
+
+        restoration_config_present = (
+            'restoration_scale' in data or 'restoration_grade_values' in data
+        )
+        restoration_scale = str(
+            data.get('restoration_scale', snapshot.get('restoration_scale')) or '',
+        ).strip()
+        restoration_grade_values = (
+            data.get('restoration_grade_values')
+            if 'restoration_grade_values' in data
+            else snapshot.get('restoration_grade_values')
+        )
+        if effective_dispatch == 'restoration' and (
+            restoration_config_present or prior_dispatch != 'restoration'
+        ):
+            from apps.inventory.services.restoration import (
+                merge_restoration_into_defaults_snapshot,
+                validate_restoration_check_in_payload,
+            )
+
+            restoration_scale, restoration_grade_values = validate_restoration_check_in_payload({
+                'dispatch': 'restoration',
+                'restoration_scale': restoration_scale,
+                'restoration_grade_values': restoration_grade_values,
+            })
+            snapshot = merge_restoration_into_defaults_snapshot(
+                snapshot,
+                restoration_scale,
+                restoration_grade_values,
+            )
+
         if dispatch:
             snapshot['dispatch'] = dispatch
             if prior_dispatch == 'restoration' and dispatch != 'restoration':
                 from apps.inventory.services.restoration import delete_restoration_job_for_check_in
 
                 delete_restoration_job_for_check_in(check_in)
-            elif dispatch == 'restoration' and prior_dispatch != 'restoration':
-                from apps.inventory.services.restoration import create_restoration_job_for_check_in
-
-                create_restoration_job_for_check_in(check_in, user)
         check_in.defaults_snapshot = snapshot
         check_in.save()
+
+        if effective_dispatch == 'restoration':
+            from apps.inventory.models import RestorationJob
+            from apps.inventory.services.restoration import create_restoration_job_from_check_in
+
+            existing_job = RestorationJob.objects.filter(item_check_in=check_in).first()
+            if restoration_config_present and existing_job is not None:
+                if existing_job.stage != RestorationJob.STAGE_QUEUED:
+                    raise ValueError('Restoration values cannot be edited after the job leaves the queue.')
+            if prior_dispatch != 'restoration' or restoration_config_present:
+                create_restoration_job_from_check_in(
+                    check_in,
+                    scale=restoration_scale,
+                    grade_values=restoration_grade_values,
+                    user=user,
+                )
 
         if histories:
             ItemHistory.objects.bulk_create(histories)
@@ -1652,6 +1721,8 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
     from apps.inventory.services.processing_workspace import build_processing_row_detail
 
     detail = build_processing_row_detail(order, processing_row_id=row.pk) if row is not None else {'row': None}
+    from apps.inventory.services.restoration import restoration_job_id_for_check_in
+
     return {
         'item_check_in_id': check_in.id,
         'purchase_order_id': check_in.purchase_order_id,
@@ -1660,6 +1731,7 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
         'items_updated': items_updated,
         'quantity': check_in.quantity,
         'product_id': check_in.product_id,
+        'restoration_job_id': restoration_job_id_for_check_in(check_in.id),
         'row': detail['row'],
         'workspace_patch': build_workspace_patch(order, touched_processing_row_ids=touched_row_ids),
         'printed_items_preview': printed_items_preview([i.pk for i in added_items]),

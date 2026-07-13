@@ -50,6 +50,32 @@ export type ItemCondition =
   | 'salvage'
   | 'unknown';
 
+export type ProcessingTestedStatus = 'untested' | 'partially_tested' | 'tested';
+
+export type ProcessingQuickTestResult =
+  | 'pass'
+  | 'fail'
+  | 'unknown'
+  | 'not_applicable'
+  | 'skipped';
+
+export interface ProcessingQuickTestRow {
+  test_id?: string;
+  name?: string;
+  result: ProcessingQuickTestResult;
+  notes?: string;
+}
+
+export interface ProcessingHandoff {
+  schema_version?: 1;
+  tested_status: ProcessingTestedStatus;
+  condition_evidence?: string;
+  unknowns?: string | string[];
+  quick_tests?: ProcessingQuickTestRow[];
+  readonly recorded_at?: string;
+  readonly recorded_by_id?: number | null;
+}
+
 /**
  * Processing batch status choices
  */
@@ -461,6 +487,18 @@ export interface ProcessingWorkspaceItemDTO {
   dispute_description: string;
 }
 
+export interface ItemCheckInDefaultsDTO extends Record<string, unknown> {
+  condition?: string;
+  dispatch?: string;
+  retail?: string;
+  price?: string;
+  notes?: string;
+  specifications?: Record<string, string>;
+  restoration_scale?: string;
+  restoration_grade_values?: Record<string, number>;
+  processing_handoff?: ProcessingHandoff;
+}
+
 export interface ItemCheckInDTO {
   id: number;
   quantity: number;
@@ -468,7 +506,7 @@ export interface ItemCheckInDTO {
   product: ProcessingWorkspaceProductDTO | null;
   created_at: string | null;
   created_by: number | null;
-  defaults: Record<string, unknown>;
+  defaults: ItemCheckInDefaultsDTO;
   dispute_count: number;
 }
 
@@ -936,7 +974,14 @@ export interface RestorationJobDTO {
   quantity: number;
   scale: string;
   grade_values: Record<string, number>;
+  readonly processing_handoff: ProcessingHandoff | null;
   needs_setup: boolean;
+  direction?: 'to' | 'from' | 'other' | null;
+  from_family?: 'worked' | 'untouched' | null;
+  work_verbs?: string[];
+  unit_kind?: 'whole' | 'part' | 'added' | string;
+  sale_state?: string | null;
+  decision_reason?: string;
   work_session?: Record<string, unknown>;
   product_id: number | null;
   purchase_order_id: number | null;
@@ -1093,6 +1138,7 @@ export interface RestorationPartsOrderCreatePayload {
 export interface RestorationJobPatchPayload {
   scale?: string;
   grade_values?: Record<string, number>;
+  processing_handoff?: ProcessingHandoff | null;
 }
 
 export interface RestorationJobReturnPayload {

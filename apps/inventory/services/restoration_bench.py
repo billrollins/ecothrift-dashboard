@@ -303,6 +303,19 @@ def complete_restoration_job(
 
         if final_grade not in grades_for_scale(job.scale):
             raise ValueError('Choose a final grade from the job grade scale.')
+    from apps.inventory.services.tars_decision_work import (
+        DecisionWorkValidationError,
+        validate_job_completion,
+    )
+
+    try:
+        validate_job_completion(
+            job,
+            final_grade=final_grade,
+            destination=destination,
+        )
+    except DecisionWorkValidationError as exc:
+        raise ValueError(str(exc)) from exc
     if spent_parts_cost is None:
         spent_parts_cost = _actual_parts_cost_for_job(job)
 
@@ -320,6 +333,19 @@ def complete_restoration_job(
     _sync_work_state(job, 'done')
     session = dict(job.work_session or {})
     session['selectedGrade'] = final_grade
+    decision = session.get('decisionWork')
+    if isinstance(decision, dict):
+        selection = dict(decision.get('selection') or {})
+        selection['grade'] = final_grade
+        decision = dict(decision)
+        decision['selection'] = selection
+        timestamps = dict(decision.get('timestamps') or {})
+        timestamps['completedAt'] = now.isoformat()
+        timestamps['updatedAt'] = now.isoformat()
+        if user is not None and getattr(user, 'is_authenticated', False):
+            timestamps['updatedById'] = getattr(user, 'pk', None)
+        decision['timestamps'] = timestamps
+        session['decisionWork'] = decision
     job.work_session = session
     job.save(
         update_fields=[

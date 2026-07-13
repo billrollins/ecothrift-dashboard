@@ -1,6 +1,10 @@
-<!-- Last updated: 2026-07-09 (Label Studio media stream fix v2.48.1) -->
+<!-- Last updated: 2026-07-13 (v2.49.0 Restorations hub; Wizard UX A+ next) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-07-13 (v2.49.0) — Processing / Restorations hub:** **`/inventory/restorations`** (`RestorationsPage`) — TO setup panel (grade scale/values + handoff via `PATCH` job) and FROM desk (loud Worked/Untouched list + decision panel). Nav label **Restorations** in Processing; legacy `/inventory/restoration-returns` redirects to FROM. Processing check-in with `dispatch=restoration` creates the job and navigates `?lane=to&job=&from=`. Restoration workspace nav drops Queue (TARS Studio Inbox remains at `/restoration/tars`). Owner: hub pretty good; **Decision Wizard UX is next (D/F → A+)**.
+
+**2026-07-13 (v2.49.0) — Restoration / TARS decision guardrails:** Processing restoration send captures tested status, condition evidence, unknowns, and optional quick tests (on Restorations TO). `/restoration/tars` Guided decision workbench autosaves handoff acknowledgement, mandatory stop-outs, condition/completeness, structured tests, unknowns, viable grade/sale-state paths, $19.80/hr contribution-per-labor-minute comparison, recommendation, selected grade/action/reason, and identified ordinary overrides. Existing rail, timer, parts, hold/pending, execution log, Done, and return lifecycle remains authoritative.
 
 **2026-07-09 (v2.48.1) — Label Studio media on prod:** staff media proxy streams bytes (no S3 302) so designer/print `fetchLabelMediaBytes` works on `dash.ecothrift.us`.
 

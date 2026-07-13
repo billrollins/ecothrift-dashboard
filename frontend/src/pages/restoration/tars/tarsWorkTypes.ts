@@ -1,4 +1,6 @@
-/** Work session domain — simplified MVP: parts/orders + per-grade plans + a free-form bench log. */
+/** Work session domain — parts/orders + per-grade plans + bench and decision work. */
+
+import type { TarsDecisionWork } from './tarsDecisionTypes';
 
 export type TarsActionType = 'test' | 'assemble' | 'repair' | 'salvage';
 
@@ -101,6 +103,8 @@ export interface TarsWorkSession {
   orders: TarsProcurementGroup[];
   gradePlans: Record<string, TarsGradePlan>;
   benchRows: TarsWorkBenchRow[];
+  /** Versioned Phase 1 decision worksheet; absent on legacy sessions. */
+  decisionWork?: TarsDecisionWork;
   pending?: TarsPendingInfo;
 }
 

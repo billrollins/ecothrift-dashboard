@@ -123,6 +123,7 @@ export function useTarsBenchJobs() {
 }
 
 export const restorationReturnsQueryKey = ['restoration-returns'] as const;
+export const restorationsFromDeskQueryKey = restorationReturnsQueryKey;
 
 export function useRestorationReturns() {
   return useQuery({
@@ -132,6 +133,11 @@ export function useRestorationReturns() {
       return data;
     },
   });
+}
+
+/** Processing Restorations FROM desk (worked + untouched). */
+export function useRestorationsFromDesk() {
+  return useRestorationReturns();
 }
 
 export function useMarkRestorationJobHandled() {

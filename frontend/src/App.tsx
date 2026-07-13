@@ -28,6 +28,7 @@ import ReceivingOrderPage from './pages/inventory/ReceivingOrderPage';
 import PreprocessingPage from './pages/inventory/PreprocessingPage';
 import ProcessingEntryRedirect from './pages/inventory/ProcessingEntryRedirect';
 import ProcessingWorkspacePage from './pages/inventory/processing/ProcessingWorkspacePage';
+import RestorationsPage from './pages/inventory/restorations/RestorationsPage';
 import InventoryWorkbenchPage from './pages/inventory/InventoryWorkbenchPage';
 import { inventoryWorkbenchUrl, legacyItemParamsToRichSearch } from './utils/richInventorySearch';
 import ItemListPage from './pages/inventory/ItemListPage';
@@ -62,10 +63,8 @@ import QualityAuditFormListPage from './pages/admin/QualityAuditFormListPage';
 import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
-import TarsQueuePage from './pages/restoration/tars/TarsQueuePage';
 import TarsPage from './pages/restoration/tars/TarsPage';
 import TarsPartsRequestsPage from './pages/restoration/TarsPartsRequestsPage';
-import RestorationReturnsPage from './pages/inventory/RestorationReturnsPage';
 import RestorationLayout from './pages/restoration/RestorationLayout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -146,7 +145,11 @@ export default function App() {
         <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
         <Route path="/inventory/processing" element={<ProcessingEntryRedirect />} />
         <Route path="/inventory/processing/:id" element={<ProcessingWorkspacePage />} />
-        <Route path="/inventory/restoration-returns" element={<RestorationReturnsPage />} />
+        <Route path="/inventory/restorations" element={<RestorationsPage />} />
+        <Route
+          path="/inventory/restoration-returns"
+          element={<Navigate to="/inventory/restorations?lane=from" replace />}
+        />
         <Route path="/inventory/workbench" element={<InventoryWorkbenchPage />} />
         <Route path="/inventory/manage-products" element={<LegacyManageProductsRedirect />} />
         <Route path="/inventory/manage-items" element={<LegacyManageItemsRedirect />} />
@@ -170,8 +173,8 @@ export default function App() {
         <Route path="/buying/auctions/:id" element={<AuctionDetailPage />} />
         <Route path="/buying/watchlist" element={<WatchlistPage />} />
         <Route path="/restoration" element={<RestorationLayout />}>
-          <Route index element={<Navigate to="/restoration/queue" replace />} />
-          <Route path="queue" element={<TarsQueuePage />} />
+          <Route index element={<Navigate to="/restoration/tars" replace />} />
+          <Route path="queue" element={<Navigate to="/restoration/tars" replace />} />
           <Route path="tars" element={<TarsPage />} />
           <Route path="tars-2" element={<Navigate to="/restoration/tars" replace />} />
           <Route path="parts-requests" element={<TarsPartsRequestsPage />} />

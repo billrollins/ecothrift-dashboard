@@ -1349,6 +1349,13 @@ class RestorationJobSerializer(serializers.ModelSerializer):
     items = serializers.SerializerMethodField()
     elapsed_seconds = serializers.SerializerMethodField()
     elapsed_hours = serializers.SerializerMethodField()
+    processing_handoff = serializers.SerializerMethodField()
+    direction = serializers.SerializerMethodField()
+    from_family = serializers.SerializerMethodField()
+    work_verbs = serializers.SerializerMethodField()
+    unit_kind = serializers.SerializerMethodField()
+    sale_state = serializers.SerializerMethodField()
+    decision_reason = serializers.SerializerMethodField()
     purchase_order_number = serializers.CharField(
         source='purchase_order.order_number',
         read_only=True,
@@ -1364,7 +1371,14 @@ class RestorationJobSerializer(serializers.ModelSerializer):
             'scale',
             'grade_values',
             'work_session',
+            'processing_handoff',
             'needs_setup',
+            'direction',
+            'from_family',
+            'work_verbs',
+            'unit_kind',
+            'sale_state',
+            'decision_reason',
             'product_id',
             'purchase_order_id',
             'sku',
@@ -1415,6 +1429,39 @@ class RestorationJobSerializer(serializers.ModelSerializer):
         from apps.inventory.services.restoration_bench import elapsed_active_seconds
 
         return elapsed_active_seconds(obj)
+
+    def get_processing_handoff(self, obj):
+        from apps.inventory.services.restoration import processing_handoff_from_check_in
+
+        return processing_handoff_from_check_in(obj.item_check_in if obj.item_check_in_id else None)
+
+    def _desk_summary(self, obj):
+        cached = getattr(obj, '_desk_summary_cache', None)
+        if cached is not None:
+            return cached
+        from apps.inventory.services.restoration import build_processing_desk_summary
+
+        summary = build_processing_desk_summary(obj)
+        obj._desk_summary_cache = summary
+        return summary
+
+    def get_direction(self, obj):
+        return self._desk_summary(obj).get('direction')
+
+    def get_from_family(self, obj):
+        return self._desk_summary(obj).get('from_family')
+
+    def get_work_verbs(self, obj):
+        return self._desk_summary(obj).get('work_verbs') or []
+
+    def get_unit_kind(self, obj):
+        return self._desk_summary(obj).get('unit_kind')
+
+    def get_sale_state(self, obj):
+        return self._desk_summary(obj).get('sale_state')
+
+    def get_decision_reason(self, obj):
+        return self._desk_summary(obj).get('decision_reason') or ''
 
     def get_elapsed_hours(self, obj):
         from decimal import Decimal
@@ -1523,6 +1570,7 @@ class RestorationJobSerializer(serializers.ModelSerializer):
 class RestorationJobPatchSerializer(serializers.Serializer):
     scale = serializers.CharField(required=False, allow_blank=True)
     grade_values = serializers.DictField(child=serializers.FloatField(), required=False)
+    processing_handoff = serializers.DictField(required=False, allow_null=True)
 
     def validate_scale(self, value):
         from apps.inventory.services.restoration import is_known_active_scale
@@ -1535,6 +1583,7 @@ class RestorationJobPatchSerializer(serializers.Serializer):
         from apps.inventory.services.restoration import (
             empty_values_for_scale,
             normalize_grade_values,
+            normalize_processing_handoff,
         )
 
         job = self.context['job']
@@ -1547,6 +1596,18 @@ class RestorationJobPatchSerializer(serializers.Serializer):
             grade_values = normalize_grade_values(job.grade_values)
         attrs['scale'] = scale
         attrs['grade_values'] = grade_values
+        if 'processing_handoff' in attrs:
+            raw = attrs.get('processing_handoff')
+            if raw is None:
+                attrs['processing_handoff'] = None
+            else:
+                try:
+                    attrs['processing_handoff'] = normalize_processing_handoff(
+                        raw,
+                        user=self.context.get('user'),
+                    )
+                except ValueError as exc:
+                    raise serializers.ValidationError({'processing_handoff': str(exc)}) from exc
         return attrs
 
 
@@ -1557,6 +1618,10 @@ class RestorationJobWorkSessionSerializer(serializers.Serializer):
 
     def validate_work_session(self, value):
         import json
+        from apps.inventory.services.tars_decision_work import (
+            DecisionWorkValidationError,
+            normalize_work_session,
+        )
 
         actions = value.get('actions')
         if actions is not None:
@@ -1564,6 +1629,14 @@ class RestorationJobWorkSessionSerializer(serializers.Serializer):
                 raise serializers.ValidationError('work_session.actions must be a list.')
             if not all(isinstance(action, dict) for action in actions):
                 raise serializers.ValidationError('Each entry in work_session.actions must be an object.')
+        try:
+            value = normalize_work_session(
+                value,
+                job=self.context['job'],
+                user=self.context.get('user'),
+            )
+        except DecisionWorkValidationError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
         try:
             size = len(json.dumps(value, default=str).encode('utf-8'))
         except (TypeError, ValueError):

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.48.2] — 2026-07-09 -->
-<!-- Last reviewed: 2026-07-09 (Label Studio background replace cache bust) -->
+<!-- Line 1 release: ## [2.49.0] — 2026-07-13 -->
+<!-- Last reviewed: 2026-07-13 (Restorations hub + TARS Phase 1 release) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,31 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.49.0] — 2026-07-13
+
+User-facing theme: **Processing Restorations hub (TO/FROM) plus TARS guided-decision MVP; Wizard UX A+ is next.**
+
+Initiative: [`.ai/initiatives/tars_full_instruction_wizard_guidance.md`](.ai/initiatives/tars_full_instruction_wizard_guidance.md).
+
+### Added
+
+- **Processing / Restorations hub** — `/inventory/restorations` replaces Restoration Returns: **TO** setup (grade scale/values + handoff after dispatch) and **FROM** desk (one loud list for Worked + Untouched with rich decision panel). Processing restoration check-in creates the job and navigates to TO setup with Back.
+- **Restoration / Guided decision** — `/restoration/tars` now guides and autosaves Processing handoff review, mandatory stop-outs, condition/completeness, structured tests and unknowns, viable grade/sale-state paths, authoritative contribution-per-labor-minute comparisons, recommendation, and the selected grade/action/reason.
+- **Processing / Restoration handoff** — sending an item to Restoration records explicit tested status plus optional condition evidence, unknowns, and quick-test results; the handoff remains read-only in TARS and survives split/requeue independently of Mike's mutable work session.
+
+### Changed
+
+- **Processing / restoration dispatch** — grade values are no longer required at check-in; incomplete jobs stay `needs_setup` until Restorations TO setup (TARS bench check-in still blocked).
+- **Restoration / returns list** — includes untouched returns and desk summary fields (`from_family`, `work_verbs`, `unit_kind`, `sale_state`, `decision_reason`); mark-handled accepts untouched.
+- **Nav** — Processing **Restorations** replaces **Restoration Returns**; Restoration workspace drops orphaned Queue nav (TARS Studio Inbox remains).
+- **Restoration / completion guardrails** — selected decisions remain synchronized with the existing grade/parts/Done lifecycle. Ordinary missing evidence requires an identified override reason; mandatory legal/prohibited/handling/truthful-disclosure stop-outs cannot be cleared by the economic score.
+
+### Documentation
+
+- Initiative next gate: **Phase 1.5 Decision Wizard UX A+** (owner graded current wizard D/F); Phase 2 catalogs blocked until that pass unless reordered.
 
 ---
 
@@ -35,7 +60,7 @@ User-facing theme: **Label Studio backgrounds load on production; Settings shows
 
 User-facing theme: **Label Studio — design, AI-assist, save, and print custom labels (PDF or template) × N.**
 
-Initiative: [`.ai/initiatives/custom_label_studio.md`](.ai/initiatives/custom_label_studio.md).
+Initiative: [`.ai/initiatives/_archived/_completed/custom_label_studio.md`](.ai/initiatives/_archived/_completed/custom_label_studio.md).
 
 ### Added
 

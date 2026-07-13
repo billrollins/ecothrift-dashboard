@@ -1,6 +1,10 @@
-<!-- Last updated: 2026-07-03 (perf pass v2.47.2) -->
+<!-- Last updated: 2026-07-13 (v2.49.0 Restorations hub) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-07-13 (v2.49.0) — Processing / Restorations hub:** Restoration check-in may omit complete grade values (`needs_setup`); returns list includes untouched + desk summary fields (`direction`, `from_family`, `work_verbs`, `unit_kind`, `sale_state`, `decision_reason`); `mark-handled` accepts untouched; queued job `PATCH` may update `processing_handoff` on the check-in snapshot; check-in responses include `restoration_job_id`.
+
+**2026-07-13 (v2.49.0) — Restoration / TARS decision guardrails:** Restoration Processing check-ins may save versioned `processing_handoff` evidence in `ItemCheckIn.defaults_snapshot`, exposed read-only on `RestorationJobSerializer`. `RestorationJob.work_session.decisionWork` schema/catalog v1 is normalized and size-capped by `services/tars_decision_work.py`; grade values and parts/order inputs are server-authoritative for $19.80/hr contribution-per-labor-minute recommendations. Completion requires a compatible selected outcome/grade/action/sale state/reason; identified ordinary evidence overrides are allowed, while mandatory legal/handling/disclosure stop-outs cannot be economically overridden. No migration.
 
 **2026-07-03 (v2.47.2) — Performance:** dashboard metrics date filters → sargable timestamp ranges (`_day_range`); on-shelf aggregate single-query; migration **`inventory.0079`** — `pg_trgm` + trigram GIN on `Item.search_text`/`PurchaseOrder.search_text`, `Item (-checked_in_at, -created_at)` index; `ItemViewSet` `select_related('product__category')`; processing workspace peers/collapse rollups page-scoped, `expected_retail` via DB aggregate. `django.contrib.postgres` added to INSTALLED_APPS.
 

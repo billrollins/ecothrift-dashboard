@@ -26,6 +26,18 @@ RESTORATION_DISPATCH = 'restoration'
 RESTORATION_RETURN_OUTCOME_UNTOUCHED = 'untouched'
 RESTORATION_RETURN_OUTCOME_TARS_COMPLETED = 'tars_completed'
 
+PROCESSING_HANDOFF_SCHEMA_VERSION = 1
+PROCESSING_HANDOFF_TESTED_STATUSES = {'untested', 'partially_tested', 'tested'}
+PROCESSING_HANDOFF_TEST_RESULTS = {
+    'pass',
+    'fail',
+    'unknown',
+    'not_applicable',
+    'skipped',
+}
+PROCESSING_HANDOFF_MAX_QUICK_TESTS = 10
+PROCESSING_HANDOFF_MAX_TEXT = 2_000
+
 RESTORATION_UNTOUCHED_REASONS: dict[str, str] = {
     'recalled': 'Recalled',
     'not_worth_it': 'Not worth it from preliminary look',
@@ -88,18 +100,124 @@ def grade_values_complete(scale: str, values: dict[str, float] | dict[str, Any])
 
 
 def validate_restoration_check_in_payload(data: dict) -> tuple[str, dict[str, float]]:
-    """Require scale + complete grade values when dispatch is restoration."""
+    """Accept restoration dispatch; grade scale/values may be completed on Restorations TO setup.
+
+    Incomplete or missing grades create a queued job with ``needs_setup=True``.
+    If a scale is provided it must be a known active scale. Partial grade maps are
+    normalized; completeness is enforced before TARS bench check-in.
+    """
 
     dispatch = str(data.get('dispatch') or 'on_shelf').strip()
     if dispatch != RESTORATION_DISPATCH:
         return '', {}
     scale = str(data.get('restoration_scale') or '').strip()
     grade_values = normalize_grade_values(data.get('restoration_grade_values'))
-    if not scale or not is_known_active_scale(scale):
-        raise ValueError('restoration_scale is required and must be a known grade scale when dispatch is restoration.')
-    if not grade_values_complete(scale, grade_values):
-        raise ValueError('Complete restoration_grade_values are required for every grade in the selected scale.')
+    if scale and not is_known_active_scale(scale):
+        raise ValueError('restoration_scale must be a known grade scale when provided.')
+    if scale and grade_values:
+        # Keep only grades that belong to the scale; zeros already stripped by normalize.
+        allowed = set(grades_for_scale(scale))
+        grade_values = {g: v for g, v in grade_values.items() if g in allowed}
+    elif scale:
+        grade_values = empty_values_for_scale(scale, grade_values)
     return scale, grade_values
+
+
+def _handoff_text(value: Any, field: str, *, limit: int = PROCESSING_HANDOFF_MAX_TEXT) -> str:
+    text = str(value or '').strip()
+    if len(text) > limit:
+        raise ValueError(f'processing_handoff.{field} exceeds {limit} characters.')
+    return text
+
+
+def normalize_processing_handoff(raw: Any, *, user=None) -> dict[str, Any]:
+    """Validate a versioned Processing-to-Restoration handoff and server-stamp it."""
+
+    if not isinstance(raw, dict):
+        raise ValueError('processing_handoff must be an object.')
+    schema_version = raw.get('schema_version', PROCESSING_HANDOFF_SCHEMA_VERSION)
+    if schema_version != PROCESSING_HANDOFF_SCHEMA_VERSION:
+        raise ValueError(f'Unsupported processing_handoff schema_version: {schema_version}.')
+
+    tested_status = _handoff_text(raw.get('tested_status'), 'tested_status', limit=32).lower()
+    if tested_status not in PROCESSING_HANDOFF_TESTED_STATUSES:
+        raise ValueError(
+            'processing_handoff.tested_status is required and must be '
+            'untested, partially_tested, or tested.',
+        )
+
+    quick_tests_raw = raw.get('quick_tests') or []
+    if not isinstance(quick_tests_raw, list):
+        raise ValueError('processing_handoff.quick_tests must be a list.')
+    if len(quick_tests_raw) > PROCESSING_HANDOFF_MAX_QUICK_TESTS:
+        raise ValueError(
+            f'processing_handoff supports at most {PROCESSING_HANDOFF_MAX_QUICK_TESTS} quick tests.',
+        )
+
+    quick_tests: list[dict[str, str]] = []
+    for index, entry in enumerate(quick_tests_raw):
+        if not isinstance(entry, dict):
+            raise ValueError(f'processing_handoff.quick_tests[{index}] must be an object.')
+        test_id = _handoff_text(entry.get('test_id'), f'quick_tests[{index}].test_id', limit=80)
+        name = _handoff_text(entry.get('name'), f'quick_tests[{index}].name', limit=300)
+        if not test_id and not name:
+            raise ValueError(
+                f'processing_handoff.quick_tests[{index}] requires test_id or name.',
+            )
+        result = _handoff_text(
+            entry.get('result'),
+            f'quick_tests[{index}].result',
+            limit=32,
+        ).lower()
+        if result not in PROCESSING_HANDOFF_TEST_RESULTS:
+            raise ValueError(
+                f'processing_handoff.quick_tests[{index}].result must be one of '
+                f'{sorted(PROCESSING_HANDOFF_TEST_RESULTS)}.',
+            )
+        normalized = {
+            'result': result,
+            'notes': _handoff_text(entry.get('notes'), f'quick_tests[{index}].notes'),
+        }
+        if test_id:
+            normalized['test_id'] = test_id
+        if name:
+            normalized['name'] = name
+        quick_tests.append(normalized)
+
+    unknowns_raw = raw.get('unknowns')
+    if isinstance(unknowns_raw, list):
+        if len(unknowns_raw) > 20:
+            raise ValueError('processing_handoff.unknowns supports at most 20 entries.')
+        unknowns: str | list[str] = [
+            _handoff_text(value, f'unknowns[{index}]', limit=300)
+            for index, value in enumerate(unknowns_raw)
+            if str(value or '').strip()
+        ]
+    else:
+        unknowns = _handoff_text(unknowns_raw, 'unknowns')
+
+    user_id = None
+    if user is not None and getattr(user, 'is_authenticated', False):
+        user_id = getattr(user, 'pk', None)
+    return {
+        'schema_version': PROCESSING_HANDOFF_SCHEMA_VERSION,
+        'tested_status': tested_status,
+        'condition_evidence': _handoff_text(
+            raw.get('condition_evidence'),
+            'condition_evidence',
+        ),
+        'unknowns': unknowns,
+        'quick_tests': quick_tests,
+        'recorded_at': timezone.now().isoformat(),
+        'recorded_by_id': user_id,
+    }
+
+
+def processing_handoff_from_check_in(check_in: ItemCheckIn | None) -> dict[str, Any] | None:
+    if check_in is None or not isinstance(check_in.defaults_snapshot, dict):
+        return None
+    handoff = check_in.defaults_snapshot.get('processing_handoff')
+    return handoff if isinstance(handoff, dict) else None
 
 
 def map_vendor_name_to_tars_source(vendor_name: str | None) -> str | None:
@@ -172,10 +290,17 @@ def restoration_job_needs_setup(job: RestorationJob) -> bool:
     return not grade_values_complete(job.scale, job.grade_values or {})
 
 
-def merge_restoration_into_defaults_snapshot(snapshot: dict, scale: str, grade_values: dict[str, float]) -> dict:
+def merge_restoration_into_defaults_snapshot(
+    snapshot: dict,
+    scale: str,
+    grade_values: dict[str, float],
+    processing_handoff: dict[str, Any] | None = None,
+) -> dict:
     merged = dict(snapshot or {})
     merged['restoration_scale'] = scale
     merged['restoration_grade_values'] = grade_values
+    if processing_handoff is not None:
+        merged['processing_handoff'] = processing_handoff
     return merged
 
 
@@ -206,6 +331,144 @@ def create_restoration_job_from_check_in(
         created_by=user,
     )
     return job
+
+
+def restoration_job_id_for_check_in(check_in_id: int | None) -> int | None:
+    if not check_in_id:
+        return None
+    return (
+        RestorationJob.objects.filter(item_check_in_id=check_in_id)
+        .values_list('id', flat=True)
+        .first()
+    )
+
+
+_BENCH_VERB_LABELS = {
+    'test': 'Tested',
+    'assemble': 'Assembled',
+    'repair': 'Repaired',
+    'salvage': 'Salvaged',
+}
+
+
+def _work_verbs_from_session(session: Any) -> list[str]:
+    if not isinstance(session, dict):
+        return []
+    seen: list[str] = []
+    for row in session.get('benchRows') or []:
+        if not isinstance(row, dict):
+            continue
+        category = str(row.get('category') or '').strip().lower()
+        label = _BENCH_VERB_LABELS.get(category)
+        if label and label not in seen:
+            seen.append(label)
+    decision = session.get('decisionWork') if isinstance(session.get('decisionWork'), dict) else {}
+    selection = decision.get('selection') if isinstance(decision.get('selection'), dict) else {}
+    action = str(selection.get('action') or '').strip().lower()
+    label = _BENCH_VERB_LABELS.get(action)
+    if label and label not in seen:
+        seen.append(label)
+    return seen
+
+
+def _unit_kind_for_job(job: RestorationJob) -> str:
+    """Best-effort unit classification for Processing Restorations desk."""
+
+    check_in = job.item_check_in if job.item_check_in_id else None
+    snapshot = check_in.defaults_snapshot if check_in and isinstance(check_in.defaults_snapshot, dict) else {}
+    if snapshot.get('restoration_unit_kind') in ('whole', 'part', 'added'):
+        return str(snapshot['restoration_unit_kind'])
+    if check_in is not None and getattr(check_in, 'processing_row_id', None) is None:
+        # Scan-added / non-processing-row restoration jobs.
+        return 'added'
+    if job.quantity and job.quantity > 1:
+        return 'part'
+    return 'whole'
+
+
+def _sale_state_from_session(session: Any) -> str | None:
+    if not isinstance(session, dict):
+        return None
+    decision = session.get('decisionWork') if isinstance(session.get('decisionWork'), dict) else {}
+    selection = decision.get('selection') if isinstance(decision.get('selection'), dict) else {}
+    sale = selection.get('saleState') or selection.get('sale_state')
+    return str(sale) if sale else None
+
+
+def _decision_reason_from_session(session: Any) -> str:
+    if not isinstance(session, dict):
+        return ''
+    decision = session.get('decisionWork') if isinstance(session.get('decisionWork'), dict) else {}
+    selection = decision.get('selection') if isinstance(decision.get('selection'), dict) else {}
+    return str(selection.get('reason') or '').strip()
+
+
+def processing_desk_from_family(job: RestorationJob) -> str | None:
+    """Return worked|untouched for FROM desk rows, else None for TO rows."""
+
+    if (
+        job.stage == RestorationJob.STAGE_DONE
+        and job.bench_disposition == RestorationJob.BENCH_DISPOSITION_PROCESSING
+    ):
+        return 'worked'
+    if job.stage == RestorationJob.STAGE_RETURNED:
+        if job.return_disposition_type == RestorationJob.RETURN_DISPOSITION_UNTOUCHED:
+            return 'untouched'
+        if job.return_disposition_type == RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED:
+            return 'worked'
+    return None
+
+
+def is_processing_desk_from_eligible(job: RestorationJob) -> bool:
+    return (
+        job.processing_handled_at is None
+        and processing_desk_from_family(job) is not None
+    )
+
+
+def build_processing_desk_summary(job: RestorationJob) -> dict[str, Any]:
+    family = processing_desk_from_family(job)
+    session = job.work_session if isinstance(job.work_session, dict) else {}
+    handoff = processing_handoff_from_check_in(job.item_check_in if job.item_check_in_id else None)
+    direction = 'from' if family else ('to' if job.stage in (
+        RestorationJob.STAGE_QUEUED,
+        RestorationJob.STAGE_SENT,
+    ) else 'other')
+    return {
+        'direction': direction,
+        'from_family': family,
+        'work_verbs': _work_verbs_from_session(session) if family == 'worked' else [],
+        'unit_kind': _unit_kind_for_job(job),
+        'sale_state': _sale_state_from_session(session),
+        'decision_reason': _decision_reason_from_session(session),
+        'achieved_grade': job.final_grade or job.return_grade or '',
+        'processing_handoff': handoff,
+    }
+
+
+def processing_desk_queryset():
+    """TO (needs setup / queued) and FROM (unhandled returns) for Processing Restorations."""
+
+    from django.db.models import Q
+
+    return RestorationJob.objects.filter(
+        Q(
+            stage__in=[RestorationJob.STAGE_QUEUED, RestorationJob.STAGE_SENT],
+        )
+        | Q(
+            processing_handled_at__isnull=True,
+            stage=RestorationJob.STAGE_DONE,
+            bench_disposition=RestorationJob.BENCH_DISPOSITION_PROCESSING,
+        )
+        | Q(
+            processing_handled_at__isnull=True,
+            stage=RestorationJob.STAGE_RETURNED,
+            return_disposition_type__in=[
+                RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED,
+                RestorationJob.RETURN_DISPOSITION_UNTOUCHED,
+            ],
+        ),
+    )
 
 
 def delete_restoration_job_for_check_in(check_in: ItemCheckIn) -> None:

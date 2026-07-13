@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-09 (custom_label_studio v2.48.1 hotfix) -->
+<!-- Last updated: 2026-07-13 (Restorations hub; TARS Wizard UX A+ next) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,10 +13,11 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Custom Label Studio (active — physical smoke gate):** [`custom_label_studio`](initiatives/custom_label_studio.md) — Admin `/admin/label-studio`: PDF + visual templates, variables/increment sequences, background media, QR/Code128, AI Create approval, exact preview and print × N. Phases 0–4 + final product polish are code-complete; install print-server 1.4.1 and run physical smoke before archive/release.
+- **TARS decision guardrails (active):** [`tars_full_instruction_wizard_guidance`](initiatives/tars_full_instruction_wizard_guidance.md) — Phase 0–1 complete; **Processing Restorations hub** (`/inventory/restorations`) shipped (owner: pretty good). **Next: TARS Decision Wizard UX D/F → A+** (Phase 1.5) before Phase 2 catalogs. Related parked transactional bench: [`tars_restoration_workspace`](initiatives/_archived/_pending/tars_restoration_workspace.md).
+- **Custom Label Studio (shipped):** archived [`custom_label_studio`](initiatives/_archived/_completed/custom_label_studio.md) — Admin **`/admin/label-studio`**: PDF + visual templates, variables/increment, QR/Code128, AI Create, print × N; print-server **1.4.1**. Shipped **v2.48.0**–**v2.48.2**.
 - **Floorplan builder (shipped):** archived [`floorplan_builder`](initiatives/_archived/_completed/floorplan_builder.md) — **`/floor-ops/floorplans`** editor + DB element kinds, walls/cut/print. Shipped **v2.39.0**–**v2.47.0**. Docs: **`apps/floorplan/README.md`**.
 - **Retail Quality Audit (shipped):** archived [`retail_quality_audit`](initiatives/_archived/_completed/retail_quality_audit.md) — Admin **Quality Audit** hub + mobile wizard; Super Admin editable **`QualityAuditForm`**; dashboard **Retail QA** grade. Shipped **v2.38.0** / **v2.43.0**.
-- **Parked — TARS Restoration:** [`.ai/initiatives/_archived/_pending/tars_restoration_workspace.md`](initiatives/_archived/_pending/tars_restoration_workspace.md) — `/restoration/queue` + `/restoration/tars` bench live (Phases 0–2 + hardening **v2.39.0**). **Resume when:** Phase 3 execute workflows + Phase 4 steering.
+- **Parked — TARS Restoration:** [`.ai/initiatives/_archived/_pending/tars_restoration_workspace.md`](initiatives/_archived/_pending/tars_restoration_workspace.md) — TARS Studio at `/restoration/tars` (Phases 0–2 + hardening **v2.39.0**); Processing Queue nav removed in favor of Restorations hub. **Resume when:** Phase 3 execute workflows + Phase 4 steering.
 - **HR Time Clock (shipped):** archived [`hr_time_clock_mvp`](initiatives/_archived/_completed/hr_time_clock_mvp.md) — time clock, **Employees**, **Time & payroll**, soft delete; legacy HR pages removed. Shipped **v2.33.0**–**v2.33.1**.
 - **Product/Item CRUD → Processing (shipped):** archived [`product_item_crud_and_processing`](initiatives/_archived/_completed/product_item_crud_and_processing.md) — **v2.29.0–v2.32.0** (Catalog, processing integration, unmanifested lines). Semantic embedding search on hold.
 - **AI cleanup (shipped):** archived [`preprocessing_ai_cleanup_review`](initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md) — Step 2 **Run AI Cleanup** browser batch pool (`ai-cleanup-batch`/`-status`/`-complete`), chunked offline apply, gthread Procfile, legacy `ai-cleanup-rows` 410. Shipped **v2.28.0**.

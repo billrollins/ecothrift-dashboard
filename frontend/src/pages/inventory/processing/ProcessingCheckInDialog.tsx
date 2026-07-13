@@ -15,11 +15,10 @@ import {
   Stack,
   Typography,
   Alert,
-  Chip,
 } from '@mui/material';
-import { useEffect, useMemo, useRef, useState, type WheelEvent } from 'react';
+import { useEffect, useMemo, useState, type WheelEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getProduct } from '../../../api/inventory.api';
+import { getProduct, type ProcessingCheckInPayload } from '../../../api/inventory.api';
 import type {
   ItemCheckInDTO,
   ItemCondition,
@@ -39,11 +38,6 @@ import {
   normalizeProcessingDispatch,
   PROCESSING_ITEM_DEFAULT_CONDITION,
 } from './processingItemFormOptions';
-import {
-  ProcessingSendToRestorationDialog,
-  buildRestorationCardItemFromProcessing,
-} from './ProcessingSendToRestorationDialog';
-import type { RestorationGradeConfig } from '../../restoration/tars/TarsGradeValuesCard';
 import { scaleRowAmountForProductId } from './processingManifestAccounting';
 import { effectiveRowQty } from './processingQueueCellText';
 import { LargeCheckInConfirmDialog } from './LargeCheckInConfirmDialog';
@@ -164,8 +158,12 @@ export interface ProcessingCheckInDialogProps {
   initialProductId?: number | null;
   seed?: ProcessingCheckInSeed | null;
   onClose: () => void;
-  onSubmit: (payload: Record<string, unknown>, options: { printLabels: boolean }) => Promise<boolean>;
-  onUpdateItemCheckIn?: (itemCheckInId: number, payload: Record<string, unknown>, options: { printLabels: boolean }) => Promise<boolean>;
+  onSubmit: (payload: ProcessingCheckInPayload, options: { printLabels: boolean }) => Promise<boolean>;
+  onUpdateItemCheckIn?: (
+    itemCheckInId: number,
+    payload: ProcessingCheckInPayload,
+    options: { printLabels: boolean },
+  ) => Promise<boolean>;
 }
 
 export function ProcessingCheckInDialog({
@@ -200,9 +198,6 @@ export function ProcessingCheckInDialog({
   const [notes, setNotes] = useState('');
   const [specifications, setSpecifications] = useState<Record<string, string>>({});
   const [volumeConfirm, setVolumeConfirm] = useState<boolean | null>(null);
-  const [restorationDialogOpen, setRestorationDialogOpen] = useState(false);
-  const [restorationConfig, setRestorationConfig] = useState<RestorationGradeConfig | null>(null);
-  const dispatchBeforeRestorationRef = useRef('on_shelf');
   const { confirm, ConfirmDialogHost } = useWorkbenchConfirmDialog();
 
   const qtyValue = useMemo(() => parseCheckInQuantity(quantity), [quantity]);
@@ -229,11 +224,8 @@ export function ProcessingCheckInDialog({
     setRetail(seed?.item.retail ?? (strDefault(defaults.retail) || scaledRowRetail || ''));
     setPrice(seed?.item.price ?? (strDefault(defaults.price) || scaledRowPrice || ''));
     setNotes(strDefault(defaults.notes) || seed?.item.notes || row.manifestNotes || '');
-    setSpecifications((defaults.specifications as Record<string, string> | undefined) ?? {});
+    setSpecifications(defaults.specifications ?? {});
     setVolumeConfirm(null);
-    setRestorationDialogOpen(false);
-    setRestorationConfig(null);
-    dispatchBeforeRestorationRef.current = seed?.item.dispatch || strDefault(defaults.dispatch) || row.dispatch || 'on_shelf';
   }, [open, seed, editCheckIn, row, scaledRowRetail, scaledRowPrice]);
 
   useEffect(() => {
@@ -242,46 +234,8 @@ export function ProcessingCheckInDialog({
 
   function handleDispatchChange(next: string) {
     if (salvageLocked) return;
-    const normalized = normalizeProcessingDispatch(next);
-    if (normalized === 'restoration') {
-      if (dispatch !== 'restoration') {
-        dispatchBeforeRestorationRef.current = dispatch;
-      }
-      setDispatch('restoration');
-      setRestorationDialogOpen(true);
-      return;
-    }
-    setRestorationConfig(null);
-    setRestorationDialogOpen(false);
-    setDispatch(normalized);
+    setDispatch(normalizeProcessingDispatch(next));
   }
-
-  function handleRestorationCancel() {
-    setRestorationDialogOpen(false);
-    setRestorationConfig(null);
-    setDispatch(dispatchBeforeRestorationRef.current);
-  }
-
-  function handleRestorationConfirm(config: RestorationGradeConfig) {
-    setRestorationConfig(config);
-    setRestorationDialogOpen(false);
-  }
-
-  const restorationCardItem = useMemo(
-    () =>
-      buildRestorationCardItemFromProcessing({
-        productTitle: product?.title ?? row.title,
-        brand: product?.brand ?? row.brand,
-        model: product?.model ?? row.model,
-        category: product?.category ?? row.category,
-        productNumber: product?.product_number,
-        upc: product?.upc,
-        retail: retail || scaledRowRetail,
-        price: price || scaledRowPrice,
-        condition: String(condition),
-      }),
-    [product, row, retail, price, scaledRowRetail, scaledRowPrice, condition],
-  );
 
   function handleQuantityBlur() {
     setQuantity((prev) => String(parseCheckInQuantity(prev)));
@@ -291,8 +245,11 @@ export function ProcessingCheckInDialog({
     setQuantity(String(parseCheckInQuantity(String(Math.max(0, qtyValue || 1) + delta))));
   }
 
-  function buildPayload(): Record<string, unknown> {
-    const payload: Record<string, unknown> = {
+  function buildPayload(): ProcessingCheckInPayload {
+    if (productId == null) {
+      throw new Error('A product is required to build a Processing check-in payload.');
+    }
+    return {
       product_mode: 'existing',
       product_id: productId,
       quantity: qtyValue,
@@ -303,11 +260,6 @@ export function ProcessingCheckInDialog({
       notes,
       specifications,
     };
-    if (dispatch === 'restoration' && restorationConfig) {
-      payload.restoration_scale = restorationConfig.scale;
-      payload.restoration_grade_values = restorationConfig.values;
-    }
-    return payload;
   }
 
   async function doSubmit(printLabels: boolean) {
@@ -353,8 +305,7 @@ export function ProcessingCheckInDialog({
     await doSubmit(printLabels);
   }
 
-  const restorationReady = dispatch !== 'restoration' || restorationConfig != null;
-  const canSubmit = productId != null && isValidCheckInPrice(price) && !busy && restorationReady;
+  const canSubmit = productId != null && isValidCheckInPrice(price) && !busy;
 
   return (
     <>
@@ -464,31 +415,12 @@ export function ProcessingCheckInDialog({
               disabled={busy}
               highlightRequired={!isEditMode}
             />
-            {dispatch === 'restoration' && !restorationConfig ?
-              <Alert severity="warning" variant="outlined" sx={{ py: 0.5 }}>
-                Choose a grade scale and enter values for every grade to send this check-in to Restoration.
-                {restorationDialogOpen ? null : (
-                  <>
-                    {' '}
-                    <Button size="small" onClick={() => setRestorationDialogOpen(true)} sx={{ ml: 0.5 }}>
-                      Open grade values
-                    </Button>
-                  </>
-                )}
+            {dispatch === 'restoration' ? (
+              <Alert severity="info" variant="outlined" sx={{ py: 0.5 }}>
+                Check-in creates the restoration job, then opens Restorations to set grade scale, values, and
+                handoff before TARS.
               </Alert>
-            : null}
-            {dispatch === 'restoration' && restorationConfig ?
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                <Chip
-                  size="small"
-                  color="success"
-                  label={`Restoration · ${restorationConfig.scale} scale · ${Object.keys(restorationConfig.values).length} grades`}
-                />
-                <Button size="small" onClick={() => setRestorationDialogOpen(true)}>
-                  Edit grade values
-                </Button>
-              </Stack>
-            : null}
+            ) : null}
           </Stack>
         )}
       </DialogContent>
@@ -532,15 +464,6 @@ export function ProcessingCheckInDialog({
         }}
       />
       {ConfirmDialogHost}
-      <ProcessingSendToRestorationDialog
-        open={restorationDialogOpen}
-        quantity={qtyValue}
-        item={restorationCardItem}
-        initialConfig={restorationConfig}
-        loading={busy}
-        onConfirm={handleRestorationConfirm}
-        onCancel={handleRestorationCancel}
-      />
     </>
   );
 }

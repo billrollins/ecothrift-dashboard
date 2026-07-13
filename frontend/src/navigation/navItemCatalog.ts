@@ -201,10 +201,17 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'localShipping',
     roles: ['Manager', 'Admin'],
   },
+  restorations: {
+    id: 'restorations',
+    path: '/inventory/restorations',
+    label: 'Restorations',
+    icon: 'assignmentReturned',
+  },
+  /** @deprecated Prefer `restorations` — kept for preference migration. */
   restorationReturns: {
     id: 'restorationReturns',
-    path: '/inventory/restoration-returns',
-    label: 'Restoration Returns',
+    path: '/inventory/restorations',
+    label: 'Restorations',
     icon: 'assignmentReturned',
   },
   blogStudio: {

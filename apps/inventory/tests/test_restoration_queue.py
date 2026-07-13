@@ -1073,6 +1073,32 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         listing2 = self.client.get('/api/inventory/restoration-jobs/returns/')
         self.assertNotIn(job.id, [row['id'] for row in listing2.data])
 
+    def test_returns_list_includes_untouched_with_desk_summary(self):
+        job = self._sent_job()
+        returned = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/return-to-processing/',
+            {
+                'disposition_type': 'untouched',
+                'reason': 'not_worth_it',
+                'notes': 'Preliminary look — not worth bench time',
+            },
+            format='json',
+        )
+        self.assertEqual(returned.status_code, 200, returned.data)
+
+        listing = self.client.get('/api/inventory/restoration-jobs/returns/')
+        self.assertEqual(listing.status_code, 200, listing.data)
+        row = next(r for r in listing.data if r['id'] == job.id)
+        self.assertEqual(row['from_family'], 'untouched')
+        self.assertEqual(row['direction'], 'from')
+        self.assertEqual(row['unit_kind'], 'whole')
+        self.assertEqual(row['work_verbs'], [])
+
+        handled = self.client.post(f'/api/inventory/restoration-jobs/{job.id}/mark-handled/')
+        self.assertEqual(handled.status_code, 200, handled.data)
+        listing2 = self.client.get('/api/inventory/restoration-jobs/returns/')
+        self.assertNotIn(job.id, [row['id'] for row in listing2.data])
+
     def test_receive_parts_sets_pending_flag(self):
         from apps.inventory.models import RestorationPartsRequest
 

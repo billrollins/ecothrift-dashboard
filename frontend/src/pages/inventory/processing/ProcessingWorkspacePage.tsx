@@ -17,7 +17,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useMarkOrderComplete, usePurchaseOrders } from '../../../hooks/useInventory';
-import { getProcessingWorkspace } from '../../../api/inventory.api';
+import { getProcessingWorkspace, type ProcessingCheckInPayload } from '../../../api/inventory.api';
 import {
   useProcessingPatchItem,
   useProcessingRowCheckIn,
@@ -511,7 +511,7 @@ export default function ProcessingWorkspacePage() {
   }, [search, orderId, detailProcessingRowId, workspace?.rows, queueFilters, productFilterProductId, openScanMatch]);
 
   const handleCheckIn = useCallback(
-    async (payload: Record<string, unknown>, options?: { printLabels?: boolean }) => {
+    async (payload: ProcessingCheckInPayload, options?: { printLabels?: boolean }) => {
       if (!selectedRow || orderId == null) return false;
       const shouldPrint = options?.printLabels !== false;
       try {
@@ -540,6 +540,12 @@ export default function ProcessingWorkspacePage() {
           enqueueSnackbar(`Checked in ${data.created_count} unit(s) without printing.`, { variant: 'success' });
         }
         bumpSearchFocus();
+        if (payload.dispatch === 'restoration' && data.restoration_job_id) {
+          const from = `/inventory/processing/${orderId}`;
+          navigate(
+            `/inventory/restorations?lane=to&job=${data.restoration_job_id}&from=${encodeURIComponent(from)}`,
+          );
+        }
         return true;
       } catch (e: unknown) {
         const detail =
@@ -550,7 +556,7 @@ export default function ProcessingWorkspacePage() {
         return false;
       }
     },
-    [selectedRow, orderId, rowCheckIn, enqueueSnackbar, bumpSearchFocus, recordSessionCheckIns, rememberRecentRow, queryClient],
+    [selectedRow, orderId, rowCheckIn, enqueueSnackbar, bumpSearchFocus, recordSessionCheckIns, rememberRecentRow, queryClient, navigate],
   );
 
   const selectedQueueRows = useMemo(

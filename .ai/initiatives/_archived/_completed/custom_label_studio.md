@@ -1,9 +1,10 @@
-<!-- initiative: slug=custom-label-studio status=active updated=2026-07-09 -->
-<!-- Last updated: 2026-07-09 (Session 6 — final polish; physical smoke pending) -->
+<!-- initiative: slug=custom-label-studio status=completed updated=2026-07-10 -->
+<!-- Archived 2026-07-10: disposition=completed (Label Studio library/designer/AI/print × N; print-server 1.4.1; shipped v2.48.0–v2.48.2) -->
+<!-- Last updated: 2026-07-10 (archived → _completed/; owner closed) -->
 
 # Initiative: Custom Label Studio
 
-**Status:** **Active — awaiting physical smoke.** Phases **0–4 + final polish code complete** in `[Unreleased]`. Print-server **1.4.1** prepared/distributed. **Owner gate before archive:** physical install/smoke checklist below.
+**Status:** **Completed** (2026-07-10) — Phases **0–4 + final polish** shipped **v2.48.0**; prod media/print-server hotfixes **v2.48.1**–**v2.48.2**. See [`CHANGELOG`](../../../../CHANGELOG.md) `[2.48.0]`–`[2.48.2]`. Print-server **1.4.1** current.
 
 **Home:** Admin **`/admin/label-studio`**. **Print path:** local print server (`printserver/`) + dashboard UI; assets on **S3** (`S3File`).
 
@@ -13,7 +14,7 @@
 
 Staff can **design, save, and print custom labels** from the dashboard: pick a printer, fill template variables (and/or use a background image), print **N** copies. Labels are **persistent** (Postgres definition + S3 media). An optional **AI Create for me** flow can propose structure and/or a monochrome background image for approval before save. Print-server changes ship via the existing **distribute / installer** path.
 
-**Finish-line check (2026-07-09):** Library + designer + PDF/template print × N + AI propose/apply + AI bg approve/upload + orphan purge + Manager+ gates — **met in code**. Physical print smoke still owner-side.
+**Finish-line check (2026-07-10):** Library + designer + PDF/template print × N + AI propose/apply + AI bg approve/upload + orphan purge + Manager+ gates + prod media stream/cache-bust — **met**. Owner closed initiative as complete.
 
 ---
 
@@ -58,7 +59,7 @@ Photos alone are a **degenerate template** (background only, no variables) — a
 | **Designer** | Aspect ratio, background upload/AI, place text/QR/barcode, bind variables, preview (B&W). |
 | **Print dialog** | Printer select (local print server), variable form, copies **N**, print / reprint. |
 | **PDF print** | Upload PDF → printer → × N. |
-| **Print server** | `/print/image-copies`, `/print/pdf-copies` (1.4.0). |
+| **Print server** | `/print/image-copies`, `/print/pdf-copies` (**1.4.1**). |
 | **Admin** | Nav under Admin → Label Studio. |
 
 ---
@@ -86,10 +87,10 @@ Photos alone are a **degenerate template** (background only, no variables) — a
 
 ## Technical anchors (existing)
 
-- Print server: [`printserver/`](../../printserver/), [`.ai/extended/print-server.md`](../extended/print-server.md)
+- Print server: [`printserver/`](../../../../printserver/), [`.ai/extended/print-server.md`](../../extended/print-server.md)
 - Dashboard print client: `frontend/src/services/localPrintService.ts`; Admin Settings printer UI
 - S3 / releases: `apps.core` `S3File`, `PrintServerRelease`; `printserver/distribute.py`
-- Prior label work (closed): [`print_server_label_design`](./_archived/_completed/print_server_label_design.md), [`print_server_label_price_layout`](./_archived/_completed/print_server_label_price_layout.md)
+- Prior label work (closed): [`print_server_label_design`](./print_server_label_design.md), [`print_server_label_price_layout`](./print_server_label_price_layout.md)
 
 ---
 
@@ -103,20 +104,26 @@ Photos alone are a **degenerate template** (background only, no variables) — a
 
 ---
 
-## Print-server 1.4.1 physical smoke checklist
+## Print-server 1.4.1 smoke checklist (reference)
 
-Do on a store PC (or lab PC with a label printer) before archiving this initiative:
-
-1. Admin **Settings** → install/update print server to **1.4.1** (current release).
-2. Confirm print-server health (Settings status / `http://127.0.0.1:8888`).
-3. Label Studio → open a **PDF** label → print **2** copies.
-4. Label Studio → print a fixed template × 2; measure that physical dimensions match designer size.
-5. Print an increment template × 3; verify each sequence value.
-6. Designer **AI Create** (structure + background approval) → save → print once.
+1. Admin **Settings** → install/update print server to **1.4.1**.
+2. Confirm print-server health (`http://127.0.0.1:8888`).
+3. Label Studio → PDF label → print × 2.
+4. Fixed template → print × 2 (check physical size).
+5. Increment template → print × 3 (check sequence).
+6. AI Create → save → print once.
 
 ---
 
 ## Sessions
+
+### Session 7 — 2026-07-10
+
+**Goal:** Owner closeout — archive initiative as completed.
+
+**#### Result:** Moved to `_archived/_completed/`. Shipped **v2.48.0**–**v2.48.2**; print-server **1.4.1**.
+
+---
 
 ### Session 6 — 2026-07-09
 
@@ -129,8 +136,8 @@ Do on a store PC (or lab PC with a label printer) before archiving this initiati
 - Print: exact thumbnail, increment copy browser/examples, printer health, progress and partial-batch recovery.
 - Library: search/retry, PDF-create guard, archive confirmation/show/restore, friendly errors.
 - Hardening: AI throttles, upload signatures, retryable S3 cleanup + command; print-server 1.4.1 bounds and exact-size template raster path.
-- Verified: Django labels **64 tests**; Label Studio Vitest **16 tests** (full frontend **245**); print-server router **7 tests**; frontend TypeScript + production build clean. Print-server **1.4.1** built, uploaded, and registered current (release id 35).
-- Initiative remains active until the physical checklist above passes; do not archive or claim physical validation early.
+- Verified: Django labels **64 tests**; Label Studio Vitest **16 tests** (full frontend **245**); print-server router **7 tests**; frontend TypeScript + production build clean. Print-server **1.4.1** built, uploaded, and registered current.
+- Follow-on hotfixes: **v2.48.1** (stream media on prod; register 1.4.1 on Heroku), **v2.48.2** (background replace cache-bust).
 
 ---
 

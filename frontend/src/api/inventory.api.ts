@@ -38,6 +38,7 @@ import type {
   RestorationGradeScaleCreatePayload,
   RestorationGradeScaleSuggestParams,
   RestorationGradeScaleSuggestDTO,
+  ProcessingHandoff,
 } from '../types/inventory.types';
 import api from './client';
 
@@ -1217,9 +1218,10 @@ export function processingPrintMultiple(
   );
 }
 
-export interface ProcessingRowCheckInPayload {
-  processing_row_id: number;
+export interface ProcessingCheckInPayload {
   quantity: number;
+  product_mode: 'existing';
+  product_id: number;
   condition?: string;
   dispatch?: string;
   retail?: string;
@@ -1233,19 +1235,25 @@ export interface ProcessingRowCheckInPayload {
   notes?: string;
   restoration_scale?: string;
   restoration_grade_values?: Record<string, number>;
+  processing_handoff?: ProcessingHandoff;
+}
+
+export interface ProcessingRowCheckInPayload extends ProcessingCheckInPayload {
+  processing_row_id: number;
 }
 
 export interface ProcessingRowCheckInResponse {
   items: Item[];
   created_count: number;
   item_check_in_id?: number;
+  restoration_job_id?: number | null;
   workspace_patch: ProcessingWorkspacePatchDTO;
   printed_items_preview: PrintedItemPreview[];
 }
 
 export function processingRowCheckIn(
   orderId: number,
-  payload: ProcessingRowCheckInPayload | Record<string, unknown>,
+  payload: ProcessingRowCheckInPayload,
 ): Promise<{ data: ProcessingRowCheckInResponse }> {
   return api.post<ProcessingRowCheckInResponse>(
     `/inventory/orders/${orderId}/processing-row-check-in/`,
@@ -1481,6 +1489,7 @@ export interface ProcessingUpdateItemCheckInResponse {
   items_updated: number;
   quantity: number;
   product_id: number | null;
+  restoration_job_id?: number | null;
   row: ProcessingWorkspaceDTO['rows'][number];
   workspace_patch: ProcessingWorkspacePatchDTO;
   printed_items_preview: PrintedItemPreview[];
@@ -1489,7 +1498,7 @@ export interface ProcessingUpdateItemCheckInResponse {
 export function processingUpdateItemCheckIn(
   orderId: number,
   itemCheckInId: number,
-  payload: Record<string, unknown>,
+  payload: Partial<ProcessingCheckInPayload>,
 ): Promise<{ data: ProcessingUpdateItemCheckInResponse }> {
   return api.post<ProcessingUpdateItemCheckInResponse>(
     `/inventory/orders/${orderId}/item-check-ins/${itemCheckInId}/update/`,
@@ -2136,6 +2145,10 @@ export function listRestorationJobs(params?: {
   return api.get('/inventory/restoration-jobs/', { params });
 }
 
+export function getRestorationJob(id: number): Promise<{ data: RestorationJobDTO }> {
+  return api.get(`/inventory/restoration-jobs/${id}/`);
+}
+
 export function createRestorationJobFromSku(
   sku: string,
 ): Promise<{ data: RestorationJobCreateResultDTO }> {
@@ -2231,6 +2244,11 @@ export function completeRestorationJob(
 
 export function listRestorationReturns(): Promise<{ data: RestorationJobDTO[] }> {
   return api.get('/inventory/restoration-jobs/returns/');
+}
+
+/** Alias for Processing Restorations FROM desk (same endpoint as returns). */
+export function listRestorationsFromDesk(): Promise<{ data: RestorationJobDTO[] }> {
+  return listRestorationReturns();
 }
 
 export function markRestorationJobHandled(id: number): Promise<{ data: RestorationJobDTO }> {

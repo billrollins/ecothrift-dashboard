@@ -19,7 +19,7 @@ import type {
   RestorationJobDonePayload,
   RestorationBenchDisposition,
 } from '../../../types/inventory.types';
-import type { TarsWorkEvaluation } from './tarsWorkTypes';
+import type { TarsWorkEvaluation, TarsWorkSession } from './tarsWorkTypes';
 import { formatElapsed } from './tarsJobAdapter';
 import {
   doneTimeWarning,
@@ -38,6 +38,7 @@ interface TarsDoneDialogProps {
   open: boolean;
   job: RestorationJobDTO | null;
   evaluation: TarsWorkEvaluation | null;
+  session?: TarsWorkSession;
   onClose: () => void;
   onSubmit: (payload: RestorationJobDonePayload) => void;
   onTimerStart: () => void;
@@ -49,6 +50,7 @@ export function TarsDoneDialog({
   open,
   job,
   evaluation,
+  session,
   onClose,
   onSubmit,
   onTimerStart,
@@ -68,16 +70,17 @@ export function TarsDoneDialog({
   );
 
   const defaultHours = job?.elapsed_hours ?? '0';
+  const selectedDecision = session?.decisionWork?.selection;
 
   useEffect(() => {
     if (!open || !job) return;
     setDestination('processing');
-    setFinalGrade(evaluation?.selectedGrade ?? gradeOptions[0] ?? '');
+    setFinalGrade(selectedDecision?.grade ?? evaluation?.selectedGrade ?? gradeOptions[0] ?? '');
     setNotes('');
     setSpentHours(defaultHours);
     setTimeWarning(null);
     setOverrideNote('');
-  }, [open, job, evaluation, gradeOptions, defaultHours]);
+  }, [open, job, evaluation, gradeOptions, defaultHours, selectedDecision?.grade]);
 
   if (!job) return null;
 
@@ -164,7 +167,9 @@ export function TarsDoneDialog({
               required
               label="Final grade"
               value={finalGrade}
+              disabled={Boolean(selectedDecision?.grade)}
               onChange={(e) => setFinalGrade(e.target.value)}
+              helperText={selectedDecision?.grade ? 'Grade is controlled by the Guided decision.' : undefined}
             >
               {gradeOptions.map((g) => (
                 <MenuItem key={g} value={g}>
@@ -172,6 +177,17 @@ export function TarsDoneDialog({
                 </MenuItem>
               ))}
             </TextField>
+
+            {selectedDecision?.grade ?
+              <Alert severity="success" icon={false}>
+                <Typography variant="body2" fontWeight={800}>
+                  {selectedDecision.grade} · {selectedDecision.action ?? 'action not set'} · {selectedDecision.saleState?.replace(/_/g, ' ') ?? 'sale state not set'}
+                </Typography>
+                <Typography variant="caption">
+                  {selectedDecision.reason || 'No decision reason recorded.'}
+                </Typography>
+              </Alert>
+            : null}
 
             <TextField
               fullWidth

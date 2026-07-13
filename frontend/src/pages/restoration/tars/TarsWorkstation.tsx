@@ -1,20 +1,21 @@
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   CircularProgress,
   Drawer,
-  IconButton,
   Stack,
-  TextField,
-  Tooltip,
   Typography,
 } from '@mui/material';
 
-import Menu from '@mui/icons-material/Menu';
-import QrCodeScanner from '@mui/icons-material/QrCodeScanner';
+import ExpandMore from '@mui/icons-material/ExpandMore';
+import Done from '@mui/icons-material/Done';
+import PauseCircle from '@mui/icons-material/PauseCircle';
+import ShoppingCart from '@mui/icons-material/ShoppingCart';
+import Undo from '@mui/icons-material/Undo';
 
 import { useSnackbar } from 'notistack';
 
@@ -51,22 +52,23 @@ import type { RestorationJobDTO } from '../../../types/inventory.types';
 
 import { TARS_DEFAULT_HOURLY_RATE, TARS_DEFAULT_TIME_PREMIUM } from './tarsConstants';
 
-import { TarsGradeDirectionCards } from './TarsGradeDirectionCards';
-
 import { TarsWorkBenchTable } from './TarsWorkBenchTable';
-import { TarsGradeEvalDialog } from './TarsGradeEvalDialog';
-
-import { TarsBenchItemCard } from './TarsBenchItemCard';
-import { TarsBenchTimer } from './TarsBenchTimer';
+import { decisionGates } from './tarsDecisionEngine';
 import { TarsTimerSwitchDialog } from './TarsTimerSwitchDialog';
-
 import { TarsDoneDialog } from './TarsDoneDialog';
-import { TarsQueuePreviewContent } from './TarsQueuePreviewContent';
 import { TarsScanMessageDialog } from './TarsScanMessageDialog';
 import { TarsHoldDialog } from './TarsHoldDialog';
 import { TarsPartsListPanel, collectSessionParts } from './TarsPartsListPanel';
 import { PARTS_DRAWER_WIDTH } from './tarsPartsListSession';
-import { TarsWorkstationRail, RAIL_MAX_WIDTH, type RailSectionKey } from './TarsWorkstationRail';
+import { TarsDecisionWizard } from './studio/TarsDecisionWizard';
+import {
+  TarsStudioShell,
+  TarsStudioJobCard,
+  TarsStudioItemHero,
+  type StudioLane,
+} from './studio/TarsStudioShell';
+import { TarsStudioQueueView } from './studio/TarsStudioQueueView';
+import { studio } from './studio/tarsStudioTheme';
 
 import { jobMatchesScan, myActiveBenchRestorationJob, myRunningRestorationJob, restorationJobToTarsItem, tarsJobRowKey } from './tarsJobAdapter';
 import { isBenchIdleWithoutTimer, timerGuardKey, type TimerGuardAction } from './tarsTimerWarnings';
@@ -135,7 +137,6 @@ export function TarsWorkstation() {
 
   const [holdOpen, setHoldOpen] = useState(false);
 
-  const [evalGrade, setEvalGrade] = useState<string | null>(null);
   const [scanMessageDialog, setScanMessageDialog] = useState<{ title: string; message: string } | null>(null);
   const timerSwitchAckRef = useRef<Set<string>>(new Set());
   const [timerSwitchDialog, setTimerSwitchDialog] = useState<{
@@ -144,27 +145,14 @@ export function TarsWorkstation() {
     action: TimerGuardAction;
     onConfirm: () => Promise<void>;
   } | null>(null);
-  const [collapsedSections, setCollapsedSections] = useState<Record<RailSectionKey, boolean>>({
-    queue: false,
-    bench: false,
-    pending: false,
-  });
-  const [selectionDrawerOpen, setSelectionDrawerOpen] = useState(false);
+  const [studioLane, setStudioLane] = useState<StudioLane>('bench');
   const [partsDrawerOpen, setPartsDrawerOpen] = useState(false);
-  const selectionDrawerWidth = RAIL_MAX_WIDTH;
-
-  const toggleRailSection = useCallback((key: RailSectionKey) => {
-    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
-  }, []);
 
   const scanInputRef = useRef<HTMLInputElement>(null);
   const appliedInitialSelectionRef = useRef(false);
 
   const focusScanInput = useCallback(() => {
-    requestAnimationFrame(() => {
-      setSelectionDrawerOpen(true);
-      scanInputRef.current?.focus();
-    });
+    requestAnimationFrame(() => scanInputRef.current?.focus());
   }, []);
 
 
@@ -458,7 +446,7 @@ export function TarsWorkstation() {
     if (queueMatch) {
       setBenchScanInput('');
       if (queueMatch.needs_setup) {
-        navigate('/restoration/queue', {
+        navigate('/restoration/tars', {
           state: { selectJobId: queueMatch.id, showNeedsPricesDialog: true },
         });
         return;
@@ -475,42 +463,6 @@ export function TarsWorkstation() {
   }, [benchScanInput, benchJobs, pendingJobs, queueJobs, handleCheckIn, navigate]);
 
 
-
-  const updateWorkSession = useCallback(
-    async (jobId: number, session: TarsWorkSession) => {
-      if (displayJob?.id === jobId) {
-        await replaceWorkSessionImmediate(session);
-        return;
-      }
-      await persistWorkSession(jobId, session);
-    },
-    [displayJob?.id, persistWorkSession, replaceWorkSessionImmediate],
-  );
-
-
-
-  const selectDirectionGrade = useCallback(
-
-    async (jobId: number, grade: string) => {
-
-      const job = jobById.get(jobId);
-
-      if (!job) return;
-
-      // Base on the local draft (may hold in-flight debounced edits) when this
-      // is the displayed job; otherwise fall back to the cached session.
-      const session =
-        displayJob?.id === jobId && draftWorkSession
-          ? draftWorkSession
-          : (job.work_session as unknown as TarsWorkSession | undefined) ?? createEmptyWorkSession('bench');
-
-      await updateWorkSession(jobId, { ...session, selectedGrade: grade });
-
-    },
-
-    [jobById, updateWorkSession, displayJob?.id, draftWorkSession],
-
-  );
 
   const requestPartsForGrade = useCallback(
     async (grade: string | null, options?: { autoHold?: boolean }) => {
@@ -540,7 +492,6 @@ export function TarsWorkstation() {
               storage_location: '',
             },
           });
-          setEvalGrade(null);
           setSelectedRowKey(null);
           enqueueSnackbar(`Parts request submitted for ${grade} — item moved to Pending`, {
             variant: 'success',
@@ -557,25 +508,6 @@ export function TarsWorkstation() {
     },
     [displayJob, evaluation, flushWorkSessionSave, upsertParts, holdJob, enqueueSnackbar, focusScanInput],
   );
-
-  const openEval = useCallback(
-    (grade: string) => {
-      if (!displayJob) return;
-      setEvalGrade(grade);
-    },
-    [displayJob],
-  );
-
-  const chooseGrade = useCallback(
-    (grade: string) => {
-      if (!displayJob) return;
-      // Persist errors already surface via the persist callback's snackbar.
-      selectDirectionGrade(displayJob.id, grade).catch(() => {});
-    },
-    [displayJob, selectDirectionGrade],
-  );
-
-
 
   const handleMoveBack = async () => {
     if (!selectedJob) return;
@@ -654,388 +586,222 @@ export function TarsWorkstation() {
 
   const handleSelectRailJob = useCallback((job: RestorationJobDTO) => {
     setSelectedRowKey(tarsJobRowKey(job));
-    setSelectionDrawerOpen(false);
+    if (job.stage === 'queued' || job.stage === 'sent') setStudioLane('inbox');
+    else if (job.stage === 'pending') setStudioLane('pending');
+    else setStudioLane('bench');
   }, []);
 
-  const queueItemCount = queueJobs.length + benchJobs.length + pendingJobs.length;
+  useEffect(() => {
+    if (!selectedJob) return;
+    if (selectedJob.stage === 'queued' || selectedJob.stage === 'sent') setStudioLane('inbox');
+    else if (selectedJob.stage === 'pending') setStudioLane('pending');
+    else if (selectedJob.stage === 'bench') setStudioLane('bench');
+  }, [selectedJob?.id, selectedJob?.stage]);
 
-  const railPanel = (
-    <Stack
-      spacing={0.65}
-      sx={{
-        minHeight: 0,
-        height: '100%',
-        width: '100%',
-        overflow: 'hidden',
-        p: 1,
-        boxSizing: 'border-box',
-      }}
-    >
-      <Card sx={{ bgcolor: 'grey.900', color: 'grey.100', flexShrink: 0 }}>
-        <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
-          <Stack spacing={0.75}>
-            <Stack direction="row" spacing={0.75} alignItems="center">
-              <QrCodeScanner fontSize="small" />
-              <Typography variant="caption" fontWeight={800}>
-                Scan item tag
-              </Typography>
-            </Stack>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Scan SKU..."
-              value={benchScanInput}
-              onChange={(e) => setBenchScanInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void submitBenchScan();
-              }}
-              slotProps={{
-                input: {
-                  inputRef: scanInputRef,
-                  sx: {
-                    fontFamily: 'monospace',
-                    bgcolor: 'grey.800',
-                    color: 'grey.100',
-                    '& fieldset': { border: 'none' },
-                  },
-                },
-              }}
-            />
-          </Stack>
-        </CardContent>
-      </Card>
+  const laneJobs =
+    studioLane === 'inbox' ? queueJobs
+    : studioLane === 'pending' ? pendingJobs
+      : benchJobs;
 
-      <TarsWorkstationRail
-        queueJobs={queueJobs}
-        benchJobs={benchJobs}
-        pendingJobs={pendingJobs}
-        selectedRowKey={selectedRowKey}
-        runningRowKey={runningRowKey}
-        activeBenchRowKey={activeBenchRowKey}
-        collapsed={collapsedSections}
-        railWidth={selectionDrawerWidth}
-        onToggleSection={toggleRailSection}
-        onSelectJob={handleSelectRailJob}
-      />
-    </Stack>
-  );
+  const studioCounts = {
+    inbox: queueJobs.length,
+    bench: benchJobs.length,
+    pending: pendingJobs.length,
+  };
 
-  const emptySelectionMessage = 'Open Item list and pick an item, or scan a tag to start work.';
+  const emptySelectionMessage = 'Select an item from the lane or scan a tag to begin.';
   const partsListCount =
     displayItem?.workSession ? collectSessionParts(displayItem.workSession).length : 0;
   const partsListLabel = displayItem?.skuLabel ?? displayItem?.sku;
 
-  const workstationMain =
-    displayItem && evaluation && displayJob ? (
-    <>
-      {showIdleTimerWarning && !isPendingSelected ?
-        <Alert severity="warning" sx={{ py: 0.75, flexShrink: 0 }}>
-          This item has been on the bench for a while with no timer time recorded. Start the timer when work begins.
-        </Alert>
+  const heroActions = selectedJob && displayJob ? (
+    <Stack direction="row" gap={0.5} flexWrap="wrap">
+      {isQueueSelected && !selectedJob.needs_setup ?
+        <Button variant="contained" size="small" disabled={actionsBusy}
+          onClick={() => void handleCheckIn(selectedJob, { startTimer: true })}
+          sx={{ bgcolor: studio.accent, fontWeight: 800, minHeight: 28, py: 0 }}>
+          Check in
+        </Button>
       : null}
-
-      {isPendingSelected && displayItem.workSession?.pending?.partsReceived ?
-        <Alert severity="success" sx={{ py: 0.75, flexShrink: 0 }}>
-          Parts received — ready to finish. Resume the item to install parts, or disposition it now.
-        </Alert>
-      : null}
-
-      <Box sx={{ flexShrink: 0, minWidth: 0, width: '100%' }}>
-        <TarsBenchItemCard
-          item={displayItem}
-          isSelected={Boolean(selectedJob)}
-          timerItemStatus={selectedTimerItemStatus}
-          showActions={Boolean(selectedJob)}
-          actionsBusy={actionsBusy || checkIn.isPending}
-          onCheckIn={
-            isQueueSelected && selectedJob && !selectedJob.needs_setup
-              ? () => void handleCheckIn(selectedJob, { startTimer: false })
-              : undefined
-          }
-          onMoveBack={selectedJob?.stage === 'bench' ? () => void handleMoveBack() : undefined}
-          onHold={
-            selectedJob?.stage === 'bench'
-              ? () => {
-                  runWithTimerGuard(selectedJob, 'hold', () => {
-                    setHoldOpen(true);
-                  });
-                }
-              : undefined
-          }
-          onDone={
-            selectedJob && (selectedJob.stage === 'bench' || selectedJob.stage === 'pending')
-              ? () => {
-                  runWithTimerGuard(selectedJob, 'done', () => setDoneOpen(true));
-                }
-              : undefined
-          }
-          onResume={
-            isPendingSelected && selectedJob
-              ? () => void handleCheckIn(selectedJob)
-              : undefined
-          }
-        />
-      </Box>
-
-      {isQueueSelected && selectedJob ?
+      {selectedJob.stage === 'bench' ?
         <>
-          <Box sx={{ flexShrink: 0, minWidth: 0, width: '100%' }}>
-            <TarsGradeDirectionCards directions={evaluation.directions} readOnly />
-          </Box>
-          <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, overflowY: 'auto' }}>
-            <TarsQueuePreviewContent job={selectedJob} />
-          </Box>
+          <Button size="small" startIcon={<Undo />} onClick={() => void handleMoveBack()} sx={{ minHeight: 28, py: 0 }}>Queue</Button>
+          <Button size="small" startIcon={<PauseCircle />}
+            onClick={() => runWithTimerGuard(selectedJob, 'hold', () => setHoldOpen(true))} sx={{ minHeight: 28, py: 0 }}>Hold</Button>
+          <Button size="small" startIcon={<ShoppingCart />} onClick={() => setPartsDrawerOpen(true)} sx={{ minHeight: 28, py: 0 }}>Parts</Button>
+          <Button size="small" variant="contained" color="success" startIcon={<Done />}
+            onClick={() => {
+              const gates = decisionGates(displayItem?.workSession ?? createEmptyWorkSession('bench'));
+              if (!gates.canFinalize) {
+                enqueueSnackbar('Complete the guided decision wizard first.', { variant: 'warning' });
+                return;
+              }
+              runWithTimerGuard(selectedJob, 'done', () => setDoneOpen(true));
+            }} sx={{ minHeight: 28, py: 0 }}>Done</Button>
         </>
-      : <>
-          <Box sx={{ flexShrink: 0, minWidth: 0, width: '100%' }}>
-            <TarsGradeDirectionCards
-              directions={evaluation.directions}
-              readOnly={isPendingSelected}
-              onOpenEval={isPendingSelected ? undefined : openEval}
-              onChooseGrade={isPendingSelected ? undefined : chooseGrade}
-            />
-          </Box>
-
-          <Card
-            variant="outlined"
-            sx={{
-              flex: 1,
-              minHeight: 0,
-              minWidth: 0,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <CardContent
-              sx={{
-                p: 1,
-                flex: 1,
-                minHeight: 0,
-                minWidth: 0,
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                scrollbarGutter: 'stable',
-                '&:last-child': { pb: 1 },
-              }}
-            >
-              <TarsWorkBenchTable
-                session={displayItem.workSession ?? createEmptyWorkSession(isPendingSelected ? 'pending' : 'bench')}
-                readOnly={isPendingSelected}
-                onSessionChange={replaceWorkSession}
-              />
-            </CardContent>
-          </Card>
-        </>
-      }
-    </>
+      : null}
+      {isPendingSelected ?
+        <Button variant="contained" size="small" onClick={() => void handleCheckIn(selectedJob)} sx={{ minHeight: 28, py: 0 }}>Resume</Button>
+      : null}
+    </Stack>
   ) : null;
 
-
-
   if (isLoading) {
-
     return (
-
-      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-
-        <CircularProgress size={32} />
-
+      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: studio.canvas }}>
+        <CircularProgress size={36} sx={{ color: studio.accent }} />
       </Box>
-
     );
-
   }
 
-
-
   return (
-
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' }}>
-
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
-          alignItems: 'center',
-          gap: 1,
-          mb: 0.25,
-          minHeight: 42,
-        }}
+      <TarsStudioShell
+        lane={studioLane}
+        onLaneChange={setStudioLane}
+        counts={studioCounts}
+        scanValue={benchScanInput}
+        onScanChange={setBenchScanInput}
+        onScanSubmit={() => void submitBenchScan()}
+        scanInputRef={scanInputRef}
       >
-        <Stack direction="row" alignItems="center" spacing={0.75} minWidth={0}>
-          <Tooltip title={`Item list (${queueItemCount})`}>
-            <IconButton
-              size="small"
-              aria-label="Open item list"
-              onClick={() => setSelectionDrawerOpen(true)}
-              sx={{ flexShrink: 0 }}
-            >
-              <Menu fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Typography variant="h5" fontWeight={600} noWrap>
-            Item list
-          </Typography>
-        </Stack>
-        <Box sx={{ justifySelf: 'center', alignSelf: 'stretch', display: 'flex', alignItems: 'center' }}>
-          {headerTimerJob ?
-            <TarsBenchTimer
-              compact
-              job={headerTimerJob}
-              detached={timerDetached}
-              busy={timerBusy}
-              onStart={() => runWithTimerGuard(headerTimerJob, 'startTimer', () => startTimerSafe(headerTimerJob.id))}
-              onPause={() => void pauseTimerSafe(headerTimerJob.id)}
-              onAdjustSeconds={(activeSeconds) => adjustTimer.mutateAsync({ id: headerTimerJob.id, activeSeconds })}
-              onSelectRunningItem={
-                timerDetached && headerTimerRowKey
-                  ? () => {
-                      setSelectedRowKey(headerTimerRowKey);
-                      focusScanInput();
-                    }
-                  : undefined
-              }
-            />
-          : null}
-        </Box>
-        <Stack direction="row" alignItems="center" spacing={0.75} justifyContent="flex-end" minWidth={0}>
-          <Typography variant="h5" fontWeight={600} noWrap>
-            Parts List
-          </Typography>
-          <Tooltip title={partsListCount > 0 ? `${partsListCount} parts` : 'Open parts list'}>
-            <IconButton
-              size="small"
-              aria-label="Open parts list"
-              onClick={() => setPartsDrawerOpen(true)}
-              sx={{ flexShrink: 0 }}
-            >
-              <Menu fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-      </Box>
-
-
-
-      <Box
-        sx={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'stretch',
-          minWidth: 0,
-        }}
-      >
-        <Stack
-          spacing={0.85}
+        <Box
           sx={{
-            flex: 1,
-            minWidth: 0,
-            minHeight: 0,
-            overflow: 'hidden',
-            pb: 0.5,
-            width: '100%',
+            width: { xs: '100%', md: 220 },
+            flexShrink: 0,
+            borderRight: `1px solid ${studio.railBorder}`,
+            overflowY: 'auto',
+            bgcolor: studio.panel,
+            p: 0.5,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0.25,
           }}
         >
+          {laneJobs.length === 0 ?
+            <Typography variant="body2" sx={{ color: studio.railTextMuted, px: 1, py: 2 }}>
+              No items in this lane.
+            </Typography>
+          : laneJobs.map((job) => (
+            <TarsStudioJobCard
+              key={tarsJobRowKey(job)}
+              job={job}
+              selected={selectedRowKey === tarsJobRowKey(job)}
+              running={runningRowKey === tarsJobRowKey(job)}
+              onClick={() => handleSelectRailJob(job)}
+            />
+          ))}
+        </Box>
+
+        <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', p: 0.75, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
           {!displayItem || !evaluation || !displayJob ?
-            <Card variant="outlined">
-              <CardContent sx={{ py: 6, textAlign: 'center' }}>
-                <Typography color="text.secondary">{emptySelectionMessage}</Typography>
-                <Button size="small" sx={{ mt: 1, mr: 0.75 }} onClick={() => setSelectionDrawerOpen(true)}>
-                  Item list
-                </Button>
-                <Button size="small" sx={{ mt: 1 }} onClick={() => void refetch()}>
-                  Refresh
-                </Button>
-              </CardContent>
-            </Card>
+            <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', color: studio.subOnDark }}>
+              <Stack alignItems="center" spacing={0.75}>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>{emptySelectionMessage}</Typography>
+                <Button size="small" variant="outlined" onClick={() => void refetch()}>Refresh</Button>
+              </Stack>
+            </Box>
           : <>
-              {workstationMain}
+              {showIdleTimerWarning && !isPendingSelected ?
+                <Alert severity="warning" sx={{ py: 0, '& .MuiAlert-message': { py: 0.5 } }}>
+                  Start the timer when bench work begins.
+                </Alert>
+              : null}
+              <TarsStudioItemHero
+                job={displayJob}
+                elapsedSeconds={displayJob.elapsed_seconds ?? 0}
+                timerRunning={Boolean(displayJob.timer_is_running)}
+                onStartTimer={
+                  displayJob.stage === 'bench'
+                    ? () => runWithTimerGuard(displayJob, 'startTimer', () => startTimerSafe(displayJob.id))
+                    : undefined
+                }
+                onPauseTimer={
+                  displayJob.stage === 'bench' ? () => void pauseTimerSafe(displayJob.id) : undefined
+                }
+                actions={heroActions}
+              />
+              {isQueueSelected && selectedJob ?
+                <TarsStudioQueueView
+                  job={selectedJob}
+                  busy={checkIn.isPending}
+                  onCheckIn={() => void handleCheckIn(selectedJob, { startTimer: true })}
+                />
+              : <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                    <TarsDecisionWizard
+                      item={displayItem}
+                      session={displayItem.workSession ?? createEmptyWorkSession(isPendingSelected ? 'pending' : 'bench')}
+                      processingHandoff={displayJob.processing_handoff}
+                      editable={selectedJob?.stage === 'bench'}
+                      onSessionChange={replaceWorkSession}
+                      onOpenParts={() => setPartsDrawerOpen(true)}
+                      onOpenHold={
+                        selectedJob?.stage === 'bench'
+                          ? () => runWithTimerGuard(selectedJob, 'hold', () => setHoldOpen(true))
+                          : undefined
+                      }
+                      onRequestComplete={
+                        selectedJob?.stage === 'bench'
+                          ? (session) => {
+                              runWithTimerGuard(selectedJob, 'done', async () => {
+                                await replaceWorkSessionImmediate(session);
+                                setDoneOpen(true);
+                              });
+                            }
+                          : undefined
+                      }
+                    />
+                  </Box>
+                  <Accordion disableGutters sx={{ bgcolor: studio.panel, borderRadius: `${studio.radius.sm}px`, border: `1px solid ${studio.panelBorder}`, '&:before': { display: 'none' } }}>
+                    <AccordionSummary expandIcon={<ExpandMore />} sx={{ minHeight: 36, '& .MuiAccordionSummary-content': { my: 0.5 } }}>
+                      <Typography variant="body2" fontWeight={800}>Execution log</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ pt: 0, px: 1, pb: 1 }}>
+                      <TarsWorkBenchTable
+                        session={displayItem.workSession ?? createEmptyWorkSession(isPendingSelected ? 'pending' : 'bench')}
+                        readOnly={isPendingSelected}
+                        onSessionChange={replaceWorkSession}
+                      />
+                    </AccordionDetails>
+                  </Accordion>
+                </Box>
+              }
             </>
           }
-        </Stack>
+        </Box>
+      </TarsStudioShell>
 
-        <Drawer
-          anchor="left"
-          open={selectionDrawerOpen}
-          onClose={() => setSelectionDrawerOpen(false)}
-          PaperProps={{
-            sx: {
-              width: selectionDrawerWidth,
-              maxWidth: '92vw',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            },
-          }}
-        >
-          <Box
-            sx={{
-              px: 1.25,
-              py: 1,
-              borderBottom: 1,
-              borderColor: 'divider',
-              flexShrink: 0,
-            }}
-          >
-            <Typography variant="subtitle2" fontWeight={800}>
-              Item list
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Scan, queue, bench & pending
-            </Typography>
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-            {railPanel}
-          </Box>
-        </Drawer>
-
-        <Drawer
-          anchor="right"
-          open={partsDrawerOpen}
-          onClose={() => setPartsDrawerOpen(false)}
-          PaperProps={{
-            sx: {
-              width: PARTS_DRAWER_WIDTH,
-              maxWidth: '96vw',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            },
-          }}
-        >
-          <Box
-            sx={{
-              px: 1.25,
-              py: 1,
-              borderBottom: 1,
-              borderColor: 'divider',
-              flexShrink: 0,
-            }}
-          >
-            <Typography variant="subtitle2" fontWeight={800}>
-              Parts List
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Parts &amp; orders for this item
-            </Typography>
-          </Box>
-          <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-            <TarsPartsListPanel
-              session={displayItem?.workSession}
-              itemLabel={partsListLabel}
-              readOnly={isPendingSelected}
-              onSessionChange={replaceWorkSession}
-              gradeOptions={gradeOptions}
-              selectedGrade={displayItem?.workSession?.selectedGrade ?? null}
-              requesting={upsertParts.isPending}
-              onRequestParts={(grade) => void requestPartsForGrade(grade)}
-            />
-          </Box>
-        </Drawer>
-      </Box>
+      <Drawer
+        anchor="right"
+        open={partsDrawerOpen}
+        onClose={() => setPartsDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            width: PARTS_DRAWER_WIDTH,
+            maxWidth: '96vw',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          },
+        }}
+      >
+        <Box sx={{ px: 1.25, py: 1, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
+          <Typography variant="subtitle2" fontWeight={800}>Parts & orders</Typography>
+        </Box>
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+          <TarsPartsListPanel
+            session={displayItem?.workSession}
+            itemLabel={partsListLabel}
+            readOnly={isPendingSelected}
+            onSessionChange={replaceWorkSession}
+            gradeOptions={gradeOptions}
+            selectedGrade={displayItem?.workSession?.selectedGrade ?? null}
+            requesting={upsertParts.isPending}
+            onRequestParts={(grade) => void requestPartsForGrade(grade)}
+          />
+        </Box>
+      </Drawer>
 
 
 
@@ -1046,6 +812,7 @@ export function TarsWorkstation() {
         job={selectedJob && (selectedJob.stage === 'bench' || selectedJob.stage === 'pending') ? selectedJob : null}
 
         evaluation={evaluation}
+        session={displayItem?.workSession}
 
         onClose={closeDoneDialog}
 
@@ -1080,19 +847,6 @@ export function TarsWorkstation() {
           onSubmit={(info) => void handleHoldSubmit(info)}
         />
       : null}
-
-      <TarsGradeEvalDialog
-        open={evalGrade != null && Boolean(displayJob) && !isPendingSelected}
-        grade={evalGrade}
-        processorValue={
-          evalGrade ? evaluation?.directions.find((d) => d.grade === evalGrade)?.processorValue ?? 0 : 0
-        }
-        session={displayItem?.workSession}
-        requesting={upsertParts.isPending}
-        onClose={() => setEvalGrade(null)}
-        onSessionChange={replaceWorkSession}
-        onRequestParts={(grade) => void requestPartsForGrade(grade)}
-      />
 
       <TarsTimerSwitchDialog
         open={timerSwitchDialog != null}
