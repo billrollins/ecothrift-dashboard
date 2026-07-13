@@ -1,6 +1,8 @@
 import {
   TARS_MANDATORY_STOP_OUTS,
+  TARS_TEST_PACKS,
   TARS_UNIVERSAL_TEST_CATALOG,
+  suggestTestPackIds,
   type TarsStopOutCatalogEntry,
 } from './tarsDecisionCatalog';
 import {
@@ -75,9 +77,18 @@ function normalizeTest(value: unknown, now: string): TarsDecisionTest | null {
   const id = stringValue(value.id);
   if (!id) return null;
   const rawResult = value.result;
+  const checklist = isRecord(value.checklist)
+    ? Object.fromEntries(
+      Object.entries(value.checklist).map(([key, entry]) => [
+        key,
+        typeof entry === 'boolean' || typeof entry === 'string' || entry === null ? entry : null,
+      ]),
+    )
+    : {};
   return {
     id,
     catalogTestId: nullableString(value.catalogTestId),
+    packId: nullableString(value.packId),
     name: stringValue(value.name, 'Custom test'),
     prompt: stringValue(value.prompt),
     relevant: value.relevant === true,
@@ -86,6 +97,7 @@ function normalizeTest(value: unknown, now: string): TarsDecisionTest | null {
         ? rawResult as TarsDecisionTestResult
         : null,
     evidence: stringValue(value.evidence),
+    checklist,
     createdAt: stringValue(value.createdAt, now),
     updatedAt: stringValue(value.updatedAt, now),
   };
@@ -126,6 +138,8 @@ function normalizeOutcome(value: unknown): TarsViableOutcome | null {
     viable: value.viable !== false,
     nonviableReason: stringValue(value.nonviableReason),
     estimatedMinutes: finiteNonnegative(value.estimatedMinutes),
+    estimatedAt: nullableString(value.estimatedAt),
+    estimatedById: typeof value.estimatedById === 'number' ? value.estimatedById : null,
   };
 }
 
@@ -211,6 +225,7 @@ export function normalizeDecisionWork(value: unknown, now = new Date().toISOStri
       blockedStopOutIds,
     },
     condition: {
+      currentGrade: nullableString(condition.currentGrade),
       condition: stringValue(condition.condition),
       completeness:
         completeness === 'complete' || completeness === 'incomplete' || completeness === 'not_applicable'
@@ -275,6 +290,7 @@ export function normalizeDecisionWork(value: unknown, now = new Date().toISOStri
       reason: stringValue(selection.reason),
       overrideReason: stringValue(selection.overrideReason),
       selectedAt: nullableString(selection.selectedAt),
+      selectedById: typeof selection.selectedById === 'number' ? selection.selectedById : null,
     },
     timestamps: {
       createdAt: stringValue(timestamps.createdAt, now),
@@ -299,28 +315,42 @@ function defaultAction(saleState: TarsSaleState): TarsActionType {
 }
 
 /**
- * Adds current universal prompts, mandatory responses, and grade paths without
- * replacing saved/custom work. Safe to call during render because it is immutable.
+ * Seeds suggested test packs and grade paths without replacing saved work.
+ * Soft stop-outs default to clear (no Stops screen).
  */
 export function ensureDecisionSession(
   session: TarsWorkSession,
-  item: Pick<TarsItem, 'values'>,
+  item: Pick<TarsItem, 'values' | 'category' | 'name' | 'brand'>,
   now = new Date().toISOString(),
 ): TarsWorkSession {
   const decision = normalizeDecisionWork(session.decisionWork, now);
+  const packIds = suggestTestPackIds(item);
+  const suggestedCatalogIds = new Set(
+    TARS_TEST_PACKS
+      .filter((pack) => packIds.includes(pack.id))
+      .flatMap((pack) => pack.testIds),
+  );
+  // Always keep previously saved catalog tests; seed suggested pack tests.
+  const catalogEntries = TARS_UNIVERSAL_TEST_CATALOG.filter(
+    (entry) => suggestedCatalogIds.has(entry.id) || entry.defaultRelevant,
+  );
   const testsByCatalogId = new Set(decision.tests.map((test) => test.catalogTestId).filter(Boolean));
   const tests = [
     ...decision.tests,
-    ...TARS_UNIVERSAL_TEST_CATALOG
+    ...catalogEntries
       .filter((entry) => !testsByCatalogId.has(entry.id))
       .map<TarsDecisionTest>((entry) => ({
         id: `catalog-test:${entry.id}`,
         catalogTestId: entry.id,
+        packId: entry.packId ?? null,
         name: entry.name,
         prompt: entry.prompt,
-        relevant: entry.defaultRelevant,
+        relevant: entry.defaultRelevant || suggestedCatalogIds.has(entry.id),
         result: null,
         evidence: '',
+        checklist: entry.checklistKeys
+          ? Object.fromEntries(entry.checklistKeys.map((key) => [key, null]))
+          : {},
         createdAt: now,
         updatedAt: now,
       })),
@@ -329,9 +359,9 @@ export function ensureDecisionSession(
   const responses = TARS_MANDATORY_STOP_OUTS.map<TarsStopOutResponse>(
     (entry) => responsesById.get(entry.id) ?? {
       stopOutId: entry.id,
-      response: 'unanswered',
+      response: 'clear',
       notes: '',
-      respondedAt: null,
+      respondedAt: now,
     },
   );
   const outcomesByGrade = new Map(decision.outcomes.map((outcome) => [outcome.grade, outcome]));
@@ -349,6 +379,8 @@ export function ensureDecisionSession(
         viable: true,
         nonviableReason: '',
         estimatedMinutes: Math.max(0, (session.gradePlans?.[grade]?.estimateHours ?? 0) * 60),
+        estimatedAt: null,
+        estimatedById: null,
       };
     });
 
@@ -383,7 +415,8 @@ function pathBlockedBy(
 function pathBlockReason(decision: TarsDecisionWork, outcome: TarsViableOutcome): string {
   for (const catalogEntry of TARS_MANDATORY_STOP_OUTS) {
     const response = decision.stopOut.responses.find((entry) => entry.stopOutId === catalogEntry.id);
-    if (!response || response.response === 'unanswered') return `${catalogEntry.title} is unanswered`;
+    // Soft stop-outs: unanswered counts as clear.
+    if (!response || response.response === 'unanswered' || response.response === 'clear') continue;
     if (response.response === 'blocked' && pathBlockedBy(outcome, catalogEntry)) {
       return catalogEntry.blockedGuidance;
     }
@@ -548,6 +581,7 @@ export function updateDecisionOutcome(
   outcomeId: string,
   patch: Partial<Omit<TarsViableOutcome, 'id'>>,
   now = new Date().toISOString(),
+  userId?: number | null,
 ): TarsWorkSession {
   const decision = normalizeDecisionWork(session.decisionWork, now);
   let changedOutcome: TarsViableOutcome | undefined;
@@ -557,6 +591,8 @@ export function updateDecisionOutcome(
       ...outcome,
       ...patch,
       estimatedMinutes: finiteNonnegative(patch.estimatedMinutes ?? outcome.estimatedMinutes),
+      estimatedAt: patch.estimatedAt ?? now,
+      estimatedById: patch.estimatedById ?? userId ?? outcome.estimatedById ?? null,
     };
     return changedOutcome;
   });
@@ -588,6 +624,7 @@ export function selectDecisionOutcome(
   session: TarsWorkSession,
   outcomeId: string,
   now = new Date().toISOString(),
+  userId?: number | null,
 ): TarsWorkSession {
   const decision = normalizeDecisionWork(session.decisionWork, now);
   const outcome = decision.outcomes.find((entry) => entry.id === outcomeId);
@@ -604,6 +641,7 @@ export function selectDecisionOutcome(
       saleState: outcome.saleState,
       action: outcome.action,
       selectedAt: now,
+      selectedById: userId ?? decision.selection.selectedById ?? null,
     },
   }, now);
 }
@@ -661,8 +699,8 @@ export function decisionGates(session: TarsWorkSession): TarsDecisionGates {
   const mandatoryBlockers: string[] = [];
   for (const entry of TARS_MANDATORY_STOP_OUTS) {
     const response = decision.stopOut.responses.find((candidate) => candidate.stopOutId === entry.id);
-    if (!response || response.response === 'unanswered') {
-      mandatoryBlockers.push(`${entry.title} must be answered.`);
+    if (response?.response === 'blocked') {
+      mandatoryBlockers.push(entry.blockedGuidance);
     }
   }
   const selectedOutcome = decision.outcomes.find((outcome) => outcome.id === decision.selection.outcomeId);
@@ -672,6 +710,9 @@ export function decisionGates(session: TarsWorkSession): TarsDecisionGates {
   }
 
   const requiredBlockers: string[] = [];
+  if (!decision.condition.currentGrade) {
+    requiredBlockers.push('Record the current grade.');
+  }
   if (!selectedOutcome || !decision.selection.grade || !decision.selection.action || !decision.selection.saleState) {
     requiredBlockers.push('Select a viable outcome.');
   } else if (!selectedOutcome.viable) {
@@ -680,10 +721,6 @@ export function decisionGates(session: TarsWorkSession): TarsDecisionGates {
   if (!decision.selection.reason.trim()) requiredBlockers.push('Record the decision reason.');
 
   const ordinaryBlockers: string[] = [];
-  if (!decision.handoff.acknowledged) ordinaryBlockers.push('Acknowledge the Processing handoff.');
-  if (!decision.condition.condition.trim()) ordinaryBlockers.push('Record condition.');
-  if (decision.condition.completeness === 'unknown') ordinaryBlockers.push('Record completeness.');
-  if (!decision.condition.evidence.trim()) ordinaryBlockers.push('Record condition/completeness evidence.');
   if (decision.tests.some((test) => test.relevant && test.result === null)) {
     ordinaryBlockers.push('Record a result for each relevant test.');
   }

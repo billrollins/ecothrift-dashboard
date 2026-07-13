@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.db.models import Sum, Q, Count
-from django.db.models.functions import TruncMonth, TruncYear, TruncWeek
+from django.db.models.functions import TruncMonth, TruncYear, TruncWeek, Coalesce
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes as perm_classes
@@ -19,6 +19,7 @@ from .models import (
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal, HistoricalTransaction, DashboardSalesGoal,
     DashboardDepartmentGoal, QualityAudit, QualityAuditForm,
+    DeliveryAvailability, DeliveryJob,
 )
 from .serializers import (
     RegisterSerializer, DrawerSerializer,
@@ -29,8 +30,60 @@ from .serializers import (
     RevenueGoalSerializer, DashboardSalesGoalSerializer,
     DashboardDepartmentGoalSerializer, QualityAuditSerializer,
     QualityAuditFormSerializer, QualityAuditFormSummarySerializer,
+    DeliveryAvailabilitySerializer, DeliveryJobSerializer,
 )
 from .filters import CartFilter, DrawerFilter
+
+
+def _estimate_delivery_item_count(items_delivered: str, explicit=None) -> int:
+    if explicit is not None and explicit != '':
+        try:
+            n = int(explicit)
+            if n >= 1:
+                return min(n, 99)
+        except (TypeError, ValueError):
+            pass
+    parts = [
+        p.strip()
+        for p in items_delivered.replace(';', ',').split(',')
+        if p.strip()
+    ]
+    return max(1, len(parts)) if parts else 1
+
+
+def _cancel_delivery_jobs_for_cart(cart):
+    DeliveryJob.objects.filter(
+        cart=cart,
+        status=DeliveryJob.STATUS_SCHEDULED,
+    ).update(status=DeliveryJob.STATUS_CANCELLED)
+
+
+def _cancel_delivery_job_for_line(line):
+    job = getattr(line, 'delivery_job', None)
+    if job is None:
+        try:
+            job = DeliveryJob.objects.get(cart_line=line)
+        except DeliveryJob.DoesNotExist:
+            return
+    if job.status == DeliveryJob.STATUS_SCHEDULED:
+        job.status = DeliveryJob.STATUS_CANCELLED
+        job.save(update_fields=['status', 'updated_at'])
+
+
+def _availability_queryset():
+    return DeliveryAvailability.objects.annotate(
+        delivery_count=Count(
+            'jobs',
+            filter=Q(jobs__status=DeliveryJob.STATUS_SCHEDULED),
+        ),
+        items_booked=Coalesce(
+            Sum(
+                'jobs__item_count',
+                filter=Q(jobs__status=DeliveryJob.STATUS_SCHEDULED),
+            ),
+            0,
+        ),
+    )
 
 
 class RegisterViewSet(viewsets.ModelViewSet):
@@ -509,18 +562,108 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        # Online Sales hold guard: block ordinary sale of actively held linked Items.
+        from apps.webstore.models import Reservation
+        from apps.webstore.services.reservations import active_holds_for_item
+
+        active_holds = list(active_holds_for_item(item.pk).select_related('listing')[:5])
+        override = bool(request.data.get('override_hold'))
+        override_reason = (request.data.get('override_reason') or '').strip()
+        reservation_id = request.data.get('reservation_id')
+        matching_reservation = None
+        if reservation_id not in (None, ''):
+            try:
+                matching_reservation = Reservation.objects.filter(
+                    pk=int(reservation_id),
+                    item_id=item.pk,
+                    status__in=Reservation.ACTIVE_STATUSES,
+                ).first()
+            except (TypeError, ValueError):
+                matching_reservation = None
+            if matching_reservation is None:
+                return Response(
+                    {
+                        'detail': 'Reservation does not match this held item.',
+                        'code': 'HOLD_MISMATCH',
+                    },
+                    status=400,
+                )
+
+        if active_holds and matching_reservation is None:
+            # Convenience: a single confirmed/ready hold auto-matches pickup scan.
+            ready = [h for h in active_holds if h.status in ('ready_for_pickup', 'confirmed')]
+            if len(ready) == 1 and not override:
+                matching_reservation = ready[0]
+
+        if active_holds and matching_reservation is None:
+            if override and override_reason:
+                if not IsManagerOrAdmin().has_permission(request, self):
+                    return Response(
+                        {
+                            'detail': 'Manager override required for held items.',
+                            'code': 'HOLD_OVERRIDE_DENIED',
+                        },
+                        status=403,
+                    )
+                from apps.webstore.services.reservations import release_reservation
+                for hold in active_holds:
+                    release_reservation(hold, 'cancelled')
+                    hold.staff_note = (
+                        f"{hold.staff_note}\nPOS override: {override_reason}"
+                    ).strip()
+                    hold.save(update_fields=['staff_note', 'updated_at'])
+            else:
+                hold = active_holds[0]
+                can_override = IsManagerOrAdmin().has_permission(request, self)
+                ItemScanHistory.objects.create(
+                    item=item,
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                    source='pos_terminal',
+                    outcome='pos_blocked_hold',
+                    cart=cart,
+                    created_by=request.user,
+                )
+                return Response(
+                    {
+                        'detail': (
+                            'Item is on an online hold. Complete the matching pickup '
+                            'or a manager must override with a reason.'
+                        ),
+                        'code': 'ITEM_ON_HOLD',
+                        'item_id': item.pk,
+                        'sku': item.sku,
+                        'title': item.product.title,
+                        'reservation_id': hold.pk,
+                        'reservation_status': hold.status,
+                        'customer_name': hold.customer_name,
+                        'can_override': can_override,
+                    },
+                    status=400,
+                )
+
         existing = cart.lines.filter(item=item).first()
         if existing:
             existing.quantity += 1
+            if matching_reservation and isinstance(getattr(existing, 'meta', None), dict):
+                existing.meta = {**(existing.meta or {}), 'web_reservation_id': matching_reservation.pk}
             existing.save()
         else:
-            CartLine.objects.create(
+            meta = {}
+            if matching_reservation:
+                meta['web_reservation_id'] = matching_reservation.pk
+            if override and override_reason:
+                meta['hold_override_reason'] = override_reason
+            create_kwargs = dict(
                 cart=cart,
                 item=item,
                 description=item.product.title,
                 quantity=1,
                 unit_price=item.price,
+                line_kind=CartLine.LINE_KIND_ITEM,
             )
+            if hasattr(CartLine, 'meta'):
+                create_kwargs['meta'] = meta
+            CartLine.objects.create(**create_kwargs)
 
         ItemScanHistory.objects.create(
             item=item,
@@ -588,6 +731,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 unit_price=new_item.price,
                 resale_source_sku=src.sku,
                 resale_source_item_id=src.pk,
+                line_kind=CartLine.LINE_KIND_ITEM,
             )
             ItemScanHistory.objects.create(
                 item=new_item,
@@ -658,7 +802,261 @@ class CartViewSet(viewsets.ModelViewSet):
             description=description,
             quantity=quantity,
             unit_price=unit_price,
+            line_kind=CartLine.LINE_KIND_MANUAL,
         )
+
+        cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
+        return Response(CartSerializer(cart).data)
+
+    @action(detail=True, methods=['post'], url_path='add-discount')
+    def add_discount(self, request, pk=None):
+        """Add a negative discount / in-store credit line (cart-wide or against one line)."""
+        cart = self.get_object()
+        if cart.status != 'open':
+            return Response(
+                {'detail': 'Cart is not open.', 'code': 'CART_NOT_OPEN'},
+                status=400,
+            )
+
+        raw_amount = request.data.get('amount')
+        try:
+            amount = Decimal(str(raw_amount)).quantize(Decimal('0.01'))
+        except (InvalidOperation, TypeError):
+            return Response(
+                {'detail': 'Invalid amount.', 'code': 'INVALID_AMOUNT'},
+                status=400,
+            )
+        if amount <= 0:
+            return Response(
+                {'detail': 'amount must be greater than zero.', 'code': 'INVALID_AMOUNT'},
+                status=400,
+            )
+
+        reason = (request.data.get('reason') or 'In-store credit (return)').strip()
+        if not reason:
+            reason = 'In-store credit (return)'
+        if len(reason) > 200:
+            return Response(
+                {'detail': 'Reason is too long.', 'code': 'REASON_TOO_LONG'},
+                status=400,
+            )
+
+        target_line_id = request.data.get('target_line_id')
+        target_line = None
+        scope = 'cart'
+        if target_line_id is not None and target_line_id != '':
+            try:
+                target_line = cart.lines.get(pk=int(target_line_id))
+            except (CartLine.DoesNotExist, TypeError, ValueError):
+                return Response(
+                    {'detail': 'target_line_id not found on this cart.', 'code': 'LINE_NOT_FOUND'},
+                    status=404,
+                )
+            if target_line.line_kind in (
+                CartLine.LINE_KIND_DISCOUNT,
+                CartLine.LINE_KIND_DELIVERY,
+            ):
+                return Response(
+                    {'detail': 'Cannot discount a discount or delivery line.', 'code': 'INVALID_TARGET'},
+                    status=400,
+                )
+            scope = 'line'
+            if amount > target_line.line_total:
+                return Response(
+                    {
+                        'detail': 'Discount cannot exceed the target line total.',
+                        'code': 'DISCOUNT_EXCEEDS_LINE',
+                    },
+                    status=400,
+                )
+
+        # Reject discounts that would make merchandise subtotal negative
+        # (sum of non-discount lines minus this discount).
+        positive = sum(
+            (ln.line_total for ln in cart.lines.exclude(line_kind=CartLine.LINE_KIND_DISCOUNT)),
+            Decimal('0'),
+        )
+        if amount > positive:
+            return Response(
+                {
+                    'detail': 'Discount cannot exceed the current cart merchandise/delivery total.',
+                    'code': 'DISCOUNT_EXCEEDS_CART',
+                },
+                status=400,
+            )
+
+        if scope == 'line' and target_line is not None:
+            description = f'Discount — {reason} (on {target_line.description[:80]})'
+        else:
+            description = f'Discount — {reason}'
+        description = description[:300]
+
+        CartLine.objects.create(
+            cart=cart,
+            item=None,
+            description=description,
+            quantity=1,
+            unit_price=-amount,
+            line_kind=CartLine.LINE_KIND_DISCOUNT,
+            meta={
+                'reason': reason,
+                'scope': scope,
+                'target_line_id': target_line.pk if target_line else None,
+                'amount': str(amount),
+            },
+        )
+
+        cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
+        return Response(CartSerializer(cart).data)
+
+    @action(detail=True, methods=['post'], url_path='add-delivery')
+    def add_delivery(self, request, pk=None):
+        """Add a delivery fee line with customer contact/address metadata."""
+        cart = self.get_object()
+        if cart.status != 'open':
+            return Response(
+                {'detail': 'Cart is not open.', 'code': 'CART_NOT_OPEN'},
+                status=400,
+            )
+
+        tier = (request.data.get('tier') or '').strip().lower()
+        fee_map = {
+            '5mi': (Decimal('50.00'), 'Delivery 5 miles or less'),
+            '10mi': (Decimal('75.00'), 'Delivery 5 to 10 miles'),
+        }
+        if tier not in fee_map:
+            return Response(
+                {'detail': 'tier must be 5mi or 10mi.', 'code': 'INVALID_TIER'},
+                status=400,
+            )
+        fee, label = fee_map[tier]
+
+        customer_name = (request.data.get('customer_name') or '').strip()
+        phone = (request.data.get('phone') or '').strip()
+        address = (request.data.get('address') or '').strip()
+        items_delivered = (request.data.get('items_delivered') or '').strip()
+        if not customer_name or not phone or not address or not items_delivered:
+            return Response(
+                {
+                    'detail': 'customer_name, phone, address, and items_delivered are required.',
+                    'code': 'DELIVERY_FIELDS_REQUIRED',
+                },
+                status=400,
+            )
+
+        is_apt = bool(request.data.get('is_apt'))
+        unit = (request.data.get('unit') or '').strip()
+        if is_apt and not unit:
+            return Response(
+                {'detail': 'Unit # is required when Apt is checked.', 'code': 'UNIT_REQUIRED'},
+                status=400,
+            )
+
+        availability_id = request.data.get('availability_id')
+        if not availability_id:
+            return Response(
+                {
+                    'detail': 'availability_id is required (pick a delivery date).',
+                    'code': 'AVAILABILITY_REQUIRED',
+                },
+                status=400,
+            )
+        try:
+            availability = DeliveryAvailability.objects.get(pk=availability_id)
+        except (DeliveryAvailability.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {'detail': 'Delivery date not found.', 'code': 'AVAILABILITY_NOT_FOUND'},
+                status=400,
+            )
+        today = timezone.localdate()
+        if not availability.is_active or availability.date < today:
+            return Response(
+                {
+                    'detail': 'That delivery date is not available.',
+                    'code': 'AVAILABILITY_INACTIVE',
+                },
+                status=400,
+            )
+
+        for label_name, value, maxlen in (
+            ('customer_name', customer_name, 120),
+            ('phone', phone, 40),
+            ('address', address, 200),
+            ('unit', unit, 40),
+            ('items_delivered', items_delivered, 300),
+        ):
+            if len(value) > maxlen:
+                return Response(
+                    {'detail': f'{label_name} is too long.', 'code': 'FIELD_TOO_LONG'},
+                    status=400,
+                )
+
+        item_count = _estimate_delivery_item_count(
+            items_delivered,
+            request.data.get('item_count'),
+        )
+        date_label = availability.date.isoformat()
+        description = f'{label} — {items_delivered} — {customer_name} — {date_label}'[:300]
+        meta = {
+            'customer_name': customer_name,
+            'phone': phone,
+            'address': address,
+            'is_apt': is_apt,
+            'unit': unit,
+            'tier': tier,
+            'fee': str(fee),
+            'items_delivered': items_delivered,
+            'item_count': item_count,
+            'availability_id': availability.pk,
+            'scheduled_date': date_label,
+            'time_start': availability.time_start.strftime('%H:%M'),
+            'time_end': availability.time_end.strftime('%H:%M'),
+        }
+        for key in ('distance_miles', 'distance_mode', 'lat', 'lon', 'display_name'):
+            raw = request.data.get(key)
+            if raw is None or raw == '':
+                continue
+            meta[key] = raw
+
+        distance_miles = None
+        raw_miles = request.data.get('distance_miles')
+        if raw_miles not in (None, ''):
+            try:
+                distance_miles = Decimal(str(raw_miles))
+            except (InvalidOperation, ValueError, TypeError):
+                distance_miles = None
+
+        with transaction.atomic():
+            line = CartLine.objects.create(
+                cart=cart,
+                item=None,
+                description=description,
+                quantity=1,
+                unit_price=fee,
+                line_kind=CartLine.LINE_KIND_DELIVERY,
+                meta=meta,
+            )
+            DeliveryJob.objects.create(
+                availability=availability,
+                scheduled_date=availability.date,
+                cart=cart,
+                cart_line=line,
+                customer_name=customer_name,
+                phone=phone,
+                address=address,
+                is_apt=is_apt,
+                unit=unit,
+                items_delivered=items_delivered,
+                item_count=item_count,
+                tier=tier,
+                fee=fee,
+                distance_miles=distance_miles,
+                distance_mode=(request.data.get('distance_mode') or '')[:20],
+                status=DeliveryJob.STATUS_SCHEDULED,
+                created_by=request.user if request.user.is_authenticated else None,
+            )
 
         cart.recalculate()
         cart = self.get_queryset().get(pk=cart.pk)
@@ -670,6 +1068,11 @@ class CartViewSet(viewsets.ModelViewSet):
         cart = self.get_object()
         if cart.status != 'open':
             return Response({'detail': 'Cart is not open.'}, status=400)
+        if cart.total < 0:
+            return Response(
+                {'detail': 'Cart total cannot be negative.', 'code': 'NEGATIVE_TOTAL'},
+                status=400,
+            )
 
         payment_method = request.data.get('payment_method', 'cash')
         cart.payment_method = payment_method
@@ -698,6 +1101,19 @@ class CartViewSet(viewsets.ModelViewSet):
             item.sold_for = line.unit_price
             item.save()
 
+            # Complete matching Online Sales reservation (pickup).
+            reservation_id = None
+            if isinstance(getattr(line, 'meta', None), dict):
+                reservation_id = line.meta.get('web_reservation_id')
+            if reservation_id:
+                from apps.webstore.models import Reservation
+                from apps.webstore.services.reservations import complete_reservation
+                try:
+                    reservation = Reservation.objects.get(pk=int(reservation_id))
+                    complete_reservation(reservation, user=request.user, pos_cart=cart)
+                except (Reservation.DoesNotExist, TypeError, ValueError):
+                    pass
+
             # Handle consignment items
             if item.source == 'consignment' and hasattr(item, 'consignment'):
                 ci = item.consignment
@@ -710,7 +1126,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 ci.save()
 
         # Generate receipt
-        receipt = Receipt.objects.create(
+        Receipt.objects.create(
             cart=cart,
             receipt_number=Receipt.generate_receipt_number(),
         )
@@ -724,6 +1140,8 @@ class CartViewSet(viewsets.ModelViewSet):
 
         cart.status = 'voided'
         cart.save()
+
+        _cancel_delivery_jobs_for_cart(cart)
 
         # Revert items to on_shelf
         for line in cart.lines.filter(item__isnull=False):
@@ -746,6 +1164,8 @@ class CartViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Line not found.'}, status=404)
 
         if request.method == 'DELETE':
+            if line.line_kind == CartLine.LINE_KIND_DELIVERY:
+                _cancel_delivery_job_for_line(line)
             line.delete()
         else:
             for field in ('quantity', 'description', 'unit_price'):
@@ -988,7 +1408,146 @@ class QualityAuditFormViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class DeliveryAvailabilityViewSet(viewsets.ModelViewSet):
+    """Manage delivery date windows (who / when / crew) and see booking counts."""
+
+    serializer_class = DeliveryAvailabilitySerializer
+    permission_classes = [IsAuthenticated, IsEmployee]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['date', 'is_active', 'crew_size']
+    ordering_fields = ['date', 'time_start']
+    ordering = ['date', 'time_start']
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = _availability_queryset()
+        upcoming = self.request.query_params.get('upcoming')
+        if upcoming in ('1', 'true', 'yes'):
+            qs = qs.filter(is_active=True, date__gte=timezone.localdate())
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        if date_from:
+            qs = qs.filter(date__gte=date_from)
+        if date_to:
+            qs = qs.filter(date__lte=date_to)
+        return qs
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsManagerOrAdmin()]
+        return [IsAuthenticated(), IsEmployee()]
+
+    def destroy(self, request, *args, **kwargs):
+        """Soft-deactivate so existing jobs keep a protected availability row."""
+        instance = self.get_object()
+        instance.is_active = False
+        instance.save(update_fields=['is_active', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DeliveryJobViewSet(viewsets.ModelViewSet):
+    """List / update status for scheduled appliance deliveries."""
+
+    serializer_class = DeliveryJobSerializer
+    permission_classes = [IsAuthenticated, IsEmployee]
+    http_method_names = ['get', 'patch', 'head', 'options']
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['scheduled_date', 'status', 'availability']
+    ordering_fields = ['scheduled_date', 'id']
+    ordering = ['scheduled_date', 'id']
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = DeliveryJob.objects.select_related(
+            'availability', 'cart', 'cart_line', 'created_by',
+        ).all()
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        if date_from:
+            qs = qs.filter(scheduled_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(scheduled_date__lte=date_to)
+        return qs
+
+    def get_permissions(self):
+        if self.action in ('partial_update', 'update'):
+            return [IsAuthenticated(), IsManagerOrAdmin()]
+        return [IsAuthenticated(), IsEmployee()]
+
+    def partial_update(self, request, *args, **kwargs):
+        """Managers may update status / notes / availability (reschedule)."""
+        job = self.get_object()
+        allowed = {}
+        if 'status' in request.data:
+            status_val = (request.data.get('status') or '').strip().lower()
+            valid = {c[0] for c in DeliveryJob.STATUS_CHOICES}
+            if status_val not in valid:
+                return Response(
+                    {'detail': 'Invalid status.', 'code': 'INVALID_STATUS'},
+                    status=400,
+                )
+            allowed['status'] = status_val
+        if 'notes' in request.data:
+            allowed['notes'] = (request.data.get('notes') or '')[:2000]
+        if 'availability' in request.data or 'availability_id' in request.data:
+            avail_id = request.data.get('availability') or request.data.get('availability_id')
+            try:
+                availability = DeliveryAvailability.objects.get(pk=avail_id)
+            except (DeliveryAvailability.DoesNotExist, ValueError, TypeError):
+                return Response(
+                    {'detail': 'Delivery date not found.', 'code': 'AVAILABILITY_NOT_FOUND'},
+                    status=400,
+                )
+            if not availability.is_active:
+                return Response(
+                    {
+                        'detail': 'That delivery date is not available.',
+                        'code': 'AVAILABILITY_INACTIVE',
+                    },
+                    status=400,
+                )
+            allowed['availability'] = availability
+            allowed['scheduled_date'] = availability.date
+        for key, value in allowed.items():
+            setattr(job, key, value)
+        job.save()
+        return Response(DeliveryJobSerializer(job).data)
+
+
 # ── Dashboard Metrics ─────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_address_suggest(request):
+    """Suggest addresses near Omaha and compute distance/tier to Eco-Thrift."""
+    from apps.pos.services.delivery_distance import suggest_addresses
+
+    q = (request.query_params.get('q') or '').strip()
+    if len(q) < 3:
+        return Response({'results': [], 'detail': 'Type at least 3 characters.'})
+    try:
+        results = suggest_addresses(q, limit=5)
+    except RuntimeError as exc:
+        return Response({'detail': str(exc), 'code': 'GEOCODER_UNAVAILABLE'}, status=503)
+    return Response({'results': results})
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_distance_quote(request):
+    """Quote delivery tier from lat/lon (or re-check a picked suggestion)."""
+    from apps.pos.services.delivery_distance import quote_coordinates
+
+    try:
+        lat = float(request.data.get('lat'))
+        lon = float(request.data.get('lon'))
+    except (TypeError, ValueError):
+        return Response(
+            {'detail': 'lat and lon are required numbers.', 'code': 'COORDS_REQUIRED'},
+            status=400,
+        )
+    return Response(quote_coordinates(lat, lon))
+
 
 @api_view(['GET'])
 @perm_classes([IsAuthenticated])

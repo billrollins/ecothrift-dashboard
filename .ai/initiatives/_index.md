@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-13 (TARS: Restorations hub; Wizard UX A+ next) -->
+<!-- Last updated: 2026-07-13 (v2.50.0 POS delivery scheduling shipped) -->
 # Initiatives index
 
 **Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
@@ -11,7 +11,9 @@
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [tars_full_instruction_wizard_guidance](./tars_full_instruction_wizard_guidance.md) | **1.5 — Decision Wizard UX A+ (next)** | Phase 1 logic accepted; **Restorations hub** shipped (owner: pretty good). **TARS Wizard UX graded D/F** — redesign to A+ before Phase 2 catalogs. |
+| [online_sales_workspace](./online_sales_workspace.md) | **One-shot ship — v2.50.0** | Listing Studio + holds + POS guard + full Slot C Online Sales nav. Contract: [phase_0_contract.md](../reference/online_sales_workspace/phase_0_contract.md). |
+| [tars_full_instruction_wizard_guidance](./tars_full_instruction_wizard_guidance.md) | **1.5 — Item Cockpit (v2.50.0)** | Phase 1 logic + Restorations hub; **Item Cockpit** tool shelf shipped in **v2.50.0**. Next: owner polish / Phase 2 catalogs. |
+| [pos_discount_and_delivery](./pos_discount_and_delivery.md) | **Scheduling board shipped — v2.50.0** | Discount + delivery fees + printables + **Deliveries** available-dates board; cart-line item select; Maps multi-stop URL. Optional: Directions API optimize. |
 
 **Parked (off this index):** [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) — Phases 0–2 + bench live; resume **Phase 3–4**. [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.
 

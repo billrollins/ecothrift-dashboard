@@ -11,6 +11,7 @@ import {
   updateStopOutResponse,
   updateStructuredTestResult,
 } from '../tarsDecisionEngine';
+import type { TarsDecisionTestCatalogEntry } from '../tarsDecisionCatalog';
 import type { TarsDecisionWork, TarsDecisionTest, TarsDecisionUnknown } from '../tarsDecisionTypes';
 import type { TarsItem } from '../tarsTypes';
 import type { TarsWorkSession } from '../tarsWorkTypes';
@@ -75,21 +76,36 @@ export function useTarsDecisionSession(
     evidence?: string,
   ) => emit(updateStructuredTestResult(prepared, testId, result, evidence));
 
-  const addTest = () => {
+  const addTest = (catalogEntry?: TarsDecisionTestCatalogEntry) => {
+    if (catalogEntry) {
+      const existing = decision.tests.find((test) => test.catalogTestId === catalogEntry.id);
+      if (existing) {
+        patchTest(existing.id, { relevant: true });
+        return existing.id;
+      }
+    }
     const now = new Date().toISOString();
+    const id = catalogEntry
+      ? `catalog-test:${catalogEntry.id}:${now}`
+      : `custom-test:${now}:${decision.tests.length}`;
     patchDecision({
       tests: [...decision.tests, {
-        id: `custom-test:${now}:${decision.tests.length}`,
-        catalogTestId: null,
-        name: 'Custom test',
-        prompt: '',
+        id,
+        catalogTestId: catalogEntry?.id ?? null,
+        packId: catalogEntry?.packId,
+        name: catalogEntry?.name ?? 'Custom test',
+        prompt: catalogEntry?.prompt ?? '',
         relevant: true,
         result: null,
         evidence: '',
+        checklist: catalogEntry?.checklistKeys
+          ? Object.fromEntries(catalogEntry.checklistKeys.map((key) => [key, false]))
+          : undefined,
         createdAt: now,
         updatedAt: now,
       }],
     });
+    return id;
   };
 
   const addUnknown = () => {

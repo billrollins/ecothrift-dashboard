@@ -8,7 +8,7 @@ export interface SlotCWorkspaceMeta {
   icon: NavIconKey;
 }
 
-/** Lifecycle order: source → prep → ingest → restore → records → floor ops → sell → manage. */
+/** Lifecycle order: source → prep → ingest → restore → records → floor → sell → online → manage. */
 export const SLOT_C_DEFAULT_WORKSPACE_ID = 'buying';
 
 /** Workspace-first groups for staff sidebar (presentation only). */
@@ -39,31 +39,54 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     itemIds: ['inventoryWorkbench'],
   },
   {
-    id: 'floorOps',
-    label: 'Floor Ops',
-    itemIds: ['quickReprice', 'floorplans'],
+    id: 'retailFloor',
+    label: 'Retail Floor',
+    itemIds: ['quickReprice', 'floorplans', 'qualityAudit', 'qualityAuditForms'],
   },
   {
-    id: 'cashier',
-    label: 'Cashier',
-    itemIds: ['posTerminal', 'posTransactions', 'posDrawers', 'posCash'],
+    id: 'storeSales',
+    label: 'Store Sales',
+    itemIds: ['posTerminal', 'posTransactions', 'posDeliveries', 'posDrawers', 'posCash', 'posPrintables', 'posSetup'],
+  },
+  {
+    id: 'onlineSales',
+    label: 'Online Sales',
+    roles: ['Manager', 'Admin'],
+    itemIds: [
+      'onlineSalesQueue',
+      'onlineSalesListings',
+      'onlineSalesInbox',
+      'onlineSalesMarketing',
+      'onlineSalesSales',
+      'blogStudio',
+    ],
   },
   {
     id: 'admin',
     label: 'Admin',
     roles: ['Manager', 'Admin'],
-    itemIds: ['assumptions', 'posSetup', 'webStore', 'webOrders', 'users', 'customers', 'permissions', 'settings', 'labelStudio', 'blogStudio', 'payrollHours', 'qualityAudit', 'qualityAuditForms'],
+    itemIds: [
+      'assumptions',
+      'users',
+      'customers',
+      'permissions',
+      'settings',
+      'labelStudio',
+      'payrollHours',
+    ],
   },
 ];
 
 export const SLOT_C_ESSENTIALS_GROUP_ID = 'essentials';
 
-/** Stale bake-off workspace ids → lifecycle ids. */
+/** Stale bake-off / renamed workspace ids → lifecycle ids. */
 export const SLOT_C_WORKSPACE_ID_MIGRATION: Record<string, string> = {
   inbound: 'processing',
   catalog: 'inventory',
   floor: 'inventory',
-  store: 'cashier',
+  store: 'storeSales',
+  floorOps: 'retailFloor',
+  cashier: 'storeSales',
 };
 
 export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
@@ -96,18 +119,25 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     icon: 'inventory',
   },
   {
-    id: 'floorOps',
-    label: 'Floor Ops',
+    id: 'retailFloor',
+    label: 'Retail Floor',
     shortLabel: 'Floor',
-    helper: 'Shelf and floor tasks',
+    helper: 'Shelf, floorplans, and quality audit',
     icon: 'storefront',
   },
   {
-    id: 'cashier',
-    label: 'Cashier',
-    shortLabel: 'Cashier',
-    helper: 'Register and cash',
+    id: 'storeSales',
+    label: 'Store Sales',
+    shortLabel: 'Sales',
+    helper: 'Register, drawers, and POS setup',
     icon: 'pointOfSale',
+  },
+  {
+    id: 'onlineSales',
+    label: 'Online Sales',
+    shortLabel: 'Online',
+    helper: 'Listings, holds, marketing, and online sales log',
+    icon: 'shoppingCart',
   },
   {
     id: 'admin',

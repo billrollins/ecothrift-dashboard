@@ -7,6 +7,7 @@ from .models import (
     PreprocessingRow,
     ProcessingRow,
     RestorationJob,
+    RestorationTimelineEvent,
     Receiving, ReceivingPallet, ReceivingAttachment,
     Dispute,
 )
@@ -1346,6 +1347,7 @@ class RestorationJobSerializer(serializers.ModelSerializer):
     retail = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
     needs_setup = serializers.SerializerMethodField()
+    valuation_pending = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
     elapsed_seconds = serializers.SerializerMethodField()
     elapsed_hours = serializers.SerializerMethodField()
@@ -1373,6 +1375,12 @@ class RestorationJobSerializer(serializers.ModelSerializer):
             'work_session',
             'processing_handoff',
             'needs_setup',
+            'valuation_pending',
+            'valuation_requested_at',
+            'valuation_requested_by_id',
+            'valuation_request_notes',
+            'valuation_requested_grades',
+            'valuation_fulfilled_at',
             'direction',
             'from_family',
             'work_verbs',
@@ -1405,10 +1413,14 @@ class RestorationJobSerializer(serializers.ModelSerializer):
             'sent_at',
             'returned_at',
             'bench_started_at',
+            'bench_owner_id',
             'timer_started_at',
             'active_seconds',
             'timer_is_running',
             'timer_started_by_id',
+            'last_meaningful_action_at',
+            'last_meaningful_active_seconds',
+            'last_meaningful_action_label',
             'elapsed_seconds',
             'elapsed_hours',
             'pending_reason',
@@ -1566,6 +1578,86 @@ class RestorationJobSerializer(serializers.ModelSerializer):
 
         return restoration_job_needs_setup(obj)
 
+    def get_valuation_pending(self, obj):
+        from apps.inventory.services.restoration import restoration_job_valuation_pending
+
+        return restoration_job_valuation_pending(obj)
+
+
+class RestorationTimelineEventSerializer(serializers.ModelSerializer):
+    actor_name = serializers.SerializerMethodField()
+    voided_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RestorationTimelineEvent
+        fields = [
+            'id',
+            'job_id',
+            'event_type',
+            'entity_id',
+            'occurred_at',
+            'actor_id',
+            'actor_name',
+            'status',
+            'supersedes_id',
+            'voided_at',
+            'voided_by_id',
+            'voided_by_name',
+            'void_reason',
+            'correlation_id',
+            'schema_version',
+            'payload',
+        ]
+        read_only_fields = fields
+
+    @staticmethod
+    def _user_name(user) -> str:
+        if user is None:
+            return ''
+        full_name = user.get_full_name() if hasattr(user, 'get_full_name') else ''
+        return full_name or getattr(user, 'username', '') or getattr(user, 'email', '')
+
+    def get_actor_name(self, obj):
+        return self._user_name(obj.actor)
+
+    def get_voided_by_name(self, obj):
+        return self._user_name(obj.voided_by)
+
+
+class RestorationTimelineEventWriteSerializer(serializers.Serializer):
+    event_type = serializers.CharField(max_length=64)
+    entity_id = serializers.CharField(max_length=128)
+    payload = serializers.DictField()
+
+    def validate_event_type(self, value):
+        from apps.inventory.services.restoration_timeline import CLIENT_EVENT_TYPES
+
+        if value not in CLIENT_EVENT_TYPES:
+            raise serializers.ValidationError('This event type cannot be created directly.')
+        return value
+
+    def validate_payload(self, value):
+        import json
+
+        if len(json.dumps(value, default=str).encode('utf-8')) > 50_000:
+            raise serializers.ValidationError('Timeline event payload is too large.')
+        return value
+
+
+class RestorationTimelineEventRevisionSerializer(serializers.Serializer):
+    payload = serializers.DictField()
+
+    def validate_payload(self, value):
+        import json
+
+        if len(json.dumps(value, default=str).encode('utf-8')) > 50_000:
+            raise serializers.ValidationError('Timeline event payload is too large.')
+        return value
+
+
+class RestorationTimelineEventVoidSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=500)
+
 
 class RestorationJobPatchSerializer(serializers.Serializer):
     scale = serializers.CharField(required=False, allow_blank=True)
@@ -1609,6 +1701,15 @@ class RestorationJobPatchSerializer(serializers.Serializer):
                 except ValueError as exc:
                     raise serializers.ValidationError({'processing_handoff': str(exc)}) from exc
         return attrs
+
+
+class RestorationJobRequestValuationSerializer(serializers.Serializer):
+    grades = serializers.ListField(
+        child=serializers.CharField(max_length=64),
+        required=False,
+        allow_empty=True,
+    )
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
 
 
 class RestorationJobWorkSessionSerializer(serializers.Serializer):
@@ -1821,6 +1922,11 @@ class RestorationJobReturnSerializer(serializers.Serializer):
 
 class RestorationJobTimerAdjustSerializer(serializers.Serializer):
     active_seconds = serializers.IntegerField(min_value=0, max_value=86400)
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=64, default='manual')
+
+
+class RestorationJobMeaningfulActionSerializer(serializers.Serializer):
+    label = serializers.CharField(required=False, allow_blank=True, max_length=128, default='TARS update')
 
 
 class RestorationJobSplitGroupSerializer(serializers.Serializer):

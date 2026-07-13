@@ -1,11 +1,12 @@
 """Curated web-catalog models for the public storefront.
 
-These are intentionally separate from operational floor inventory (`apps.inventory`):
-staff hand-pick a subset of goods, give them their own photos/descriptions/prices,
-and publish them to the public site. An optional FK back to an `Item` is kept for
-reference but the web listing is the source of truth for what shoppers see.
+Item/Product owns operational SKU/cost/status. WebListing owns public
+copy/photos/price/qty/publication. Reservation owns hold commitment.
+POS/Sale owns payment truth.
 """
 from __future__ import annotations
+
+import secrets
 
 from django.conf import settings
 from django.db import models
@@ -13,21 +14,31 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 
+def _public_status_token() -> str:
+    return secrets.token_urlsafe(24)
+
+
 class WebListing(models.Model):
     """A single curated product shown on the public storefront."""
 
     STATUS_CHOICES = [
         ('draft', 'Draft'),
+        ('ready', 'Ready'),
         ('published', 'Published'),
+        ('paused', 'Paused'),
+        ('sold', 'Sold'),
         ('archived', 'Archived'),
     ]
-    # Public-facing condition set (a curated subset of Item.CONDITION_CHOICES).
     CONDITION_CHOICES = [
         ('new', 'New'),
         ('like_new', 'Like New'),
         ('very_good', 'Very Good'),
         ('good', 'Good'),
         ('fair', 'Fair'),
+    ]
+    RETURN_POLICY_CHOICES = [
+        ('final_sale', 'Final sale'),
+        ('return_48h_credit', '48-hour return → store credit'),
     ]
 
     title = models.CharField(max_length=200)
@@ -36,7 +47,6 @@ class WebListing(models.Model):
         'inventory.Category', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='web_listings',
     )
-    # Optional link to the operational inventory item this listing represents.
     item = models.ForeignKey(
         'inventory.Item', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='web_listings',
@@ -46,18 +56,31 @@ class WebListing(models.Model):
     condition = models.CharField(max_length=20, choices=CONDITION_CHOICES, default='good')
 
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    # Optional "was" price; when set above `price` the public site shows it struck through.
     compare_at_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    # Quantity truth: on_hand stored; reserved stored; available derived.
+    # `stock` is kept as the derived available mirror for legacy public serializers.
+    on_hand = models.PositiveIntegerField(default=1)
+    reserved = models.PositiveIntegerField(default=0)
     stock = models.PositiveIntegerField(default=1)
 
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='draft')
     featured = models.BooleanField(default=False)
+    return_policy = models.CharField(
+        max_length=32, choices=RETURN_POLICY_CHOICES, default='final_sale',
+    )
+
+    fb_title = models.CharField(max_length=200, blank=True, default='')
+    fb_body = models.TextField(blank=True, default='')
+    fb_posted_url = models.URLField(blank=True, default='')
+    fb_posted_at = models.DateTimeField(null=True, blank=True)
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='web_listings_created',
     )
     published_at = models.DateTimeField(null=True, blank=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -71,6 +94,13 @@ class WebListing(models.Model):
     def __str__(self):
         return self.title
 
+    @property
+    def available(self) -> int:
+        return max(0, int(self.on_hand) - int(self.reserved))
+
+    def sync_stock_mirror(self) -> None:
+        self.stock = self.available
+
     def save(self, *args, **kwargs):
         if not self.slug:
             base = slugify(self.title)[:200] or 'listing'
@@ -80,8 +110,11 @@ class WebListing(models.Model):
                 slug = f'{base}-{suffix}'
                 suffix += 1
             self.slug = slug
+        self.sync_stock_mirror()
         if self.status == 'published' and self.published_at is None:
             self.published_at = timezone.now()
+        if self.status == 'archived' and self.archived_at is None:
+            self.archived_at = timezone.now()
         super().save(*args, **kwargs)
 
     @property
@@ -90,7 +123,21 @@ class WebListing(models.Model):
 
     @property
     def is_available(self) -> bool:
-        return self.status == 'published' and self.stock > 0
+        return self.status == 'published' and self.available > 0
+
+    def publish_readiness_errors(self) -> list[str]:
+        errors: list[str] = []
+        if not (self.title or '').strip():
+            errors.append('Title is required.')
+        if self.price is None or self.price <= 0:
+            errors.append('Price must be greater than zero.')
+        if not self.images.exists():
+            errors.append('At least one photo is required.')
+        if not self.return_policy:
+            errors.append('Return policy is required.')
+        if self.on_hand < 1:
+            errors.append('On-hand quantity must be at least 1.')
+        return errors
 
 
 class WebListingImage(models.Model):
@@ -111,13 +158,131 @@ class WebListingImage(models.Model):
         return f'{self.listing_id}:{self.s3_file_id}'
 
 
-class Order(models.Model):
-    """A public storefront order (guest checkout).
+class ChannelPublication(models.Model):
+    """Persisted channel post draft / posted tracking for a listing."""
 
-    Money fields are captured at order time. Payment is intentionally decoupled:
-    `payment_provider`/`payment_status` are filled by a `PaymentProvider`
-    (see `apps/webstore/payments.py`) — the default `manual` provider records the
-    order as awaiting payment, ready for a real processor (likely Helcim) later.
+    CHANNEL_CHOICES = [
+        ('website', 'Website'),
+        ('facebook_page', 'Facebook Page'),
+    ]
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('posted', 'Posted'),
+        ('paused', 'Paused'),
+        ('ended', 'Ended'),
+    ]
+
+    listing = models.ForeignKey(
+        WebListing, on_delete=models.CASCADE, related_name='channel_publications',
+    )
+    channel = models.CharField(max_length=32, choices=CHANNEL_CHOICES)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='draft')
+    title = models.CharField(max_length=200, blank=True, default='')
+    body = models.TextField(blank=True, default='')
+    external_url = models.URLField(blank=True, default='')
+    posted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['channel', 'id']
+        unique_together = [('listing', 'channel')]
+
+    def __str__(self):
+        return f'{self.listing_id}:{self.channel}:{self.status}'
+
+
+class Reservation(models.Model):
+    """Customer hold request / confirmed pickup reservation."""
+
+    STATUS_CHOICES = [
+        ('requested', 'Requested'),
+        ('confirmed', 'Confirmed'),
+        ('ready_for_pickup', 'Ready for pickup'),
+        ('completed', 'Completed'),
+        ('declined', 'Declined'),
+        ('expired', 'Expired'),
+        ('cancelled', 'Cancelled'),
+    ]
+    ACTIVE_STATUSES = ('requested', 'confirmed', 'ready_for_pickup')
+
+    listing = models.ForeignKey(
+        WebListing, on_delete=models.PROTECT, related_name='reservations',
+    )
+    item = models.ForeignKey(
+        'inventory.Item', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='web_reservations',
+    )
+    status_token = models.CharField(
+        max_length=48, unique=True, default=_public_status_token, db_index=True,
+    )
+    idempotency_key = models.CharField(max_length=64, blank=True, default='', db_index=True)
+
+    customer_name = models.CharField(max_length=200)
+    email = models.EmailField()
+    phone = models.CharField(max_length=30, blank=True, default='')
+    quantity = models.PositiveIntegerField(default=1)
+    customer_note = models.TextField(blank=True, default='')
+    staff_note = models.TextField(blank=True, default='')
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='requested')
+    expires_at = models.DateTimeField(null=True, blank=True)
+    staged_at = models.DateTimeField(null=True, blank=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    staged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='reservations_staged',
+    )
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='reservations_confirmed',
+    )
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='reservations_completed',
+    )
+
+    pos_cart = models.ForeignKey(
+        'pos.Cart', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='web_reservations',
+    )
+    unit_price_snapshot = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    cost_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    fee_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    direct_expense = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['listing', 'status']),
+        ]
+
+    def __str__(self):
+        return f'{self.status_token[:8]}… {self.customer_name} ({self.status})'
+
+    @property
+    def is_active(self) -> bool:
+        return self.status in self.ACTIVE_STATUSES
+
+    @property
+    def line_total(self):
+        return self.unit_price_snapshot * self.quantity
+
+    @property
+    def contribution(self):
+        cost = self.cost_snapshot or 0
+        return self.line_total - cost - self.fee_amount - self.direct_expense
+
+
+class Order(models.Model):
+    """Legacy public storefront order (guest checkout). Kept for history; new
+    public flow uses Reservation. Checkout API rejects new creates.
     """
 
     STATUS_CHOICES = [
@@ -190,8 +355,7 @@ class Order(models.Model):
 
 
 class OrderLine(models.Model):
-    """A single line in an `Order`. Snapshots title/price so history is stable even
-    if the listing is later edited or deleted."""
+    """Legacy order line snapshot."""
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='lines')
     listing = models.ForeignKey(

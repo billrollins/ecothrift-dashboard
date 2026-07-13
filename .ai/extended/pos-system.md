@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-29 (Quality Audit API + dashboard retail grade) -->
+<!-- Last updated: 2026-07-13 (v2.50.0 delivery scheduling + printables + discount) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -154,7 +154,12 @@ The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/write
 - **Inline line editing**: Edit icon opens in-place `TextField`s for `quantity`, `description`, `unit_price` per line; Save/Cancel buttons; calls `PATCH /pos/carts/{id}/lines/{line_id}/`
 - **Remove line**: Optimistic UI (line removed from local state immediately); calls `DELETE /pos/carts/{id}/lines/{line_id}/`; rolls back on error
 - **Void Sale**: Red "Void" button + `ConfirmDialog`; Manager/Admin only; calls `POST /pos/carts/{id}/void/`
-- **Complete sale**: Disabled if cart has no items; validates payment amounts; calls `POST /pos/carts/{id}/complete/`; triggers `localPrintService.printReceipt()` with cash drawer auto-open for cash/split
+- **Cart list viewport**: Cart `Paper` fills leftover main height (md+); line list scrolls inside; subtotal/tax/total stay pinned under the list. After add-item / qty bump / manual line / resale copy / line edit, the **affected** line scrolls into view (`scrollIntoView({ block: 'nearest' })`). QA pack: `.ai/reference/pos_terminal_cart_scroll/`.
+- **Discount / store credit**: `POST …/add-discount/` adds a negative `line_kind=discount` line (cart-wide or `target_line_id`); cannot exceed merchandise/delivery total.
+- **Delivery fee**: `POST …/add-delivery/` with `tier` `5mi` ($50) or `10mi` ($75); requires name/phone/address/`items_delivered`/`availability_id`; Apt? requires Unit #; creates `DeliveryJob` + stores schedule in `CartLine.meta`. Address suggest `GET /pos/delivery/address-suggest/?q=` uses **US Census** geocoder (Nominatim fallback), returns distance to **8425 West Center Road** and recommended tier; over 10 mi → `too_far` (terminal popup, cannot add).
+- **Delivery scheduling**: `DeliveryAvailability` (date/times/crew/who) + `DeliveryJob`; APIs `/pos/delivery-availabilities/`, `/pos/delivery-jobs/`; Dash page `/pos/deliveries`. Void cart or remove delivery line cancels scheduled jobs.
+- **Printables**: static HTML under `frontend/public/pos/` (appliance policy EN+es-MX, sell log, delivery driver log) + Cashier nav **Printables** (`/pos/printables`).
+- **Complete sale**: Disabled if cart has no items; validates payment amounts; rejects negative total; calls `POST /pos/carts/{id}/complete/`; triggers `localPrintService.printReceipt()` with cash drawer auto-open for cash/split
 
 ---
 

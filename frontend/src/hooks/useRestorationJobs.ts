@@ -47,6 +47,8 @@ export function usePatchRestorationJob() {
       queryClient.invalidateQueries({ queryKey: ['tars-bench-jobs'] });
       queryClient.invalidateQueries({ queryKey: restorationReturnsQueryKey });
       queryClient.invalidateQueries({ queryKey: ['restoration-job', data.id] });
+      queryClient.invalidateQueries({ queryKey: ['restoration-jobs', 'valuation-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['restoration-jobs'] });
     },
   });
 }

@@ -28,6 +28,9 @@ export interface CatalogDetail extends CatalogItem {
   description: string
   sku: string
   images: CatalogImage[]
+  return_policy?: string
+  hold_policy?: string
+  available?: boolean | number
 }
 
 export interface CatalogPage {
@@ -98,81 +101,58 @@ export function money(value: string | number): string {
   return `$${n.toFixed(2).replace(/\.00$/, '')}`
 }
 
-// ── Checkout + orders ────────────────────────────────────────────────────────
+// ── Holds (Policy v1: reserve online, pay/pickup in store) ───────────────────
 
-export interface CheckoutInput {
+export interface HoldInput {
   items: { slug: string; qty: number }[]
   customer_name: string
   email: string
   phone?: string
-  fulfillment: 'pickup' | 'ship'
-  ship_address1?: string
-  ship_address2?: string
-  ship_city?: string
-  ship_state?: string
-  ship_postal?: string
   note?: string
+  idempotency_key?: string
 }
 
-export interface OrderLineDTO {
-  id: number
-  title: string
-  slug: string
-  sku: string
-  unit_price: string
+export interface HoldSummary {
+  status_token: string
+  listing_title: string
   quantity: number
-  line_total: string
-}
-
-export interface OrderPayment {
-  provider: string
-  requires_action: boolean
-  redirect_url: string | null
-  message: string
-}
-
-export interface OrderSummary {
-  order_number: string
   status: string
   status_display: string
-  payment_status: string
-  payment_status_display: string
-  fulfillment: string
-  fulfillment_display: string
-  customer_name: string
-  email: string
-  phone: string
-  ship_address1: string
-  ship_address2: string
-  ship_city: string
-  ship_state: string
-  ship_postal: string
-  subtotal: string
-  shipping: string
-  tax: string
-  total: string
-  item_count: number
-  customer_note: string
-  lines: OrderLineDTO[]
+  expires_at: string | null
   created_at: string
-  payment?: OrderPayment
+  policy: string
 }
 
-export async function checkout(input: CheckoutInput): Promise<OrderSummary> {
-  const res = await fetch(`${BASE}/checkout/`, {
+export async function requestHold(input: HoldInput): Promise<HoldSummary | { holds: HoldSummary[]; count: number }> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  }
+  if (input.idempotency_key) headers['Idempotency-Key'] = input.idempotency_key
+  const res = await fetch(`${BASE}/holds/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers,
     body: JSON.stringify(input),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error((data && data.detail) || `Checkout failed (${res.status})`)
+    throw new Error((data && data.detail) || `Hold request failed (${res.status})`)
   }
-  return data as OrderSummary
+  return data
 }
 
-export function fetchOrder(orderNumber: string): Promise<OrderSummary> {
-  return getJSON<OrderSummary>(`${BASE}/order-status/${encodeURIComponent(orderNumber)}/`)
+export function fetchHold(token: string): Promise<HoldSummary> {
+  return getJSON<HoldSummary>(`${BASE}/holds/${encodeURIComponent(token)}/`)
+}
+
+/** @deprecated Online checkout disabled — use requestHold. */
+export async function checkout(_input: unknown): Promise<never> {
+  throw new Error('Online checkout is no longer available. Request a hold instead.')
+}
+
+/** @deprecated Legacy order status disabled. */
+export function fetchOrder(_orderNumber: string): Promise<never> {
+  return Promise.reject(new Error('Order status lookup is no longer available.'))
 }
 
 // ── Blog (database-backed; `live()` posts only) ───────────────────────────────

@@ -1,0 +1,27 @@
+sku,price,title,status
+POSTEST01,0.50,POS QA 01 Floor Lamp,on_shelf
+POSTEST02,0.75,POS QA 02 Fire Pit,on_shelf
+POSTEST03,1.00,POS QA 03 Air Fryer,on_shelf
+POSTEST04,1.25,POS QA 04 Coffeemaker,on_shelf
+POSTEST05,1.50,POS QA 05 Pitcher Set,on_shelf
+POSTEST06,1.75,POS QA 06 Table Pack,on_shelf
+POSTEST07,2.00,POS QA 07 Throw Pillow,on_shelf
+POSTEST08,2.25,POS QA 08 Desk Fan,on_shelf
+POSTEST09,2.50,POS QA 09 Board Game,on_shelf
+POSTEST10,2.75,POS QA 10 Picture Frame,on_shelf
+POSTEST11,3.00,POS QA 11 Kitchen Scale,on_shelf
+POSTEST12,3.25,POS QA 12 Storage Bin,on_shelf
+POSTEST13,3.50,POS QA 13 Bluetooth Speaker,on_shelf
+POSTEST14,3.75,POS QA 14 Yoga Mat,on_shelf
+POSTEST15,4.00,POS QA 15 Mug Set,on_shelf
+POSTEST16,4.25,POS QA 16 LED Bulb 4pk,on_shelf
+POSTEST17,4.50,POS QA 17 Throw Blanket,on_shelf
+POSTEST18,4.75,POS QA 18 Wall Clock,on_shelf
+POSTEST19,5.00,POS QA 19 Plant Pot,on_shelf
+POSTEST20,5.25,POS QA 20 Cutting Board,on_shelf
+POSTEST21,5.50,POS QA 21 Power Strip,on_shelf
+POSTEST22,5.75,POS QA 22 Laundry Basket,on_shelf
+POSTEST23,6.00,POS QA 23 Vacuum Filter,on_shelf
+POSTEST24,6.25,POS QA 24 Candle Holder,on_shelf
+POSTEST25,6.50,POS QA 25 Tool Kit,on_shelf
+POSTESTSOLD,1.00,POS QA Sold Sample (resale path),sold

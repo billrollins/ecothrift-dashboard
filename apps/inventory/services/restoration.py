@@ -290,6 +290,105 @@ def restoration_job_needs_setup(job: RestorationJob) -> bool:
     return not grade_values_complete(job.scale, job.grade_values or {})
 
 
+def restoration_job_valuation_pending(job: RestorationJob) -> bool:
+    return bool(
+        job.valuation_requested_at
+        and not job.valuation_fulfilled_at
+    )
+
+
+def missing_grade_keys(scale: str, values: dict[str, float] | dict[str, Any] | None) -> list[str]:
+    """Grade labels on the scale that are missing or not positive."""
+    raw = values or {}
+    missing: list[str] = []
+    for grade in grades_for_scale(scale):
+        try:
+            amount = float(raw.get(grade))
+        except (TypeError, ValueError):
+            amount = 0.0
+        if not amount or amount <= 0:
+            missing.append(grade)
+    return missing
+
+
+@transaction.atomic
+def request_restoration_valuation(
+    job: RestorationJob,
+    *,
+    grades: list[str] | None = None,
+    notes: str = '',
+    user=None,
+) -> RestorationJob:
+    """TARS asks Processing to fill missing (or selected) grade values."""
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+    if job.stage in (
+        RestorationJob.STAGE_DONE,
+        RestorationJob.STAGE_RETURNED,
+    ):
+        raise ValueError('Cannot request valuations for a completed or returned job.')
+    known = set(grades_for_scale(job.scale)) if job.scale else set()
+    requested = [str(g).strip() for g in (grades or []) if str(g).strip()]
+    if not requested:
+        requested = missing_grade_keys(job.scale, job.grade_values or {})
+    if known:
+        requested = [g for g in requested if g in known]
+    if not requested:
+        raise ValueError('No missing grade values to request.')
+    now = timezone.now()
+    job.valuation_requested_at = now
+    job.valuation_requested_by = user if getattr(user, 'is_authenticated', False) else None
+    job.valuation_request_notes = (notes or '').strip()
+    job.valuation_requested_grades = requested
+    job.valuation_fulfilled_at = None
+    job.save(
+        update_fields=[
+            'valuation_requested_at',
+            'valuation_requested_by',
+            'valuation_request_notes',
+            'valuation_requested_grades',
+            'valuation_fulfilled_at',
+            'updated_at',
+        ],
+    )
+    from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
+    from apps.inventory.services.restoration_timeline import append_timeline_event
+
+    mark_restoration_meaningful_action(job, user=user, label='Valuation requested')
+    append_timeline_event(
+        job,
+        'valuation.requested',
+        {
+            'grades': requested,
+            'notes': job.valuation_request_notes,
+        },
+        actor=user,
+        entity_id=f'valuation-request:{job.pk}',
+    )
+    return job
+
+
+def maybe_fulfill_valuation_request(job: RestorationJob, *, user=None) -> RestorationJob:
+    """When grade values become complete after a request, stamp fulfilled_at."""
+    if not job.valuation_requested_at or job.valuation_fulfilled_at:
+        return job
+    if grade_values_complete(job.scale, job.grade_values or {}):
+        job.valuation_fulfilled_at = timezone.now()
+        job.save(update_fields=['valuation_fulfilled_at', 'updated_at'])
+        from apps.inventory.services.restoration_timeline import append_timeline_event
+
+        append_timeline_event(
+            job,
+            'valuation.fulfilled',
+            {
+                'grades': dict(job.grade_values or {}),
+                'requested_grades': list(job.valuation_requested_grades or []),
+            },
+            actor=user,
+            entity_id=f'valuation-request:{job.pk}',
+        )
+    return job
+
+
 def merge_restoration_into_defaults_snapshot(
     snapshot: dict,
     scale: str,
@@ -805,7 +904,7 @@ def create_or_get_restoration_job_for_sku(sku: str, user) -> RestorationJob:
 
 
 @transaction.atomic
-def send_restoration_job(job: RestorationJob) -> RestorationJob:
+def send_restoration_job(job: RestorationJob, *, user=None) -> RestorationJob:
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage != RestorationJob.STAGE_QUEUED:
         raise ValueError('Only queued restoration jobs can be sent.')
@@ -814,6 +913,15 @@ def send_restoration_job(job: RestorationJob) -> RestorationJob:
     job.stage = RestorationJob.STAGE_SENT
     job.sent_at = timezone.now()
     job.save(update_fields=['stage', 'sent_at', 'updated_at'])
+    from apps.inventory.services.restoration_timeline import append_timeline_event
+
+    append_timeline_event(
+        job,
+        'job.sent',
+        {'from_stage': RestorationJob.STAGE_QUEUED, 'to_stage': RestorationJob.STAGE_SENT},
+        actor=user,
+        entity_id=f'job:{job.pk}',
+    )
     return job
 
 
@@ -1222,6 +1330,7 @@ def return_restoration_job_to_processing(
     _sync_item_check_in_quantity(check_in)
 
     job.stage = RestorationJob.STAGE_RETURNED
+    job.bench_owner = None
     job.return_disposition_type = disposition_type
     job.return_reason = reason
     job.return_scale = scale
@@ -1231,6 +1340,7 @@ def return_restoration_job_to_processing(
     job.returned_by = user
     job.save(update_fields=[
         'stage',
+        'bench_owner',
         'return_disposition_type',
         'return_reason',
         'return_scale',
@@ -1240,6 +1350,21 @@ def return_restoration_job_to_processing(
         'returned_by',
         'updated_at',
     ])
+    from apps.inventory.services.restoration_timeline import append_timeline_event
+
+    append_timeline_event(
+        job,
+        'return.to_processing',
+        {
+            'disposition_type': disposition_type,
+            'reason': reason,
+            'scale': scale,
+            'grade': grade,
+            'notes': notes,
+        },
+        actor=user,
+        entity_id=f'return:{job.pk}',
+    )
     return job
 
 

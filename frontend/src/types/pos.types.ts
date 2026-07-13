@@ -146,6 +146,8 @@ export interface CartLine {
   line_total: string;
   resale_source_sku?: string;
   resale_source_item_id?: number | null;
+  line_kind?: 'item' | 'manual' | 'discount' | 'delivery';
+  meta?: Record<string, unknown>;
   created_at: string;
 }
 
@@ -305,4 +307,52 @@ export interface DashboardAlert {
   type: 'time_entries' | 'sick_leave' | 'drawers';
   message: string;
   count: number;
+}
+
+export type DeliveryCrewSize = 1 | 2;
+
+export type DeliveryJobStatus = 'scheduled' | 'completed' | 'cancelled' | 'failed';
+
+export interface DeliveryAvailability {
+  id: number;
+  date: string;
+  time_start: string;
+  time_end: string;
+  crew_size: DeliveryCrewSize;
+  assigned_to: string;
+  notes: string;
+  is_active: boolean;
+  delivery_count: number;
+  items_booked: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DeliveryJob {
+  id: number;
+  availability: number;
+  scheduled_date: string;
+  cart: number | null;
+  cart_line: number | null;
+  customer_name: string;
+  phone: string;
+  address: string;
+  is_apt: boolean;
+  unit: string;
+  items_delivered: string;
+  item_count: number;
+  tier: string;
+  fee: string;
+  distance_miles: string | null;
+  distance_mode: string;
+  status: DeliveryJobStatus;
+  notes: string;
+  created_by: number | null;
+  created_by_name?: string | null;
+  availability_time_start?: string;
+  availability_time_end?: string;
+  availability_assigned_to?: string;
+  availability_crew_size?: number;
+  created_at?: string;
+  updated_at?: string;
 }

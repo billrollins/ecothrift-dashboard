@@ -89,6 +89,7 @@ from .models import (
     PreprocessingRow,
     ProcessingRow,
     RestorationJob,
+    RestorationTimelineEvent,
     RestorationGradeScale,
     Receiving, ReceivingAttachment, ReceivingPallet,
     Dispute,
@@ -139,8 +140,14 @@ from .serializers import (
     RestorationJobCreateSerializer,
     RestorationJobReturnSerializer,
     RestorationJobTimerAdjustSerializer,
+    RestorationJobMeaningfulActionSerializer,
+    RestorationTimelineEventSerializer,
+    RestorationTimelineEventWriteSerializer,
+    RestorationTimelineEventRevisionSerializer,
+    RestorationTimelineEventVoidSerializer,
     RestorationJobSplitSerializer,
     RestorationJobCombineSerializer,
+    RestorationJobRequestValuationSerializer,
     RestorationPartsRequestSerializer,
     RestorationPartsRequestUpsertSerializer,
     RestorationPartsOrderCreateSerializer,
@@ -8131,6 +8138,7 @@ class RestorationJobViewSet(
                 'purchase_order',
                 'purchase_order__vendor',
                 'created_by',
+                'bench_owner',
             )
             .prefetch_related(
                 Prefetch('item_check_in__items', queryset=Item.objects.order_by('id'))
@@ -8143,6 +8151,12 @@ class RestorationJobViewSet(
         stage = (self.request.query_params.get('stage') or '').strip()
         if stage:
             qs = qs.filter(stage=stage)
+        valuation_pending = (self.request.query_params.get('valuation_pending') or '').strip().lower()
+        if valuation_pending in ('1', 'true', 'yes'):
+            qs = qs.filter(
+                valuation_requested_at__isnull=False,
+                valuation_fulfilled_at__isnull=True,
+            )
         return qs
 
     def list(self, request, *args, **kwargs):
@@ -8178,6 +8192,11 @@ class RestorationJobViewSet(
         return Response(payload, status=http_status)
 
     def partial_update(self, request, *args, **kwargs):
+        from apps.inventory.services.restoration import (
+            maybe_fulfill_valuation_request,
+            restoration_job_valuation_pending,
+        )
+
         job = self.get_object()
         with transaction.atomic():
             job = (
@@ -8185,16 +8204,44 @@ class RestorationJobViewSet(
                 .select_related('item_check_in')
                 .get(pk=job.pk)
             )
-            if job.stage != RestorationJob.STAGE_QUEUED:
+            pending = restoration_job_valuation_pending(job)
+            if job.stage != RestorationJob.STAGE_QUEUED and not pending:
                 return Response(
-                    {'detail': 'Only queued restoration jobs can be edited.'},
+                    {'detail': 'Only queued restoration jobs can be edited (or jobs with a pending valuation request).'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            if pending and job.stage != RestorationJob.STAGE_QUEUED:
+                # Fulfill path: only grade scale/values (and optional handoff), not full requeue edits.
+                allowed = set(request.data.keys()) <= {'scale', 'grade_values', 'processing_handoff'}
+                if not allowed:
+                    return Response(
+                        {'detail': 'Pending valuation jobs may only update scale, grade values, and handoff.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
             ser = RestorationJobPatchSerializer(data=request.data, context={'job': job, 'user': request.user})
             ser.is_valid(raise_exception=True)
+            old_scale = job.scale
+            old_grade_values = dict(job.grade_values or {})
             job.scale = ser.validated_data['scale']
             job.grade_values = ser.validated_data['grade_values']
-            job.save(update_fields=['scale', 'grade_values', 'updated_at'])
+            update_fields = ['scale', 'grade_values', 'updated_at']
+            job.save(update_fields=update_fields)
+            if old_scale != job.scale or old_grade_values != job.grade_values:
+                from apps.inventory.services.restoration_timeline import append_timeline_event
+
+                append_timeline_event(
+                    job,
+                    'valuation.values_changed',
+                    {
+                        'scale': job.scale,
+                        'values': dict(job.grade_values or {}),
+                        'previous_scale': old_scale,
+                        'previous_values': old_grade_values,
+                    },
+                    actor=request.user,
+                    entity_id=f'grade-values:{job.pk}',
+                )
+            maybe_fulfill_valuation_request(job, user=request.user)
             handoff = ser.validated_data.get('processing_handoff')
             if handoff is not None and job.item_check_in_id:
                 from apps.inventory.services.restoration import merge_restoration_into_defaults_snapshot
@@ -8211,31 +8258,173 @@ class RestorationJobViewSet(
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
         return Response(out.data)
 
+    @action(detail=True, methods=['post'], url_path='request-valuation')
+    def request_valuation(self, request, pk=None):
+        from apps.inventory.services.restoration import request_restoration_valuation
+
+        job = self.get_object()
+        ser = RestorationJobRequestValuationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            job = request_restoration_valuation(
+                job,
+                grades=ser.validated_data.get('grades') or [],
+                notes=ser.validated_data.get('notes', ''),
+                user=request.user,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['get', 'post'], url_path='timeline')
+    def timeline(self, request, pk=None):
+        job = self.get_object()
+        if request.method == 'GET':
+            events = (
+                RestorationTimelineEvent.objects.filter(job=job)
+                .select_related('actor', 'voided_by')
+                .order_by('-occurred_at', '-id')[:500]
+            )
+            return Response(
+                RestorationTimelineEventSerializer(
+                    events,
+                    many=True,
+                    context=self.get_serializer_context(),
+                ).data,
+            )
+
+        ser = RestorationTimelineEventWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
+        from apps.inventory.services.restoration_timeline import create_projected_timeline_event
+
+        try:
+            event = create_projected_timeline_event(
+                job,
+                event_type=ser.validated_data['event_type'],
+                payload=ser.validated_data['payload'],
+                entity_id=ser.validated_data['entity_id'],
+                actor=request.user,
+            )
+            mark_restoration_meaningful_action(
+                job,
+                user=request.user,
+                label=ser.validated_data['event_type'].replace('.', ' '),
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        event = RestorationTimelineEvent.objects.select_related('actor', 'voided_by').get(pk=event.pk)
+        return Response(
+            RestorationTimelineEventSerializer(event, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        url_path=r'timeline/(?P<event_id>[0-9]+)',
+    )
+    def revise_timeline(self, request, pk=None, event_id=None):
+        job = self.get_object()
+        event = get_object_or_404(RestorationTimelineEvent, pk=event_id, job=job)
+        ser = RestorationTimelineEventRevisionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        from apps.inventory.services.restoration_timeline import revise_timeline_event
+
+        try:
+            event = revise_timeline_event(
+                event,
+                payload=ser.validated_data['payload'],
+                actor=request.user,
+            )
+            from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
+
+            mark_restoration_meaningful_action(
+                job,
+                user=request.user,
+                label=f'Revised {event.event_type}',
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        event = RestorationTimelineEvent.objects.select_related('actor', 'voided_by').get(pk=event.pk)
+        return Response(RestorationTimelineEventSerializer(event, context=self.get_serializer_context()).data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path=r'timeline/(?P<event_id>[0-9]+)/void',
+    )
+    def void_timeline(self, request, pk=None, event_id=None):
+        job = self.get_object()
+        event = get_object_or_404(RestorationTimelineEvent, pk=event_id, job=job)
+        ser = RestorationTimelineEventVoidSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        from apps.inventory.services.restoration_timeline import void_timeline_event
+
+        try:
+            event = void_timeline_event(
+                event,
+                reason=ser.validated_data['reason'],
+                actor=request.user,
+            )
+            from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
+
+            mark_restoration_meaningful_action(
+                job,
+                user=request.user,
+                label=f'Voided {event.event_type}',
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        event = RestorationTimelineEvent.objects.select_related('actor', 'voided_by').get(pk=event.pk)
+        return Response(RestorationTimelineEventSerializer(event, context=self.get_serializer_context()).data)
+
     @action(detail=True, methods=['patch'], url_path='work-session')
     def update_work_session(self, request, pk=None):
-        job = self.get_object()
-        if job.stage not in (
-            RestorationJob.STAGE_SENT,
-            RestorationJob.STAGE_BENCH,
-            RestorationJob.STAGE_PENDING,
-        ):
-            return Response(
-                {'detail': 'Work session can only be updated for sent, bench, or pending jobs.'},
-                status=status.HTTP_400_BAD_REQUEST,
+        with transaction.atomic():
+            job = RestorationJob.objects.select_for_update().get(pk=self.get_object().pk)
+            if job.stage not in (
+                RestorationJob.STAGE_SENT,
+                RestorationJob.STAGE_BENCH,
+                RestorationJob.STAGE_PENDING,
+            ):
+                return Response(
+                    {'detail': 'Work session can only be updated for sent, bench, or pending jobs.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            before = dict(job.work_session or {})
+            ser = RestorationJobWorkSessionSerializer(
+                data=request.data,
+                context={'job': job, 'user': request.user},
             )
-        ser = RestorationJobWorkSessionSerializer(
-            data=request.data,
-            context={'job': job, 'user': request.user},
-        )
-        ser.is_valid(raise_exception=True)
-        job.work_session = ser.validated_data['work_session']
-        job.save(update_fields=['work_session', 'updated_at'])
+            ser.is_valid(raise_exception=True)
+            job.work_session = ser.validated_data['work_session']
+            job.save(update_fields=['work_session', 'updated_at'])
+            from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
+            from apps.inventory.services.restoration_timeline import record_work_session_changes
+
+            record_work_session_changes(
+                job,
+                before,
+                job.work_session,
+                actor=request.user,
+            )
+            job = mark_restoration_meaningful_action(
+                job,
+                user=request.user,
+                label='Item assessment updated',
+            )
+        job = self.get_queryset().get(pk=job.pk)
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
         return Response(out.data)
 
     @action(detail=True, methods=['post'], url_path='check-in')
     def check_in(self, request, pk=None):
-        from apps.inventory.services.restoration_bench import check_in_restoration_job
+        from apps.inventory.services.restoration_bench import (
+            BenchOccupiedError,
+            check_in_restoration_job,
+        )
 
         job = self.get_object()
         item_id = request.data.get('item_id')
@@ -8257,6 +8446,15 @@ class RestorationJobViewSet(
                 item_id=parsed_item_id,
                 start_timer=start_timer,
             )
+        except BenchOccupiedError as exc:
+            return Response(
+                {
+                    'detail': str(exc),
+                    'active_job_id': exc.job_id,
+                    'active_job_sku': exc.job_sku,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         job = self.get_queryset().get(pk=job.pk)
@@ -8268,7 +8466,7 @@ class RestorationJobViewSet(
 
         job = self.get_object()
         try:
-            job = move_restoration_job_back_to_queue(job)
+            job = move_restoration_job_back_to_queue(job, user=request.user)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         job = self.get_queryset().get(pk=job.pk)
@@ -8287,6 +8485,7 @@ class RestorationJobViewSet(
                 reason=ser.validated_data['reason'],
                 notes=ser.validated_data.get('notes', ''),
                 storage_location=ser.validated_data.get('storage_location', ''),
+                user=request.user,
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -8311,7 +8510,8 @@ class RestorationJobViewSet(
 
         job = self.get_object()
         try:
-            job = pause_restoration_timer(job)
+            reason = str(request.data.get('reason') or 'manual').strip()[:64]
+            job = pause_restoration_timer(job, user=request.user, reason=reason)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         job = self.get_queryset().get(pk=job.pk)
@@ -8325,7 +8525,30 @@ class RestorationJobViewSet(
         ser = RestorationJobTimerAdjustSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         try:
-            job = adjust_restoration_timer(job, active_seconds=ser.validated_data['active_seconds'])
+            job = adjust_restoration_timer(
+                job,
+                active_seconds=ser.validated_data['active_seconds'],
+                user=request.user,
+                reason=ser.validated_data.get('reason') or 'manual',
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='timer/meaningful-action')
+    def timer_meaningful_action(self, request, pk=None):
+        from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
+
+        job = self.get_object()
+        ser = RestorationJobMeaningfulActionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            job = mark_restoration_meaningful_action(
+                job,
+                user=request.user,
+                label=ser.validated_data.get('label') or 'TARS update',
+            )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         job = self.get_queryset().get(pk=job.pk)
@@ -8359,7 +8582,7 @@ class RestorationJobViewSet(
 
         job = self.get_object()
         try:
-            job = send_restoration_job(job)
+            job = send_restoration_job(job, user=request.user)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
@@ -8547,7 +8770,7 @@ class RestorationPartsRequestViewSet(
                 request.query_params.get('submit') == 'true'
                 and req.status == RestorationPartsRequest.STATUS_DRAFT
             ):
-                req = submit_parts_request(req)
+                req = submit_parts_request(req, user=request.user)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         req = (
@@ -8563,7 +8786,7 @@ class RestorationPartsRequestViewSet(
 
         req = self.get_object()
         try:
-            req = submit_parts_request(req)
+            req = submit_parts_request(req, user=request.user)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(RestorationPartsRequestSerializer(req, context=self.get_serializer_context()).data)
@@ -8574,7 +8797,7 @@ class RestorationPartsRequestViewSet(
 
         req = self.get_object()
         try:
-            req = receive_parts_request(req)
+            req = receive_parts_request(req, user=request.user)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         req = (
@@ -8605,6 +8828,7 @@ class RestorationPartsRequestViewSet(
                 notes=ser.validated_data.get('notes', ''),
                 supplier_url=ser.validated_data.get('supplier_url', ''),
                 lines=ser.validated_data.get('lines'),
+                user=request.user,
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)

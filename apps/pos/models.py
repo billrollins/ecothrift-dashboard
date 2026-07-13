@@ -243,6 +243,24 @@ class CartLine(models.Model):
     line_total = models.DecimalField(max_digits=10, decimal_places=2)
     resale_source_sku = models.CharField(max_length=20, blank=True, default='')
     resale_source_item_id = models.PositiveIntegerField(null=True, blank=True)
+    LINE_KIND_ITEM = 'item'
+    LINE_KIND_MANUAL = 'manual'
+    LINE_KIND_DISCOUNT = 'discount'
+    LINE_KIND_DELIVERY = 'delivery'
+    LINE_KIND_CHOICES = [
+        (LINE_KIND_ITEM, 'Inventory item'),
+        (LINE_KIND_MANUAL, 'Manual / unscannable'),
+        (LINE_KIND_DISCOUNT, 'Discount / store credit'),
+        (LINE_KIND_DELIVERY, 'Delivery fee'),
+    ]
+    line_kind = models.CharField(
+        max_length=20,
+        choices=LINE_KIND_CHOICES,
+        default=LINE_KIND_ITEM,
+        db_index=True,
+    )
+    # Discount: {reason, scope, target_line_id?}. Delivery: {customer_name, phone, address, is_apt, unit, tier, fee}.
+    meta = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -485,3 +503,112 @@ class HistoricalTransaction(models.Model):
 
     def __str__(self):
         return f'[{self.source_db.upper()}] {self.legacy_cart_id} — {self.sale_date} ${self.total}'
+
+
+class DeliveryAvailability(models.Model):
+    """A day/window when Eco-Thrift can run appliance deliveries."""
+
+    CREW_ONE = 1
+    CREW_TWO = 2
+    CREW_CHOICES = [
+        (CREW_ONE, '1 person'),
+        (CREW_TWO, '2 people'),
+    ]
+
+    date = models.DateField(db_index=True)
+    time_start = models.TimeField()
+    time_end = models.TimeField()
+    crew_size = models.PositiveSmallIntegerField(choices=CREW_CHOICES, default=CREW_TWO)
+    assigned_to = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text='Who is running deliveries that day (names).',
+    )
+    notes = models.CharField(max_length=300, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['date', 'time_start']
+        verbose_name_plural = 'delivery availabilities'
+        indexes = [
+            models.Index(fields=['date', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f'{self.date} {self.time_start:%H:%M}-{self.time_end:%H:%M} ({self.crew_size}p)'
+
+
+class DeliveryJob(models.Model):
+    """A scheduled appliance delivery tied to a POS delivery fee line."""
+
+    STATUS_SCHEDULED = 'scheduled'
+    STATUS_COMPLETED = 'completed'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [
+        (STATUS_SCHEDULED, 'Scheduled'),
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_CANCELLED, 'Cancelled'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    availability = models.ForeignKey(
+        DeliveryAvailability,
+        on_delete=models.PROTECT,
+        related_name='jobs',
+    )
+    scheduled_date = models.DateField(db_index=True)
+    cart = models.ForeignKey(
+        Cart,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_jobs',
+    )
+    cart_line = models.OneToOneField(
+        CartLine,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_job',
+    )
+    customer_name = models.CharField(max_length=120)
+    phone = models.CharField(max_length=40)
+    address = models.CharField(max_length=200)
+    is_apt = models.BooleanField(default=False)
+    unit = models.CharField(max_length=40, blank=True, default='')
+    items_delivered = models.CharField(max_length=300)
+    item_count = models.PositiveSmallIntegerField(default=1)
+    tier = models.CharField(max_length=10, blank=True, default='')
+    fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    distance_miles = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    distance_mode = models.CharField(max_length=20, blank=True, default='')
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_SCHEDULED,
+        db_index=True,
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_jobs_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    notes = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['scheduled_date', 'id']
+        indexes = [
+            models.Index(fields=['scheduled_date', 'status']),
+        ]
+
+    def __str__(self):
+        return f'{self.scheduled_date} - {self.customer_name} ({self.items_delivered})'
+

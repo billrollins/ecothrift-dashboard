@@ -20,11 +20,13 @@ def decision_work_payload(
     complete=True,
 ):
     condition = {
+        'currentGrade': grade,
         'condition': 'Good',
         'completeness': 'complete',
         'testedStatus': 'tested',
         'evidence': 'Primary function and visible condition confirmed.',
     } if complete else {
+        'currentGrade': None,
         'condition': '',
         'completeness': 'unknown',
         'testedStatus': 'not_tested',
@@ -384,6 +386,7 @@ class TarsDecisionWorkApiTests(RestorationQueueTestBase):
         incomplete = decision_work_payload()
         incomplete['handoff']['acknowledged'] = False
         incomplete['condition'] = {
+            'currentGrade': 'Working',
             'condition': '',
             'completeness': 'unknown',
             'testedStatus': 'not_tested',

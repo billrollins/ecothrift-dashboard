@@ -67,11 +67,11 @@ export default function CartDrawer() {
                 <b>{money(subtotal)}</b>
               </div>
               <p className="cartnote">
-                Tax is calculated at checkout. Online payment is coming soon — place your order and
-                we&rsquo;ll arrange payment when you pick up in store.
+                Request a hold online — pay and pick up in store. No shipping, delivery, or online
+                payment.
               </p>
               <Link className="btn btn--primary cartcheckout" to="/checkout" onClick={() => setOpen(false)}>
-                Checkout
+                Request a hold
               </Link>
               <Link className="cartcontinue" to="/shop" onClick={() => setOpen(false)}>
                 Continue shopping

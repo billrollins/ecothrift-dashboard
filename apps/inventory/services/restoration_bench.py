@@ -30,6 +30,39 @@ PENDING_REASONS = {
 }
 
 
+class BenchOccupiedError(ValueError):
+    def __init__(self, job: RestorationJob):
+        self.job_id = job.pk
+        self.job_sku = (
+            job.item_check_in.items.order_by('id').values_list('sku', flat=True).first()
+            if job.item_check_in_id
+            else ''
+        )
+        super().__init__(
+            f'Your bench already has {self.job_sku or f"job {job.pk}"}. '
+            'Move it to Pending, Inbox, Processing, or finish it before checking in another item.'
+        )
+
+
+def _timeline_event(
+    job: RestorationJob,
+    event_type: str,
+    payload: dict | None = None,
+    *,
+    actor=None,
+    entity_id: str = '',
+):
+    from apps.inventory.services.restoration_timeline import append_timeline_event
+
+    return append_timeline_event(
+        job,
+        event_type,
+        payload or {},
+        actor=actor,
+        entity_id=entity_id,
+    )
+
+
 def elapsed_active_seconds(job: RestorationJob) -> int:
     extra = 0
     if job.timer_is_running and job.timer_started_at:
@@ -71,8 +104,20 @@ def _pause_other_running_timers(*, user, exclude_job_id: int | None = None) -> N
     if exclude_job_id is not None:
         qs = qs.exclude(pk=exclude_job_id)
     for other in qs:
+        before = elapsed_active_seconds(other)
         _pause_timer(other)
         other.save(update_fields=_timer_save_fields())
+        _timeline_event(
+            other,
+            'timer.paused',
+            {
+                'active_seconds': other.active_seconds,
+                'previous_elapsed_seconds': before,
+                'reason': 'timer_switched',
+            },
+            actor=user,
+            entity_id=f'timer:{other.pk}',
+        )
 
 
 def _start_timer(job: RestorationJob, user=None) -> None:
@@ -82,6 +127,22 @@ def _start_timer(job: RestorationJob, user=None) -> None:
         job.timer_is_running = True
     if user is not None:
         job.timer_started_by = user
+
+
+def _lock_and_assert_bench_available(*, user, exclude_job_id: int | None = None) -> None:
+    if user is None or not getattr(user, 'pk', None):
+        return
+    # Lock the technician row so concurrent scans cannot both pass the preflight.
+    user.__class__.objects.select_for_update().get(pk=user.pk)
+    qs = RestorationJob.objects.select_for_update().filter(
+        stage=RestorationJob.STAGE_BENCH,
+        bench_owner=user,
+    )
+    if exclude_job_id is not None:
+        qs = qs.exclude(pk=exclude_job_id)
+    occupied = qs.select_related('item_check_in').prefetch_related('item_check_in__items').first()
+    if occupied is not None:
+        raise BenchOccupiedError(occupied)
 
 
 @transaction.atomic
@@ -98,8 +159,20 @@ def pause_running_restoration_timer_for_user(user, reason: str = '') -> Restorat
     )
     if job is None:
         return None
+    before = elapsed_active_seconds(job)
     _pause_timer(job)
     job.save(update_fields=_timer_save_fields())
+    _timeline_event(
+        job,
+        'timer.paused',
+        {
+            'active_seconds': job.active_seconds,
+            'previous_elapsed_seconds': before,
+            'reason': reason or 'hr',
+        },
+        actor=user,
+        entity_id=f'timer:{job.pk}',
+    )
     return job
 
 
@@ -111,7 +184,7 @@ def check_in_restoration_job(
     *,
     start_timer: bool = True,
 ) -> RestorationJob:
-    from apps.inventory.services.restoration import restoration_job_needs_setup, split_restoration_job
+    from apps.inventory.services.restoration import split_restoration_job
 
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
 
@@ -121,8 +194,8 @@ def check_in_restoration_job(
         RestorationJob.STAGE_PENDING,
     ):
         raise ValueError('Only queued, sent, or pending jobs can be checked in to the bench.')
-    if restoration_job_needs_setup(job):
-        raise ValueError('Enter a value for every grade before starting work on the bench.')
+    # Incomplete grade values no longer block check-in — cockpit shows amber MISSING
+    # and Mike can request valuations from Processing while assessing.
     if job.quantity > 1:
         if item_id is None:
             raise ValueError('Scan the item tag or select a single item from this stack to check in.')
@@ -133,10 +206,13 @@ def check_in_restoration_job(
         if not result['created_jobs']:
             raise ValueError('Could not split item from stack for check-in.')
         job = RestorationJob.objects.select_for_update().get(pk=result['created_jobs'][0].pk)
+    from_stage = job.stage
+    _lock_and_assert_bench_available(user=user, exclude_job_id=job.pk)
     now = timezone.now()
     if not job.bench_started_at:
         job.bench_started_at = now
     job.stage = RestorationJob.STAGE_BENCH
+    job.bench_owner = user if user is not None else job.bench_owner
     job.pending_reason = ''
     job.pending_notes = ''
     job.pending_storage_location = ''
@@ -148,6 +224,7 @@ def check_in_restoration_job(
         update_fields=[
             'stage',
             'bench_started_at',
+            'bench_owner',
             'timer_started_at',
             'timer_is_running',
             'timer_started_by',
@@ -160,16 +237,37 @@ def check_in_restoration_job(
             'updated_at',
         ],
     )
+    _timeline_event(
+        job,
+        'hold.resumed' if from_stage == RestorationJob.STAGE_PENDING else 'job.checked_in',
+        {
+            'from_stage': from_stage,
+            'to_stage': RestorationJob.STAGE_BENCH,
+            'timer_started': bool(start_timer),
+        },
+        actor=user,
+        entity_id=f'job:{job.pk}',
+    )
+    if start_timer:
+        _timeline_event(
+            job,
+            'timer.started',
+            {'active_seconds': job.active_seconds, 'reason': 'check_in'},
+            actor=user,
+            entity_id=f'timer:{job.pk}',
+        )
     return job
 
 
 @transaction.atomic
-def move_restoration_job_back_to_queue(job: RestorationJob) -> RestorationJob:
+def move_restoration_job_back_to_queue(job: RestorationJob, *, user=None) -> RestorationJob:
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
         raise ValueError('Only bench or pending jobs can move back to queue.')
+    from_stage = job.stage
     _pause_timer(job)
     job.stage = RestorationJob.STAGE_SENT
+    job.bench_owner = None
     job.pending_reason = ''
     job.pending_notes = ''
     job.pending_storage_location = ''
@@ -178,6 +276,7 @@ def move_restoration_job_back_to_queue(job: RestorationJob) -> RestorationJob:
     job.save(
         update_fields=[
             'stage',
+            'bench_owner',
             *_timer_save_fields(),
             'pending_reason',
             'pending_notes',
@@ -185,6 +284,13 @@ def move_restoration_job_back_to_queue(job: RestorationJob) -> RestorationJob:
             'pending_started_at',
             'work_session',
         ],
+    )
+    _timeline_event(
+        job,
+        'job.moved_to_queue',
+        {'from_stage': from_stage, 'to_stage': RestorationJob.STAGE_SENT},
+        actor=user,
+        entity_id=f'job:{job.pk}',
     )
     return job
 
@@ -196,6 +302,7 @@ def hold_restoration_job(
     reason: str,
     notes: str = '',
     storage_location: str = '',
+    user=None,
 ) -> RestorationJob:
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage != RestorationJob.STAGE_BENCH:
@@ -205,6 +312,7 @@ def hold_restoration_job(
     _pause_timer(job)
     now = timezone.now()
     job.stage = RestorationJob.STAGE_PENDING
+    job.bench_owner = None
     job.pending_reason = reason
     job.pending_notes = notes or ''
     job.pending_storage_location = storage_location or ''
@@ -221,6 +329,7 @@ def hold_restoration_job(
     job.save(
         update_fields=[
             'stage',
+            'bench_owner',
             *_timer_save_fields(),
             'pending_reason',
             'pending_notes',
@@ -228,6 +337,17 @@ def hold_restoration_job(
             'pending_started_at',
             'work_session',
         ],
+    )
+    _timeline_event(
+        job,
+        'hold.placed',
+        {
+            'reason': reason,
+            'notes': notes or '',
+            'storage_location': storage_location or '',
+        },
+        actor=user,
+        entity_id=f'hold:{job.pk}',
     )
     return job
 
@@ -237,28 +357,144 @@ def start_restoration_timer(job: RestorationJob, user=None) -> RestorationJob:
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
         raise ValueError('Timer can only run on bench or pending jobs.')
+    was_running = job.timer_is_running
     _start_timer(job, user=user)
     job.save(update_fields=['timer_started_at', 'timer_is_running', 'timer_started_by', 'updated_at'])
+    if not was_running:
+        _timeline_event(
+            job,
+            'timer.started',
+            {'active_seconds': job.active_seconds, 'reason': 'manual'},
+            actor=user,
+            entity_id=f'timer:{job.pk}',
+        )
     return job
 
 
 @transaction.atomic
-def pause_restoration_timer(job: RestorationJob) -> RestorationJob:
+def pause_restoration_timer(job: RestorationJob, *, user=None, reason: str = 'manual') -> RestorationJob:
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+    was_running = job.timer_is_running
+    before = elapsed_active_seconds(job)
     _pause_timer(job)
     job.save(update_fields=_timer_save_fields())
+    if was_running:
+        _timeline_event(
+            job,
+            'timer.paused',
+            {
+                'active_seconds': job.active_seconds,
+                'previous_elapsed_seconds': before,
+                'reason': reason,
+            },
+            actor=user,
+            entity_id=f'timer:{job.pk}',
+        )
     return job
 
 
 @transaction.atomic
-def adjust_restoration_timer(job: RestorationJob, *, active_seconds: int) -> RestorationJob:
+def adjust_restoration_timer(
+    job: RestorationJob,
+    *,
+    active_seconds: int,
+    user=None,
+    reason: str = 'manual',
+) -> RestorationJob:
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
         raise ValueError('Timer can only be adjusted on bench or pending jobs.')
+    before = elapsed_active_seconds(job)
     job.active_seconds = max(int(active_seconds), 0)
     if job.timer_is_running:
         job.timer_started_at = timezone.now()
     job.save(update_fields=_timer_save_fields())
+    _timeline_event(
+        job,
+        'timer.adjusted',
+        {
+            'active_seconds_before': before,
+            'active_seconds_after': job.active_seconds,
+            'reason': reason,
+        },
+        actor=user,
+        entity_id=f'timer:{job.pk}',
+    )
+    return job
+
+
+@transaction.atomic
+def mark_restoration_meaningful_action(
+    job: RestorationJob,
+    *,
+    user=None,
+    label: str = 'TARS update',
+) -> RestorationJob:
+    """Record the idle-clawback baseline and auto-start bench time."""
+
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+    if job.stage != RestorationJob.STAGE_BENCH:
+        return job
+    if job.bench_owner_id and user is not None and job.bench_owner_id != getattr(user, 'pk', None):
+        raise BenchOccupiedError(job)
+    if job.bench_owner_id is None and user is not None:
+        _lock_and_assert_bench_available(user=user, exclude_job_id=job.pk)
+        job.bench_owner = user
+    can_track_time = True
+    if user is not None and getattr(user, 'is_authenticated', False):
+        from apps.hr.models import TimeEntry
+
+        current_entry = (
+            TimeEntry.objects.filter(employee=user, clock_out__isnull=True)
+            .only('on_break')
+            .first()
+        )
+        can_track_time = current_entry is not None and not current_entry.on_break
+    was_running = job.timer_is_running
+    if can_track_time:
+        _start_timer(job, user=user)
+    elif job.timer_is_running:
+        _pause_timer(job)
+    now = timezone.now()
+    job.last_meaningful_action_at = now
+    job.last_meaningful_active_seconds = elapsed_active_seconds(job)
+    job.last_meaningful_action_label = str(label or 'TARS update')[:128]
+    job.save(
+        update_fields=[
+            'bench_owner',
+            'timer_started_at',
+            'timer_is_running',
+            'timer_started_by',
+            'active_seconds',
+            'last_meaningful_action_at',
+            'last_meaningful_active_seconds',
+            'last_meaningful_action_label',
+            'updated_at',
+        ],
+    )
+    if can_track_time and not was_running:
+        _timeline_event(
+            job,
+            'timer.started',
+            {
+                'active_seconds': job.active_seconds,
+                'reason': 'meaningful_action',
+                'label': job.last_meaningful_action_label,
+            },
+            actor=user,
+            entity_id=f'timer:{job.pk}',
+        )
+    elif not can_track_time and was_running:
+        _timeline_event(
+            job,
+            'timer.paused',
+            {
+                'active_seconds': job.active_seconds,
+                'reason': 'not_clocked_in_or_on_break',
+            },
+            actor=user,
+            entity_id=f'timer:{job.pk}',
+        )
     return job
 
 
@@ -293,6 +529,10 @@ def complete_restoration_job(
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
         raise ValueError('Only bench or pending jobs can be completed.')
+    from apps.inventory.services.restoration import restoration_job_needs_setup
+
+    if restoration_job_needs_setup(job):
+        raise ValueError('Enter a value for every grade before completing the job.')
     valid = {c[0] for c in RestorationJob.BENCH_DISPOSITION_CHOICES}
     if destination not in valid:
         raise ValueError('Invalid disposition destination.')
@@ -323,6 +563,7 @@ def complete_restoration_job(
     now = timezone.now()
     default_hours = elapsed_active_hours(job)
     job.stage = RestorationJob.STAGE_DONE
+    job.bench_owner = None
     job.bench_disposition = destination
     job.final_grade = final_grade
     job.disposition_notes = notes or ''
@@ -350,6 +591,7 @@ def complete_restoration_job(
     job.save(
         update_fields=[
             'stage',
+            'bench_owner',
             *_timer_save_fields(),
             'bench_disposition',
             'final_grade',
@@ -367,6 +609,19 @@ def complete_restoration_job(
         final_grade=final_grade,
         notes=notes or '',
         user=user,
+    )
+    _timeline_event(
+        job,
+        'disposition.completed',
+        {
+            'destination': destination,
+            'final_grade': final_grade,
+            'spent_hours': str(job.spent_hours),
+            'spent_parts_cost': str(job.spent_parts_cost),
+            'notes': notes or '',
+        },
+        actor=user,
+        entity_id=f'disposition:{job.pk}',
     )
     return job
 
@@ -579,17 +834,42 @@ def upsert_parts_request_from_work_session(
                 ),
             )
 
+    mark_restoration_meaningful_action(job, user=user, label='Parts request updated')
+    _timeline_event(
+        job,
+        'parts.draft_changed',
+        {
+            'parts_request_id': request.pk,
+            'selected_grade': selected_grade,
+            'site_count': request.sites.count(),
+            'line_count': RestorationPartsRequestLine.objects.filter(
+                site__parts_request=request,
+            ).count(),
+        },
+        actor=user,
+        entity_id=f'parts-request:{request.pk}',
+    )
     return request
 
 
 @transaction.atomic
-def submit_parts_request(request: RestorationPartsRequest) -> RestorationPartsRequest:
+def submit_parts_request(request: RestorationPartsRequest, *, user=None) -> RestorationPartsRequest:
     if request.status != RestorationPartsRequest.STATUS_DRAFT:
         raise ValueError(
             f'Request cannot be submitted — it is already {request.get_status_display().lower()}.',
         )
     request.status = RestorationPartsRequest.STATUS_SUBMITTED
     request.save(update_fields=['status', 'updated_at'])
+    _timeline_event(
+        request.job,
+        'parts.request_submitted',
+        {
+            'parts_request_id': request.pk,
+            'selected_grade': request.selected_grade,
+        },
+        actor=user,
+        entity_id=f'parts-request:{request.pk}',
+    )
     return request
 
 
@@ -610,6 +890,7 @@ def record_parts_order(
     notes: str = '',
     supplier_url: str = '',
     lines: list[dict] | None = None,
+    user=None,
 ) -> RestorationPartsOrder:
     if request.status in (
         RestorationPartsRequest.STATUS_RECEIVED,
@@ -681,11 +962,27 @@ def record_parts_order(
         line.save(update_fields=['status', 'unit_price_actual'])
     request.status = RestorationPartsRequest.STATUS_ORDERED
     request.save(update_fields=['status', 'updated_at'])
+    _timeline_event(
+        request.job,
+        'parts.ordered',
+        {
+            'parts_request_id': request.pk,
+            'order_id': order.pk,
+            'po_number': order.po_number,
+            'supplier_name': order.supplier_name,
+            'total': str(order.total),
+            'expected_delivery': (
+                order.expected_delivery.isoformat() if order.expected_delivery else None
+            ),
+        },
+        actor=user,
+        entity_id=f'parts-order:{order.pk}',
+    )
     return order
 
 
 @transaction.atomic
-def receive_parts_request(request: RestorationPartsRequest) -> RestorationPartsRequest:
+def receive_parts_request(request: RestorationPartsRequest, *, user=None) -> RestorationPartsRequest:
     """Tech marks an approved/ordered request as received — archives it to the Received tab."""
 
     if request.status != RestorationPartsRequest.STATUS_ORDERED:
@@ -713,5 +1010,15 @@ def receive_parts_request(request: RestorationPartsRequest) -> RestorationPartsR
             session['pending'] = pending
             job.work_session = session
             job.save(update_fields=['work_session', 'updated_at'])
+        _timeline_event(
+            job,
+            'parts.received',
+            {
+                'parts_request_id': request.pk,
+                'selected_grade': request.selected_grade,
+            },
+            actor=user,
+            entity_id=f'parts-request:{request.pk}',
+        )
 
     return request

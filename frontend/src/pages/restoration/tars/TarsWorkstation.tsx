@@ -1,17 +1,18 @@
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Drawer,
   Stack,
   Typography,
 } from '@mui/material';
 
-import ExpandMore from '@mui/icons-material/ExpandMore';
 import Done from '@mui/icons-material/Done';
 import PauseCircle from '@mui/icons-material/PauseCircle';
 import ShoppingCart from '@mui/icons-material/ShoppingCart';
@@ -20,7 +21,7 @@ import Undo from '@mui/icons-material/Undo';
 import { useSnackbar } from 'notistack';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../../../hooks/useAuth';
 
@@ -43,37 +44,34 @@ import {
   useTarsBenchJobs,
 
   useUpsertRestorationPartsRequest,
-
   useHoldRestorationJob,
-
+  useRequestRestorationJobValuation,
 } from '../../../hooks/useRestorationBench';
-
+import { useGradeScales } from '../../../hooks/useGradeScales';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
-
 import { TARS_DEFAULT_HOURLY_RATE, TARS_DEFAULT_TIME_PREMIUM } from './tarsConstants';
-
-import { TarsWorkBenchTable } from './TarsWorkBenchTable';
 import { decisionGates } from './tarsDecisionEngine';
 import { TarsTimerSwitchDialog } from './TarsTimerSwitchDialog';
 import { TarsDoneDialog } from './TarsDoneDialog';
 import { TarsScanMessageDialog } from './TarsScanMessageDialog';
 import { TarsHoldDialog } from './TarsHoldDialog';
-import { TarsPartsListPanel, collectSessionParts } from './TarsPartsListPanel';
+import { TarsPartsListPanel } from './TarsPartsListPanel';
 import { PARTS_DRAWER_WIDTH } from './tarsPartsListSession';
-import { TarsDecisionWizard } from './studio/TarsDecisionWizard';
+import { TarsItemCockpit } from './studio/TarsItemCockpit';
 import {
   TarsStudioShell,
-  TarsStudioJobCard,
-  TarsStudioItemHero,
   type StudioLane,
 } from './studio/TarsStudioShell';
-import { TarsStudioQueueView } from './studio/TarsStudioQueueView';
+import { TarsStudioTimerControl } from './studio/TarsStudioTimerControl';
+import { TarsItemStateBar } from './studio/TarsItemStateBar';
+import { TarsLaneList } from './studio/TarsLaneList';
+import { TarsRestorationTimeline } from './studio/TarsRestorationTimeline';
 import { studio } from './studio/tarsStudioTheme';
 
 import { jobMatchesScan, myActiveBenchRestorationJob, myRunningRestorationJob, restorationJobToTarsItem, tarsJobRowKey } from './tarsJobAdapter';
-import { isBenchIdleWithoutTimer, timerGuardKey, type TimerGuardAction } from './tarsTimerWarnings';
+import { timerGuardKey, type TimerGuardAction } from './tarsTimerWarnings';
 import { useWorkSessionDraft } from './useWorkSessionDraft';
-import { useGradeScales } from '../../../hooks/useGradeScales';
+import { useTarsTimerController } from './useTarsTimerController';
 
 import { createEmptyWorkSession, evaluateWorkSession } from './tarsWorkRollup';
 
@@ -121,13 +119,14 @@ export function TarsWorkstation() {
   const adjustTimer = useAdjustRestorationJobTimer();
 
   const patchWorkSession = usePatchRestorationJobWorkSession();
-
   const upsertParts = useUpsertRestorationPartsRequest();
-
-
+  const requestValuation = useRequestRestorationJobValuation();
 
   const location = useLocation();
   const navState = location.state as TarsWorkstationNavState | null;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryJobId = Number(searchParams.get('job')) || null;
+  const queryView = searchParams.get('view');
 
   const [benchScanInput, setBenchScanInput] = useState('');
 
@@ -145,7 +144,11 @@ export function TarsWorkstation() {
     action: TimerGuardAction;
     onConfirm: () => Promise<void>;
   } | null>(null);
-  const [studioLane, setStudioLane] = useState<StudioLane>('bench');
+  const [studioLane, setStudioLane] = useState<StudioLane>(
+    queryView === 'inbox' || queryView === 'pending' || queryView === 'bench'
+      ? queryView
+      : 'bench',
+  );
   const [partsDrawerOpen, setPartsDrawerOpen] = useState(false);
 
   const scanInputRef = useRef<HTMLInputElement>(null);
@@ -154,6 +157,25 @@ export function TarsWorkstation() {
   const focusScanInput = useCallback(() => {
     requestAnimationFrame(() => scanInputRef.current?.focus());
   }, []);
+
+  const setStudioLocation = useCallback(
+    (lane: StudioLane, jobId?: number | null) => {
+      setStudioLane(lane);
+      const next = new URLSearchParams();
+      next.set('view', lane);
+      if (jobId != null) next.set('job', String(jobId));
+      setSearchParams(next, { replace: true });
+    },
+    [setSearchParams],
+  );
+
+  const handleBackToDashboard = useCallback(() => {
+    if (window.opener && !window.opener.closed) {
+      window.close();
+      return;
+    }
+    navigate('/dashboard');
+  }, [navigate]);
 
 
 
@@ -171,6 +193,13 @@ export function TarsWorkstation() {
       return benchSortValue(a) - benchSortValue(b);
     });
   }, [jobs]);
+  const myBenchJobs = useMemo(
+    () => benchJobs.filter((job) => (
+      job.bench_owner_id === currentUserId
+      || (job.bench_owner_id == null && job.timer_started_by_id === currentUserId)
+    )),
+    [benchJobs, currentUserId],
+  );
 
   const pendingJobs = useMemo(() => jobs.filter((j) => j.stage === 'pending'), [jobs]);
 
@@ -220,12 +249,6 @@ export function TarsWorkstation() {
     return { ...base, workSession: draftWorkSession };
   }, [displayJob, draftWorkSession]);
 
-  const isQueueSelected = Boolean(
-    selectedJob && (selectedJob.stage === 'queued' || selectedJob.stage === 'sent'),
-  );
-
-  const isPendingSelected = selectedJob?.stage === 'pending';
-
   const runningJob = useMemo(
     () => myRunningRestorationJob(jobs, currentUserId),
     [jobs, currentUserId],
@@ -238,14 +261,10 @@ export function TarsWorkstation() {
     timerSwitchAckRef.current.clear();
   }, [runningRowKey]);
 
-  const activeBenchRowKey = useMemo(() => {
-    const activeJob = myActiveBenchRestorationJob(benchJobs, currentUserId);
-    return activeJob ? tarsJobRowKey(activeJob) : null;
-  }, [benchJobs, currentUserId]);
   const activeTimerJob = useMemo(() => {
     if (runningJob) return runningJob;
-    return myActiveBenchRestorationJob(benchJobs, currentUserId);
-  }, [runningJob, benchJobs, currentUserId]);
+    return myActiveBenchRestorationJob(myBenchJobs, currentUserId);
+  }, [runningJob, myBenchJobs, currentUserId]);
   const headerTimerJob = useMemo(() => {
     if (activeTimerJob) return activeTimerJob;
     if (selectedJob && (selectedJob.stage === 'bench' || selectedJob.stage === 'pending')) {
@@ -253,15 +272,7 @@ export function TarsWorkstation() {
     }
     return null;
   }, [activeTimerJob, selectedJob]);
-  const headerTimerRowKey = headerTimerJob ? tarsJobRowKey(headerTimerJob) : null;
-  const timerDetached = Boolean(headerTimerJob && selectedRowKey && headerTimerRowKey !== selectedRowKey);
-  const showIdleTimerWarning = Boolean(selectedJob && isBenchIdleWithoutTimer(selectedJob));
-  const selectedTimerItemStatus: 'running' | 'paused' | 'mismatch' | null =
-    selectedJob && selectedRowKey && activeBenchRowKey ?
-      selectedRowKey === activeBenchRowKey ?
-        selectedJob.timer_is_running ? 'running' : 'paused'
-      : 'mismatch'
-    : null;
+  const timerController = useTarsTimerController(headerTimerJob);
 
 
 
@@ -287,11 +298,17 @@ export function TarsWorkstation() {
     if (isLoading || authLoading) return;
     if (appliedInitialSelectionRef.current) return;
 
-    if (navState?.selectJobId) {
-      const match = jobs.find((j) => j.id === navState.selectJobId);
-      navigate(location.pathname, { replace: true, state: {} });
+    const requestedJobId = queryJobId ?? navState?.selectJobId ?? null;
+    if (requestedJobId) {
+      const match = jobs.find((j) => j.id === requestedJobId);
+      if (navState?.selectJobId) navigate(location.pathname + location.search, { replace: true, state: {} });
       if (match) {
         setSelectedRowKey(tarsJobRowKey(match));
+        const lane: StudioLane =
+          match.stage === 'pending' ? 'pending'
+          : match.stage === 'bench' ? 'bench'
+          : 'inbox';
+        setStudioLocation(lane, match.id);
         appliedInitialSelectionRef.current = true;
         focusScanInput();
         return;
@@ -301,22 +318,31 @@ export function TarsWorkstation() {
 
     const active =
       myRunningRestorationJob(jobs, currentUserId)
-      ?? myActiveBenchRestorationJob(benchJobs, currentUserId)
+      ?? myActiveBenchRestorationJob(myBenchJobs, currentUserId)
       ?? null;
     if (active) {
       setSelectedRowKey(tarsJobRowKey(active));
+      setStudioLocation('bench', active.id);
+    } else if (queryView === 'inbox' || queryView === 'pending' || queryView === 'bench') {
+      setStudioLane(queryView);
     }
     appliedInitialSelectionRef.current = true;
     focusScanInput();
-  }, [isLoading, authLoading, jobs, benchJobs, navState?.selectJobId, focusScanInput, currentUserId, navigate, location.pathname]);
-
-  const actionsBusy =
-    checkIn.isPending
-    || moveBack.isPending
-    || holdJob.isPending
-    || completeJob.isPending;
-
-
+  }, [
+    isLoading,
+    authLoading,
+    jobs,
+    myBenchJobs,
+    navState?.selectJobId,
+    queryJobId,
+    queryView,
+    focusScanInput,
+    currentUserId,
+    navigate,
+    location.pathname,
+    location.search,
+    setStudioLocation,
+  ]);
 
   const timerBusy = startTimer.isPending || pauseTimer.isPending || adjustTimer.isPending || timerSwitchDialog != null;
 
@@ -401,11 +427,18 @@ export function TarsWorkstation() {
           const itemId = job.items[0]?.id;
           const updated = await checkIn.mutateAsync({ id: job.id, itemId, startTimer: startTimerOnCheckIn });
           setSelectedRowKey(tarsJobRowKey(updated));
+          setStudioLocation('bench', updated.id);
           setBenchScanInput('');
           focusScanInput();
         } catch (err) {
           const message =
             err instanceof Error ? err.message : 'Could not check in to the bench.';
+          const refreshed = await refetch();
+          const active = myActiveBenchRestorationJob(refreshed.data ?? [], currentUserId);
+          if (active) {
+            setSelectedRowKey(tarsJobRowKey(active));
+            setStudioLocation('bench', active.id);
+          }
           setScanMessageDialog({
             title: 'Check-in failed',
             message,
@@ -418,7 +451,14 @@ export function TarsWorkstation() {
       }
       await perform();
     },
-    [checkIn, focusScanInput, runWithTimerGuard],
+    [
+      checkIn,
+      currentUserId,
+      focusScanInput,
+      refetch,
+      runWithTimerGuard,
+      setStudioLocation,
+    ],
   );
 
   const submitBenchScan = useCallback(async () => {
@@ -428,6 +468,7 @@ export function TarsWorkstation() {
     const benchMatch = benchJobs.find((j) => jobMatchesScan(j, v));
     if (benchMatch) {
       setSelectedRowKey(tarsJobRowKey(benchMatch));
+      setStudioLocation('bench', benchMatch.id);
       setBenchScanInput('');
       setScanMessageDialog({
         title: 'Already on bench',
@@ -438,20 +479,14 @@ export function TarsWorkstation() {
 
     const pendingMatch = pendingJobs.find((j) => jobMatchesScan(j, v));
     if (pendingMatch) {
-      await handleCheckIn(pendingMatch);
+      await handleCheckIn(pendingMatch, { startTimer: timerController.canTrackTime });
       return;
     }
 
     const queueMatch = queueJobs.find((j) => jobMatchesScan(j, v));
     if (queueMatch) {
       setBenchScanInput('');
-      if (queueMatch.needs_setup) {
-        navigate('/restoration/tars', {
-          state: { selectJobId: queueMatch.id, showNeedsPricesDialog: true },
-        });
-        return;
-      }
-      await handleCheckIn(queueMatch);
+      await handleCheckIn(queueMatch, { startTimer: timerController.canTrackTime });
       return;
     }
 
@@ -460,7 +495,15 @@ export function TarsWorkstation() {
       title: 'No matching item',
       message: `No queue, bench, or pending item found for ${v.toUpperCase()}.`,
     });
-  }, [benchScanInput, benchJobs, pendingJobs, queueJobs, handleCheckIn, navigate]);
+  }, [
+    benchScanInput,
+    benchJobs,
+    pendingJobs,
+    queueJobs,
+    handleCheckIn,
+    setStudioLocation,
+    timerController.canTrackTime,
+  ]);
 
 
 
@@ -493,6 +536,7 @@ export function TarsWorkstation() {
             },
           });
           setSelectedRowKey(null);
+          setStudioLocation('pending', displayJob.id);
           enqueueSnackbar(`Parts request submitted for ${grade} — item moved to Pending`, {
             variant: 'success',
           });
@@ -506,7 +550,16 @@ export function TarsWorkstation() {
         });
       }
     },
-    [displayJob, evaluation, flushWorkSessionSave, upsertParts, holdJob, enqueueSnackbar, focusScanInput],
+    [
+      displayJob,
+      evaluation,
+      flushWorkSessionSave,
+      upsertParts,
+      holdJob,
+      enqueueSnackbar,
+      focusScanInput,
+      setStudioLocation,
+    ],
   );
 
   const handleMoveBack = async () => {
@@ -516,6 +569,7 @@ export function TarsWorkstation() {
         await flushWorkSessionSave();
         await moveBack.mutateAsync(selectedJob.id);
         setSelectedRowKey(null);
+        setStudioLocation('inbox');
         enqueueSnackbar('Moved back to queue', { variant: 'info' });
         focusScanInput();
       } catch (err) {
@@ -542,6 +596,7 @@ export function TarsWorkstation() {
 
       setHoldOpen(false);
       enqueueSnackbar('Item placed on hold', { variant: 'info' });
+      setStudioLocation('pending', selectedJob.id);
       if (info.requestParts) {
         // Hold already parked it in Pending — don't double-hold.
         await requestPartsForGrade(info.requestGrade, { autoHold: false });
@@ -562,6 +617,7 @@ export function TarsWorkstation() {
       await completeJob.mutateAsync({ id: selectedJob.id, payload });
       setSelectedRowKey(null);
       setDoneOpen(false);
+      setStudioLocation('inbox');
       enqueueSnackbar('Disposition recorded', { variant: 'success' });
       focusScanInput();
     } catch (err) {
@@ -584,12 +640,16 @@ export function TarsWorkstation() {
     focusScanInput();
   }, [focusScanInput]);
 
-  const handleSelectRailJob = useCallback((job: RestorationJobDTO) => {
-    setSelectedRowKey(tarsJobRowKey(job));
-    if (job.stage === 'queued' || job.stage === 'sent') setStudioLane('inbox');
-    else if (job.stage === 'pending') setStudioLane('pending');
-    else setStudioLane('bench');
-  }, []);
+  const handleLaneChange = useCallback((lane: StudioLane) => {
+    if (lane === 'bench') {
+      const active = myActiveBenchRestorationJob(myBenchJobs, currentUserId);
+      setSelectedRowKey(active ? tarsJobRowKey(active) : null);
+      setStudioLocation('bench', active?.id);
+      return;
+    }
+    setSelectedRowKey(null);
+    setStudioLocation(lane);
+  }, [myBenchJobs, currentUserId, setStudioLocation]);
 
   useEffect(() => {
     if (!selectedJob) return;
@@ -598,31 +658,16 @@ export function TarsWorkstation() {
     else if (selectedJob.stage === 'bench') setStudioLane('bench');
   }, [selectedJob?.id, selectedJob?.stage]);
 
-  const laneJobs =
-    studioLane === 'inbox' ? queueJobs
-    : studioLane === 'pending' ? pendingJobs
-      : benchJobs;
-
   const studioCounts = {
     inbox: queueJobs.length,
-    bench: benchJobs.length,
+    bench: myBenchJobs.length,
     pending: pendingJobs.length,
   };
 
-  const emptySelectionMessage = 'Select an item from the lane or scan a tag to begin.';
-  const partsListCount =
-    displayItem?.workSession ? collectSessionParts(displayItem.workSession).length : 0;
   const partsListLabel = displayItem?.skuLabel ?? displayItem?.sku;
 
   const heroActions = selectedJob && displayJob ? (
     <Stack direction="row" gap={0.5} flexWrap="wrap">
-      {isQueueSelected && !selectedJob.needs_setup ?
-        <Button variant="contained" size="small" disabled={actionsBusy}
-          onClick={() => void handleCheckIn(selectedJob, { startTimer: true })}
-          sx={{ bgcolor: studio.accent, fontWeight: 800, minHeight: 28, py: 0 }}>
-          Check in
-        </Button>
-      : null}
       {selectedJob.stage === 'bench' ?
         <>
           <Button size="small" startIcon={<Undo />} onClick={() => void handleMoveBack()} sx={{ minHeight: 28, py: 0 }}>Queue</Button>
@@ -631,17 +676,18 @@ export function TarsWorkstation() {
           <Button size="small" startIcon={<ShoppingCart />} onClick={() => setPartsDrawerOpen(true)} sx={{ minHeight: 28, py: 0 }}>Parts</Button>
           <Button size="small" variant="contained" color="success" startIcon={<Done />}
             onClick={() => {
+              if (selectedJob.needs_setup) {
+                enqueueSnackbar('Fill all grade values before Done (or wait for Processing).', { variant: 'warning' });
+                return;
+              }
               const gates = decisionGates(displayItem?.workSession ?? createEmptyWorkSession('bench'));
               if (!gates.canFinalize) {
-                enqueueSnackbar('Complete the guided decision wizard first.', { variant: 'warning' });
+                enqueueSnackbar('Commit a decision plan first.', { variant: 'warning' });
                 return;
               }
               runWithTimerGuard(selectedJob, 'done', () => setDoneOpen(true));
             }} sx={{ minHeight: 28, py: 0 }}>Done</Button>
         </>
-      : null}
-      {isPendingSelected ?
-        <Button variant="contained" size="small" onClick={() => void handleCheckIn(selectedJob)} sx={{ minHeight: 28, py: 0 }}>Resume</Button>
       : null}
     </Stack>
   ) : null;
@@ -658,118 +704,143 @@ export function TarsWorkstation() {
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' }}>
       <TarsStudioShell
         lane={studioLane}
-        onLaneChange={setStudioLane}
+        onLaneChange={handleLaneChange}
         counts={studioCounts}
         scanValue={benchScanInput}
         onScanChange={setBenchScanInput}
         onScanSubmit={() => void submitBenchScan()}
         scanInputRef={scanInputRef}
+        onBack={handleBackToDashboard}
+        hrSlot={
+          <Chip
+            size="small"
+            label={timerController.hrLabel}
+            sx={{
+              height: 28,
+              bgcolor: timerController.canTrackTime ? '#183f3b' : '#49323a',
+              color: timerController.canTrackTime ? '#b9f0e6' : '#ffd8df',
+              border: `1px solid ${timerController.canTrackTime ? '#2f6f68' : '#80505d'}`,
+              fontWeight: 850,
+            }}
+          />
+        }
+        timerSlot={
+          <TarsStudioTimerControl
+            job={headerTimerJob}
+            busy={timerBusy || timerController.busy}
+            canTrackTime={timerController.canTrackTime}
+            onStart={() => {
+              void timerController.start().catch((err) => {
+                enqueueSnackbar(err instanceof Error ? err.message : 'Could not start timer', { variant: 'warning' });
+              });
+            }}
+            onPause={() => void timerController.pause()}
+          />
+        }
       >
-        <Box
-          sx={{
-            width: { xs: '100%', md: 220 },
-            flexShrink: 0,
-            borderRight: `1px solid ${studio.railBorder}`,
-            overflowY: 'auto',
-            bgcolor: studio.panel,
-            p: 0.5,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 0.25,
-          }}
-        >
-          {laneJobs.length === 0 ?
-            <Typography variant="body2" sx={{ color: studio.railTextMuted, px: 1, py: 2 }}>
-              No items in this lane.
-            </Typography>
-          : laneJobs.map((job) => (
-            <TarsStudioJobCard
-              key={tarsJobRowKey(job)}
-              job={job}
-              selected={selectedRowKey === tarsJobRowKey(job)}
-              running={runningRowKey === tarsJobRowKey(job)}
-              onClick={() => handleSelectRailJob(job)}
+        {studioLane === 'inbox' ? (
+          <TarsLaneList
+            lane="inbox"
+            jobs={queueJobs}
+            busy={checkIn.isPending}
+            onOpen={(job) => void handleCheckIn(job, { startTimer: timerController.canTrackTime })}
+          />
+        ) : studioLane === 'pending' ? (
+          <TarsLaneList
+            lane="pending"
+            jobs={pendingJobs}
+            busy={checkIn.isPending}
+            onOpen={(job) => void handleCheckIn(job, { startTimer: timerController.canTrackTime })}
+          />
+        ) : !displayItem || !evaluation || !displayJob || displayJob.stage !== 'bench' ? (
+          <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 2, color: '#526177' }}>
+            <Stack alignItems="center" spacing={1}>
+              <Typography variant="h6" sx={{ color: '#172033', fontWeight: 950 }}>Your Bench is clear</Typography>
+              <Typography variant="body2">Scan an item or choose one from Inbox or Pending.</Typography>
+              <Button variant="contained" onClick={() => handleLaneChange('inbox')} sx={{ bgcolor: '#087b6f' }}>
+                Open Inbox
+              </Button>
+            </Stack>
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
+              overflow: 'hidden',
+              p: { xs: 0.75, md: 1.25 },
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 0.8,
+            }}
+          >
+            {!timerController.canTrackTime ? (
+              <Alert severity="warning" sx={{ py: 0, '& .MuiAlert-message': { py: 0.45 } }}>
+                Restoration time is paused. Clock in or end your break before resuming.
+              </Alert>
+            ) : null}
+            <TarsItemStateBar
+              job={displayJob}
+              session={displayItem.workSession ?? createEmptyWorkSession('bench')}
+              hourlyRate={TARS_DEFAULT_HOURLY_RATE}
+              scaleGrades={gradeScales[displayJob.scale] ?? []}
+              requesting={requestValuation.isPending}
+              onRequestValuation={(grades) => {
+                void requestValuation.mutateAsync({ id: displayJob.id, grades, notes: '' });
+              }}
             />
-          ))}
-        </Box>
-
-        <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', p: 0.75, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-          {!displayItem || !evaluation || !displayJob ?
-            <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', color: studio.subOnDark }}>
-              <Stack alignItems="center" spacing={0.75}>
-                <Typography variant="body2" sx={{ fontWeight: 800 }}>{emptySelectionMessage}</Typography>
-                <Button size="small" variant="outlined" onClick={() => void refetch()}>Refresh</Button>
-              </Stack>
-            </Box>
-          : <>
-              {showIdleTimerWarning && !isPendingSelected ?
-                <Alert severity="warning" sx={{ py: 0, '& .MuiAlert-message': { py: 0.5 } }}>
-                  Start the timer when bench work begins.
-                </Alert>
-              : null}
-              <TarsStudioItemHero
-                job={displayJob}
-                elapsedSeconds={displayJob.elapsed_seconds ?? 0}
-                timerRunning={Boolean(displayJob.timer_is_running)}
-                onStartTimer={
-                  displayJob.stage === 'bench'
-                    ? () => runWithTimerGuard(displayJob, 'startTimer', () => startTimerSafe(displayJob.id))
-                    : undefined
-                }
-                onPauseTimer={
-                  displayJob.stage === 'bench' ? () => void pauseTimerSafe(displayJob.id) : undefined
-                }
-                actions={heroActions}
-              />
-              {isQueueSelected && selectedJob ?
-                <TarsStudioQueueView
-                  job={selectedJob}
-                  busy={checkIn.isPending}
-                  onCheckIn={() => void handleCheckIn(selectedJob, { startTimer: true })}
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="flex-end"
+              gap={0.5}
+              sx={{ minHeight: 34 }}
+            >
+              {heroActions}
+            </Stack>
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.15fr) minmax(470px, 0.85fr)' },
+                gap: 0.8,
+                overflow: { xs: 'auto', xl: 'hidden' },
+              }}
+            >
+              <Box sx={{ minHeight: { xs: 440, xl: 0 }, minWidth: 0 }}>
+                <TarsRestorationTimeline jobId={displayJob.id} editable />
+              </Box>
+              <Box sx={{ minHeight: { xs: 500, xl: 0 }, minWidth: 0 }}>
+                <TarsItemCockpit
+                  item={displayItem}
+                  job={displayJob}
+                  session={displayItem.workSession ?? createEmptyWorkSession('bench')}
+                  processingHandoff={displayJob.processing_handoff}
+                  editable
+                  scaleRecord={gradeScales}
+                  onSessionChange={replaceWorkSession}
+                  onRequestValuation={async (grades, notes) => {
+                    await requestValuation.mutateAsync({
+                      id: displayJob.id,
+                      grades,
+                      notes,
+                    });
+                  }}
+                  onOpenParts={() => setPartsDrawerOpen(true)}
+                  onOpenHold={() => runWithTimerGuard(displayJob, 'hold', () => setHoldOpen(true))}
+                  onRequestComplete={(session) => {
+                    runWithTimerGuard(displayJob, 'done', async () => {
+                      await replaceWorkSessionImmediate(session);
+                      setDoneOpen(true);
+                    });
+                  }}
                 />
-              : <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                    <TarsDecisionWizard
-                      item={displayItem}
-                      session={displayItem.workSession ?? createEmptyWorkSession(isPendingSelected ? 'pending' : 'bench')}
-                      processingHandoff={displayJob.processing_handoff}
-                      editable={selectedJob?.stage === 'bench'}
-                      onSessionChange={replaceWorkSession}
-                      onOpenParts={() => setPartsDrawerOpen(true)}
-                      onOpenHold={
-                        selectedJob?.stage === 'bench'
-                          ? () => runWithTimerGuard(selectedJob, 'hold', () => setHoldOpen(true))
-                          : undefined
-                      }
-                      onRequestComplete={
-                        selectedJob?.stage === 'bench'
-                          ? (session) => {
-                              runWithTimerGuard(selectedJob, 'done', async () => {
-                                await replaceWorkSessionImmediate(session);
-                                setDoneOpen(true);
-                              });
-                            }
-                          : undefined
-                      }
-                    />
-                  </Box>
-                  <Accordion disableGutters sx={{ bgcolor: studio.panel, borderRadius: `${studio.radius.sm}px`, border: `1px solid ${studio.panelBorder}`, '&:before': { display: 'none' } }}>
-                    <AccordionSummary expandIcon={<ExpandMore />} sx={{ minHeight: 36, '& .MuiAccordionSummary-content': { my: 0.5 } }}>
-                      <Typography variant="body2" fontWeight={800}>Execution log</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ pt: 0, px: 1, pb: 1 }}>
-                      <TarsWorkBenchTable
-                        session={displayItem.workSession ?? createEmptyWorkSession(isPendingSelected ? 'pending' : 'bench')}
-                        readOnly={isPendingSelected}
-                        onSessionChange={replaceWorkSession}
-                      />
-                    </AccordionDetails>
-                  </Accordion>
-                </Box>
-              }
-            </>
-          }
-        </Box>
+              </Box>
+            </Box>
+          </Box>
+        )}
       </TarsStudioShell>
 
       <Drawer
@@ -793,7 +864,7 @@ export function TarsWorkstation() {
           <TarsPartsListPanel
             session={displayItem?.workSession}
             itemLabel={partsListLabel}
-            readOnly={isPendingSelected}
+            readOnly={false}
             onSessionChange={replaceWorkSession}
             gradeOptions={gradeOptions}
             selectedGrade={displayItem?.workSession?.selectedGrade ?? null}
@@ -864,6 +935,38 @@ export function TarsWorkstation() {
         message={scanMessageDialog?.message ?? ''}
         onClose={closeScanMessageDialog}
       />
+
+      <Dialog open={timerController.idlePrompt != null} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 950 }}>Were you working on this item?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ color: '#344258' }}>
+            No activity was detected for five minutes while the timer was running on{' '}
+            <strong>{timerController.idlePrompt?.itemLabel}</strong>.
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 1, color: '#65748a' }}>
+            Yes keeps the elapsed time and resumes. No removes time after{' '}
+            {timerController.idlePrompt?.lastActionLabel ?? 'the last recorded action'} and leaves the timer paused.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            variant="outlined"
+            disabled={timerController.busy}
+            onClick={() => void timerController.resolveIdle(false)}
+            sx={{ minWidth: 150, fontWeight: 900 }}
+          >
+            No, remove idle time
+          </Button>
+          <Button
+            variant="contained"
+            disabled={timerController.busy || !timerController.canTrackTime}
+            onClick={() => void timerController.resolveIdle(true)}
+            sx={{ minWidth: 150, bgcolor: '#087b6f', fontWeight: 950 }}
+          >
+            Yes, keep working
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
 
   );

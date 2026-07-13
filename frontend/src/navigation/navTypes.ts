@@ -27,7 +27,8 @@ export type NavIconKey =
   | 'security'
   | 'settings'
   | 'build'
-  | 'schedule';
+  | 'schedule'
+  | 'print';
 
 export interface NavItemDef {
   id: string;

@@ -1,5 +1,5 @@
 <!-- initiative: slug=tars-full-instruction-wizard-guidance status=active updated=2026-07-13 -->
-<!-- Last updated: 2026-07-13 (Restorations hub shipped; TARS Wizard UX A+ next) -->
+<!-- Last updated: 2026-07-13 (Session 5: Item Cockpit MVP implemented) -->
 
 # Initiative: TARS Decision Guardrails / Worksheet / Guidance App
 
@@ -20,7 +20,7 @@
 | Surface | Owner grade | Direction |
 |---------|-------------|-----------|
 | **Processing Restorations hub** (`/inventory/restorations`) | **Overall pretty good** | Keep; polish only as needed. TO setup + FROM desk (Worked/Untouched) replace Restoration Returns / inline grade blocking. |
-| **TARS Decision Wizard** (Studio guided steps on `/restoration/tars`) | **D / F — hated** | **Next work:** redesign the wizard UI/UX from a failing grade to **A+**. Functionality/guardrails stay; the interaction and visual experience must not. |
+| **TARS Decision Wizard** (Studio guided steps on `/restoration/tars`) | **Cockpit MVP shipping — A+ pending live grade** | **Item Cockpit** replaces 6-step wizard (valuation strip, baked packs, grade ladder, decision bar). Owner A+ grade still pending live use. |
 
 **Sequencing:** Do **not** start Phase 2 Bill-managed catalogs until the Decision Wizard UX pass is planned and accepted (or Bill explicitly reorders). Floor trust depends on the wizard feeling excellent, not merely correct.
 
@@ -500,6 +500,25 @@ Phase 0 selects a small baseline set; Phase 3 formalizes targets and review. Not
 ---
 
 ## Sessions
+
+### Session 5 — 2026-07-13
+
+**Goal:** Phase 1.5 — define and iteratively build a fast, scan-first replacement for the Guided decision wizard while keeping the surrounding TARS Studio shell.
+
+**Finish line:** Item Cockpit live on `/restoration/tars` with valuation request loop; Bill grades UX (iterate toward A+).
+
+**Scope:** Item Cockpit MVP (UI + valuation request API + baked packs + soft stop-outs); Restorations TO badge; no Phase 2 pack editor.
+
+**Out of scope:** Owner test-pack CRUD; immutable estimate-history table; commit/deploy unless requested.
+
+**Est:** ~1–2h framing + feedback. **Start:** 2026-07-13T14:31:00-05:00
+
+**Session updates:**
+
+- 2026-07-13T14:31:00-05:00 — Opened Phase 1.5 ideation. Owner signal: hate TARS tabs. Scope clarified: **Guided decision steps only** (Studio shell as-is). Rewrote `workspace/tars_wizard_ux_variations.md` to five step/substep variants. Awaiting Bill direction.
+- 2026-07-13T14:42:00-05:00 — Owner direction: optimize for Mike scanning and rapidly triaging ~10 items; no dedicated Stops UI; missing valuations need a bright request-back-to-Processing loop; baked and owner-creatable test packs; current/possible grades with time/parts/labor estimates; strict separation of estimates, committed decisions, and performed actions; all revisions attributed and timestamped. Replaced the five variants with one detailed **TARS Item Cockpit** concept for review.
+- 2026-07-13T14:51:00-05:00 — Implemented Item Cockpit MVP: relaxed check-in for incomplete grades; valuation request API + Restorations TO badge/list; baked Basic Electronics + universal packs; soft stop-outs; `TarsItemCockpit` replaces 6-step wizard; Done still requires complete grades + committed decision. Owner pack editor deferred to Phase 2.
+- 2026-07-13T15:26:00-05:00 — Owner rejected the all-at-once cockpit as busy, low-contrast, and nebulous: tools should be organized on a shelf, taken down only when needed, then put back. Rebuilt the cockpit as a dark high-contrast **tool shelf** with five color-coded tools and one focused workspace. Tests and options each use compact selection shelves plus one active detail surface. Separated observed **current grade** from the chosen target grade in the decision contract and made current grade required before commit/completion.
 
 ### Session 4 — 2026-07-13
 

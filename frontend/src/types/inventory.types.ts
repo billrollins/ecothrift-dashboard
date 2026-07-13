@@ -976,6 +976,12 @@ export interface RestorationJobDTO {
   grade_values: Record<string, number>;
   readonly processing_handoff: ProcessingHandoff | null;
   needs_setup: boolean;
+  valuation_pending?: boolean;
+  valuation_requested_at?: string | null;
+  valuation_requested_by_id?: number | null;
+  valuation_request_notes?: string;
+  valuation_requested_grades?: string[];
+  valuation_fulfilled_at?: string | null;
   direction?: 'to' | 'from' | 'other' | null;
   from_family?: 'worked' | 'untouched' | null;
   work_verbs?: string[];
@@ -1009,10 +1015,14 @@ export interface RestorationJobDTO {
   sent_at: string | null;
   returned_at: string | null;
   bench_started_at: string | null;
+  bench_owner_id?: number | null;
   timer_started_at: string | null;
   active_seconds: number;
   timer_is_running: boolean;
   timer_started_by_id?: number | null;
+  last_meaningful_action_at?: string | null;
+  last_meaningful_active_seconds?: number;
+  last_meaningful_action_label?: string;
   elapsed_seconds: number;
   elapsed_hours: string;
   pending_reason: RestorationPendingReason | '';
@@ -1026,6 +1036,55 @@ export interface RestorationJobDTO {
   spent_parts_cost: string | null;
   dispositioned_at: string | null;
   processing_handled_at: string | null;
+}
+
+export type RestorationTimelineEventStatus = 'active' | 'revised' | 'voided';
+
+export type RestorationTimelineEventType =
+  | 'legacy.snapshot'
+  | 'job.sent'
+  | 'job.checked_in'
+  | 'job.moved_to_queue'
+  | 'valuation.requested'
+  | 'valuation.values_changed'
+  | 'valuation.fulfilled'
+  | 'condition.current_grade.set'
+  | 'test.added'
+  | 'test.result_set'
+  | 'test.removed'
+  | 'plan.estimated'
+  | 'plan.committed'
+  | 'plan.cleared'
+  | 'parts.draft_changed'
+  | 'parts.request_submitted'
+  | 'parts.ordered'
+  | 'parts.received'
+  | 'work.performed'
+  | 'timer.started'
+  | 'timer.paused'
+  | 'timer.adjusted'
+  | 'hold.placed'
+  | 'hold.resumed'
+  | 'disposition.completed'
+  | 'return.to_processing';
+
+export interface RestorationTimelineEventDTO {
+  id: number;
+  job_id: number;
+  event_type: RestorationTimelineEventType;
+  entity_id: string;
+  occurred_at: string;
+  actor_id: number | null;
+  actor_name: string;
+  status: RestorationTimelineEventStatus;
+  supersedes_id: number | null;
+  voided_at: string | null;
+  voided_by_id: number | null;
+  voided_by_name: string;
+  void_reason: string;
+  correlation_id: string;
+  schema_version: number;
+  payload: Record<string, unknown>;
 }
 
 export type RestorationQueueAddStatus =

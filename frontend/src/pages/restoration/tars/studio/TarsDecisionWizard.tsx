@@ -364,7 +364,7 @@ export function TarsDecisionWizard({
               ))}
               {editable ?
                 <Stack direction="row" gap={1}>
-                  <Button size="small" onClick={addTest}>Add test</Button>
+                  <Button size="small" onClick={() => addTest()}>Add test</Button>
                   <Button size="small" onClick={() => setShowUnknowns((v) => !v)}>
                     {showUnknowns ? 'Hide unknowns' : `Unknowns (${decision.unknowns.length})`}
                   </Button>

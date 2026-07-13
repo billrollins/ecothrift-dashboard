@@ -34,6 +34,8 @@ export interface TarsDecisionStopOutState {
 }
 
 export interface TarsDecisionCondition {
+  /** Grade observed at the bench before any proposed work. */
+  currentGrade: string | null;
   condition: string;
   completeness: TarsCompletenessStatus;
   testedStatus: TarsTestedStatus;
@@ -43,11 +45,14 @@ export interface TarsDecisionCondition {
 export interface TarsDecisionTest {
   id: string;
   catalogTestId: string | null;
+  packId?: string | null;
   name: string;
   prompt: string;
   relevant: boolean;
   result: TarsDecisionTestResult | null;
   evidence: string;
+  /** Optional sub-checks (e.g. visual inspection). */
+  checklist?: Record<string, boolean | string | null>;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,6 +75,8 @@ export interface TarsViableOutcome {
   viable: boolean;
   nonviableReason: string;
   estimatedMinutes: number;
+  estimatedAt?: string | null;
+  estimatedById?: number | null;
 }
 
 export interface TarsOutcomeEconomics {
@@ -117,6 +124,7 @@ export interface TarsDecisionSelection {
   /** Justifies an ordinary workflow exception; mandatory stop-outs remain non-overridable. */
   overrideReason: string;
   selectedAt: string | null;
+  selectedById?: number | null;
 }
 
 export interface TarsDecisionTimestamps {
@@ -156,6 +164,7 @@ export function createEmptyDecisionWork(now = new Date().toISOString()): TarsDec
       blockedStopOutIds: [],
     },
     condition: {
+      currentGrade: null,
       condition: '',
       completeness: 'unknown',
       testedStatus: 'not_tested',
@@ -189,6 +198,7 @@ export function createEmptyDecisionWork(now = new Date().toISOString()): TarsDec
       reason: '',
       overrideReason: '',
       selectedAt: null,
+      selectedById: null,
     },
     timestamps: {
       createdAt: now,

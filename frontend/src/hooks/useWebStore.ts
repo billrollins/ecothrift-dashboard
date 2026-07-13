@@ -4,14 +4,25 @@ import {
   deleteWebListing,
   deleteWebListingImage,
   getCategoryOptions,
+  getReservations,
+  getSalesLog,
   getWebListing,
   getWebListings,
   getWebOrder,
   getWebOrders,
+  getWorkQueue,
+  archiveWebListing,
+  generateFbCopy,
+  markFbPosted,
+  pauseWebListing,
+  publishWebListing,
+  reservationAction,
+  restoreWebListing,
   setWebOrderStatus,
   updateWebListing,
   updateWebOrder,
   uploadWebListingImage,
+  type ReservationParams,
   type WebListingParams,
   type WebOrderParams,
 } from '../api/webstore.api';
@@ -167,6 +178,122 @@ export function useSetWebOrderStatus() {
       queryClient.invalidateQueries({ queryKey: ['webOrders', variables.id] });
       // A cancellation restocks listings.
       queryClient.invalidateQueries({ queryKey: ['webListings'] });
+    },
+  });
+}
+
+export function useReservations(params?: ReservationParams) {
+  return useQuery({
+    queryKey: ['webReservations', params],
+    queryFn: async () => {
+      const { data } = await getReservations(params);
+      return data;
+    },
+  });
+}
+
+export function useReservationAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      action,
+    }: {
+      id: number;
+      action: 'confirm' | 'stage' | 'decline' | 'cancel' | 'expire' | 'complete';
+    }) => {
+      const { data } = await reservationAction(id, action);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['webReservations'] });
+      queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webSalesLog'] });
+    },
+  });
+}
+
+export function useWorkQueue() {
+  return useQuery({
+    queryKey: ['webWorkQueue'],
+    queryFn: async () => {
+      const { data } = await getWorkQueue();
+      return data;
+    },
+  });
+}
+
+export function useSalesLog() {
+  return useQuery({
+    queryKey: ['webSalesLog'],
+    queryFn: async () => {
+      const { data } = await getSalesLog();
+      return data.results;
+    },
+  });
+}
+
+export function usePublishWebListing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => (await publishWebListing(id)).data,
+    onSuccess: (listing) => {
+      queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webListings', listing.id] });
+    },
+  });
+}
+
+export function usePauseWebListing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => (await pauseWebListing(id)).data,
+    onSuccess: (listing) => {
+      queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webListings', listing.id] });
+    },
+  });
+}
+
+export function useArchiveWebListing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => (await archiveWebListing(id)).data,
+    onSuccess: (listing) => {
+      queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webListings', listing.id] });
+    },
+  });
+}
+
+export function useRestoreWebListing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => (await restoreWebListing(id)).data,
+    onSuccess: (listing) => {
+      queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webListings', listing.id] });
+    },
+  });
+}
+
+export function useGenerateFbCopy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => (await generateFbCopy(id)).data,
+    onSuccess: (listing) => {
+      queryClient.invalidateQueries({ queryKey: ['webListings', listing.id] });
+    },
+  });
+}
+
+export function useMarkFbPosted() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, url }: { id: number; url?: string }) =>
+      (await markFbPosted(id, url)).data,
+    onSuccess: (listing) => {
+      queryClient.invalidateQueries({ queryKey: ['webListings', listing.id] });
     },
   });
 }

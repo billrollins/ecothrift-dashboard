@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage'
 const ShopPage = lazy(() => import('./pages/ShopPage'))
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'))
+const HoldStatusPage = lazy(() => import('./pages/HoldStatusPage'))
 const OrderConfirmationPage = lazy(() => import('./pages/OrderConfirmationPage'))
 const BlogPage = lazy(() => import('./pages/BlogPage'))
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'))
@@ -50,6 +51,14 @@ export default function App() {
           element={
             <Suspense fallback={<RouteFallback />}>
               <CheckoutPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="hold/:token"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <HoldStatusPage />
             </Suspense>
           }
         />

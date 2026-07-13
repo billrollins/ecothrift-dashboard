@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.49.0] — 2026-07-13 -->
-<!-- Last reviewed: 2026-07-13 (Restorations hub + TARS Phase 1 release) -->
+<!-- Line 1 release: ## [2.50.0] — 2026-07-13 -->
+<!-- Last reviewed: 2026-07-13 (v2.50.0 POS delivery board + Online Sales + TARS cockpit) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,39 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.50.0] — 2026-07-13
+
+User-facing theme: **POS delivery scheduling board, Online Sales workspace ship, and TARS Item Cockpit.**
+
+Initiatives: [`pos_discount_and_delivery`](.ai/initiatives/pos_discount_and_delivery.md); [`online_sales_workspace`](.ai/initiatives/online_sales_workspace.md); [`tars_full_instruction_wizard_guidance`](.ai/initiatives/tars_full_instruction_wizard_guidance.md).
+
+### Added
+
+- **Online Sales workspace (one-shot ship)** — Listing Studio, Inbox & Holds, Work queue / Marketing / Sales; public **Request a hold** + token status; POS held-item guard; Slot C **Retail Floor → Online Sales → Store Sales**. Policy: reserve online, pay/pickup in store (no ship / online pay).
+- **POS / discount + delivery** — terminal **Discount / store credit** (cart or per-line) and **Delivery** (`$50` ≤5 mi / `$75` 5–10 mi) with name, phone, address, Apt?/Unit #, **cart-line multi-select for items**, **scheduled delivery date** (`add-discount`, `add-delivery`; `CartLine.line_kind` + `meta`). Address lookup auto-quotes distance to Eco-Thrift (`/pos/delivery/address-suggest/`) and selects the fee tier (or blocks if over 10 mi).
+- **POS / deliveries board** — Cashier **Deliveries** (`/pos/deliveries`): list jobs by date; managers set **available dates** (date, times, who, 1/2-person crew) with booked delivery/item counts (`DeliveryAvailability` / `DeliveryJob`, `pos.0011`); **Open Google Maps route** for a day’s scheduled stops.
+- **POS / printables** — Cashier **Printables** hub + browser-print HTML: bilingual appliance warranty/delivery policy, sell log, Saturday delivery driver log (`/pos/printables`, `frontend/public/pos/*.html`).
+- **TARS / Item Cockpit** — Guided decision 6-step wizard replaced by a high-contrast **tool shelf**: Valuations, Current grade, Tests, Options, and Decision. Only one focused tool is open at a time; each has a distinct color/status and can be put away. Tests use a shelf + focused test runner; options use comparison + focused estimate. Current grade is stored separately from target grade; estimates / decisions / performed work remain separate.
+- **Restorations / valuation requests** — `POST …/request-valuation/`; `valuation_pending` badge + request list on Restorations TO; Processing can fulfill grades even after TARS check-in.
+
+### Changed
+
+- **TARS / incomplete grades** — bench check-in allowed when `needs_setup`; Done still blocked until all grade values are complete.
+- **TARS / stop-outs** — no Stops step; unanswered stop-outs treated as clear; only explicit blocked responses interrupt commit.
+- **POS / delivery items** — “What is being delivered” is a cart-line multi-select; dialog opens with **no lines selected**.
+
+### Fixed
+
+- **POS / terminal cart** — cart panel fills leftover viewport with a dedicated line list scrollbar; subtotal/tax/total stay pinned at the bottom; after add / qty bump / manual / resale / line edit, the affected line scrolls into view (`TerminalPage`). QA SKUs: [`.ai/reference/pos_terminal_cart_scroll/testing_skus.md`](.ai/reference/pos_terminal_cart_scroll/testing_skus.md).
+- **POS / action tiles** — Pink tag, Discount, and Delivery use square action tiles (icon + label) instead of plain outlined buttons.
+
+### Documentation
+
+- **Online Sales / Phase 0 contract + one-shot ship** — policy/nav contract in [`.ai/reference/online_sales_workspace/phase_0_contract.md`](.ai/reference/online_sales_workspace/phase_0_contract.md).
+- **POS / terminal cart scroll QA** — seeded `POSTEST##` items + scenarios in [`.ai/reference/pos_terminal_cart_scroll/`](.ai/reference/pos_terminal_cart_scroll/README.md); `seed_pos_terminal_test_items`.
 
 ---
 

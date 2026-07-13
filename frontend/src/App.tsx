@@ -11,6 +11,8 @@ const BlogStudioPage = lazy(() => import('./pages/blog/BlogStudioPage'));
 
 // Full-screen floorplan editor — lazy so the SVG editor bundle stays out of the main chunk.
 const FloorplanEditorPage = lazy(() => import('./pages/floorplan/FloorplanEditorPage'));
+// TARS Studio owns its browser tab and stays out of the dashboard bundle/chrome.
+const TarsPage = lazy(() => import('./pages/restoration/tars/TarsPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 
 // Pages
@@ -39,6 +41,8 @@ import TerminalPage from './pages/pos/TerminalPage';
 import DrawerListPage from './pages/pos/DrawerListPage';
 import CashManagementPage from './pages/pos/CashManagementPage';
 import TransactionListPage from './pages/pos/TransactionListPage';
+import PosPrintablesPage from './pages/pos/PosPrintablesPage';
+import DeliveriesPage from './pages/pos/DeliveriesPage';
 import PosStoreSetupPage from './pages/admin/PosStoreSetupPage';
 import ConsignmentAccountsPage from './pages/consignment/AccountsPage';
 import ConsigneeDetailPage from './pages/consignment/ConsigneeDetailPage';
@@ -49,8 +53,12 @@ import ConsigneePayoutsPage from './pages/consignee/MyPayoutsPage';
 import ConsigneeSummaryPage from './pages/consignee/SummaryPage';
 import UserListPage from './pages/admin/UserListPage';
 import CustomerListPage from './pages/admin/CustomerListPage';
-import WebStorePage from './pages/admin/WebStorePage';
-import WebOrdersPage from './pages/admin/WebOrdersPage';
+import OnlineSalesWorkQueuePage from './pages/online-sales/OnlineSalesWorkQueuePage';
+import OnlineSalesListingsPage from './pages/online-sales/OnlineSalesListingsPage';
+import ListingStudioPage from './pages/online-sales/ListingStudioPage';
+import OnlineSalesInboxPage from './pages/online-sales/OnlineSalesInboxPage';
+import OnlineSalesMarketingPage from './pages/online-sales/OnlineSalesMarketingPage';
+import OnlineSalesSalesPage from './pages/online-sales/OnlineSalesSalesPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import LabelStudioPage from './pages/admin/labelStudio/LabelStudioPage';
@@ -63,7 +71,6 @@ import QualityAuditFormListPage from './pages/admin/QualityAuditFormListPage';
 import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
-import TarsPage from './pages/restoration/tars/TarsPage';
 import TarsPartsRequestsPage from './pages/restoration/TarsPartsRequestsPage';
 import RestorationLayout from './pages/restoration/RestorationLayout';
 
@@ -169,13 +176,14 @@ export default function App() {
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         <Route path="/pos/cash" element={<CashManagementPage />} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
+        <Route path="/pos/printables" element={<PosPrintablesPage />} />
+        <Route path="/pos/deliveries" element={<DeliveriesPage />} />
         <Route path="/buying/auctions" element={<AuctionListPage />} />
         <Route path="/buying/auctions/:id" element={<AuctionDetailPage />} />
         <Route path="/buying/watchlist" element={<WatchlistPage />} />
         <Route path="/restoration" element={<RestorationLayout />}>
           <Route index element={<Navigate to="/restoration/tars" replace />} />
           <Route path="queue" element={<Navigate to="/restoration/tars" replace />} />
-          <Route path="tars" element={<TarsPage />} />
           <Route path="tars-2" element={<Navigate to="/restoration/tars" replace />} />
           <Route path="parts-requests" element={<TarsPartsRequestsPage />} />
         </Route>
@@ -212,13 +220,31 @@ export default function App() {
           element={<AdminRoute><CustomerListPage /></AdminRoute>}
         />
         <Route
-          path="/admin/web-store"
-          element={<ManagerRoute><WebStorePage /></ManagerRoute>}
+          path="/online-sales"
+          element={<ManagerRoute><OnlineSalesWorkQueuePage /></ManagerRoute>}
         />
         <Route
-          path="/admin/web-orders"
-          element={<ManagerRoute><WebOrdersPage /></ManagerRoute>}
+          path="/online-sales/listings"
+          element={<ManagerRoute><OnlineSalesListingsPage /></ManagerRoute>}
         />
+        <Route
+          path="/online-sales/listings/:id"
+          element={<ManagerRoute><ListingStudioPage /></ManagerRoute>}
+        />
+        <Route
+          path="/online-sales/inbox"
+          element={<ManagerRoute><OnlineSalesInboxPage /></ManagerRoute>}
+        />
+        <Route
+          path="/online-sales/marketing"
+          element={<ManagerRoute><OnlineSalesMarketingPage /></ManagerRoute>}
+        />
+        <Route
+          path="/online-sales/sales"
+          element={<ManagerRoute><OnlineSalesSalesPage /></ManagerRoute>}
+        />
+        <Route path="/admin/web-store" element={<Navigate to="/online-sales/listings" replace />} />
+        <Route path="/admin/web-orders" element={<Navigate to="/online-sales/inbox" replace />} />
         <Route
           path="/admin/permissions"
           element={<AdminRoute><PermissionsPage /></AdminRoute>}
@@ -346,6 +372,20 @@ export default function App() {
             <StaffRoute>
               <Suspense fallback={<LoadingScreen message="Loading floorplan editor…" />}>
                 <FloorplanEditorPage />
+              </Suspense>
+            </StaffRoute>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* TARS Studio — full-screen staff work app in its own tab. */}
+      <Route
+        path="/restoration/tars"
+        element={
+          <ProtectedRoute>
+            <StaffRoute>
+              <Suspense fallback={<LoadingScreen message="Loading TARS Studio…" />}>
+                <TarsPage />
               </Suspense>
             </StaffRoute>
           </ProtectedRoute>

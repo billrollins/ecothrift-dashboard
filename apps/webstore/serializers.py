@@ -1,16 +1,14 @@
-"""Serializers for the curated web catalog.
-
-Two audiences:
-  * Staff (dashboard CRUD) — `WebListingSerializer` (read/write, all fields).
-  * Public storefront — `WebListing{List,Detail}PublicSerializer` (no internal fields).
-
-Image URLs always point at the host-agnostic proxy endpoint
-(`/api/webstore/images/<id>/`) so S3 can stay private (the proxy 302-redirects to a
-short-lived presigned URL, or streams the bytes in local dev).
-"""
+"""Serializers for the curated web catalog and reservations."""
 from rest_framework import serializers
 
-from .models import Order, OrderLine, WebListing, WebListingImage
+from .models import (
+    ChannelPublication,
+    Order,
+    OrderLine,
+    Reservation,
+    WebListing,
+    WebListingImage,
+)
 
 
 def _image_url(image_id) -> str:
@@ -29,43 +27,68 @@ class WebListingImageSerializer(serializers.ModelSerializer):
         return _image_url(obj.id)
 
 
+class ChannelPublicationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChannelPublication
+        fields = [
+            'id', 'channel', 'status', 'title', 'body', 'external_url',
+            'posted_at', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
 class WebListingSerializer(serializers.ModelSerializer):
     """Staff read/write serializer."""
 
     images = WebListingImageSerializer(many=True, read_only=True)
+    channel_publications = ChannelPublicationSerializer(many=True, read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     item_sku = serializers.CharField(source='item.sku', read_only=True, default=None)
     condition_display = serializers.CharField(source='get_condition_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    return_policy_display = serializers.CharField(
+        source='get_return_policy_display', read_only=True,
+    )
     on_sale = serializers.BooleanField(read_only=True)
     is_available = serializers.BooleanField(read_only=True)
+    available = serializers.IntegerField(read_only=True)
     image_count = serializers.IntegerField(source='images.count', read_only=True)
+    readiness_errors = serializers.SerializerMethodField()
 
     class Meta:
         model = WebListing
         fields = [
             'id', 'title', 'slug', 'category', 'category_name', 'item', 'item_sku',
             'sku', 'description', 'condition', 'condition_display',
-            'price', 'compare_at_price', 'stock',
+            'price', 'compare_at_price',
+            'on_hand', 'reserved', 'available', 'stock',
             'status', 'status_display', 'featured',
-            'images', 'image_count', 'on_sale', 'is_available',
-            'created_by', 'published_at', 'created_at', 'updated_at',
+            'return_policy', 'return_policy_display',
+            'fb_title', 'fb_body', 'fb_posted_url', 'fb_posted_at',
+            'images', 'image_count', 'channel_publications',
+            'on_sale', 'is_available', 'readiness_errors',
+            'created_by', 'published_at', 'archived_at', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'slug', 'category_name', 'item_sku', 'condition_display', 'status_display',
-            'images', 'image_count', 'on_sale', 'is_available',
-            'created_by', 'published_at', 'created_at', 'updated_at',
+            'return_policy_display', 'reserved', 'available', 'stock',
+            'images', 'image_count', 'channel_publications',
+            'on_sale', 'is_available', 'readiness_errors',
+            'created_by', 'published_at', 'archived_at', 'created_at', 'updated_at',
+            'fb_posted_at',
         ]
+
+    def get_readiness_errors(self, obj):
+        return obj.publish_readiness_errors()
 
 
 class WebListingListPublicSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for the public catalog grid."""
-
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     category_slug = serializers.CharField(source='category.slug', read_only=True, default=None)
     condition_display = serializers.CharField(source='get_condition_display', read_only=True)
     on_sale = serializers.BooleanField(read_only=True)
-    available = serializers.BooleanField(source='is_available', read_only=True)
+    available = serializers.IntegerField(read_only=True)
+    stock = serializers.IntegerField(source='available', read_only=True)
     image = serializers.SerializerMethodField()
 
     class Meta:
@@ -85,18 +108,76 @@ class WebListingListPublicSerializer(serializers.ModelSerializer):
 
 
 class WebListingDetailPublicSerializer(WebListingListPublicSerializer):
-    """Full public detail (adds description, stock, and the full image list)."""
-
     images = serializers.SerializerMethodField()
+    return_policy = serializers.CharField(read_only=True)
+    hold_policy = serializers.SerializerMethodField()
 
     class Meta(WebListingListPublicSerializer.Meta):
-        fields = WebListingListPublicSerializer.Meta.fields + ['description', 'sku', 'images']
+        fields = WebListingListPublicSerializer.Meta.fields + [
+            'description', 'sku', 'images', 'return_policy', 'hold_policy',
+        ]
 
     def get_images(self, obj):
         return [
             {'id': im.id, 'url': _image_url(im.id), 'alt': im.alt or obj.title}
             for im in obj.images.all()
         ]
+
+    def get_hold_policy(self, obj):
+        return (
+            'Request a hold online. Pay and pick up in store — no shipping, '
+            'delivery, or online payment. Holds confirmed by staff last until '
+            'store close the next business day. Final sale unless noted.'
+        )
+
+
+class ReservationStaffSerializer(serializers.ModelSerializer):
+    listing_title = serializers.CharField(source='listing.title', read_only=True)
+    listing_slug = serializers.CharField(source='listing.slug', read_only=True)
+    item_sku = serializers.CharField(source='item.sku', read_only=True, default=None)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    line_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    contribution = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = Reservation
+        fields = [
+            'id', 'status_token', 'listing', 'listing_title', 'listing_slug',
+            'item', 'item_sku', 'customer_name', 'email', 'phone', 'quantity',
+            'customer_note', 'staff_note', 'status', 'status_display',
+            'expires_at', 'staged_at', 'confirmed_at', 'completed_at',
+            'unit_price_snapshot', 'cost_snapshot', 'fee_amount', 'direct_expense',
+            'line_total', 'contribution', 'pos_cart',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'status_token', 'listing_title', 'listing_slug', 'item_sku',
+            'status_display', 'expires_at', 'staged_at', 'confirmed_at', 'completed_at',
+            'unit_price_snapshot', 'line_total', 'contribution', 'pos_cart',
+            'created_at', 'updated_at',
+        ]
+
+
+class ReservationPublicSerializer(serializers.ModelSerializer):
+    """Minimal public status payload — no address, no unrelated PII dumps."""
+
+    listing_title = serializers.CharField(source='listing.title', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    policy = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Reservation
+        fields = [
+            'status_token', 'listing_title', 'quantity', 'status', 'status_display',
+            'expires_at', 'created_at', 'policy',
+        ]
+        read_only_fields = fields
+
+    def get_policy(self, obj):
+        return (
+            'Pay and pick up in store. No shipping, delivery, or online payment. '
+            'Confirmed holds expire at store close on the next business day.'
+        )
 
 
 class OrderLineSerializer(serializers.ModelSerializer):
@@ -107,8 +188,6 @@ class OrderLineSerializer(serializers.ModelSerializer):
 
 
 class OrderPublicSerializer(serializers.ModelSerializer):
-    """Customer-facing order view (checkout response + status-by-number page)."""
-
     lines = OrderLineSerializer(many=True, read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
@@ -130,9 +209,6 @@ class OrderPublicSerializer(serializers.ModelSerializer):
 
 
 class OrderStaffSerializer(serializers.ModelSerializer):
-    """Staff order view. Status changes go through the `set-status` action (handles
-    stock restock on cancel); only payment fields + staff note are writable here."""
-
     lines = OrderLineSerializer(many=True, read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)

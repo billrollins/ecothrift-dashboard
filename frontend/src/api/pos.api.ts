@@ -6,10 +6,12 @@ import type {
   DepartmentGoalKey,
   Register,
   Drawer,
+  DeliveryAvailability,
+  DeliveryJob,
 } from '../types/pos.types';
 import api from './client';
 
-export type { Register, Drawer };
+export type { Register, Drawer, DeliveryAvailability, DeliveryJob };
 
 export interface RevenueGoal {
   id: number;
@@ -161,6 +163,112 @@ export function addManualLineToCart(
   body: { description: string; unit_price?: number | string; quantity?: number },
 ): Promise<{ data: Cart }> {
   return api.post<Cart>(`/pos/carts/${cartId}/add-manual-line/`, body);
+}
+
+export function addDiscountToCart(
+  cartId: number,
+  body: { amount: number | string; reason?: string; target_line_id?: number | null },
+): Promise<{ data: Cart }> {
+  return api.post<Cart>(`/pos/carts/${cartId}/add-discount/`, body);
+}
+
+export function addDeliveryToCart(
+  cartId: number,
+  body: {
+    tier: '5mi' | '10mi';
+    customer_name: string;
+    phone: string;
+    address: string;
+    items_delivered: string;
+    availability_id: number;
+    is_apt?: boolean;
+    unit?: string;
+    item_count?: number;
+    distance_miles?: string | number;
+    distance_mode?: string;
+    lat?: number;
+    lon?: number;
+    display_name?: string;
+  },
+): Promise<{ data: Cart }> {
+  return api.post<Cart>(`/pos/carts/${cartId}/add-delivery/`, body);
+}
+
+export interface DeliveryAddressSuggestion {
+  display_name: string;
+  address_line: string;
+  city: string;
+  state: string;
+  postcode: string;
+  lat: number;
+  lon: number;
+  store_label: string;
+  distance_miles: string;
+  distance_mode?: 'driving' | 'straight_line';
+  tier: '5mi' | '10mi' | null;
+  fee: string | null;
+  too_far: boolean;
+}
+
+export function suggestDeliveryAddresses(
+  q: string,
+): Promise<{ data: { results: DeliveryAddressSuggestion[]; detail?: string } }> {
+  return api.get('/pos/delivery/address-suggest/', { params: { q } });
+}
+
+export function quoteDeliveryDistance(body: {
+  lat: number;
+  lon: number;
+}): Promise<{
+  data: {
+    distance_miles: string;
+    tier: '5mi' | '10mi' | null;
+    fee: string | null;
+    too_far: boolean;
+    store_label: string;
+  };
+}> {
+  return api.post('/pos/delivery/quote/', body);
+}
+
+export function getDeliveryAvailabilities(
+  params?: Record<string, unknown>,
+): Promise<{ data: DeliveryAvailability[] }> {
+  return api.get<DeliveryAvailability[]>('/pos/delivery-availabilities/', { params });
+}
+
+export function createDeliveryAvailability(
+  data: Partial<DeliveryAvailability> & {
+    date: string;
+    time_start: string;
+    time_end: string;
+  },
+): Promise<{ data: DeliveryAvailability }> {
+  return api.post<DeliveryAvailability>('/pos/delivery-availabilities/', data);
+}
+
+export function updateDeliveryAvailability(
+  id: number,
+  data: Partial<DeliveryAvailability>,
+): Promise<{ data: DeliveryAvailability }> {
+  return api.patch<DeliveryAvailability>(`/pos/delivery-availabilities/${id}/`, data);
+}
+
+export function deleteDeliveryAvailability(id: number): Promise<void> {
+  return api.delete(`/pos/delivery-availabilities/${id}/`);
+}
+
+export function getDeliveryJobs(
+  params?: Record<string, unknown>,
+): Promise<{ data: DeliveryJob[] }> {
+  return api.get<DeliveryJob[]>('/pos/delivery-jobs/', { params });
+}
+
+export function updateDeliveryJob(
+  id: number,
+  data: { status?: string; notes?: string; availability?: number; availability_id?: number },
+): Promise<{ data: DeliveryJob }> {
+  return api.patch<DeliveryJob>(`/pos/delivery-jobs/${id}/`, data);
 }
 
 export function addResaleCopyToCart(

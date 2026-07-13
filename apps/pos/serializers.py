@@ -4,6 +4,7 @@ from .models import (
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal, DashboardSalesGoal,
     DashboardDepartmentGoal, QualityAudit, QualityAuditForm,
+    DeliveryAvailability, DeliveryJob,
 )
 
 
@@ -129,11 +130,13 @@ class CartLineSerializer(serializers.ModelSerializer):
             'id', 'cart', 'item', 'description',
             'quantity', 'unit_price', 'line_total',
             'resale_source_sku', 'resale_source_item_id',
+            'line_kind', 'meta',
             'created_at',
         ]
         read_only_fields = [
             'id', 'line_total', 'created_at',
             'resale_source_sku', 'resale_source_item_id',
+            'line_kind', 'meta',
         ]
 
 
@@ -285,3 +288,63 @@ class QualityAuditFormSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'is_system', 'created_by', 'created_by_name', 'updated_by', 'updated_by_name', 'created_at', 'updated_at']
+
+
+class DeliveryAvailabilitySerializer(serializers.ModelSerializer):
+    delivery_count = serializers.IntegerField(read_only=True, default=0)
+    items_booked = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = DeliveryAvailability
+        fields = [
+            'id', 'date', 'time_start', 'time_end', 'crew_size', 'assigned_to',
+            'notes', 'is_active', 'delivery_count', 'items_booked',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'delivery_count', 'items_booked', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        time_start = attrs.get('time_start', getattr(self.instance, 'time_start', None))
+        time_end = attrs.get('time_end', getattr(self.instance, 'time_end', None))
+        if time_start and time_end and time_end <= time_start:
+            raise serializers.ValidationError({'time_end': 'End time must be after start time.'})
+        return attrs
+
+
+class DeliveryJobSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(
+        source='created_by.full_name', read_only=True, default=None,
+    )
+    availability_time_start = serializers.TimeField(
+        source='availability.time_start', read_only=True,
+    )
+    availability_time_end = serializers.TimeField(
+        source='availability.time_end', read_only=True,
+    )
+    availability_assigned_to = serializers.CharField(
+        source='availability.assigned_to', read_only=True,
+    )
+    availability_crew_size = serializers.IntegerField(
+        source='availability.crew_size', read_only=True,
+    )
+
+    class Meta:
+        model = DeliveryJob
+        fields = [
+            'id', 'availability', 'scheduled_date', 'cart', 'cart_line',
+            'customer_name', 'phone', 'address', 'is_apt', 'unit',
+            'items_delivered', 'item_count', 'tier', 'fee',
+            'distance_miles', 'distance_mode', 'status', 'notes',
+            'created_by', 'created_by_name',
+            'availability_time_start', 'availability_time_end',
+            'availability_assigned_to', 'availability_crew_size',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'scheduled_date', 'cart', 'cart_line', 'customer_name', 'phone',
+            'address', 'is_apt', 'unit', 'items_delivered', 'item_count', 'tier',
+            'fee', 'distance_miles', 'distance_mode', 'created_by', 'created_by_name',
+            'availability_time_start', 'availability_time_end',
+            'availability_assigned_to', 'availability_crew_size',
+            'created_at', 'updated_at',
+        ]

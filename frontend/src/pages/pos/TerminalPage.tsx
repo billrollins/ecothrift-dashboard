@@ -5,26 +5,34 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   Grid,
   IconButton,
   InputLabel,
   List,
   ListItem,
+  ListItemButton,
   ListItemText,
   MenuItem,
+  OutlinedInput,
   Paper,
+  Radio,
+  RadioGroup,
   Select,
   Stack,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
+import type { SelectChangeEvent } from '@mui/material/Select';
 import AccessTime from '@mui/icons-material/AccessTime';
 import AccountBalance from '@mui/icons-material/AccountBalance';
 import CancelOutlined from '@mui/icons-material/CancelOutlined';
@@ -32,11 +40,14 @@ import Check from '@mui/icons-material/Check';
 import Delete from '@mui/icons-material/Delete';
 import DeleteForever from '@mui/icons-material/DeleteForever';
 import Edit from '@mui/icons-material/Edit';
+import LocalShipping from '@mui/icons-material/LocalShipping';
+import Percent from '@mui/icons-material/Percent';
 import PersonOff from '@mui/icons-material/PersonOff';
 import PersonOutline from '@mui/icons-material/PersonOutline';
 import PlayArrow from '@mui/icons-material/PlayArrow';
 import PointOfSale from '@mui/icons-material/PointOfSale';
 import Search from '@mui/icons-material/Search';
+import Sell from '@mui/icons-material/Sell';
 import Settings from '@mui/icons-material/Settings';
 import { useSnackbar } from 'notistack';
 import { format } from 'date-fns';
@@ -53,6 +64,8 @@ import {
   useCreateCart,
   useAddItemToCart,
   useAddManualLineToCart,
+  useAddDiscountToCart,
+  useAddDeliveryToCart,
   useAddResaleCopyToCart,
   useUpdateCartLine,
   useRemoveCartLine,
@@ -60,13 +73,15 @@ import {
   useVoidCart,
   useOpenDrawer,
   useDrawerTakeover,
+  useDeliveryAvailabilities,
 } from '../../hooks/usePOS';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
 import { useLookupCustomer } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
-import { updateCart, getCarts } from '../../api/pos.api';
+import { updateCart, getCarts, suggestDeliveryAddresses } from '../../api/pos.api';
+import type { DeliveryAddressSuggestion } from '../../api/pos.api';
 import { localPrintService } from '../../services/localPrintService';
 import type { Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfig } from '../../types/pos.types';
 import type { DenominationBreakdown } from '../../types/pos.types';
@@ -124,6 +139,31 @@ function formatCurrency(value: string | number | null | undefined): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
 }
 
+/** New line id, else a line whose qty/price/total changed, else the last line. */
+function findAffectedCartLineId(prev: Cart | null, next: Cart): number | null {
+  const prevLines = prev?.lines ?? [];
+  const nextLines = next.lines ?? [];
+  if (nextLines.length === 0) return null;
+
+  const prevById = new Map(prevLines.map((line) => [line.id, line]));
+  for (const line of nextLines) {
+    if (!prevById.has(line.id)) return line.id;
+  }
+  for (const line of nextLines) {
+    const old = prevById.get(line.id);
+    if (
+      old &&
+      (old.quantity !== line.quantity ||
+        String(old.unit_price) !== String(line.unit_price) ||
+        String(old.line_total) !== String(line.line_total) ||
+        old.description !== line.description)
+    ) {
+      return line.id;
+    }
+  }
+  return nextLines[nextLines.length - 1]?.id ?? null;
+}
+
 function buildReceiptData(
   cart: Cart & { receipt?: { receipt_number: string }; completed_at?: string },
 ): Record<string, unknown> {
@@ -156,6 +196,9 @@ export default function TerminalPage() {
   const { user } = useAuth();
   const skuInputRef = useRef<HTMLInputElement>(null);
   const manualDescriptionInputRef = useRef<HTMLInputElement>(null);
+  const cartRef = useRef<Cart | null>(null);
+  const pendingScrollLineIdRef = useRef<number | null>(null);
+  const lineElRefs = useRef<Map<number, HTMLElement>>(new Map());
   const { config, isRegister, registerId } = useDeviceConfig();
   const printStatus = useLocalPrintStatus();
 
@@ -188,6 +231,56 @@ export default function TerminalPage() {
   const [unscannableDialogOpen, setUnscannableDialogOpen] = useState(false);
   const [manualDescription, setManualDescription] = useState(DEFAULT_MANUAL_LINE_TITLE);
   const [manualUnitPrice, setManualUnitPrice] = useState(DEFAULT_MANUAL_LINE_PRICE);
+  const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState('');
+  const [discountReason, setDiscountReason] = useState('In-store credit (return)');
+  const [discountTargetLineId, setDiscountTargetLineId] = useState<number | ''>('');
+  const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
+  const [deliveryTier, setDeliveryTier] = useState<'5mi' | '10mi'>('5mi');
+  const [deliveryName, setDeliveryName] = useState('');
+  const [deliveryPhone, setDeliveryPhone] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryLineIds, setDeliveryLineIds] = useState<number[]>([]);
+  const [deliveryIsApt, setDeliveryIsApt] = useState(false);
+  const [deliveryUnit, setDeliveryUnit] = useState('');
+  const [deliverySuggestions, setDeliverySuggestions] = useState<DeliveryAddressSuggestion[]>([]);
+  const [deliverySuggestLoading, setDeliverySuggestLoading] = useState(false);
+  const [deliverySuggestError, setDeliverySuggestError] = useState<string | null>(null);
+  const [deliveryPicked, setDeliveryPicked] = useState<DeliveryAddressSuggestion | null>(null);
+  const [deliveryTooFarOpen, setDeliveryTooFarOpen] = useState(false);
+  const [deliveryTooFarMiles, setDeliveryTooFarMiles] = useState<string | null>(null);
+  const [deliveryAvailabilityId, setDeliveryAvailabilityId] = useState<number | ''>('');
+  const deliverySuggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deliverySuggestSeqRef = useRef(0);
+
+  const commitCart = useCallback((next: Cart, opts?: { scroll?: boolean }) => {
+    if (opts?.scroll !== false) {
+      pendingScrollLineIdRef.current = findAffectedCartLineId(cartRef.current, next);
+    }
+    cartRef.current = next;
+    setCart(next);
+  }, []);
+
+  useEffect(() => {
+    cartRef.current = cart;
+  }, [cart]);
+
+  useEffect(() => {
+    return () => {
+      if (deliverySuggestTimerRef.current) clearTimeout(deliverySuggestTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const lineId = pendingScrollLineIdRef.current;
+    if (lineId == null) return;
+    pendingScrollLineIdRef.current = null;
+    const scroll = () => {
+      const el = lineElRefs.current.get(lineId);
+      el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
+    requestAnimationFrame(() => requestAnimationFrame(scroll));
+  }, [cart]);
 
   // Stable date string — only recomputes at midnight
   const todayLocalISO = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
@@ -245,6 +338,13 @@ export default function TerminalPage() {
   const createCartMutation = useCreateCart();
   const addItemMutation = useAddItemToCart();
   const addManualLineMutation = useAddManualLineToCart();
+  const addDiscountMutation = useAddDiscountToCart();
+  const addDeliveryMutation = useAddDeliveryToCart();
+  const { data: upcomingDeliverySlots = [], isFetching: deliverySlotsLoading } =
+    useDeliveryAvailabilities(
+      { upcoming: '1' },
+      { enabled: deliveryDialogOpen },
+    );
   const addResaleCopyMutation = useAddResaleCopyToCart();
   const updateLineMutation = useUpdateCartLine();
   const removeLineMutation = useRemoveCartLine();
@@ -357,7 +457,7 @@ export default function TerminalPage() {
 
     try {
       const updated = await addItemMutation.mutateAsync({ cartId: activeCart.id, sku: input });
-      setCart(updated as unknown as Cart);
+      commitCart(updated as unknown as Cart);
     } catch (err: unknown) {
       const parsed = parsePosAddItemError(err);
       if (parsed.kind === 'already_sold' && parsed.itemId != null) {
@@ -382,6 +482,7 @@ export default function TerminalPage() {
     skuInput,
     createCartMutation,
     addItemMutation,
+    commitCart,
     lookupCustomerMutation,
     enqueueSnackbar,
   ]);
@@ -445,7 +546,7 @@ export default function TerminalPage() {
           description: desc,
           unit_price: unitPrice,
         });
-        setCart(updated as unknown as Cart);
+        commitCart(updated as unknown as Cart);
         setUnscannableDialogOpen(false);
         setManualDescription(DEFAULT_MANUAL_LINE_TITLE);
         setManualUnitPrice(DEFAULT_MANUAL_LINE_PRICE);
@@ -462,9 +563,270 @@ export default function TerminalPage() {
       managerDrawerId,
       createCartMutation,
       addManualLineMutation,
+      commitCart,
       enqueueSnackbar,
     ],
   );
+
+  const ensureOpenCart = useCallback(async (): Promise<Cart | null> => {
+    if (cart) return cart;
+    const liveDrawer = todayDrawerRef.current;
+    const targetDrawerId: number | undefined = isRegister
+      ? (typeof liveDrawer?.id === 'number' ? liveDrawer.id : undefined)
+      : typeof managerDrawerId === 'number'
+        ? managerDrawerId
+        : undefined;
+    if (typeof targetDrawerId !== 'number') {
+      enqueueSnackbar('Open a drawer first before scanning items.', { variant: 'warning' });
+      return null;
+    }
+    try {
+      const newCart = await createCartMutation.mutateAsync({ drawer: targetDrawerId });
+      const created = newCart as unknown as Cart;
+      setCart(created);
+      cartRef.current = created;
+      return created;
+    } catch {
+      enqueueSnackbar('Failed to create cart', { variant: 'error' });
+      return null;
+    }
+  }, [cart, isRegister, managerDrawerId, createCartMutation, enqueueSnackbar]);
+
+  const handleOpenDiscountDialog = useCallback(() => {
+    setDiscountAmount('');
+    setDiscountReason('In-store credit (return)');
+    setDiscountTargetLineId('');
+    setDiscountDialogOpen(true);
+  }, []);
+
+  const handleSubmitDiscount = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      const amount = parseFloat(discountAmount);
+      if (Number.isNaN(amount) || amount <= 0) {
+        enqueueSnackbar('Enter a discount amount greater than zero.', { variant: 'warning' });
+        return;
+      }
+      const activeCart = await ensureOpenCart();
+      if (!activeCart) return;
+      try {
+        const updated = await addDiscountMutation.mutateAsync({
+          cartId: activeCart.id,
+          amount,
+          reason: discountReason.trim() || 'In-store credit (return)',
+          target_line_id: discountTargetLineId === '' ? null : discountTargetLineId,
+        });
+        commitCart(updated as unknown as Cart);
+        setDiscountDialogOpen(false);
+        skuInputRef.current?.focus();
+      } catch (err: unknown) {
+        const detail =
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+          'Failed to add discount';
+        enqueueSnackbar(detail, { variant: 'error' });
+      }
+    },
+    [
+      discountAmount,
+      discountReason,
+      discountTargetLineId,
+      ensureOpenCart,
+      addDiscountMutation,
+      commitCart,
+      enqueueSnackbar,
+    ],
+  );
+
+  const handleOpenDeliveryDialog = useCallback(() => {
+    setDeliveryTier('5mi');
+    setDeliveryName('');
+    setDeliveryPhone('');
+    setDeliveryAddress('');
+    setDeliveryLineIds([]);
+    setDeliveryIsApt(false);
+    setDeliveryUnit('');
+    setDeliverySuggestions([]);
+    setDeliverySuggestError(null);
+    setDeliveryPicked(null);
+    setDeliveryTooFarOpen(false);
+    setDeliveryTooFarMiles(null);
+    setDeliveryAvailabilityId('');
+    setDeliveryDialogOpen(true);
+  }, []);
+
+  const deliveryMerchandiseLines = useMemo(
+    () =>
+      (cart?.lines ?? []).filter(
+        (ln) =>
+          ln.line_kind !== 'discount' &&
+          ln.line_kind !== 'delivery' &&
+          (ln.line_kind === 'item' || ln.line_kind === 'manual' || ln.item != null),
+      ),
+    [cart],
+  );
+
+  const runDeliveryAddressSearch = useCallback(async (query: string) => {
+    const q = query.trim();
+    if (q.length < 3) {
+      setDeliverySuggestions([]);
+      setDeliverySuggestError(null);
+      setDeliverySuggestLoading(false);
+      return;
+    }
+    const seq = ++deliverySuggestSeqRef.current;
+    setDeliverySuggestLoading(true);
+    setDeliverySuggestError(null);
+    try {
+      const { data } = await suggestDeliveryAddresses(q);
+      if (seq !== deliverySuggestSeqRef.current) return;
+      setDeliverySuggestions(data.results ?? []);
+      if ((data.results ?? []).length === 0) {
+        setDeliverySuggestError(
+          'No match yet. Include street number + street name (city/ZIP help). Then pause or press Enter.',
+        );
+      }
+    } catch (err: unknown) {
+      if (seq !== deliverySuggestSeqRef.current) return;
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        'Address lookup failed.';
+      setDeliverySuggestions([]);
+      setDeliverySuggestError(detail);
+    } finally {
+      if (seq === deliverySuggestSeqRef.current) setDeliverySuggestLoading(false);
+    }
+  }, []);
+
+  const scheduleDeliveryAddressSearch = useCallback(
+    (query: string) => {
+      if (deliverySuggestTimerRef.current) clearTimeout(deliverySuggestTimerRef.current);
+      deliverySuggestTimerRef.current = setTimeout(() => {
+        void runDeliveryAddressSearch(query);
+      }, 400);
+    },
+    [runDeliveryAddressSearch],
+  );
+
+  const handlePickDeliverySuggestion = useCallback((suggestion: DeliveryAddressSuggestion) => {
+    const composed = [
+      suggestion.address_line,
+      suggestion.city,
+      suggestion.state,
+      suggestion.postcode,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    setDeliveryAddress(composed.slice(0, 200));
+    setDeliveryPicked(suggestion);
+    setDeliverySuggestions([]);
+    setDeliverySuggestError(null);
+
+    if (suggestion.too_far || !suggestion.tier) {
+      setDeliveryTooFarMiles(suggestion.distance_miles);
+      setDeliveryTooFarOpen(true);
+      return;
+    }
+    setDeliveryTier(suggestion.tier);
+    const modeLabel =
+      suggestion.distance_mode === 'driving' ? 'driving' : 'straight-line';
+    enqueueSnackbar(
+      `${suggestion.distance_miles} mi (${modeLabel}) from store → ${suggestion.tier === '5mi' ? '$50' : '$75'} delivery`,
+      { variant: 'info' },
+    );
+  }, [enqueueSnackbar]);
+
+  const handleSubmitDelivery = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      const selectedLines = deliveryMerchandiseLines.filter((ln) =>
+        deliveryLineIds.includes(ln.id),
+      );
+      const itemsDelivered = selectedLines
+        .map((ln) => ln.description)
+        .filter(Boolean)
+        .join(', ')
+        .slice(0, 300);
+      if (!deliveryName.trim() || !deliveryPhone.trim() || !deliveryAddress.trim()) {
+        enqueueSnackbar('Name, phone, and address are required.', {
+          variant: 'warning',
+        });
+        return;
+      }
+      if (selectedLines.length === 0 || !itemsDelivered) {
+        enqueueSnackbar('Select at least one cart item to deliver.', { variant: 'warning' });
+        return;
+      }
+      if (!deliveryAvailabilityId) {
+        enqueueSnackbar('Pick a delivery date.', { variant: 'warning' });
+        return;
+      }
+      if (deliveryIsApt && !deliveryUnit.trim()) {
+        enqueueSnackbar('Unit # is required for apartments.', { variant: 'warning' });
+        return;
+      }
+      if (deliveryPicked?.too_far) {
+        setDeliveryTooFarMiles(deliveryPicked.distance_miles);
+        setDeliveryTooFarOpen(true);
+        return;
+      }
+      const activeCart = await ensureOpenCart();
+      if (!activeCart) return;
+      const itemCount = selectedLines.reduce((sum, ln) => sum + (ln.quantity || 1), 0);
+      try {
+        const updated = await addDeliveryMutation.mutateAsync({
+          cartId: activeCart.id,
+          tier: deliveryTier,
+          customer_name: deliveryName.trim(),
+          phone: deliveryPhone.trim(),
+          address: deliveryAddress.trim(),
+          items_delivered: itemsDelivered,
+          availability_id: Number(deliveryAvailabilityId),
+          item_count: itemCount,
+          is_apt: deliveryIsApt,
+          unit: deliveryUnit.trim(),
+          ...(deliveryPicked
+            ? {
+                distance_miles: deliveryPicked.distance_miles,
+                distance_mode: deliveryPicked.distance_mode,
+                lat: deliveryPicked.lat,
+                lon: deliveryPicked.lon,
+                display_name: deliveryPicked.display_name,
+              }
+            : {}),
+        });
+        commitCart(updated as unknown as Cart);
+        setDeliveryDialogOpen(false);
+        skuInputRef.current?.focus();
+      } catch (err: unknown) {
+        const detail =
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+          'Failed to add delivery';
+        enqueueSnackbar(detail, { variant: 'error' });
+      }
+    },
+    [
+      deliveryName,
+      deliveryPhone,
+      deliveryAddress,
+      deliveryLineIds,
+      deliveryMerchandiseLines,
+      deliveryAvailabilityId,
+      deliveryIsApt,
+      deliveryUnit,
+      deliveryTier,
+      deliveryPicked,
+      ensureOpenCart,
+      addDeliveryMutation,
+      commitCart,
+      enqueueSnackbar,
+    ],
+  );
+
+  const handleDeliveryLinesChange = useCallback((e: SelectChangeEvent<string[]>) => {
+    const value = e.target.value;
+    const raw = typeof value === 'string' ? value.split(',') : value;
+    setDeliveryLineIds(raw.map((id) => Number(id)).filter((id) => Number.isFinite(id)));
+  }, []);
 
   const handleRemoveLine = useCallback(async (lineId: number) => {
     if (!cart) return;
@@ -498,12 +860,12 @@ export default function TerminalPage() {
         lineId: editingLineId,
         data: { quantity: newQty, description: editValues.description, unit_price: newPrice },
       });
-      setCart(updated as unknown as Cart);
+      commitCart(updated as unknown as Cart);
       setEditingLineId(null);
     } catch {
       enqueueSnackbar('Failed to update line', { variant: 'error' });
     }
-  }, [cart, editingLineId, editValues, updateLineMutation, enqueueSnackbar]);
+  }, [cart, editingLineId, editValues, updateLineMutation, commitCart, enqueueSnackbar]);
 
   const handleVoidSale = useCallback(async () => {
     if (!cart) return;
@@ -511,6 +873,7 @@ export default function TerminalPage() {
       await voidCartMutation.mutateAsync(cart.id);
       enqueueSnackbar('Sale voided', { variant: 'info' });
       setCart(null);
+      cartRef.current = null;
       setCustomer(null);
       setCashTendered('');
       setCardAmount('');
@@ -567,6 +930,7 @@ export default function TerminalPage() {
       }
 
       setCart(null);
+      cartRef.current = null;
       setCustomer(null);
       setCashTendered('');
       setCardAmount('');
@@ -818,16 +1182,33 @@ export default function TerminalPage() {
         const hasItems = cartLines.length > 0;
 
         return (
-          <Grid container spacing={3}>
-            {/* Cart panel */}
-            <Grid size={{ xs: 12, md: 7 }}>
-              <Paper sx={{ p: 2, minHeight: 320 }}>
+          <Grid
+            container
+            spacing={2}
+            sx={{ flex: 1, minHeight: 0, alignItems: 'stretch', height: '100%' }}
+          >
+            {/* Cart panel — fills leftover viewport; lines scroll; totals always pinned */}
+            <Grid size={{ xs: 12, md: 7 }} sx={{ minHeight: 0, display: 'flex', height: { md: '100%' } }}>
+              <Paper
+                sx={{
+                  p: 2,
+                  width: '100%',
+                  flex: 1,
+                  minHeight: { xs: 320, md: 0 },
+                  height: { md: '100%' },
+                  maxHeight: { xs: 'min(56dvh, 560px)', md: 'none' },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                }}
+              >
                 <Box
                   sx={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     mb: 1,
+                    flexShrink: 0,
                   }}
                 >
                   <Typography variant="h6">Cart</Typography>
@@ -855,22 +1236,42 @@ export default function TerminalPage() {
                   </Box>
                 </Box>
 
-                {!hasItems && (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ py: 4, textAlign: 'center' }}
-                  >
-                    Scan an item to begin a new sale.
-                  </Typography>
-                )}
+                <Box
+                  sx={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflowY: 'scroll',
+                    overflowX: 'hidden',
+                    scrollbarGutter: 'stable',
+                    pr: 0.5,
+                    border: 1,
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    bgcolor: 'grey.50',
+                  }}
+                >
+                  {!hasItems && (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ py: 4, textAlign: 'center' }}
+                    >
+                      Scan an item to begin a new sale.
+                    </Typography>
+                  )}
 
-                {hasItems && (
-                  <>
-                    <List dense>
+                  {hasItems && (
+                    <List dense disablePadding>
                       {cartLines.map((line: CartLine) =>
                         editingLineId === line.id ? (
-                          <ListItem key={line.id} sx={{ flexWrap: 'wrap', gap: 1, py: 1 }}>
+                          <ListItem
+                            key={line.id}
+                            ref={(el) => {
+                              if (el) lineElRefs.current.set(line.id, el);
+                              else lineElRefs.current.delete(line.id);
+                            }}
+                            sx={{ flexWrap: 'wrap', gap: 1, py: 1 }}
+                          >
                             <Box sx={{ display: 'flex', gap: 1, width: '100%', alignItems: 'center' }}>
                               <TextField
                                 size="small"
@@ -925,6 +1326,10 @@ export default function TerminalPage() {
                         ) : (
                           <ListItem
                             key={line.id}
+                            ref={(el) => {
+                              if (el) lineElRefs.current.set(line.id, el);
+                              else lineElRefs.current.delete(line.id);
+                            }}
                             secondaryAction={
                               <Box sx={{ display: 'flex', gap: 0.5 }}>
                                 <IconButton
@@ -958,7 +1363,16 @@ export default function TerminalPage() {
                                   <Typography component="span" sx={{ fontWeight: 500 }}>
                                     {line.description}
                                   </Typography>
-                                  {line.item == null && (
+                                  {line.line_kind === 'discount' && (
+                                    <Chip size="small" label="Discount" color="warning" sx={{ height: 22 }} />
+                                  )}
+                                  {line.line_kind === 'delivery' && (
+                                    <Chip size="small" label="Delivery" color="info" sx={{ height: 22 }} />
+                                  )}
+                                  {(line.line_kind === 'manual' ||
+                                    (line.item == null &&
+                                      line.line_kind !== 'discount' &&
+                                      line.line_kind !== 'delivery')) && (
                                     <Chip
                                       size="small"
                                       label="Pink tag"
@@ -971,7 +1385,11 @@ export default function TerminalPage() {
                                   )}
                                 </Box>
                               }
-                              secondary={`${line.quantity} × ${formatCurrency(line.unit_price)}`}
+                              secondary={
+                                line.line_kind === 'delivery' && line.meta
+                                  ? `${line.quantity} × ${formatCurrency(line.unit_price)} · ${String(line.meta.phone ?? '')} · ${String(line.meta.address ?? '')}${line.meta.is_apt ? ` Apt ${String(line.meta.unit ?? '')}` : ''}`
+                                  : `${line.quantity} × ${formatCurrency(line.unit_price)}`
+                              }
                               slotProps={{ primary: { component: 'div' } }}
                             />
                             <Typography variant="body2" sx={{ ml: 1, mr: 6 }}>
@@ -981,73 +1399,178 @@ export default function TerminalPage() {
                         ),
                       )}
                     </List>
-                    <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 2, mt: 1 }}>
-                      <Stack spacing={0.5}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography color="text.secondary">Subtotal</Typography>
-                          <Typography>{formatCurrency(cart?.subtotal)}</Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography color="text.secondary">Tax</Typography>
-                          <Typography>{formatCurrency(cart?.tax_amount)}</Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography fontWeight={700} variant="subtitle1">
-                            Total
-                          </Typography>
-                          <Typography fontWeight={700} variant="subtitle1">
-                            {formatCurrency(cart?.total)}
-                          </Typography>
-                        </Box>
-                      </Stack>
+                  )}
+                </Box>
+
+                <Box
+                  sx={{
+                    borderTop: 1,
+                    borderColor: 'divider',
+                    pt: 1.5,
+                    mt: 1.5,
+                    flexShrink: 0,
+                  }}
+                >
+                  <Stack spacing={0.5}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography color="text.secondary">Subtotal</Typography>
+                      <Typography>{formatCurrency(cart?.subtotal ?? 0)}</Typography>
                     </Box>
-                  </>
-                )}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography color="text.secondary">Tax</Typography>
+                      <Typography>{formatCurrency(cart?.tax_amount ?? 0)}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography fontWeight={700} variant="h6">
+                        Total
+                      </Typography>
+                      <Typography fontWeight={700} variant="h6">
+                        {formatCurrency(cart?.total ?? 0)}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Box>
               </Paper>
             </Grid>
 
             {/* Scan + payment panel */}
-            <Grid size={{ xs: 12, md: 5 }}>
-              <Paper sx={{ p: 2, mb: 2 }}>
+            <Grid
+              size={{ xs: 12, md: 5 }}
+              sx={{ minHeight: 0, display: 'flex', flexDirection: 'column', height: { md: '100%' } }}
+            >
+              <Paper sx={{ p: 2, mb: 2, flexShrink: 0 }}>
                 <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                   Add item
                 </Typography>
-                <Stack spacing={1}>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <TextField
-                      inputRef={skuInputRef}
-                      fullWidth
-                      size="small"
-                      placeholder="Scan or type SKU (or CUS-XXXX)"
-                      value={skuInput}
-                      onChange={(e) => setSkuInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleScanInput()}
-                      autoFocus
-                    />
-                    <Button
-                      variant="contained"
-                      startIcon={<Search />}
-                      onClick={handleScanInput}
-                      disabled={
-                        !skuInput.trim() || addItemMutation.isPending || createCartMutation.isPending
-                      }
-                    >
-                      Add
-                    </Button>
-                  </Box>
-                  <Button
-                    variant="outlined"
+                <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
+                  <TextField
+                    inputRef={skuInputRef}
                     fullWidth
                     size="small"
+                    placeholder="Scan or type SKU (or CUS-XXXX)"
+                    value={skuInput}
+                    onChange={(e) => setSkuInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleScanInput()}
+                    autoFocus
+                  />
+                  <Button
+                    variant="contained"
+                    startIcon={<Search />}
+                    onClick={handleScanInput}
+                    disabled={
+                      !skuInput.trim() || addItemMutation.isPending || createCartMutation.isPending
+                    }
+                  >
+                    Add
+                  </Button>
+                </Box>
+
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                    gap: 1,
+                  }}
+                >
+                  <Button
                     onClick={handleOpenUnscannableDialog}
                     disabled={addManualLineMutation.isPending}
+                    sx={{
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.75,
+                      py: 1.5,
+                      px: 1,
+                      minHeight: 96,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      border: '2px solid',
+                      borderColor: 'rgba(233, 30, 99, 0.45)',
+                      bgcolor: 'rgba(233, 30, 99, 0.08)',
+                      color: '#ad1457',
+                      '&:hover': {
+                        bgcolor: 'rgba(233, 30, 99, 0.16)',
+                        borderColor: '#c2185b',
+                      },
+                    }}
                   >
-                    Unscannable item
+                    <Sell sx={{ fontSize: 28 }} />
+                    <Typography variant="subtitle2" fontWeight={700} lineHeight={1.15}>
+                      Pink tag
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.85, lineHeight: 1.1 }}>
+                      Unscannable
+                    </Typography>
                   </Button>
-                </Stack>
+
+                  <Button
+                    onClick={handleOpenDiscountDialog}
+                    disabled={addDiscountMutation.isPending}
+                    sx={{
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.75,
+                      py: 1.5,
+                      px: 1,
+                      minHeight: 96,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      border: '2px solid',
+                      borderColor: 'warning.light',
+                      bgcolor: 'rgba(237, 108, 2, 0.08)',
+                      color: 'warning.dark',
+                      '&:hover': {
+                        bgcolor: 'rgba(237, 108, 2, 0.16)',
+                        borderColor: 'warning.main',
+                      },
+                    }}
+                  >
+                    <Percent sx={{ fontSize: 28 }} />
+                    <Typography variant="subtitle2" fontWeight={700} lineHeight={1.15}>
+                      Discount
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.85, lineHeight: 1.1 }}>
+                      Store credit
+                    </Typography>
+                  </Button>
+
+                  <Button
+                    onClick={handleOpenDeliveryDialog}
+                    disabled={addDeliveryMutation.isPending}
+                    sx={{
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.75,
+                      py: 1.5,
+                      px: 1,
+                      minHeight: 96,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      border: '2px solid',
+                      borderColor: 'info.light',
+                      bgcolor: 'rgba(2, 136, 209, 0.08)',
+                      color: 'info.dark',
+                      '&:hover': {
+                        bgcolor: 'rgba(2, 136, 209, 0.16)',
+                        borderColor: 'info.main',
+                      },
+                    }}
+                  >
+                    <LocalShipping sx={{ fontSize: 28 }} />
+                    <Typography variant="subtitle2" fontWeight={700} lineHeight={1.15}>
+                      Delivery
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.85, lineHeight: 1.1 }}>
+                      $50 / $75
+                    </Typography>
+                  </Button>
+                </Box>
               </Paper>
 
-              <Paper sx={{ p: 2 }}>
+              <Paper sx={{ p: 2, flex: 1, minHeight: 0 }}>
                 <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                   Payment
                 </Typography>
@@ -1176,8 +1699,9 @@ export default function TerminalPage() {
   }
 
   return (
-    <Box>
+    <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <PageHeader
+        dense
         title="POS Terminal"
         subtitle={deviceLabel}
         action={
@@ -1201,7 +1725,9 @@ export default function TerminalPage() {
         }
       />
 
-      {renderContent()}
+      <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {renderContent()}
+      </Box>
 
       {/* Open drawer dialog (register mode) */}
       <Dialog
@@ -1277,7 +1803,7 @@ export default function TerminalPage() {
                   cartId: cart.id,
                   sourceItemId: soldScanDialog.itemId,
                 });
-                setCart(updated as unknown as Cart);
+                commitCart(updated as unknown as Cart);
                 setSoldScanDialog(null);
                 enqueueSnackbar('New item created and added to cart', { variant: 'success' });
               } catch {
@@ -1342,6 +1868,349 @@ export default function TerminalPage() {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      <Dialog
+        open={discountDialogOpen}
+        onClose={() => {
+          setDiscountDialogOpen(false);
+          skuInputRef.current?.focus();
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <form onSubmit={handleSubmitDiscount}>
+          <DialogTitle>Discount / store credit</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                autoFocus
+                label="Amount"
+                type="number"
+                required
+                value={discountAmount}
+                onChange={(e) => setDiscountAmount(e.target.value)}
+                slotProps={{ input: { inputProps: { min: 0.01, step: 0.01 } } }}
+                helperText="Applied as a negative line (in-store credit from returns)."
+              />
+              <TextField
+                label="Reason"
+                value={discountReason}
+                onChange={(e) => setDiscountReason(e.target.value)}
+                fullWidth
+              />
+              <FormControl fullWidth size="small">
+                <InputLabel>Apply to</InputLabel>
+                <Select
+                  label="Apply to"
+                  value={discountTargetLineId === '' ? '' : String(discountTargetLineId)}
+                  onChange={(e) =>
+                    setDiscountTargetLineId(e.target.value === '' ? '' : Number(e.target.value))
+                  }
+                >
+                  <MenuItem value="">Entire cart</MenuItem>
+                  {(cart?.lines ?? [])
+                    .filter(
+                      (ln) =>
+                        ln.line_kind !== 'discount' &&
+                        ln.line_kind !== 'delivery',
+                    )
+                    .map((ln) => (
+                      <MenuItem key={ln.id} value={String(ln.id)}>
+                        {ln.description} ({formatCurrency(ln.line_total)})
+                      </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              type="button"
+              onClick={() => {
+                setDiscountDialogOpen(false);
+                skuInputRef.current?.focus();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="contained" disabled={addDiscountMutation.isPending}>
+              {addDiscountMutation.isPending ? 'Adding…' : 'Add discount'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={deliveryDialogOpen}
+        onClose={() => {
+          setDeliveryDialogOpen(false);
+          skuInputRef.current?.focus();
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <form onSubmit={handleSubmitDelivery}>
+          <DialogTitle>Delivery</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                autoFocus
+                label="Name"
+                required
+                value={deliveryName}
+                onChange={(e) => setDeliveryName(e.target.value)}
+                fullWidth
+              />
+              <TextField
+                label="Phone"
+                required
+                value={deliveryPhone}
+                onChange={(e) => setDeliveryPhone(e.target.value)}
+                fullWidth
+              />
+              <FormControl fullWidth required disabled={deliveryMerchandiseLines.length === 0}>
+                <InputLabel id="delivery-items-label">What is being delivered</InputLabel>
+                <Select
+                  labelId="delivery-items-label"
+                  multiple
+                  value={deliveryLineIds.map(String)}
+                  onChange={handleDeliveryLinesChange}
+                  input={<OutlinedInput label="What is being delivered" />}
+                  renderValue={(selected) => {
+                    const ids = new Set(selected);
+                    return deliveryMerchandiseLines
+                      .filter((ln) => ids.has(String(ln.id)))
+                      .map((ln) => ln.description)
+                      .join(', ');
+                  }}
+                >
+                  {deliveryMerchandiseLines.length === 0 ? (
+                    <MenuItem value="" disabled>
+                      Add merchandise to the cart first
+                    </MenuItem>
+                  ) : (
+                    deliveryMerchandiseLines.map((ln) => (
+                      <MenuItem key={ln.id} value={String(ln.id)}>
+                        <Checkbox checked={deliveryLineIds.includes(ln.id)} />
+                        <ListItemText
+                          primary={ln.description}
+                          secondary={`${ln.quantity} × ${formatCurrency(ln.unit_price)}`}
+                        />
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth required>
+                <InputLabel id="delivery-date-label">Delivery date</InputLabel>
+                <Select
+                  labelId="delivery-date-label"
+                  label="Delivery date"
+                  value={deliveryAvailabilityId === '' ? '' : String(deliveryAvailabilityId)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setDeliveryAvailabilityId(v === '' ? '' : Number(v));
+                  }}
+                  disabled={deliverySlotsLoading}
+                >
+                  {upcomingDeliverySlots.length === 0 ? (
+                    <MenuItem value="" disabled>
+                      {deliverySlotsLoading
+                        ? 'Loading dates…'
+                        : 'No dates set — add them on Deliveries'}
+                    </MenuItem>
+                  ) : (
+                    upcomingDeliverySlots.map((slot) => {
+                      const start = String(slot.time_start).slice(0, 5);
+                      const end = String(slot.time_end).slice(0, 5);
+                      const who = slot.assigned_to ? ` · ${slot.assigned_to}` : '';
+                      const load = `${slot.delivery_count} del / ${slot.items_booked} items`;
+                      return (
+                        <MenuItem key={slot.id} value={String(slot.id)}>
+                          {slot.date} {start}–{end} ({slot.crew_size}p){who} — {load}
+                        </MenuItem>
+                      );
+                    })
+                  )}
+                </Select>
+              </FormControl>
+
+              <TextField
+                label="Address"
+                required
+                value={deliveryAddress}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setDeliveryAddress(next);
+                  setDeliveryPicked(null);
+                  scheduleDeliveryAddressSearch(next);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (deliverySuggestTimerRef.current) {
+                      clearTimeout(deliverySuggestTimerRef.current);
+                    }
+                    void runDeliveryAddressSearch(deliveryAddress);
+                  }
+                }}
+                fullWidth
+                helperText="Type an address (pause or Enter) to look up distance to Eco-Thrift."
+                slotProps={{
+                  input: {
+                    endAdornment: deliverySuggestLoading ? (
+                      <CircularProgress color="inherit" size={18} />
+                    ) : undefined,
+                  },
+                }}
+              />
+
+              {deliverySuggestError && (
+                <Alert severity="warning" onClose={() => setDeliverySuggestError(null)}>
+                  {deliverySuggestError}
+                </Alert>
+              )}
+
+              {deliverySuggestions.length > 0 && (
+                <Paper variant="outlined" sx={{ maxHeight: 220, overflow: 'auto' }}>
+                  <List dense disablePadding>
+                    {deliverySuggestions.map((s) => (
+                      <ListItemButton
+                        key={`${s.lat},${s.lon},${s.display_name}`}
+                        onClick={() => handlePickDeliverySuggestion(s)}
+                      >
+                        <ListItemText
+                          primary={s.display_name}
+                          secondary={
+                            <Typography
+                              component="span"
+                              variant="body2"
+                              color={s.too_far ? 'error' : 'text.secondary'}
+                            >
+                              {s.too_far
+                                ? `${s.distance_miles} mi — too far for delivery`
+                                : `${s.distance_miles} mi ${s.distance_mode === 'driving' ? 'driving' : 'straight-line'} → ${s.tier === '5mi' ? '$50' : '$75'}`}
+                            </Typography>
+                          }
+                        />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                </Paper>
+              )}
+
+              {deliveryPicked && !deliveryPicked.too_far && (
+                <Alert severity="success">
+                  {deliveryPicked.distance_miles} miles{' '}
+                  {deliveryPicked.distance_mode === 'driving' ? 'driving' : 'straight-line'} from
+                  store. Fee set to{' '}
+                  {deliveryPicked.tier === '5mi' ? '$50 (5 mi or less)' : '$75 (5–10 mi)'}.
+                </Alert>
+              )}
+
+              <FormControl>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  Fee
+                </Typography>
+                <RadioGroup
+                  row
+                  value={deliveryTier}
+                  onChange={(e) => setDeliveryTier(e.target.value as '5mi' | '10mi')}
+                >
+                  <FormControlLabel value="5mi" control={<Radio />} label="$50 · 5 miles or less" />
+                  <FormControlLabel value="10mi" control={<Radio />} label="$75 · 5 to 10 miles" />
+                </RadioGroup>
+              </FormControl>
+
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={deliveryIsApt}
+                      onChange={(e) => setDeliveryIsApt(e.target.checked)}
+                    />
+                  }
+                  label="Apt?"
+                />
+                <TextField
+                  label="Unit #"
+                  value={deliveryUnit}
+                  onChange={(e) => setDeliveryUnit(e.target.value)}
+                  disabled={!deliveryIsApt}
+                  sx={{ flex: 1 }}
+                  required={deliveryIsApt}
+                />
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Customer policy (warranty + delivery rules): open Appliance policy from Cashier nav
+                or{' '}
+                <Box
+                  component="a"
+                  href="/pos/appliance-policy.html"
+                  target="_blank"
+                  rel="noreferrer"
+                  sx={{ color: 'primary.main' }}
+                >
+                  print the bilingual sheet
+                </Box>
+                .
+              </Typography>
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              type="button"
+              onClick={() => {
+                setDeliveryDialogOpen(false);
+                skuInputRef.current?.focus();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={
+                addDeliveryMutation.isPending ||
+                Boolean(deliveryPicked?.too_far) ||
+                !deliveryAvailabilityId ||
+                upcomingDeliverySlots.length === 0 ||
+                deliveryLineIds.length === 0
+              }
+            >
+              {addDeliveryMutation.isPending ? 'Adding…' : 'Add delivery'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={deliveryTooFarOpen}
+        onClose={() => setDeliveryTooFarOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Too far for delivery</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            That address is about{' '}
+            <strong>{deliveryTooFarMiles ?? 'more than 10'}</strong> miles from Eco-Thrift
+            (8425 West Center Road). We only deliver within 10 miles.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setDeliveryTooFarOpen(false);
+              setDeliveryPicked(null);
+            }}
+          >
+            OK
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Void sale confirmation */}

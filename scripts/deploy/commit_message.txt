@@ -1,9 +1,9 @@
-feat: Restorations hub + TARS guided-decision MVP (v2.49.0)
+feat: POS delivery board, Online Sales workspace, TARS cockpit (v2.50.0)
 
-- Add /inventory/restorations TO setup and FROM desk (Worked + Untouched)
-- Soften Processing restoration dispatch; navigate to TO setup with Back
-- Extend returns API desk badges; mark-handled accepts untouched
-- Ship Phase 1 Guided decision contracts on /restoration/tars
-- Next (initiative): Decision Wizard UX D/F → A+ before Phase 2 catalogs
+- POS discount/delivery fees, printables, Deliveries scheduling + Maps route URL
+- Online Sales Listing Studio / holds / Slot C nav; public hold request
+- TARS Item Cockpit tool shelf; Restorations valuation requests
 
+See .ai/initiatives/pos_discount_and_delivery.md
+See .ai/initiatives/online_sales_workspace.md
 See .ai/initiatives/tars_full_instruction_wizard_guidance.md

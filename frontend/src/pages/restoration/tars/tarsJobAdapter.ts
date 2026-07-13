@@ -194,9 +194,15 @@ export function myActiveBenchRestorationJob(
   let best: RestorationJobDTO | null = null;
   let bestStarted = 0;
   for (const job of benchJobs) {
-    if (job.stage !== 'bench' || !job.timer_started_at || job.timer_started_by_id !== userId) continue;
-    const started = new Date(job.timer_started_at).getTime();
-    if (!Number.isFinite(started)) continue;
+    const owned =
+      job.bench_owner_id === userId
+      || (job.bench_owner_id == null && job.timer_started_by_id === userId);
+    if (job.stage !== 'bench' || !owned) continue;
+    const started = new Date(job.timer_started_at ?? job.bench_started_at ?? job.updated_at).getTime();
+    if (!Number.isFinite(started)) {
+      if (best == null) best = job;
+      continue;
+    }
     if (started > bestStarted) {
       bestStarted = started;
       best = job;

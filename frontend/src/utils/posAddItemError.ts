@@ -7,11 +7,14 @@ export interface PosAddItemErrorBody {
   item_id?: number;
   sku?: string;
   title?: string;
+  reservation_id?: number;
+  can_override?: boolean;
 }
 
 export type PosAddItemErrorKind =
   | 'not_found'
   | 'already_sold'
+  | 'item_on_hold'
   | 'sku_required'
   | 'network'
   | 'unknown';
@@ -22,6 +25,8 @@ export interface ParsedPosAddItemError {
   itemId?: number;
   sku?: string;
   title?: string;
+  reservationId?: number;
+  canOverride?: boolean;
 }
 
 const FALLBACK = 'Unable to add this item. Try again or ask a lead.';
@@ -60,6 +65,19 @@ export function parsePosAddItemError(err: unknown): ParsedPosAddItemError {
       title,
     };
   }
+  if (code === 'ITEM_ON_HOLD') {
+    return {
+      kind: 'item_on_hold',
+      message:
+        detail ??
+        'Item is on an online hold. Complete matching pickup or ask a manager to override.',
+      itemId,
+      sku,
+      title,
+      reservationId: typeof data?.reservation_id === 'number' ? data.reservation_id : undefined,
+      canOverride: Boolean(data?.can_override),
+    };
+  }
   if (status === 404 || code === 'ITEM_NOT_FOUND') {
     return {
       kind: 'not_found',
@@ -87,6 +105,6 @@ export function parsePosAddItemError(err: unknown): ParsedPosAddItemError {
 export function snackbarVariantForPosAddItemError(
   kind: PosAddItemErrorKind,
 ): 'warning' | 'error' | 'info' {
-  if (kind === 'already_sold' || kind === 'sku_required') return 'warning';
+  if (kind === 'already_sold' || kind === 'sku_required' || kind === 'item_on_hold') return 'warning';
   return 'error';
 }

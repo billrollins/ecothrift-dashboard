@@ -65,7 +65,7 @@ export function TarsStudioQueueView({
         variant="contained"
         size="small"
         startIcon={<PlayArrow />}
-        disabled={busy || job.needs_setup}
+        disabled={busy}
         onClick={onCheckIn}
         sx={{
           fontWeight: 900,
@@ -73,8 +73,13 @@ export function TarsStudioQueueView({
           '&:hover': { bgcolor: studio.accentDark },
         }}
       >
-        {job.needs_setup ? 'Needs grade values' : 'Check in to workbench'}
+        {job.needs_setup ? 'Check in (values missing)' : 'Check in to workbench'}
       </Button>
+      {job.needs_setup ? (
+        <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: '#b45309', fontWeight: 700 }}>
+          Grade values incomplete — you can still open the item and request valuations.
+        </Typography>
+      ) : null}
     </StudioSurface>
   );
 }

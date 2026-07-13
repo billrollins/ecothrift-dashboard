@@ -26,7 +26,17 @@ const ITEM: TarsItem = {
 };
 
 function prepared(): TarsWorkSession {
-  return ensureDecisionSession(createEmptyWorkSession('bench'), ITEM, NOW);
+  const session = ensureDecisionSession(createEmptyWorkSession('bench'), ITEM, NOW);
+  return {
+    ...session,
+    decisionWork: {
+      ...session.decisionWork!,
+      condition: {
+        ...session.decisionWork!.condition,
+        currentGrade: 'Repairable',
+      },
+    },
+  };
 }
 
 function clearMandatory(session: TarsWorkSession): TarsWorkSession {
@@ -100,6 +110,53 @@ describe('decision gates', () => {
     const blocked = decisionGates(session);
     expect(blocked.canFinalize).toBe(false);
     expect(blocked.mandatoryBlockers).not.toHaveLength(0);
+  });
+
+  it('treats unanswered stop-outs as clear (no Stops screen)', () => {
+    let session = prepared();
+    // Fresh session defaults stop-outs to clear; wipe to unanswered to prove soft gate.
+    session = {
+      ...session,
+      decisionWork: {
+        ...session.decisionWork!,
+        stopOut: {
+          responses: [
+            { stopOutId: 'legal_prohibited_sale', response: 'unanswered', notes: '', respondedAt: null },
+            { stopOutId: 'handling_stop', response: 'unanswered', notes: '', respondedAt: null },
+            { stopOutId: 'truthful_disclosure', response: 'unanswered', notes: '', respondedAt: null },
+          ],
+          blocked: false,
+          blockedStopOutIds: [],
+        },
+      },
+    };
+    session = selectDecisionOutcome(session, 'grade:Working', NOW);
+    session = {
+      ...session,
+      decisionWork: {
+        ...session.decisionWork!,
+        selection: {
+          ...session.decisionWork!.selection,
+          reason: 'Sell as-is',
+          overrideReason: 'Tests deferred',
+        },
+        tests: session.decisionWork!.tests.map((test) => ({ ...test, result: 'skipped' as const })),
+      },
+    };
+    expect(decisionGates(session).mandatoryBlockers).toEqual([]);
+    expect(decisionGates(session).canFinalize).toBe(true);
+  });
+
+  it('seeds Basic Electronics pack for electronic categories', () => {
+    const electronics = ensureDecisionSession(
+      createEmptyWorkSession('bench'),
+      { ...ITEM, category: 'Electronics', name: 'Bluetooth speaker' },
+      NOW,
+    );
+    const catalogIds = electronics.decisionWork!.tests.map((test) => test.catalogTestId);
+    expect(catalogIds).toContain('elec_turns_on');
+    expect(catalogIds).toContain('elec_visual_inspection');
+    expect(catalogIds).toContain('elec_primary_function');
   });
 });
 

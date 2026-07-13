@@ -188,7 +188,7 @@ export default function ProductDetailPage() {
                   )
                 }
               >
-                Add to cart
+                Add to hold list
               </button>
             </div>
           ) : (
@@ -200,8 +200,8 @@ export default function ProductDetailPage() {
           )}
 
           <div className="pickupnote" style={{ marginTop: 22 }}>
-            <b>Free in-store pickup</b> at {STORE.retail.address}. Add to cart and we&rsquo;ll follow
-            up to confirm your order.
+            <b>Request a hold</b> — pay and pick up at {STORE.retail.address}. No shipping, delivery,
+            or online payment. {listing.hold_policy || ''}
           </div>
         </div>
       </div>

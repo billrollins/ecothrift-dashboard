@@ -1,20 +1,27 @@
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import {
+  Badge,
   Box,
   Button,
   CircularProgress,
+  List,
+  ListItemButton,
+  ListItemText,
   Paper,
   Stack,
   Tab,
   Tabs,
   Typography,
 } from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getRestorationJob } from '../../../api/inventory.api';
 import { PageHeader } from '../../../components/common/PageHeader';
-import { useRestorationsFromDesk } from '../../../hooks/useRestorationBench';
+import {
+  useRestorationsFromDesk,
+  useValuationPendingJobs,
+} from '../../../hooks/useRestorationBench';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { RestorationsFromDecisionPanel } from './RestorationsFromDecisionPanel';
 import { RestorationsFromList } from './RestorationsFromList';
@@ -34,6 +41,7 @@ function safeBackPath(from: string | null): string | null {
 
 export default function RestorationsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const lane = parseLane(searchParams.get('lane'));
   const jobIdParam = searchParams.get('job');
@@ -41,6 +49,9 @@ export default function RestorationsPage() {
   const backPath = safeBackPath(searchParams.get('from'));
 
   const { data: fromJobs = [], isLoading: fromLoading } = useRestorationsFromDesk();
+  const { data: valuationPending = [], isLoading: valuationLoading } = useValuationPendingJobs({
+    enabled: lane === 'to',
+  });
   const [selectedFromId, setSelectedFromId] = useState<number | null>(null);
 
   const toJobQuery = useQuery({
@@ -72,7 +83,6 @@ export default function RestorationsPage() {
     const params = new URLSearchParams(searchParams);
     params.set('lane', next);
     if (next === 'from') {
-      // Keep job if it is a FROM row; otherwise clear TO-only job focus.
       if (jobId != null && !fromJobs.some((j) => j.id === jobId)) {
         params.delete('job');
       }
@@ -84,6 +94,13 @@ export default function RestorationsPage() {
     setSelectedFromId(job.id);
     const params = new URLSearchParams(searchParams);
     params.set('lane', 'from');
+    params.set('job', String(job.id));
+    setSearchParams(params, { replace: true });
+  }
+
+  function handleSelectToJob(job: RestorationJobDTO) {
+    const params = new URLSearchParams(searchParams);
+    params.set('lane', 'to');
     params.set('job', String(job.id));
     setSearchParams(params, { replace: true });
   }
@@ -116,7 +133,20 @@ export default function RestorationsPage() {
         sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 40 }}
       >
         <Tab value="from" label={`FROM (${fromJobs.length})`} sx={{ minHeight: 40, fontWeight: 800 }} />
-        <Tab value="to" label="TO setup" sx={{ minHeight: 40, fontWeight: 800 }} />
+        <Tab
+          value="to"
+          label={
+            <Badge
+              color="warning"
+              badgeContent={valuationPending.length || 0}
+              invisible={!valuationPending.length}
+              sx={{ '& .MuiBadge-badge': { fontWeight: 900 } }}
+            >
+              <Box component="span" sx={{ pr: valuationPending.length ? 1.25 : 0 }}>TO setup</Box>
+            </Badge>
+          }
+          sx={{ minHeight: 40, fontWeight: 800 }}
+        />
       </Tabs>
 
       {lane === 'from' ? (
@@ -156,30 +186,90 @@ export default function RestorationsPage() {
           </Box>
         )
       ) : (
-        <Paper variant="outlined" sx={{ p: 1.5, maxWidth: 920 }}>
-          {jobId == null ? (
-            <Box sx={{ py: 3 }}>
-              <Typography color="text.secondary">
-                Open TO setup from Processing after sending an item to restoration, or pass{' '}
-                <code>?lane=to&amp;job=&lt;id&gt;</code>.
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: 'minmax(240px, 32%) 1fr' },
+            gap: 1.25,
+          }}
+        >
+          <Paper variant="outlined" sx={{ overflow: 'auto', maxHeight: { xs: 280, md: 'calc(100vh - 220px)' } }}>
+            <Box sx={{ px: 1.25, py: 1, borderBottom: 1, borderColor: 'divider' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                Valuation requests ({valuationPending.length})
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                TARS asked Processing to fill missing grade values.
               </Typography>
             </Box>
-          ) : toJobQuery.isLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-              <CircularProgress size={32} />
-            </Box>
-          ) : toJobQuery.data ? (
-            <RestorationsToSetupPanel
-              job={toJobQuery.data}
-              onSaved={(saved) => {
-                // Keep query cache warm for Back / refresh.
-                void saved;
-              }}
-            />
-          ) : (
-            <Typography color="error">Could not load restoration job #{jobId}.</Typography>
-          )}
-        </Paper>
+            {valuationLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <CircularProgress size={28} />
+              </Box>
+            ) : valuationPending.length ? (
+              <List dense disablePadding>
+                {valuationPending.map((job) => {
+                  const selected = job.id === jobId;
+                  const grades = Array.isArray(job.valuation_requested_grades)
+                    ? job.valuation_requested_grades.join(', ')
+                    : '';
+                  return (
+                    <ListItemButton
+                      key={job.id}
+                      selected={selected}
+                      onClick={() => handleSelectToJob(job)}
+                      sx={{
+                        borderLeft: selected ? 4 : 0,
+                        borderColor: 'warning.main',
+                        bgcolor: selected ? 'warning.50' : undefined,
+                      }}
+                    >
+                      <ListItemText
+                        primary={`${job.sku ?? '—'} · ${job.name}`}
+                        secondary={`${job.stage}${grades ? ` · need ${grades}` : ''}`}
+                        primaryTypographyProps={{ fontWeight: 800, fontSize: 13 }}
+                        secondaryTypographyProps={{ fontSize: 12 }}
+                      />
+                    </ListItemButton>
+                  );
+                })}
+              </List>
+            ) : (
+              <Box sx={{ p: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  No open valuation requests.
+                </Typography>
+              </Box>
+            )}
+          </Paper>
+
+          <Paper variant="outlined" sx={{ p: 1.5, overflow: 'auto', maxHeight: { xs: 'none', md: 'calc(100vh - 220px)' } }}>
+            {jobId == null ? (
+              <Box sx={{ py: 3 }}>
+                <Typography color="text.secondary">
+                  Select a valuation request, or open TO setup from Processing after sending an item (
+                  <code>?lane=to&amp;job=&lt;id&gt;</code>).
+                </Typography>
+              </Box>
+            ) : toJobQuery.isLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                <CircularProgress size={32} />
+              </Box>
+            ) : toJobQuery.data ? (
+              <RestorationsToSetupPanel
+                job={toJobQuery.data}
+                onSaved={(saved) => {
+                  queryClient.setQueryData(['restoration-job', saved.id], saved);
+                  void queryClient.invalidateQueries({ queryKey: ['restoration-jobs', 'valuation-pending'] });
+                }}
+              />
+            ) : (
+              <Typography color="error">Could not load restoration job #{jobId}.</Typography>
+            )}
+          </Paper>
+        </Box>
       )}
     </Box>
   );

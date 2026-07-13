@@ -3,25 +3,32 @@ import {
   adjustRestorationJobTimer,
   checkInRestorationJob,
   completeRestorationJob,
+  createRestorationTimelineEvent,
   getRestorationPartsRequest,
   listRestorationJobs,
+  listRestorationJobTimeline,
   listRestorationPartsRequests,
   listRestorationReturns,
   markRestorationJobHandled,
+  markRestorationJobMeaningfulAction,
   moveRestorationJobBackToQueue,
   patchRestorationJobWorkSession,
   pauseRestorationJobTimer,
   receiveRestorationPartsRequest,
   recordRestorationPartsOrder,
+  requestRestorationJobValuation,
+  reviseRestorationTimelineEvent,
   startRestorationJobTimer,
   submitRestorationPartsRequest,
   upsertRestorationPartsRequestFromJob,
+  voidRestorationTimelineEvent,
   holdRestorationJob,
 } from '../api/inventory.api';
 import type {
   RestorationJobDTO,
   RestorationJobDonePayload,
   RestorationJobHoldPayload,
+  RestorationTimelineEventType,
   RestorationPartsOrderCreatePayload,
   RestorationPartsRequestDTO,
 } from '../types/inventory.types';
@@ -58,6 +65,7 @@ export const restorationPartsRequestsQueryKey = (status?: string) =>
 export function invalidateBenchJobs(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ['tars-bench-jobs'] });
   queryClient.invalidateQueries({ queryKey: ['restoration-queue-jobs'] });
+  queryClient.invalidateQueries({ queryKey: ['restoration-timeline'] });
 }
 
 function patchTarsBenchJobInCache(
@@ -119,6 +127,7 @@ export function useTarsBenchJobs() {
       for (const job of merged) byId.set(job.id, job);
       return expandRestorationJobsForTars(Array.from(byId.values()));
     },
+    refetchInterval: 10_000,
   });
 }
 
@@ -221,29 +230,48 @@ export function useStartRestorationJobTimer() {
       const { data } = await startRestorationJobTimer(id);
       return data;
     },
-    onSuccess: (data) => patchTarsBenchJobInCache(queryClient, data),
+    onSuccess: (data) => {
+      patchTarsBenchJobInCache(queryClient, data);
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', data.id] });
+    },
   });
 }
 
 export function usePauseRestorationJobTimer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => {
-      const { data } = await pauseRestorationJobTimer(id);
+    mutationFn: async (input: number | { id: number; reason?: string }) => {
+      const id = typeof input === 'number' ? input : input.id;
+      const reason = typeof input === 'number' ? 'manual' : input.reason;
+      const { data } = await pauseRestorationJobTimer(id, reason);
       return data;
     },
-    onSuccess: (data) => patchTarsBenchJobInCache(queryClient, data),
+    onSuccess: (data) => {
+      patchTarsBenchJobInCache(queryClient, data);
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', data.id] });
+    },
   });
 }
 
 export function useAdjustRestorationJobTimer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, activeSeconds }: { id: number; activeSeconds: number }) => {
-      const { data } = await adjustRestorationJobTimer(id, activeSeconds);
+    mutationFn: async ({
+      id,
+      activeSeconds,
+      reason,
+    }: {
+      id: number;
+      activeSeconds: number;
+      reason?: string;
+    }) => {
+      const { data } = await adjustRestorationJobTimer(id, activeSeconds, reason);
       return data;
     },
-    onSuccess: (data) => patchTarsBenchJobInCache(queryClient, data),
+    onSuccess: (data) => {
+      patchTarsBenchJobInCache(queryClient, data);
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', data.id] });
+    },
   });
 }
 
@@ -274,7 +302,144 @@ export function usePatchRestorationJobWorkSession() {
       const { data } = await patchRestorationJobWorkSession(id, workSession);
       return data;
     },
+    onSuccess: (data) => {
+      patchTarsBenchJobInCache(queryClient, data);
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', data.id] });
+    },
+  });
+}
+
+export function useMarkRestorationJobMeaningfulAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, label }: { id: number; label: string }) => {
+      const { data } = await markRestorationJobMeaningfulAction(id, label);
+      return data;
+    },
     onSuccess: (data) => patchTarsBenchJobInCache(queryClient, data),
+  });
+}
+
+export function useRestorationJobTimeline(jobId: number | null) {
+  return useQuery({
+    queryKey: ['restoration-timeline', jobId] as const,
+    queryFn: async () => {
+      if (jobId == null) return [];
+      const { data } = await listRestorationJobTimeline(jobId);
+      return data;
+    },
+    enabled: jobId != null,
+    refetchInterval: 5_000,
+  });
+}
+
+export function useCreateRestorationTimelineEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      eventType,
+      entityId,
+      payload,
+    }: {
+      jobId: number;
+      eventType: RestorationTimelineEventType;
+      entityId: string;
+      payload: Record<string, unknown>;
+    }) => {
+      const { data } = await createRestorationTimelineEvent(jobId, {
+        event_type: eventType,
+        entity_id: entityId,
+        payload,
+      });
+      return data;
+    },
+    onSuccess: (_data, { jobId }) => {
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', jobId] });
+      invalidateBenchJobs(queryClient);
+    },
+  });
+}
+
+export function useReviseRestorationTimelineEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      eventId,
+      payload,
+    }: {
+      jobId: number;
+      eventId: number;
+      payload: Record<string, unknown>;
+    }) => {
+      const { data } = await reviseRestorationTimelineEvent(jobId, eventId, payload);
+      return data;
+    },
+    onSuccess: (_data, { jobId }) => {
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', jobId] });
+      invalidateBenchJobs(queryClient);
+    },
+  });
+}
+
+export function useVoidRestorationTimelineEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      eventId,
+      reason,
+    }: {
+      jobId: number;
+      eventId: number;
+      reason: string;
+    }) => {
+      const { data } = await voidRestorationTimelineEvent(jobId, eventId, reason);
+      return data;
+    },
+    onSuccess: (_data, { jobId }) => {
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', jobId] });
+      invalidateBenchJobs(queryClient);
+    },
+  });
+}
+
+export function useRequestRestorationJobValuation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      grades,
+      notes,
+    }: {
+      id: number;
+      grades?: string[];
+      notes?: string;
+    }) => {
+      const { data } = await requestRestorationJobValuation(id, { grades, notes });
+      return data;
+    },
+    onSuccess: (data) => {
+      patchTarsBenchJobInCache(queryClient, data);
+      queryClient.invalidateQueries({ queryKey: ['restoration-jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['restoration-job', data.id] });
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', data.id] });
+    },
+  });
+}
+
+export function useValuationPendingJobs(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['restoration-jobs', 'valuation-pending'],
+    queryFn: async () => {
+      const rows = await fetchAllPages((page) =>
+        listRestorationJobs({ valuation_pending: true, page, page_size: LIST_PAGE_SIZE }),
+      );
+      return rows;
+    },
+    enabled: options?.enabled ?? true,
+    refetchInterval: 15_000,
   });
 }
 
@@ -316,6 +481,7 @@ export function useReceiveRestorationPartsRequest() {
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['restoration-parts-requests'] });
       queryClient.invalidateQueries({ queryKey: ['restoration-parts-request', id] });
+      invalidateBenchJobs(queryClient);
     },
   });
 }
@@ -330,6 +496,7 @@ export function useSubmitRestorationPartsRequest() {
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['restoration-parts-requests'] });
       queryClient.invalidateQueries({ queryKey: ['restoration-parts-request', id] });
+      invalidateBenchJobs(queryClient);
     },
   });
 }
@@ -350,6 +517,7 @@ export function useRecordRestorationPartsOrder() {
     onSuccess: (_data, { requestId }) => {
       queryClient.invalidateQueries({ queryKey: ['restoration-parts-requests'] });
       queryClient.invalidateQueries({ queryKey: ['restoration-parts-request', requestId] });
+      invalidateBenchJobs(queryClient);
     },
   });
 }

@@ -107,6 +107,18 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Transactions',
     icon: 'inventory',
   },
+  posPrintables: {
+    id: 'posPrintables',
+    path: '/pos/printables',
+    label: 'Printables',
+    icon: 'print',
+  },
+  posDeliveries: {
+    id: 'posDeliveries',
+    path: '/pos/deliveries',
+    label: 'Deliveries',
+    icon: 'localShipping',
+  },
   auctions: {
     id: 'auctions',
     path: '/buying/auctions',
@@ -133,19 +145,58 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'tune',
     roles: ['Manager', 'Admin'],
   },
+  onlineSalesQueue: {
+    id: 'onlineSalesQueue',
+    path: '/online-sales',
+    label: 'Work queue',
+    icon: 'assignmentTurnedIn',
+    roles: ['Manager', 'Admin'],
+  },
+  onlineSalesListings: {
+    id: 'onlineSalesListings',
+    path: '/online-sales/listings',
+    label: 'Listings',
+    icon: 'storefront',
+    roles: ['Manager', 'Admin'],
+  },
+  onlineSalesInbox: {
+    id: 'onlineSalesInbox',
+    path: '/online-sales/inbox',
+    label: 'Inbox & Holds',
+    icon: 'receiptLong',
+    roles: ['Manager', 'Admin'],
+  },
+  onlineSalesMarketing: {
+    id: 'onlineSalesMarketing',
+    path: '/online-sales/marketing',
+    label: 'Marketing',
+    icon: 'article',
+    roles: ['Manager', 'Admin'],
+  },
+  onlineSalesSales: {
+    id: 'onlineSalesSales',
+    path: '/online-sales/sales',
+    label: 'Sales',
+    icon: 'accountBalance',
+    roles: ['Manager', 'Admin'],
+  },
+  /** @deprecated Redirect target kept for bookmarks — prefer onlineSalesListings. */
   webStore: {
     id: 'webStore',
     path: '/admin/web-store',
     label: 'Web store',
     icon: 'storefront',
     roles: ['Manager', 'Admin'],
+    legacy: true,
   },
+  /** @deprecated Redirect target kept for bookmarks — prefer onlineSalesInbox. */
   webOrders: {
     id: 'webOrders',
     path: '/admin/web-orders',
     label: 'Web orders',
     icon: 'receiptLong',
     roles: ['Manager', 'Admin'],
+    legacy: true,
   },
   users: {
     id: 'users',
@@ -193,6 +244,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/restoration/tars',
     label: 'TARS',
     icon: 'build',
+    openInNewWindow: true,
   },
   restorationPartsRequests: {
     id: 'restorationPartsRequests',

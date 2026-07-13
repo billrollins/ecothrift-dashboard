@@ -1,4 +1,5 @@
 import re
+import uuid
 from decimal import Decimal
 
 from django.conf import settings
@@ -8,6 +9,7 @@ from django.db import models
 from django.db.models import IntegerField, Max
 from django.db.models.functions import Cast, Substr
 from django.utils.text import slugify
+from django.utils import timezone
 
 
 class Vendor(models.Model):
@@ -965,6 +967,13 @@ class RestorationJob(models.Model):
         related_name='restoration_jobs_returned',
     )
     bench_started_at = models.DateTimeField(null=True, blank=True)
+    bench_owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_jobs_on_bench',
+    )
     timer_started_at = models.DateTimeField(null=True, blank=True)
     active_seconds = models.PositiveIntegerField(default=0)
     timer_is_running = models.BooleanField(default=False)
@@ -975,6 +984,9 @@ class RestorationJob(models.Model):
         blank=True,
         related_name='restoration_jobs_timer_running',
     )
+    last_meaningful_action_at = models.DateTimeField(null=True, blank=True)
+    last_meaningful_active_seconds = models.PositiveIntegerField(default=0)
+    last_meaningful_action_label = models.CharField(max_length=128, blank=True, default='')
     pending_reason = models.CharField(max_length=64, blank=True, default='')
     pending_notes = models.TextField(blank=True, default='')
     pending_storage_location = models.CharField(max_length=128, blank=True, default='')
@@ -1007,9 +1019,31 @@ class RestorationJob(models.Model):
         blank=True,
         related_name='restoration_jobs_processing_handled',
     )
+    # TARS → Processing valuation request (missing grade values).
+    valuation_requested_at = models.DateTimeField(null=True, blank=True)
+    valuation_requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_jobs_valuation_requested',
+    )
+    valuation_request_notes = models.TextField(blank=True, default='')
+    valuation_requested_grades = models.JSONField(default=list, blank=True)
+    valuation_fulfilled_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-updated_at', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['bench_owner'],
+                condition=models.Q(
+                    stage='bench',
+                    bench_owner__isnull=False,
+                ),
+                name='restjob_one_bench_per_owner',
+            ),
+        ]
         indexes = [
             models.Index(fields=['stage', 'updated_at']),
             models.Index(
@@ -1017,10 +1051,83 @@ class RestorationJob(models.Model):
                 name='restjob_disp_unhandled_idx',
                 condition=models.Q(processing_handled_at__isnull=True),
             ),
+            models.Index(
+                fields=['valuation_requested_at'],
+                name='restjob_valuation_pending_idx',
+                condition=models.Q(
+                    valuation_requested_at__isnull=False,
+                    valuation_fulfilled_at__isnull=True,
+                ),
+            ),
         ]
 
     def __str__(self):
         return f'RestorationJob {self.pk} stage={self.stage} check_in={self.item_check_in_id}'
+
+
+class RestorationTimelineEvent(models.Model):
+    """Append-only, attributed history for a restoration job.
+
+    Corrections create a new event that supersedes the previous event. Removal
+    voids an event in place while retaining its payload for audit.
+    """
+
+    STATUS_ACTIVE = 'active'
+    STATUS_REVISED = 'revised'
+    STATUS_VOIDED = 'voided'
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_REVISED, 'Revised'),
+        (STATUS_VOIDED, 'Voided'),
+    ]
+
+    job = models.ForeignKey(
+        RestorationJob,
+        on_delete=models.CASCADE,
+        related_name='timeline_events',
+    )
+    event_type = models.CharField(max_length=64)
+    entity_id = models.CharField(max_length=128, blank=True, default='')
+    occurred_at = models.DateTimeField(default=timezone.now)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_timeline_events',
+    )
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    supersedes = models.ForeignKey(
+        'self',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='revisions',
+    )
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_timeline_events_voided',
+    )
+    void_reason = models.TextField(blank=True, default='')
+    correlation_id = models.UUIDField(default=uuid.uuid4)
+    schema_version = models.PositiveSmallIntegerField(default=1)
+    payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['occurred_at', 'id']
+        indexes = [
+            models.Index(fields=['job', 'occurred_at', 'id'], name='rest_event_job_time_idx'),
+            models.Index(fields=['job', 'event_type', 'status'], name='rest_event_type_idx'),
+            models.Index(fields=['correlation_id'], name='rest_event_corr_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.event_type} job={self.job_id} event={self.pk}'
 
 
 class RestorationPartsRequest(models.Model):

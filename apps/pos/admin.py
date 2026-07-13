@@ -3,6 +3,7 @@ from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal,
+    DeliveryAvailability, DeliveryJob,
 )
 
 
@@ -66,3 +67,20 @@ class ReceiptAdmin(admin.ModelAdmin):
 @admin.register(RevenueGoal)
 class RevenueGoalAdmin(admin.ModelAdmin):
     list_display = ('location', 'date', 'goal_amount')
+
+
+@admin.register(DeliveryAvailability)
+class DeliveryAvailabilityAdmin(admin.ModelAdmin):
+    list_display = (
+        'date', 'time_start', 'time_end', 'crew_size', 'assigned_to', 'is_active',
+    )
+    list_filter = ('is_active', 'crew_size', 'date')
+
+
+@admin.register(DeliveryJob)
+class DeliveryJobAdmin(admin.ModelAdmin):
+    list_display = (
+        'scheduled_date', 'customer_name', 'items_delivered', 'status', 'tier', 'fee',
+    )
+    list_filter = ('status', 'scheduled_date', 'tier')
+    search_fields = ('customer_name', 'phone', 'address', 'items_delivered')

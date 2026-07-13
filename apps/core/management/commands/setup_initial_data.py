@@ -199,6 +199,16 @@ class Command(BaseCommand):
             ('store_phone', '(402) 881-9861', 'Store phone'),
             ('receipt_header', 'ECO-THRIFT', 'Text at top of receipts'),
             ('receipt_footer', 'Thank you for shopping!', 'Text at bottom of receipts'),
+            (
+                'online_sales.hours',
+                {
+                    'timezone': 'America/Chicago',
+                    'open': '09:00',
+                    'close': '18:00',
+                    'closed_weekdays': [6],
+                },
+                'Online Sales hold expiry hours (Canfield Mon–Sat 9–6, closed Sunday).',
+            ),
         ]
 
         for key, value, description in settings_data:

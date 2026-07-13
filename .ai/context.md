@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-13 (Restorations hub; TARS Wizard UX A+ next) -->
+<!-- Last updated: 2026-07-13 (v2.50.0 POS delivery board + Online Sales + TARS cockpit) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,9 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **TARS decision guardrails (active):** [`tars_full_instruction_wizard_guidance`](initiatives/tars_full_instruction_wizard_guidance.md) — Phase 0–1 complete; **Processing Restorations hub** (`/inventory/restorations`) shipped (owner: pretty good). **Next: TARS Decision Wizard UX D/F → A+** (Phase 1.5) before Phase 2 catalogs. Related parked transactional bench: [`tars_restoration_workspace`](initiatives/_archived/_pending/tars_restoration_workspace.md).
+- **Online Sales Workspace (active):** [`online_sales_workspace`](initiatives/online_sales_workspace.md) — **one-shot ship in v2.50.0** (Listing Studio, holds, POS guard, Online Sales nav). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
+- **TARS decision guardrails (active):** [`tars_full_instruction_wizard_guidance`](initiatives/tars_full_instruction_wizard_guidance.md) — Phase 0–1 complete; **Processing Restorations hub** (`/inventory/restorations`) shipped; **Item Cockpit** tool shelf in **v2.50.0**. **Next: polish cockpit / Phase 2 catalogs** as owner directs. Related parked transactional bench: [`tars_restoration_workspace`](initiatives/_archived/_pending/tars_restoration_workspace.md).
+- **POS discount + delivery (active):** [`pos_discount_and_delivery`](initiatives/pos_discount_and_delivery.md) — discount/store-credit + delivery fees, printables, **Deliveries board** + scheduling (`DeliveryAvailability` / `DeliveryJob`) in **v2.50.0**. Next: optional Directions API route optimize.
 - **Custom Label Studio (shipped):** archived [`custom_label_studio`](initiatives/_archived/_completed/custom_label_studio.md) — Admin **`/admin/label-studio`**: PDF + visual templates, variables/increment, QR/Code128, AI Create, print × N; print-server **1.4.1**. Shipped **v2.48.0**–**v2.48.2**.
 - **Floorplan builder (shipped):** archived [`floorplan_builder`](initiatives/_archived/_completed/floorplan_builder.md) — **`/floor-ops/floorplans`** editor + DB element kinds, walls/cut/print. Shipped **v2.39.0**–**v2.47.0**. Docs: **`apps/floorplan/README.md`**.
 - **Retail Quality Audit (shipped):** archived [`retail_quality_audit`](initiatives/_archived/_completed/retail_quality_audit.md) — Admin **Quality Audit** hub + mobile wizard; Super Admin editable **`QualityAuditForm`**; dashboard **Retail QA** grade. Shipped **v2.38.0** / **v2.43.0**.

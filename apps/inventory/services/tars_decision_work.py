@@ -43,6 +43,22 @@ UNIVERSAL_TEST_CATALOG: dict[str, dict[str, str]] = {
         'name': 'Included components',
         'guidance': 'Record missing parts only when they change grade, disclosure, or next action.',
     },
+    'elec_turns_on': {
+        'name': 'Turns on',
+        'guidance': 'Has power path, can test, and powers on.',
+    },
+    'elec_visual_inspection': {
+        'name': 'Passes visual inspection',
+        'guidance': 'Cosmetic damage, parts damage, completeness, accessories, box, manual.',
+    },
+    'elec_primary_function': {
+        'name': 'Verify primary function',
+        'guidance': 'Primary use case works enough to support the sale path.',
+    },
+    'universal_completeness': {
+        'name': 'Completeness check',
+        'guidance': 'Required parts / accessories present for the intended grade.',
+    },
 }
 
 # Mirror the Phase 1 frontend catalog so client-supplied economics cannot
@@ -172,6 +188,11 @@ def _normalize_test(entry: Any, index: int) -> dict[str, Any]:
     return {
         'id': item_id,
         'catalogTestId': catalog_id or None,
+        'packId': _identifier(
+            entry.get('packId'),
+            field=f'decisionWork.tests[{index}].packId',
+            required=False,
+        ) or None,
         'name': name,
         'prompt': _text(
             entry.get('prompt'),
@@ -182,6 +203,11 @@ def _normalize_test(entry: Any, index: int) -> dict[str, Any]:
         'evidence': _text(
             entry.get('evidence'),
             field=f'decisionWork.tests[{index}].evidence',
+        ),
+        'checklist': (
+            entry.get('checklist')
+            if isinstance(entry.get('checklist'), dict)
+            else {}
         ),
         'createdAt': _text(
             entry.get('createdAt'),
@@ -325,6 +351,11 @@ def _normalize_condition(raw: Any, decision: dict[str, Any]) -> dict[str, Any]:
         field='decisionWork.condition.evidence',
     )
     return {
+        'currentGrade': _text(
+            raw.get('currentGrade'),
+            field='decisionWork.condition.currentGrade',
+            limit=64,
+        ) or None,
         'condition': _text(
             raw.get('condition'),
             field='decisionWork.condition.condition',
@@ -388,9 +419,10 @@ def _outcome_block_reason(
         if isinstance(entry, dict)
     }
     for stop_id, config in MANDATORY_STOP_OUT_CATALOG.items():
-        response = responses.get(stop_id, 'unanswered')
-        if response == 'unanswered':
-            return f"{config['name']} is unanswered."
+        response = responses.get(stop_id, 'clear')
+        # Soft stop-outs: unanswered counts as clear.
+        if response in ('unanswered', 'clear', None, ''):
+            continue
         if response != 'blocked':
             continue
         if (
@@ -516,6 +548,12 @@ def _normalize_outcome(
             field=f'decisionWork.outcomes[{index}].nonviableReason',
         ),
         'estimatedMinutes': _number(estimated_minutes, '0.01'),
+        'estimatedAt': _text(
+            entry.get('estimatedAt'),
+            field=f'decisionWork.outcomes[{index}].estimatedAt',
+            limit=80,
+        ) or None,
+        'estimatedById': entry.get('estimatedById') if isinstance(entry.get('estimatedById'), int) else None,
         '_economics': economics,
     }
 
@@ -537,6 +575,7 @@ def _normalize_selection(raw: Any) -> dict[str, Any]:
         raise DecisionWorkValidationError(
             f'decisionWork.selection.saleState must be one of {sorted(SALE_STATES)}.',
         )
+    selected_by = raw.get('selectedById')
     return {
         'outcomeId': _identifier(
             raw.get('outcomeId'),
@@ -556,6 +595,7 @@ def _normalize_selection(raw: Any) -> dict[str, Any]:
             field='decisionWork.selection.selectedAt',
             limit=80,
         ) or None,
+        'selectedById': selected_by if isinstance(selected_by, int) else None,
     }
 
 
@@ -588,8 +628,11 @@ def _completion_gaps(decision: dict[str, Any]) -> tuple[list[str], list[str]]:
     required: list[str] = []
     ordinary: list[str] = []
 
+    if not str(condition.get('currentGrade') or '').strip():
+        required.append('current_grade')
     if not handoff.get('acknowledged'):
-        ordinary.append('handoff_acknowledged')
+        # Cockpit: handoff ack is informational only — not a finalize gate.
+        pass
     if condition.get('testedStatus') not in TESTED_STATUSES:
         ordinary.append('tested_status')
     if not str(condition.get('evidence') or '').strip():
@@ -859,15 +902,15 @@ def validate_completion(
         for entry in stop_out.get('responses') or []
         if isinstance(entry, dict)
     }
-    unanswered = [
+    # Soft stop-outs: unanswered is treated as clear. Only an explicit blocked
+    # response interrupts completion.
+    blocked = [
         stop_id
         for stop_id in MANDATORY_STOP_OUT_CATALOG
-        if responses.get(stop_id, 'unanswered') == 'unanswered'
+        if responses.get(stop_id) == 'blocked'
     ]
-    if unanswered:
-        raise DecisionWorkValidationError(
-            'Answer every mandatory stop-out before completion.',
-        )
+    if blocked and stop_out.get('blocked'):
+        pass  # evaluated below via _outcome_block_reason
 
     action = str(selection.get('action') or '').strip().lower()
     sale_state = str(selection.get('saleState') or '').strip().lower()

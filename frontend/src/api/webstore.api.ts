@@ -9,6 +9,18 @@ export interface WebListingImage {
   created_at: string;
 }
 
+export interface ChannelPublication {
+  id: number;
+  channel: string;
+  status: string;
+  title: string;
+  body: string;
+  external_url: string;
+  posted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WebListing {
   id: number;
   title: string;
@@ -23,16 +35,28 @@ export interface WebListing {
   condition_display: string;
   price: string;
   compare_at_price: string | null;
+  on_hand: number;
+  reserved: number;
+  available: number;
   stock: number;
   status: string;
   status_display: string;
   featured: boolean;
+  return_policy: string;
+  return_policy_display: string;
+  fb_title: string;
+  fb_body: string;
+  fb_posted_url: string;
+  fb_posted_at: string | null;
   images: WebListingImage[];
   image_count: number;
+  channel_publications: ChannelPublication[];
   on_sale: boolean;
   is_available: boolean;
+  readiness_errors: string[];
   created_by: number | null;
   published_at: string | null;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -79,6 +103,35 @@ export function deleteWebListing(id: number): Promise<unknown> {
   return api.delete(`/webstore/listings/${id}/`);
 }
 
+export function publishWebListing(id: number): Promise<{ data: WebListing }> {
+  return api.post(`/webstore/listings/${id}/publish/`);
+}
+
+export function pauseWebListing(id: number): Promise<{ data: WebListing }> {
+  return api.post(`/webstore/listings/${id}/pause/`);
+}
+
+export function archiveWebListing(id: number): Promise<{ data: WebListing }> {
+  return api.post(`/webstore/listings/${id}/archive/`);
+}
+
+export function restoreWebListing(id: number): Promise<{ data: WebListing }> {
+  return api.post(`/webstore/listings/${id}/restore/`);
+}
+
+export function generateFbCopy(id: number): Promise<{ data: WebListing }> {
+  return api.post(`/webstore/listings/${id}/generate-fb-copy/`);
+}
+
+export function markFbPosted(
+  id: number,
+  externalUrl?: string,
+): Promise<{ data: WebListing }> {
+  return api.post(`/webstore/listings/${id}/mark-fb-posted/`, {
+    external_url: externalUrl || '',
+  });
+}
+
 export function uploadWebListingImage(
   id: number,
   file: File,
@@ -96,7 +149,6 @@ export function deleteWebListingImage(listingId: number, imageId: number): Promi
   return api.delete(`/webstore/listings/${listingId}/images/${imageId}/`);
 }
 
-// Category options for the listing form (web-shop taxonomy only).
 export interface CategoryOption {
   id: number;
   name: string;
@@ -112,8 +164,87 @@ export function getCategoryOptions(): Promise<{ data: CategoriesResponse }> {
   return api.get('/webstore/catalog/categories/');
 }
 
-// ── Orders (staff management) ────────────────────────────────────────────────
+export interface Reservation {
+  id: number;
+  status_token: string;
+  listing: number;
+  listing_title: string;
+  listing_slug: string;
+  item: number | null;
+  item_sku: string | null;
+  customer_name: string;
+  email: string;
+  phone: string;
+  quantity: number;
+  customer_note: string;
+  staff_note: string;
+  status: string;
+  status_display: string;
+  expires_at: string | null;
+  staged_at: string | null;
+  confirmed_at: string | null;
+  completed_at: string | null;
+  unit_price_snapshot: string;
+  cost_snapshot: string | null;
+  fee_amount: string;
+  direct_expense: string;
+  line_total: string;
+  contribution: string;
+  pos_cart: number | null;
+  created_at: string;
+  updated_at: string;
+}
 
+export interface ReservationParams {
+  search?: string;
+  status?: string;
+  listing?: number;
+  ordering?: string;
+  page?: number;
+  [key: string]: unknown;
+}
+
+export function getReservations(
+  params?: ReservationParams,
+): Promise<{ data: PaginatedResponse<Reservation> }> {
+  return api.get('/webstore/reservations/', { params });
+}
+
+export function reservationAction(
+  id: number,
+  action: 'confirm' | 'stage' | 'decline' | 'cancel' | 'expire' | 'complete',
+): Promise<{ data: Reservation }> {
+  return api.post(`/webstore/reservations/${id}/${action}/`);
+}
+
+export function updateReservation(
+  id: number,
+  data: Record<string, unknown>,
+): Promise<{ data: Reservation }> {
+  return api.patch(`/webstore/reservations/${id}/`, data);
+}
+
+export function getWorkQueue(): Promise<{
+  data: {
+    items: Array<{
+      id: number;
+      sku: string;
+      title: string;
+      status: string;
+      location: string;
+      price: string | null;
+    }>;
+    draft_listings: WebListing[];
+  };
+}> {
+  return api.get('/webstore/work-queue/');
+}
+
+export function getSalesLog(): Promise<{ data: { results: Reservation[] } }> {
+  return api.get('/webstore/sales-log/');
+}
+
+// Legacy order types kept for any remaining references.
 export interface OrderLine {
   id: number;
   listing: number | null;

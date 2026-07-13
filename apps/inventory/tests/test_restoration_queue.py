@@ -18,6 +18,7 @@ from apps.inventory.models import (
     Product,
     PurchaseOrder,
     RestorationJob,
+    RestorationTimelineEvent,
     Vendor,
 )
 
@@ -898,7 +899,7 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertFalse(resp.data['timer_is_running'])
         self.assertIsNone(resp.data['timer_started_at'])
 
-    def test_check_in_without_timer_does_not_pause_active_timer(self):
+    def test_check_in_second_item_is_blocked_even_without_timer(self):
         active_job = self._sent_job()
         passive_job = self._sent_job()
         self.client.post(f'/api/inventory/restoration-jobs/{active_job.id}/check-in/')
@@ -908,10 +909,13 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
             {'start_timer': False},
             format='json',
         )
-        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.status_code, 409, resp.data)
+        self.assertEqual(resp.data['active_job_id'], active_job.id)
         active_job.refresh_from_db()
         passive_job.refresh_from_db()
         self.assertTrue(active_job.timer_is_running)
+        self.assertEqual(active_job.bench_owner_id, self.user.pk)
+        self.assertEqual(passive_job.stage, RestorationJob.STAGE_SENT)
         self.assertFalse(passive_job.timer_is_running)
         self.assertIsNone(passive_job.timer_started_at)
 
@@ -926,7 +930,7 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertEqual(resp.data['stage'], 'bench')
         self.assertTrue(resp.data['timer_is_running'])
 
-    def test_check_in_rejects_needs_setup(self):
+    def test_check_in_allows_needs_setup_but_done_blocks(self):
         order, pr, product = self._restoration_order()
         item = Item.objects.create(
             sku='ITM-NO-PRICES',
@@ -947,8 +951,81 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertTrue(create.data['needs_setup'])
 
         resp = self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
-        self.assertEqual(resp.status_code, 400, resp.data)
-        self.assertIn('grade', resp.data['detail'].lower())
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data['stage'], 'bench')
+        self.assertTrue(resp.data['needs_setup'])
+
+        done = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/done/',
+            {
+                'destination': 'processing',
+                'final_grade': 'Working',
+                'notes': 'should fail',
+            },
+            format='json',
+        )
+        self.assertEqual(done.status_code, 400, done.data)
+        self.assertIn('grade', done.data['detail'].lower())
+
+    def test_request_valuation_and_fulfill(self):
+        order, pr, product = self._restoration_order()
+        item = Item.objects.create(
+            sku='ITM-VAL-REQ',
+            product=product,
+            purchase_order=order,
+            manifest_row=pr.manifest_row,
+            status='intake',
+            location='',
+            price=Decimal('9.99'),
+        )
+        create = self.client.post(
+            '/api/inventory/restoration-jobs/',
+            {'sku': item.sku},
+            format='json',
+        )
+        self.assertEqual(create.status_code, 201, create.data)
+        job_id = create.data['id']
+        self.client.post(f'/api/inventory/restoration-jobs/{job_id}/check-in/')
+
+        req = self.client.post(
+            f'/api/inventory/restoration-jobs/{job_id}/request-valuation/',
+            {'grades': ['Working'], 'notes': 'Need Working $'},
+            format='json',
+        )
+        self.assertEqual(req.status_code, 200, req.data)
+        self.assertTrue(req.data['valuation_pending'])
+        self.assertEqual(req.data['valuation_requested_grades'], ['Working'])
+
+        pending = self.client.get('/api/inventory/restoration-jobs/?valuation_pending=1')
+        self.assertEqual(pending.status_code, 200)
+        results = pending.data['results'] if isinstance(pending.data, dict) else pending.data
+        self.assertTrue(any(row['id'] == job_id for row in results))
+
+        # Incomplete still pending
+        patch = self.client.patch(
+            f'/api/inventory/restoration-jobs/{job_id}/',
+            {
+                'scale': 'Functional',
+                'grade_values': {'Working': 40, 'Repairable': 0, 'Parts-only': 5},
+            },
+            format='json',
+        )
+        self.assertEqual(patch.status_code, 200, patch.data)
+        self.assertTrue(patch.data['needs_setup'])
+        self.assertTrue(patch.data['valuation_pending'])
+
+        fulfill = self.client.patch(
+            f'/api/inventory/restoration-jobs/{job_id}/',
+            {
+                'scale': 'Functional',
+                'grade_values': {'Working': 40, 'Repairable': 20, 'Parts-only': 5},
+            },
+            format='json',
+        )
+        self.assertEqual(fulfill.status_code, 200, fulfill.data)
+        self.assertFalse(fulfill.data['needs_setup'])
+        self.assertFalse(fulfill.data['valuation_pending'])
+        self.assertIsNotNone(fulfill.data['valuation_fulfilled_at'])
 
     def test_timer_pause_and_start_accumulates(self):
         job = self._sent_job()
@@ -979,6 +1056,97 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         job.refresh_from_db()
         self.assertEqual(job.active_seconds, 3723)
         self.assertIsNotNone(job.timer_started_at)
+
+    def test_meaningful_action_autostarts_timer_and_sets_idle_baseline(self):
+        from apps.hr.models import TimeEntry
+
+        job = self._sent_job()
+        TimeEntry.objects.create(
+            employee=self.user,
+            clock_in=timezone.now() - timedelta(minutes=5),
+        )
+        checked_in = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/check-in/',
+            {'start_timer': False},
+            format='json',
+        )
+        self.assertEqual(checked_in.status_code, 200, checked_in.data)
+        self.assertFalse(checked_in.data['timer_is_running'])
+
+        response = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/timer/meaningful-action/',
+            {'label': 'Recorded current grade'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(response.data['timer_is_running'])
+        self.assertEqual(response.data['last_meaningful_action_label'], 'Recorded current grade')
+        self.assertIsNotNone(response.data['last_meaningful_action_at'])
+        self.assertGreaterEqual(response.data['last_meaningful_active_seconds'], 0)
+
+    def test_timeline_create_revise_and_void_preserves_history(self):
+        from apps.hr.models import TimeEntry
+
+        job = self._sent_job()
+        TimeEntry.objects.create(
+            employee=self.user,
+            clock_in=timezone.now() - timedelta(minutes=5),
+        )
+        checked_in = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/check-in/',
+            {'start_timer': False},
+            format='json',
+        )
+        self.assertEqual(checked_in.status_code, 200, checked_in.data)
+
+        created = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/timeline/',
+            {
+                'event_type': 'work.performed',
+                'entity_id': 'work-1',
+                'payload': {
+                    'category': 'test',
+                    'name': 'Power-on test',
+                    'notes': 'Powered on',
+                    'result': 'Pass',
+                },
+            },
+            format='json',
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        event_id = created.data['id']
+        job.refresh_from_db()
+        self.assertEqual(job.work_session['benchRows'][0]['name'], 'Power-on test')
+        self.assertTrue(job.timer_is_running)
+
+        revised = self.client.patch(
+            f'/api/inventory/restoration-jobs/{job.id}/timeline/{event_id}/',
+            {'payload': {'notes': 'Powered on and held load'}},
+            format='json',
+        )
+        self.assertEqual(revised.status_code, 200, revised.data)
+        self.assertEqual(revised.data['supersedes_id'], event_id)
+        current_event_id = revised.data['id']
+        self.assertEqual(
+            RestorationTimelineEvent.objects.get(pk=event_id).status,
+            RestorationTimelineEvent.STATUS_REVISED,
+        )
+
+        voided = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/timeline/{current_event_id}/void/',
+            {'reason': 'Entered against the wrong item'},
+            format='json',
+        )
+        self.assertEqual(voided.status_code, 200, voided.data)
+        self.assertEqual(voided.data['status'], 'voided')
+        job.refresh_from_db()
+        self.assertEqual(job.work_session['benchRows'], [])
+
+        timeline = self.client.get(f'/api/inventory/restoration-jobs/{job.id}/timeline/')
+        self.assertEqual(timeline.status_code, 200, timeline.data)
+        statuses = {row['id']: row['status'] for row in timeline.data}
+        self.assertEqual(statuses[event_id], 'revised')
+        self.assertEqual(statuses[current_event_id], 'voided')
 
     def test_hold_moves_to_pending(self):
         job = self._sent_job()
@@ -1243,15 +1411,27 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertEqual(receive.status_code, 200, receive.data)
         self.assertEqual(receive.data['status'], 'received')
 
-    def test_starting_second_timer_pauses_first(self):
+    def test_second_item_can_enter_bench_after_first_is_held(self):
         job_a = self._sent_job()
         job_b = self._sent_job()
-        self.client.post(f'/api/inventory/restoration-jobs/{job_a.id}/check-in/')
-        self.client.post(f'/api/inventory/restoration-jobs/{job_b.id}/check-in/')
+        first = self.client.post(f'/api/inventory/restoration-jobs/{job_a.id}/check-in/')
+        self.assertEqual(first.status_code, 200, first.data)
+        blocked = self.client.post(f'/api/inventory/restoration-jobs/{job_b.id}/check-in/')
+        self.assertEqual(blocked.status_code, 409, blocked.data)
+        held = self.client.post(
+            f'/api/inventory/restoration-jobs/{job_a.id}/hold/',
+            {'reason': 'between_steps'},
+            format='json',
+        )
+        self.assertEqual(held.status_code, 200, held.data)
+        second = self.client.post(f'/api/inventory/restoration-jobs/{job_b.id}/check-in/')
+        self.assertEqual(second.status_code, 200, second.data)
         job_a.refresh_from_db()
         job_b.refresh_from_db()
         self.assertFalse(job_a.timer_is_running)
+        self.assertIsNone(job_a.bench_owner_id)
         self.assertTrue(job_b.timer_is_running)
+        self.assertEqual(job_b.bench_owner_id, self.user.pk)
         self.assertEqual(job_b.timer_started_by_id, self.user.pk)
 
     def test_hr_start_break_pauses_restoration_timer(self):

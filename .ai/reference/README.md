@@ -1,10 +1,12 @@
-<!-- Last updated: 2026-07-10 (TARS Phase 1 automated pilot record indexed) -->
+<!-- Last updated: 2026-07-13 (POS terminal cart scroll test pack) -->
 # Reference (`.ai/reference/`)
 
 Purpose-organized artifacts that support initiatives and implementation. **Not** a second changelog, plan store, or version registry.
 
 | Area | Path | Purpose |
 |------|------|---------|
+| **POS terminal cart scroll QA** | [`pos_terminal_cart_scroll/`](./pos_terminal_cart_scroll/README.md) | Seeded `POSTEST##` SKUs + scenarios for cart visibility / auto-scroll ([`testing_skus.md`](./pos_terminal_cart_scroll/testing_skus.md)); `seed_pos_terminal_test_items` |
+| **Online Sales Workspace** | [`online_sales_workspace/`](./online_sales_workspace/README.md) | Phase 0 accepted contract — nav/policy/data/security + Phase 1 brief ([`phase_0_contract.md`](./online_sales_workspace/phase_0_contract.md)); initiative [`online_sales_workspace`](../initiatives/online_sales_workspace.md) |
 | **Product identity (landmark design)** | [`product_identity/`](./product_identity/README.md) | Target design + Session handoffs — [`product_identity_design.md`](./product_identity/product_identity_design.md), [`session_4_handoff_questions.md`](./product_identity/session_4_handoff_questions.md); phases in [`intake_processing_improvements`](../initiatives/intake_processing_improvements.md) |
 | **TARS process + guidance** | [`TARS Restoration Processing App/`](./TARS%20Restoration%20Processing%20App/) | Original prototype; Phase 0 [`discovery workbook`](./TARS%20Restoration%20Processing%20App/phase_0_discovery_workbook.md) + [`process canon`](./TARS%20Restoration%20Processing%20App/phase_0_process_canon.md); Phase 1 [`pilot record`](./TARS%20Restoration%20Processing%20App/phase_1_pilot_record.md); phases in [`tars_full_instruction_wizard_guidance`](../initiatives/tars_full_instruction_wizard_guidance.md) |
 | Product / Item field cleanup planning | [`product_item_field_audit/`](./product_item_field_audit/README.md) | Phase 3 planning pack: decisions, target schema, lineage, code audit, migration/backfill, implementation plan, testing, ready-to-code gate |

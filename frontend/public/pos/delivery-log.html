@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eco-Thrift Delivery Log</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @page {
+      size: letter landscape;
+      margin: 0.35in 0.4in 0.3in;
+    }
+
+    html, body {
+      font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+      font-size: 7pt;
+      color: #111;
+      background: #fff;
+    }
+
+    .sheet {
+      max-width: 10.5in;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 11pt;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 0.08em;
+      margin-bottom: 6pt;
+      padding-bottom: 4pt;
+      border-bottom: 3px solid #2d6a2d;
+    }
+
+    .header-strip {
+      display: grid;
+      grid-template-columns: 0.85in 0.75in 0.75in 0.85in 1.1in 1fr;
+      border: 1px solid #333;
+      margin-bottom: 6pt;
+      page-break-inside: avoid;
+    }
+
+    .header-cell {
+      border-right: 1px solid #333;
+      padding: 3pt 4pt;
+      min-height: 22pt;
+    }
+
+    .header-cell:last-child {
+      border-right: none;
+    }
+
+    .header-cell .label {
+      font-size: 5.5pt;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: #444;
+      display: block;
+      margin-bottom: 2pt;
+    }
+
+    .header-cell .field {
+      min-height: 12pt;
+      border-bottom: 1px solid #aaa;
+    }
+
+    .stops {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .stop {
+      display: grid;
+      grid-template-columns: 0.28in 1fr;
+      page-break-inside: avoid;
+      border-bottom: 1px solid #999;
+    }
+
+    .stop-num {
+      background: #2d6a2d;
+      color: #fff;
+      font-weight: 700;
+      font-size: 9pt;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-right: 1px solid #1a4a1a;
+      min-height: 28pt;
+    }
+
+    .stop-body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .row-detail {
+      display: grid;
+      grid-template-columns: 0.55in 0.85in 0.72in 1.55in 0.35in 0.55in;
+      background: #fff;
+    }
+
+    .row-checklist {
+      display: grid;
+      grid-template-columns: 0.9in 0.75in 0.6in 0.55in 1fr;
+      background: #e8e8e8;
+    }
+
+    .cell {
+      border-right: 1px solid #bbb;
+      border-top: 1px solid #bbb;
+      padding: 1pt 3pt 0;
+      min-height: 14pt;
+    }
+
+    .cell:last-child {
+      border-right: none;
+    }
+
+    .label {
+      font-size: 5.5pt;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: #444;
+      line-height: 1;
+      margin-bottom: 1pt;
+      display: block;
+    }
+
+    .field {
+      min-height: 10pt;
+    }
+
+    .field-line {
+      border-bottom: 1px solid #666;
+      min-height: 11pt;
+      margin-top: 2pt;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 3pt;
+      font-size: 6pt;
+      line-height: 1.15;
+      padding-top: 1pt;
+    }
+
+    .checkbox {
+      flex-shrink: 0;
+      width: 8pt;
+      height: 8pt;
+      border: 1px solid #333;
+      margin-top: 1pt;
+    }
+
+    @media screen {
+      body { padding: 12px; background: #eee; }
+      .sheet {
+        background: #fff;
+        padding: 0.35in 0.4in 0.3in;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.12);
+      }
+    }
+
+    @media print {
+      body { background: #fff; }
+      .sheet { max-width: none; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <h1>ECO-THRIFT DELIVERY LOG</h1>
+
+    <div class="header-strip">
+      <div class="header-cell"><span class="label">Date</span><div class="field"></div></div>
+      <div class="header-cell"><span class="label">Time start</span><div class="field"></div></div>
+      <div class="header-cell"><span class="label">Time end</span><div class="field"></div></div>
+      <div class="header-cell"><span class="label"># Appliances</span><div class="field"></div></div>
+      <div class="header-cell"><span class="label"># Successful deliveries</span><div class="field"></div></div>
+      <div class="header-cell"><span class="label">Driver(s)</span><div class="field"></div></div>
+    </div>
+
+    <div class="stops" id="stops"></div>
+  </div>
+
+  <script>
+    const STOP_COUNT = 15;
+
+    const stopsEl = document.getElementById('stops');
+
+    for (let n = 1; n <= STOP_COUNT; n++) {
+      const stop = document.createElement('div');
+      stop.className = 'stop';
+      stop.innerHTML = `
+        <div class="stop-num">${n}</div>
+        <div class="stop-body">
+          <div class="row-detail">
+            <div class="cell"><span class="label">Item #</span><div class="field"></div></div>
+            <div class="cell"><span class="label">Customer</span><div class="field"></div></div>
+            <div class="cell"><span class="label">Phone</span><div class="field"></div></div>
+            <div class="cell"><span class="label">Address</span><div class="field"></div></div>
+            <div class="cell"><span class="label">Apt?</span><div class="field"><span class="checkbox"></span></div></div>
+            <div class="cell"><span class="label">Unit #</span><div class="field"></div></div>
+          </div>
+          <div class="row-checklist">
+            <div class="cell">
+              <div class="check-item"><span class="checkbox"></span><span>Loaded + strapped</span></div>
+            </div>
+            <div class="cell">
+              <div class="check-item"><span class="checkbox"></span><span>Confirm call</span></div>
+            </div>
+            <div class="cell">
+              <div class="check-item"><span class="checkbox"></span><span>Present</span></div>
+            </div>
+            <div class="cell">
+              <div class="check-item"><span class="checkbox"></span><span>Photo</span></div>
+            </div>
+            <div class="cell">
+              <span class="label">Customer signature</span>
+              <div class="field-line"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      stopsEl.appendChild(stop);
+    }
+  </script>
+</body>
+</html>

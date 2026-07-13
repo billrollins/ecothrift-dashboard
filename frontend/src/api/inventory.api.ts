@@ -31,6 +31,8 @@ import type {
   RestorationJobCombinePayload,
   RestorationJobHoldPayload,
   RestorationJobDonePayload,
+  RestorationTimelineEventDTO,
+  RestorationTimelineEventType,
   RestorationPartsRequestDTO,
   RestorationPartsOrderDTO,
   RestorationPartsOrderCreatePayload,
@@ -2139,10 +2141,16 @@ export function fetchOrderDisputes(
 
 export function listRestorationJobs(params?: {
   stage?: string;
+  valuation_pending?: boolean;
   page?: number;
   page_size?: number;
 }): Promise<{ data: PaginatedResponse<RestorationJobDTO> }> {
-  return api.get('/inventory/restoration-jobs/', { params });
+  return api.get('/inventory/restoration-jobs/', {
+    params: {
+      ...params,
+      ...(params?.valuation_pending ? { valuation_pending: '1' } : {}),
+    },
+  });
 }
 
 export function getRestorationJob(id: number): Promise<{ data: RestorationJobDTO }> {
@@ -2195,6 +2203,46 @@ export function patchRestorationJobWorkSession(
   return api.patch(`/inventory/restoration-jobs/${id}/work-session/`, { work_session: workSession });
 }
 
+export function requestRestorationJobValuation(
+  id: number,
+  payload: { grades?: string[]; notes?: string } = {},
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/request-valuation/`, payload);
+}
+
+export function listRestorationJobTimeline(
+  id: number,
+): Promise<{ data: RestorationTimelineEventDTO[] }> {
+  return api.get(`/inventory/restoration-jobs/${id}/timeline/`);
+}
+
+export function createRestorationTimelineEvent(
+  id: number,
+  payload: {
+    event_type: RestorationTimelineEventType;
+    entity_id: string;
+    payload: Record<string, unknown>;
+  },
+): Promise<{ data: RestorationTimelineEventDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/timeline/`, payload);
+}
+
+export function reviseRestorationTimelineEvent(
+  jobId: number,
+  eventId: number,
+  payload: Record<string, unknown>,
+): Promise<{ data: RestorationTimelineEventDTO }> {
+  return api.patch(`/inventory/restoration-jobs/${jobId}/timeline/${eventId}/`, { payload });
+}
+
+export function voidRestorationTimelineEvent(
+  jobId: number,
+  eventId: number,
+  reason: string,
+): Promise<{ data: RestorationTimelineEventDTO }> {
+  return api.post(`/inventory/restoration-jobs/${jobId}/timeline/${eventId}/void/`, { reason });
+}
+
 export function checkInRestorationJob(
   id: number,
   itemId?: number,
@@ -2224,15 +2272,29 @@ export function startRestorationJobTimer(id: number): Promise<{ data: Restoratio
   return api.post(`/inventory/restoration-jobs/${id}/timer/start/`);
 }
 
-export function pauseRestorationJobTimer(id: number): Promise<{ data: RestorationJobDTO }> {
-  return api.post(`/inventory/restoration-jobs/${id}/timer/pause/`);
+export function pauseRestorationJobTimer(
+  id: number,
+  reason = 'manual',
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/timer/pause/`, { reason });
 }
 
 export function adjustRestorationJobTimer(
   id: number,
   activeSeconds: number,
+  reason = 'manual',
 ): Promise<{ data: RestorationJobDTO }> {
-  return api.post(`/inventory/restoration-jobs/${id}/timer/adjust/`, { active_seconds: activeSeconds });
+  return api.post(`/inventory/restoration-jobs/${id}/timer/adjust/`, {
+    active_seconds: activeSeconds,
+    reason,
+  });
+}
+
+export function markRestorationJobMeaningfulAction(
+  id: number,
+  label: string,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/timer/meaningful-action/`, { label });
 }
 
 export function completeRestorationJob(

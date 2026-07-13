@@ -311,6 +311,8 @@ GOOGLE_API_KEY = (
     or config('GEMINI_API_KEY', default='').strip()
 )
 GEMINI_API_KEY = GOOGLE_API_KEY  # alias
+# Maps Platform key for POS delivery driving distance (Distance Matrix). Do not reuse Gemini-only keys.
+GOOGLE_MAPS_API_KEY = config('GOOGLE_MAPS_API_KEY', default='').strip()
 
 # --- Provider routing (llm_router: auto | anthropic | xai | google) ---
 # auto: grok-* → xAI, gemini-* → Google, otherwise Anthropic. All AI call sites
