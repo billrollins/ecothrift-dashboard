@@ -1,11 +1,14 @@
 import Analytics from '@mui/icons-material/Analytics';
-import AttachMoney from '@mui/icons-material/AttachMoney';
 import Build from '@mui/icons-material/Build';
 import CheckCircle from '@mui/icons-material/CheckCircle';
 import Close from '@mui/icons-material/Close';
 import FactCheck from '@mui/icons-material/FactCheck';
 import Gavel from '@mui/icons-material/Gavel';
+import Done from '@mui/icons-material/Done';
+import PauseCircle from '@mui/icons-material/PauseCircle';
 import Science from '@mui/icons-material/Science';
+import ShoppingCart from '@mui/icons-material/ShoppingCart';
+import Undo from '@mui/icons-material/Undo';
 import WarningAmber from '@mui/icons-material/WarningAmber';
 import {
   Box,
@@ -49,7 +52,7 @@ import { TarsWorkBenchTable } from '../TarsWorkBenchTable';
 const SALE_STATES = Object.keys(TARS_SALE_STATE_LABELS) as TarsSaleState[];
 const ACTIONS = Object.keys(TARS_ACTION_TYPE_LABELS) as TarsActionType[];
 
-type CockpitToolId = 'values' | 'grade' | 'tests' | 'options' | 'decision' | 'work';
+type CockpitToolId = 'grade' | 'tests' | 'options' | 'decision' | 'work';
 
 interface CockpitTool {
   id: CockpitToolId;
@@ -89,9 +92,9 @@ export interface TarsItemCockpitProps {
   editable: boolean;
   scaleRecord: Record<string, string[]>;
   onSessionChange: (session: TarsWorkSession) => void;
-  onRequestValuation?: (grades: string[], notes: string) => Promise<void> | void;
   onOpenParts?: () => void;
   onOpenHold?: () => void;
+  onMoveToInbox?: () => void;
   onRequestComplete?: (session: TarsWorkSession) => void;
 }
 
@@ -103,10 +106,12 @@ export function TarsItemCockpit({
   editable,
   scaleRecord,
   onSessionChange,
-  onRequestValuation,
+  onOpenParts,
+  onOpenHold,
+  onMoveToInbox,
+  onRequestComplete,
 }: TarsItemCockpitProps) {
   const [flash, setFlash] = useState<{ message: string; tone: StudioFlashTone } | null>(null);
-  const [requestBusy, setRequestBusy] = useState(false);
   const [activeTool, setActiveTool] = useState<CockpitToolId | null>(null);
   const [activeTestId, setActiveTestId] = useState<string | null>(null);
   const [activeOutcomeId, setActiveOutcomeId] = useState<string | null>(null);
@@ -135,11 +140,6 @@ export function TarsItemCockpit({
     if (fromScale.length) return fromScale;
     return Object.keys(item.values ?? {});
   }, [item.scale, item.values, job.scale, scaleRecord]);
-
-  const missingGrades = useMemo(
-    () => gradeNames.filter((grade) => !(Number(item.values?.[grade]) > 0)),
-    [gradeNames, item.values],
-  );
 
   const packTests = decision.tests.filter((test) => test.relevant);
   const testsDone = packTests.filter((test) => test.result !== null).length;
@@ -205,21 +205,8 @@ export function TarsItemCockpit({
 
   const tools: CockpitTool[] = [
     {
-      id: 'values',
-      label: 'Valuations',
-      purpose: 'Processing values by grade',
-      status: missingGrades.length
-        ? `${missingGrades.length} missing`
-        : `${gradeNames.length} values ready`,
-      color: '#d97706',
-      tint: '#fffbeb',
-      icon: <AttachMoney />,
-      done: gradeNames.length > 0 && missingGrades.length === 0,
-      attention: missingGrades.length > 0,
-    },
-    {
       id: 'grade',
-      label: 'Current grade',
+      label: 'Assess grade',
       purpose: 'What the item is now',
       status: currentGrade || 'Not assessed',
       color: '#4f46e5',
@@ -230,7 +217,7 @@ export function TarsItemCockpit({
     },
     {
       id: 'tests',
-      label: 'Tests',
+      label: 'Add / run test',
       purpose: 'Only evidence that changes the decision',
       status: `${testsDone}/${packTests.length} answered`,
       color: '#0284c7',
@@ -241,7 +228,7 @@ export function TarsItemCockpit({
     },
     {
       id: 'options',
-      label: 'Options',
+      label: 'Build plan',
       purpose: 'Compare grade paths and cost',
       status: `${ranked.length} viable ${ranked.length === 1 ? 'path' : 'paths'}`,
       color: '#7c3aed',
@@ -252,7 +239,7 @@ export function TarsItemCockpit({
     },
     {
       id: 'decision',
-      label: 'Decision',
+      label: 'Commit plan',
       purpose: 'Commit one path and reason',
       status: decisionCommitted
         ? `${selected.action ?? ''} → ${selected.grade ?? ''}`
@@ -277,8 +264,7 @@ export function TarsItemCockpit({
 
   const currentTool = tools.find((tool) => tool.id === activeTool) ?? null;
   const suggestedTool: CockpitToolId | null =
-    missingGrades.length ? 'values'
-    : !currentGrade ? 'grade'
+    !currentGrade ? 'grade'
     : packTests.some((test) => test.result === null) ? 'tests'
     : !ranked.length ? 'options'
     : !decisionCommitted ? 'decision'
@@ -335,122 +321,6 @@ export function TarsItemCockpit({
     setActiveTool(null);
     setFlash({ message: 'Decision committed — tool put away', tone: 'success' });
   };
-
-  const handleRequestValuation = async () => {
-    if (!onRequestValuation || !missingGrades.length) return;
-    setRequestBusy(true);
-    try {
-      await onRequestValuation(missingGrades, '');
-      setFlash({ message: 'Valuation request sent to Processing', tone: 'success' });
-    } catch (err) {
-      setFlash({
-        message: err instanceof Error ? err.message : 'Could not request valuation',
-        tone: 'error',
-      });
-    } finally {
-      setRequestBusy(false);
-    }
-  };
-
-  const renderValuesTool = () => (
-    <Stack spacing={2}>
-      <Typography variant="body2" color="text.secondary">
-        Values supplied by Processing. Missing values stay loud until Processing fills them.
-      </Typography>
-
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))' },
-          gap: 1,
-        }}
-      >
-        {gradeNames.map((grade) => {
-          const value = Number(item.values?.[grade] ?? 0);
-          const missing = !(value > 0);
-          return (
-            <Box
-              key={grade}
-              sx={{
-                p: 1.5,
-                minHeight: 84,
-                borderRadius: 2,
-                border: `2px solid ${missing ? '#f59e0b' : '#cbd5e1'}`,
-                bgcolor: missing ? '#fff7ed' : '#fff',
-                boxShadow: missing ? '0 0 0 3px rgba(245, 158, 11, 0.2)' : 'none',
-              }}
-            >
-              <Typography variant="caption" sx={{ fontWeight: 900, color: '#475569' }}>
-                {grade}
-              </Typography>
-              <Typography
-                variant="h5"
-                sx={{
-                  mt: 0.4,
-                  fontWeight: 950,
-                  color: missing ? '#b45309' : '#0f172a',
-                  letterSpacing: '-0.03em',
-                }}
-              >
-                {missing ? 'MISSING' : fmtUsd(value)}
-              </Typography>
-            </Box>
-          );
-        })}
-      </Box>
-
-      {missingGrades.length ? (
-        <Box
-          sx={{
-            p: 1.5,
-            borderRadius: 2,
-            bgcolor: '#fffbeb',
-            border: '1px solid #f59e0b',
-          }}
-        >
-          <Stack
-            direction={{ xs: 'column', sm: 'row' }}
-            alignItems={{ sm: 'center' }}
-            justifyContent="space-between"
-            gap={1}
-          >
-            <Box>
-              <Typography variant="body2" sx={{ fontWeight: 900, color: '#92400e' }}>
-                Need {missingGrades.join(', ')}
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#92400e' }}>
-                Mike can keep assessing. Done remains blocked until values arrive.
-              </Typography>
-            </Box>
-            {editable && onRequestValuation ? (
-              <Button
-                variant="contained"
-                color="warning"
-                disabled={requestBusy || Boolean(job.valuation_pending)}
-                onClick={() => void handleRequestValuation()}
-                sx={{ fontWeight: 900, whiteSpace: 'nowrap' }}
-              >
-                {job.valuation_pending ? 'Request sent' : 'Request Processing'}
-              </Button>
-            ) : null}
-          </Stack>
-          {job.valuation_pending ? (
-            <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#92400e', fontWeight: 800 }}>
-              Waiting on Processing
-              {job.valuation_requested_at ? ` · requested ${shortTime(job.valuation_requested_at)}` : ''}
-            </Typography>
-          ) : null}
-        </Box>
-      ) : (
-        <Stack direction="row" alignItems="center" gap={1} sx={{ color: '#166534' }}>
-          <CheckCircle />
-          <Typography variant="body2" sx={{ fontWeight: 900 }}>
-            All values are ready.
-          </Typography>
-        </Stack>
-      )}
-    </Stack>
-  );
 
   const renderGradeTool = () => (
     <Stack spacing={2}>
@@ -1105,7 +975,6 @@ export function TarsItemCockpit({
   );
 
   const renderActiveTool = () => {
-    if (activeTool === 'values') return renderValuesTool();
     if (activeTool === 'grade') return renderGradeTool();
     if (activeTool === 'tests') return renderTestsTool();
     if (activeTool === 'options') return renderOptionsTool();
@@ -1148,30 +1017,6 @@ export function TarsItemCockpit({
             ? `${selected.action?.toUpperCase() ?? ''} → ${selected.grade ?? ''}. Record work when it is performed.`
             : 'Open one focused action. Closing it returns to the restoration log.'}
         </Typography>
-
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
-            gap: 1,
-            mt: 2,
-          }}
-        >
-          {[
-            ['Values', missingGrades.length ? `${missingGrades.length} missing` : 'Ready', missingGrades.length ? '#d97706' : '#15803d'],
-            ['Current grade', currentGrade ?? 'Not set', currentGrade ? '#4f46e5' : '#d97706'],
-            ['Decision', decisionCommitted ? `${selected.action} → ${selected.grade}` : 'Not committed', decisionCommitted ? '#15803d' : '#d97706'],
-          ].map(([label, value, color]) => (
-            <Box key={label} sx={{ p: 1.25, borderRadius: 2, bgcolor: '#fff', borderTop: `5px solid ${color}` }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
-                {label}
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 950, color: '#0f172a' }}>
-                {value}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
 
         {suggestedTool ? (
           <Button
@@ -1322,6 +1167,56 @@ export function TarsItemCockpit({
                 {tool.done && !tool.attention ? <CheckCircle sx={{ ml: 0.55, fontSize: 15 }} /> : null}
               </Button>
             ))}
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+            {onOpenParts ? (
+              <Button
+                onClick={onOpenParts}
+                startIcon={<ShoppingCart />}
+                sx={{ minHeight: 34, textTransform: 'none', fontWeight: 900, color: '#344258' }}
+              >
+                Parts
+              </Button>
+            ) : null}
+            {onOpenHold ? (
+              <Button
+                onClick={onOpenHold}
+                startIcon={<PauseCircle />}
+                sx={{ minHeight: 34, textTransform: 'none', fontWeight: 900, color: '#8a4b08' }}
+              >
+                Hold
+              </Button>
+            ) : null}
+            {onMoveToInbox ? (
+              <Button
+                onClick={onMoveToInbox}
+                startIcon={<Undo />}
+                sx={{ minHeight: 34, textTransform: 'none', fontWeight: 900, color: '#526177' }}
+              >
+                Inbox
+              </Button>
+            ) : null}
+            {onRequestComplete ? (
+              <Tooltip
+                title={
+                  job.needs_setup ? 'Processing must complete all grade values first.'
+                  : !gates.canFinalize ? 'Assess the item and commit a plan first.'
+                  : 'Review final grade, labor, parts, and destination.'
+                }
+              >
+                <span>
+                  <Button
+                    variant="contained"
+                    color="success"
+                    disabled={!editable || job.needs_setup || !gates.canFinalize}
+                    onClick={() => onRequestComplete(prepared)}
+                    startIcon={<Done />}
+                    sx={{ minHeight: 34, textTransform: 'none', fontWeight: 950 }}
+                  >
+                    Finish
+                  </Button>
+                </span>
+              </Tooltip>
+            ) : null}
           </Stack>
         </Box>
 

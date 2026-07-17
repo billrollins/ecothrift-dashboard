@@ -1016,6 +1016,7 @@ export interface RestorationJobDTO {
   returned_at: string | null;
   bench_started_at: string | null;
   bench_owner_id?: number | null;
+  bench_ownership_ambiguous?: boolean;
   timer_started_at: string | null;
   active_seconds: number;
   timer_is_running: boolean;

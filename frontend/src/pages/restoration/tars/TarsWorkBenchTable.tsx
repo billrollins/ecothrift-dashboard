@@ -25,8 +25,8 @@ interface TarsWorkBenchTableProps {
 
 const CATEGORY_OPTIONS = Object.keys(TARS_ACTION_TYPE_LABELS) as TarsActionType[];
 
-const GRID_EDIT = '36px 132px minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.6fr) 36px';
-const GRID_READONLY = '36px 132px minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.6fr)';
+const GRID_EDIT = '36px 112px minmax(0, 1.1fr) 82px minmax(0, 1.45fr) minmax(0, 1.45fr) 36px';
+const GRID_READONLY = '36px 112px minmax(0, 1.1fr) 82px minmax(0, 1.45fr) minmax(0, 1.45fr)';
 
 // Shared compact field styling so every column (select, single-line, multiline)
 // renders at the same height and packs vertical space tightly.
@@ -60,6 +60,8 @@ export function TarsWorkBenchTable({ session, readOnly = false, onSessionChange 
       name: '',
       notes: '',
       result: '',
+      durationMinutes: 0,
+      performedAt: new Date().toISOString(),
     };
     onSessionChange({ ...session, benchRows: [...rows, row] });
   };
@@ -99,6 +101,7 @@ export function TarsWorkBenchTable({ session, readOnly = false, onSessionChange 
           <HeaderCell align="right">#</HeaderCell>
           <HeaderCell>Category</HeaderCell>
           <HeaderCell>Name</HeaderCell>
+          <HeaderCell>Minutes</HeaderCell>
           <HeaderCell>Notes</HeaderCell>
           <HeaderCell>Result</HeaderCell>
           {!readOnly ? <span /> : null}
@@ -153,6 +156,17 @@ export function TarsWorkBenchTable({ session, readOnly = false, onSessionChange 
               value={row.name}
               onChange={(e) => updateRow(row.id, { name: e.target.value })}
               disabled={readOnly}
+              sx={FIELD_SX}
+            />
+            <TextField
+              size="small"
+              type="number"
+              value={row.durationMinutes ?? 0}
+              onChange={(e) => updateRow(row.id, {
+                durationMinutes: Math.max(Number(e.target.value) || 0, 0),
+              })}
+              disabled={readOnly}
+              inputProps={{ min: 0, step: 1, 'aria-label': 'Labor minutes' }}
               sx={FIELD_SX}
             />
             <TextField

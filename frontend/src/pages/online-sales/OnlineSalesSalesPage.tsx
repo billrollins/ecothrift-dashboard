@@ -30,7 +30,7 @@ export default function OnlineSalesSalesPage() {
   return (
     <Box>
       <PageHeader
-        title="Sales"
+        title="Sales log"
         subtitle="Completed hold → pickup sales (POS-linked when available). Tax excluded."
       />
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

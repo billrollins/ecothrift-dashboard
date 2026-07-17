@@ -8222,6 +8222,7 @@ class RestorationJobViewSet(
             ser.is_valid(raise_exception=True)
             old_scale = job.scale
             old_grade_values = dict(job.grade_values or {})
+            correlation_id = uuid.uuid4()
             job.scale = ser.validated_data['scale']
             job.grade_values = ser.validated_data['grade_values']
             update_fields = ['scale', 'grade_values', 'updated_at']
@@ -8240,8 +8241,13 @@ class RestorationJobViewSet(
                     },
                     actor=request.user,
                     entity_id=f'grade-values:{job.pk}',
+                    correlation_id=correlation_id,
                 )
-            maybe_fulfill_valuation_request(job, user=request.user)
+            maybe_fulfill_valuation_request(
+                job,
+                user=request.user,
+                correlation_id=correlation_id,
+            )
             handoff = ser.validated_data.get('processing_handoff')
             if handoff is not None and job.item_check_in_id:
                 from apps.inventory.services.restoration import merge_restoration_into_defaults_snapshot
@@ -8300,17 +8306,20 @@ class RestorationJobViewSet(
         from apps.inventory.services.restoration_timeline import create_projected_timeline_event
 
         try:
+            correlation_id = uuid.uuid4()
             event = create_projected_timeline_event(
                 job,
                 event_type=ser.validated_data['event_type'],
                 payload=ser.validated_data['payload'],
                 entity_id=ser.validated_data['entity_id'],
                 actor=request.user,
+                correlation_id=correlation_id,
             )
             mark_restoration_meaningful_action(
                 job,
                 user=request.user,
                 label=ser.validated_data['event_type'].replace('.', ' '),
+                correlation_id=correlation_id,
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -8333,10 +8342,12 @@ class RestorationJobViewSet(
         from apps.inventory.services.restoration_timeline import revise_timeline_event
 
         try:
+            correlation_id = uuid.uuid4()
             event = revise_timeline_event(
                 event,
                 payload=ser.validated_data['payload'],
                 actor=request.user,
+                correlation_id=correlation_id,
             )
             from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
 
@@ -8344,6 +8355,7 @@ class RestorationJobViewSet(
                 job,
                 user=request.user,
                 label=f'Revised {event.event_type}',
+                correlation_id=correlation_id,
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -8363,6 +8375,7 @@ class RestorationJobViewSet(
         from apps.inventory.services.restoration_timeline import void_timeline_event
 
         try:
+            correlation_id = uuid.uuid4()
             event = void_timeline_event(
                 event,
                 reason=ser.validated_data['reason'],
@@ -8374,6 +8387,7 @@ class RestorationJobViewSet(
                 job,
                 user=request.user,
                 label=f'Voided {event.event_type}',
+                correlation_id=correlation_id,
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -8404,16 +8418,19 @@ class RestorationJobViewSet(
             from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
             from apps.inventory.services.restoration_timeline import record_work_session_changes
 
+            correlation_id = uuid.uuid4()
             record_work_session_changes(
                 job,
                 before,
                 job.work_session,
                 actor=request.user,
+                correlation_id=correlation_id,
             )
             job = mark_restoration_meaningful_action(
                 job,
                 user=request.user,
                 label='Item assessment updated',
+                correlation_id=correlation_id,
             )
         job = self.get_queryset().get(pk=job.pk)
         out = RestorationJobSerializer(job, context=self.get_serializer_context())

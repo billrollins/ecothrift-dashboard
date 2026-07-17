@@ -46,6 +46,9 @@ export function TarsLaneList({
             {jobs.map((job) => {
               const sku = job.items[0]?.sku ?? job.sku ?? `Job ${job.id}`;
               const missing = job.needs_setup;
+              const projectedPending = (
+                job.work_session as { pending?: { partsReceived?: boolean } } | undefined
+              )?.pending;
               return (
                 <Box
                   key={job.id}
@@ -94,10 +97,28 @@ export function TarsLaneList({
                             ? TARS_PENDING_REASON_LABELS[job.pending_reason]
                             : 'Pending'}
                         </Typography>
+                        {job.pending_notes ? (
+                          <Typography variant="caption" noWrap sx={{ display: 'block', color: '#65748a' }}>
+                            Follow-up: {job.pending_notes}
+                          </Typography>
+                        ) : null}
                         {job.pending_storage_location ? (
-                          <Typography variant="caption" sx={{ color: '#7a8798' }}>
+                          <Typography variant="caption" sx={{ display: 'block', color: '#7a8798' }}>
                             Stored: {job.pending_storage_location}
                           </Typography>
+                        ) : null}
+                        {job.pending_reason === 'parts_needed' ? (
+                          <Chip
+                            size="small"
+                            label={projectedPending?.partsReceived ? 'Parts received' : 'Waiting for parts'}
+                            sx={{
+                              mt: 0.4,
+                              height: 21,
+                              bgcolor: projectedPending?.partsReceived ? '#e8f7ed' : '#f1f4f7',
+                              color: projectedPending?.partsReceived ? '#26703a' : '#526177',
+                              fontWeight: 850,
+                            }}
+                          />
                         ) : null}
                       </>
                     ) : (

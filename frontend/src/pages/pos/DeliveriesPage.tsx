@@ -1,27 +1,35 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type SyntheticEvent } from 'react';
 import {
   Box,
   Button,
   Chip,
   FormControl,
+  IconButton,
   InputLabel,
   MenuItem,
   Paper,
   Select,
   Stack,
+  Tab,
+  Tabs,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import Add from '@mui/icons-material/Add';
+import ArrowBack from '@mui/icons-material/ArrowBack';
+import LocalShippingOutlined from '@mui/icons-material/LocalShippingOutlined';
 import MapOutlined from '@mui/icons-material/MapOutlined';
+import PhoneOutlined from '@mui/icons-material/PhoneOutlined';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
-import { format, addDays } from 'date-fns';
+import { addDays, format, parseISO, isValid } from 'date-fns';
+import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { useAuth } from '../../contexts/AuthContext';
@@ -38,6 +46,8 @@ import type { DeliveryAvailability, DeliveryJob, DeliveryJobStatus } from '../..
 /** Eco-Thrift Canfield — matches POS delivery distance store pin. */
 const STORE_ORIGIN = '8425 West Center Road, Omaha, NE 68124';
 
+type DeliveriesTab = 'day' | 'all' | 'schedule';
+
 function formatTime(value: string): string {
   return String(value || '').slice(0, 5);
 }
@@ -47,6 +57,12 @@ function formatMoney(value: string | number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num ?? 0);
 }
 
+function formatDayLabel(iso: string): string {
+  const d = parseISO(iso);
+  if (!isValid(d)) return iso;
+  return format(d, 'EEE MMM d');
+}
+
 function jobStopAddress(job: DeliveryJob): string {
   const base = (job.address || '').trim();
   if (!base) return '';
@@ -54,11 +70,6 @@ function jobStopAddress(job: DeliveryJob): string {
   return base;
 }
 
-/**
- * Google Maps multi-stop directions URL (browser). Does not re-order stops;
- * waypoint optimize needs Directions API (paid Maps key).
- * Intermediate stops capped at 9 (Maps URL practical limit).
- */
 function buildGoogleMapsRouteUrl(stops: string[]): string | null {
   const cleaned = stops.map((s) => s.trim()).filter(Boolean);
   if (cleaned.length === 0) return null;
@@ -77,6 +88,11 @@ function buildGoogleMapsRouteUrl(stops: string[]): string | null {
   return url;
 }
 
+function parseTab(raw: string | null): DeliveriesTab {
+  if (raw === 'all' || raw === 'schedule') return raw;
+  return 'day';
+}
+
 const STATUS_COLORS: Record<DeliveryJobStatus, 'default' | 'success' | 'warning' | 'error' | 'info'> = {
   scheduled: 'info',
   completed: 'success',
@@ -88,14 +104,17 @@ export default function DeliveriesPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { hasRole } = useAuth();
   const canManage = hasRole('Manager') || hasRole('Admin');
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const defaultHorizon = useMemo(() => format(addDays(new Date(), 60), 'yyyy-MM-dd'), []);
 
+  const tab = parseTab(searchParams.get('tab'));
+  const selectedDate = searchParams.get('date') || today;
+
   const [jobStatusFilter, setJobStatusFilter] = useState<string>('scheduled');
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(defaultHorizon);
-  const [routeDate, setRouteDate] = useState(today);
 
   const [formDate, setFormDate] = useState(today);
   const [formStart, setFormStart] = useState('09:00');
@@ -105,27 +124,108 @@ export default function DeliveriesPage() {
   const [formNotes, setFormNotes] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const availParams = useMemo(
+  const rangeParams = useMemo(
     () => ({ date_from: dateFrom || undefined, date_to: dateTo || undefined }),
     [dateFrom, dateTo],
   );
-  const jobParams = useMemo(
-    () => ({
-      date_from: dateFrom || undefined,
-      date_to: dateTo || undefined,
-      ...(jobStatusFilter ? { status: jobStatusFilter } : {}),
-    }),
-    [dateFrom, dateTo, jobStatusFilter],
-  );
 
   const { data: availabilities = [], isLoading: availLoading } =
-    useDeliveryAvailabilities(availParams);
-  const { data: jobs = [], isLoading: jobsLoading } = useDeliveryJobs(jobParams);
+    useDeliveryAvailabilities(rangeParams);
+  const { data: jobs = [], isLoading: jobsLoading } = useDeliveryJobs(rangeParams);
 
   const createAvail = useCreateDeliveryAvailability();
   const updateAvail = useUpdateDeliveryAvailability();
   const deleteAvail = useDeleteDeliveryAvailability();
   const updateJob = useUpdateDeliveryJob();
+
+  const setTab = (next: DeliveriesTab) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('tab', next);
+    if (!params.get('date')) params.set('date', selectedDate);
+    setSearchParams(params, { replace: true });
+  };
+
+  const selectDate = (iso: string, nextTab: DeliveriesTab = 'day') => {
+    const params = new URLSearchParams(searchParams);
+    params.set('tab', nextTab);
+    params.set('date', iso);
+    setSearchParams(params, { replace: true });
+  };
+
+  const daySlots = useMemo(
+    () =>
+      availabilities
+        .filter((a) => a.is_active)
+        .slice()
+        .sort((a, b) => a.date.localeCompare(b.date) || a.time_start.localeCompare(b.time_start)),
+    [availabilities],
+  );
+
+  const jobsByDate = useMemo(() => {
+    const map = new Map<string, DeliveryJob[]>();
+    for (const job of jobs) {
+      const list = map.get(job.scheduled_date) ?? [];
+      list.push(job);
+      map.set(job.scheduled_date, list);
+    }
+    return map;
+  }, [jobs]);
+
+  const dayRail = useMemo(() => {
+    const fromSlots = daySlots.map((slot) => ({
+      key: `slot-${slot.id}`,
+      date: slot.date,
+      slot,
+      scheduledCount: (jobsByDate.get(slot.date) ?? []).filter((j) => j.status === 'scheduled').length,
+      itemCount: slot.items_booked,
+      deliveryCount: slot.delivery_count,
+    }));
+    const slotDates = new Set(fromSlots.map((r) => r.date));
+    const orphanDates = [...jobsByDate.keys()]
+      .filter((d) => !slotDates.has(d) && d >= today)
+      .sort()
+      .map((date) => {
+        const dayJobs = jobsByDate.get(date) ?? [];
+        return {
+          key: `orphan-${date}`,
+          date,
+          slot: null as DeliveryAvailability | null,
+          scheduledCount: dayJobs.filter((j) => j.status === 'scheduled').length,
+          itemCount: dayJobs.reduce((n, j) => n + (j.item_count || 0), 0),
+          deliveryCount: dayJobs.length,
+        };
+      });
+    return [...fromSlots, ...orphanDates].sort((a, b) => a.date.localeCompare(b.date));
+  }, [daySlots, jobsByDate, today]);
+
+  useEffect(() => {
+    if (tab !== 'day') return;
+    if (dayRail.some((r) => r.date === selectedDate)) return;
+    const next = dayRail.find((r) => r.date >= today)?.date ?? dayRail[0]?.date ?? today;
+    if (next !== selectedDate) {
+      const params = new URLSearchParams(searchParams);
+      params.set('date', next);
+      setSearchParams(params, { replace: true });
+    }
+  }, [tab, dayRail, selectedDate, today, searchParams, setSearchParams]);
+
+  const selectedSlot =
+    daySlots.find((s) => s.date === selectedDate) ??
+    availabilities.find((s) => s.date === selectedDate) ??
+    null;
+
+  const dayJobs = useMemo(() => {
+    const list = jobsByDate.get(selectedDate) ?? [];
+    return list.slice().sort((a, b) => a.id - b.id);
+  }, [jobsByDate, selectedDate]);
+
+  const dayScheduled = dayJobs.filter((j) => j.status === 'scheduled');
+  const dayItems = dayJobs.reduce((n, j) => n + (j.item_count || 0), 0);
+
+  const filteredAllJobs = useMemo(() => {
+    if (!jobStatusFilter) return jobs;
+    return jobs.filter((j) => j.status === jobStatusFilter);
+  }, [jobs, jobStatusFilter]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -145,6 +245,7 @@ export default function DeliveriesPage() {
     setFormCrew(row.crew_size === 1 ? 1 : 2);
     setFormAssigned(row.assigned_to || '');
     setFormNotes(row.notes || '');
+    setTab('schedule');
   };
 
   const handleSaveAvailability = async (e: FormEvent) => {
@@ -168,13 +269,11 @@ export default function DeliveriesPage() {
         enqueueSnackbar('Delivery date added', { variant: 'success' });
       }
       resetForm();
+      selectDate(payload.date, 'schedule');
     } catch (err: unknown) {
       const detail =
         (err as { response?: { data?: { detail?: string; time_end?: string[] } } })?.response?.data;
-      const msg =
-        detail?.detail ||
-        detail?.time_end?.[0] ||
-        'Failed to save delivery date';
+      const msg = detail?.detail || detail?.time_end?.[0] || 'Failed to save delivery date';
       enqueueSnackbar(msg, { variant: 'error' });
     }
   };
@@ -200,9 +299,11 @@ export default function DeliveriesPage() {
     }
   };
 
-  const handleOpenGoogleRoute = () => {
-    const dayJobs = jobs.filter((j) => j.scheduled_date === routeDate && j.status === 'scheduled');
-    const stops = dayJobs.map(jobStopAddress).filter(Boolean);
+  const handleOpenGoogleRoute = (dateIso: string) => {
+    const stops = (jobsByDate.get(dateIso) ?? [])
+      .filter((j) => j.status === 'scheduled')
+      .map(jobStopAddress)
+      .filter(Boolean);
     if (stops.length === 0) {
       enqueueSnackbar('No scheduled stops with addresses for that date.', { variant: 'warning' });
       return;
@@ -211,15 +312,24 @@ export default function DeliveriesPage() {
     if (!url) return;
     if (stops.length > 10) {
       enqueueSnackbar(
-        `Maps URL supports ~10 stops; opened first 10 of ${stops.length}. Best-path optimize needs a Maps Directions key.`,
+        `Maps URL supports ~10 stops; opened first 10 of ${stops.length}.`,
         { variant: 'info' },
       );
     }
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const jobColumns: GridColDef[] = [
-    { field: 'scheduled_date', headerName: 'Date', width: 110 },
+  const allColumns: GridColDef[] = [
+    {
+      field: 'scheduled_date',
+      headerName: 'Date',
+      width: 120,
+      renderCell: (params) => (
+        <Button size="small" onClick={() => selectDate(String(params.value), 'day')}>
+          {formatDayLabel(String(params.value))}
+        </Button>
+      ),
+    },
     {
       field: 'window',
       headerName: 'Window',
@@ -246,15 +356,6 @@ export default function DeliveriesPage() {
       valueFormatter: (v) => formatMoney(String(v ?? 0)),
     },
     {
-      field: 'crew',
-      headerName: 'Crew',
-      width: 90,
-      valueGetter: (_v, row) =>
-        `${row.availability_crew_size ?? '—'}p${
-          row.availability_assigned_to ? ` ${row.availability_assigned_to}` : ''
-        }`,
-    },
-    {
       field: 'status',
       headerName: 'Status',
       width: 120,
@@ -271,11 +372,11 @@ export default function DeliveriesPage() {
           {
             field: 'actions',
             headerName: 'Update',
-            width: 220,
+            width: 200,
             sortable: false,
             renderCell: (params) => (
               <Stack direction="row" spacing={0.5}>
-                {params.row.status === 'scheduled' && (
+                {params.row.status === 'scheduled' ? (
                   <>
                     <Button size="small" onClick={() => handleJobStatus(params.row.id, 'completed')}>
                       Done
@@ -284,8 +385,7 @@ export default function DeliveriesPage() {
                       Cancel
                     </Button>
                   </>
-                )}
-                {params.row.status !== 'scheduled' && (
+                ) : (
                   <Button size="small" onClick={() => handleJobStatus(params.row.id, 'scheduled')}>
                     Reopen
                   </Button>
@@ -301,226 +401,523 @@ export default function DeliveriesPage() {
     return <LoadingScreen />;
   }
 
+  const scheduledTotal = jobs.filter((j) => j.status === 'scheduled').length;
+
   return (
-    <Box>
+    <Box
+      sx={{
+        height: '100%',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1.25,
+      }}
+    >
       <PageHeader
+        dense
         title="Deliveries"
-        subtitle="Scheduled appliance deliveries and the dates cashiers can book."
-      />
-
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }} alignItems={{ sm: 'center' }}>
-        <TextField
-          label="From"
-          type="date"
-          size="small"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-        <TextField
-          label="To"
-          type="date"
-          size="small"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>Job status</InputLabel>
-          <Select
-            label="Job status"
-            value={jobStatusFilter}
-            onChange={(e) => setJobStatusFilter(e.target.value)}
-          >
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="scheduled">Scheduled</MenuItem>
-            <MenuItem value="completed">Completed</MenuItem>
-            <MenuItem value="cancelled">Cancelled</MenuItem>
-            <MenuItem value="failed">Failed</MenuItem>
-          </Select>
-        </FormControl>
-        <TextField
-          label="Route day"
-          type="date"
-          size="small"
-          value={routeDate}
-          onChange={(e) => setRouteDate(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-        <Button
-          variant="outlined"
-          startIcon={<MapOutlined />}
-          onClick={handleOpenGoogleRoute}
-        >
-          Open Google Maps route
-        </Button>
-      </Stack>
-
-      <Typography variant="h6" sx={{ mb: 1 }}>
-        Scheduled deliveries
-      </Typography>
-      <Paper sx={{ height: 420, mb: 4 }}>
-        <DataGrid
-          rows={jobs}
-          columns={jobColumns}
-          density="compact"
-          disableRowSelectionOnClick
-          pageSizeOptions={[25, 50, 100]}
-          initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-          localeText={{ noRowsLabel: 'No deliveries in this range.' }}
-        />
-      </Paper>
-
-      <Typography variant="h6" sx={{ mb: 1 }}>
-        Available dates
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Set date, time window, who is delivering, and 1- vs 2-person crew. Counts show items and
-        deliveries already booked on that window.
-      </Typography>
-
-      {canManage && (
-        <Paper
-          component="form"
-          onSubmit={handleSaveAvailability}
-          sx={{ p: 2, mb: 2, border: 1, borderColor: 'divider' }}
-        >
-          <Stack
-            direction={{ xs: 'column', md: 'row' }}
-            spacing={1.5}
-            useFlexGap
-            flexWrap="wrap"
-            alignItems={{ md: 'flex-end' }}
-          >
+        subtitle="Pick a day for the route board, browse every stop, or set bookable dates."
+        action={
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Chip
+              size="small"
+              icon={<LocalShippingOutlined />}
+              label={`${scheduledTotal} scheduled`}
+              color="info"
+              variant="outlined"
+            />
             <TextField
-              label="Date"
+              label="From"
               type="date"
               size="small"
-              required
-              value={formDate}
-              onChange={(e) => setFormDate(e.target.value)}
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
               slotProps={{ inputLabel: { shrink: true } }}
+              sx={{ width: 150 }}
             />
             <TextField
-              label="Start"
-              type="time"
+              label="To"
+              type="date"
               size="small"
-              required
-              value={formStart}
-              onChange={(e) => setFormStart(e.target.value)}
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
               slotProps={{ inputLabel: { shrink: true } }}
+              sx={{ width: 150 }}
             />
-            <TextField
-              label="End"
-              type="time"
-              size="small"
-              required
-              value={formEnd}
-              onChange={(e) => setFormEnd(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Crew</InputLabel>
-              <Select
-                label="Crew"
-                value={formCrew}
-                onChange={(e) => setFormCrew(Number(e.target.value) as 1 | 2)}
-              >
-                <MenuItem value={1}>1 person</MenuItem>
-                <MenuItem value={2}>2 people</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField
-              label="Who"
-              size="small"
-              value={formAssigned}
-              onChange={(e) => setFormAssigned(e.target.value)}
-              placeholder="Driver names"
-              sx={{ minWidth: 180 }}
-            />
-            <TextField
-              label="Notes"
-              size="small"
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-              sx={{ minWidth: 180, flex: 1 }}
-            />
-            <Button
-              type="submit"
-              variant="contained"
-              startIcon={<Add />}
-              disabled={createAvail.isPending || updateAvail.isPending}
-            >
-              {editingId != null ? 'Update date' : 'Add date'}
-            </Button>
-            {editingId != null && (
-              <Button type="button" onClick={resetForm}>
-                Cancel edit
-              </Button>
-            )}
           </Stack>
-        </Paper>
+        }
+      />
+
+      <Tabs
+        value={tab}
+        onChange={(_e: SyntheticEvent, next: DeliveriesTab) => setTab(next)}
+        sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 42 }}
+      >
+        <Tab value="day" label="Day board" sx={{ minHeight: 42, fontWeight: 700 }} />
+        <Tab
+          value="all"
+          label={`All deliveries (${filteredAllJobs.length})`}
+          sx={{ minHeight: 42, fontWeight: 700 }}
+        />
+        <Tab
+          value="schedule"
+          label={`Available dates (${daySlots.length})`}
+          sx={{ minHeight: 42, fontWeight: 700 }}
+        />
+      </Tabs>
+
+      {tab === 'day' && (
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: 'minmax(220px, 280px) 1fr' },
+            gap: 1.25,
+          }}
+        >
+          <Paper
+            variant="outlined"
+            sx={{
+              overflow: 'auto',
+              maxHeight: { xs: 220, md: 'calc(100vh - 220px)' },
+              p: 1,
+            }}
+          >
+            <Typography variant="overline" color="text.secondary" sx={{ px: 1 }}>
+              Dates
+            </Typography>
+            {dayRail.length === 0 ? (
+              <Box sx={{ p: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  No bookable dates yet. Add them on Available dates.
+                </Typography>
+                {canManage && (
+                  <Button size="small" variant="contained" onClick={() => setTab('schedule')}>
+                    Set available dates
+                  </Button>
+                )}
+              </Box>
+            ) : (
+              <Stack spacing={0.5}>
+                {dayRail.map((row) => {
+                  const selected = row.date === selectedDate;
+                  return (
+                    <Box
+                      key={row.key}
+                      component="button"
+                      type="button"
+                      onClick={() => selectDate(row.date, 'day')}
+                      sx={{
+                        textAlign: 'left',
+                        border: 1,
+                        borderColor: selected ? 'primary.main' : 'divider',
+                        bgcolor: selected ? 'action.selected' : 'transparent',
+                        borderRadius: 1,
+                        px: 1.25,
+                        py: 1,
+                        cursor: 'pointer',
+                        width: '100%',
+                        font: 'inherit',
+                        color: 'inherit',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                    >
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        {formatDayLabel(row.date)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {row.slot
+                          ? `${formatTime(row.slot.time_start)}–${formatTime(row.slot.time_end)} · ${row.slot.crew_size}p`
+                          : 'No slot set'}
+                        {row.slot?.assigned_to ? ` · ${row.slot.assigned_to}` : ''}
+                      </Typography>
+                      <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }}>
+                        <Chip size="small" label={`${row.scheduledCount} stops`} />
+                        <Chip size="small" variant="outlined" label={`${row.itemCount} items`} />
+                      </Stack>
+                    </Box>
+                  );
+                })}
+              </Stack>
+            )}
+          </Paper>
+
+          <Paper
+            variant="outlined"
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              maxHeight: { xs: 'none', md: 'calc(100vh - 220px)' },
+              overflow: 'hidden',
+            }}
+          >
+            <Box
+              sx={{
+                px: 2,
+                py: 1.5,
+                borderBottom: 1,
+                borderColor: 'divider',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 1.5,
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Box>
+                <Typography variant="h6" fontWeight={700}>
+                  {formatDayLabel(selectedDate)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {selectedSlot
+                    ? `${formatTime(selectedSlot.time_start)}–${formatTime(selectedSlot.time_end)} · ${
+                        selectedSlot.crew_size === 1 ? '1 person' : '2 people'
+                      }${selectedSlot.assigned_to ? ` · ${selectedSlot.assigned_to}` : ''}`
+                    : 'No availability window for this day'}
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                <Chip label={`${dayScheduled.length} scheduled`} color="info" size="small" />
+                <Chip label={`${dayItems} items`} size="small" variant="outlined" />
+                <Chip label={`${dayJobs.length} total`} size="small" variant="outlined" />
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<MapOutlined />}
+                  onClick={() => handleOpenGoogleRoute(selectedDate)}
+                  disabled={dayScheduled.length === 0}
+                >
+                  Google Maps route
+                </Button>
+                {canManage && selectedSlot && (
+                  <Button size="small" onClick={() => startEdit(selectedSlot)}>
+                    Edit slot
+                  </Button>
+                )}
+              </Stack>
+            </Box>
+
+            <Box sx={{ flex: 1, overflow: 'auto', p: 1.5 }}>
+              {dayJobs.length === 0 ? (
+                <Box sx={{ py: 6, textAlign: 'center' }}>
+                  <Typography variant="body1" color="text.secondary">
+                    No deliveries on this day yet.
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Cashiers book stops from the terminal Delivery dialog.
+                  </Typography>
+                </Box>
+              ) : (
+                <Stack spacing={1.25}>
+                  {dayJobs.map((job, index) => (
+                    <Paper
+                      key={job.id}
+                      variant="outlined"
+                      sx={{
+                        p: 1.5,
+                        borderColor: job.status === 'scheduled' ? 'divider' : 'action.disabledBackground',
+                        opacity: job.status === 'cancelled' ? 0.7 : 1,
+                      }}
+                    >
+                      <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={1.5}
+                        justifyContent="space-between"
+                        alignItems={{ sm: 'flex-start' }}
+                      >
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                            <Chip size="small" label={`#${index + 1}`} />
+                            <Typography variant="subtitle1" fontWeight={700} noWrap>
+                              {job.customer_name}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={job.status}
+                              color={STATUS_COLORS[job.status]}
+                            />
+                            <Chip size="small" variant="outlined" label={formatMoney(job.fee)} />
+                          </Stack>
+                          <Typography variant="body2" sx={{ mb: 0.5 }}>
+                            {job.items_delivered}
+                            {job.item_count > 1 ? ` · ${job.item_count} items` : ''}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {jobStopAddress(job)}
+                          </Typography>
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.75 }}>
+                            <PhoneOutlined sx={{ fontSize: 16, color: 'text.secondary' }} />
+                            <Typography variant="body2">{job.phone || '—'}</Typography>
+                          </Stack>
+                        </Box>
+                        {canManage && (
+                          <Stack direction="row" spacing={0.75} flexShrink={0}>
+                            {job.status === 'scheduled' ? (
+                              <>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  onClick={() => handleJobStatus(job.id, 'completed')}
+                                >
+                                  Done
+                                </Button>
+                                <Button
+                                  size="small"
+                                  onClick={() => handleJobStatus(job.id, 'cancelled')}
+                                >
+                                  Cancel
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                size="small"
+                                onClick={() => handleJobStatus(job.id, 'scheduled')}
+                              >
+                                Reopen
+                              </Button>
+                            )}
+                          </Stack>
+                        )}
+                      </Stack>
+                    </Paper>
+                  ))}
+                </Stack>
+              )}
+            </Box>
+          </Paper>
+        </Box>
       )}
 
-      <Paper variant="outlined">
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Date</TableCell>
-              <TableCell>Times</TableCell>
-              <TableCell>Crew</TableCell>
-              <TableCell>Who</TableCell>
-              <TableCell align="right">Deliveries</TableCell>
-              <TableCell align="right">Items</TableCell>
-              <TableCell>Active</TableCell>
-              {canManage && <TableCell align="right">Actions</TableCell>}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {availabilities.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={canManage ? 8 : 7}>
-                  <Typography variant="body2" color="text.secondary">
-                    No available dates in this range.
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              availabilities.map((row) => (
-                <TableRow key={row.id} hover selected={editingId === row.id}>
-                  <TableCell>{row.date}</TableCell>
-                  <TableCell>
-                    {formatTime(row.time_start)}–{formatTime(row.time_end)}
-                  </TableCell>
-                  <TableCell>{row.crew_size === 1 ? '1 person' : '2 people'}</TableCell>
-                  <TableCell>{row.assigned_to || '—'}</TableCell>
-                  <TableCell align="right">{row.delivery_count}</TableCell>
-                  <TableCell align="right">{row.items_booked}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={row.is_active ? 'Yes' : 'Off'}
-                      color={row.is_active ? 'success' : 'default'}
-                    />
-                  </TableCell>
-                  {canManage && (
-                    <TableCell align="right">
-                      <Button size="small" onClick={() => startEdit(row)}>
-                        Edit
-                      </Button>
-                      {row.is_active && (
-                        <Button size="small" color="warning" onClick={() => handleDeactivate(row.id)}>
-                          Deactivate
-                        </Button>
-                      )}
-                    </TableCell>
-                  )}
+      {tab === 'all' && (
+        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                label="Status"
+                value={jobStatusFilter}
+                onChange={(e) => setJobStatusFilter(e.target.value)}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="scheduled">Scheduled</MenuItem>
+                <MenuItem value="completed">Completed</MenuItem>
+                <MenuItem value="cancelled">Cancelled</MenuItem>
+                <MenuItem value="failed">Failed</MenuItem>
+              </Select>
+            </FormControl>
+            <Typography variant="body2" color="text.secondary">
+              Click a date to open that day’s board.
+            </Typography>
+          </Stack>
+          <Paper sx={{ flex: 1, minHeight: 360, height: 'calc(100vh - 260px)' }}>
+            <DataGrid
+              rows={filteredAllJobs}
+              columns={allColumns}
+              density="compact"
+              disableRowSelectionOnClick
+              pageSizeOptions={[25, 50, 100]}
+              initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+              localeText={{ noRowsLabel: 'No deliveries in this range.' }}
+            />
+          </Paper>
+        </Box>
+      )}
+
+      {tab === 'schedule' && (
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.5,
+            overflow: 'auto',
+          }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            These are the days cashiers can book at the terminal. Click a row to open that day on
+            the Day board.
+          </Typography>
+
+          {canManage && (
+            <Paper
+              component="form"
+              onSubmit={handleSaveAvailability}
+              variant="outlined"
+              sx={{ p: 2 }}
+            >
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                {editingId != null && (
+                  <IconButton size="small" onClick={resetForm} aria-label="Cancel edit">
+                    <ArrowBack fontSize="small" />
+                  </IconButton>
+                )}
+                <Typography variant="subtitle1" fontWeight={700}>
+                  {editingId != null ? 'Edit available date' : 'Add available date'}
+                </Typography>
+              </Stack>
+              <Stack
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={1.5}
+                useFlexGap
+                flexWrap="wrap"
+                alignItems={{ md: 'flex-end' }}
+              >
+                <TextField
+                  label="Date"
+                  type="date"
+                  size="small"
+                  required
+                  value={formDate}
+                  onChange={(e) => setFormDate(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <TextField
+                  label="Start"
+                  type="time"
+                  size="small"
+                  required
+                  value={formStart}
+                  onChange={(e) => setFormStart(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <TextField
+                  label="End"
+                  type="time"
+                  size="small"
+                  required
+                  value={formEnd}
+                  onChange={(e) => setFormEnd(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Crew</InputLabel>
+                  <Select
+                    label="Crew"
+                    value={formCrew}
+                    onChange={(e) => setFormCrew(Number(e.target.value) as 1 | 2)}
+                  >
+                    <MenuItem value={1}>1 person</MenuItem>
+                    <MenuItem value={2}>2 people</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField
+                  label="Who"
+                  size="small"
+                  value={formAssigned}
+                  onChange={(e) => setFormAssigned(e.target.value)}
+                  placeholder="Driver names"
+                  sx={{ minWidth: 180 }}
+                />
+                <TextField
+                  label="Notes"
+                  size="small"
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  sx={{ minWidth: 180, flex: 1 }}
+                />
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<Add />}
+                  disabled={createAvail.isPending || updateAvail.isPending}
+                >
+                  {editingId != null ? 'Update date' : 'Add date'}
+                </Button>
+                {editingId != null && (
+                  <Button type="button" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                )}
+              </Stack>
+            </Paper>
+          )}
+
+          <Paper variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Window</TableCell>
+                  <TableCell>Crew</TableCell>
+                  <TableCell>Who</TableCell>
+                  <TableCell align="right">Deliveries</TableCell>
+                  <TableCell align="right">Items</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Paper>
+              </TableHead>
+              <TableBody>
+                {availabilities.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8}>
+                      <Typography variant="body2" color="text.secondary">
+                        No available dates in this range.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  availabilities.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      hover
+                      selected={editingId === row.id || selectedDate === row.date}
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => selectDate(row.date, 'day')}
+                    >
+                      <TableCell>
+                        <Typography fontWeight={600}>{formatDayLabel(row.date)}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {row.date}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        {formatTime(row.time_start)}–{formatTime(row.time_end)}
+                      </TableCell>
+                      <TableCell>{row.crew_size === 1 ? '1 person' : '2 people'}</TableCell>
+                      <TableCell>{row.assigned_to || '—'}</TableCell>
+                      <TableCell align="right">{row.delivery_count}</TableCell>
+                      <TableCell align="right">{row.items_booked}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={row.is_active ? 'Open' : 'Off'}
+                          color={row.is_active ? 'success' : 'default'}
+                        />
+                      </TableCell>
+                      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                        <Tooltip title="Open day board">
+                          <Button size="small" onClick={() => selectDate(row.date, 'day')}>
+                            Open day
+                          </Button>
+                        </Tooltip>
+                        {canManage && (
+                          <>
+                            <Button size="small" onClick={() => startEdit(row)}>
+                              Edit
+                            </Button>
+                            {row.is_active && (
+                              <Button
+                                size="small"
+                                color="warning"
+                                onClick={() => handleDeactivate(row.id)}
+                              >
+                                Deactivate
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </Paper>
+        </Box>
+      )}
     </Box>
   );
 }

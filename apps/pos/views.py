@@ -1020,6 +1020,17 @@ class CartViewSet(viewsets.ModelViewSet):
                 continue
             meta[key] = raw
 
+        raw_line_ids = request.data.get('cart_line_ids')
+        if isinstance(raw_line_ids, list):
+            cleaned_ids = []
+            for raw_id in raw_line_ids:
+                try:
+                    cleaned_ids.append(int(raw_id))
+                except (TypeError, ValueError):
+                    continue
+            if cleaned_ids:
+                meta['cart_line_ids'] = cleaned_ids
+
         distance_miles = None
         raw_miles = request.data.get('distance_miles')
         if raw_miles not in (None, ''):
@@ -1028,35 +1039,81 @@ class CartViewSet(viewsets.ModelViewSet):
             except (InvalidOperation, ValueError, TypeError):
                 distance_miles = None
 
+        replace_line_id = request.data.get('replace_line_id')
+        replace_line = None
+        if replace_line_id not in (None, ''):
+            try:
+                replace_line = cart.lines.get(
+                    pk=int(replace_line_id),
+                    line_kind=CartLine.LINE_KIND_DELIVERY,
+                )
+            except (CartLine.DoesNotExist, ValueError, TypeError):
+                return Response(
+                    {'detail': 'Delivery line to update was not found.', 'code': 'LINE_NOT_FOUND'},
+                    status=400,
+                )
+
         with transaction.atomic():
-            line = CartLine.objects.create(
-                cart=cart,
-                item=None,
-                description=description,
-                quantity=1,
-                unit_price=fee,
-                line_kind=CartLine.LINE_KIND_DELIVERY,
-                meta=meta,
-            )
-            DeliveryJob.objects.create(
-                availability=availability,
-                scheduled_date=availability.date,
-                cart=cart,
-                cart_line=line,
-                customer_name=customer_name,
-                phone=phone,
-                address=address,
-                is_apt=is_apt,
-                unit=unit,
-                items_delivered=items_delivered,
-                item_count=item_count,
-                tier=tier,
-                fee=fee,
-                distance_miles=distance_miles,
-                distance_mode=(request.data.get('distance_mode') or '')[:20],
-                status=DeliveryJob.STATUS_SCHEDULED,
-                created_by=request.user if request.user.is_authenticated else None,
-            )
+            if replace_line is not None:
+                line = replace_line
+                line.description = description
+                line.quantity = 1
+                line.unit_price = fee
+                line.meta = meta
+                line.save()
+                job = DeliveryJob.objects.filter(cart_line=line).first()
+                if job is None:
+                    job = DeliveryJob(
+                        cart=cart,
+                        cart_line=line,
+                        created_by=request.user if request.user.is_authenticated else None,
+                    )
+                job.availability = availability
+                job.scheduled_date = availability.date
+                job.cart = cart
+                job.customer_name = customer_name
+                job.phone = phone
+                job.address = address
+                job.is_apt = is_apt
+                job.unit = unit
+                job.items_delivered = items_delivered
+                job.item_count = item_count
+                job.tier = tier
+                job.fee = fee
+                job.distance_miles = distance_miles
+                job.distance_mode = (request.data.get('distance_mode') or '')[:20]
+                if job.status == DeliveryJob.STATUS_CANCELLED:
+                    job.status = DeliveryJob.STATUS_SCHEDULED
+                job.save()
+            else:
+                line = CartLine.objects.create(
+                    cart=cart,
+                    item=None,
+                    description=description,
+                    quantity=1,
+                    unit_price=fee,
+                    line_kind=CartLine.LINE_KIND_DELIVERY,
+                    meta=meta,
+                )
+                DeliveryJob.objects.create(
+                    availability=availability,
+                    scheduled_date=availability.date,
+                    cart=cart,
+                    cart_line=line,
+                    customer_name=customer_name,
+                    phone=phone,
+                    address=address,
+                    is_apt=is_apt,
+                    unit=unit,
+                    items_delivered=items_delivered,
+                    item_count=item_count,
+                    tier=tier,
+                    fee=fee,
+                    distance_miles=distance_miles,
+                    distance_mode=(request.data.get('distance_mode') or '')[:20],
+                    status=DeliveryJob.STATUS_SCHEDULED,
+                    created_by=request.user if request.user.is_authenticated else None,
+                )
 
         cart.recalculate()
         cart = self.get_queryset().get(pk=cart.pk)

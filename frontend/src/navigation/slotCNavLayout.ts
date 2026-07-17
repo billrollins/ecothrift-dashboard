@@ -56,9 +56,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
       'onlineSalesQueue',
       'onlineSalesListings',
       'onlineSalesInbox',
-      'onlineSalesMarketing',
       'onlineSalesSales',
-      'blogStudio',
     ],
   },
   {
@@ -72,6 +70,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
       'permissions',
       'settings',
       'labelStudio',
+      'blogStudio',
       'payrollHours',
     ],
   },
@@ -136,7 +135,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'onlineSales',
     label: 'Online Sales',
     shortLabel: 'Online',
-    helper: 'Listings, holds, marketing, and online sales log',
+    helper: 'Listings, holds, and online sales log',
     icon: 'shoppingCart',
   },
   {

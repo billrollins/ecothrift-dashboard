@@ -11,8 +11,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import PlayArrow from '@mui/icons-material/PlayArrow';
-import Pause from '@mui/icons-material/Pause';
 import { useEffect, useMemo, useState } from 'react';
 import type {
   RestorationJobDTO,
@@ -41,9 +39,10 @@ interface TarsDoneDialogProps {
   session?: TarsWorkSession;
   onClose: () => void;
   onSubmit: (payload: RestorationJobDonePayload) => void;
-  onTimerStart: () => void;
-  onTimerPause: () => void;
-  timerBusy?: boolean;
+}
+
+function usd(value: number): string {
+  return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
 export function TarsDoneDialog({
@@ -53,9 +52,6 @@ export function TarsDoneDialog({
   session,
   onClose,
   onSubmit,
-  onTimerStart,
-  onTimerPause,
-  timerBusy,
 }: TarsDoneDialogProps) {
   const [destination, setDestination] = useState<RestorationBenchDisposition>('processing');
   const [finalGrade, setFinalGrade] = useState('');
@@ -71,6 +67,16 @@ export function TarsDoneDialog({
 
   const defaultHours = job?.elapsed_hours ?? '0';
   const selectedDecision = session?.decisionWork?.selection;
+  const knownPartsCost = (session?.parts ?? []).reduce((total, part) => (
+    total + Math.max(part.qty || 0, 0) * Math.max(
+      part.unitPriceActual > 0 ? part.unitPriceActual : part.unitPriceEstimate,
+      0,
+    )
+  ), 0);
+  const performedCount = session?.benchRows?.length ?? 0;
+  const completedTestCount = session?.decisionWork?.tests.filter((test) => test.result != null).length ?? 0;
+  const currentGrade = session?.decisionWork?.condition.currentGrade ?? 'Not assessed';
+  const itemLabel = job?.items[0]?.sku ?? job?.sku ?? job?.name ?? 'Item';
 
   useEffect(() => {
     if (!open || !job) return;
@@ -122,28 +128,34 @@ export function TarsDoneDialog({
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ pb: 1 }}>Done — disposition</DialogTitle>
+        <DialogTitle sx={{ pb: 1, fontWeight: 900 }}>Review final disposition</DialogTitle>
         <DialogContent>
           <Stack spacing={1.25} sx={{ pt: 0.5 }}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
-              <Box>
-                <Typography variant="caption" color="text.secondary" fontWeight={800} display="block">
-                  Active time
-                </Typography>
-                <Typography variant="h6" fontFamily="monospace" fontWeight={900}>
-                  {elapsedLabel}
-                </Typography>
-              </Box>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={job.timer_is_running ? <Pause /> : <PlayArrow />}
-                disabled={timerBusy}
-                onClick={() => (job.timer_is_running ? onTimerPause() : onTimerStart())}
-              >
-                {job.timer_is_running ? 'Pause for break' : 'Resume timer'}
-              </Button>
-            </Stack>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' },
+                gap: 1,
+                p: 1.25,
+                borderRadius: 2,
+                bgcolor: '#f5f8fa',
+                border: '1px solid #d7e0e7',
+              }}
+            >
+              {[
+                ['Item', itemLabel],
+                ['Grade', `${currentGrade} → ${finalGrade || 'Choose'}`],
+                ['Labor', elapsedLabel],
+                ['Known parts', usd(knownPartsCost)],
+              ].map(([label, value]) => (
+                <Box key={label}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={800} display="block">
+                    {label}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={900}>{value}</Typography>
+                </Box>
+              ))}
+            </Box>
 
             <TextField
               select
@@ -169,7 +181,7 @@ export function TarsDoneDialog({
               value={finalGrade}
               disabled={Boolean(selectedDecision?.grade)}
               onChange={(e) => setFinalGrade(e.target.value)}
-              helperText={selectedDecision?.grade ? 'Grade is controlled by the Guided decision.' : undefined}
+              helperText={selectedDecision?.grade ? 'Grade is controlled by the committed plan.' : undefined}
             >
               {gradeOptions.map((g) => (
                 <MenuItem key={g} value={g}>
@@ -188,6 +200,12 @@ export function TarsDoneDialog({
                 </Typography>
               </Alert>
             : null}
+
+            <Typography variant="body2" sx={{ color: '#526177' }}>
+              Item story: {completedTestCount} test{completedTestCount === 1 ? '' : 's'} completed,{' '}
+              {performedCount} performed action{performedCount === 1 ? '' : 's'} recorded,{' '}
+              {usd(knownPartsCost)} in known parts, and {elapsedLabel} of active labor.
+            </Typography>
 
             <TextField
               fullWidth

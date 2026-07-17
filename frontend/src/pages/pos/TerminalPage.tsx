@@ -250,6 +250,7 @@ export default function TerminalPage() {
   const [deliveryTooFarOpen, setDeliveryTooFarOpen] = useState(false);
   const [deliveryTooFarMiles, setDeliveryTooFarMiles] = useState<string | null>(null);
   const [deliveryAvailabilityId, setDeliveryAvailabilityId] = useState<number | ''>('');
+  const [editingDeliveryLineId, setEditingDeliveryLineId] = useState<number | null>(null);
   const deliverySuggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deliverySuggestSeqRef = useRef(0);
 
@@ -638,6 +639,7 @@ export default function TerminalPage() {
   );
 
   const handleOpenDeliveryDialog = useCallback(() => {
+    setEditingDeliveryLineId(null);
     setDeliveryTier('5mi');
     setDeliveryName('');
     setDeliveryPhone('');
@@ -651,6 +653,74 @@ export default function TerminalPage() {
     setDeliveryTooFarOpen(false);
     setDeliveryTooFarMiles(null);
     setDeliveryAvailabilityId('');
+    setDeliveryDialogOpen(true);
+  }, []);
+
+  const handleOpenDeliveryForEdit = useCallback((line: CartLine) => {
+    const meta = (line.meta ?? {}) as Record<string, unknown>;
+    setEditingDeliveryLineId(line.id);
+    const tier = meta.tier === '10mi' ? '10mi' : '5mi';
+    setDeliveryTier(tier);
+    setDeliveryName(String(meta.customer_name ?? ''));
+    setDeliveryPhone(String(meta.phone ?? ''));
+    setDeliveryAddress(String(meta.address ?? ''));
+    setDeliveryIsApt(Boolean(meta.is_apt));
+    setDeliveryUnit(String(meta.unit ?? ''));
+    const availId = meta.availability_id;
+    setDeliveryAvailabilityId(
+      availId != null && availId !== '' && Number.isFinite(Number(availId))
+        ? Number(availId)
+        : '',
+    );
+    const storedIds = Array.isArray(meta.cart_line_ids)
+      ? meta.cart_line_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+      : [];
+    if (storedIds.length > 0) {
+      setDeliveryLineIds(storedIds);
+    } else {
+      const itemsText = String(meta.items_delivered ?? '');
+      const parts = itemsText
+        .split(',')
+        .map((p) => p.trim().toLowerCase())
+        .filter(Boolean);
+      const merchandise = (cartRef.current?.lines ?? []).filter(
+        (ln) =>
+          ln.line_kind !== 'discount' &&
+          ln.line_kind !== 'delivery' &&
+          (ln.line_kind === 'item' || ln.line_kind === 'manual' || ln.item != null),
+      );
+      setDeliveryLineIds(
+        merchandise
+          .filter((ln) => parts.includes(ln.description.trim().toLowerCase()))
+          .map((ln) => ln.id),
+      );
+    }
+    setDeliverySuggestions([]);
+    setDeliverySuggestError(null);
+    setDeliveryTooFarOpen(false);
+    setDeliveryTooFarMiles(null);
+    const lat = meta.lat != null ? Number(meta.lat) : NaN;
+    const lon = meta.lon != null ? Number(meta.lon) : NaN;
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      setDeliveryPicked({
+        display_name: String(meta.display_name ?? meta.address ?? ''),
+        address_line: String(meta.address ?? ''),
+        city: '',
+        state: '',
+        postcode: '',
+        lat,
+        lon,
+        store_label: '',
+        distance_miles: String(meta.distance_miles ?? ''),
+        distance_mode:
+          meta.distance_mode === 'driving' ? 'driving' : 'straight_line',
+        tier,
+        fee: tier === '5mi' ? '50.00' : '75.00',
+        too_far: false,
+      });
+    } else {
+      setDeliveryPicked(null);
+    }
     setDeliveryDialogOpen(true);
   }, []);
 
@@ -782,6 +852,10 @@ export default function TerminalPage() {
           items_delivered: itemsDelivered,
           availability_id: Number(deliveryAvailabilityId),
           item_count: itemCount,
+          cart_line_ids: selectedLines.map((ln) => ln.id),
+          ...(editingDeliveryLineId != null
+            ? { replace_line_id: editingDeliveryLineId }
+            : {}),
           is_apt: deliveryIsApt,
           unit: deliveryUnit.trim(),
           ...(deliveryPicked
@@ -796,11 +870,12 @@ export default function TerminalPage() {
         });
         commitCart(updated as unknown as Cart);
         setDeliveryDialogOpen(false);
+        setEditingDeliveryLineId(null);
         skuInputRef.current?.focus();
       } catch (err: unknown) {
         const detail =
           (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-          'Failed to add delivery';
+          (editingDeliveryLineId != null ? 'Failed to update delivery' : 'Failed to add delivery');
         enqueueSnackbar(detail, { variant: 'error' });
       }
     },
@@ -815,6 +890,7 @@ export default function TerminalPage() {
       deliveryUnit,
       deliveryTier,
       deliveryPicked,
+      editingDeliveryLineId,
       ensureOpenCart,
       addDeliveryMutation,
       commitCart,
@@ -841,14 +917,21 @@ export default function TerminalPage() {
     }
   }, [cart, removeLineMutation, enqueueSnackbar]);
 
-  const handleStartEditLine = useCallback((line: CartLine) => {
-    setEditingLineId(line.id);
-    setEditValues({
-      quantity: String(line.quantity),
-      description: line.description,
-      unit_price: String(line.unit_price),
-    });
-  }, []);
+  const handleStartEditLine = useCallback(
+    (line: CartLine) => {
+      if (line.line_kind === 'delivery') {
+        handleOpenDeliveryForEdit(line);
+        return;
+      }
+      setEditingLineId(line.id);
+      setEditValues({
+        quantity: String(line.quantity),
+        description: line.description,
+        unit_price: String(line.unit_price),
+      });
+    },
+    [handleOpenDeliveryForEdit],
+  );
 
   const handleSaveLineEdit = useCallback(async () => {
     if (!cart || editingLineId === null) return;
@@ -1945,13 +2028,14 @@ export default function TerminalPage() {
         open={deliveryDialogOpen}
         onClose={() => {
           setDeliveryDialogOpen(false);
+          setEditingDeliveryLineId(null);
           skuInputRef.current?.focus();
         }}
         maxWidth="sm"
         fullWidth
       >
         <form onSubmit={handleSubmitDelivery}>
-          <DialogTitle>Delivery</DialogTitle>
+          <DialogTitle>{editingDeliveryLineId != null ? 'Edit delivery' : 'Delivery'}</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
               <TextField
@@ -2164,6 +2248,7 @@ export default function TerminalPage() {
               type="button"
               onClick={() => {
                 setDeliveryDialogOpen(false);
+                setEditingDeliveryLineId(null);
                 skuInputRef.current?.focus();
               }}
             >
@@ -2180,7 +2265,13 @@ export default function TerminalPage() {
                 deliveryLineIds.length === 0
               }
             >
-              {addDeliveryMutation.isPending ? 'Adding…' : 'Add delivery'}
+              {addDeliveryMutation.isPending
+                ? editingDeliveryLineId != null
+                  ? 'Saving…'
+                  : 'Adding…'
+                : editingDeliveryLineId != null
+                  ? 'Save delivery'
+                  : 'Add delivery'}
             </Button>
           </DialogActions>
         </form>

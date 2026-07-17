@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
+from uuid import UUID, uuid4
 
 from django.db import transaction
 from django.utils import timezone
@@ -51,6 +52,7 @@ def _timeline_event(
     *,
     actor=None,
     entity_id: str = '',
+    correlation_id: UUID | None = None,
 ):
     from apps.inventory.services.restoration_timeline import append_timeline_event
 
@@ -60,6 +62,7 @@ def _timeline_event(
         payload or {},
         actor=actor,
         entity_id=entity_id,
+        correlation_id=correlation_id,
     )
 
 
@@ -207,6 +210,7 @@ def check_in_restoration_job(
             raise ValueError('Could not split item from stack for check-in.')
         job = RestorationJob.objects.select_for_update().get(pk=result['created_jobs'][0].pk)
     from_stage = job.stage
+    correlation_id = uuid4()
     _lock_and_assert_bench_available(user=user, exclude_job_id=job.pk)
     now = timezone.now()
     if not job.bench_started_at:
@@ -247,6 +251,7 @@ def check_in_restoration_job(
         },
         actor=user,
         entity_id=f'job:{job.pk}',
+        correlation_id=correlation_id,
     )
     if start_timer:
         _timeline_event(
@@ -255,6 +260,7 @@ def check_in_restoration_job(
             {'active_seconds': job.active_seconds, 'reason': 'check_in'},
             actor=user,
             entity_id=f'timer:{job.pk}',
+            correlation_id=correlation_id,
         )
     return job
 
@@ -265,6 +271,9 @@ def move_restoration_job_back_to_queue(job: RestorationJob, *, user=None) -> Res
     if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
         raise ValueError('Only bench or pending jobs can move back to queue.')
     from_stage = job.stage
+    correlation_id = uuid4()
+    was_running = job.timer_is_running
+    elapsed_before_pause = elapsed_active_seconds(job)
     _pause_timer(job)
     job.stage = RestorationJob.STAGE_SENT
     job.bench_owner = None
@@ -285,12 +294,26 @@ def move_restoration_job_back_to_queue(job: RestorationJob, *, user=None) -> Res
             'work_session',
         ],
     )
+    if was_running:
+        _timeline_event(
+            job,
+            'timer.paused',
+            {
+                'active_seconds': job.active_seconds,
+                'previous_elapsed_seconds': elapsed_before_pause,
+                'reason': 'moved_to_queue',
+            },
+            actor=user,
+            entity_id=f'timer:{job.pk}',
+            correlation_id=correlation_id,
+        )
     _timeline_event(
         job,
         'job.moved_to_queue',
         {'from_stage': from_stage, 'to_stage': RestorationJob.STAGE_SENT},
         actor=user,
         entity_id=f'job:{job.pk}',
+        correlation_id=correlation_id,
     )
     return job
 
@@ -309,6 +332,9 @@ def hold_restoration_job(
         raise ValueError('Only bench jobs can be placed on hold.')
     if reason not in PENDING_REASONS:
         raise ValueError('Invalid hold reason.')
+    correlation_id = uuid4()
+    was_running = job.timer_is_running
+    elapsed_before_pause = elapsed_active_seconds(job)
     _pause_timer(job)
     now = timezone.now()
     job.stage = RestorationJob.STAGE_PENDING
@@ -338,6 +364,19 @@ def hold_restoration_job(
             'work_session',
         ],
     )
+    if was_running:
+        _timeline_event(
+            job,
+            'timer.paused',
+            {
+                'active_seconds': job.active_seconds,
+                'previous_elapsed_seconds': elapsed_before_pause,
+                'reason': 'hold',
+            },
+            actor=user,
+            entity_id=f'timer:{job.pk}',
+            correlation_id=correlation_id,
+        )
     _timeline_event(
         job,
         'hold.placed',
@@ -348,6 +387,7 @@ def hold_restoration_job(
         },
         actor=user,
         entity_id=f'hold:{job.pk}',
+        correlation_id=correlation_id,
     )
     return job
 
@@ -429,6 +469,7 @@ def mark_restoration_meaningful_action(
     *,
     user=None,
     label: str = 'TARS update',
+    correlation_id: UUID | None = None,
 ) -> RestorationJob:
     """Record the idle-clawback baseline and auto-start bench time."""
 
@@ -483,6 +524,7 @@ def mark_restoration_meaningful_action(
             },
             actor=user,
             entity_id=f'timer:{job.pk}',
+            correlation_id=correlation_id,
         )
     elif not can_track_time and was_running:
         _timeline_event(
@@ -494,6 +536,7 @@ def mark_restoration_meaningful_action(
             },
             actor=user,
             entity_id=f'timer:{job.pk}',
+            correlation_id=correlation_id,
         )
     return job
 
@@ -559,6 +602,9 @@ def complete_restoration_job(
     if spent_parts_cost is None:
         spent_parts_cost = _actual_parts_cost_for_job(job)
 
+    correlation_id = uuid4()
+    was_running = job.timer_is_running
+    elapsed_before_pause = elapsed_active_seconds(job)
     _pause_timer(job)
     now = timezone.now()
     default_hours = elapsed_active_hours(job)
@@ -610,6 +656,19 @@ def complete_restoration_job(
         notes=notes or '',
         user=user,
     )
+    if was_running:
+        _timeline_event(
+            job,
+            'timer.paused',
+            {
+                'active_seconds': job.active_seconds,
+                'previous_elapsed_seconds': elapsed_before_pause,
+                'reason': 'disposition_completed',
+            },
+            actor=user,
+            entity_id=f'timer:{job.pk}',
+            correlation_id=correlation_id,
+        )
     _timeline_event(
         job,
         'disposition.completed',
@@ -622,6 +681,7 @@ def complete_restoration_job(
         },
         actor=user,
         entity_id=f'disposition:{job.pk}',
+        correlation_id=correlation_id,
     )
     return job
 
@@ -834,7 +894,13 @@ def upsert_parts_request_from_work_session(
                 ),
             )
 
-    mark_restoration_meaningful_action(job, user=user, label='Parts request updated')
+    correlation_id = uuid4()
+    mark_restoration_meaningful_action(
+        job,
+        user=user,
+        label='Parts request updated',
+        correlation_id=correlation_id,
+    )
     _timeline_event(
         job,
         'parts.draft_changed',
@@ -848,6 +914,7 @@ def upsert_parts_request_from_work_session(
         },
         actor=user,
         entity_id=f'parts-request:{request.pk}',
+        correlation_id=correlation_id,
     )
     return request
 

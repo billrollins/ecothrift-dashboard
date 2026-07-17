@@ -57,7 +57,6 @@ import OnlineSalesWorkQueuePage from './pages/online-sales/OnlineSalesWorkQueueP
 import OnlineSalesListingsPage from './pages/online-sales/OnlineSalesListingsPage';
 import ListingStudioPage from './pages/online-sales/ListingStudioPage';
 import OnlineSalesInboxPage from './pages/online-sales/OnlineSalesInboxPage';
-import OnlineSalesMarketingPage from './pages/online-sales/OnlineSalesMarketingPage';
 import OnlineSalesSalesPage from './pages/online-sales/OnlineSalesSalesPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
@@ -235,10 +234,7 @@ export default function App() {
           path="/online-sales/inbox"
           element={<ManagerRoute><OnlineSalesInboxPage /></ManagerRoute>}
         />
-        <Route
-          path="/online-sales/marketing"
-          element={<ManagerRoute><OnlineSalesMarketingPage /></ManagerRoute>}
-        />
+        <Route path="/online-sales/marketing" element={<Navigate to="/online-sales" replace />} />
         <Route
           path="/online-sales/sales"
           element={<ManagerRoute><OnlineSalesSalesPage /></ManagerRoute>}

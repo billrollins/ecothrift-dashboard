@@ -1,11 +1,11 @@
 <!-- initiative: slug=tars-full-instruction-wizard-guidance status=active updated=2026-07-13 -->
-<!-- Last updated: 2026-07-13 (Session 5: Item Cockpit MVP implemented) -->
+<!-- Last updated: 2026-07-13 (Session 6: standalone TARS Studio implemented) -->
 
 # Initiative: TARS Decision Guardrails / Worksheet / Guidance App
 
-**Status:** **Active** — **Phase 0–1 complete; Processing Restorations hub shipped; next = TARS Decision Wizard UX (D/F → A+) before Phase 2 catalogs.**
+**Status:** **Active** — **Phase 0–1 complete; Processing Restorations hub and standalone TARS Studio implemented; next = owner floor validation / iteration before Phase 2 catalogs.**
 
-**Purpose:** Establish the full TARS operating process and encode it as an in-dashboard **guardrail / worksheet / reusable decision system** so Processing and Restoration staff save consistent work, tests, evaluations, rules of thumb, and decisions—not a separate library of formal documents.
+**Purpose:** Establish the full TARS operating process and encode it as an integrated **guardrail / worksheet / reusable decision system** so Processing and Restoration staff save consistent work, tests, evaluations, rules of thumb, and decisions—not a separate library of formal documents.
 
 **Planning rule:** This document fixes the **why, boundaries, outcomes, guardrails, and major phases**. It intentionally does **not** pre-select every UX or technical solution. Each phase begins with a planning session that resolves the choices needed for that phase, writes acceptance criteria, confirms scope and risks, and updates this document before implementation. Later-phase choices stay open until evidence from earlier phases exists.
 
@@ -20,7 +20,7 @@
 | Surface | Owner grade | Direction |
 |---------|-------------|-----------|
 | **Processing Restorations hub** (`/inventory/restorations`) | **Overall pretty good** | Keep; polish only as needed. TO setup + FROM desk (Worked/Untouched) replace Restoration Returns / inline grade blocking. |
-| **TARS Decision Wizard** (Studio guided steps on `/restoration/tars`) | **Cockpit MVP shipping — A+ pending live grade** | **Item Cockpit** replaces 6-step wizard (valuation strip, baked packs, grade ladder, decision bar). Owner A+ grade still pending live use. |
+| **Standalone TARS Studio** (`/restoration/tars`) | **Implementation complete — owner floor grade pending** | Full-screen new-tab work app: one header, one Bench item, Item State, focused actions, durable chronological log, valuation loop, and prominent labor controls. Iterate from live owner/Mike feedback before Phase 2. |
 
 **Sequencing:** Do **not** start Phase 2 Bill-managed catalogs until the Decision Wizard UX pass is planned and accepted (or Bill explicitly reorders). Floor trust depends on the wizard feeling excellent, not merely correct.
 
@@ -62,8 +62,8 @@ This is a **brownfield** initiative. Phase planning must verify current behavior
 ### Live workflow and surfaces
 
 - **Processing handoff and Restorations desk:** items dispatched to restoration create a `RestorationJob`; Processing completes grade scale/values + handoff on **`/inventory/restorations`** (TO lane), then Mike uses TARS Studio Inbox / bench. Legacy `/restoration/queue` nav is removed; route may still redirect into Studio.
-- **Live bench / Studio:** `/restoration/tars` — Inbox, workbench, pending; Phase 1 Guided decision wizard is functionally accepted but **UX is owner-rejected (D/F)** pending an A+ redesign.
-- **Execution record:** Test / Assemble / Repair / Salvage are recorded in a unified workbench action log. Separate verb sub-tabs from the early prototype are **not** the current product direction.
+- **Live bench / Studio:** `/restoration/tars` is a standalone staff app outside dashboard chrome. It opens in a new tab and provides full-width Inbox / one-item Bench / Pending lanes, URL deep links, one integrated header, always-visible Item State, focused actions, and a chronological Restoration log.
+- **Execution record:** Test / Assemble / Repair / Salvage are attributed timeline events with notes, result, and labor minutes. Separate verb sub-tabs from the early prototype are **not** the current product direction.
 - **Pending and escalation:** existing reasons include parts/research/approval needs, `research_sop`, and `safety_hold`; these are natural guardrail and decision-record integration points.
 - **Parts:** technicians can identify/request parts from the bench; in the current operating model **Bill orders parts**, while Mike owns Restoration execution.
 - **Completion and loopback:** completion records final grade, work, costs, and disposition; items may move to Processing, Storage, Salvage, or Online Sales, and Processing handles returns on the **Restorations** hub FROM lane (`/inventory/restorations?lane=from`).
@@ -100,7 +100,7 @@ This is a **brownfield** initiative. Phase planning must verify current behavior
 
 ### Out of scope unless a phase plan explicitly brings it in
 
-- Rebuilding `/restoration/queue` or `/restoration/tars` from scratch.
+- Another broad rewrite of the accepted standalone `/restoration/tars` architecture without new owner evidence.
 - Treating the early reference prototype as a requirement to restore verb tabs, profit cards, or Owner steering.
 - A company-wide LMS, generic SOP/document platform, or replacement for HR training.
 - Encoding every possible item/category/verb path before validating a narrow useful path.
@@ -228,23 +228,25 @@ The initiative has **four large phases**. A phase may span multiple implementati
 | Phase | Goal | Status |
 |-------|------|--------|
 | **0 — Process canon & product direction** | Agree on how TARS works, who owns it, what problem the first guidance slice solves, and how it fits the live product. | **Complete — 2026-07-10** |
-| **1 — Structured decision-work MVP** | Deliver one end-to-end Ashley-to-Mike worksheet/guardrail journey and validate representative behavior. | **Complete — 2026-07-10** (logic accepted; **wizard UX not**) |
-| **1.5 — Decision Wizard UX A+** | Redesign the TARS Studio Guided decision wizard so Bill grades the experience **A+** (from D/F). Guardrail contracts stay; interaction/visual hierarchy must change. | **Next — plan then implement** |
+| **1 — Structured decision-work MVP** | Deliver one end-to-end Ashley-to-Mike worksheet/guardrail journey and validate representative behavior. | **Complete — 2026-07-10** (logic retained inside standalone Studio) |
+| **1.5 — Standalone Studio UX A+** | Replace the rejected Guided decision experience with a focused full-screen TARS work app while preserving the guardrail contracts. | **Implementation complete — owner floor validation / iteration next** |
 | **2 — Managed guardrail system & rollout** | Expand useful rules/templates and let Bill safely maintain their structure and versions. | **Blocked on 1.5** (unless Bill reorders) |
 | **3 — Continuous improvement & maturity** | Run a durable feedback-to-change loop and measure whether TARS is getting better. | Awaiting Phase 2 |
 
-### Phase 1.5 — Decision Wizard UX A+ (next)
+### Phase 1.5 — Standalone Studio UX A+ (implementation complete; validation next)
 
-**Goal:** Take the live Guided decision wizard from an owner **D/F** experience to **A+** without throwing away Phase 1 contracts (handoff, stop-outs, tests, paths, economics, saved decision).
+**Goal:** Take the live Guided decision experience from an owner **D/F** to **A+** without throwing away Phase 1 contracts (handoff, stop-outs, tests, paths, economics, saved decision).
 
 **Owner verdict (2026-07-13):** Restorations Processing Hub is **overall pretty good**. The TARS Wizard is **not** — “so many things I hate.” UX pass is the priority before catalog/editor work.
 
-**Outcomes (planning session will refine):**
+**Implemented outcome:**
 
-- Clear visual hierarchy and density that fit Mike’s bench speed (not form sprawl).
-- Step flow that feels inevitable; progress/state without layout thrash or toast noise.
-- Same autosave / decisionWork / economics / stop-out behavior behind a redesign Bill accepts as A+.
-- Explicit before/after acceptance with Bill (not “polish until vague approval”).
+- Standalone, high-contrast Studio modeled on Blog Studio's window ownership.
+- One integrated header and one technician-owned Bench item; no dashboard chrome, nested item rail, or persistent tool shelf.
+- Always-visible Item State, one focused action surface, and a durable attributed Restoration log.
+- Prominent labor control with meaningful-action auto-start, HR synchronization, and five-minute idle confirmation.
+- Same autosave / decisionWork / economics / stop-out behavior retained behind the new information architecture.
+- Explicit owner/floor acceptance remains the exit gate.
 
 **Exit criteria:**
 
@@ -252,7 +254,7 @@ The initiative has **four large phases**. A phase may span multiple implementati
 - Phase 1 automated contracts and completion gates still pass.
 - Phase 2 planning may begin.
 
-**Phase planning decides:** critique list from Bill; keep Studio shell vs deeper rewrite; density/theme tokens; which steps merge/split; motion and toast rules; Mike pilot timing.
+**Validation decides:** remaining critique list from Bill/Mike; density and language refinements; whether the accepted Studio is ready to unblock Phase 2 catalogs.
 
 ### Phase 0 — Process canon & product direction
 
@@ -500,6 +502,24 @@ Phase 0 selects a small baseline set; Phase 3 formalizes targets and review. Not
 ---
 
 ## Sessions
+
+### Session 6 — 2026-07-13
+
+**Goal:** Replace the rejected nested cockpit/navigation with a professional standalone TARS work app that uses the full page.
+
+**Finish line:** Full-screen new-tab Studio, one technician-owned Bench item, Item State + focused actions + durable Restoration log, and reliable prominent labor behavior.
+
+**Scope:** Standalone route/shell and deep links; explicit bench ownership; attributed timeline with revision/void; rebuilt Bench information architecture; timer controller; lifecycle event integration; focused verification and reference contract.
+
+**Result:**
+
+- `/restoration/tars` moved outside dashboard chrome and opens in a new tab with safe Back behavior.
+- Inbox and Pending are full-width lists; Bench is one explicit technician-owned job enforced by row locks and a conditional database constraint.
+- Item State, focused action launcher, Restoration log, and final-disposition review replace the persistent tool shelf / secondary work accordion hierarchy.
+- `RestorationTimelineEvent` records valuations, assessments, tests, estimates, plans, parts, performed work, timers, holds, returns, and disposition with actor/time/entity/correlation, superseding revisions, and reasoned voids.
+- Labor auto-starts on meaningful state changes; break/clock-out synchronization and a tested five-minute Yes/No idle correction use a persisted server baseline.
+- Contract and smoke path: [`standalone_studio_contract.md`](../reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).
+- Automated focused backend lifecycle/timeline tests and frontend fake-timer/route tests pass. Owner/Mike live-use grade remains the Phase 1.5 exit gate.
 
 ### Session 5 — 2026-07-13
 

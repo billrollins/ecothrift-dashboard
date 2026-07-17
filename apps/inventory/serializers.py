@@ -1349,6 +1349,7 @@ class RestorationJobSerializer(serializers.ModelSerializer):
     needs_setup = serializers.SerializerMethodField()
     valuation_pending = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
+    bench_ownership_ambiguous = serializers.SerializerMethodField()
     elapsed_seconds = serializers.SerializerMethodField()
     elapsed_hours = serializers.SerializerMethodField()
     processing_handoff = serializers.SerializerMethodField()
@@ -1414,6 +1415,7 @@ class RestorationJobSerializer(serializers.ModelSerializer):
             'returned_at',
             'bench_started_at',
             'bench_owner_id',
+            'bench_ownership_ambiguous',
             'timer_started_at',
             'active_seconds',
             'timer_is_running',
@@ -1441,6 +1443,9 @@ class RestorationJobSerializer(serializers.ModelSerializer):
         from apps.inventory.services.restoration_bench import elapsed_active_seconds
 
         return elapsed_active_seconds(obj)
+
+    def get_bench_ownership_ambiguous(self, obj):
+        return obj.stage == RestorationJob.STAGE_BENCH and obj.bench_owner_id is None
 
     def get_processing_handoff(self, obj):
         from apps.inventory.services.restoration import processing_handoff_from_check_in

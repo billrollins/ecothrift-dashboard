@@ -47,9 +47,11 @@ CLIENT_EVENT_TYPES = {
     'test.result_set',
     'plan.estimated',
     'plan.committed',
-    'plan.cleared',
     'work.performed',
 }
+
+TEST_STATE_EVENT_TYPES = {'test.added', 'test.result_set', 'test.removed'}
+PLAN_STATE_EVENT_TYPES = {'plan.committed', 'plan.cleared'}
 
 
 def _actor(user):
@@ -94,21 +96,23 @@ def append_entity_revision(
     *,
     actor=None,
     entity_id: str,
+    related_event_types: set[str] | None = None,
+    correlation_id: UUID | None = None,
 ) -> RestorationTimelineEvent:
-    previous = (
+    event_types = related_event_types or {event_type}
+    active_events = (
         RestorationTimelineEvent.objects.select_for_update()
         .filter(
             job=job,
-            event_type=event_type,
+            event_type__in=event_types,
             entity_id=str(entity_id),
             status=RestorationTimelineEvent.STATUS_ACTIVE,
         )
         .order_by('-occurred_at', '-id')
-        .first()
     )
+    previous = active_events.first()
     if previous is not None:
-        previous.status = RestorationTimelineEvent.STATUS_REVISED
-        previous.save(update_fields=['status'])
+        active_events.update(status=RestorationTimelineEvent.STATUS_REVISED)
     return append_timeline_event(
         job,
         event_type,
@@ -116,6 +120,7 @@ def append_entity_revision(
         actor=actor,
         entity_id=entity_id,
         supersedes=previous,
+        correlation_id=correlation_id,
     )
 
 
@@ -125,12 +130,15 @@ def revise_timeline_event(
     *,
     payload: dict[str, Any],
     actor=None,
+    correlation_id: UUID | None = None,
 ) -> RestorationTimelineEvent:
     event = (
         RestorationTimelineEvent.objects.select_for_update()
         .select_related('job')
         .get(pk=event.pk)
     )
+    if event.event_type not in CLIENT_EVENT_TYPES:
+        raise ValueError('System timeline entries cannot be revised.')
     if event.status != RestorationTimelineEvent.STATUS_ACTIVE:
         raise ValueError('Only an active timeline entry can be revised.')
     merged = {**_clean_payload(event.payload), **_clean_payload(payload)}
@@ -144,6 +152,7 @@ def revise_timeline_event(
         actor=actor,
         entity_id=event.entity_id,
         supersedes=event,
+        correlation_id=correlation_id,
     )
 
 
@@ -159,6 +168,8 @@ def void_timeline_event(
         .select_related('job')
         .get(pk=event.pk)
     )
+    if event.event_type not in CLIENT_EVENT_TYPES:
+        raise ValueError('System timeline entries cannot be voided.')
     if event.status != RestorationTimelineEvent.STATUS_ACTIVE:
         raise ValueError('Only an active timeline entry can be voided.')
     if not str(reason or '').strip():
@@ -180,17 +191,25 @@ def create_projected_timeline_event(
     payload: dict[str, Any],
     entity_id: str,
     actor=None,
+    correlation_id: UUID | None = None,
 ) -> RestorationTimelineEvent:
     if event_type not in CLIENT_EVENT_TYPES:
         raise ValueError('This timeline event type cannot be created directly.')
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     _apply_projection(job, event_type, payload, entity_id)
+    related_event_types = (
+        TEST_STATE_EVENT_TYPES if event_type in TEST_STATE_EVENT_TYPES
+        else PLAN_STATE_EVENT_TYPES if event_type in PLAN_STATE_EVENT_TYPES
+        else None
+    )
     return append_entity_revision(
         job,
         event_type,
         payload,
         actor=actor,
         entity_id=entity_id,
+        related_event_types=related_event_types,
+        correlation_id=correlation_id,
     )
 
 
@@ -246,7 +265,24 @@ def _apply_projection(
 
     if event_type == 'condition.current_grade.set':
         condition = deepcopy(decision.get('condition') or {})
-        condition['currentGrade'] = None if remove else payload.get('grade')
+        if remove:
+            condition.update({
+                'currentGrade': None,
+                'condition': '',
+                'completeness': 'unknown',
+                'testedStatus': 'not_tested',
+                'evidence': '',
+            })
+        else:
+            condition['currentGrade'] = payload.get('grade')
+            for payload_key, projection_key in (
+                ('condition', 'condition'),
+                ('completeness', 'completeness'),
+                ('tested_status', 'testedStatus'),
+                ('evidence', 'evidence'),
+            ):
+                if payload_key in payload:
+                    condition[projection_key] = payload.get(payload_key)
         decision['condition'] = condition
         changed = True
     elif event_type in {'test.added', 'test.result_set'}:
@@ -258,8 +294,9 @@ def _apply_projection(
         decision['outcomes'] = _replace_or_remove(outcomes, entity_id, payload, remove=remove)
         changed = True
     elif event_type in {'plan.committed', 'plan.cleared'}:
-        decision['selection'] = {} if remove or event_type == 'plan.cleared' else deepcopy(payload)
-        session['selectedGrade'] = None if remove else payload.get('grade')
+        cleared = remove or event_type == 'plan.cleared'
+        decision['selection'] = {} if cleared else deepcopy(payload)
+        session['selectedGrade'] = None if cleared else payload.get('grade')
         changed = True
     elif event_type == 'work.performed':
         rows = list(session.get('benchRows') or [])
@@ -283,6 +320,7 @@ def _record_entity_changes(
     new_rows: dict[str, dict[str, Any]],
     event_type: str,
     actor=None,
+    correlation_id: UUID | None = None,
 ) -> None:
     for entity_id, row in new_rows.items():
         if old_rows.get(entity_id) != row:
@@ -292,6 +330,7 @@ def _record_entity_changes(
                 row,
                 actor=actor,
                 entity_id=entity_id,
+                correlation_id=correlation_id,
             )
     for entity_id in old_rows.keys() - new_rows.keys():
         latest = (
@@ -319,6 +358,7 @@ def record_work_session_changes(
     after: dict[str, Any] | None,
     *,
     actor=None,
+    correlation_id: UUID | None = None,
 ) -> None:
     """Translate the legacy session patch into attributed semantic events."""
 
@@ -326,18 +366,44 @@ def record_work_session_changes(
     new = after if isinstance(after, dict) else {}
     if old == new:
         return
+    correlation_id = correlation_id or uuid4()
 
     old_decision = _decision_work(old)
     new_decision = _decision_work(new)
-    old_grade = (old_decision.get('condition') or {}).get('currentGrade')
-    new_grade = (new_decision.get('condition') or {}).get('currentGrade')
-    if old_grade != new_grade:
+    old_condition = old_decision.get('condition') or {}
+    new_condition = new_decision.get('condition') or {}
+    old_condition_state = {
+        'currentGrade': old_condition.get('currentGrade'),
+        'condition': old_condition.get('condition') or '',
+        'completeness': old_condition.get('completeness') or 'unknown',
+        'testedStatus': old_condition.get('testedStatus') or 'not_tested',
+        'evidence': old_condition.get('evidence') or '',
+    }
+    new_condition_state = {
+        'currentGrade': new_condition.get('currentGrade'),
+        'condition': new_condition.get('condition') or '',
+        'completeness': new_condition.get('completeness') or 'unknown',
+        'testedStatus': new_condition.get('testedStatus') or 'not_tested',
+        'evidence': new_condition.get('evidence') or '',
+    }
+    old_grade = old_condition_state['currentGrade']
+    new_grade = new_condition_state['currentGrade']
+    if old_condition_state != new_condition_state:
         append_entity_revision(
             job,
             'condition.current_grade.set',
-            {'grade': new_grade, 'previous_grade': old_grade},
+            {
+                'grade': new_grade,
+                'previous_grade': old_grade,
+                'condition': new_condition.get('condition') or '',
+                'completeness': new_condition.get('completeness') or 'unknown',
+                'tested_status': new_condition.get('testedStatus') or 'not_tested',
+                'evidence': new_condition.get('evidence') or '',
+                'previous': old_condition_state,
+            },
             actor=actor,
             entity_id='current-grade',
+            correlation_id=correlation_id,
         )
 
     old_tests = _rows_by_id(old_decision.get('tests'))
@@ -345,12 +411,14 @@ def record_work_session_changes(
     for test_id, test in new_tests.items():
         previous = old_tests.get(test_id)
         if previous is None:
-            append_timeline_event(
+            append_entity_revision(
                 job,
                 'test.added',
                 test,
                 actor=actor,
                 entity_id=test_id,
+                related_event_types=TEST_STATE_EVENT_TYPES,
+                correlation_id=correlation_id,
             )
         elif previous != test:
             append_entity_revision(
@@ -359,14 +427,18 @@ def record_work_session_changes(
                 test,
                 actor=actor,
                 entity_id=test_id,
+                related_event_types=TEST_STATE_EVENT_TYPES,
+                correlation_id=correlation_id,
             )
     for test_id in old_tests.keys() - new_tests.keys():
-        append_timeline_event(
+        append_entity_revision(
             job,
             'test.removed',
             {'test': old_tests[test_id]},
             actor=actor,
             entity_id=test_id,
+            related_event_types=TEST_STATE_EVENT_TYPES,
+            correlation_id=correlation_id,
         )
 
     _record_entity_changes(
@@ -375,6 +447,7 @@ def record_work_session_changes(
         new_rows=_rows_by_id(new_decision.get('outcomes')),
         event_type='plan.estimated',
         actor=actor,
+        correlation_id=correlation_id,
     )
     _record_entity_changes(
         job=job,
@@ -382,6 +455,7 @@ def record_work_session_changes(
         new_rows=_rows_by_id(new.get('benchRows')),
         event_type='work.performed',
         actor=actor,
+        correlation_id=correlation_id,
     )
 
     old_selection = old_decision.get('selection') or {}
@@ -394,14 +468,18 @@ def record_work_session_changes(
                 new_selection,
                 actor=actor,
                 entity_id='committed-plan',
+                related_event_types=PLAN_STATE_EVENT_TYPES,
+                correlation_id=correlation_id,
             )
         elif old_selection.get('outcomeId'):
-            append_timeline_event(
+            append_entity_revision(
                 job,
                 'plan.cleared',
                 {'previous': old_selection},
                 actor=actor,
                 entity_id='committed-plan',
+                related_event_types=PLAN_STATE_EVENT_TYPES,
+                correlation_id=correlation_id,
             )
 
     if old.get('parts') != new.get('parts') or old.get('orders') != new.get('orders'):
@@ -414,5 +492,6 @@ def record_work_session_changes(
             },
             actor=actor,
             entity_id='parts-draft',
+            correlation_id=correlation_id,
         )
 

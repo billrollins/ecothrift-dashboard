@@ -13,11 +13,6 @@ import {
   Typography,
 } from '@mui/material';
 
-import Done from '@mui/icons-material/Done';
-import PauseCircle from '@mui/icons-material/PauseCircle';
-import ShoppingCart from '@mui/icons-material/ShoppingCart';
-import Undo from '@mui/icons-material/Undo';
-
 import { useSnackbar } from 'notistack';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -29,8 +24,6 @@ import {
 
   useCheckInRestorationJob,
 
-  useAdjustRestorationJobTimer,
-
   useCompleteRestorationJob,
 
   useMoveRestorationJobBackToQueue,
@@ -38,8 +31,6 @@ import {
   usePatchRestorationJobWorkSession,
 
   usePauseRestorationJobTimer,
-
-  useStartRestorationJobTimer,
 
   useTarsBenchJobs,
 
@@ -50,7 +41,6 @@ import {
 import { useGradeScales } from '../../../hooks/useGradeScales';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { TARS_DEFAULT_HOURLY_RATE, TARS_DEFAULT_TIME_PREMIUM } from './tarsConstants';
-import { decisionGates } from './tarsDecisionEngine';
 import { TarsTimerSwitchDialog } from './TarsTimerSwitchDialog';
 import { TarsDoneDialog } from './TarsDoneDialog';
 import { TarsScanMessageDialog } from './TarsScanMessageDialog';
@@ -112,11 +102,7 @@ export function TarsWorkstation() {
 
   const completeJob = useCompleteRestorationJob();
 
-  const startTimer = useStartRestorationJobTimer();
-
   const pauseTimer = usePauseRestorationJobTimer();
-
-  const adjustTimer = useAdjustRestorationJobTimer();
 
   const patchWorkSession = usePatchRestorationJobWorkSession();
   const upsertParts = useUpsertRestorationPartsRequest();
@@ -170,11 +156,12 @@ export function TarsWorkstation() {
   );
 
   const handleBackToDashboard = useCallback(() => {
-    if (window.opener && !window.opener.closed) {
-      window.close();
-      return;
-    }
-    navigate('/dashboard');
+    // Script-opened tabs can close even when `noopener` intentionally hides
+    // window.opener. Direct/bookmarked tabs reject close, then use the fallback.
+    window.close();
+    window.setTimeout(() => {
+      if (!window.closed) navigate('/dashboard');
+    }, 50);
   }, [navigate]);
 
 
@@ -199,6 +186,13 @@ export function TarsWorkstation() {
       || (job.bench_owner_id == null && job.timer_started_by_id === currentUserId)
     )),
     [benchJobs, currentUserId],
+  );
+  const ambiguousBenchJobs = useMemo(
+    () => myBenchJobs.filter((job) => (
+      job.bench_ownership_ambiguous
+      ?? (job.stage === 'bench' && job.bench_owner_id == null)
+    )),
+    [myBenchJobs],
   );
 
   const pendingJobs = useMemo(() => jobs.filter((j) => j.stage === 'pending'), [jobs]);
@@ -267,7 +261,7 @@ export function TarsWorkstation() {
   }, [runningJob, myBenchJobs, currentUserId]);
   const headerTimerJob = useMemo(() => {
     if (activeTimerJob) return activeTimerJob;
-    if (selectedJob && (selectedJob.stage === 'bench' || selectedJob.stage === 'pending')) {
+    if (selectedJob?.stage === 'bench') {
       return selectedJob;
     }
     return null;
@@ -344,33 +338,7 @@ export function TarsWorkstation() {
     setStudioLocation,
   ]);
 
-  const timerBusy = startTimer.isPending || pauseTimer.isPending || adjustTimer.isPending || timerSwitchDialog != null;
-
-  const startTimerSafe = useCallback(
-    async (jobId: number) => {
-      try {
-        await startTimer.mutateAsync(jobId);
-      } catch (err) {
-        enqueueSnackbar(err instanceof Error ? err.message : 'Could not start the timer', {
-          variant: 'error',
-        });
-      }
-    },
-    [startTimer, enqueueSnackbar],
-  );
-
-  const pauseTimerSafe = useCallback(
-    async (jobId: number) => {
-      try {
-        await pauseTimer.mutateAsync(jobId);
-      } catch (err) {
-        enqueueSnackbar(err instanceof Error ? err.message : 'Could not pause the timer', {
-          variant: 'error',
-        });
-      }
-    },
-    [pauseTimer, enqueueSnackbar],
-  );
+  const timerBusy = pauseTimer.isPending || timerSwitchDialog != null;
 
   const runWithTimerGuard = useCallback(
     (targetJob: RestorationJobDTO, action: TimerGuardAction, proceed: () => void | Promise<void>) => {
@@ -666,32 +634,6 @@ export function TarsWorkstation() {
 
   const partsListLabel = displayItem?.skuLabel ?? displayItem?.sku;
 
-  const heroActions = selectedJob && displayJob ? (
-    <Stack direction="row" gap={0.5} flexWrap="wrap">
-      {selectedJob.stage === 'bench' ?
-        <>
-          <Button size="small" startIcon={<Undo />} onClick={() => void handleMoveBack()} sx={{ minHeight: 28, py: 0 }}>Queue</Button>
-          <Button size="small" startIcon={<PauseCircle />}
-            onClick={() => runWithTimerGuard(selectedJob, 'hold', () => setHoldOpen(true))} sx={{ minHeight: 28, py: 0 }}>Hold</Button>
-          <Button size="small" startIcon={<ShoppingCart />} onClick={() => setPartsDrawerOpen(true)} sx={{ minHeight: 28, py: 0 }}>Parts</Button>
-          <Button size="small" variant="contained" color="success" startIcon={<Done />}
-            onClick={() => {
-              if (selectedJob.needs_setup) {
-                enqueueSnackbar('Fill all grade values before Done (or wait for Processing).', { variant: 'warning' });
-                return;
-              }
-              const gates = decisionGates(displayItem?.workSession ?? createEmptyWorkSession('bench'));
-              if (!gates.canFinalize) {
-                enqueueSnackbar('Commit a decision plan first.', { variant: 'warning' });
-                return;
-              }
-              runWithTimerGuard(selectedJob, 'done', () => setDoneOpen(true));
-            }} sx={{ minHeight: 28, py: 0 }}>Done</Button>
-        </>
-      : null}
-    </Stack>
-  ) : null;
-
   if (isLoading) {
     return (
       <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: studio.canvas }}>
@@ -734,7 +676,11 @@ export function TarsWorkstation() {
                 enqueueSnackbar(err instanceof Error ? err.message : 'Could not start timer', { variant: 'warning' });
               });
             }}
-            onPause={() => void timerController.pause()}
+            onPause={() => {
+              void timerController.pause().catch((err) => {
+                enqueueSnackbar(err instanceof Error ? err.message : 'Could not pause timer', { variant: 'error' });
+              });
+            }}
           />
         }
       >
@@ -775,6 +721,13 @@ export function TarsWorkstation() {
               gap: 0.8,
             }}
           >
+            {ambiguousBenchJobs.length ? (
+              <Alert severity="error" sx={{ py: 0, '& .MuiAlert-message': { py: 0.45 } }}>
+                {ambiguousBenchJobs.length} legacy Bench item{ambiguousBenchJobs.length === 1 ? '' : 's'}{' '}
+                {ambiguousBenchJobs.length === 1 ? 'has' : 'have'} unresolved ownership. This item is shown
+                conservatively; move it to Inbox or Pending before claiming another.
+              </Alert>
+            ) : null}
             {!timerController.canTrackTime ? (
               <Alert severity="warning" sx={{ py: 0, '& .MuiAlert-message': { py: 0.45 } }}>
                 Restoration time is paused. Clock in or end your break before resuming.
@@ -790,15 +743,6 @@ export function TarsWorkstation() {
                 void requestValuation.mutateAsync({ id: displayJob.id, grades, notes: '' });
               }}
             />
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="flex-end"
-              gap={0.5}
-              sx={{ minHeight: 34 }}
-            >
-              {heroActions}
-            </Stack>
             <Box
               sx={{
                 flex: 1,
@@ -821,15 +765,9 @@ export function TarsWorkstation() {
                   editable
                   scaleRecord={gradeScales}
                   onSessionChange={replaceWorkSession}
-                  onRequestValuation={async (grades, notes) => {
-                    await requestValuation.mutateAsync({
-                      id: displayJob.id,
-                      grades,
-                      notes,
-                    });
-                  }}
                   onOpenParts={() => setPartsDrawerOpen(true)}
                   onOpenHold={() => runWithTimerGuard(displayJob, 'hold', () => setHoldOpen(true))}
+                  onMoveToInbox={() => void handleMoveBack()}
                   onRequestComplete={(session) => {
                     runWithTimerGuard(displayJob, 'done', async () => {
                       await replaceWorkSessionImmediate(session);
@@ -888,19 +826,6 @@ export function TarsWorkstation() {
         onClose={closeDoneDialog}
 
         onSubmit={(payload) => void handleDoneSubmit(payload)}
-
-        timerBusy={timerBusy}
-
-        onTimerStart={() => {
-          if (selectedJob) runWithTimerGuard(selectedJob, 'startTimer', () => startTimerSafe(selectedJob.id));
-        }}
-
-        onTimerPause={() => {
-
-          if (selectedJob?.stage === 'bench') void pauseTimerSafe(selectedJob.id);
-
-        }}
-
       />
 
 
@@ -952,7 +877,11 @@ export function TarsWorkstation() {
           <Button
             variant="outlined"
             disabled={timerController.busy}
-            onClick={() => void timerController.resolveIdle(false)}
+            onClick={() => {
+              void timerController.resolveIdle(false).catch((err) => {
+                enqueueSnackbar(err instanceof Error ? err.message : 'Could not adjust idle time', { variant: 'error' });
+              });
+            }}
             sx={{ minWidth: 150, fontWeight: 900 }}
           >
             No, remove idle time
@@ -960,7 +889,11 @@ export function TarsWorkstation() {
           <Button
             variant="contained"
             disabled={timerController.busy || !timerController.canTrackTime}
-            onClick={() => void timerController.resolveIdle(true)}
+            onClick={() => {
+              void timerController.resolveIdle(true).catch((err) => {
+                enqueueSnackbar(err instanceof Error ? err.message : 'Could not resume timer', { variant: 'error' });
+              });
+            }}
             sx={{ minWidth: 150, bgcolor: '#087b6f', fontWeight: 950 }}
           >
             Yes, keep working

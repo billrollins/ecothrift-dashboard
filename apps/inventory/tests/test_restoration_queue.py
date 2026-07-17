@@ -1,5 +1,6 @@
 """Restoration queue — processing handoff, API, send validation."""
 
+from copy import deepcopy
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -617,6 +618,16 @@ class RestorationJobApiTests(RestorationQueueTestBase):
             Item.objects.filter(check_in_id=job.item_check_in_id).values_list('location', flat=True)
         )
         self.assertEqual(remaining_locations, {'restoration'})
+        returned_job = RestorationJob.objects.get(
+            stage=RestorationJob.STAGE_RETURNED,
+            quantity=3,
+        )
+        return_event = RestorationTimelineEvent.objects.get(
+            job=returned_job,
+            event_type='return.to_processing',
+        )
+        self.assertTrue(return_event.payload['partial'])
+        self.assertEqual(set(return_event.payload['item_ids']), set(to_return))
 
         queued = self.client.get('/api/inventory/restoration-jobs/?stage=queued')
         self.assertEqual(len(queued.data['results']), 1)
@@ -886,6 +897,7 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertEqual(resp.data['stage'], 'bench')
         self.assertTrue(resp.data['timer_is_running'])
         self.assertIsNotNone(resp.data['bench_started_at'])
+        self.assertFalse(resp.data['bench_ownership_ambiguous'])
 
     def test_check_in_can_skip_timer_start(self):
         job = self._sent_job()
@@ -898,6 +910,17 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertEqual(resp.data['stage'], 'bench')
         self.assertFalse(resp.data['timer_is_running'])
         self.assertIsNone(resp.data['timer_started_at'])
+
+    def test_legacy_unowned_bench_job_is_explicitly_flagged(self):
+        job = self._sent_job()
+        job.stage = RestorationJob.STAGE_BENCH
+        job.bench_owner = None
+        job.timer_started_by = self.user
+        job.save(update_fields=['stage', 'bench_owner', 'timer_started_by'])
+
+        response = self.client.get(f'/api/inventory/restoration-jobs/{job.id}/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(response.data['bench_ownership_ambiguous'])
 
     def test_check_in_second_item_is_blocked_even_without_timer(self):
         active_job = self._sent_job()
@@ -995,6 +1018,11 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertEqual(req.status_code, 200, req.data)
         self.assertTrue(req.data['valuation_pending'])
         self.assertEqual(req.data['valuation_requested_grades'], ['Working'])
+        valuation_request = RestorationTimelineEvent.objects.get(
+            job_id=job_id,
+            event_type='valuation.requested',
+        )
+        self.assertEqual(valuation_request.actor, self.user)
 
         pending = self.client.get('/api/inventory/restoration-jobs/?valuation_pending=1')
         self.assertEqual(pending.status_code, 200)
@@ -1026,6 +1054,16 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertFalse(fulfill.data['needs_setup'])
         self.assertFalse(fulfill.data['valuation_pending'])
         self.assertIsNotNone(fulfill.data['valuation_fulfilled_at'])
+        fulfilled_event = RestorationTimelineEvent.objects.get(
+            job_id=job_id,
+            event_type='valuation.fulfilled',
+        )
+        latest_values_event = RestorationTimelineEvent.objects.filter(
+            job_id=job_id,
+            event_type='valuation.values_changed',
+        ).latest('id')
+        self.assertEqual(fulfilled_event.actor, self.user)
+        self.assertEqual(fulfilled_event.correlation_id, latest_values_event.correlation_id)
 
     def test_timer_pause_and_start_accumulates(self):
         job = self._sent_job()
@@ -1147,6 +1185,236 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         statuses = {row['id']: row['status'] for row in timeline.data}
         self.assertEqual(statuses[event_id], 'revised')
         self.assertEqual(statuses[current_event_id], 'voided')
+
+    def test_test_result_supersedes_added_state_for_same_entity(self):
+        job = self._sent_job()
+        self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/check-in/',
+            {'start_timer': False},
+            format='json',
+        )
+        added = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/timeline/',
+            {
+                'event_type': 'test.added',
+                'entity_id': 'power-on',
+                'payload': {
+                    'id': 'power-on',
+                    'label': 'Power on',
+                    'result': 'untested',
+                },
+            },
+            format='json',
+        )
+        self.assertEqual(added.status_code, 201, added.data)
+        result = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/timeline/',
+            {
+                'event_type': 'test.result_set',
+                'entity_id': 'power-on',
+                'payload': {
+                    'id': 'power-on',
+                    'label': 'Power on',
+                    'result': 'pass',
+                },
+            },
+            format='json',
+        )
+        self.assertEqual(result.status_code, 201, result.data)
+        self.assertEqual(result.data['supersedes_id'], added.data['id'])
+        self.assertEqual(
+            RestorationTimelineEvent.objects.get(pk=added.data['id']).status,
+            RestorationTimelineEvent.STATUS_REVISED,
+        )
+        self.assertEqual(
+            RestorationTimelineEvent.objects.filter(
+                job=job,
+                entity_id='power-on',
+                status=RestorationTimelineEvent.STATUS_ACTIVE,
+            ).count(),
+            1,
+        )
+
+    def test_system_timeline_entries_cannot_be_revised_or_voided(self):
+        job = self._sent_job()
+        checked_in = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/check-in/',
+            {'start_timer': False},
+            format='json',
+        )
+        self.assertEqual(checked_in.status_code, 200, checked_in.data)
+        system_event = RestorationTimelineEvent.objects.get(
+            job=job,
+            event_type='job.checked_in',
+        )
+
+        revised = self.client.patch(
+            f'/api/inventory/restoration-jobs/{job.id}/timeline/{system_event.id}/',
+            {'payload': {'notes': 'Changed history'}},
+            format='json',
+        )
+        self.assertEqual(revised.status_code, 400, revised.data)
+        voided = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/timeline/{system_event.id}/void/',
+            {'reason': 'Changed my mind'},
+            format='json',
+        )
+        self.assertEqual(voided.status_code, 400, voided.data)
+        system_event.refresh_from_db()
+        self.assertEqual(system_event.status, RestorationTimelineEvent.STATUS_ACTIVE)
+
+    def test_check_in_and_hold_correlate_lifecycle_and_timer_events(self):
+        job = self._sent_job()
+        checked_in = self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        self.assertEqual(checked_in.status_code, 200, checked_in.data)
+        check_in_events = RestorationTimelineEvent.objects.filter(
+            job=job,
+            event_type__in=['job.checked_in', 'timer.started'],
+        )
+        self.assertEqual(check_in_events.count(), 2)
+        self.assertEqual(check_in_events.values('correlation_id').distinct().count(), 1)
+
+        held = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/hold/',
+            {'reason': 'between_steps'},
+            format='json',
+        )
+        self.assertEqual(held.status_code, 200, held.data)
+        hold_events = RestorationTimelineEvent.objects.filter(
+            job=job,
+            event_type__in=['hold.placed', 'timer.paused'],
+        )
+        self.assertEqual(hold_events.count(), 2)
+        self.assertEqual(hold_events.values('correlation_id').distinct().count(), 1)
+
+    def test_standalone_studio_smoke_path_preserves_complete_item_story(self):
+        from apps.hr.models import TimeEntry
+
+        job = self._sent_job()
+        TimeEntry.objects.create(
+            employee=self.user,
+            clock_in=timezone.now() - timedelta(minutes=10),
+        )
+        checked_in = self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        self.assertEqual(checked_in.status_code, 200, checked_in.data)
+
+        assessed_session = {
+            'workState': 'bench',
+            'selectedGrade': None,
+            'parts': [],
+            'orders': [],
+            'gradePlans': {'Working': {'estimateHours': 0.25, 'orderIds': []}},
+            'benchRows': [],
+            'decisionWork': {
+                'condition': {
+                    'currentGrade': 'Working',
+                    'condition': 'Clean housing',
+                    'completeness': 'complete',
+                    'testedStatus': 'tested',
+                    'evidence': 'Visual inspection completed.',
+                },
+                'tests': [{
+                    'id': 'power-on',
+                    'catalogTestId': 'elec_turns_on',
+                    'name': 'Turns on',
+                    'prompt': 'Verify power.',
+                    'relevant': True,
+                    'result': None,
+                    'evidence': '',
+                }],
+                'outcomes': [],
+                'selection': {},
+            },
+        }
+        assessed = self.client.patch(
+            f'/api/inventory/restoration-jobs/{job.id}/work-session/',
+            {'work_session': assessed_session},
+            format='json',
+        )
+        self.assertEqual(assessed.status_code, 200, assessed.data)
+
+        completed_session = deepcopy(assessed.data['work_session'])
+        completed_session['decisionWork']['tests'][0].update({
+            'result': 'pass',
+            'evidence': 'Powered on and held load.',
+        })
+        completed_session['decisionWork']['outcomes'] = [{
+            'id': 'working-repair',
+            'grade': 'Working',
+            'saleState': 'tested',
+            'action': 'repair',
+            'viable': True,
+            'nonviableReason': '',
+            'estimatedMinutes': 15,
+        }]
+        completed_session['decisionWork']['selection'] = {
+            'outcomeId': 'working-repair',
+            'grade': 'Working',
+            'saleState': 'tested',
+            'action': 'repair',
+            'reason': 'Short repair preserves the Working value.',
+            'overrideReason': '',
+            'selectedAt': timezone.now().isoformat(),
+            'selectedById': self.user.pk,
+        }
+        completed_session['benchRows'] = [{
+            'id': 'work-repair',
+            'category': 'repair',
+            'name': 'Reseated power connector',
+            'notes': 'Connector was loose.',
+            'result': 'Power remained stable.',
+            'durationMinutes': 6,
+            'performedAt': timezone.now().isoformat(),
+        }]
+        worked = self.client.patch(
+            f'/api/inventory/restoration-jobs/{job.id}/work-session/',
+            {'work_session': completed_session},
+            format='json',
+        )
+        self.assertEqual(worked.status_code, 200, worked.data)
+
+        held = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/hold/',
+            {'reason': 'between_steps', 'notes': 'Paused for cleanup.'},
+            format='json',
+        )
+        self.assertEqual(held.status_code, 200, held.data)
+        resumed = self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
+        self.assertEqual(resumed.status_code, 200, resumed.data)
+        finished = self.client.post(
+            f'/api/inventory/restoration-jobs/{job.id}/done/',
+            {
+                'destination': 'processing',
+                'final_grade': 'Working',
+                'notes': 'Ready for Processing.',
+            },
+            format='json',
+        )
+        self.assertEqual(finished.status_code, 200, finished.data)
+        self.assertEqual(finished.data['stage'], 'done')
+
+        event_types = set(
+            RestorationTimelineEvent.objects.filter(job=job).values_list('event_type', flat=True)
+        )
+        self.assertTrue({
+            'job.checked_in',
+            'condition.current_grade.set',
+            'test.added',
+            'test.result_set',
+            'plan.estimated',
+            'plan.committed',
+            'work.performed',
+            'hold.placed',
+            'hold.resumed',
+            'disposition.completed',
+        }.issubset(event_types))
+        performed = RestorationTimelineEvent.objects.filter(
+            job=job,
+            event_type='work.performed',
+            status=RestorationTimelineEvent.STATUS_ACTIVE,
+        ).get()
+        self.assertEqual(performed.actor, self.user)
+        self.assertEqual(performed.payload['durationMinutes'], 6)
 
     def test_hold_moves_to_pending(self):
         job = self._sent_job()

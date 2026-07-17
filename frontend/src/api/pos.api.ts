@@ -184,6 +184,8 @@ export function addDeliveryToCart(
     is_apt?: boolean;
     unit?: string;
     item_count?: number;
+    cart_line_ids?: number[];
+    replace_line_id?: number;
     distance_miles?: string | number;
     distance_mode?: string;
     lat?: number;

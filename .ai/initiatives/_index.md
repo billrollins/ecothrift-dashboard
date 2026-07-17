@@ -12,7 +12,7 @@
 | Initiative | Phase | Notes |
 |------------|-------|-------|
 | [online_sales_workspace](./online_sales_workspace.md) | **One-shot ship — v2.50.0** | Listing Studio + holds + POS guard + full Slot C Online Sales nav. Contract: [phase_0_contract.md](../reference/online_sales_workspace/phase_0_contract.md). |
-| [tars_full_instruction_wizard_guidance](./tars_full_instruction_wizard_guidance.md) | **1.5 — Item Cockpit (v2.50.0)** | Phase 1 logic + Restorations hub; **Item Cockpit** tool shelf shipped in **v2.50.0**. Next: owner polish / Phase 2 catalogs. |
+| [tars_full_instruction_wizard_guidance](./tars_full_instruction_wizard_guidance.md) | **1.5 — Standalone Studio validation** | Full-screen new-tab TARS with one owned Bench item, Item State, focused actions, durable Restoration log, and idle-safe labor timer. Next: owner/Mike floor validation, then Phase 2 catalogs. |
 | [pos_discount_and_delivery](./pos_discount_and_delivery.md) | **Scheduling board shipped — v2.50.0** | Discount + delivery fees + printables + **Deliveries** available-dates board; cart-line item select; Maps multi-stop URL. Optional: Directions API optimize. |
 
 **Parked (off this index):** [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) — Phases 0–2 + bench live; resume **Phase 3–4**. [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.

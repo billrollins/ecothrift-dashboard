@@ -280,6 +280,8 @@ export function useAddDeliveryToCart() {
       is_apt,
       unit,
       item_count,
+      cart_line_ids,
+      replace_line_id,
       distance_miles,
       distance_mode,
       lat,
@@ -296,6 +298,8 @@ export function useAddDeliveryToCart() {
       is_apt?: boolean;
       unit?: string;
       item_count?: number;
+      cart_line_ids?: number[];
+      replace_line_id?: number;
       distance_miles?: string | number;
       distance_mode?: string;
       lat?: number;
@@ -312,6 +316,8 @@ export function useAddDeliveryToCart() {
         is_apt,
         unit,
         item_count,
+        cart_line_ids,
+        replace_line_id,
         distance_miles,
         distance_mode,
         lat,

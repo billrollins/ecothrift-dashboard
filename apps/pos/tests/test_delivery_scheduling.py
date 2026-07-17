@@ -128,3 +128,43 @@ class DeliverySchedulingAPITests(TestCase):
         self.assertEqual(r.status_code, 200, r.content)
         job = DeliveryJob.objects.get(cart_id=cid)
         self.assertEqual(job.status, DeliveryJob.STATUS_CANCELLED)
+
+    def test_replace_line_updates_job_in_place(self):
+        cid = self._open_cart()
+        r1 = self.client.post(
+            f'/api/pos/carts/{cid}/add-delivery/',
+            {
+                'tier': '5mi',
+                'customer_name': 'Jane Doe',
+                'phone': '402-555-0100',
+                'address': '123 Main St',
+                'items_delivered': 'Washer',
+                'availability_id': self.slot.id,
+            },
+            format='json',
+        )
+        self.assertEqual(r1.status_code, 200, r1.content)
+        line = next(ln for ln in r1.data['lines'] if ln['line_kind'] == 'delivery')
+        r2 = self.client.post(
+            f'/api/pos/carts/{cid}/add-delivery/',
+            {
+                'tier': '10mi',
+                'customer_name': 'Jane Doe',
+                'phone': '402-555-0199',
+                'address': '456 Oak St',
+                'items_delivered': 'Washer, Dryer',
+                'availability_id': self.slot.id,
+                'replace_line_id': line['id'],
+            },
+            format='json',
+        )
+        self.assertEqual(r2.status_code, 200, r2.content)
+        deliveries = [ln for ln in r2.data['lines'] if ln['line_kind'] == 'delivery']
+        self.assertEqual(len(deliveries), 1)
+        self.assertEqual(deliveries[0]['id'], line['id'])
+        self.assertEqual(deliveries[0]['meta']['phone'], '402-555-0199')
+        self.assertEqual(Decimal(str(deliveries[0]['unit_price'])), Decimal('75.00'))
+        self.assertEqual(DeliveryJob.objects.filter(cart_id=cid).count(), 1)
+        job = DeliveryJob.objects.get(cart_id=cid)
+        self.assertEqual(job.phone, '402-555-0199')
+        self.assertEqual(job.items_delivered, 'Washer, Dryer')

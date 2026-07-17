@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Literal
+from uuid import UUID, uuid4
 
 from django.db import transaction
 from django.utils import timezone
@@ -353,7 +354,13 @@ def request_restoration_valuation(
     from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
     from apps.inventory.services.restoration_timeline import append_timeline_event
 
-    mark_restoration_meaningful_action(job, user=user, label='Valuation requested')
+    correlation_id = uuid4()
+    mark_restoration_meaningful_action(
+        job,
+        user=user,
+        label='Valuation requested',
+        correlation_id=correlation_id,
+    )
     append_timeline_event(
         job,
         'valuation.requested',
@@ -363,11 +370,17 @@ def request_restoration_valuation(
         },
         actor=user,
         entity_id=f'valuation-request:{job.pk}',
+        correlation_id=correlation_id,
     )
     return job
 
 
-def maybe_fulfill_valuation_request(job: RestorationJob, *, user=None) -> RestorationJob:
+def maybe_fulfill_valuation_request(
+    job: RestorationJob,
+    *,
+    user=None,
+    correlation_id: UUID | None = None,
+) -> RestorationJob:
     """When grade values become complete after a request, stamp fulfilled_at."""
     if not job.valuation_requested_at or job.valuation_fulfilled_at:
         return job
@@ -385,6 +398,7 @@ def maybe_fulfill_valuation_request(job: RestorationJob, *, user=None) -> Restor
             },
             actor=user,
             entity_id=f'valuation-request:{job.pk}',
+            correlation_id=correlation_id,
         )
     return job
 
@@ -1280,7 +1294,7 @@ def return_restoration_job_to_processing(
         if not to_return:
             raise ValueError('Select at least one item to return.')
         if len(to_return) < len(movable):
-            _partial_return_restoration_items(
+            returned_job = _partial_return_restoration_items(
                 job,
                 to_return,
                 disposition_type=disposition_type,
@@ -1289,6 +1303,23 @@ def return_restoration_job_to_processing(
                 grade=grade,
                 notes=notes,
                 user=user,
+            )
+            from apps.inventory.services.restoration_timeline import append_timeline_event
+
+            append_timeline_event(
+                returned_job,
+                'return.to_processing',
+                {
+                    'disposition_type': disposition_type,
+                    'reason': reason,
+                    'scale': scale,
+                    'grade': grade,
+                    'notes': notes,
+                    'partial': True,
+                    'item_ids': [item.pk for item in to_return],
+                },
+                actor=user,
+                entity_id=f'return:{returned_job.pk}',
             )
             job.refresh_from_db()
             return job

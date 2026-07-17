@@ -51,6 +51,8 @@ export interface TarsWorkBenchRow {
   name: string;
   notes: string;
   result: string;
+  durationMinutes?: number;
+  performedAt?: string;
 }
 
 /** Per-grade plan — estimated hours + the orders attached to that grade option. */

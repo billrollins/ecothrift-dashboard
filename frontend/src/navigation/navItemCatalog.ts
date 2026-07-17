@@ -166,17 +166,19 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'receiptLong',
     roles: ['Manager', 'Admin'],
   },
+  /** @deprecated Hidden from nav for now — FB copy stays on Listing Studio. */
   onlineSalesMarketing: {
     id: 'onlineSalesMarketing',
     path: '/online-sales/marketing',
     label: 'Marketing',
     icon: 'article',
     roles: ['Manager', 'Admin'],
+    legacy: true,
   },
   onlineSalesSales: {
     id: 'onlineSalesSales',
     path: '/online-sales/sales',
-    label: 'Sales',
+    label: 'Sales log',
     icon: 'accountBalance',
     roles: ['Manager', 'Admin'],
   },

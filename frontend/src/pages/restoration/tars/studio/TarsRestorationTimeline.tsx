@@ -89,7 +89,9 @@ function eventTitle(event: RestorationTimelineEventDTO): string {
     case 'plan.cleared':
       return 'Committed plan cleared';
     case 'work.performed':
-      return `${text(payload, 'category').toUpperCase() || 'WORK'} · ${text(payload, 'name') || 'Work recorded'}`;
+      return `${text(payload, 'category').toUpperCase() || 'WORK'} · ${text(payload, 'name') || 'Work recorded'}${
+        Number(payload.durationMinutes) > 0 ? ` · ${Number(payload.durationMinutes)}m` : ''
+      }`;
     case 'valuation.requested':
       return `Valuation requested: ${Array.isArray(payload.grades) ? payload.grades.join(', ') : ''}`;
     case 'valuation.fulfilled':
@@ -156,6 +158,7 @@ export function TarsRestorationTimeline({
   const [editName, setEditName] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editResult, setEditResult] = useState('');
+  const [editDuration, setEditDuration] = useState('0');
   const [voidTarget, setVoidTarget] = useState<RestorationTimelineEventDTO | null>(null);
   const [voidReason, setVoidReason] = useState('');
 
@@ -172,6 +175,7 @@ export function TarsRestorationTimeline({
     setEditName(text(event.payload, 'name'));
     setEditNotes(text(event.payload, 'notes') || text(event.payload, 'evidence'));
     setEditResult(text(event.payload, 'result'));
+    setEditDuration(text(event.payload, 'durationMinutes') || '0');
   };
 
   const saveEdit = async () => {
@@ -181,6 +185,9 @@ export function TarsRestorationTimeline({
     if ('evidence' in editEvent.payload) payload.evidence = editNotes;
     else payload.notes = editNotes;
     if ('result' in editEvent.payload || editResult) payload.result = editResult;
+    if (editEvent.event_type === 'work.performed') {
+      payload.durationMinutes = Math.max(Number(editDuration) || 0, 0);
+    }
     await revise.mutateAsync({ jobId, eventId: editEvent.id, payload });
     setEditEvent(null);
   };
@@ -352,6 +359,15 @@ export function TarsRestorationTimeline({
             ) : null}
             {editResult || editEvent?.event_type === 'work.performed' || editEvent?.event_type.startsWith('test.') ? (
               <TextField label="Result" value={editResult} onChange={(event) => setEditResult(event.target.value)} />
+            ) : null}
+            {editEvent?.event_type === 'work.performed' ? (
+              <TextField
+                label="Labor minutes"
+                type="number"
+                value={editDuration}
+                onChange={(event) => setEditDuration(event.target.value)}
+                inputProps={{ min: 0, step: 1 }}
+              />
             ) : null}
             <TextField
               label="Notes / evidence"
