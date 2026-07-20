@@ -51,6 +51,9 @@ logger = logging.getLogger(__name__)
 # × qty_mult(quantity) × cond_mult(condition). Deterministic, auditable, echo-proof.
 RESALE_SCALER_BOUNDS = (Decimal('0.05'), Decimal('1.10'))
 SALEABILITY_SCALER_BOUNDS = (Decimal('0.05'), Decimal('1.00'))
+# Rows with a blank manifest retail get an AI-estimated MSRP (est_retail) so the
+# leashed formula still applies. Clamped hard; ignored whenever a real retail exists.
+EST_RETAIL_BOUNDS = (Decimal('0.25'), Decimal('10000'))
 
 QTY_MULTIPLIER_TABLE: tuple[tuple[int, Decimal], ...] = (
     (3, Decimal('1.00')),
@@ -128,7 +131,8 @@ def apply_cleanup_values_to_staging_row(row: PreprocessingRow, values: dict[str,
     Extracted from ``_upload_cleanup_csv_impl`` (staging branch) so the web batch
     endpoint and the offline CSV apply share one write contract. ``values`` keys:
     ``title``/``brand``/``model``/``category`` (str), ``condition`` (normalized DB value
-    or ''), ``proposed_price`` (Decimal | None), ``search_tags`` (list | None),
+    or ''), ``proposed_price`` (Decimal | None), ``est_retail`` (Decimal | None,
+    staging retail fill for blank-retail rows), ``search_tags`` (list | None),
     ``specifications`` (dict | None), ``notes`` (str), ``ai_status``
     (dict), ``reasoning`` (str). Caller wraps in a transaction and snapshots final_*.
     """
@@ -163,6 +167,14 @@ def apply_cleanup_values_to_staging_row(row: PreprocessingRow, values: dict[str,
     if isinstance(tags, list):
         row.ai_search_tags = tags
         update_fields.add('ai_search_tags')
+
+    # AI-estimated retail for blank-retail rows: staging-only (the ManifestRow spine
+    # keeps its original blank for audit). Flows into proposed_price + PO cost allocation.
+    est_retail = values.get('est_retail')
+    source_retail = getattr(source, 'unit_retail', None)
+    if est_retail is not None and (source_retail is None or source_retail <= 0):
+        row.unit_retail = est_retail
+        update_fields.add('unit_retail')
 
     row.proposed_price = values.get('proposed_price')
     row.ai_reasoning = str(values.get('reasoning') or '') or WEB_CLEANUP_REASONING
@@ -205,7 +217,7 @@ def cleanup_batch_system_prompt() -> str:
         'Input: a JSON array of rows. Return ONLY a JSON array — one object per input row, '
         'same order, never skip or merge rows, no markdown. Keys per object: row_id (copied '
         'exactly), title, brand, model, category, condition, retail_suspect, '
-        'retail_suspect_reason, m_resale, m_saleability, search_tags, low_confidence, '
+        'retail_suspect_reason, est_retail, m_resale, m_saleability, search_tags, low_confidence, '
         'low_confidence_reason.\n'
         '- title: short and sellable, names ONE unit, like a search query ("Samsung 55\\" 4K Smart TV").\n'
         '- brand / model: extract from the data only; never invent; a UPC is not a model; "" if unknown.\n'
@@ -217,7 +229,12 @@ def cleanup_batch_system_prompt() -> str:
         'You do NOT output a price. You output two scalers and a flag; the system computes '
         'price = unit_retail × m_resale × m_saleability × quantity and condition multipliers.\n'
         '- retail_suspect: JSON boolean — true ONLY when unit_retail looks like a data error for '
-        'this item (×10/×100 typo, absurd claim). retail_suspect_reason: short reason, or "".\n'
+        'this item (×10/×100 typo, absurd claim). retail_suspect_reason: short reason, or "". '
+        'When unit_retail is blank there is nothing to suspect: output false.\n'
+        '- est_retail: ONLY when the input row\'s unit_retail is blank (""), output a numeric '
+        'string estimating the item\'s NEW/MSRP claimed retail in USD (e.g. "24.99"). This is a '
+        'retail CLAIM the scalers will be applied to — NOT a resale price, NOT what we should '
+        'charge. When unit_retail is present, output "" (empty string).\n'
         '- m_resale (number, 0.05–1.10): the fraction of CLAIMED retail this item type resells '
         'for at qty 1 in good condition. High-demand resale items (LEGO, popular brands) near '
         '0.85–1.05; typical goods 0.30–0.60; luxury/decor with inflated markup 0.10–0.25.\n'
@@ -235,27 +252,34 @@ def cleanup_batch_system_prompt() -> str:
         '{"row_id": 1, "title": "LEGO Star Wars Millennium Falcon 75257", "brand": "LEGO", '
         '"quantity": 3, "unit_retail": "159.99"} -> {"row_id": 1, "title": "LEGO Star Wars Millennium Falcon Set", '
         '"brand": "LEGO", "model": "75257", "category": "Toys & games", "condition": "new", '
-        '"retail_suspect": false, "retail_suspect_reason": "", "m_resale": 0.95, "m_saleability": 1.0, '
+        '"retail_suspect": false, "retail_suspect_reason": "", "est_retail": "", "m_resale": 0.95, "m_saleability": 1.0, '
         '"search_tags": ["lego", "star-wars", "building-set"], "low_confidence": false, "low_confidence_reason": ""}'
         '  // hot resale brand: sells near claimed retail\n'
         '{"row_id": 2, "title": "Hydraulic pallet truck replacement seal kit", "brand": "", '
         '"quantity": 4, "unit_retail": "89.00"} -> {"row_id": 2, "title": "Pallet Jack Hydraulic Seal Kit", '
         '"brand": "", "model": "", "category": "Tools & hardware", "condition": "new", '
-        '"retail_suspect": false, "retail_suspect_reason": "", "m_resale": 0.40, "m_saleability": 0.20, '
+        '"retail_suspect": false, "retail_suspect_reason": "", "est_retail": "", "m_resale": 0.40, "m_saleability": 0.20, '
         '"search_tags": ["pallet-jack", "seal-kit", "hydraulic", "parts"], "low_confidence": false, '
         '"low_confidence_reason": ""}  // industrial bare part: tiny thrift buyer pool\n'
         '{"row_id": 3, "title": "cenozo Modern LED Acrylic Ball Chandelier 90W", "brand": "cenozo", '
         '"quantity": 1, "unit_retail": "700.70"} -> {"row_id": 3, "title": "Cenozo LED Dimmable Acrylic Ball Chandelier", '
         '"brand": "cenozo", "model": "", "category": "Home décor & lighting", "condition": "used_good", '
-        '"retail_suspect": false, "retail_suspect_reason": "", "m_resale": 0.12, "m_saleability": 0.90, '
+        '"retail_suspect": false, "retail_suspect_reason": "", "est_retail": "", "m_resale": 0.12, "m_saleability": 0.90, '
         '"search_tags": ["chandelier", "led", "dimmable", "ceiling-light"], "low_confidence": false, '
         '"low_confidence_reason": ""}  // no-name luxury markup: real value is a small fraction of claimed retail\n'
         '{"row_id": 4, "title": "Bic Soleil razors 4ct", "brand": "Bic", '
         '"quantity": 72, "unit_retail": "699.00"} -> {"row_id": 4, "title": "Bic Soleil Disposable Razors 4-Pack", '
         '"brand": "Bic", "model": "", "category": "Health, beauty & personal care", "condition": "new", '
         '"retail_suspect": true, "retail_suspect_reason": "razor 4-pack listed at $699 — likely x100 typo", '
-        '"m_resale": 0.40, "m_saleability": 1.0, "search_tags": ["razor", "bic", "disposable"], '
-        '"low_confidence": false, "low_confidence_reason": ""}  // flag bad retail; system skips pricing that row'
+        '"est_retail": "", "m_resale": 0.40, "m_saleability": 1.0, "search_tags": ["razor", "bic", "disposable"], '
+        '"low_confidence": false, "low_confidence_reason": ""}  // flag bad retail; system skips pricing that row\n'
+        '{"row_id": 5, "title": "Hamilton Beach 2-slice toaster black", "brand": "Hamilton Beach", '
+        '"quantity": 2, "unit_retail": ""} -> {"row_id": 5, "title": "Hamilton Beach 2-Slice Toaster", '
+        '"brand": "Hamilton Beach", "model": "", "category": "Kitchen & dining", "condition": "used_good", '
+        '"retail_suspect": false, "retail_suspect_reason": "", "est_retail": "29.99", "m_resale": 0.45, '
+        '"m_saleability": 1.0, "search_tags": ["toaster", "hamilton-beach", "kitchen"], '
+        '"low_confidence": false, "low_confidence_reason": ""}'
+        '  // blank retail: estimate the NEW/MSRP claim; scalers still judge resale as usual'
     )
 
 
@@ -335,6 +359,16 @@ def validate_cleanup_suggestion(
     m_resale = _clamp(parse_cleanup_price(suggestion.get('m_resale')) or Decimal('0.40'), RESALE_SCALER_BOUNDS)
     m_saleability = _clamp(parse_cleanup_price(suggestion.get('m_saleability')) or Decimal('1.00'), SALEABILITY_SCALER_BOUNDS)
 
+    # est_retail: AI-estimated MSRP for rows the manifest left blank. Never overrides a
+    # real retail; clamped to a sane band. Garbage ('n/a', absurd numbers) → ignored.
+    est_retail: Decimal | None = None
+    if unit_retail is None or unit_retail <= 0:
+        # Blank retail also means there's nothing to suspect — the flag would be noise.
+        retail_suspect = False
+        candidate = parse_cleanup_price(suggestion.get('est_retail'))
+        if candidate is not None and candidate > 0:
+            est_retail = _clamp(candidate, EST_RETAIL_BOUNDS)
+
     proposed_price: Decimal | None = None
     if retail_suspect:
         # A bad retail (×10/×100 typo) would skew everything downstream — flag, don't price.
@@ -344,7 +378,7 @@ def validate_cleanup_suggestion(
         })
     else:
         proposed_price = compute_leashed_price(
-            unit_retail=unit_retail,
+            unit_retail=unit_retail if unit_retail and unit_retail > 0 else est_retail,
             quantity=quantity,
             condition=condition or str(context.get('condition') or ''),
             m_resale=m_resale,
@@ -355,15 +389,19 @@ def validate_cleanup_suggestion(
     if issues:
         ai_status = {'state': 'soft_flagged', 'issues': issues}
     if proposed_price is not None or retail_suspect:
-        ai_status = {
-            **ai_status,
-            'pricing': {
-                'm_resale': str(m_resale),
-                'm_saleability': str(m_saleability),
-                'qty_mult': str(qty_multiplier(quantity)),
-                'retail_suspect': retail_suspect,
-            },
+        pricing: dict[str, Any] = {
+            'm_resale': str(m_resale),
+            'm_saleability': str(m_saleability),
+            'qty_mult': str(qty_multiplier(quantity)),
+            'retail_suspect': retail_suspect,
         }
+        if est_retail is not None:
+            pricing['est_retail'] = str(est_retail)
+        ai_status = {**ai_status, 'pricing': pricing}
+
+    reasoning = WEB_CLEANUP_REASONING + (' — low confidence' if low_confidence else '')
+    if est_retail is not None:
+        reasoning += f' [est. retail ${est_retail} — manifest had none]'
 
     return {
         'title': title,
@@ -372,9 +410,10 @@ def validate_cleanup_suggestion(
         'category': category,
         'condition': condition,
         'proposed_price': proposed_price,
+        'est_retail': est_retail,
         'search_tags': tags,
         'ai_status': ai_status,
-        'reasoning': WEB_CLEANUP_REASONING + (' — low confidence' if low_confidence else ''),
+        'reasoning': reasoning,
     }, ''
 
 

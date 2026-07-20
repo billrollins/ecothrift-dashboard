@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.48.2] — 2026-07-09 -->
-<!-- Last reviewed: 2026-07-09 (Label Studio background replace cache bust) -->
+<!-- Line 1 release: ## [2.48.3] — 2026-07-20 -->
+<!-- Last reviewed: 2026-07-20 (blank-retail AI pricing + missing-price review + paid/shipped processing) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,22 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.48.3] — 2026-07-20
+
+User-facing theme: **Blank-retail rows get AI MSRP estimates; review can filter and fill missing prices; processing opens paid/shipped orders.**
+
+### Added
+
+- **Inventory / AI cleanup** — when manifest `unit_retail` is blank, the model may output `est_retail` (MSRP claim); staging `unit_retail` is filled and the leashed scaler formula still prices the row (`apps/inventory/services/ai_cleanup.py`).
+- **Preprocessing review** — **Missing price** chip filter and **Set missing** bulk fill for unpriced filtered rows (`PreprocessingReviewTable`).
+
+### Fixed
+
+- **Inventory / undo AI cleanup** — rewind clears AI-filled staging retail back to manifest blank (and manifest-less rows tagged with `ai_status.pricing.est_retail`) before wiping `ai_status`.
+- **Processing workspace** — PO picker and entry redirect include **paid** and **shipped** (staff often prep before the order is marked delivered).
 
 ---
 

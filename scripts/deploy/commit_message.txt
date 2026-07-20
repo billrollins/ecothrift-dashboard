@@ -1,5 +1,6 @@
-release(v2.48.2): fix Label Studio background replace reverting after Save
+release(v2.48.3): blank-retail AI pricing, missing-price review tools, paid/shipped processing
 
-Release: v2.48.2
+Release: v2.48.3
 
-- Media proxy no-store + cache-bust query so replaced backgrounds are not served from browser cache
+- AI cleanup estimates MSRP for blank-retail rows; undo rewinds staging retail
+- Review: missing-price filter + bulk Set missing; processing picker includes paid/shipped
