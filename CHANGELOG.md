@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.51.0] — 2026-07-21 -->
-<!-- Last reviewed: 2026-07-21 (Deliveries: schedule later + notes + customer text) -->
+<!-- Line 1 release: ## [2.52.0] — 2026-07-21 -->
+<!-- Last reviewed: 2026-07-21 (v2.52.0 unified Delivery Day Board) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.52.0] — 2026-07-21
+
+User-facing theme: **Unified Delivery Day Board** — one persistent board for the full driver day (calls → route → load → drive → return).
+
+Initiative: outside initiatives hotfix (follow-on to [`pos_discount_and_delivery`](.ai/initiatives/_archived/_completed/pos_discount_and_delivery.md)).
+
+### Added
+
+- **POS / unified Delivery Day Board** — One persistent Day Board (no Board vs Driver / wizard split). Same delivery cards stay visible; stage adds inline actions (calls → route → load → drive → return → complete). Card click opens a mobile-first details modal (full-screen on phone, centered dialog on desktop). Run-only timer (not payroll). Guarded stage transitions, report-issue, audited pre-load reschedule (`rescheduled` stop), address ETA recalc, event history (`pos.0014`–`pos.0018`).
+- **POS / Add delivery from board** — Manager **Add delivery** modal: pick items from a past POS sale, append inventory SKU/title, or free-text describe; contact + schedule (or schedule later). `POST /api/pos/delivery-jobs/` (no fee line required; syncs onto an open day run).
+
+### Changed
+
+- **POS / Google Maps route** — store return leg + Directions optimize/ETA planning for confirmed stops only (`POST /api/pos/delivery-runs/…`). After day start, route/open-map uses persisted run order; job-address preview only before start.
+- **POS / delivery completion** — open-run completion must use stop complete/override (job PATCH `completed` blocked while stop incomplete).
+- **POS / delivery card + details layout** — phone gets more room (stacked on mobile; wider field / desktop meta column); Day Board cards use a desktop contact column; details/Add dialogs stay full-screen on phone only.
+
+### Fixed
+
+- **POS / delivery item counts** — Day Board “Items N left” now follows linked sale-line quantities instead of a stale `item_count` from checkout (e.g. one washer showed as 2 left).
 
 ## [2.51.0] — 2026-07-21
 

@@ -8,10 +8,11 @@ import type {
   Drawer,
   DeliveryAvailability,
   DeliveryJob,
+  DeliveryRun,
 } from '../types/pos.types';
 import api from './client';
 
-export type { Register, Drawer, DeliveryAvailability, DeliveryJob };
+export type { Register, Drawer, DeliveryAvailability, DeliveryJob, DeliveryRun };
 
 export interface RevenueGoal {
   id: number;
@@ -268,9 +269,194 @@ export function getDeliveryJobs(
   return api.get<DeliveryJob[]>('/pos/delivery-jobs/', { params });
 }
 
+export function createDeliveryJob(data: {
+  customer_name: string;
+  phone: string;
+  address: string;
+  items_delivered: string;
+  is_apt?: boolean;
+  unit?: string;
+  notes?: string;
+  tier?: string;
+  fee?: string | number;
+  availability_id?: number;
+  schedule_later?: boolean;
+  cart_id?: number;
+  cart_line_ids?: number[];
+  item_count?: number;
+  distance_miles?: string | number;
+  distance_mode?: string;
+}): Promise<{ data: DeliveryJob & { customer_schedule_message?: string } }> {
+  return api.post('/pos/delivery-jobs/', data);
+}
+
+export function optimizeDeliveryRoute(addresses: string[]): Promise<{
+  data: {
+    ordered_addresses: string[];
+    optimized: boolean;
+    maps_url: string | null;
+    waypoint_cap: number;
+    truncated: number;
+    store_address: string;
+  };
+}> {
+  return api.post('/pos/delivery/optimize-route/', { addresses });
+}
+
+export function getDeliveryRun(date: string): Promise<{ data: DeliveryRun | null }> {
+  return api.get<DeliveryRun | null>('/pos/delivery-runs/', { params: { date } });
+}
+
+export function startDeliveryRun(data: {
+  date: string;
+  availability_id?: number | null;
+}): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>('/pos/delivery-runs/', data);
+}
+
+export function getDeliveryRunById(id: number): Promise<{ data: DeliveryRun }> {
+  return api.get<DeliveryRun>(`/pos/delivery-runs/${id}/`);
+}
+
+export function setDeliveryRunPhase(id: number, phase: string): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/phase/`, { phase });
+}
+
+export function beginDeliveryRoute(id: number): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/begin-route/`);
+}
+
+export function optimizeDeliveryRun(id: number, optimize = true): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/optimize/`, { optimize });
+}
+
+export function reorderDeliveryRun(id: number, stop_ids: number[]): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/reorder/`, { stop_ids });
+}
+
+export function finishDeliveryRun(
+  id: number,
+  data?: { force?: boolean; reason?: string },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/finish/`, data || {});
+}
+
+export function uploadDeliveryAttachment(runId: number, form: FormData): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${runId}/attachments/`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}
+
+export function deleteDeliveryAttachment(
+  runId: number,
+  attachmentId: number,
+): Promise<{ data: DeliveryRun }> {
+  return api.delete<DeliveryRun>(`/pos/delivery-runs/${runId}/attachments/${attachmentId}/`);
+}
+
+export function markDeliveryStopLoaded(stopId: number, loaded = true): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/load/`, { loaded });
+}
+
+export function markDeliveryStopSecured(stopId: number, secured = true): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/secure/`, { secured });
+}
+
+export function addDeliveryStopCall(
+  stopId: number,
+  data: { result: string; note?: string },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/call/`, data);
+}
+
+export function holdDeliveryStop(stopId: number, reason?: string): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/hold/`, { reason: reason || '' });
+}
+
+export function releaseDeliveryStop(stopId: number): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/release/`);
+}
+
+export function completeDeliveryStop(
+  stopId: number,
+  data?: { override?: boolean; override_reason?: string },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/complete/`, data || {});
+}
+
+export function markDeliveryStopContactPresent(
+  stopId: number,
+  present = true,
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/contact-present/`, { present });
+}
+
+export function markDeliveryStopDelivered(
+  stopId: number,
+  delivered = true,
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/delivered/`, { delivered });
+}
+
+export function markDeliveryRunReturnedToStore(id: number): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/return-store/`);
+}
+
+export function reconcileDeliveryStopReturn(
+  stopId: number,
+  data: {
+    unloaded?: boolean;
+    items_stored?: boolean;
+    issue_code?: string;
+    issue_notes?: string;
+    reconcile?: boolean;
+  },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/return-reconcile/`, data);
+}
+
+export function reportDeliveryStopIssue(
+  stopId: number,
+  data: { issue_code: string; note: string; hold?: boolean },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/report-issue/`, data);
+}
+
+export function rescheduleDeliveryJob(
+  jobId: number,
+  data: { availability_id: number; notes?: string },
+): Promise<{ data: { job: DeliveryJob; run?: DeliveryRun } }> {
+  return api.post(`/pos/delivery-jobs/${jobId}/reschedule/`, data);
+}
+
+export function updateDeliveryStopNotes(stopId: number, notes: string): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/notes/`, { notes });
+}
+
+export function scanVerifyDeliveryStop(
+  stopId: number,
+  sku: string,
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/scan-verify/`, { sku });
+}
+
+export function appendDeliveryJobAddress(
+  jobId: number,
+  data: { address: string; is_apt?: boolean; unit?: string; reason?: string },
+): Promise<{ data: DeliveryRun | { ok: boolean; job_id: number } }> {
+  return api.post(`/pos/delivery-jobs/${jobId}/append-address/`, data);
+}
+
 export function updateDeliveryJob(
   id: number,
-  data: { status?: string; notes?: string; availability?: number; availability_id?: number },
+  data: {
+    status?: string;
+    notes?: string;
+    availability?: number;
+    availability_id?: number;
+    customer_name?: string;
+    phone?: string;
+  },
 ): Promise<{ data: DeliveryJob }> {
   return api.patch<DeliveryJob>(`/pos/delivery-jobs/${id}/`, data);
 }

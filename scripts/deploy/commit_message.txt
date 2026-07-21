@@ -1,10 +1,11 @@
-feat: schedule-later POS deliveries with notes (v2.51.0)
+feat: unified Delivery Day Board (v2.52.0)
 
-Release: v2.51.0
+Release: v2.52.0
 
-- Terminal: Schedule later (no date), delivery notes, Saturday/be-home reminder
-- Deliveries board: needs-scheduling warning, schedule dialog, copyable customer text
-- API: nullable availability/date, status needs_scheduling, customer_schedule_message on PATCH
-- Migration: pos.0013_deliveryjob_needs_scheduling
+- One Day Board: persistent cards with stage-adaptive inline actions (calls → route → load → drive → return)
+- Details modal (mobile full-screen / desktop dialog); Add delivery from past sale, SKU, or describe
+- Guarded run transitions, report-issue, audited reschedule, address ETA recalc
+- Item counts follow linked sale-line qty; phone/desktop layout polish
+- Migrations: pos.0014–pos.0018
 
 See .ai/initiatives/_archived/_completed/pos_discount_and_delivery.md

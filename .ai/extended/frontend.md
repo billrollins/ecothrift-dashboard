@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-21 (v2.50.0 Deliveries release; Online Sales parked; TARS available) -->
+<!-- Last updated: 2026-07-21 (v2.52.0 unified Delivery Day Board; Online Sales parked; TARS available) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 

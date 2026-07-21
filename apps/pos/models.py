@@ -617,3 +617,400 @@ class DeliveryJob(models.Model):
         when = self.scheduled_date.isoformat() if self.scheduled_date else 'unscheduled'
         return f'{when} - {self.customer_name} ({self.items_delivered})'
 
+
+class DeliveryRun(models.Model):
+    """Operational delivery day session for the driver wizard (not payroll)."""
+
+    STATUS_PREPARING = 'preparing'
+    STATUS_EN_ROUTE = 'en_route'
+    STATUS_COMPLETED = 'completed'
+    STATUS_CHOICES = [
+        (STATUS_PREPARING, 'Preparing'),
+        (STATUS_EN_ROUTE, 'En route'),
+        (STATUS_COMPLETED, 'Completed'),
+    ]
+
+    # Revised five-step flow. Legacy values remain accepted by migration/normalize.
+    PHASE_START = 'start'
+    PHASE_CALLS = 'calls'
+    PHASE_ROUTE = 'route'
+    PHASE_LOAD = 'load'
+    PHASE_ACTIVE = 'active'
+    PHASE_RETURN = 'return'
+    # Legacy phases (mapped at runtime)
+    PHASE_REVIEW = 'review'
+    PHASE_TRUCK = 'truck'
+    PHASE_CHOICES = [
+        (PHASE_START, 'Start day'),
+        (PHASE_CALLS, 'Customer calls'),
+        (PHASE_ROUTE, 'Confirmed route'),
+        (PHASE_LOAD, 'Load & truck photo'),
+        (PHASE_ACTIVE, 'Driving'),
+        (PHASE_RETURN, 'Return to store'),
+        (PHASE_REVIEW, 'Legacy: review'),
+        (PHASE_TRUCK, 'Legacy: truck'),
+    ]
+
+    date = models.DateField(db_index=True)
+    availability = models.ForeignKey(
+        DeliveryAvailability,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='runs',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PREPARING,
+        db_index=True,
+    )
+    phase = models.CharField(
+        max_length=20,
+        choices=PHASE_CHOICES,
+        default=PHASE_START,
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_runs_started',
+    )
+    active_seconds = models.PositiveIntegerField(default=0)
+    route_revision = models.PositiveIntegerField(default=0)
+    last_optimized_at = models.DateTimeField(null=True, blank=True)
+    maps_url = models.TextField(blank=True, default='')
+    route_summary = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True, default='')
+    returned_to_store_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date', '-id']
+        indexes = [
+            models.Index(fields=['date', 'status']),
+        ]
+
+    def __str__(self):
+        return f'DeliveryRun {self.date} ({self.status})'
+
+
+class DeliveryRunStop(models.Model):
+    """One customer stop within a delivery run, with persisted route order."""
+
+    STATE_QUEUED = 'queued'
+    STATE_NEXT_UP = 'next_up'
+    STATE_ON_HOLD = 'on_hold'
+    STATE_COMPLETED = 'completed'
+    STATE_FAILED = 'failed'
+    STATE_RESCHEDULED = 'rescheduled'
+    STATE_CHOICES = [
+        (STATE_QUEUED, 'Queued'),
+        (STATE_NEXT_UP, 'Next up'),
+        (STATE_ON_HOLD, 'On hold'),
+        (STATE_COMPLETED, 'Completed'),
+        (STATE_FAILED, 'Failed'),
+        (STATE_RESCHEDULED, 'Rescheduled'),
+    ]
+
+    run = models.ForeignKey(DeliveryRun, on_delete=models.CASCADE, related_name='stops')
+    job = models.ForeignKey(DeliveryJob, on_delete=models.PROTECT, related_name='run_stops')
+    position = models.PositiveSmallIntegerField(default=0)
+    state = models.CharField(
+        max_length=20,
+        choices=STATE_CHOICES,
+        default=STATE_QUEUED,
+        db_index=True,
+    )
+    loaded_at = models.DateTimeField(null=True, blank=True)
+    secured_at = models.DateTimeField(null=True, blank=True)
+    loaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_stops_loaded',
+    )
+    secured_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_stops_secured',
+    )
+    eta_arrive_at = models.DateTimeField(null=True, blank=True)
+    eta_window_end_at = models.DateTimeField(null=True, blank=True)
+    drive_seconds_from_prev = models.PositiveIntegerField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_stops_completed',
+    )
+    proof_override = models.BooleanField(default=False)
+    proof_override_reason = models.CharField(max_length=300, blank=True, default='')
+    proof_override_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_stops_proof_overridden',
+    )
+    hold_reason = models.CharField(max_length=300, blank=True, default='')
+    # Optional load scan checks: [{line_id?, sku, description, verified_at}]
+    scan_verified = models.JSONField(default=list, blank=True)
+    contact_present_at = models.DateTimeField(null=True, blank=True)
+    contact_present_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_stops_contact_present',
+    )
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    delivered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_stops_delivered',
+    )
+    returned_unloaded_at = models.DateTimeField(null=True, blank=True)
+    returned_unloaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_stops_returned_unloaded',
+    )
+    returned_items_stored_at = models.DateTimeField(null=True, blank=True)
+    returned_items_stored_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_stops_returned_stored',
+    )
+    return_issue_code = models.CharField(max_length=40, blank=True, default='')
+    return_issue_notes = models.CharField(max_length=500, blank=True, default='')
+    return_reconciled_at = models.DateTimeField(null=True, blank=True)
+    return_reconciled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_stops_return_reconciled',
+    )
+    rescheduled_at = models.DateTimeField(null=True, blank=True)
+    rescheduled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_stops_rescheduled',
+    )
+    rescheduled_to_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['position', 'id']
+        unique_together = [('run', 'job')]
+        indexes = [
+            models.Index(fields=['run', 'state']),
+            models.Index(fields=['run', 'position']),
+        ]
+
+    def __str__(self):
+        return f'RunStop #{self.position} job={self.job_id} ({self.state})'
+
+
+class DeliveryAddressRevision(models.Model):
+    """Append-only address updates for a delivery job (sale address is preserved)."""
+
+    job = models.ForeignKey(
+        DeliveryJob,
+        on_delete=models.CASCADE,
+        related_name='address_revisions',
+    )
+    address = models.CharField(max_length=200)
+    is_apt = models.BooleanField(default=False)
+    unit = models.CharField(max_length=40, blank=True, default='')
+    reason = models.CharField(max_length=300, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_address_revisions',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['job', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f'AddressRev job={self.job_id} active={self.is_active}'
+
+
+class DeliveryCallAttempt(models.Model):
+    """Timestamped customer call / text attempt for a run stop."""
+
+    RESULT_ANSWERED_WILL_BE_THERE = 'answered_will_be_there'
+    RESULT_ANSWERED_NOT_AVAILABLE = 'answered_not_available'
+    RESULT_NO_ANSWER = 'no_answer'
+    RESULT_VOICEMAIL_LEFT = 'voicemail_left'
+    RESULT_TEXT_SENT = 'text_sent'
+    RESULT_WRONG_NUMBER = 'wrong_number'
+    RESULT_OTHER = 'other'
+    RESULT_CHOICES = [
+        (RESULT_ANSWERED_WILL_BE_THERE, 'Answered — will be there'),
+        (RESULT_ANSWERED_NOT_AVAILABLE, 'Answered — not available'),
+        (RESULT_NO_ANSWER, 'No answer'),
+        (RESULT_VOICEMAIL_LEFT, 'Voicemail left'),
+        (RESULT_TEXT_SENT, 'Text sent'),
+        (RESULT_WRONG_NUMBER, 'Wrong number'),
+        (RESULT_OTHER, 'Other'),
+    ]
+
+    stop = models.ForeignKey(
+        DeliveryRunStop,
+        on_delete=models.CASCADE,
+        related_name='call_attempts',
+    )
+    result = models.CharField(max_length=40, choices=RESULT_CHOICES)
+    note = models.CharField(max_length=300, blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_call_attempts',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'Call stop={self.stop_id} {self.result}'
+
+
+class DeliveryAttachment(models.Model):
+    """Photo or signature proof attached to a run or stop."""
+
+    KIND_TRUCK = 'truck'
+    KIND_DELIVERY_PROOF = 'delivery_proof'
+    KIND_SIGNATURE = 'signature'
+    KIND_ISSUE = 'issue'
+    KIND_CHOICES = [
+        (KIND_TRUCK, 'Truck photo'),
+        (KIND_DELIVERY_PROOF, 'Delivery proof'),
+        (KIND_SIGNATURE, 'Signature'),
+        (KIND_ISSUE, 'Issue photo'),
+    ]
+
+    run = models.ForeignKey(
+        DeliveryRun,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+    )
+    stop = models.ForeignKey(
+        DeliveryRunStop,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='attachments',
+    )
+    s3_file = models.ForeignKey(
+        'core.S3File',
+        on_delete=models.CASCADE,
+        related_name='delivery_attachments',
+    )
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    client_photo_id = models.UUIDField(null=True, blank=True, db_index=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_attachments_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['run', 'kind']),
+            models.Index(fields=['stop', 'kind']),
+            models.Index(fields=['run', 'client_photo_id']),
+        ]
+
+    def __str__(self):
+        return f'{self.kind} run={self.run_id} stop={self.stop_id}'
+
+
+class DeliveryRunEvent(models.Model):
+    """Append-only audit log for a delivery run."""
+
+    EVENT_CHOICES = [
+        ('start', 'Start'),
+        ('phase', 'Phase change'),
+        ('load', 'Loaded'),
+        ('secure', 'Secured'),
+        ('photo', 'Photo'),
+        ('call', 'Call'),
+        ('route', 'Route'),
+        ('reorder', 'Reorder'),
+        ('hold', 'Hold'),
+        ('release', 'Release'),
+        ('address', 'Address revision'),
+        ('contact', 'Contact present'),
+        ('delivered', 'Items delivered'),
+        ('complete', 'Complete stop'),
+        ('override', 'Proof override'),
+        ('return', 'Return reconcile'),
+        ('finish', 'Finish run'),
+        ('note', 'Note'),
+        ('issue', 'Report issue'),
+        ('reschedule', 'Reschedule job'),
+        ('cancel', 'Cancel job'),
+    ]
+
+    run = models.ForeignKey(DeliveryRun, on_delete=models.CASCADE, related_name='events')
+    stop = models.ForeignKey(
+        DeliveryRunStop,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='events',
+    )
+    event_type = models.CharField(max_length=20, choices=EVENT_CHOICES)
+    payload = models.JSONField(default=dict, blank=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_run_events',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['run', 'event_type']),
+        ]
+
+    def __str__(self):
+        return f'{self.event_type} run={self.run_id}'
+

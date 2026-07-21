@@ -30,8 +30,6 @@ import Add from '@mui/icons-material/Add';
 import ArrowBack from '@mui/icons-material/ArrowBack';
 import ContentCopy from '@mui/icons-material/ContentCopy';
 import LocalShippingOutlined from '@mui/icons-material/LocalShippingOutlined';
-import MapOutlined from '@mui/icons-material/MapOutlined';
-import PhoneOutlined from '@mui/icons-material/PhoneOutlined';
 import WarningAmber from '@mui/icons-material/WarningAmber';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
@@ -40,6 +38,9 @@ import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { useAuth } from '../../contexts/AuthContext';
+import { optimizeDeliveryRoute } from '../../api/pos.api';
+import { AddDeliveryDialog } from '../../components/pos/delivery/AddDeliveryDialog';
+import { DeliveryDayBoard } from '../../components/pos/delivery/DeliveryDayBoard';
 import {
   useCreateDeliveryAvailability,
   useDeleteDeliveryAvailability,
@@ -52,6 +53,8 @@ import type { DeliveryAvailability, DeliveryJob, DeliveryJobStatus } from '../..
 
 /** Eco-Thrift Canfield — matches POS delivery distance store pin. */
 const STORE_ORIGIN = '8425 West Center Road, Omaha, NE 68124';
+/** google.com/maps/dir max waypoints when origin + destination are set. */
+const MAX_MAPS_WAYPOINTS = 9;
 
 type DeliveriesTab = 'day' | 'all' | 'schedule';
 
@@ -77,20 +80,20 @@ function jobStopAddress(job: DeliveryJob): string {
   return base;
 }
 
+/** Store → customer stops → store (fallback when optimize API fails). */
 function buildGoogleMapsRouteUrl(stops: string[]): string | null {
   const cleaned = stops.map((s) => s.trim()).filter(Boolean);
   if (cleaned.length === 0) return null;
-  const capped = cleaned.slice(0, 10);
+  const capped = cleaned.slice(0, MAX_MAPS_WAYPOINTS);
   const origin = encodeURIComponent(STORE_ORIGIN);
-  const destination = encodeURIComponent(capped[capped.length - 1]);
-  const mid = capped.slice(0, -1);
+  const destination = encodeURIComponent(STORE_ORIGIN);
   let url =
     `https://www.google.com/maps/dir/?api=1` +
     `&origin=${origin}` +
     `&destination=${destination}` +
     `&travelmode=driving`;
-  if (mid.length > 0) {
-    url += `&waypoints=${mid.map(encodeURIComponent).join('%7C')}`;
+  if (capped.length > 0) {
+    url += `&waypoints=${capped.map(encodeURIComponent).join('%7C')}`;
   }
   return url;
 }
@@ -142,6 +145,7 @@ export default function DeliveriesPage() {
   const [customerMessage, setCustomerMessage] = useState<string | null>(null);
   const [notesJob, setNotesJob] = useState<DeliveryJob | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
+  const [addDeliveryOpen, setAddDeliveryOpen] = useState(false);
 
   const rangeParams = useMemo(
     () => ({ date_from: dateFrom || undefined, date_to: dateTo || undefined }),
@@ -197,29 +201,37 @@ export default function DeliveriesPage() {
   }, [jobs]);
 
   const dayRail = useMemo(() => {
+    const statsForDate = (date: string) => {
+      const dayJobs = jobsByDate.get(date) ?? [];
+      const leftJobs = dayJobs.filter((j) => j.status === 'scheduled');
+      const doneJobs = dayJobs.filter((j) => j.status === 'completed');
+      const itemSum = (list: DeliveryJob[]) =>
+        list.reduce((n, j) => n + (Number(j.item_count) || 0), 0);
+      return {
+        leftStops: leftJobs.length,
+        completedStops: doneJobs.length,
+        leftItems: itemSum(leftJobs),
+        completedItems: itemSum(doneJobs),
+        deliveryCount: dayJobs.length,
+      };
+    };
+
     const fromSlots = daySlots.map((slot) => ({
       key: `slot-${slot.id}`,
       date: slot.date,
       slot,
-      scheduledCount: (jobsByDate.get(slot.date) ?? []).filter((j) => j.status === 'scheduled').length,
-      itemCount: slot.items_booked,
-      deliveryCount: slot.delivery_count,
+      ...statsForDate(slot.date),
     }));
     const slotDates = new Set(fromSlots.map((r) => r.date));
     const orphanDates = [...jobsByDate.keys()]
       .filter((d) => !slotDates.has(d) && d >= today)
       .sort()
-      .map((date) => {
-        const dayJobs = jobsByDate.get(date) ?? [];
-        return {
-          key: `orphan-${date}`,
-          date,
-          slot: null as DeliveryAvailability | null,
-          scheduledCount: dayJobs.filter((j) => j.status === 'scheduled').length,
-          itemCount: dayJobs.reduce((n, j) => n + (j.item_count || 0), 0),
-          deliveryCount: dayJobs.length,
-        };
-      });
+      .map((date) => ({
+        key: `orphan-${date}`,
+        date,
+        slot: null as DeliveryAvailability | null,
+        ...statsForDate(date),
+      }));
     return [...fromSlots, ...orphanDates].sort((a, b) => a.date.localeCompare(b.date));
   }, [daySlots, jobsByDate, today]);
 
@@ -243,9 +255,6 @@ export default function DeliveriesPage() {
     const list = jobsByDate.get(selectedDate) ?? [];
     return list.slice().sort((a, b) => a.id - b.id);
   }, [jobsByDate, selectedDate]);
-
-  const dayScheduled = dayJobs.filter((j) => j.status === 'scheduled');
-  const dayItems = dayJobs.reduce((n, j) => n + (j.item_count || 0), 0);
 
   const filteredAllJobs = useMemo(() => {
     if (!jobStatusFilter) return jobs;
@@ -379,7 +388,7 @@ export default function DeliveriesPage() {
     }
   };
 
-  const handleOpenGoogleRoute = (dateIso: string) => {
+  const handleOpenGoogleRoute = async (dateIso: string) => {
     const stops = (jobsByDate.get(dateIso) ?? [])
       .filter((j) => j.status === 'scheduled')
       .map(jobStopAddress)
@@ -388,14 +397,38 @@ export default function DeliveriesPage() {
       enqueueSnackbar('No scheduled stops with addresses for that date.', { variant: 'warning' });
       return;
     }
-    const url = buildGoogleMapsRouteUrl(stops);
-    if (!url) return;
-    if (stops.length > 10) {
+
+    let url: string | null = null;
+    let optimized = false;
+    let truncated = Math.max(0, stops.length - MAX_MAPS_WAYPOINTS);
+
+    try {
+      const { data } = await optimizeDeliveryRoute(stops);
+      url = data.maps_url;
+      optimized = Boolean(data.optimized);
+      truncated = Number(data.truncated) || truncated;
+    } catch {
+      url = buildGoogleMapsRouteUrl(stops);
+    }
+
+    if (!url) {
+      enqueueSnackbar('Could not build a Maps route for those stops.', { variant: 'error' });
+      return;
+    }
+
+    if (truncated > 0) {
       enqueueSnackbar(
-        `Google Maps allows ~10 stops per URL; opened the first 10 of ${stops.length}. Print a second Saturday delivery log sheet and open a second route for the rest.`,
+        `Google Maps allows ${MAX_MAPS_WAYPOINTS} stops per URL (plus return to store); opened the first ${MAX_MAPS_WAYPOINTS} of ${stops.length}. Print a second Saturday delivery log sheet and open a second route for the rest.`,
         { variant: 'info' },
       );
+    } else if (optimized) {
+      enqueueSnackbar('Stops reordered for fastest drive; route returns to the store.', {
+        variant: 'success',
+      });
+    } else {
+      enqueueSnackbar('Route opens store → stops → store (list order).', { variant: 'info' });
     }
+
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -427,7 +460,7 @@ export default function DeliveriesPage() {
           : '—',
     },
     { field: 'customer_name', headerName: 'Customer', flex: 1, minWidth: 140 },
-    { field: 'phone', headerName: 'Phone', width: 120 },
+    { field: 'phone', headerName: 'Phone', width: 150 },
     {
       field: 'address',
       headerName: 'Address',
@@ -528,7 +561,17 @@ export default function DeliveriesPage() {
         title="Deliveries"
         subtitle="Pick a day for the route board, browse every stop, or set bookable dates."
         action={
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+            {canManage && (
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => setAddDeliveryOpen(true)}
+                sx={{ minHeight: 40 }}
+              >
+                Add delivery
+              </Button>
+            )}
             {needsSchedulingJobs.length > 0 && (
               <Chip
                 size="small"
@@ -665,8 +708,8 @@ export default function DeliveriesPage() {
             flex: 1,
             minHeight: 0,
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: 'minmax(220px, 280px) 1fr' },
-            gap: 1.25,
+            gridTemplateColumns: { xs: '1fr', md: 'minmax(240px, 300px) 1fr' },
+            gap: { xs: 1.25, md: 1.5 },
           }}
         >
           <Paper
@@ -725,9 +768,16 @@ export default function DeliveriesPage() {
                           : 'No slot set'}
                         {row.slot?.assigned_to ? ` · ${row.slot.assigned_to}` : ''}
                       </Typography>
-                      <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }}>
-                        <Chip size="small" label={`${row.scheduledCount} stops`} />
-                        <Chip size="small" variant="outlined" label={`${row.itemCount} items`} />
+                      <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }} useFlexGap flexWrap="wrap">
+                        <Chip
+                          size="small"
+                          label={`Stops ${row.leftStops} left · ${row.completedStops} done`}
+                        />
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={`Items ${row.leftItems} left · ${row.completedItems} done`}
+                        />
                       </Stack>
                     </Box>
                   );
@@ -736,171 +786,23 @@ export default function DeliveriesPage() {
             )}
           </Paper>
 
-          <Paper
-            variant="outlined"
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 0,
-              maxHeight: { xs: 'none', md: 'calc(100vh - 220px)' },
-              overflow: 'hidden',
-            }}
-          >
-            <Box
-              sx={{
-                px: 2,
-                py: 1.5,
-                borderBottom: 1,
-                borderColor: 'divider',
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 1.5,
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <Box>
-                <Typography variant="h6" fontWeight={700}>
-                  {formatDayLabel(selectedDate)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {selectedSlot
-                    ? `${formatTime(selectedSlot.time_start)}–${formatTime(selectedSlot.time_end)} · ${
-                        selectedSlot.crew_size === 1 ? '1 person' : '2 people'
-                      }${selectedSlot.assigned_to ? ` · ${selectedSlot.assigned_to}` : ''}`
-                    : 'No availability window for this day'}
-                </Typography>
-              </Box>
-              <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-                <Chip label={`${dayScheduled.length} scheduled`} color="info" size="small" />
-                <Chip label={`${dayItems} items`} size="small" variant="outlined" />
-                <Chip label={`${dayJobs.length} total`} size="small" variant="outlined" />
-                <Button
-                  variant="contained"
-                  size="small"
-                  startIcon={<MapOutlined />}
-                  onClick={() => handleOpenGoogleRoute(selectedDate)}
-                  disabled={dayScheduled.length === 0}
-                >
-                  Google Maps route
-                </Button>
-                {canManage && selectedSlot && (
-                  <Button size="small" onClick={() => startEdit(selectedSlot)}>
-                    Edit slot
-                  </Button>
-                )}
-              </Stack>
-            </Box>
-
-            <Box sx={{ flex: 1, overflow: 'auto', p: 1.5 }}>
-              {dayJobs.length === 0 ? (
-                <Box sx={{ py: 6, textAlign: 'center' }}>
-                  <Typography variant="body1" color="text.secondary">
-                    No deliveries on this day yet.
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Cashiers book stops from the terminal Delivery dialog.
-                  </Typography>
-                </Box>
-              ) : (
-                <Stack spacing={1.25}>
-                  {dayJobs.map((job, index) => (
-                    <Paper
-                      key={job.id}
-                      variant="outlined"
-                      sx={{
-                        p: 1.5,
-                        borderColor: job.status === 'scheduled' ? 'divider' : 'action.disabledBackground',
-                        opacity: job.status === 'cancelled' ? 0.7 : 1,
-                      }}
-                    >
-                      <Stack
-                        direction={{ xs: 'column', sm: 'row' }}
-                        spacing={1.5}
-                        justifyContent="space-between"
-                        alignItems={{ sm: 'flex-start' }}
-                      >
-                        <Box sx={{ minWidth: 0, flex: 1 }}>
-                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                            <Chip size="small" label={`#${index + 1}`} />
-                            <Typography variant="subtitle1" fontWeight={700} noWrap>
-                              {job.customer_name}
-                            </Typography>
-                            <Chip
-                              size="small"
-                              label={
-                                job.status === 'needs_scheduling'
-                                  ? 'Needs scheduling'
-                                  : job.status
-                              }
-                              color={STATUS_COLORS[job.status]}
-                            />
-                            <Chip size="small" variant="outlined" label={formatMoney(job.fee)} />
-                          </Stack>
-                          <Typography variant="body2" sx={{ mb: 0.5 }}>
-                            {job.items_delivered}
-                            {job.item_count > 1 ? ` · ${job.item_count} items` : ''}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {jobStopAddress(job)}
-                          </Typography>
-                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.75 }}>
-                            <PhoneOutlined sx={{ fontSize: 16, color: 'text.secondary' }} />
-                            <Typography variant="body2">{job.phone || '—'}</Typography>
-                          </Stack>
-                          {job.notes ? (
-                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.75 }}>
-                              Notes: {job.notes}
-                            </Typography>
-                          ) : null}
-                        </Box>
-                        {canManage && (
-                          <Stack direction="row" spacing={0.75} flexShrink={0}>
-                            {jobNeedsScheduling(job) ? (
-                              <Button
-                                size="small"
-                                variant="contained"
-                                color="warning"
-                                onClick={() => openScheduleDialog(job)}
-                              >
-                                Schedule
-                              </Button>
-                            ) : job.status === 'scheduled' ? (
-                              <>
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  onClick={() => handleJobStatus(job.id, 'completed')}
-                                >
-                                  Done
-                                </Button>
-                                <Button
-                                  size="small"
-                                  onClick={() => handleJobStatus(job.id, 'cancelled')}
-                                >
-                                  Cancel
-                                </Button>
-                              </>
-                            ) : (
-                              <Button
-                                size="small"
-                                onClick={() => handleJobStatus(job.id, 'scheduled')}
-                              >
-                                Reopen
-                              </Button>
-                            )}
-                            <Button size="small" onClick={() => openNotesDialog(job)}>
-                              Notes
-                            </Button>
-                          </Stack>
-                        )}
-                      </Stack>
-                    </Paper>
-                  ))}
-                </Stack>
-              )}
-            </Box>
-          </Paper>
+          <DeliveryDayBoard
+            date={selectedDate}
+            dateLabel={formatDayLabel(selectedDate)}
+            slotSummary={
+              selectedSlot
+                ? `${formatTime(selectedSlot.time_start)}–${formatTime(selectedSlot.time_end)} · ${
+                    selectedSlot.crew_size === 1 ? '1 person' : '2 people'
+                  }${selectedSlot.assigned_to ? ` · ${selectedSlot.assigned_to}` : ''}`
+                : 'No availability window for this day'
+            }
+            availabilityId={selectedSlot?.id ?? null}
+            dayJobs={dayJobs}
+            daySlots={daySlots}
+            canManage={canManage}
+            onEditSlot={selectedSlot ? () => startEdit(selectedSlot) : undefined}
+            onOpenPlanningMaps={() => handleOpenGoogleRoute(selectedDate)}
+          />
         </Box>
       )}
 
@@ -1132,6 +1034,17 @@ export default function DeliveriesPage() {
             </Table>
           </Paper>
         </Box>
+      )}
+
+      {canManage && (
+        <AddDeliveryDialog
+          open={addDeliveryOpen}
+          onClose={() => setAddDeliveryOpen(false)}
+          daySlots={daySlots}
+          defaultAvailabilityId={
+            daySlots.find((s) => s.date === selectedDate)?.id ?? daySlots[0]?.id ?? null
+          }
+        />
       )}
 
       <Dialog

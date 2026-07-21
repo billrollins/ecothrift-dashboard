@@ -328,12 +328,19 @@ class DeliveryJobSerializer(serializers.ModelSerializer):
         source='availability.crew_size', read_only=True, allow_null=True, default=None,
     )
     needs_scheduling = serializers.SerializerMethodField()
+    receipt_number = serializers.SerializerMethodField()
+    original_address = serializers.SerializerMethodField()
+    delivery_address = serializers.SerializerMethodField()
+    address_corrected = serializers.SerializerMethodField()
+    item_count = serializers.SerializerMethodField()
 
     class Meta:
         model = DeliveryJob
         fields = [
             'id', 'availability', 'scheduled_date', 'cart', 'cart_line',
+            'receipt_number',
             'customer_name', 'phone', 'address', 'is_apt', 'unit',
+            'original_address', 'delivery_address', 'address_corrected',
             'items_delivered', 'item_count', 'tier', 'fee',
             'distance_miles', 'distance_mode', 'status', 'notes',
             'needs_scheduling',
@@ -343,7 +350,9 @@ class DeliveryJobSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'scheduled_date', 'cart', 'cart_line', 'customer_name', 'phone',
+            'id', 'scheduled_date', 'cart', 'cart_line', 'receipt_number',
+            'original_address', 'delivery_address', 'address_corrected',
+            'customer_name', 'phone',
             'address', 'is_apt', 'unit', 'items_delivered', 'item_count', 'tier',
             'fee', 'distance_miles', 'distance_mode', 'needs_scheduling',
             'created_by', 'created_by_name',
@@ -354,3 +363,35 @@ class DeliveryJobSerializer(serializers.ModelSerializer):
 
     def get_needs_scheduling(self, obj):
         return obj.status == DeliveryJob.STATUS_NEEDS_SCHEDULING or obj.scheduled_date is None
+
+    def get_receipt_number(self, obj):
+        cart = getattr(obj, 'cart', None)
+        if cart is None:
+            return None
+        receipt = getattr(cart, 'receipt', None)
+        if receipt is None:
+            return None
+        return receipt.receipt_number or None
+
+    def _format_job_sale_address(self, obj):
+        base = (obj.address or '').strip()
+        if obj.is_apt and obj.unit:
+            return f'{base}, Unit {obj.unit}'
+        return base
+
+    def get_original_address(self, obj):
+        return self._format_job_sale_address(obj)
+
+    def get_delivery_address(self, obj):
+        from apps.pos.services.delivery_run import format_stop_address
+        return format_stop_address(obj)
+
+    def get_address_corrected(self, obj):
+        revs = getattr(obj, '_prefetched_objects_cache', {}).get('address_revisions')
+        if revs is not None:
+            return any(r.is_active for r in revs)
+        return obj.address_revisions.filter(is_active=True).exists()
+
+    def get_item_count(self, obj):
+        from apps.pos.services.delivery_run import resolved_delivery_item_count
+        return resolved_delivery_item_count(obj)
