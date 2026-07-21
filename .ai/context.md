@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-21 (v2.50.0 Deliveries shipped; TARS + Online Sales parked) -->
+<!-- Last updated: 2026-07-21 (v2.51.0 schedule-later deliveries + notes) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,8 +13,8 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **No active initiatives** — **v2.50.0** ships POS discount + Deliveries. Next: resume Online Sales or TARS.
-- **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**. Optional later: Directions API route optimize.
+- **No active initiatives** — **v2.51.0** adds schedule-later deliveries + notes on top of **v2.50.0** discount/Deliveries. Next: resume Online Sales or TARS.
+- **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**; **v2.51.0** schedule-later (`needs_scheduling`), notes, board schedule + customer text. Optional later: Directions API route optimize.
 - **Parked — Online Sales Workspace:** [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md) — code retained; staff workspace + public holds **disabled** (`ONLINE_SALES_ENABLED=false`). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
 - **Parked — TARS decision guardrails:** [`tars_full_instruction_wizard_guidance`](initiatives/_archived/_pending/tars_full_instruction_wizard_guidance.md) — Studio at `/restoration/tars` **kept available**; floor validation + Phase 2/3 deferred. Contract: [`standalone_studio_contract.md`](reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).
 - **Custom Label Studio (shipped):** archived [`custom_label_studio`](initiatives/_archived/_completed/custom_label_studio.md) — Admin **`/admin/label-studio`**: PDF + visual templates, variables/increment, QR/Code128, AI Create, print × N; print-server **1.4.1**. Shipped **v2.48.0**–**v2.48.2**.

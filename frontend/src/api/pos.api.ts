@@ -180,7 +180,9 @@ export function addDeliveryToCart(
     phone: string;
     address: string;
     items_delivered: string;
-    availability_id: number;
+    availability_id?: number | null;
+    schedule_later?: boolean;
+    notes?: string;
     is_apt?: boolean;
     unit?: string;
     item_count?: number;

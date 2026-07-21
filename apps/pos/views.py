@@ -51,10 +51,16 @@ def _estimate_delivery_item_count(items_delivered: str, explicit=None) -> int:
     return max(1, len(parts)) if parts else 1
 
 
+_ACTIVE_DELIVERY_JOB_STATUSES = (
+    DeliveryJob.STATUS_NEEDS_SCHEDULING,
+    DeliveryJob.STATUS_SCHEDULED,
+)
+
+
 def _cancel_delivery_jobs_for_cart(cart):
     DeliveryJob.objects.filter(
         cart=cart,
-        status=DeliveryJob.STATUS_SCHEDULED,
+        status__in=_ACTIVE_DELIVERY_JOB_STATUSES,
     ).update(status=DeliveryJob.STATUS_CANCELLED)
 
 
@@ -65,9 +71,26 @@ def _cancel_delivery_job_for_line(line):
             job = DeliveryJob.objects.get(cart_line=line)
         except DeliveryJob.DoesNotExist:
             return
-    if job.status == DeliveryJob.STATUS_SCHEDULED:
+    if job.status in _ACTIVE_DELIVERY_JOB_STATUSES:
         job.status = DeliveryJob.STATUS_CANCELLED
         job.save(update_fields=['status', 'updated_at'])
+
+
+def _customer_schedule_message(job: DeliveryJob) -> str:
+    """Plain text cashiers can send after a delivery is scheduled."""
+    if not job.scheduled_date:
+        return ''
+    day = job.scheduled_date.strftime('%A, %B %d, %Y').replace(' 0', ' ')
+    window = ''
+    if job.availability_id and job.availability:
+        start = job.availability.time_start.strftime('%I:%M %p').lstrip('0')
+        end = job.availability.time_end.strftime('%I:%M %p').lstrip('0')
+        window = f' between {start} and {end}'
+    return (
+        f'Your delivery has now been scheduled for {day}{window}. '
+        'Please be home — we call the day of delivery and again when we arrive. '
+        'Signature required; drop-off only (end of driveway / apartment lot).'
+    )
 
 
 def _availability_queryset():
@@ -954,31 +977,30 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        availability = None
         availability_id = request.data.get('availability_id')
-        if not availability_id:
-            return Response(
-                {
-                    'detail': 'availability_id is required (pick a delivery date).',
-                    'code': 'AVAILABILITY_REQUIRED',
-                },
-                status=400,
-            )
-        try:
-            availability = DeliveryAvailability.objects.get(pk=availability_id)
-        except (DeliveryAvailability.DoesNotExist, ValueError, TypeError):
-            return Response(
-                {'detail': 'Delivery date not found.', 'code': 'AVAILABILITY_NOT_FOUND'},
-                status=400,
-            )
-        today = timezone.localdate()
-        if not availability.is_active or availability.date < today:
-            return Response(
-                {
-                    'detail': 'That delivery date is not available.',
-                    'code': 'AVAILABILITY_INACTIVE',
-                },
-                status=400,
-            )
+        schedule_later = bool(request.data.get('schedule_later')) or availability_id in (
+            None, '', 'none', 'null',
+        )
+        if not schedule_later:
+            try:
+                availability = DeliveryAvailability.objects.get(pk=availability_id)
+            except (DeliveryAvailability.DoesNotExist, ValueError, TypeError):
+                return Response(
+                    {'detail': 'Delivery date not found.', 'code': 'AVAILABILITY_NOT_FOUND'},
+                    status=400,
+                )
+            today = timezone.localdate()
+            if not availability.is_active or availability.date < today:
+                return Response(
+                    {
+                        'detail': 'That delivery date is not available.',
+                        'code': 'AVAILABILITY_INACTIVE',
+                    },
+                    status=400,
+                )
+
+        notes = (request.data.get('notes') or '')[:2000]
 
         for label_name, value, maxlen in (
             ('customer_name', customer_name, 120),
@@ -997,23 +1019,47 @@ class CartViewSet(viewsets.ModelViewSet):
             items_delivered,
             request.data.get('item_count'),
         )
-        date_label = availability.date.isoformat()
-        description = f'{label} — {items_delivered} — {customer_name} — {date_label}'[:300]
-        meta = {
-            'customer_name': customer_name,
-            'phone': phone,
-            'address': address,
-            'is_apt': is_apt,
-            'unit': unit,
-            'tier': tier,
-            'fee': str(fee),
-            'items_delivered': items_delivered,
-            'item_count': item_count,
-            'availability_id': availability.pk,
-            'scheduled_date': date_label,
-            'time_start': availability.time_start.strftime('%H:%M'),
-            'time_end': availability.time_end.strftime('%H:%M'),
-        }
+        if availability is not None:
+            date_label = availability.date.isoformat()
+            description = f'{label} — {items_delivered} — {customer_name} — {date_label}'[:300]
+            job_status = DeliveryJob.STATUS_SCHEDULED
+            scheduled_date = availability.date
+            meta = {
+                'customer_name': customer_name,
+                'phone': phone,
+                'address': address,
+                'is_apt': is_apt,
+                'unit': unit,
+                'tier': tier,
+                'fee': str(fee),
+                'items_delivered': items_delivered,
+                'item_count': item_count,
+                'availability_id': availability.pk,
+                'scheduled_date': date_label,
+                'time_start': availability.time_start.strftime('%H:%M'),
+                'time_end': availability.time_end.strftime('%H:%M'),
+                'schedule_later': False,
+                'notes': notes,
+            }
+        else:
+            description = f'{label} — {items_delivered} — {customer_name} — schedule later'[:300]
+            job_status = DeliveryJob.STATUS_NEEDS_SCHEDULING
+            scheduled_date = None
+            meta = {
+                'customer_name': customer_name,
+                'phone': phone,
+                'address': address,
+                'is_apt': is_apt,
+                'unit': unit,
+                'tier': tier,
+                'fee': str(fee),
+                'items_delivered': items_delivered,
+                'item_count': item_count,
+                'availability_id': None,
+                'scheduled_date': None,
+                'schedule_later': True,
+                'notes': notes,
+            }
         for key in ('distance_miles', 'distance_mode', 'lat', 'lon', 'display_name'):
             raw = request.data.get(key)
             if raw is None or raw == '':
@@ -1069,7 +1115,7 @@ class CartViewSet(viewsets.ModelViewSet):
                         created_by=request.user if request.user.is_authenticated else None,
                     )
                 job.availability = availability
-                job.scheduled_date = availability.date
+                job.scheduled_date = scheduled_date
                 job.cart = cart
                 job.customer_name = customer_name
                 job.phone = phone
@@ -1082,8 +1128,8 @@ class CartViewSet(viewsets.ModelViewSet):
                 job.fee = fee
                 job.distance_miles = distance_miles
                 job.distance_mode = (request.data.get('distance_mode') or '')[:20]
-                if job.status == DeliveryJob.STATUS_CANCELLED:
-                    job.status = DeliveryJob.STATUS_SCHEDULED
+                job.notes = notes
+                job.status = job_status
                 job.save()
             else:
                 line = CartLine.objects.create(
@@ -1097,7 +1143,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 )
                 DeliveryJob.objects.create(
                     availability=availability,
-                    scheduled_date=availability.date,
+                    scheduled_date=scheduled_date,
                     cart=cart,
                     cart_line=line,
                     customer_name=customer_name,
@@ -1111,7 +1157,8 @@ class CartViewSet(viewsets.ModelViewSet):
                     fee=fee,
                     distance_miles=distance_miles,
                     distance_mode=(request.data.get('distance_mode') or '')[:20],
-                    status=DeliveryJob.STATUS_SCHEDULED,
+                    notes=notes,
+                    status=job_status,
                     created_by=request.user if request.user.is_authenticated else None,
                 )
 
@@ -1503,7 +1550,7 @@ class DeliveryAvailabilityViewSet(viewsets.ModelViewSet):
 
 
 class DeliveryJobViewSet(viewsets.ModelViewSet):
-    """List / update status for scheduled appliance deliveries."""
+    """List / update status for appliance deliveries (including needs-scheduling)."""
 
     serializer_class = DeliveryJobSerializer
     permission_classes = [IsAuthenticated, IsEmployee]
@@ -1515,15 +1562,21 @@ class DeliveryJobViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
+        from django.db.models import Q
+
         qs = DeliveryJob.objects.select_related(
             'availability', 'cart', 'cart_line', 'created_by',
         ).all()
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
-        if date_from:
-            qs = qs.filter(scheduled_date__gte=date_from)
-        if date_to:
-            qs = qs.filter(scheduled_date__lte=date_to)
+        if date_from or date_to:
+            in_range = Q()
+            if date_from:
+                in_range &= Q(scheduled_date__gte=date_from)
+            if date_to:
+                in_range &= Q(scheduled_date__lte=date_to)
+            # Always include unscheduled jobs so the board can warn/schedule them.
+            qs = qs.filter(Q(status=DeliveryJob.STATUS_NEEDS_SCHEDULING) | in_range)
         return qs
 
     def get_permissions(self):
@@ -1532,8 +1585,9 @@ class DeliveryJobViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated(), IsEmployee()]
 
     def partial_update(self, request, *args, **kwargs):
-        """Managers may update status / notes / availability (reschedule)."""
+        """Managers may update status / notes / availability (schedule or reschedule)."""
         job = self.get_object()
+        was_unscheduled = job.status == DeliveryJob.STATUS_NEEDS_SCHEDULING or not job.scheduled_date
         allowed = {}
         if 'status' in request.data:
             status_val = (request.data.get('status') or '').strip().lower()
@@ -1565,10 +1619,40 @@ class DeliveryJobViewSet(viewsets.ModelViewSet):
                 )
             allowed['availability'] = availability
             allowed['scheduled_date'] = availability.date
+            if was_unscheduled or job.status == DeliveryJob.STATUS_NEEDS_SCHEDULING:
+                allowed['status'] = DeliveryJob.STATUS_SCHEDULED
         for key, value in allowed.items():
             setattr(job, key, value)
         job.save()
-        return Response(DeliveryJobSerializer(job).data)
+
+        # Keep cart-line meta in sync when a date is assigned.
+        if job.cart_line_id and 'availability' in allowed:
+            line = job.cart_line
+            meta = dict(line.meta or {})
+            meta['availability_id'] = job.availability_id
+            meta['scheduled_date'] = job.scheduled_date.isoformat() if job.scheduled_date else None
+            meta['schedule_later'] = False
+            if job.availability:
+                meta['time_start'] = job.availability.time_start.strftime('%H:%M')
+                meta['time_end'] = job.availability.time_end.strftime('%H:%M')
+            if 'notes' in allowed:
+                meta['notes'] = allowed['notes']
+            line.meta = meta
+            if job.scheduled_date and 'schedule later' in (line.description or '').lower():
+                fee_label = (
+                    'Delivery 5 miles or less' if job.tier == '5mi' else 'Delivery 5 to 10 miles'
+                )
+                line.description = (
+                    f'{fee_label} — {job.items_delivered} — {job.customer_name} — '
+                    f'{job.scheduled_date.isoformat()}'
+                )[:300]
+            line.save(update_fields=['meta', 'description'])
+
+        payload = DeliveryJobSerializer(job).data
+        if was_unscheduled and job.status == DeliveryJob.STATUS_SCHEDULED and job.scheduled_date:
+            payload['customer_schedule_message'] = _customer_schedule_message(job)
+            payload['just_scheduled'] = True
+        return Response(payload)
 
 
 # ── Dashboard Metrics ─────────────────────────────────────────────────────────

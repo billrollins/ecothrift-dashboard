@@ -249,7 +249,9 @@ export default function TerminalPage() {
   const [deliveryPicked, setDeliveryPicked] = useState<DeliveryAddressSuggestion | null>(null);
   const [deliveryTooFarOpen, setDeliveryTooFarOpen] = useState(false);
   const [deliveryTooFarMiles, setDeliveryTooFarMiles] = useState<string | null>(null);
-  const [deliveryAvailabilityId, setDeliveryAvailabilityId] = useState<number | ''>('');
+  const [deliveryAvailabilityId, setDeliveryAvailabilityId] = useState<number | '' | 'later'>('');
+  const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [deliveryUnscheduledReminderOpen, setDeliveryUnscheduledReminderOpen] = useState(false);
   const [editingDeliveryLineId, setEditingDeliveryLineId] = useState<number | null>(null);
   const deliverySuggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deliverySuggestSeqRef = useRef(0);
@@ -647,6 +649,7 @@ export default function TerminalPage() {
     setDeliveryLineIds([]);
     setDeliveryIsApt(false);
     setDeliveryUnit('');
+    setDeliveryNotes('');
     setDeliverySuggestions([]);
     setDeliverySuggestError(null);
     setDeliveryPicked(null);
@@ -666,11 +669,15 @@ export default function TerminalPage() {
     setDeliveryAddress(String(meta.address ?? ''));
     setDeliveryIsApt(Boolean(meta.is_apt));
     setDeliveryUnit(String(meta.unit ?? ''));
+    setDeliveryNotes(String(meta.notes ?? ''));
     const availId = meta.availability_id;
+    const scheduleLater = Boolean(meta.schedule_later) || availId == null || availId === '';
     setDeliveryAvailabilityId(
-      availId != null && availId !== '' && Number.isFinite(Number(availId))
-        ? Number(availId)
-        : '',
+      scheduleLater
+        ? 'later'
+        : Number.isFinite(Number(availId))
+          ? Number(availId)
+          : '',
     );
     const storedIds = Array.isArray(meta.cart_line_ids)
       ? meta.cart_line_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
@@ -826,8 +833,10 @@ export default function TerminalPage() {
         enqueueSnackbar('Select at least one cart item to deliver.', { variant: 'warning' });
         return;
       }
-      if (!deliveryAvailabilityId) {
-        enqueueSnackbar('Pick a delivery date.', { variant: 'warning' });
+      if (deliveryAvailabilityId === '') {
+        enqueueSnackbar('Pick a delivery date, or choose Schedule later (no date).', {
+          variant: 'warning',
+        });
         return;
       }
       if (deliveryIsApt && !deliveryUnit.trim()) {
@@ -839,6 +848,7 @@ export default function TerminalPage() {
         setDeliveryTooFarOpen(true);
         return;
       }
+      const scheduleLater = deliveryAvailabilityId === 'later';
       const activeCart = await ensureOpenCart();
       if (!activeCart) return;
       const itemCount = selectedLines.reduce((sum, ln) => sum + (ln.quantity || 1), 0);
@@ -850,7 +860,9 @@ export default function TerminalPage() {
           phone: deliveryPhone.trim(),
           address: deliveryAddress.trim(),
           items_delivered: itemsDelivered,
-          availability_id: Number(deliveryAvailabilityId),
+          schedule_later: scheduleLater,
+          ...(scheduleLater ? {} : { availability_id: Number(deliveryAvailabilityId) }),
+          notes: deliveryNotes.trim(),
           item_count: itemCount,
           cart_line_ids: selectedLines.map((ln) => ln.id),
           ...(editingDeliveryLineId != null
@@ -871,7 +883,11 @@ export default function TerminalPage() {
         commitCart(updated as unknown as Cart);
         setDeliveryDialogOpen(false);
         setEditingDeliveryLineId(null);
-        skuInputRef.current?.focus();
+        if (scheduleLater) {
+          setDeliveryUnscheduledReminderOpen(true);
+        } else {
+          skuInputRef.current?.focus();
+        }
       } catch (err: unknown) {
         const detail =
           (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
@@ -886,6 +902,7 @@ export default function TerminalPage() {
       deliveryLineIds,
       deliveryMerchandiseLines,
       deliveryAvailabilityId,
+      deliveryNotes,
       deliveryIsApt,
       deliveryUnit,
       deliveryTier,
@@ -2092,18 +2109,31 @@ export default function TerminalPage() {
                 <Select
                   labelId="delivery-date-label"
                   label="Delivery date"
-                  value={deliveryAvailabilityId === '' ? '' : String(deliveryAvailabilityId)}
+                  value={
+                    deliveryAvailabilityId === ''
+                      ? ''
+                      : deliveryAvailabilityId === 'later'
+                        ? 'later'
+                        : String(deliveryAvailabilityId)
+                  }
                   onChange={(e) => {
                     const v = e.target.value;
-                    setDeliveryAvailabilityId(v === '' ? '' : Number(v));
+                    if (v === '' || v === 'later') {
+                      setDeliveryAvailabilityId(v === '' ? '' : 'later');
+                      return;
+                    }
+                    setDeliveryAvailabilityId(Number(v));
                   }}
                   disabled={deliverySlotsLoading}
                 >
+                  <MenuItem value="later">
+                    Schedule later (no date) — book fee now, date on Deliveries
+                  </MenuItem>
                   {upcomingDeliverySlots.length === 0 ? (
                     <MenuItem value="" disabled>
                       {deliverySlotsLoading
                         ? 'Loading dates…'
-                        : 'No dates set — add them on Deliveries'}
+                        : 'No available dates yet — use Schedule later, or add dates on Deliveries'}
                     </MenuItem>
                   ) : (
                     upcomingDeliverySlots.map((slot) => {
@@ -2120,6 +2150,23 @@ export default function TerminalPage() {
                   )}
                 </Select>
               </FormControl>
+
+              {deliveryAvailabilityId === 'later' && (
+                <Alert severity="info">
+                  Delivery fee will be added with <strong>no date</strong>. Deliveries board will show
+                  a “needs scheduling” warning until a Saturday is assigned.
+                </Alert>
+              )}
+
+              <TextField
+                label="Notes"
+                value={deliveryNotes}
+                onChange={(e) => setDeliveryNotes(e.target.value)}
+                fullWidth
+                multiline
+                minRows={2}
+                helperText="Optional — gate codes, stairs, preferred Saturday, etc."
+              />
 
               <TextField
                 label="Address"
@@ -2260,8 +2307,7 @@ export default function TerminalPage() {
               disabled={
                 addDeliveryMutation.isPending ||
                 Boolean(deliveryPicked?.too_far) ||
-                !deliveryAvailabilityId ||
-                upcomingDeliverySlots.length === 0 ||
+                deliveryAvailabilityId === '' ||
                 deliveryLineIds.length === 0
               }
             >
@@ -2275,6 +2321,50 @@ export default function TerminalPage() {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      <Dialog
+        open={deliveryUnscheduledReminderOpen}
+        onClose={() => {
+          setDeliveryUnscheduledReminderOpen(false);
+          skuInputRef.current?.focus();
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Tell the customer about delivery timing</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 1.5 }}>
+            This delivery has <strong>no date yet</strong>. Staff will schedule it on the Deliveries
+            board.
+          </Alert>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Please note for the customer:
+          </Typography>
+          <Typography variant="body1" component="div" sx={{ pl: 1 }}>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              <li>
+                Deliveries run on <strong>Saturdays</strong>.
+              </li>
+              <li>
+                Someone <strong>must be home</strong> — we call the day of delivery and again when we
+                arrive. No answer = no delivery attempt.
+              </li>
+              <li>Signature required; drop-off only (end of driveway / apartment lot).</li>
+            </ul>
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setDeliveryUnscheduledReminderOpen(false);
+              skuInputRef.current?.focus();
+            }}
+          >
+            Got it
+          </Button>
+        </DialogActions>
       </Dialog>
 
       <Dialog

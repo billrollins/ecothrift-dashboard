@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.50.0] — 2026-07-21 -->
-<!-- Last reviewed: 2026-07-21 (narrowed: Deliveries release; TARS + Online Sales parked) -->
+<!-- Line 1 release: ## [2.51.0] — 2026-07-21 -->
+<!-- Last reviewed: 2026-07-21 (Deliveries: schedule later + notes + customer text) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.51.0] — 2026-07-21
+
+User-facing theme: **POS deliveries can sell without a date** — schedule later on the Deliveries board with customer text + notes.
+
+Initiative: outside initiatives hotfix (follow-on to [`pos_discount_and_delivery`](.ai/initiatives/_archived/_completed/pos_discount_and_delivery.md)).
+
+### Added
+
+- **POS / schedule later** — terminal **Schedule later (no date)** books the fee without `availability_id`; creates `DeliveryJob` with status `needs_scheduling` (`POST …/add-delivery/`, migration `pos.0013`).
+- **POS / delivery notes** — notes on add/edit delivery and on the Deliveries board (`DeliveryJob.notes`).
+- **POS / schedule-from-board** — Deliveries warning for unscheduled jobs; Schedule dialog assigns a date; response includes copyable `customer_schedule_message` (“Your delivery has now been scheduled for …”).
+- **POS / unscheduled cashier prompt** — after schedule-later add, remind cashier: Saturdays, customer must be home, signature / drop-off rules.
+
+### Changed
+
+- **POS / delivery jobs list** — `needs_scheduling` jobs stay visible alongside date-filtered scheduled work.
 
 ## [2.50.0] — 2026-07-21
 

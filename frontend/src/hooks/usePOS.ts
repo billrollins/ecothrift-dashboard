@@ -277,6 +277,8 @@ export function useAddDeliveryToCart() {
       address,
       items_delivered,
       availability_id,
+      schedule_later,
+      notes,
       is_apt,
       unit,
       item_count,
@@ -294,7 +296,9 @@ export function useAddDeliveryToCart() {
       phone: string;
       address: string;
       items_delivered: string;
-      availability_id: number;
+      availability_id?: number | null;
+      schedule_later?: boolean;
+      notes?: string;
       is_apt?: boolean;
       unit?: string;
       item_count?: number;
@@ -313,6 +317,8 @@ export function useAddDeliveryToCart() {
         address,
         items_delivered,
         availability_id,
+        schedule_later,
+        notes,
         is_apt,
         unit,
         item_count,

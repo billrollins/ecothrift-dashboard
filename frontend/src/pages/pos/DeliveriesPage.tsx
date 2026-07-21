@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent, type SyntheticEvent } from 'react';
 import {
+  Alert,
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
   IconButton,
   InputLabel,
@@ -23,9 +28,11 @@ import {
 } from '@mui/material';
 import Add from '@mui/icons-material/Add';
 import ArrowBack from '@mui/icons-material/ArrowBack';
+import ContentCopy from '@mui/icons-material/ContentCopy';
 import LocalShippingOutlined from '@mui/icons-material/LocalShippingOutlined';
 import MapOutlined from '@mui/icons-material/MapOutlined';
 import PhoneOutlined from '@mui/icons-material/PhoneOutlined';
+import WarningAmber from '@mui/icons-material/WarningAmber';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { addDays, format, parseISO, isValid } from 'date-fns';
@@ -94,11 +101,16 @@ function parseTab(raw: string | null): DeliveriesTab {
 }
 
 const STATUS_COLORS: Record<DeliveryJobStatus, 'default' | 'success' | 'warning' | 'error' | 'info'> = {
+  needs_scheduling: 'warning',
   scheduled: 'info',
   completed: 'success',
   cancelled: 'default',
   failed: 'error',
 };
+
+function jobNeedsScheduling(job: DeliveryJob): boolean {
+  return job.status === 'needs_scheduling' || !job.scheduled_date;
+}
 
 export default function DeliveriesPage() {
   const { enqueueSnackbar } = useSnackbar();
@@ -123,6 +135,13 @@ export default function DeliveriesPage() {
   const [formAssigned, setFormAssigned] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  const [scheduleJob, setScheduleJob] = useState<DeliveryJob | null>(null);
+  const [scheduleAvailId, setScheduleAvailId] = useState<number | ''>('');
+  const [scheduleNotes, setScheduleNotes] = useState('');
+  const [customerMessage, setCustomerMessage] = useState<string | null>(null);
+  const [notesJob, setNotesJob] = useState<DeliveryJob | null>(null);
+  const [notesDraft, setNotesDraft] = useState('');
 
   const rangeParams = useMemo(
     () => ({ date_from: dateFrom || undefined, date_to: dateTo || undefined }),
@@ -161,9 +180,15 @@ export default function DeliveriesPage() {
     [availabilities],
   );
 
+  const needsSchedulingJobs = useMemo(
+    () => jobs.filter(jobNeedsScheduling).slice().sort((a, b) => a.id - b.id),
+    [jobs],
+  );
+
   const jobsByDate = useMemo(() => {
     const map = new Map<string, DeliveryJob[]>();
     for (const job of jobs) {
+      if (!job.scheduled_date) continue;
       const list = map.get(job.scheduled_date) ?? [];
       list.push(job);
       map.set(job.scheduled_date, list);
@@ -299,6 +324,61 @@ export default function DeliveriesPage() {
     }
   };
 
+  const openScheduleDialog = (job: DeliveryJob) => {
+    setScheduleJob(job);
+    setScheduleAvailId(daySlots[0]?.id ?? '');
+    setScheduleNotes(job.notes || '');
+  };
+
+  const handleScheduleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!canManage || !scheduleJob || scheduleAvailId === '') return;
+    try {
+      const updated = await updateJob.mutateAsync({
+        id: scheduleJob.id,
+        data: {
+          availability_id: Number(scheduleAvailId),
+          notes: scheduleNotes.trim(),
+        },
+      });
+      setScheduleJob(null);
+      const msg = updated.customer_schedule_message;
+      if (msg) {
+        setCustomerMessage(msg);
+      } else {
+        enqueueSnackbar('Delivery scheduled', { variant: 'success' });
+      }
+    } catch {
+      enqueueSnackbar('Failed to schedule delivery', { variant: 'error' });
+    }
+  };
+
+  const openNotesDialog = (job: DeliveryJob) => {
+    setNotesJob(job);
+    setNotesDraft(job.notes || '');
+  };
+
+  const handleSaveNotes = async () => {
+    if (!canManage || !notesJob) return;
+    try {
+      await updateJob.mutateAsync({ id: notesJob.id, data: { notes: notesDraft.trim() } });
+      enqueueSnackbar('Notes saved', { variant: 'success' });
+      setNotesJob(null);
+    } catch {
+      enqueueSnackbar('Failed to save notes', { variant: 'error' });
+    }
+  };
+
+  const copyCustomerMessage = async () => {
+    if (!customerMessage) return;
+    try {
+      await navigator.clipboard.writeText(customerMessage);
+      enqueueSnackbar('Message copied — ready to text/send', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Could not copy — select the text manually', { variant: 'warning' });
+    }
+  };
+
   const handleOpenGoogleRoute = (dateIso: string) => {
     const stops = (jobsByDate.get(dateIso) ?? [])
       .filter((j) => j.status === 'scheduled')
@@ -323,19 +403,28 @@ export default function DeliveriesPage() {
     {
       field: 'scheduled_date',
       headerName: 'Date',
-      width: 120,
-      renderCell: (params) => (
-        <Button size="small" onClick={() => selectDate(String(params.value), 'day')}>
-          {formatDayLabel(String(params.value))}
-        </Button>
-      ),
+      width: 140,
+      renderCell: (params) => {
+        if (!params.value) {
+          return (
+            <Chip size="small" color="warning" icon={<WarningAmber />} label="Needs date" />
+          );
+        }
+        return (
+          <Button size="small" onClick={() => selectDate(String(params.value), 'day')}>
+            {formatDayLabel(String(params.value))}
+          </Button>
+        );
+      },
     },
     {
       field: 'window',
       headerName: 'Window',
       width: 110,
       valueGetter: (_v, row) =>
-        `${formatTime(row.availability_time_start)}–${formatTime(row.availability_time_end)}`,
+        row.availability_time_start
+          ? `${formatTime(row.availability_time_start)}–${formatTime(row.availability_time_end || '')}`
+          : '—',
     },
     { field: 'customer_name', headerName: 'Customer', flex: 1, minWidth: 140 },
     { field: 'phone', headerName: 'Phone', width: 120 },
@@ -348,6 +437,13 @@ export default function DeliveriesPage() {
         row.is_apt && row.unit ? `${row.address} #${row.unit}` : row.address,
     },
     { field: 'items_delivered', headerName: 'Items', flex: 1, minWidth: 160 },
+    {
+      field: 'notes',
+      headerName: 'Notes',
+      flex: 0.8,
+      minWidth: 120,
+      valueGetter: (_v, row) => row.notes || '',
+    },
     { field: 'item_count', headerName: '#', width: 60 },
     {
       field: 'fee',
@@ -358,11 +454,13 @@ export default function DeliveriesPage() {
     {
       field: 'status',
       headerName: 'Status',
-      width: 120,
+      width: 140,
       renderCell: (params) => (
         <Chip
           size="small"
-          label={params.value}
+          label={
+            params.value === 'needs_scheduling' ? 'Needs scheduling' : String(params.value)
+          }
           color={STATUS_COLORS[params.value as DeliveryJobStatus] ?? 'default'}
         />
       ),
@@ -372,11 +470,20 @@ export default function DeliveriesPage() {
           {
             field: 'actions',
             headerName: 'Update',
-            width: 200,
+            width: 260,
             sortable: false,
             renderCell: (params) => (
               <Stack direction="row" spacing={0.5}>
-                {params.row.status === 'scheduled' ? (
+                {jobNeedsScheduling(params.row) ? (
+                  <Button
+                    size="small"
+                    variant="contained"
+                    color="warning"
+                    onClick={() => openScheduleDialog(params.row)}
+                  >
+                    Schedule
+                  </Button>
+                ) : params.row.status === 'scheduled' ? (
                   <>
                     <Button size="small" onClick={() => handleJobStatus(params.row.id, 'completed')}>
                       Done
@@ -390,6 +497,9 @@ export default function DeliveriesPage() {
                     Reopen
                   </Button>
                 )}
+                <Button size="small" onClick={() => openNotesDialog(params.row)}>
+                  Notes
+                </Button>
               </Stack>
             ),
           } as GridColDef,
@@ -419,6 +529,14 @@ export default function DeliveriesPage() {
         subtitle="Pick a day for the route board, browse every stop, or set bookable dates."
         action={
           <Stack direction="row" spacing={1} alignItems="center">
+            {needsSchedulingJobs.length > 0 && (
+              <Chip
+                size="small"
+                icon={<WarningAmber />}
+                label={`${needsSchedulingJobs.length} need scheduling`}
+                color="warning"
+              />
+            )}
             <Chip
               size="small"
               icon={<LocalShippingOutlined />}
@@ -465,6 +583,81 @@ export default function DeliveriesPage() {
           sx={{ minHeight: 42, fontWeight: 700 }}
         />
       </Tabs>
+
+      {needsSchedulingJobs.length > 0 && (
+        <Alert
+          severity="warning"
+          icon={<WarningAmber />}
+          sx={{ alignItems: 'flex-start' }}
+          action={
+            canManage && daySlots.length > 0 ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => openScheduleDialog(needsSchedulingJobs[0])}
+              >
+                Schedule first
+              </Button>
+            ) : null
+          }
+        >
+          <Typography variant="subtitle2" fontWeight={700}>
+            {needsSchedulingJobs.length} delivery
+            {needsSchedulingJobs.length === 1 ? '' : 's'} need a date
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Sold with delivery but no Saturday assigned yet. Schedule below — you’ll get text to send
+            the customer.
+          </Typography>
+          <Stack spacing={0.75}>
+            {needsSchedulingJobs.map((job) => (
+              <Paper key={job.id} variant="outlined" sx={{ p: 1, bgcolor: 'background.paper' }}>
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={1}
+                  justifyContent="space-between"
+                  alignItems={{ sm: 'center' }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="body2" fontWeight={700}>
+                      {job.customer_name} · {job.phone}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" noWrap>
+                      {job.items_delivered} — {jobStopAddress(job)}
+                    </Typography>
+                    {job.notes ? (
+                      <Typography variant="caption" color="text.secondary">
+                        Notes: {job.notes}
+                      </Typography>
+                    ) : null}
+                  </Box>
+                  {canManage && (
+                    <Stack direction="row" spacing={0.75} flexShrink={0}>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="warning"
+                        onClick={() => openScheduleDialog(job)}
+                        disabled={daySlots.length === 0}
+                      >
+                        Schedule
+                      </Button>
+                      <Button size="small" onClick={() => openNotesDialog(job)}>
+                        Notes
+                      </Button>
+                    </Stack>
+                  )}
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+          {canManage && daySlots.length === 0 && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Add an available Saturday on the Available dates tab before scheduling.
+            </Typography>
+          )}
+        </Alert>
+      )}
 
       {tab === 'day' && (
         <Box
@@ -635,7 +828,11 @@ export default function DeliveriesPage() {
                             </Typography>
                             <Chip
                               size="small"
-                              label={job.status}
+                              label={
+                                job.status === 'needs_scheduling'
+                                  ? 'Needs scheduling'
+                                  : job.status
+                              }
                               color={STATUS_COLORS[job.status]}
                             />
                             <Chip size="small" variant="outlined" label={formatMoney(job.fee)} />
@@ -651,10 +848,24 @@ export default function DeliveriesPage() {
                             <PhoneOutlined sx={{ fontSize: 16, color: 'text.secondary' }} />
                             <Typography variant="body2">{job.phone || '—'}</Typography>
                           </Stack>
+                          {job.notes ? (
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.75 }}>
+                              Notes: {job.notes}
+                            </Typography>
+                          ) : null}
                         </Box>
                         {canManage && (
                           <Stack direction="row" spacing={0.75} flexShrink={0}>
-                            {job.status === 'scheduled' ? (
+                            {jobNeedsScheduling(job) ? (
+                              <Button
+                                size="small"
+                                variant="contained"
+                                color="warning"
+                                onClick={() => openScheduleDialog(job)}
+                              >
+                                Schedule
+                              </Button>
+                            ) : job.status === 'scheduled' ? (
                               <>
                                 <Button
                                   size="small"
@@ -678,6 +889,9 @@ export default function DeliveriesPage() {
                                 Reopen
                               </Button>
                             )}
+                            <Button size="small" onClick={() => openNotesDialog(job)}>
+                              Notes
+                            </Button>
                           </Stack>
                         )}
                       </Stack>
@@ -701,6 +915,7 @@ export default function DeliveriesPage() {
                 onChange={(e) => setJobStatusFilter(e.target.value)}
               >
                 <MenuItem value="">All</MenuItem>
+                <MenuItem value="needs_scheduling">Needs scheduling</MenuItem>
                 <MenuItem value="scheduled">Scheduled</MenuItem>
                 <MenuItem value="completed">Completed</MenuItem>
                 <MenuItem value="cancelled">Cancelled</MenuItem>
@@ -918,6 +1133,141 @@ export default function DeliveriesPage() {
           </Paper>
         </Box>
       )}
+
+      <Dialog
+        open={Boolean(scheduleJob)}
+        onClose={() => setScheduleJob(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <form onSubmit={handleScheduleSubmit}>
+          <DialogTitle>Schedule delivery</DialogTitle>
+          <DialogContent>
+            {scheduleJob && (
+              <Stack spacing={2} sx={{ mt: 1 }}>
+                <Typography variant="body2">
+                  <strong>{scheduleJob.customer_name}</strong> · {scheduleJob.phone}
+                  <br />
+                  {scheduleJob.items_delivered}
+                  <br />
+                  {jobStopAddress(scheduleJob)}
+                </Typography>
+                <FormControl fullWidth required>
+                  <InputLabel id="schedule-date-label">Delivery date</InputLabel>
+                  <Select
+                    labelId="schedule-date-label"
+                    label="Delivery date"
+                    value={scheduleAvailId === '' ? '' : String(scheduleAvailId)}
+                    onChange={(e) =>
+                      setScheduleAvailId(e.target.value === '' ? '' : Number(e.target.value))
+                    }
+                  >
+                    {daySlots.length === 0 ? (
+                      <MenuItem value="" disabled>
+                        No available dates — add one on Available dates
+                      </MenuItem>
+                    ) : (
+                      daySlots.map((slot) => (
+                        <MenuItem key={slot.id} value={String(slot.id)}>
+                          {formatDayLabel(slot.date)} {formatTime(slot.time_start)}–
+                          {formatTime(slot.time_end)}
+                          {slot.assigned_to ? ` · ${slot.assigned_to}` : ''}
+                        </MenuItem>
+                      ))
+                    )}
+                  </Select>
+                </FormControl>
+                <TextField
+                  label="Notes"
+                  value={scheduleNotes}
+                  onChange={(e) => setScheduleNotes(e.target.value)}
+                  fullWidth
+                  multiline
+                  minRows={2}
+                />
+              </Stack>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button type="button" onClick={() => setScheduleJob(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={updateJob.isPending || scheduleAvailId === '' || daySlots.length === 0}
+            >
+              {updateJob.isPending ? 'Saving…' : 'Save date'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(notesJob)}
+        onClose={() => setNotesJob(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Delivery notes</DialogTitle>
+        <DialogContent>
+          {notesJob && (
+            <Stack spacing={1.5} sx={{ mt: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                {notesJob.customer_name} · {notesJob.items_delivered}
+              </Typography>
+              <TextField
+                label="Notes"
+                value={notesDraft}
+                onChange={(e) => setNotesDraft(e.target.value)}
+                fullWidth
+                multiline
+                minRows={3}
+                autoFocus
+              />
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setNotesJob(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => void handleSaveNotes()}
+            disabled={updateJob.isPending || !canManage}
+          >
+            Save notes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(customerMessage)}
+        onClose={() => setCustomerMessage(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Text to send the customer</DialogTitle>
+        <DialogContent>
+          <Alert severity="success" sx={{ mb: 1.5 }}>
+            Delivery scheduled. Copy this message to text or message the customer.
+          </Alert>
+          <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'action.hover' }}>
+            <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+              {customerMessage}
+            </Typography>
+          </Paper>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCustomerMessage(null)}>Close</Button>
+          <Button
+            variant="contained"
+            startIcon={<ContentCopy />}
+            onClick={() => void copyCustomerMessage()}
+          >
+            Copy message
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

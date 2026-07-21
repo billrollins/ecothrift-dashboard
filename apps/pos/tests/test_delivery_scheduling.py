@@ -62,7 +62,7 @@ class DeliverySchedulingAPITests(TestCase):
         self.assertEqual(r.data[0]['delivery_count'], 0)
         self.assertEqual(r.data[0]['items_booked'], 0)
 
-    def test_add_delivery_requires_availability(self):
+    def test_add_delivery_without_date_needs_scheduling(self):
         cid = self._open_cart()
         r = self.client.post(
             f'/api/pos/carts/{cid}/add-delivery/',
@@ -72,11 +72,50 @@ class DeliverySchedulingAPITests(TestCase):
                 'phone': '402-555-0100',
                 'address': '123 Main St',
                 'items_delivered': 'Washer',
+                'schedule_later': True,
+                'notes': 'Prefers morning Saturdays',
             },
             format='json',
         )
-        self.assertEqual(r.status_code, 400)
-        self.assertEqual(r.data['code'], 'AVAILABILITY_REQUIRED')
+        self.assertEqual(r.status_code, 200, r.content)
+        delivery = next(ln for ln in r.data['lines'] if ln['line_kind'] == 'delivery')
+        self.assertTrue(delivery['meta']['schedule_later'])
+        self.assertIsNone(delivery['meta']['scheduled_date'])
+        job = DeliveryJob.objects.get(cart_id=cid)
+        self.assertEqual(job.status, DeliveryJob.STATUS_NEEDS_SCHEDULING)
+        self.assertIsNone(job.scheduled_date)
+        self.assertIsNone(job.availability_id)
+        self.assertEqual(job.notes, 'Prefers morning Saturdays')
+
+    def test_schedule_unscheduled_job_returns_customer_message(self):
+        cid = self._open_cart()
+        created = self.client.post(
+            f'/api/pos/carts/{cid}/add-delivery/',
+            {
+                'tier': '5mi',
+                'customer_name': 'Jane Doe',
+                'phone': '402-555-0100',
+                'address': '123 Main St',
+                'items_delivered': 'Washer',
+                'schedule_later': True,
+            },
+            format='json',
+        )
+        self.assertEqual(created.status_code, 200, created.content)
+        job = DeliveryJob.objects.get(cart_id=cid)
+        patched = self.client.patch(
+            f'/api/pos/delivery-jobs/{job.id}/',
+            {'availability_id': self.slot.id, 'notes': 'Gate code 1234'},
+            format='json',
+        )
+        self.assertEqual(patched.status_code, 200, patched.content)
+        self.assertTrue(patched.data.get('just_scheduled'))
+        self.assertIn('Your delivery has now been scheduled for', patched.data.get('customer_schedule_message', ''))
+        job.refresh_from_db()
+        self.assertEqual(job.status, DeliveryJob.STATUS_SCHEDULED)
+        self.assertEqual(job.scheduled_date, self.slot.date)
+        self.assertEqual(job.availability_id, self.slot.id)
+        self.assertEqual(job.notes, 'Gate code 1234')
 
     def test_add_delivery_rejects_inactive_availability(self):
         self.slot.is_active = False

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-21 (v2.50.0 delivery scheduling shipped; policy + ops contract finalized) -->
+<!-- Last updated: 2026-07-21 (v2.51.0 schedule-later + notes + customer schedule text) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -156,8 +156,8 @@ The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/write
 - **Void Sale**: Red "Void" button + `ConfirmDialog`; Manager/Admin only; calls `POST /pos/carts/{id}/void/`
 - **Cart list viewport**: Cart `Paper` fills leftover main height (md+); line list scrolls inside; subtotal/tax/total stay pinned under the list. After add-item / qty bump / manual line / resale copy / line edit, the **affected** line scrolls into view (`scrollIntoView({ block: 'nearest' })`). QA pack: `.ai/reference/pos_terminal_cart_scroll/`.
 - **Discount / store credit**: `POST …/add-discount/` adds a negative `line_kind=discount` line (cart-wide or `target_line_id`); cannot exceed merchandise/delivery total.
-- **Delivery fee**: `POST …/add-delivery/` with `tier` `5mi` ($50) or `10mi` ($75); requires name/phone/address/`items_delivered`/`availability_id`; Apt? requires Unit #; creates `DeliveryJob` + stores schedule in `CartLine.meta`. Address suggest `GET /pos/delivery/address-suggest/?q=` uses **US Census** geocoder (Nominatim fallback), returns distance to **8425 West Center Road** and recommended tier; over 10 mi → `too_far` (terminal popup, cannot add).
-- **Delivery scheduling**: `DeliveryAvailability` (date/times/crew/who) + `DeliveryJob`; APIs `/pos/delivery-availabilities/`, `/pos/delivery-jobs/`; Dash page `/pos/deliveries`. Void cart or remove delivery line cancels scheduled jobs.
+- **Delivery fee**: `POST …/add-delivery/` with `tier` `5mi` ($50) or `10mi` ($75); requires name/phone/address/`items_delivered`; Apt? requires Unit #; optional `availability_id` **or** `schedule_later` / omit date → `DeliveryJob` status `needs_scheduling` (nullable availability/date; migration `pos.0013`); optional `notes`. Address suggest `GET /pos/delivery/address-suggest/?q=` uses **US Census** geocoder (Nominatim fallback), returns distance to **8425 West Center Road** and recommended tier; over 10 mi → `too_far` (terminal popup, cannot add). After schedule-later, terminal shows Saturday / must-be-home reminder.
+- **Delivery scheduling**: `DeliveryAvailability` (date/times/crew/who) + `DeliveryJob`; APIs `/pos/delivery-availabilities/`, `/pos/delivery-jobs/`; Dash page `/pos/deliveries` warns on `needs_scheduling`, Schedule dialog `PATCH` with `availability_id` (+ notes) returns `customer_schedule_message` / `just_scheduled`. Void cart or remove delivery line cancels active jobs (including needs_scheduling).
 - **Printables**: static HTML under `frontend/public/pos/` (appliance policy EN+es-MX, sell log, delivery driver log) + Cashier nav **Printables** (`/pos/printables`).
 - **Complete sale**: Disabled if cart has no items; validates payment amounts; rejects negative total; calls `POST /pos/carts/{id}/complete/`; triggers `localPrintService.printReceipt()` with cash drawer auto-open for cash/split
 

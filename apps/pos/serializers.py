@@ -316,17 +316,18 @@ class DeliveryJobSerializer(serializers.ModelSerializer):
         source='created_by.full_name', read_only=True, default=None,
     )
     availability_time_start = serializers.TimeField(
-        source='availability.time_start', read_only=True,
+        source='availability.time_start', read_only=True, allow_null=True, default=None,
     )
     availability_time_end = serializers.TimeField(
-        source='availability.time_end', read_only=True,
+        source='availability.time_end', read_only=True, allow_null=True, default=None,
     )
     availability_assigned_to = serializers.CharField(
-        source='availability.assigned_to', read_only=True,
+        source='availability.assigned_to', read_only=True, allow_null=True, default=None,
     )
     availability_crew_size = serializers.IntegerField(
-        source='availability.crew_size', read_only=True,
+        source='availability.crew_size', read_only=True, allow_null=True, default=None,
     )
+    needs_scheduling = serializers.SerializerMethodField()
 
     class Meta:
         model = DeliveryJob
@@ -335,6 +336,7 @@ class DeliveryJobSerializer(serializers.ModelSerializer):
             'customer_name', 'phone', 'address', 'is_apt', 'unit',
             'items_delivered', 'item_count', 'tier', 'fee',
             'distance_miles', 'distance_mode', 'status', 'notes',
+            'needs_scheduling',
             'created_by', 'created_by_name',
             'availability_time_start', 'availability_time_end',
             'availability_assigned_to', 'availability_crew_size',
@@ -343,8 +345,12 @@ class DeliveryJobSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'scheduled_date', 'cart', 'cart_line', 'customer_name', 'phone',
             'address', 'is_apt', 'unit', 'items_delivered', 'item_count', 'tier',
-            'fee', 'distance_miles', 'distance_mode', 'created_by', 'created_by_name',
+            'fee', 'distance_miles', 'distance_mode', 'needs_scheduling',
+            'created_by', 'created_by_name',
             'availability_time_start', 'availability_time_end',
             'availability_assigned_to', 'availability_crew_size',
             'created_at', 'updated_at',
         ]
+
+    def get_needs_scheduling(self, obj):
+        return obj.status == DeliveryJob.STATUS_NEEDS_SCHEDULING or obj.scheduled_date is None

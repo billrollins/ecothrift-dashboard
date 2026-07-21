@@ -311,7 +311,12 @@ export interface DashboardAlert {
 
 export type DeliveryCrewSize = 1 | 2;
 
-export type DeliveryJobStatus = 'scheduled' | 'completed' | 'cancelled' | 'failed';
+export type DeliveryJobStatus =
+  | 'needs_scheduling'
+  | 'scheduled'
+  | 'completed'
+  | 'cancelled'
+  | 'failed';
 
 export interface DeliveryAvailability {
   id: number;
@@ -330,8 +335,8 @@ export interface DeliveryAvailability {
 
 export interface DeliveryJob {
   id: number;
-  availability: number;
-  scheduled_date: string;
+  availability: number | null;
+  scheduled_date: string | null;
   cart: number | null;
   cart_line: number | null;
   customer_name: string;
@@ -347,12 +352,15 @@ export interface DeliveryJob {
   distance_mode: string;
   status: DeliveryJobStatus;
   notes: string;
+  needs_scheduling?: boolean;
   created_by: number | null;
   created_by_name?: string | null;
-  availability_time_start?: string;
-  availability_time_end?: string;
-  availability_assigned_to?: string;
-  availability_crew_size?: number;
+  availability_time_start?: string | null;
+  availability_time_end?: string | null;
+  availability_assigned_to?: string | null;
+  availability_crew_size?: number | null;
   created_at?: string;
   updated_at?: string;
+  customer_schedule_message?: string;
+  just_scheduled?: boolean;
 }

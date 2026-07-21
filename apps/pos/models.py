@@ -542,13 +542,15 @@ class DeliveryAvailability(models.Model):
 
 
 class DeliveryJob(models.Model):
-    """A scheduled appliance delivery tied to a POS delivery fee line."""
+    """An appliance delivery tied to a POS delivery fee line (may be unscheduled)."""
 
+    STATUS_NEEDS_SCHEDULING = 'needs_scheduling'
     STATUS_SCHEDULED = 'scheduled'
     STATUS_COMPLETED = 'completed'
     STATUS_CANCELLED = 'cancelled'
     STATUS_FAILED = 'failed'
     STATUS_CHOICES = [
+        (STATUS_NEEDS_SCHEDULING, 'Needs scheduling'),
         (STATUS_SCHEDULED, 'Scheduled'),
         (STATUS_COMPLETED, 'Completed'),
         (STATUS_CANCELLED, 'Cancelled'),
@@ -559,8 +561,10 @@ class DeliveryJob(models.Model):
         DeliveryAvailability,
         on_delete=models.PROTECT,
         related_name='jobs',
+        null=True,
+        blank=True,
     )
-    scheduled_date = models.DateField(db_index=True)
+    scheduled_date = models.DateField(db_index=True, null=True, blank=True)
     cart = models.ForeignKey(
         Cart,
         on_delete=models.SET_NULL,
@@ -610,5 +614,6 @@ class DeliveryJob(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.scheduled_date} - {self.customer_name} ({self.items_delivered})'
+        when = self.scheduled_date.isoformat() if self.scheduled_date else 'unscheduled'
+        return f'{when} - {self.customer_name} ({self.items_delivered})'
 
