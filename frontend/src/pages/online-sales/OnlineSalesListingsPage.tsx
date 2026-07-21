@@ -96,7 +96,7 @@ export default function OnlineSalesListingsPage() {
       <PageHeader
         title="Listings"
         subtitle="Online Sales catalog — open Listing Studio to edit and publish"
-        actions={
+        action={
           <Button variant="contained" startIcon={<Add />} onClick={onCreate}>
             New listing
           </Button>

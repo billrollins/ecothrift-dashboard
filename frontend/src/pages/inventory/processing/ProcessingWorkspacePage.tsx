@@ -163,8 +163,13 @@ export default function ProcessingWorkspacePage() {
     workspaceRef.current = workspace;
   }, [workspace]);
 
+  // Include paid/shipped — staff often finalize prep before the PO is marked delivered.
   const processingOrdersParams = useMemo(
-    () => ({ status__in: 'delivered,processing,complete', ordering: '-ordered_date', page_size: 100 }),
+    () => ({
+      status__in: 'paid,shipped,delivered,processing,complete',
+      ordering: '-ordered_date',
+      page_size: 100,
+    }),
     [],
   );
   const { data: processingOrdersPage } = usePurchaseOrders(processingOrdersParams, orderId != null);

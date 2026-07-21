@@ -36,7 +36,7 @@ export default function OnlineSalesMarketingPage() {
       <PageHeader
         title="Marketing"
         subtitle="Channel post templates and Blog Studio"
-        actions={
+        action={
           <Button
             variant="outlined"
             startIcon={<OpenInNew />}

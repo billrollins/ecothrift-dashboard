@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.50.0] — 2026-07-13 -->
-<!-- Last reviewed: 2026-07-13 (v2.50.0 POS delivery board + Online Sales + standalone TARS Studio) -->
+<!-- Last reviewed: 2026-07-20 (v2.48.3 production hotfix merged into v2.50.0 development) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -68,6 +68,22 @@ Initiative: [`.ai/initiatives/tars_full_instruction_wizard_guidance.md`](.ai/ini
 ### Documentation
 
 - Initiative next gate: **Phase 1.5 Decision Wizard UX A+** (owner graded current wizard D/F); Phase 2 catalogs blocked until that pass unless reordered.
+
+---
+
+## [2.48.3] — 2026-07-20
+
+User-facing theme: **Blank-retail rows get AI MSRP estimates; review can filter and fill missing prices; processing opens paid/shipped orders.**
+
+### Added
+
+- **Inventory / AI cleanup** — when manifest `unit_retail` is blank, the model may output `est_retail` (MSRP claim); staging `unit_retail` is filled and the leashed scaler formula still prices the row (`apps/inventory/services/ai_cleanup.py`).
+- **Preprocessing review** — **Missing price** chip filter and **Set missing** bulk fill for unpriced filtered rows (`PreprocessingReviewTable`).
+
+### Fixed
+
+- **Inventory / undo AI cleanup** — rewind clears AI-filled staging retail back to manifest blank (and manifest-less rows tagged with `ai_status.pricing.est_retail`) before wiping `ai_status`.
+- **Processing workspace** — PO picker and entry redirect include **paid** and **shipped** (staff often prep before the order is marked delivered).
 
 ---
 

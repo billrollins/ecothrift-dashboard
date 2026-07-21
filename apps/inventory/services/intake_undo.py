@@ -254,6 +254,18 @@ def _apply_ai_cleanup(order: PurchaseOrder) -> None:
         locked = PurchaseOrder.objects.select_for_update().get(pk=order.pk)
         pr_qs = PreprocessingRow.objects.filter(purchase_order_id=locked.pk)
         bulk_clear_preprocess_ai_and_final_layers(pr_qs)
+        # AI-estimated retail rewind: cleanup writes est_retail into staging
+        # unit_retail for blank-retail rows (services/ai_cleanup.py). Reset those
+        # back to the manifest truth (None). Must run BEFORE ai_status is wiped —
+        # the manifest-less subset is identified via ai_status.pricing.est_retail.
+        pr_qs.filter(
+            manifest_row__isnull=False,
+            manifest_row__unit_retail__isnull=True,
+        ).update(unit_retail=None)
+        pr_qs.filter(
+            manifest_row__isnull=True,
+            ai_status__pricing__has_key='est_retail',
+        ).update(unit_retail=None)
         pr_qs.update(ai_reasoning='', ai_status={})
         locked.ai_cleaned_at = None
         locked.review_saved_at = None

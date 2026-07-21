@@ -149,7 +149,9 @@ export default function PreprocessingPage() {
 
   const standardizedRowCount = preprocessingStatus?.counts.standardized_rows ?? 0;
   const cleanedRowCount = preprocessingStatus?.counts.cleaned_rows ?? 0;
-  const missingPriceCount = preprocessingStatus?.counts.missing_price ?? 0;
+  // Prefer review summary after load/save — fresher than preprocessing-status during invalidate lag.
+  const missingPriceCount =
+    reviewApiSummary?.missing_price ?? preprocessingStatus?.counts.missing_price ?? 0;
   const completedStep = preprocessingStatus?.completed_step ?? -1;
   const hasCanonicalProcessingQueue = !hasActivePreprocessingSession && standardizedRowCount > 0;
 
@@ -905,6 +907,8 @@ export default function PreprocessingPage() {
     stepperActionHint = 'Fill required fields (Description, unit retail / MSRP) to standardize';
   } else if (activeStep === 2 && reviewDirtyCount > 0) {
     stepperActionHint = 'Save changes before finalizing';
+  } else if (activeStep === 2 && missingPriceCount > 0) {
+    stepperActionHint = `${missingPriceCount.toLocaleString()} row(s) still need a set price — filter Missing price, price them, then Save`;
   }
 
   let stepperActionSlot: ReactNode = null;

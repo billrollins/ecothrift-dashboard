@@ -19,7 +19,11 @@ export default function ProcessingEntryRedirect() {
   }, [legacyOrderParam, orderQ, navigate]);
 
   const { data, isLoading } = usePurchaseOrders(
-    { status__in: 'delivered,processing,complete', ordering: '-ordered_date', page_size: 100 },
+    {
+      status__in: 'paid,shipped,delivered,processing,complete',
+      ordering: '-ordered_date',
+      page_size: 100,
+    },
     !legacyOrderParam,
   );
 
@@ -48,8 +52,8 @@ export default function ProcessingEntryRedirect() {
       <Box sx={{ p: 3 }}>
         <Alert severity="info">
           <Typography variant="body2">
-            No delivered, processing, or complete purchase orders found. Create or receive an order first, then open it
-            from the order detail page.
+            No paid, shipped, delivered, processing, or complete purchase orders found. Create or pay an order first,
+            then open it from the order detail page.
           </Typography>
         </Alert>
       </Box>

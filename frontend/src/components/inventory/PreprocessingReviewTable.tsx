@@ -462,7 +462,9 @@ export function PreprocessingReviewTable({
 }: PreprocessingReviewTableProps) {
   const [draftsById, setDraftsById] = useState<Record<number, PreprocessingReviewRowPatch>>({});
   const [search, setSearch] = useState('');
+  const [missingPriceOnly, setMissingPriceOnly] = useState(false);
   const [targetTotal, setTargetTotal] = useState('');
+  const [missingFill, setMissingFill] = useState('');
   const [bulkCondition, setBulkCondition] = useState('');
   const [applyMessage, setApplyMessage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -495,15 +497,24 @@ export function PreprocessingReviewTable({
     return map;
   }, [rows]);
 
+  const missingPriceRowCount = summary?.missing_price ?? 0;
+
   const filteredRows = useMemo(() => {
+    let list = rows;
+    if (missingPriceOnly) {
+      list = list.filter((r) => {
+        const draft = draftsById[r.id];
+        return effectiveReviewSetPrice(r, draft) == null;
+      });
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
+    if (!q) return list;
     const terms = q.split(/\s+/).filter(Boolean);
-    return rows.filter((r) => {
+    return list.filter((r) => {
       const hay = haystacks.get(r.id) ?? '';
       return terms.every((t) => hay.includes(t));
     });
-  }, [rows, search, haystacks]);
+  }, [rows, search, haystacks, missingPriceOnly, draftsById]);
 
   // 3-state column sorting (asc → desc → none), processing-queue style.
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
@@ -662,6 +673,30 @@ export function PreprocessingReviewTable({
       if (cur === null || cur <= 0) return null;
       return roundReviewPrice(cur * factor);
     }, `Bulk ${factor < 1 ? '−' : '+'}5%`);
+
+  // Fill a single staff-entered price into every filtered row that still has NO
+  // effective price (draft-aware). Rows already priced are left untouched.
+  const applyMissingFillBulk = () => {
+    const v = Number.parseFloat(missingFill.replace(/,/g, ''));
+    if (!Number.isFinite(v) || v <= 0) {
+      setApplyMessage('Enter a price for missing rows first.');
+      return;
+    }
+    const price = roundReviewPrice(v);
+    const updates: Record<number, PreprocessingReviewRowPatch> = {};
+    let priced = 0;
+    let alreadyPriced = 0;
+    for (const row of filteredRows) {
+      if (effectiveReviewSetPrice(row, draftsRef.current[row.id]) == null) {
+        updates[row.id] = { ...(draftsRef.current[row.id] ?? {}), final_price: price, pricing_notes: `Bulk missing → $${price}` };
+        priced += 1;
+      } else {
+        alreadyPriced += 1;
+      }
+    }
+    mergeIntoDrafts(updates);
+    setApplyMessage(`Set missing: priced ${priced} row(s) · ${alreadyPriced} already priced — review then Save Changes`);
+  };
 
   // Target $ deliberately ignores the filter: scales every row's CURRENT price so the
   // ORDER total lands on target, with cent-residual distribution for an exact landing.
@@ -828,12 +863,28 @@ export function PreprocessingReviewTable({
             />
             <Chip
               size="medium"
-              variant={search ? 'filled' : 'outlined'}
-              color={search ? 'info' : 'default'}
+              variant={search || missingPriceOnly ? 'filled' : 'outlined'}
+              color={search || missingPriceOnly ? 'info' : 'default'}
               label={`${filteredRows.length.toLocaleString()} row(s) targeted`}
               sx={{ flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' } }}
             />
-            <Button disabled={!search} onClick={() => setSearch('')} sx={{ flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' } }}>
+            <Chip
+              size="medium"
+              clickable
+              variant={missingPriceOnly ? 'filled' : 'outlined'}
+              color={missingPriceRowCount > 0 ? 'warning' : 'success'}
+              label={`${missingPriceRowCount.toLocaleString()} missing price`}
+              onClick={() => setMissingPriceOnly((v) => !v)}
+              sx={{ flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' } }}
+            />
+            <Button
+              disabled={!search && !missingPriceOnly}
+              onClick={() => {
+                setSearch('');
+                setMissingPriceOnly(false);
+              }}
+              sx={{ flexShrink: 0, alignSelf: { xs: 'flex-start', md: 'center' } }}
+            >
               Clear filters
             </Button>
             <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
@@ -858,6 +909,53 @@ export function PreprocessingReviewTable({
               <Button onClick={() => applyPctBulk(0.95)}>−5%</Button>
               <Button onClick={() => applyPctBulk(1.05)}>+5%</Button>
             </ButtonGroup>
+            <Tooltip title="Sets this price on every filtered row that has no price yet (already-priced rows are untouched).">
+              <Stack direction="row" alignItems="stretch" sx={{ flexShrink: 0 }}>
+                <TextField
+                  placeholder="Missing → $"
+                  value={missingFill}
+                  onChange={(e) => setMissingFill(formatMoneyInput(e.target.value))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') applyMissingFillBulk();
+                  }}
+                  sx={{
+                    width: { xs: 160, sm: 170 },
+                    ...reviewToolbarInputSx,
+                    '& .MuiOutlinedInput-root': {
+                      ...reviewToolbarInputSx['& .MuiOutlinedInput-root'],
+                      borderTopRightRadius: 0,
+                      borderBottomRightRadius: 0,
+                    },
+                  }}
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start" sx={{ mr: 0.25, '& .MuiTypography-root': { fontSize: '0.9375rem', fontWeight: 700 } }}>
+                          $
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  disableElevation
+                  disabled={isSaving || !missingFill.trim()}
+                  onClick={applyMissingFillBulk}
+                  sx={{
+                    borderTopLeftRadius: 0,
+                    borderBottomLeftRadius: 0,
+                    ml: '-1px',
+                    px: 2,
+                    minHeight: 44,
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Set missing
+                </Button>
+              </Stack>
+            </Tooltip>
             <Divider orientation="vertical" flexItem sx={{ height: 44 }} />
             <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.04 }}>
               Target order total
