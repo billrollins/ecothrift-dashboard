@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import Group
 from django.db import connection
-from django.test import TestCase, TransactionTestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -131,6 +131,21 @@ class PolicyRejectTests(TestCase):
         self.assertEqual(r.status_code, 410)
         self.assertEqual(r.json().get('code'), 'CHECKOUT_DISABLED')
 
+    def test_holds_disabled_when_online_sales_parked(self):
+        r = self.client.post(
+            '/api/webstore/holds/',
+            {
+                'customer_name': 'A',
+                'email': 'a@example.com',
+                'slug': 'policy-lamp',
+                'quantity': 1,
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 410)
+        self.assertEqual(r.json().get('code'), 'HOLDS_DISABLED')
+
+    @override_settings(ONLINE_SALES_ENABLED=True)
     def test_ship_rejected_on_hold(self):
         r = self.client.post(
             '/api/webstore/holds/',
@@ -147,6 +162,7 @@ class PolicyRejectTests(TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertEqual(r.json().get('code'), 'SHIP_REJECTED')
 
+    @override_settings(ONLINE_SALES_ENABLED=True)
     def test_payment_rejected_on_hold(self):
         r = self.client.post(
             '/api/webstore/holds/',

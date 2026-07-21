@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-10 (custom_label_studio → _completed/) -->
+<!-- Last updated: 2026-07-21 (pos_discount_and_delivery → _completed/; TARS + Online Sales → _pending/) -->
 # Archive index — initiatives
 
 **Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
@@ -51,6 +51,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [pos_discount_and_delivery.md](./_completed/pos_discount_and_delivery.md) | POS discount/store-credit + delivery fees, bilingual policy/printables, Deliveries board + scheduling. Shipped **v2.50.0**. Optional later: Directions API optimize. | 2026-07-21 |
 | [custom_label_studio.md](./_completed/custom_label_studio.md) | Custom Label Studio: Admin library + designer (PDF/template, variables/increment, QR/Code128, AI Create), print × N, print-server **1.4.1**. Shipped **v2.48.0**–**v2.48.2**. | 2026-07-10 |
 | [floorplan_builder.md](./_completed/floorplan_builder.md) | Floorplan builder: SVG editor, DB element kinds + Super Admin CRUD, walls/cut/print/drafting aids. Shipped **v2.39.0**–**v2.47.0**. | 2026-07-09 |
 | [retail_quality_audit.md](./_completed/retail_quality_audit.md) | Retail Quality Audit: Admin hub + mobile wizard, dashboard grade, editable forms + JSON/YAML import. Shipped **v2.38.0** / **v2.43.0**. | 2026-07-09 |
@@ -96,6 +97,8 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [tars_full_instruction_wizard_guidance.md](./_pending/tars_full_instruction_wizard_guidance.md) | TARS decision guardrails / Studio guidance. Phase 1.5 Studio shipped and kept available. **Resume:** owner/Mike floor validation, then Phase 2 catalogs + Phase 3 improvement loop. | 2026-07-21 |
+| [online_sales_workspace.md](./_pending/online_sales_workspace.md) | Online Sales workspace (Listing Studio, holds, POS guard). Code retained; disabled for v2.50 Deliveries release. **Resume:** hard-control corrections + A-grade Studio + Phase 2 ops. | 2026-07-21 |
 | [tars_restoration_workspace.md](./_pending/tars_restoration_workspace.md) | TARS Restoration: queue + live bench (Phases 0–2 + hardening). **Resume:** Phase 3 execute workflows + Phase 4 steering. | 2026-07-09 |
 | [bstock_scraper.md](./_pending/bstock_scraper.md) | B-Stock notebook scraper; Phase 1 package in place; manifests/pipeline deferred (moved from `_backlog` 2026-03-27). | 2026-03-27 |
 | [historical_data_export.md](./_pending/historical_data_export.md) | **Phase 1 done** (pickles + manifest). **Phase 2** (seed V3, reporting slice, DS/embeddings) paused off main index. | 2026-03-28 |

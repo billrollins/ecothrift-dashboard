@@ -78,6 +78,44 @@ class DeliverySchedulingAPITests(TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertEqual(r.data['code'], 'AVAILABILITY_REQUIRED')
 
+    def test_add_delivery_rejects_inactive_availability(self):
+        self.slot.is_active = False
+        self.slot.save(update_fields=['is_active'])
+        cid = self._open_cart()
+        r = self.client.post(
+            f'/api/pos/carts/{cid}/add-delivery/',
+            {
+                'tier': '5mi',
+                'customer_name': 'Jane Doe',
+                'phone': '402-555-0100',
+                'address': '123 Main St',
+                'items_delivered': 'Washer',
+                'availability_id': self.slot.id,
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data['code'], 'AVAILABILITY_INACTIVE')
+
+    def test_add_delivery_persists_cart_line_ids(self):
+        cid = self._open_cart()
+        r = self.client.post(
+            f'/api/pos/carts/{cid}/add-delivery/',
+            {
+                'tier': '5mi',
+                'customer_name': 'Jane Doe',
+                'phone': '402-555-0100',
+                'address': '123 Main St',
+                'items_delivered': 'Washer',
+                'availability_id': self.slot.id,
+                'cart_line_ids': [101, 202],
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        delivery = next(ln for ln in r.data['lines'] if ln['line_kind'] == 'delivery')
+        self.assertEqual(delivery['meta']['cart_line_ids'], [101, 202])
+
     def test_add_delivery_creates_job(self):
         cid = self._open_cart()
         r = self.client.post(
@@ -128,6 +166,56 @@ class DeliverySchedulingAPITests(TestCase):
         self.assertEqual(r.status_code, 200, r.content)
         job = DeliveryJob.objects.get(cart_id=cid)
         self.assertEqual(job.status, DeliveryJob.STATUS_CANCELLED)
+
+    def test_delete_delivery_line_cancels_job(self):
+        cid = self._open_cart()
+        created = self.client.post(
+            f'/api/pos/carts/{cid}/add-delivery/',
+            {
+                'tier': '5mi',
+                'customer_name': 'Jane Doe',
+                'phone': '402-555-0100',
+                'address': '123 Main St',
+                'items_delivered': 'Washer',
+                'availability_id': self.slot.id,
+            },
+            format='json',
+        )
+        self.assertEqual(created.status_code, 200, created.content)
+        line = next(ln for ln in created.data['lines'] if ln['line_kind'] == 'delivery')
+        job = DeliveryJob.objects.get(cart_id=cid)
+        self.assertEqual(job.status, DeliveryJob.STATUS_SCHEDULED)
+
+        deleted = self.client.delete(f'/api/pos/carts/{cid}/lines/{line["id"]}/')
+        self.assertEqual(deleted.status_code, 200, deleted.content)
+        self.assertFalse(any(ln['line_kind'] == 'delivery' for ln in deleted.data['lines']))
+        job.refresh_from_db()
+        self.assertEqual(job.status, DeliveryJob.STATUS_CANCELLED)
+
+    def test_patch_job_status_completed(self):
+        cid = self._open_cart()
+        created = self.client.post(
+            f'/api/pos/carts/{cid}/add-delivery/',
+            {
+                'tier': '5mi',
+                'customer_name': 'Jane Doe',
+                'phone': '402-555-0100',
+                'address': '123 Main St',
+                'items_delivered': 'Washer',
+                'availability_id': self.slot.id,
+            },
+            format='json',
+        )
+        self.assertEqual(created.status_code, 200, created.content)
+        job = DeliveryJob.objects.get(cart_id=cid)
+        patched = self.client.patch(
+            f'/api/pos/delivery-jobs/{job.id}/',
+            {'status': 'completed'},
+            format='json',
+        )
+        self.assertEqual(patched.status_code, 200, patched.content)
+        job.refresh_from_db()
+        self.assertEqual(job.status, DeliveryJob.STATUS_COMPLETED)
 
     def test_replace_line_updates_job_in_place(self):
         cid = self._open_cart()

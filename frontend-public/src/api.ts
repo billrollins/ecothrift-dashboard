@@ -30,7 +30,6 @@ export interface CatalogDetail extends CatalogItem {
   images: CatalogImage[]
   return_policy?: string
   hold_policy?: string
-  available?: boolean | number
 }
 
 export interface CatalogPage {

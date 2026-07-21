@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-13 (v2.50.0 delivery scheduling + printables + discount) -->
+<!-- Last updated: 2026-07-21 (v2.50.0 delivery scheduling shipped; policy + ops contract finalized) -->
 
 # Eco-Thrift Dashboard — POS System Context
 

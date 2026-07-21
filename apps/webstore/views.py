@@ -447,6 +447,20 @@ def order_status(request, order_number):
 @api_view(['POST'])
 @perm_classes([AllowAny])
 def request_hold(request):
+    from apps.webstore.services.feature import online_sales_enabled
+
+    if not online_sales_enabled():
+        return Response(
+            {
+                'detail': (
+                    'Online listings and holds are not available yet. '
+                    'Please visit the store or check back later.'
+                ),
+                'code': 'HOLDS_DISABLED',
+            },
+            status=410,
+        )
+
     if not _rate_limit_hold(request):
         return Response({'detail': 'Too many hold requests. Try again shortly.'}, status=429)
 

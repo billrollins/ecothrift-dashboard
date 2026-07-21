@@ -1,9 +1,12 @@
-<!-- initiative: slug=online-sales-workspace status=active updated=2026-07-13 -->
-<!-- Last updated: 2026-07-13T14:55:00-05:00 (Phase 0 accepted; Phase 1 ready) -->
+<!-- initiative: slug=online-sales-workspace status=pending updated=2026-07-21 -->
+<!-- Archived 2026-07-21: disposition=pending paused off main index (code retained; disabled for v2.50 Deliveries release) -->
+<!-- Last updated: 2026-07-21 (parked → _pending/; ONLINE_SALES_ENABLED=false) -->
 
 # Initiative: Online Sales Workspace & Listing Studio
 
-**Status:** **Active** — **One-shot ship ready for owner click-through (2026-07-13).** Phase 0 contract remains canonical for policy. Staff Online Sales workspace + Listing Studio + holds + POS guard + full Slot C nav are in code; lean hard-control tests green.
+**Status:** **Pending** (parked off main index, 2026-07-21) — Phase 0 contract + substantial Phase 1 code retained. For **v2.50.0**, staff Online Sales nav/routes redirect away, public Shop/holds are hidden, and `ONLINE_SALES_ENABLED` defaults **false** (`POST /api/webstore/holds/` → 410 `HOLDS_DISABLED`).
+
+**Resume when:** after the Deliveries production release; re-enable `ONLINE_SALES_ENABLED`, restore Slot C Online Sales workspace + public Shop/hold UI, then finish hard-control corrections, A-grade Listing Studio, and Phase 2 ops.
 
 **Purpose:** Make Eco-Thrift’s **online / external selling** operation excellent: a dedicated **Online Sales workspace** with a best-in-class **Listing Studio**, easy publish to **www.ecothrift.us**, one-action **channel post copy** (Facebook first), truthful quantity and reservation handling, customer-message tracking, channel/accounts/fees, basic contribution reporting, and a **clear pickup-only policy**—while keeping Slot C and making its workspace names and page placement honest.
 
@@ -13,8 +16,8 @@
 
 | Related | Boundary |
 |---------|----------|
-| [`public_website`](./_archived/_pending/public_website.md) (parked) | Owns the shipped public-site code and unresolved production-launch work. Its old “full checkout / shipping / Helcim” direction is **superseded for current planning** by this initiative’s owner-directed **reserve online, pay/pick up in store, no delivery, no online payment** policy. Payment/shipping may not resume without an explicit policy change. |
-| [`blog_studio`](./_archived/_completed/blog_studio.md) (shipped) | Blog records/editor remain technically separate. Its **nav entry moves under Online Sales → Marketing** because it is content work, not system administration. No data-model merge is required. |
+| [`public_website`](./public_website.md) (parked) | Owns the shipped public-site code and unresolved production-launch work. Its old “full checkout / shipping / Helcim” direction is **superseded for current planning** by this initiative’s owner-directed **reserve online, pay/pick up in store, no delivery, no online payment** policy. Payment/shipping may not resume without an explicit policy change. |
+| [`blog_studio`](../_completed/blog_studio.md) (shipped) | Blog records/editor remain technically separate. Its **nav entry moves under Online Sales → Marketing** because it is content work, not system administration. No data-model merge is required. |
 | Admin **Web store** / **Web orders** (`/admin/web-store`, `/admin/web-orders`) | Brownfield surfaces to **replace in place**: Web store becomes **Listings / Listing Studio**; Web orders becomes **Inbox & Holds** with reservation semantics. Legacy routes redirect during migration. |
 | Inventory disposition **Online Sales** (Processing / TARS exits) | Upstream handoff into the online pipeline; this initiative owns what happens **after** an item is destined for online/external sale. |
 | Inventory **Item / Product** | Operational identity, SKU, cost, status, and source remain authoritative here. A Listing is the customer-facing offer; the Listing Studio does not become a second inventory editor. |
@@ -69,7 +72,7 @@ Without that system, online sales stay fragile, policy stays oral, and Admin acc
 
 ## Decision baseline — 2026-07-13
 
-**Phase 0 status:** Accepted — full contract in [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../reference/online_sales_workspace/phase_0_contract.md). Gates G1–G4 resolved; migration posture **A**.
+**Phase 0 status:** Accepted — full contract in [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../../../reference/online_sales_workspace/phase_0_contract.md). Gates G1–G4 resolved; migration posture **A**.
 
 ### Decision register
 
@@ -322,7 +325,7 @@ Design from what exists; do not treat shipped code as matching the new policy.
 
 **Goal:** Accept the decision baseline, remove business ambiguity, and produce an implementation/migration contract before coding.
 
-**Status:** **Complete — accepted 2026-07-13.** Full text: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../reference/online_sales_workspace/phase_0_contract.md).
+**Status:** **Complete — accepted 2026-07-13.** Full text: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../../../reference/online_sales_workspace/phase_0_contract.md).
 
 **Evidence summary:** Public SPA live on apex; catalog API count=0; local+prod webstore tables empty; **5** Items at `location=online_sales`; migration posture **A**; payment provider effective **`manual`**.
 
@@ -481,16 +484,16 @@ Design from what exists; do not treat shipped code as matching the new policy.
 - **Finish line:** Four deliverables Accepted/Ready; Phase 1 executable without product improvisation; zero application code.
 - **Scope:** Docs only — initiative + `.ai/reference/online_sales_workspace/phase_0_contract.md` + index/context pointers; read-only HTTP + aggregate SQL.
 - **Out of scope:** Application code, migrations, seeds, deploys, semver, Helcim/shipping resume.
-- **Result:** Phase 0 accepted. Migration posture **A** (empty webstore; 5 `online_sales` Items). Gates G1–G4 accepted (Page FB template; Marketplace Phase 2; role-default capabilities). Nav Phase 1/2 split, Policy v1 + SOP, data/security/rollback, and Phase 1 slices/fixtures/tests/A-grade script recorded in [`phase_0_contract.md`](../reference/online_sales_workspace/phase_0_contract.md). Next = Phase 1 build.
+- **Result:** Phase 0 accepted. Migration posture **A** (empty webstore; 5 `online_sales` Items). Gates G1–G4 accepted (Page FB template; Marketplace Phase 2; role-default capabilities). Nav Phase 1/2 split, Policy v1 + SOP, data/security/rollback, and Phase 1 slices/fixtures/tests/A-grade script recorded in [`phase_0_contract.md`](../../../reference/online_sales_workspace/phase_0_contract.md). Next = Phase 1 build.
 
 ---
 
 ## See also
 
-- [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../reference/online_sales_workspace/phase_0_contract.md) — **Phase 0 accepted pack**
-- [`.ai/initiatives/_index.md`](./_index.md)
-- [`.ai/initiatives/_archived/_pending/public_website.md`](./_archived/_pending/public_website.md)
-- [`.ai/initiatives/_archived/_completed/blog_studio.md`](./_archived/_completed/blog_studio.md)
-- [`.ai/extended/frontend.md`](../extended/frontend.md) — Web store / public SPA notes
+- [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../../../reference/online_sales_workspace/phase_0_contract.md) — **Phase 0 accepted pack**
+- [`.ai/initiatives/_index.md`](../../_index.md)
+- [`.ai/initiatives/_archived/_pending/public_website.md`](./public_website.md)
+- [`.ai/initiatives/_archived/_completed/blog_studio.md`](../_completed/blog_studio.md)
+- [`.ai/extended/frontend.md`](../../../extended/frontend.md) — Web store / public SPA notes
 - `frontend/src/navigation/navItemCatalog.ts`, `slotCNavLayout.ts`
 - `apps/webstore/`, `frontend-public/`

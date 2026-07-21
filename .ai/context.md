@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-13 (v2.50.0 POS delivery board + Online Sales + standalone TARS Studio) -->
+<!-- Last updated: 2026-07-21 (v2.50.0 Deliveries shipped; TARS + Online Sales parked) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,9 +13,10 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Online Sales Workspace (active):** [`online_sales_workspace`](initiatives/online_sales_workspace.md) — **one-shot ship in v2.50.0** (Listing Studio, holds, POS guard, Online Sales nav). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
-- **TARS decision guardrails (active):** [`tars_full_instruction_wizard_guidance`](initiatives/tars_full_instruction_wizard_guidance.md) — Phase 0–1 complete; **Processing Restorations hub** (`/inventory/restorations`) shipped; full-screen **standalone TARS Studio** (`/restoration/tars`) implemented with one owned Bench item, Item State, focused actions, durable Restoration log, and idle-safe labor timer. **Next: owner/Mike floor validation and iteration, then Phase 2 catalogs.** Contract: [`standalone_studio_contract.md`](reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).
-- **POS discount + delivery (active):** [`pos_discount_and_delivery`](initiatives/pos_discount_and_delivery.md) — discount/store-credit + delivery fees, printables, **Deliveries board** + scheduling (`DeliveryAvailability` / `DeliveryJob`) in **v2.50.0**. Next: optional Directions API route optimize.
+- **No active initiatives** — **v2.50.0** ships POS discount + Deliveries. Next: resume Online Sales or TARS.
+- **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**. Optional later: Directions API route optimize.
+- **Parked — Online Sales Workspace:** [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md) — code retained; staff workspace + public holds **disabled** (`ONLINE_SALES_ENABLED=false`). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
+- **Parked — TARS decision guardrails:** [`tars_full_instruction_wizard_guidance`](initiatives/_archived/_pending/tars_full_instruction_wizard_guidance.md) — Studio at `/restoration/tars` **kept available**; floor validation + Phase 2/3 deferred. Contract: [`standalone_studio_contract.md`](reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).
 - **Custom Label Studio (shipped):** archived [`custom_label_studio`](initiatives/_archived/_completed/custom_label_studio.md) — Admin **`/admin/label-studio`**: PDF + visual templates, variables/increment, QR/Code128, AI Create, print × N; print-server **1.4.1**. Shipped **v2.48.0**–**v2.48.2**.
 - **Floorplan builder (shipped):** archived [`floorplan_builder`](initiatives/_archived/_completed/floorplan_builder.md) — **`/floor-ops/floorplans`** editor + DB element kinds, walls/cut/print. Shipped **v2.39.0**–**v2.47.0**. Docs: **`apps/floorplan/README.md`**.
 - **Retail Quality Audit (shipped):** archived [`retail_quality_audit`](initiatives/_archived/_completed/retail_quality_audit.md) — Admin **Quality Audit** hub + mobile wizard; Super Admin editable **`QualityAuditForm`**; dashboard **Retail QA** grade. Shipped **v2.38.0** / **v2.43.0**.

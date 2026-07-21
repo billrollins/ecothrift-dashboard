@@ -79,6 +79,31 @@ class CartDiscountDeliveryAPITests(TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertEqual(r.data['code'], 'DISCOUNT_EXCEEDS_CART')
 
+    def test_add_discount_per_line(self):
+        cid = self._open_cart()
+        added = self.client.post(
+            f'/api/pos/carts/{cid}/add-item/',
+            {'sku': self.item.sku},
+            format='json',
+        )
+        self.assertEqual(added.status_code, 200, added.content)
+        target = next(ln for ln in added.data['lines'] if ln.get('item') or ln.get('sku'))
+        r = self.client.post(
+            f'/api/pos/carts/{cid}/add-discount/',
+            {
+                'amount': '3.00',
+                'reason': 'Price match',
+                'target_line_id': target['id'],
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        disc = next(ln for ln in r.data['lines'] if ln['line_kind'] == 'discount')
+        self.assertEqual(Decimal(str(disc['unit_price'])), Decimal('-3.00'))
+        self.assertEqual(disc['meta']['scope'], 'line')
+        self.assertEqual(disc['meta']['target_line_id'], target['id'])
+        self.assertIn('Price match', disc['description'])
+
     def test_add_delivery_5mi(self):
         from datetime import time, timedelta
 

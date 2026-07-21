@@ -1,8 +1,8 @@
-<!-- Last updated: 2026-07-13 (v2.50.0 Deliveries + Online Sales + TARS cockpit) -->
+<!-- Last updated: 2026-07-21 (v2.50.0 Deliveries release; Online Sales parked; TARS available) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
-**2026-07-13 (v2.50.0) — POS Deliveries + Online Sales + TARS Item Cockpit:** Cashier **`/pos/deliveries`** (jobs + available dates + Maps route day); **`/pos/printables`**; Online Sales Slot C pages; TARS **Item Cockpit** tool shelf on `/restoration/tars`.
+**2026-07-21 (v2.50.0) — POS Deliveries release:** Cashier **`/pos/deliveries`** (jobs + available dates + Maps route day, 10-stop warning); **`/pos/printables`** (bilingual policy with fridge/freezer exclusion, Saturday driver log). Online Sales Slot C nav/routes redirected to dashboard (parked). TARS Studio **`/restoration/tars`** remains available; initiative parked.
 
 **2026-07-13 (v2.49.0) — Processing / Restorations hub:** **`/inventory/restorations`** (`RestorationsPage`) — TO setup panel (grade scale/values + handoff via `PATCH` job) and FROM desk (loud Worked/Untouched list + decision panel). Nav label **Restorations** in Processing; legacy `/inventory/restoration-returns` redirects to FROM. Processing check-in with `dispatch=restoration` creates the job and navigates `?lane=to&job=&from=`. Restoration workspace nav drops Queue (TARS Studio Inbox remains at `/restoration/tars`).
 

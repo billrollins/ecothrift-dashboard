@@ -1,14 +1,10 @@
 import { lazy, Suspense } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
 
 // Code-split the less-frequent routes so the landing page ships a small bundle.
-const ShopPage = lazy(() => import('./pages/ShopPage'))
-const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
-const CheckoutPage = lazy(() => import('./pages/CheckoutPage'))
-const HoldStatusPage = lazy(() => import('./pages/HoldStatusPage'))
-const OrderConfirmationPage = lazy(() => import('./pages/OrderConfirmationPage'))
+// Shop / holds parked until Online Sales resumes (ONLINE_SALES_ENABLED).
 const BlogPage = lazy(() => import('./pages/BlogPage'))
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'))
 const VisitPage = lazy(() => import('./pages/VisitPage'))
@@ -30,46 +26,11 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
-        <Route
-          path="shop"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <ShopPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="shop/:slug"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <ProductDetailPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="checkout"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <CheckoutPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="hold/:token"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <HoldStatusPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="order/:number"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <OrderConfirmationPage />
-            </Suspense>
-          }
-        />
+        <Route path="shop" element={<Navigate to="/visit" replace />} />
+        <Route path="shop/:slug" element={<Navigate to="/visit" replace />} />
+        <Route path="checkout" element={<Navigate to="/visit" replace />} />
+        <Route path="hold/:token" element={<Navigate to="/visit" replace />} />
+        <Route path="order/:number" element={<Navigate to="/visit" replace />} />
         <Route
           path="blog"
           element={

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.50.0] — 2026-07-13 -->
-<!-- Last reviewed: 2026-07-20 (v2.48.3 production hotfix merged into v2.50.0 development) -->
+<!-- Line 1 release: ## [2.50.0] — 2026-07-21 -->
+<!-- Last reviewed: 2026-07-21 (narrowed: Deliveries release; TARS + Online Sales parked) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,39 +10,40 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [2.50.0] — 2026-07-13
+## [2.50.0] — 2026-07-21
 
-User-facing theme: **POS delivery scheduling board, Online Sales workspace ship, and standalone TARS Studio.**
+User-facing theme: **POS discount + delivery scheduling board.** TARS Studio remains available (initiative parked). Online Sales code retained but **disabled** for this release.
 
-Initiatives: [`pos_discount_and_delivery`](.ai/initiatives/pos_discount_and_delivery.md); [`online_sales_workspace`](.ai/initiatives/online_sales_workspace.md); [`tars_full_instruction_wizard_guidance`](.ai/initiatives/tars_full_instruction_wizard_guidance.md).
+Initiatives: [`pos_discount_and_delivery`](.ai/initiatives/_archived/_completed/pos_discount_and_delivery.md) (completed). Parked: [`online_sales_workspace`](.ai/initiatives/_archived/_pending/online_sales_workspace.md); [`tars_full_instruction_wizard_guidance`](.ai/initiatives/_archived/_pending/tars_full_instruction_wizard_guidance.md).
 
 ### Added
 
-- **Online Sales workspace (one-shot ship)** — Listing Studio, Inbox & Holds, Work queue / Marketing / Sales; public **Request a hold** + token status; POS held-item guard; Slot C **Retail Floor → Online Sales → Store Sales**. Policy: reserve online, pay/pickup in store (no ship / online pay).
 - **POS / discount + delivery** — terminal **Discount / store credit** (cart or per-line) and **Delivery** (`$50` ≤5 mi / `$75` 5–10 mi) with name, phone, address, Apt?/Unit #, **cart-line multi-select for items**, **scheduled delivery date** (`add-discount`, `add-delivery`; `CartLine.line_kind` + `meta`). Address lookup auto-quotes distance to Eco-Thrift (`/pos/delivery/address-suggest/`) and selects the fee tier (or blocks if over 10 mi).
 - **POS / deliveries board** — Cashier **Deliveries** (`/pos/deliveries`): list jobs by date; managers set **available dates** (date, times, who, 1/2-person crew) with booked delivery/item counts (`DeliveryAvailability` / `DeliveryJob`, `pos.0011`); **Open Google Maps route** for a day’s scheduled stops.
 - **POS / printables** — Cashier **Printables** hub + browser-print HTML: bilingual appliance warranty/delivery policy, sell log, Saturday delivery driver log (`/pos/printables`, `frontend/public/pos/*.html`).
-- **TARS / standalone Studio** — `/restoration/tars` now owns a full-screen staff work app opened in a new tab: one integrated header, URL-deep-linked Inbox / one-item Bench / Pending lanes, always-visible Item State, compact focused actions, and the chronological Restoration log. Back closes a safe child tab or returns to dashboard.
-- **TARS / durable restoration history** — `RestorationTimelineEvent` preserves attributed valuations, grade assessments, tests, estimates, decisions, parts, performed TEST / REPAIR / ASSEMBLE / SALVAGE work, timers, holds, returns, and disposition. Corrections supersede; deletion voids with a reason; system history is immutable; related events share correlation IDs (`inventory.0081`).
-- **Restorations / valuation requests** — `POST …/request-valuation/`; `valuation_pending` badge + request list on Restorations TO; Processing can fulfill grades even after TARS check-in.
+- **TARS / standalone Studio (available, initiative parked)** — `/restoration/tars` full-screen staff work app (new tab): one header, Inbox / one-item Bench / Pending, Item State, focused actions, Restoration log. Feature work resumes after this release.
+- **TARS / durable restoration history** — `RestorationTimelineEvent` preserves attributed valuations, assessments, tests, estimates, decisions, parts, performed work, timers, holds, returns, and disposition (`inventory.0081`).
+- **Restorations / valuation requests** — `POST …/request-valuation/`; `valuation_pending` badge + request list on Restorations TO.
+- **Online Sales (code retained, disabled)** — Listing Studio / holds / POS guard remain in repo; `ONLINE_SALES_ENABLED` defaults **false**; staff `/online-sales/*` redirects to dashboard; public Shop/holds hidden; `POST /api/webstore/holds/` returns 410 `HOLDS_DISABLED`.
 
 ### Changed
 
 - **TARS / incomplete grades** — bench check-in allowed when `needs_setup`; Done still blocked until all grade values are complete.
 - **TARS / stop-outs** — no Stops step; unanswered stop-outs treated as clear; only explicit blocked responses interrupt commit.
-- **TARS / labor + bench ownership** — one explicit technician-owned Bench item at a time; state-changing work auto-starts labor, the header has the primary Pause / Resume control, HR breaks/clock-out pause server-side, and five idle minutes trigger a Yes/No confirmation with durable idle-time correction.
+- **TARS / labor + bench ownership** — one explicit technician-owned Bench item at a time; state-changing work auto-starts labor; header Pause / Resume; HR breaks/clock-out pause server-side; five idle minutes trigger Yes/No with durable idle-time correction.
 - **POS / delivery items** — “What is being delivered” is a cart-line multi-select; dialog opens with **no lines selected**.
 
 ### Fixed
 
 - **POS / terminal cart** — cart panel fills leftover viewport with a dedicated line list scrollbar; subtotal/tax/total stay pinned at the bottom; after add / qty bump / manual / resale / line edit, the affected line scrolls into view (`TerminalPage`). QA SKUs: [`.ai/reference/pos_terminal_cart_scroll/testing_skus.md`](.ai/reference/pos_terminal_cart_scroll/testing_skus.md).
 - **POS / action tiles** — Pink tag, Discount, and Delivery use square action tiles (icon + label) instead of plain outlined buttons.
+- **TARS / tests** — Processing check-in with incomplete grades expects `needs_setup`; grade-scale list seeds deterministically under `--keepdb`.
 
 ### Documentation
 
-- **Online Sales / Phase 0 contract + one-shot ship** — policy/nav contract in [`.ai/reference/online_sales_workspace/phase_0_contract.md`](.ai/reference/online_sales_workspace/phase_0_contract.md).
+- **Online Sales parked** — contract remains in [`.ai/reference/online_sales_workspace/phase_0_contract.md`](.ai/reference/online_sales_workspace/phase_0_contract.md); initiative under `_archived/_pending/`.
 - **POS / terminal cart scroll QA** — seeded `POSTEST##` items + scenarios in [`.ai/reference/pos_terminal_cart_scroll/`](.ai/reference/pos_terminal_cart_scroll/README.md); `seed_pos_terminal_test_items`.
-- **TARS / standalone Studio contract** — product, event-log, timer, lifecycle, and smoke-test contract in [`.ai/reference/TARS Restoration Processing App/standalone_studio_contract.md`](.ai/reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).
+- **TARS / standalone Studio contract** — [`.ai/reference/TARS Restoration Processing App/standalone_studio_contract.md`](.ai/reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md); initiative parked under `_archived/_pending/`.
 
 ---
 

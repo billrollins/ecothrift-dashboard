@@ -18,9 +18,14 @@ from apps.inventory.models import (
     ProcessingRow,
     Product,
     PurchaseOrder,
+    RestorationGradeScale,
     RestorationJob,
     RestorationTimelineEvent,
     Vendor,
+)
+from apps.inventory.services.restoration import (
+    TARS_GRADE_SCALES,
+    restoration_job_needs_setup,
 )
 
 FUNCTIONAL_GRADES = {
@@ -204,7 +209,8 @@ class ProcessingHandoffTests(RestorationQueueTestBase):
         self.assertIn('one item at a time', resp.data['detail'].lower())
         self.assertFalse(RestorationJob.objects.exists())
 
-    def test_restoration_check_in_rejects_incomplete_grades(self):
+    def test_restoration_check_in_allows_incomplete_grades_with_needs_setup(self):
+        """Incomplete grade values are allowed at Processing check-in; TO setup later."""
         order, pr, product = self._restoration_order()
         resp = self.client.post(
             f'/api/inventory/orders/{order.id}/processing-row-check-in/',
@@ -221,8 +227,10 @@ class ProcessingHandoffTests(RestorationQueueTestBase):
             },
             format='json',
         )
-        self.assertEqual(resp.status_code, 400)
-        self.assertFalse(RestorationJob.objects.exists())
+        self.assertEqual(resp.status_code, 200, resp.data)
+        job = RestorationJob.objects.get(item_check_in_id=resp.data['item_check_in_id'])
+        self.assertTrue(restoration_job_needs_setup(job))
+        self.assertEqual(job.scale, 'Functional')
 
     def test_dispatch_change_away_from_restoration_deletes_queued_job(self):
         order, pr, product = self._restoration_order()
@@ -757,6 +765,19 @@ class RestorationJobApiTests(RestorationQueueTestBase):
 
 
 class RestorationGradeScaleTests(RestorationQueueTestBase):
+    def setUp(self):
+        super().setUp()
+        # Deterministic seed — migration 0070 may be absent under --keepdb.
+        for sort_order, (name, grades) in enumerate(TARS_GRADE_SCALES.items(), start=1):
+            RestorationGradeScale.objects.get_or_create(
+                name=name,
+                defaults={
+                    'grades': list(grades),
+                    'sort_order': sort_order * 10,
+                    'is_active': True,
+                },
+            )
+
     def test_seeded_scales_are_listed(self):
         resp = self.client.get('/api/inventory/grade-scales/')
         self.assertEqual(resp.status_code, 200, resp.data)

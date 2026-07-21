@@ -312,7 +312,7 @@ export default function DeliveriesPage() {
     if (!url) return;
     if (stops.length > 10) {
       enqueueSnackbar(
-        `Maps URL supports ~10 stops; opened first 10 of ${stops.length}.`,
+        `Google Maps allows ~10 stops per URL; opened the first 10 of ${stops.length}. Print a second Saturday delivery log sheet and open a second route for the rest.`,
         { variant: 'info' },
       );
     }

@@ -1,22 +1,18 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import logoFooterImg from '../assets/logo-full-white-halfsize.png'
 import logoImg from '../assets/logo-full-halfsize.png'
-import { useCart } from '../cart'
 import { retailMapsDirectionsUrl, STORE } from '../data/content'
-import CartDrawer from './CartDrawer'
 
 const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'on' : undefined)
 
 export default function Layout() {
-  const { count, setOpen } = useCart()
-
   return (
     <>
       <div className="util" role="status" aria-live="polite">
         <div className="wrap">
           <span className="util-badge">Under construction</span>
           <span className="util-msg">
-            Website is under construction — we appreciate your patience as we get it set up.
+            Website is under construction — online listings and holds are not available yet.
           </span>
         </div>
       </div>
@@ -27,9 +23,6 @@ export default function Layout() {
             <img className="logo" src={logoImg} alt="Eco-Thrift" width={244} height={60} />
           </Link>
           <nav className="nav">
-            <NavLink to="/shop" className={navClass}>
-              Shop
-            </NavLink>
             <NavLink to="/blog" className={navClass}>
               Blog
             </NavLink>
@@ -41,10 +34,6 @@ export default function Layout() {
             </NavLink>
           </nav>
           <div className="tools">
-            <button className="cartbtn" onClick={() => setOpen(true)} aria-label="Open cart">
-              Cart
-              {count > 0 && <span className="cartcount">{count}</span>}
-            </button>
             <Link className="btn btn--primary" to="/visit">
               Visit the store
             </Link>
@@ -56,8 +45,6 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <CartDrawer />
-
       <footer className="ft">
         <div className="wrap">
           <div>
@@ -66,10 +53,10 @@ export default function Layout() {
             <p>{STORE.tagline}</p>
           </div>
           <div>
-            <h4>Shop</h4>
-            <Link to="/shop">New arrivals</Link>
-            <Link to="/shop">Categories</Link>
+            <h4>Store</h4>
+            <Link to="/visit">Visit us</Link>
             <Link to="/sell">Sell with us</Link>
+            <Link to="/blog">Blog</Link>
           </div>
           <div>
             <h4>Company</h4>

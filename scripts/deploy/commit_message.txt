@@ -1,9 +1,10 @@
-feat: POS delivery board, Online Sales workspace, TARS cockpit (v2.50.0)
+feat: POS discount + delivery board for v2.50.0
 
-- POS discount/delivery fees, printables, Deliveries scheduling + Maps route URL
-- Online Sales Listing Studio / holds / Slot C nav; public hold request
-- TARS Item Cockpit tool shelf; Restorations valuation requests
+- Terminal discount (cart/per-line) and delivery booking with available dates
+- Deliveries board, Maps route URL (10-stop cap), Saturday driver log + bilingual policy
+- Park Online Sales (ONLINE_SALES_ENABLED=false) and TARS initiative; Studio stays available
+- Hotfix ancestry v2.48.3 preserved; migrations pos.0010–0012, inventory.0081, webstore.0003
 
-See .ai/initiatives/pos_discount_and_delivery.md
-See .ai/initiatives/online_sales_workspace.md
-See .ai/initiatives/tars_full_instruction_wizard_guidance.md
+See .ai/initiatives/_archived/_completed/pos_discount_and_delivery.md
+See .ai/initiatives/_archived/_pending/online_sales_workspace.md
+See .ai/initiatives/_archived/_pending/tars_full_instruction_wizard_guidance.md

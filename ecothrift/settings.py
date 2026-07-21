@@ -42,6 +42,8 @@ WEBSTORE_SALES_TAX_RATE = config('WEBSTORE_SALES_TAX_RATE', default='0.07')  # O
 WEBSTORE_SHIP_FLAT = config('WEBSTORE_SHIP_FLAT', default='9.95')
 # Optional staff address that receives a copy of each new web order.
 WEBSTORE_ORDER_NOTIFY_EMAIL = config('WEBSTORE_ORDER_NOTIFY_EMAIL', default='')
+# Online Sales holds / Listing Studio — off until the parked initiative resumes.
+ONLINE_SALES_ENABLED = config('ONLINE_SALES_ENABLED', default=False, cast=bool)
 
 # Email — console backend by default so local dev prints messages (and order
 # confirmations never block checkout). Set EMAIL_BACKEND + SMTP/provider creds to send.
