@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.56.0] — 2026-07-22 -->
-<!-- Last reviewed: 2026-07-22 (v2.56.0 Delivery Phase 2 Field day workflow) -->
+<!-- Line 1 release: ## [2.56.1] — 2026-07-22 -->
+<!-- Last reviewed: 2026-07-22 (v2.56.1 Field chrome + Start Today) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.56.1] — 2026-07-22
+
+User-facing theme: **Field chrome** — viewport Desk/Field, compact Days/Deliveries swap, Start Today unblocked.
+
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+
+### Changed
+
+- **POS / experience routing** — Mobile → Field, desktop → Desk from viewport only; Desk/Field toggle removed.
+- **POS / Field chrome** — Dropped wasteful “Delivery Field” headers; Days ↔ Deliveries is a one-tap top-strip swap.
+- **POS / Start Today** — Removed stale Phase‑1 “use legacy until Phase 2” banner; Start Today is the normal Field path again.
 
 ## [2.56.0] — 2026-07-22
 
