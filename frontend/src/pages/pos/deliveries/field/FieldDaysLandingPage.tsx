@@ -68,9 +68,6 @@ export default function FieldDaysLandingPage() {
 
   return (
     <Box>
-      <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
-        Today
-      </Typography>
       {todayLoading && <Typography color="text.secondary">Loading…</Typography>}
       {!todayLoading && !today && (
         <Alert severity="info" sx={{ mb: 2 }}>
@@ -78,51 +75,49 @@ export default function FieldDaysLandingPage() {
         </Alert>
       )}
       {today && (
-        <Card variant="outlined" sx={{ mb: 2 }}>
+        <Card variant="outlined" sx={{ mb: 1.5 }}>
           <CardActionArea onClick={() => navigate(`/pos/deliveries/field/days/${today.id}`)}>
-            <CardContent>
+            <CardContent sx={{ py: 1.5 }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" fontWeight={700}>
-                  {today.date}
-                </Typography>
-                <Chip size="small" label={today.display_state} />
+                <Typography fontWeight={700}>{today.date}</Typography>
+                <Stack direction="row" spacing={0.5}>
+                  {today.is_test && <Chip size="small" color="warning" label="TEST" />}
+                  <Chip size="small" label={today.display_state} />
+                </Stack>
               </Stack>
-              <Typography variant="body2" color="text.secondary">
-                {today.primary_driver_name || today.assigned_to || 'Unassigned'}
-              </Typography>
-              <Typography variant="body1" sx={{ mt: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                 {today.delivery_count} deliveries · {today.items_booked} items
               </Typography>
-              {today.is_test && (
-                <Chip size="small" color="warning" label="TEST" sx={{ mt: 1 }} />
-              )}
+              <Typography variant="body2" color="primary" fontWeight={600} sx={{ mt: 1 }}>
+                {today.display_state === 'planned' || today.display_state === 'active'
+                  ? 'Open → Start Today'
+                  : 'Open day'}
+              </Typography>
             </CardContent>
           </CardActionArea>
         </Card>
       )}
 
-      <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+      <Stack direction="row" spacing={1}>
         <Button
           fullWidth
+          size="small"
           variant="outlined"
           component={RouterLink}
           to="/pos/deliveries/field/days?bucket=past"
         >
-          Past days
+          Past
         </Button>
         <Button
           fullWidth
+          size="small"
           variant="outlined"
           component={RouterLink}
           to="/pos/deliveries/field/days?bucket=future"
         >
-          Future days
+          Future
         </Button>
       </Stack>
-
-      <Alert severity="info">
-        Start Today is not available in Field yet. Use the legacy board for active QA until Phase 2.
-      </Alert>
     </Box>
   );
 }

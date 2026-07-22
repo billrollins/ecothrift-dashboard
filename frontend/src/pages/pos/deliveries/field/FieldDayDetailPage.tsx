@@ -120,15 +120,6 @@ export default function FieldDayDetailPage() {
                 Not Now
               </Button>
             </Stack>
-            <Button
-              component={RouterLink}
-              to="/pos/deliveries/legacy"
-              size="small"
-              color="inherit"
-              sx={{ mt: 2 }}
-            >
-              Legacy board (deprecated)
-            </Button>
           </CardContent>
         </Card>
       )}

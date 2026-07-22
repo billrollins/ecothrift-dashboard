@@ -2,7 +2,7 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import { resolveDeliveryExperience } from '../../../utils/delivery/experiencePreference';
 
 /**
- * /pos/deliveries → Desk or Field Days.
+ * /pos/deliveries → Desk (desktop) or Field (mobile) Days.
  * Legacy bookmarks with tab/date go to the compatibility board.
  */
 export default function DeliveriesEntryRedirect() {
@@ -16,6 +16,7 @@ export default function DeliveriesEntryRedirect() {
     const qs = next.toString();
     return <Navigate to={`/pos/deliveries/legacy${qs ? `?${qs}` : ''}`} replace />;
   }
+  // Viewport-driven only (ignore stale localStorage preference).
   const experience = resolveDeliveryExperience(params.get('experience'));
   return <Navigate to={`/pos/deliveries/${experience}/days`} replace />;
 }

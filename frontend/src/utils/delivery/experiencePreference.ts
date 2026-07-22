@@ -1,5 +1,6 @@
 export type DeliveryExperience = 'desk' | 'field';
 
+/** @deprecated Preference storage kept for migration cleanup only. */
 const LS_KEY = 'deliveryExperiencePreference';
 
 export function readDeliveryExperiencePreference(): DeliveryExperience | null {
@@ -20,17 +21,26 @@ export function writeDeliveryExperiencePreference(value: DeliveryExperience): vo
   }
 }
 
+export function clearDeliveryExperiencePreference(): void {
+  try {
+    localStorage.removeItem(LS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function defaultDeliveryExperienceFromViewport(): DeliveryExperience {
   if (typeof window === 'undefined') return 'desk';
-  const mq = typeof window.matchMedia === 'function'
-    ? window.matchMedia('(max-width: 767px)')
-    : null;
+  const mq =
+    typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 767px)') : null;
   return mq?.matches ? 'field' : 'desk';
 }
 
-export function resolveDeliveryExperience(
-  override?: string | null,
-): DeliveryExperience {
+/**
+ * Desk vs Field is viewport-driven. Explicit ?experience= still works for deep links.
+ * Stored preference is ignored so there is no manual Desk/Field toggle.
+ */
+export function resolveDeliveryExperience(override?: string | null): DeliveryExperience {
   if (override === 'desk' || override === 'field') return override;
-  return readDeliveryExperiencePreference() ?? defaultDeliveryExperienceFromViewport();
+  return defaultDeliveryExperienceFromViewport();
 }

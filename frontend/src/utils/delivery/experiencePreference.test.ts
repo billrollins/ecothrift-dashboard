@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearDeliveryExperiencePreference,
   defaultDeliveryExperienceFromViewport,
-  readDeliveryExperiencePreference,
   resolveDeliveryExperience,
   writeDeliveryExperiencePreference,
 } from './experiencePreference';
@@ -9,18 +9,27 @@ import {
 describe('experiencePreference', () => {
   afterEach(() => {
     localStorage.clear();
+    vi.unstubAllGlobals();
   });
 
-  it('persists desk/field preference', () => {
-    expect(readDeliveryExperiencePreference()).toBeNull();
-    writeDeliveryExperiencePreference('field');
-    expect(readDeliveryExperiencePreference()).toBe('field');
-  });
-
-  it('honors explicit override over storage', () => {
-    writeDeliveryExperiencePreference('desk');
+  it('honors explicit override', () => {
     expect(resolveDeliveryExperience('field')).toBe('field');
-    expect(resolveDeliveryExperience(null)).toBe('desk');
+    expect(resolveDeliveryExperience('desk')).toBe('desk');
+  });
+
+  it('ignores stored preference and uses viewport', () => {
+    writeDeliveryExperiencePreference('desk');
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes('max-width'),
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    expect(resolveDeliveryExperience(null)).toBe('field');
+    clearDeliveryExperiencePreference();
   });
 
   it('falls back to viewport default', () => {
