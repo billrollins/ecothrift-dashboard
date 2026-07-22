@@ -1,5 +1,4 @@
-feat(pos): Delivery Phase 1+2 Desk/Field day workflow (v2.56.0)
+fix(pos): migration-safe DeliveryDay backfill for Heroku release
 
-Ship canonical DeliveryDay + datasets (0020–0022), then Phase 2 contact
-truth, stop-item load/truck/route gates, Field Start Today shell, and Desk
-live monitor (0023). Legacy board kept as a one-release escape hatch.
+Pass historical apps into 0021 backfill so ORM queries do not require
+Phase 2 columns added in 0023 (unblocks prod migrate after v2.56.0).
