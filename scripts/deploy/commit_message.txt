@@ -1,5 +1,5 @@
-fix(pos): Field chrome — viewport Desk/Field, Start Today, compact toggle
+fix(pos): v2.56.2 Field list bottom nav + shared Test preference
 
-Auto-route mobile→Field / desktop→Desk (no experience toggle). Strip
-wasteful Delivery Field headers; Days/Deliveries is a one-tap swap.
-Remove stale Phase-1 “Start Today unavailable” copy on Field landing.
+Days/Deliveries/Test as a fixed Field bottom button bar (icons,
+selected state). Shared Include [TEST] across Desk and Field so phone
+QA can see seeded datasets. Open-day shortcuts unchanged.

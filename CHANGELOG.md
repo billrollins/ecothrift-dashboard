@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.56.1] — 2026-07-22 -->
-<!-- Last reviewed: 2026-07-22 (v2.56.1 Field chrome + Start Today) -->
+<!-- Line 1 release: ## [2.56.2] — 2026-07-22 -->
+<!-- Last reviewed: 2026-07-22 (v2.56.2 Field bottom nav + shared Test) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.56.2] — 2026-07-22
+
+User-facing theme: **Field list bottom nav** — Days / Deliveries / Test as a fixed button bar; shared Include [TEST] across Desk and Field.
+
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+
+### Added
+
+- **POS / Field list bottom bar** — Fixed Days · Deliveries · Test navigation (icons + depressed selected state), matching open-day shortcut chrome; hidden on day-detail/run shell so operational shortcuts stay sole bottom bar.
+
+### Changed
+
+- **POS / Include [TEST]** — One shared preference (localStorage) for Desk and Field; Field Total Deliveries respects it; Desk page switches removed in favor of the compact shared control (Field uses the bottom-bar Test action).
 
 ## [2.56.1] — 2026-07-22
 

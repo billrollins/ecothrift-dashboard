@@ -1,6 +1,8 @@
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Box, Button, useMediaQuery } from '@mui/material';
+import { useIncludeTestPreference } from '../../../hooks/useIncludeTestPreference';
 import type { DeliveryExperience } from '../../../utils/delivery/experiencePreference';
+import { FieldListBottomNav } from './field/FieldListBottomNav';
 
 type Props = {
   experience: DeliveryExperience;
@@ -8,7 +10,8 @@ type Props = {
 
 /**
  * Thin shell for Desk/Field delivery routes.
- * Experience is viewport-driven (no Desk/Field toggle). Field keeps chrome minimal.
+ * Experience is viewport-driven (no Desk/Field toggle).
+ * Field list pages use a bottom Days/Deliveries/Test bar; open-day keeps its own shortcuts.
  */
 export default function DeliveryExperienceLayout({ experience }: Props) {
   const location = useLocation();
@@ -17,21 +20,23 @@ export default function DeliveryExperienceLayout({ experience }: Props) {
   const expected: DeliveryExperience = isMobile ? 'field' : 'desk';
   const onTotal = location.pathname.includes('/total');
   const onDayDetail = /\/days\/\d+/.test(location.pathname);
+  const [includeTest, setIncludeTest] = useIncludeTestPreference();
+  const showFieldListBar = experience === 'field' && !onDayDetail;
 
   if (experience !== expected) {
-    // Preserve day detail id when flipping experiences.
+    // Preserve day detail id + query (include_test, bucket, q) when flipping experiences.
     const dayMatch = location.pathname.match(/\/days\/(\d+)/);
     const target = dayMatch
       ? `/pos/deliveries/${expected}/days/${dayMatch[1]}`
       : `/pos/deliveries/${expected}/${onTotal ? 'total' : 'days'}`;
-    return <Navigate to={target} replace />;
+    return <Navigate to={`${target}${location.search}`} replace />;
   }
 
   const toggleView = () => {
-    navigate(`/pos/deliveries/${experience}/${onTotal ? 'days' : 'total'}`);
+    navigate(`/pos/deliveries/${experience}/${onTotal ? 'days' : 'total'}${location.search}`);
   };
 
-  // Day detail (esp. Field run shell): no secondary chrome.
+  // Field day detail / run shell: no list chrome (run shell owns bottom shortcuts).
   if (onDayDetail && experience === 'field') {
     return (
       <Box sx={{ px: 1, pt: 0.5, pb: 'calc(8px + env(safe-area-inset-bottom))' }}>
@@ -40,12 +45,30 @@ export default function DeliveryExperienceLayout({ experience }: Props) {
     );
   }
 
+  // Field list/search: bottom nav only — no wasteful top Days/Deliveries links.
+  if (showFieldListBar) {
+    return (
+      <Box
+        sx={{
+          px: 1,
+          pt: 0.5,
+          // Clear fixed BottomNavigation (~56px) + home indicator.
+          pb: 'calc(72px + env(safe-area-inset-bottom))',
+        }}
+      >
+        <Outlet />
+        <FieldListBottomNav />
+      </Box>
+    );
+  }
+
+  // Desk (and any non-Field list): compact top Test + Days/Deliveries controls.
   return (
     <Box
       sx={{
-        px: experience === 'field' ? 1 : { xs: 1.5, md: 2 },
-        pt: experience === 'field' ? 0.5 : { xs: 1, md: 2 },
-        pb: experience === 'field' ? 'calc(8px + env(safe-area-inset-bottom))' : 2,
+        px: { xs: 1.5, md: 2 },
+        pt: { xs: 1, md: 2 },
+        pb: 2,
       }}
     >
       <Box
@@ -53,10 +76,28 @@ export default function DeliveryExperienceLayout({ experience }: Props) {
           display: 'flex',
           justifyContent: 'flex-end',
           alignItems: 'center',
-          mb: experience === 'field' ? 0.75 : 1.5,
+          gap: 0.5,
+          mb: 1.5,
           minHeight: 28,
         }}
       >
+        <Button
+          size="small"
+          variant="text"
+          onClick={() => setIncludeTest(!includeTest)}
+          aria-pressed={includeTest}
+          sx={{
+            minWidth: 0,
+            px: 0.75,
+            py: 0.25,
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            textTransform: 'none',
+            color: includeTest ? 'warning.dark' : 'text.secondary',
+          }}
+        >
+          {includeTest ? 'Test on' : 'Test'}
+        </Button>
         <Button
           size="small"
           variant="text"

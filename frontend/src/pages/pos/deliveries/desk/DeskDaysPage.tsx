@@ -1,11 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Chip,
-  FormControlLabel,
   Stack,
-  Switch,
   Table,
   TableBody,
   TableCell,
@@ -17,6 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useDeliveryDays } from '../../../../hooks/useDelivery';
+import { useIncludeTestPreference } from '../../../../hooks/useIncludeTestPreference';
 import {
   deskDaysStateToApiParams,
   deskDaysStateToParams,
@@ -31,15 +30,28 @@ function formatWindow(start: string | null, end: string | null) {
 export default function DeskDaysPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [includeTest, setIncludeTest] = useIncludeTestPreference();
   const state = useMemo(() => parseDeskDaysUrlState(searchParams), [searchParams]);
-  const { data, isLoading, isError } = useDeliveryDays(deskDaysStateToApiParams(state));
+  const merged = useMemo(() => ({ ...state, includeTest }), [state, includeTest]);
+  const { data, isLoading, isError } = useDeliveryDays(deskDaysStateToApiParams(merged));
   const rows = data?.results ?? [];
 
   const patchState = (patch: Partial<typeof state>) => {
-    setSearchParams(deskDaysStateToParams({ ...state, ...patch, page: patch.page ?? 1 }), {
+    setSearchParams(deskDaysStateToParams({ ...merged, ...patch, page: patch.page ?? 1 }), {
       replace: true,
     });
   };
+
+  // URL ?include_test=1 seeds the shared preference (Desk ↔ Field).
+  useEffect(() => {
+    if (state.includeTest && !includeTest) setIncludeTest(true);
+  }, [state.includeTest, includeTest, setIncludeTest]);
+
+  // Keep shareable URL in sync with the layout Test toggle.
+  useEffect(() => {
+    if (state.includeTest === includeTest) return;
+    setSearchParams(deskDaysStateToParams({ ...state, includeTest }), { replace: true });
+  }, [includeTest, state, setSearchParams]);
 
   return (
     <Box>
@@ -61,15 +73,6 @@ export default function DeskDaysPage() {
           value={state.search}
           onChange={(e) => patchState({ search: e.target.value, page: 1 })}
           sx={{ minWidth: 280 }}
-        />
-        <FormControlLabel
-          control={
-            <Switch
-              checked={state.includeTest}
-              onChange={(e) => patchState({ includeTest: e.target.checked, page: 1 })}
-            />
-          }
-          label="Include [TEST]"
         />
       </Stack>
 

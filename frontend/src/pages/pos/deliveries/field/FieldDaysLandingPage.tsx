@@ -11,23 +11,26 @@ import {
   Typography,
 } from '@mui/material';
 import { useDeliveryDays } from '../../../../hooks/useDelivery';
+import { useIncludeTestPreference } from '../../../../hooks/useIncludeTestPreference';
+import { includeTestApiParam } from '../../../../utils/delivery/includeTestPreference';
 
 export default function FieldDaysLandingPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const [includeTest] = useIncludeTestPreference();
   const bucket = params.get('bucket');
   const listMode = bucket === 'past' || bucket === 'future';
+  const include_test = includeTestApiParam(includeTest);
 
-  // Field phone QA uses named test datasets — always include them here.
   const { data: todayData, isLoading: todayLoading } = useDeliveryDays({
     bucket: 'today',
     page_size: 5,
-    include_test: '1',
+    include_test,
   });
   const { data: listData, isLoading: listLoading } = useDeliveryDays({
     bucket: listMode ? bucket : undefined,
     page_size: 50,
-    include_test: '1',
+    include_test,
   });
   const today = todayData?.results?.[0] ?? null;
   const list = listData?.results ?? [];
@@ -49,7 +52,10 @@ export default function FieldDaysLandingPage() {
                 <CardContent sx={{ py: 1.5 }}>
                   <Stack direction="row" justifyContent="space-between">
                     <Typography fontWeight={700}>{day.date}</Typography>
-                    <Chip size="small" label={day.display_state} />
+                    <Stack direction="row" spacing={0.5}>
+                      {day.is_test && <Chip size="small" color="warning" label="TEST" />}
+                      <Chip size="small" label={day.display_state} />
+                    </Stack>
                   </Stack>
                   <Typography variant="body2" color="text.secondary">
                     {day.delivery_count} deliveries · {day.items_booked} items
@@ -59,7 +65,9 @@ export default function FieldDaysLandingPage() {
             </Card>
           ))}
           {!listLoading && list.length === 0 && (
-            <Typography color="text.secondary">No days found.</Typography>
+            <Typography color="text.secondary">
+              {includeTest ? 'No days found.' : 'No days found. Tap Test in the bottom bar to show [TEST] data.'}
+            </Typography>
           )}
         </Stack>
       </Box>
@@ -71,7 +79,9 @@ export default function FieldDaysLandingPage() {
       {todayLoading && <Typography color="text.secondary">Loading…</Typography>}
       {!todayLoading && !today && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          No delivery day for today yet.
+          {includeTest
+            ? 'No delivery day for today yet.'
+            : 'No delivery day for today. Tap Test in the bottom bar if you need [TEST] datasets.'}
         </Alert>
       )}
       {today && (

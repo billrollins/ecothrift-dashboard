@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -15,6 +15,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useDeliveriesSearch, useDeliveryMutations } from '../../../../hooks/useDelivery';
+import { useIncludeTestPreference } from '../../../../hooks/useIncludeTestPreference';
 import type { DeliveryJob } from '../../../../types/pos.types';
 import {
   deskTotalStateToApiParams,
@@ -24,17 +25,28 @@ import {
 
 export default function DeskTotalDeliveriesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [includeTest, setIncludeTest] = useIncludeTestPreference();
   const state = useMemo(() => parseDeskTotalUrlState(searchParams), [searchParams]);
-  const { data, isLoading } = useDeliveriesSearch(deskTotalStateToApiParams(state));
+  const merged = useMemo(() => ({ ...state, includeTest }), [state, includeTest]);
+  const { data, isLoading } = useDeliveriesSearch(deskTotalStateToApiParams(merged));
   const { archive, restore } = useDeliveryMutations();
   const [selected, setSelected] = useState<DeliveryJob | null>(null);
   const rows = data?.results ?? [];
 
   const patchState = (patch: Partial<typeof state>) => {
-    setSearchParams(deskTotalStateToParams({ ...state, ...patch, page: patch.page ?? 1 }), {
+    setSearchParams(deskTotalStateToParams({ ...merged, ...patch, page: patch.page ?? 1 }), {
       replace: true,
     });
   };
+
+  useEffect(() => {
+    if (state.includeTest && !includeTest) setIncludeTest(true);
+  }, [state.includeTest, includeTest, setIncludeTest]);
+
+  useEffect(() => {
+    if (state.includeTest === includeTest) return;
+    setSearchParams(deskTotalStateToParams({ ...state, includeTest }), { replace: true });
+  }, [includeTest, state, setSearchParams]);
 
   const columns: GridColDef<DeliveryJob>[] = [
     { field: 'customer_name', headerName: 'Customer', flex: 1, minWidth: 140 },
@@ -83,15 +95,6 @@ export default function DeskTotalDeliveriesPage() {
           <MenuItem value="cancelled">Cancelled</MenuItem>
           <MenuItem value="failed">Failed</MenuItem>
         </TextField>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={state.includeTest}
-              onChange={(e) => patchState({ includeTest: e.target.checked })}
-            />
-          }
-          label="Include [TEST]"
-        />
         <FormControlLabel
           control={
             <Switch
