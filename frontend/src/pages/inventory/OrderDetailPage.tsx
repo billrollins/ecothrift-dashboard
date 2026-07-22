@@ -20,6 +20,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import InlineEditableValue from '../../components/inventory/orderDetail/InlineEditableValue';
 import OrderIntakeTimelineDrawer from '../../components/inventory/orderDetail/OrderIntakeTimelineDrawer';
+import { PurchaseOrderManifestDialog } from '../../components/inventory/PurchaseOrderManifestDialog';
 import { PO_CONDITION_OPTIONS } from '../../constants/purchaseOrderCondition';
 import { formatCurrencyWhole, formatNumber } from '../../utils/format';
 import { updateOrder } from '../../api/inventory.api';
@@ -182,6 +183,7 @@ export default function OrderDetailPage() {
 
   const { data: order, isLoading } = usePurchaseOrderSurface(orderId);
   const uploadManifestMutation = useUploadManifest();
+  const [manifestViewerOpen, setManifestViewerOpen] = useState(false);
 
   const drawerOpen = searchParams.get('drawer') === 'timeline';
   const undoParam = searchParams.get('undo');
@@ -967,15 +969,34 @@ export default function OrderDetailPage() {
                     }}
                   >
                     <DescriptionOutlined sx={{ color: TOKENS.textMuted, fontSize: 20 }} />
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography
-                    sx={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: TOKENS.textBody,
-                      wordBreak: 'break-all',
-                    }}
-                  >
+                    <Box
+                      role="button"
+                      tabIndex={0}
+                      aria-label="View raw manifest"
+                      onClick={() => setManifestViewerOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setManifestViewerOpen(true);
+                        }
+                      }}
+                      sx={{
+                        flex: 1,
+                        minWidth: 0,
+                        cursor: 'pointer',
+                        borderRadius: '6px',
+                        '&:hover .manifest-filename': { color: '#1565c0', textDecoration: 'underline' },
+                      }}
+                    >
+                      <Typography
+                        className="manifest-filename"
+                        sx={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: TOKENS.textBody,
+                          wordBreak: 'break-all',
+                        }}
+                      >
                         {order.manifest_filename || 'Manifest'}
                       </Typography>
                       <Typography sx={{ fontSize: 11, color: TOKENS.textSoft }}>
@@ -983,6 +1004,8 @@ export default function OrderDetailPage() {
                         {order.manifest_uploaded_at
                           ? format(new Date(order.manifest_uploaded_at), 'MMM d, yyyy')
                           : '—'}
+                        {' · '}
+                        Click to preview / download
                       </Typography>
                     </Box>
                     <Button
@@ -1192,6 +1215,12 @@ export default function OrderDetailPage() {
           onClose={closeIntakeDrawer}
         />
       ) : null}
+      <PurchaseOrderManifestDialog
+        open={manifestViewerOpen}
+        onClose={() => setManifestViewerOpen(false)}
+        orderId={orderId}
+        fallbackFilename={order.manifest_filename}
+      />
     </Box>
   );
 }

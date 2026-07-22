@@ -168,6 +168,8 @@ export interface PurchaseOrderListRow {
   total_cost: string | null;
   retail_value: string | null;
   has_manifest: boolean;
+  receiving_status?: string;
+  processing_status?: string;
   created_at: string;
   updated_at: string;
 }
@@ -752,6 +754,8 @@ export interface ProcessingWorkspaceOrderDTO {
   status: PurchaseOrderStatus;
   total_manifest_qty: number;
   total_retail: string | null;
+  has_manifest?: boolean;
+  manifest_filename?: string | null;
 }
 
 export interface ProcessingWorkspaceDTO {
@@ -915,8 +919,39 @@ export interface ReceivingAttachmentDTO {
   pallet_number: number | null;
   side: PalletSideId | '';
   client_photo_id: string | null;
+  /** 2048px high-res */
   s3_file: S3FileBrief;
+  /** 480px thumbnail; null until backfill / new upload */
+  thumbnail_file?: S3FileBrief | null;
   created_at: string;
+}
+
+export interface ReceivingMissingPhotoSlot {
+  kind: ReceivingAttachmentKind;
+  pallet_number: number | null;
+  side: PalletSideId | '';
+  key: string;
+  label: string;
+}
+
+export interface ReceivingPhotoOverrideDTO {
+  id: number;
+  kind: ReceivingAttachmentKind;
+  pallet_number: number | null;
+  side: PalletSideId | '';
+  key: string;
+  label: string;
+  reason: string;
+  overridden_by: number | null;
+  overridden_by_name: string | null;
+  created_at: string;
+}
+
+export interface ReceivingPhotoOverridePayload {
+  kind: ReceivingAttachmentKind;
+  pallet_number?: number | null;
+  side?: PalletSideId | '';
+  reason: string;
 }
 
 export interface ReceivingPalletDTO {
@@ -939,9 +974,26 @@ export interface ReceivingDetailDTO {
   is_draft: boolean;
   pallets: ReceivingPalletDTO[];
   attachments: ReceivingAttachmentDTO[];
+  photo_overrides?: ReceivingPhotoOverrideDTO[];
+  missing_required_photos?: ReceivingMissingPhotoSlot[];
   created_by: number | null;
   created_at: string;
   updated_at: string;
+}
+
+/** GET /api/inventory/orders/{id}/manifest-preview/ */
+export interface OrderManifestPreviewDTO {
+  order_id: number;
+  order_number: string;
+  filename: string | null;
+  size: number | null;
+  content_type: string;
+  delimiter: string;
+  headers: string[];
+  rows: Array<{ row_number: number; raw: Record<string, string> }>;
+  preview_row_count: number;
+  total_row_count: number | null;
+  uploaded_at: string | null;
 }
 
 /** POST receiving/complete/ response includes updated order snapshot. */

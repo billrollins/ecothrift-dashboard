@@ -3,13 +3,52 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Any
 
+from django.db import transaction
 from django.utils import timezone
 
-from apps.inventory.models import PurchaseOrder, Receiving, ReceivingPallet
+from apps.inventory.models import (
+    PurchaseOrder,
+    Receiving,
+    ReceivingAttachment,
+    ReceivingPallet,
+    ReceivingPhotoOverride,
+)
 
 
 REQUIRED_PALLET_SIDES = ('front', 'right', 'back', 'left')
+
+
+@dataclass(frozen=True)
+class MissingPhotoSlot:
+    kind: str
+    pallet_number: int | None = None
+    side: str = ''
+
+    @property
+    def key(self) -> str:
+        if self.kind == 'pallet_side':
+            return f'pallet_side:{self.pallet_number}:{self.side}'
+        return self.kind
+
+    @property
+    def label(self) -> str:
+        if self.kind == 'bol':
+            return 'BOL photo'
+        if self.kind == 'truck':
+            return 'Truck photo'
+        return f'Pallet {self.pallet_number} {self.side} photo'
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            'kind': self.kind,
+            'pallet_number': self.pallet_number,
+            'side': self.side or '',
+            'key': self.key,
+            'label': self.label,
+        }
 
 
 def get_or_create_receiving(order: PurchaseOrder, user) -> Receiving:
@@ -133,13 +172,14 @@ def _ensure_pallet_rows_for_count(rec: Receiving, count: int):
             row.delete()
 
 
-def validate_complete(rec: Receiving) -> list[str]:
-    """Return blocking reasons for complete (empty = ok)."""
-    reasons = []
-    if rec.received_pallet_count < 1:
-        reasons.append('Set at least one pallet before completing.')
-    if not (rec.condition or '').strip():
-        reasons.append('Select load condition (good / mixed / damaged).')
+def list_missing_photo_slots(rec: Receiving) -> list[MissingPhotoSlot]:
+    """Authoritative required photo slots that still lack an attachment."""
+    kinds = {a.kind for a in rec.attachments.all()}
+    missing: list[MissingPhotoSlot] = []
+    if 'bol' not in kinds:
+        missing.append(MissingPhotoSlot(kind='bol'))
+    if 'truck' not in kinds:
+        missing.append(MissingPhotoSlot(kind='truck'))
 
     sides_by_pallet: dict[int, set[str]] = defaultdict(set)
     for att in rec.attachments.all():
@@ -148,9 +188,131 @@ def validate_complete(rec: Receiving) -> list[str]:
         if att.side in REQUIRED_PALLET_SIDES:
             sides_by_pallet[att.pallet_number].add(att.side)
 
-    for n in range(1, rec.received_pallet_count + 1):
+    for n in range(1, (rec.received_pallet_count or 0) + 1):
         have = sides_by_pallet.get(n, set())
         for side in REQUIRED_PALLET_SIDES:
             if side not in have:
-                reasons.append(f'Pallet {n} missing {side} photo.')
+                missing.append(MissingPhotoSlot(kind='pallet_side', pallet_number=n, side=side))
+    return missing
+
+
+def validate_complete(rec: Receiving, *, allow_photo_overrides: bool = False) -> list[str]:
+    """Return blocking reasons for complete (empty = ok).
+
+    Photo gaps are blocking unless the caller will supply per-slot overrides
+    (``allow_photo_overrides=True``); non-photo gates always block.
+    """
+    reasons = []
+    if rec.received_pallet_count < 1:
+        reasons.append('Set at least one pallet before completing.')
+    if not (rec.condition or '').strip():
+        reasons.append('Select load condition (good / mixed / damaged).')
+
+    if not allow_photo_overrides:
+        for slot in list_missing_photo_slots(rec):
+            reasons.append(f'Missing {slot.label}.')
     return reasons
+
+
+def _normalize_override_row(row: dict) -> tuple[str, MissingPhotoSlot | None, str]:
+    """Return (error_message, slot, reason). error_message empty when ok."""
+    if not isinstance(row, dict):
+        return ('Each photo override must be an object.', None, '')
+    kind = str(row.get('kind') or '').strip().lower()
+    reason = str(row.get('reason') or '').strip()
+    if kind not in ('bol', 'truck', 'pallet_side'):
+        return ('photo_overrides.kind must be bol, truck, or pallet_side.', None, '')
+    if not reason:
+        return ('Each missing photo requires a non-blank reason.', None, '')
+    if kind in ('bol', 'truck'):
+        return ('', MissingPhotoSlot(kind=kind), reason)
+    try:
+        pallet_number = int(row.get('pallet_number'))
+    except (TypeError, ValueError):
+        return ('pallet_number is required for pallet_side overrides.', None, '')
+    side = str(row.get('side') or '').strip().lower()
+    if side not in REQUIRED_PALLET_SIDES:
+        return ('side must be one of front, right, back, left.', None, '')
+    if pallet_number < 1 or pallet_number > 99:
+        return ('pallet_number must be between 1 and 99.', None, '')
+    return (
+        '',
+        MissingPhotoSlot(kind='pallet_side', pallet_number=pallet_number, side=side),
+        reason,
+    )
+
+
+def apply_photo_overrides(
+    rec: Receiving,
+    overrides: list[dict] | None,
+    user,
+) -> list[str]:
+    """Validate and persist per-slot photo overrides for currently missing slots.
+
+    Returns a list of error strings (empty = success). On success, creates
+    ``ReceivingPhotoOverride`` rows inside the caller's transaction.
+    """
+    missing = list_missing_photo_slots(rec)
+    missing_by_key = {s.key: s for s in missing}
+    if not missing:
+        if overrides:
+            return ['No photos are missing; photo_overrides must be empty.']
+        return []
+
+    if not overrides:
+        return [
+            f'Missing {s.label}. Provide a reason for each missing photo.'
+            for s in missing
+        ]
+
+    seen: dict[str, str] = {}
+    for row in overrides:
+        err, slot, reason = _normalize_override_row(row)
+        if err:
+            return [err]
+        assert slot is not None
+        if slot.key not in missing_by_key:
+            return [f'Override for {slot.label} is not needed (photo exists or slot invalid).']
+        if slot.key in seen:
+            return [f'Duplicate override for {slot.label}.']
+        seen[slot.key] = reason
+
+    for slot in missing:
+        if slot.key not in seen:
+            return [f'Missing reason for {slot.label}.']
+
+    ReceivingPhotoOverride.objects.filter(receiving=rec).delete()
+    for slot in missing:
+        ReceivingPhotoOverride.objects.create(
+            receiving=rec,
+            kind=slot.kind,
+            pallet_number=slot.pallet_number,
+            side=slot.side or '',
+            reason=seen[slot.key],
+            overridden_by=user,
+        )
+    return []
+
+
+def serialize_photo_override(ov: ReceivingPhotoOverride) -> dict[str, Any]:
+    slot = MissingPhotoSlot(
+        kind=ov.kind,
+        pallet_number=ov.pallet_number,
+        side=ov.side or '',
+    )
+    return {
+        'id': ov.id,
+        'kind': ov.kind,
+        'pallet_number': ov.pallet_number,
+        'side': ov.side or '',
+        'key': slot.key,
+        'label': slot.label,
+        'reason': ov.reason,
+        'overridden_by': ov.overridden_by_id,
+        'overridden_by_name': (
+            (ov.overridden_by.get_full_name() or ov.overridden_by.email)
+            if ov.overridden_by_id and ov.overridden_by
+            else None
+        ),
+        'created_at': ov.created_at,
+    }

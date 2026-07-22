@@ -35,6 +35,7 @@ import { apiErrorDetail } from '../../hooks/useProductSearch';
 import { prepS1 } from '../../utils/preprocessingStep1Diag';
 import { useStandardManifest, buildFormulas } from '../../hooks/useStandardManifest';
 import { StandardManifestBuilder } from '../../components/inventory/StandardManifestBuilder';
+import { PurchaseOrderManifestDialog } from '../../components/inventory/PurchaseOrderManifestDialog';
 import { PreprocessingReviewTable } from '../../components/inventory/PreprocessingReviewTable';
 import { aiCleanupComplete, getPreprocessingReview, getTemplate } from '../../api/inventory.api';
 import type {
@@ -132,6 +133,7 @@ export default function PreprocessingPage() {
   const [aiReasonings, setAiReasonings] = useState<Record<string, string>>({});
   const [formulaPreviewOpen, setFormulaPreviewOpen] = useState(false);
   const [rawReferenceOpen, setRawReferenceOpen] = useState(false);
+  const [manifestViewerOpen, setManifestViewerOpen] = useState(false);
   const [processResult, setProcessResult] = useState<{ rows_created: number } | null>(null);
   const standardizedFormulasRef = useRef<Record<string, string> | null>(null);
 
@@ -1204,28 +1206,50 @@ export default function PreprocessingPage() {
               {manifestSampleRowsForUi.length > 0 && (
                 <Box sx={preprocessingStep1.cardSurfaceSx}>
                   <Box
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setRawReferenceOpen(!rawReferenceOpen)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setRawReferenceOpen(!rawReferenceOpen);
-                      }
-                    }}
                     sx={{
                       ...preprocessingStep1.cardHeaderRowSx,
-                      cursor: 'pointer',
-                      userSelect: 'none',
                       mb: rawReferenceOpen ? 1 : 0,
+                      gap: 1,
+                      flexWrap: 'wrap',
                     }}
                   >
-                    <Typography sx={{ ...preprocessingStep1.cardTitleSx, fontSize: 14 }}>
-                      {rawReferenceOpen ? '▾' : '▸'} Raw Column Reference ({rawHeaders.length} columns)
-                    </Typography>
-                    <Typography component="span" sx={preprocessingStep1.badgeMutedSx}>
-                      Stored sample (≤10 rows)
-                    </Typography>
+                    <Box
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setRawReferenceOpen(!rawReferenceOpen)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setRawReferenceOpen(!rawReferenceOpen);
+                        }
+                      }}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        flex: 1,
+                        minWidth: 0,
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <Typography sx={{ ...preprocessingStep1.cardTitleSx, fontSize: 14 }}>
+                        {rawReferenceOpen ? '▾' : '▸'} Raw Column Reference ({rawHeaders.length} columns)
+                      </Typography>
+                      <Typography component="span" sx={preprocessingStep1.badgeMutedSx}>
+                        Stored sample (≤10 rows)
+                      </Typography>
+                    </Box>
+                    {hasManifestFile ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setManifestViewerOpen(true)}
+                        sx={{ flexShrink: 0 }}
+                      >
+                        View raw manifest
+                      </Button>
+                    ) : null}
                   </Box>
                   <Collapse in={rawReferenceOpen}>
                     <TableContainer
@@ -1395,6 +1419,12 @@ export default function PreprocessingPage() {
         isBusy={finalizePreprocessingMutation.isPending}
         onCancel={() => setConfirmDialog(null)}
         onConfirm={() => void confirmFinalizePreprocessing()}
+      />
+      <PurchaseOrderManifestDialog
+        open={manifestViewerOpen}
+        onClose={() => setManifestViewerOpen(false)}
+        orderId={orderId}
+        fallbackFilename={order?.manifest_filename}
       />
     </Box>
   );

@@ -15,8 +15,10 @@ import Close from '@mui/icons-material/Close';
 import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import { Link as RouterLink } from 'react-router-dom';
 import { OrderPickerOptionRow } from '../../../components/inventory/OrderPickerOptionRow';
+import { PurchaseOrderManifestDialog } from '../../../components/inventory/PurchaseOrderManifestDialog';
 import type { ProcessingWorkspaceOrderDTO, ProcessingWorkspaceRollupsDTO } from '../../../types/inventory.types';
 import { formatCurrency } from '../../../utils/format';
+import { orderPickerProcessingBadgeColors } from '../../../utils/orderPickerDisplay';
 import { processingTokens } from './processingTokens';
 
 export interface ProcessingWorkspaceOrderPickRow {
@@ -26,6 +28,8 @@ export interface ProcessingWorkspaceOrderPickRow {
   vendor_code?: string | null;
   description?: string | null;
   item_count?: number;
+  status?: string | null;
+  processing_status?: string | null;
   ordered_date?: string | null;
   paid_date?: string | null;
   shipped_date?: string | null;
@@ -190,6 +194,7 @@ export function ProcessingWorkspaceHeader({
   const [, tick] = useState(0);
   const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
   const [orderAnchorEl, setOrderAnchorEl] = useState<HTMLElement | null>(null);
+  const [manifestViewerOpen, setManifestViewerOpen] = useState(false);
 
   useEffect(() => {
     // The 1 Hz tick only feeds the items/hour rate, which renders as a static
@@ -297,6 +302,16 @@ export function ProcessingWorkspaceHeader({
           onOpen={(el) => setOrderAnchorEl(el)}
         />
         <OrderFact label="Vendor" value={order.vendor || order.vendor_code || '-'} />
+        {order.has_manifest ? (
+          <OrderFact
+            label="Manifest"
+            value={order.manifest_filename || 'View CSV'}
+            minWidth={120}
+            maxWidth={220}
+            showFullValueOnHover
+            onClick={() => setManifestViewerOpen(true)}
+          />
+        ) : null}
         <OrderFact
           label="Load description"
           value={order.load_type || '-'}
@@ -370,6 +385,10 @@ export function ProcessingWorkspaceHeader({
               description={option.description}
               vendorCode={option.vendor_code}
               monoFontFamily={processingTokens.monoFontFamily}
+              badge={orderPickerProcessingBadgeColors({
+                status: option.status,
+                processing_status: option.processing_status,
+              })}
               dates={{
                 delivered_date: option.delivered_date,
                 shipped_date: option.shipped_date,
@@ -429,6 +448,13 @@ export function ProcessingWorkspaceHeader({
           </Box>
         </DialogContent>
       </Dialog>
+
+      <PurchaseOrderManifestDialog
+        open={manifestViewerOpen}
+        onClose={() => setManifestViewerOpen(false)}
+        orderId={order.id}
+        fallbackFilename={order.manifest_filename}
+      />
     </Box>
   );
 }
@@ -498,6 +524,7 @@ function OrderFact({
   showFullValueOnHover = false,
   tooltip,
   href,
+  onClick,
 }: {
   label: string;
   value: string;
@@ -507,13 +534,21 @@ function OrderFact({
   showFullValueOnHover?: boolean;
   tooltip?: string;
   href?: string;
+  onClick?: () => void;
 }) {
   const hoverTitle = tooltip ?? (showFullValueOnHover && value !== '-' ? value : undefined);
+  const isInteractive = Boolean((href || onClick) && value !== '-');
   const valueTypography = (
     <Typography
       noWrap
-      component={href && value !== '-' ? RouterLink : 'span'}
+      component={href && value !== '-' ? RouterLink : onClick && value !== '-' ? 'button' : 'span'}
       {...(href && value !== '-' ? { to: href } : {})}
+      {...(onClick && value !== '-' && !href
+        ? {
+            type: 'button' as const,
+            onClick,
+          }
+        : {})}
       sx={{
         display: 'block',
         fontSize: 12.5,
@@ -522,13 +557,19 @@ function OrderFact({
         lineHeight: 1.25,
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        color: href && value !== '-' ? 'primary.main' : processingTokens.orderHeaderText,
-        ...(href && value !== '-' ?
-          {
-            textDecoration: 'none',
-            '&:hover': { textDecoration: 'underline' },
-          }
-        : {}),
+        color: isInteractive ? 'primary.main' : processingTokens.orderHeaderText,
+        ...(isInteractive
+          ? {
+              textDecoration: 'none',
+              cursor: 'pointer',
+              background: 'none',
+              border: 0,
+              padding: 0,
+              textAlign: 'left',
+              width: '100%',
+              '&:hover': { textDecoration: 'underline' },
+            }
+          : {}),
       }}
     >
       {value}

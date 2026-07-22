@@ -2,6 +2,7 @@ import { Box, Typography } from '@mui/material';
 import {
   formatRelevantOrderDateLine,
   orderPickerVendorGlyph,
+  type OrderPickerBadgeTone,
   type OrderPickerDateFields,
 } from '../../utils/orderPickerDisplay';
 
@@ -10,10 +11,14 @@ export type OrderPickerOptionRowProps = {
   description?: string | null;
   vendorCode?: string | null;
   dates: OrderPickerDateFields;
+  /** Status-colored vendor glyph (Receiving / Processing pickers). */
+  badge?: OrderPickerBadgeTone;
   /** Optional mono stack for order number (Processing uses JetBrains-style). */
   monoFontFamily?: string;
   mutedColor?: string;
+  /** @deprecated Prefer `badge` — kept for ad-hoc callers. */
   iconBg?: string;
+  /** @deprecated Prefer `badge` — kept for ad-hoc callers. */
   iconColor?: string;
 };
 
@@ -25,28 +30,33 @@ export function OrderPickerOptionRow({
   description,
   vendorCode,
   dates,
+  badge,
   monoFontFamily,
   mutedColor = 'text.secondary',
   iconBg = '#ecf6ed',
   iconColor = '#475569',
 }: OrderPickerOptionRowProps) {
   const dateLine = formatRelevantOrderDateLine(dates);
+  const bg = badge?.iconBg ?? iconBg;
+  const fg = badge?.iconColor ?? iconColor;
+  const title = badge?.label;
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, width: '100%', minWidth: 0 }}>
       <Box
         aria-hidden
+        title={title}
         sx={{
           width: 32,
           height: 32,
           borderRadius: '7px',
-          bgcolor: iconBg,
+          bgcolor: bg,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: 10,
           fontWeight: 700,
-          color: iconColor,
+          color: fg,
           flexShrink: 0,
           mt: 0.15,
         }}

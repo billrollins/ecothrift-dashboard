@@ -41,7 +41,7 @@ interface Props {
   onBolTruckPick: (kind: Exclude<PendingPhotoKind, 'pallet_side'>, fileList: FileList | null) => void;
   onPalletPick: (pallet: number, side: PalletSideId, fileList: FileList | null) => void;
   onDamaged: (palletNumber: number, damaged: boolean) => void;
-  onComplete: () => void;
+  onRequestComplete: () => void;
   disabled?: boolean;
 }
 
@@ -77,7 +77,7 @@ export default function ReceivingMobileWizard(props: Props) {
     onBolTruckPick,
     onPalletPick,
     onDamaged,
-    onComplete,
+    onRequestComplete,
     disabled,
   } = props;
 
@@ -303,7 +303,7 @@ export default function ReceivingMobileWizard(props: Props) {
               variant="contained"
               fullWidth
               disabled={disabled || !!m.completed_at || !(palletCountInput > 0) || !cond}
-              onClick={onComplete}
+              onClick={onRequestComplete}
             >
               Complete & deliver
             </Button>

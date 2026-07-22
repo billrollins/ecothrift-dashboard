@@ -15,10 +15,25 @@ import type { ChangeEvent } from 'react';
 import { useSnackbar } from 'notistack';
 
 import { OrderPickerOptionRow } from '../OrderPickerOptionRow';
-import type { OrderForReceivingRow, PalletSideId, ReceivingDetailDTO } from '../../../types/inventory.types';
+import { ImageViewerDialog } from '../../common/ImageViewerDialog';
+import type {
+  OrderForReceivingRow,
+  PalletSideId,
+  ReceivingAttachmentDTO,
+  ReceivingDetailDTO,
+} from '../../../types/inventory.types';
 import type { PendingPhotoKind } from '../../../services/receiving/receivingClient';
 import { PALLET_SIDES } from '../../../services/receiving/receivingClient';
 import { preventWheelChangeNumber, selectInputContentsOnFocus } from '../../../utils/formInputs';
+import { orderPickerReceivingBadgeColors } from '../../../utils/orderPickerDisplay';
+import { attachmentFullUrl, attachmentThumbUrl } from '../../../utils/receivingPhotoUrls';
+
+type ViewerState = {
+  src: string;
+  alt: string;
+  title: string;
+  filename?: string | null;
+};
 import {
   RCV_BRAND,
   RCV_PRIMARY_DARK,
@@ -54,7 +69,8 @@ interface Props {
   onPalletPick: (pallet: number, side: PalletSideId, fileList: FileList | null) => void;
   onDamaged: (palletNumber: number, damaged: boolean) => void;
   onOpenIntakeDisputeForPallet?: (palletNumber: number, subjectPalletId: number | null) => void;
-  onComplete: () => void;
+  /** Open complete dialog (photos may be missing — dialog collects overrides). */
+  onRequestComplete: () => void;
   /** Slim offline / pending banners */
   banners?: React.ReactNode;
   loadingBar?: React.ReactNode;
@@ -214,14 +230,32 @@ function inputSx() {
 function ThumbBolTruck({
   url,
   name,
+  alt,
   small,
+  onOpen,
 }: {
   url: string | null;
   name?: string | null;
+  alt: string;
   small?: boolean;
+  onOpen?: () => void;
 }) {
   return (
     <Box
+      role={url && onOpen ? 'button' : undefined}
+      tabIndex={url && onOpen ? 0 : undefined}
+      aria-label={url && onOpen ? `View ${alt}` : undefined}
+      onClick={url && onOpen ? onOpen : undefined}
+      onKeyDown={
+        url && onOpen
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpen();
+              }
+            }
+          : undefined
+      }
       sx={{
         width: '100%',
         height: '100%',
@@ -232,13 +266,16 @@ function ThumbBolTruck({
         justifyContent: 'center',
         position: 'relative',
         overflow: 'hidden',
+        cursor: url && onOpen ? 'zoom-in' : 'default',
       }}
     >
       {url ? (
         <Box
           component="img"
-          alt=""
+          alt={alt}
           src={url}
+          loading="lazy"
+          decoding="async"
           sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
       ) : (
@@ -404,6 +441,7 @@ function PalletCard({
   rec,
   uploadingKey,
   onPhotoAdd,
+  onViewPhoto,
   onToggleDamage,
   onOpenIntakeDispute,
   disabled,
@@ -413,6 +451,7 @@ function PalletCard({
   rec: ReceivingDetailDTO;
   uploadingKey: string | null;
   onPhotoAdd: (side: PalletSideId, files: FileList | null) => void;
+  onViewPhoto: (att: ReceivingAttachmentDTO, title: string) => void;
   onToggleDamage: () => void;
   onOpenIntakeDispute?: () => void;
   disabled?: boolean;
@@ -555,47 +594,57 @@ function PalletCard({
           const att = palletAttachment(rec, palletNumber, side);
           const pk = `${palletNumber}-${side}`;
           const uploading = uploadingKey === pk;
-          const url = att?.s3_file?.url ?? null;
+          const thumbUrl = attachmentThumbUrl(att);
+          const title = `Pallet ${palletNumber} · ${SIDE_UI[side]}`;
           return (
             <Box key={pk} sx={{ aspectRatio: '4/3', position: 'relative' }}>
-              {url ? (
+              {thumbUrl && att ? (
                 <>
                   <Box
                     component="img"
-                    alt=""
-                    src={url}
+                    alt={title}
+                    src={thumbUrl}
+                    loading="lazy"
+                    decoding="async"
+                    onClick={() => onViewPhoto(att, title)}
                     sx={{
                       width: '100%',
                       height: '100%',
                       objectFit: 'cover',
                       borderRadius: '6px',
                       display: 'block',
+                      cursor: 'zoom-in',
                     }}
                   />
-                  {!disabled ? (
+                  {!disabled && !rec.completed_at ? (
                     <Box
                       component="label"
                       sx={{
                         position: 'absolute',
-                        inset: 0,
+                        right: 4,
+                        bottom: 4,
+                        px: 0.75,
+                        py: 0.25,
+                        borderRadius: '4px',
+                        bgcolor: 'rgba(15,23,42,0.72)',
+                        color: 'white',
+                        fontSize: 9,
+                        fontWeight: 700,
                         cursor: 'pointer',
-                        borderRadius: '6px',
+                        zIndex: 1,
                       }}
                     >
+                      Replace
                       <Box
                         component="input"
                         type="file"
                         accept="image/*"
                         disabled={disabled || uploading}
-                        sx={{
-                          opacity: 0,
-                          width: '100%',
-                          height: '100%',
-                          cursor: 'pointer',
+                        sx={{ display: 'none' }}
+                        onChange={(ev: ChangeEvent<HTMLInputElement>) => {
+                          onPhotoAdd(side, ev.target.files);
+                          ev.target.value = '';
                         }}
-                        onChange={(ev: ChangeEvent<HTMLInputElement>) =>
-                          onPhotoAdd(side, ev.target.files)
-                        }
                       />
                     </Box>
                   ) : null}
@@ -645,7 +694,7 @@ export default function ReceivingDesktopWorkspace({
   onPalletPick,
   onDamaged,
   onOpenIntakeDisputeForPallet,
-  onComplete,
+  onRequestComplete,
   banners,
   loadingBar,
   disabled,
@@ -653,13 +702,25 @@ export default function ReceivingDesktopWorkspace({
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerAnchor = useRef<HTMLDivElement>(null);
   const endSyncedToStartPending = useRef(false);
+  const [viewer, setViewer] = useState<ViewerState | null>(null);
 
   const [bulkOver, setBulkOver] = useState(false);
   const bol = m.attachments.find((a) => a.kind === 'bol');
   const truck = m.attachments.find((a) => a.kind === 'truck');
 
-  const bolUrl = bol?.s3_file?.url ?? null;
-  const truckUrl = truck?.s3_file?.url ?? null;
+  const bolThumbUrl = attachmentThumbUrl(bol);
+  const truckThumbUrl = attachmentThumbUrl(truck);
+
+  const openAttachment = (att: ReceivingAttachmentDTO, title: string) => {
+    const src = attachmentFullUrl(att);
+    if (!src) return;
+    setViewer({
+      src,
+      alt: title,
+      title,
+      filename: att.s3_file?.filename,
+    });
+  };
 
   const [palletDraft, setPalletDraft] = useState('');
   useEffect(() => {
@@ -713,18 +774,8 @@ export default function ReceivingDesktopWorkspace({
     totalPalletPhotos + (hasBol(m) ? 1 : 0) + (hasTruck(m) ? 1 : 0);
   const damagedCount = (m.pallets ?? []).filter((p) => p.damaged).length;
 
-  const allPalletsSidesDone =
-    m.received_pallet_count > 0 &&
-    Array.from({ length: m.received_pallet_count }, (_, i) => i + 1).every((n) =>
-      PALLET_SIDES.every((side) => palletAttachment(m, n, side)),
-    );
-
-  const canCompleteReceiving =
-    !m.completed_at &&
-    condTrim !== '' &&
-    allPalletsSidesDone &&
-    palletsPlanned &&
-    !(disabled ?? false);
+  const canOpenComplete =
+    !m.completed_at && condTrim !== '' && palletsPlanned && !(disabled ?? false);
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -1010,6 +1061,11 @@ export default function ReceivingDesktopWorkspace({
                       vendorCode={row.vendor_code}
                       monoFontFamily={TOKENS.fontMono}
                       mutedColor={TOKENS.muted}
+                      badge={orderPickerReceivingBadgeColors({
+                        status: row.status,
+                        receiving_status: row.receiving_status,
+                        shipped_date: row.shipped_date,
+                      })}
                       dates={{
                         delivered_date: row.delivered_date,
                         shipped_date: row.shipped_date,
@@ -1067,22 +1123,22 @@ export default function ReceivingDesktopWorkspace({
           ) : null}
           <Button
             type="button"
-            onClick={onComplete}
-            disabled={!canCompleteReceiving}
+            onClick={onRequestComplete}
+            disabled={!canOpenComplete}
             sx={{
               px: '22px',
               py: '9px',
               minHeight: 40,
               borderRadius: '8px',
               border: 'none',
-              bgcolor: canCompleteReceiving ? RCV_BRAND : rcvBorder.input,
-              color: canCompleteReceiving ? 'white' : TOKENS.muted,
+              bgcolor: canOpenComplete ? RCV_BRAND : rcvBorder.input,
+              color: canOpenComplete ? 'white' : TOKENS.muted,
               fontSize: 13,
               fontWeight: 700,
               fontFamily: TOKENS.fontSans,
               textTransform: 'none',
-              cursor: canCompleteReceiving ? 'pointer' : 'default',
-              ...(canCompleteReceiving
+              cursor: canOpenComplete ? 'pointer' : 'default',
+              ...(canOpenComplete
                 ? {
                     '&:hover': { bgcolor: RCV_PRIMARY_DARK },
                   }
@@ -1218,29 +1274,38 @@ export default function ReceivingDesktopWorkspace({
           <Box>
             <Typography sx={panelLabelSx()}>Bill of Lading</Typography>
             <Box sx={{ height: TOKENS.bolTruckH }}>
-              {hasBol(m) ? (
+              {hasBol(m) && bol ? (
                 <Box sx={{ height: '100%', position: 'relative', borderRadius: '10px', overflow: 'hidden' }}>
-                  <ThumbBolTruck url={bolUrl} name={bol?.s3_file?.filename ?? 'BOL'} />
+                  <ThumbBolTruck
+                    url={bolThumbUrl}
+                    name={bol.s3_file?.filename ?? 'BOL'}
+                    alt="Bill of Lading"
+                    onOpen={() => openAttachment(bol, 'Bill of Lading')}
+                  />
                   {!m.completed_at && !(disabled ?? false) ? (
                     <Box
                       component="label"
                       sx={{
                         position: 'absolute',
-                        inset: 0,
+                        right: 8,
+                        bottom: 8,
+                        px: 1,
+                        py: 0.35,
+                        borderRadius: '6px',
+                        bgcolor: 'rgba(15,23,42,0.75)',
+                        color: 'white',
+                        fontSize: 11,
+                        fontWeight: 700,
                         cursor: 'pointer',
-                        borderRadius: '10px',
+                        zIndex: 1,
                       }}
                     >
+                      Replace
                       <Box
                         component="input"
                         type="file"
                         accept="image/*"
-                        sx={{
-                          opacity: 0,
-                          width: '100%',
-                          height: '100%',
-                          cursor: 'pointer',
-                        }}
+                        sx={{ display: 'none' }}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => {
                           void onBolTruckPick('bol', e.target.files);
                           e.target.value = '';
@@ -1264,29 +1329,38 @@ export default function ReceivingDesktopWorkspace({
           <Box>
             <Typography sx={panelLabelSx()}>Truck Photo</Typography>
             <Box sx={{ height: TOKENS.bolTruckH }}>
-              {hasTruck(m) ? (
+              {hasTruck(m) && truck ? (
                 <Box sx={{ height: '100%', position: 'relative', borderRadius: '10px', overflow: 'hidden' }}>
-                  <ThumbBolTruck url={truckUrl} name={truck?.s3_file?.filename ?? 'Truck'} />
+                  <ThumbBolTruck
+                    url={truckThumbUrl}
+                    name={truck.s3_file?.filename ?? 'Truck'}
+                    alt="Truck photo"
+                    onOpen={() => openAttachment(truck, 'Truck photo')}
+                  />
                   {!m.completed_at && !(disabled ?? false) ? (
                     <Box
                       component="label"
                       sx={{
                         position: 'absolute',
-                        inset: 0,
+                        right: 8,
+                        bottom: 8,
+                        px: 1,
+                        py: 0.35,
+                        borderRadius: '6px',
+                        bgcolor: 'rgba(15,23,42,0.75)',
+                        color: 'white',
+                        fontSize: 11,
+                        fontWeight: 700,
                         cursor: 'pointer',
-                        borderRadius: '10px',
+                        zIndex: 1,
                       }}
                     >
+                      Replace
                       <Box
                         component="input"
                         type="file"
                         accept="image/*"
-                        sx={{
-                          opacity: 0,
-                          width: '100%',
-                          height: '100%',
-                          cursor: 'pointer',
-                        }}
+                        sx={{ display: 'none' }}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => {
                           void onBolTruckPick('truck', e.target.files);
                           e.target.value = '';
@@ -1547,6 +1621,7 @@ export default function ReceivingDesktopWorkspace({
                     onPhotoAdd={(side, files) =>
                       void onPalletPick(palletNumber, side, files ?? null)
                     }
+                    onViewPhoto={openAttachment}
                     onToggleDamage={() =>
                       onDamaged(
                         palletNumber,
@@ -1564,6 +1639,15 @@ export default function ReceivingDesktopWorkspace({
           )}
         </Box>
       </Box>
+
+      <ImageViewerDialog
+        open={viewer != null}
+        onClose={() => setViewer(null)}
+        src={viewer?.src ?? null}
+        alt={viewer?.alt ?? 'Photo'}
+        title={viewer?.title}
+        filename={viewer?.filename}
+      />
     </Box>
   );
 }

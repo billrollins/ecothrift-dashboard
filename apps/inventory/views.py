@@ -91,7 +91,7 @@ from .models import (
     RestorationJob,
     RestorationTimelineEvent,
     RestorationGradeScale,
-    Receiving, ReceivingAttachment, ReceivingPallet,
+    Receiving, ReceivingAttachment, ReceivingPallet, ReceivingPhotoOverride,
     Dispute,
 )
 from .preprocessing_summary import (
@@ -156,9 +156,16 @@ from .serializers import (
     RestorationGradeScaleCreateSerializer,
 )
 from apps.inventory.services.receiving import (
+    apply_photo_overrides,
     get_or_create_receiving,
+    list_missing_photo_slots,
     patch_receiving_draft,
     validate_complete,
+)
+from apps.inventory.services.receiving_photos import (
+    ReceivingPhotoError,
+    delete_attachment_storage,
+    save_receiving_photo,
 )
 from apps.inventory.services.manifest_meta import compute_category_count
 from .cleanup_condition import normalize_cleanup_condition
@@ -1518,7 +1525,11 @@ def _receiving_detail_queryset():
     ).prefetch_related(
         Prefetch(
             'attachments',
-            queryset=ReceivingAttachment.objects.select_related('s3_file'),
+            queryset=ReceivingAttachment.objects.select_related('s3_file', 'thumbnail_file'),
+        ),
+        Prefetch(
+            'photo_overrides',
+            queryset=ReceivingPhotoOverride.objects.select_related('overridden_by').order_by('id'),
         ),
         'pallets',
     )
@@ -2799,9 +2810,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         except (TypeError, ValueError):
             page_size = 25
 
+        # Same status set + milestone sort as Processing floor picker
+        # (GET /orders/?status__in=paid,shipped,delivered,processing,complete&ordering=milestones).
         qs = order_purchase_orders_by_milestones(
             self.filter_queryset(self.get_queryset())
-            .exclude(status__in=['delivered', 'complete', 'cancelled'])
+            .filter(status__in=['paid', 'shipped', 'delivered', 'processing', 'complete'])
             .only(
                 'id',
                 'vendor_id',
@@ -2824,6 +2837,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'receiving_status',
                 'receiving_started_at',
                 'receiving_done_at',
+                'processing_status',
                 'created_at',
                 'updated_at',
             )
@@ -2915,7 +2929,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 )
             dup = (
                 ReceivingAttachment.objects.filter(receiving=rec, client_photo_id=cid_uuid)
-                .select_related('s3_file')
+                .select_related('s3_file', 'thumbnail_file')
                 .first()
             )
             if dup:
@@ -2939,42 +2953,41 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     {'detail': 'side must be one of front, right, back, left.', 'code': 'invalid_side'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-        ext = '.jpg'
-        ctype = getattr(file, 'content_type', None) or 'image/jpeg'
-        path = f'receiving/orders/{order.id}/{uuid.uuid4().hex}{ext}'
         try:
-            saved_path = default_storage.save(path, file)
+            raw = file.read()
         except Exception as e:
-            logger.exception('receiving_upload_photo storage failed order=%s', order.pk)
+            logger.exception('receiving_upload_photo read failed order=%s', order.pk)
+            return Response(
+                {'detail': f'Could not read file: {e}', 'code': 'storage_error'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        try:
+            saved = save_receiving_photo(
+                receiving=rec,
+                order_id=order.id,
+                kind=kind,
+                raw=raw,
+                filename=file.name or 'photo.jpg',
+                user=request.user,
+                client_photo_id=cid_uuid,
+                pallet_number=pallet_number,
+                side=side,
+            )
+        except ReceivingPhotoError as e:
+            return Response(
+                {'detail': e.detail, 'code': e.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.exception('receiving_upload_photo failed order=%s', order.pk)
             return Response(
                 {'detail': f'Could not save file: {e}', 'code': 'storage_error'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        with transaction.atomic():
-            sf = S3File.objects.create(
-                key=saved_path,
-                filename=file.name or path.split('/')[-1],
-                size=getattr(file, 'size', 0),
-                content_type=ctype,
-                uploaded_by=request.user,
-            )
-            att_kwargs = {'receiving': rec, 's3_file': sf, 'kind': kind}
-            if cid_uuid is not None:
-                att_kwargs['client_photo_id'] = cid_uuid
-            if kind == 'pallet_side':
-                att = ReceivingAttachment.objects.create(
-                    **att_kwargs,
-                    pallet_number=pallet_number,
-                    side=side,
-                )
-            else:
-                att = ReceivingAttachment.objects.create(**att_kwargs)
-            Receiving.objects.filter(pk=rec.pk).update(
-                draft_version=F('draft_version') + 1,
-                updated_at=timezone.now(),
-            )
-        att = ReceivingAttachment.objects.filter(pk=att.pk).select_related('s3_file').first()
-        return Response(ReceivingAttachmentSerializer(att).data, status=status.HTTP_201_CREATED)
+        return Response(
+            ReceivingAttachmentSerializer(saved.attachment).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=['delete'], url_path=r'receiving/photos/(?P<photo_id>[0-9]+)')
     def receiving_delete_photo(self, request, pk=None, photo_id=None):
@@ -2989,7 +3002,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             pid = int(photo_id)
         except (TypeError, ValueError):
             return Response({'detail': 'Invalid photo id.', 'code': 'invalid_id'}, status=status.HTTP_400_BAD_REQUEST)
-        att = rec.attachments.filter(pk=pid).select_related('s3_file').first()
+        att = (
+            rec.attachments.filter(pk=pid)
+            .select_related('s3_file', 'thumbnail_file')
+            .first()
+        )
         if att is None:
             return Response({'detail': 'Photo not found.', 'code': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
         if rec.completed_at is not None:
@@ -2997,15 +3014,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 {'detail': 'Receiving is complete; photos are locked.', 'code': 'receiving_complete'},
                 status=status.HTTP_409_CONFLICT,
             )
-        s3_obj = att.s3_file
-        key = s3_obj.key
-        with transaction.atomic():
-            att.delete()
-            s3_obj.delete()
-        try:
-            default_storage.delete(key)
-        except Exception:
-            logger.warning('receiving_delete_photo storage delete failed', exc_info=True)
+        delete_attachment_storage(att)
         Receiving.objects.filter(pk=rec.pk).update(
             draft_version=F('draft_version') + 1,
             updated_at=timezone.now(),
@@ -3027,17 +3036,59 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 {'detail': 'Receiving already completed.', 'code': 'receiving_complete'},
                 status=status.HTTP_409_CONFLICT,
             )
-        reasons = validate_complete(rec)
-        if reasons:
+        photo_overrides = request.data.get('photo_overrides') if isinstance(request.data, dict) else None
+        if photo_overrides is None:
+            photo_overrides = []
+        if photo_overrides and not isinstance(photo_overrides, list):
             return Response(
-                {'detail': reasons, 'code': 'receiving_incomplete'},
+                {'detail': 'photo_overrides must be a list.', 'code': 'invalid_overrides'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        hard_reasons = validate_complete(rec, allow_photo_overrides=True)
+        if hard_reasons:
+            return Response(
+                {
+                    'detail': hard_reasons,
+                    'code': 'receiving_incomplete',
+                    'missing_required_photos': [s.as_dict() for s in list_missing_photo_slots(rec)],
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        missing_now = list_missing_photo_slots(rec)
+        if missing_now and not photo_overrides:
+            return Response(
+                {
+                    'detail': [
+                        f'Missing {s.label}. Provide a reason for each missing photo.'
+                        for s in missing_now
+                    ],
+                    'code': 'receiving_incomplete',
+                    'missing_required_photos': [s.as_dict() for s in missing_now],
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         now = timezone.now()
         delivered_date = rec.received_date or now.date()
         with transaction.atomic():
             order = PurchaseOrder.objects.select_for_update().get(pk=order.pk)
-            rec = Receiving.objects.select_for_update().get(pk=rec.pk)
+            rec = (
+                Receiving.objects.select_for_update()
+                .prefetch_related('attachments')
+                .get(pk=rec.pk)
+            )
+            override_errors = apply_photo_overrides(rec, photo_overrides, request.user)
+            if override_errors:
+                transaction.set_rollback(True)
+                return Response(
+                    {
+                        'detail': override_errors,
+                        'code': 'receiving_incomplete',
+                        'missing_required_photos': [s.as_dict() for s in list_missing_photo_slots(rec)],
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             rec.completed_at = now
             if not rec.end_time:
                 rec.end_time = now.time().replace(microsecond=0)
@@ -3066,6 +3117,68 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         data['order'] = PurchaseOrderSerializer(order).data
         data.update(extras)
         return Response(data)
+
+    @action(detail=True, methods=['get'], url_path='manifest-preview')
+    def manifest_preview(self, request, pk=None):
+        """Lean raw-manifest preview (stored sample ≤10 rows) for CSV viewer dialogs."""
+        order = self.get_object()
+        if not order.manifest_id:
+            return Response(
+                {'detail': 'No manifest file on this order.', 'code': 'no_manifest'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        preview = order.manifest_preview if isinstance(order.manifest_preview, dict) else {}
+        headers = preview.get('headers') or []
+        rows = preview.get('rows') or []
+        if not isinstance(headers, list):
+            headers = []
+        if not isinstance(rows, list):
+            rows = []
+        mf = order.manifest
+        return Response({
+            'order_id': order.id,
+            'order_number': order.order_number,
+            'filename': order.manifest_filename or (mf.filename if mf else None),
+            'size': mf.size if mf else None,
+            'content_type': (mf.content_type if mf else '') or 'text/csv',
+            'delimiter': preview.get('delimiter') or ',',
+            'headers': headers,
+            'rows': rows,
+            'preview_row_count': len(rows),
+            'total_row_count': order.manifest_row_count,
+            'uploaded_at': order.manifest_uploaded_at,
+        })
+
+    @action(detail=True, methods=['get'], url_path='manifest-download')
+    def manifest_download(self, request, pk=None):
+        """Authenticated download of the original raw manifest CSV/TSV."""
+        from django.http import FileResponse
+
+        order = self.get_object()
+        if not order.manifest_id or not order.manifest:
+            return Response(
+                {'detail': 'No manifest file on this order.', 'code': 'no_manifest'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        mf = order.manifest
+        filename = order.manifest_filename or mf.filename or f'order-{order.id}-manifest.csv'
+        safe_name = re.sub(r'[^\w.\-]+', '_', filename).strip('._') or f'order-{order.id}-manifest.csv'
+        try:
+            handle = default_storage.open(mf.key, 'rb')
+        except (OSError, FileNotFoundError):
+            return Response(
+                {'detail': 'Manifest file missing from storage.', 'code': 'storage_missing'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            logger.exception('manifest_download open failed order=%s', order.pk)
+            return Response(
+                {'detail': f'Could not open manifest: {e}', 'code': 'storage_error'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        content_type = mf.content_type or 'text/csv'
+        response = FileResponse(handle, content_type=content_type, as_attachment=True, filename=safe_name)
+        return response
 
     @action(detail=True, methods=['get', 'post'], url_path='disputes')
     def order_disputes(self, request, pk=None):
@@ -4855,6 +4968,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'status': order.status,
                 'item_count': order.item_count,
                 'has_manifest_file': bool(order.manifest_id),
+                'manifest_filename': order.manifest_filename or None,
                 'manifest_sample': manifest_sample,
                 'manifest_row_count': order.manifest_row_count,
                 'manifest_signature': order.manifest_signature or '',

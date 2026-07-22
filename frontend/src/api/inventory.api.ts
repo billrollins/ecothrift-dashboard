@@ -710,6 +710,7 @@ export interface PreprocessingStatusResponse {
     status: string;
     item_count: number;
     has_manifest_file: boolean;
+    manifest_filename?: string | null;
     manifest_sample: ManifestSamplePayload | null;
     manifest_row_count: number | null;
     manifest_signature: string;
@@ -2099,8 +2100,23 @@ export function deleteReceivingPhoto(orderId: number, attachmentId: number): Pro
   return api.delete(`/inventory/orders/${orderId}/receiving/photos/${attachmentId}/`);
 }
 
-export function completeReceiving(orderId: number): Promise<{ data: ReceivingCompleteResponse }> {
-  return api.post<ReceivingCompleteResponse>(`/inventory/orders/${orderId}/receiving/complete/`, {});
+export function completeReceiving(
+  orderId: number,
+  body?: { photo_overrides?: import('../types/inventory.types').ReceivingPhotoOverridePayload[] },
+): Promise<{ data: ReceivingCompleteResponse }> {
+  return api.post<ReceivingCompleteResponse>(`/inventory/orders/${orderId}/receiving/complete/`, body ?? {});
+}
+
+export function getOrderManifestPreview(
+  orderId: number,
+): Promise<{ data: import('../types/inventory.types').OrderManifestPreviewDTO }> {
+  return api.get(`/inventory/orders/${orderId}/manifest-preview/`);
+}
+
+export function downloadOrderManifest(orderId: number): Promise<{ data: Blob }> {
+  return api.get(`/inventory/orders/${orderId}/manifest-download/`, {
+    responseType: 'blob',
+  });
 }
 
 export interface OrderDisputeDTO {

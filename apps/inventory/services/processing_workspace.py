@@ -1483,6 +1483,8 @@ def _order_payload(order: PurchaseOrder, vendor, total_manifest_qty: int) -> dic
         'status': order.status,
         'total_manifest_qty': total_manifest_qty,
         'total_retail': _money(order.retail_value),
+        'has_manifest': bool(order.manifest_id),
+        'manifest_filename': order.manifest_filename or None,
     }
 
 

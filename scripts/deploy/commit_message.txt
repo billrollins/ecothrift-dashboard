@@ -1,10 +1,9 @@
-feat: Orders profitability + Retail QA scheduled goals (v2.53.0)
+feat: Receiving photo thumbnails, viewers, and complete photo guards (v2.54.0)
 
-Release: v2.53.0
+Release: v2.54.0
 
-- Orders list: Cost/Retail/Priced/Sold/Profit strip, selection summary, page metrics
-- Orders UX: 90–60 / Last 60 / Select visible / Older orders gate; milestone nulls-first
-- Order pickers: shared card layout + milestone sort for Processing/Receiving
-- Quality Audit hub: full submitted history with read-only review
-- Retail QA goals: weekday schedule, audits/day, min grade; gold celebration on hit
-- Migration: pos.0019 DashboardDepartmentGoal.schedule
+- Add 480px Receiving thumbnails alongside 2048px high-res; click-to-view lightbox
+- Require BOL/truck/four sides (or per-slot override reasons) before complete
+- Shared ImageViewerDialog / CsvViewerDialog + PurchaseOrderManifestDialog
+- Lean manifest-preview and authenticated manifest-download endpoints
+- Idempotent backfill_receiving_photo_thumbnails for production rollout

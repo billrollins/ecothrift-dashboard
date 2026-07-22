@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.53.0] — 2026-07-22 -->
-<!-- Last reviewed: 2026-07-22 (v2.53.0 Orders profitability + Retail QA goals) -->
+<!-- Line 1 release: ## [2.54.0] — 2026-07-22 -->
+<!-- Last reviewed: 2026-07-22 (v2.54.0 Receiving photo variants + shared file viewers) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.54.0] — 2026-07-22
+
+User-facing theme: **Receiving photo thumbnails, required-photo overrides, and reusable image/CSV viewers**.
+
+Initiative: outside initiatives hotfix (Receiving media performance + manifest preview).
+
+### Added
+
+- **Inventory / Receiving photo variants** — Uploads store a 2048px high-res JPEG plus a 480px thumbnail (target ≤100 KB). UI loads thumbnails by default; click opens full-res in shared **`ImageViewerDialog`**. Migration `inventory.0082`; idempotent backfill `backfill_receiving_photo_thumbnails`.
+- **Inventory / Receiving complete photo guard** — Complete requires BOL + truck + four sides per pallet, or one audited per-slot reason via `photo_overrides[]` (`ReceivingPhotoOverride`). Desktop/mobile use **`ReceivingCompleteDialog`**.
+- **Shared file viewers** — App-wide **`ImageViewerDialog`** / **`CsvViewerDialog`**; order wrapper **`PurchaseOrderManifestDialog`** on Order detail, Preprocessing, and Processing header.
+- **Inventory / manifest preview + download** — `GET …/manifest-preview/` (stored ≤10 rows) and authenticated `GET …/manifest-download/` blob stream.
+
+### Changed
+
+- **Inventory / Receiving + Processing floor pickers** — Shared status set + milestone sort; vendor glyph badge colors encode receiving/processing status.
 
 ## [2.53.0] — 2026-07-22
 

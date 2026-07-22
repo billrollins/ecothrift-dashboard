@@ -26,9 +26,16 @@ import { usePurchaseOrderSurface } from '../../hooks/useInventory';
 import { receivingDetailQueryKey, usePatchReceivingMutation, useReceivingDetail } from '../../hooks/useReceiving';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import ReceivingDesktopWorkspace from '../../components/inventory/receiving/ReceivingDesktopWorkspace';
+import { ReceivingCompleteDialog } from '../../components/inventory/receiving/ReceivingCompleteDialog';
 import { rcvSurface } from '../../components/inventory/receiving/receivingTheme';
 import ReceivingMobileWizard from '../../components/inventory/receiving/ReceivingMobileWizard';
-import type { PalletSideId, ReceivingDetailDTO, ReceivingPatchPayload } from '../../types/inventory.types';
+import type {
+  PalletSideId,
+  ReceivingDetailDTO,
+  ReceivingPatchPayload,
+  ReceivingPhotoOverridePayload,
+} from '../../types/inventory.types';
+import { FLOOR_ORDER_PICKER_PARAMS } from '../../utils/orderPickerDisplay';
 import { useSnackbar } from 'notistack';
 
 function palletSlotFilled(rec: ReceivingDetailDTO, palletNumber: number, side: string): boolean {
@@ -221,12 +228,16 @@ export default function ReceivingOrderPage() {
     [runPhotoPipeline, enqueueSnackbar],
   );
 
+  // Same status set + milestone sort as Processing floor picker (for-receiving).
   const pickerOrdersQ = useQuery({
-    queryKey: ['ordersForReceiving', 'picker-toolbar'],
+    queryKey: ['ordersForReceiving', 'picker-toolbar', FLOOR_ORDER_PICKER_PARAMS],
     enabled: oid != null && Number.isFinite(oid) && !mobile,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data } = await fetchOrdersForReceiving({ page: 1, page_size: 200 });
+      const { data } = await fetchOrdersForReceiving({
+        page: 1,
+        page_size: FLOOR_ORDER_PICKER_PARAMS.page_size,
+      });
       return data;
     },
   });
@@ -303,15 +314,19 @@ export default function ReceivingOrderPage() {
     },
   });
 
+  const [completeOpen, setCompleteOpen] = useState(false);
+
   const completeMut = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (overrides: ReceivingPhotoOverridePayload[]) => {
       if (oid == null) throw new Error('bad_order');
       await drainOnline();
-      const res = await completeReceiving(oid);
+      await queryClient.invalidateQueries({ queryKey: receivingDetailQueryKey(oid) });
+      const res = await completeReceiving(oid, { photo_overrides: overrides });
       return res.data;
     },
     onSuccess: () => {
       if (oid == null) return;
+      setCompleteOpen(false);
       enqueueSnackbar('Receiving complete · order delivered', { variant: 'success' });
       void queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       void queryClient.invalidateQueries({ queryKey: receivingDetailQueryKey(oid) });
@@ -332,6 +347,14 @@ export default function ReceivingOrderPage() {
       enqueueSnackbar(msg, { variant: 'error' });
     },
   });
+
+  const openCompleteDialog = useCallback(async () => {
+    if (oid == null) return;
+    await drainOnline();
+    await queryClient.invalidateQueries({ queryKey: receivingDetailQueryKey(oid) });
+    await queryClient.refetchQueries({ queryKey: receivingDetailQueryKey(oid) });
+    setCompleteOpen(true);
+  }, [drainOnline, oid, queryClient]);
 
   const orderLabel = useMemo(() => {
     if (po.data) return `${po.data.order_number} · ${po.data.vendor_name}`;
@@ -443,7 +466,7 @@ export default function ReceivingOrderPage() {
           onBolTruckPick={onBolTruckPick}
           onPalletPick={onPalletPick}
           onDamaged={onDamaged}
-          onComplete={() => completeMut.mutate()}
+          onRequestComplete={() => void openCompleteDialog()}
           disabled={patchMut.isPending || completeMut.isPending}
         />
       ) : (
@@ -476,7 +499,7 @@ export default function ReceivingOrderPage() {
               if (subjectPalletId == null) return;
               intakeDisputeMut.mutate({ palletNumber, subjectPalletId });
             }}
-            onComplete={() => completeMut.mutate()}
+            onRequestComplete={() => void openCompleteDialog()}
             loadingBar={
               patchMut.isPending || completeMut.isPending || intakeDisputeMut.isPending ? (
                 <LinearProgress color="primary" sx={{ flexShrink: 0 }} />
@@ -500,6 +523,14 @@ export default function ReceivingOrderPage() {
         />
         ) : null
       )}
+
+      <ReceivingCompleteDialog
+        open={completeOpen}
+        receiving={m}
+        loading={completeMut.isPending}
+        onClose={() => setCompleteOpen(false)}
+        onConfirm={(overrides) => completeMut.mutate(overrides)}
+      />
     </Box>
   );
 }

@@ -2067,6 +2067,14 @@ class ReceivingAttachment(models.Model):
         on_delete=models.CASCADE,
         related_name='receiving_attachments',
     )
+    thumbnail_file = models.ForeignKey(
+        'core.S3File',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='receiving_attachment_thumbnails',
+        help_text='480px JPEG thumbnail for grid UI; s3_file remains the 2048px high-res.',
+    )
     kind = models.CharField(max_length=20, choices=ATTACH_KIND)
     pallet_number = models.PositiveSmallIntegerField(null=True, blank=True)
     side = models.CharField(max_length=10, choices=SIDE_CHOICES, blank=True, default='')
@@ -2081,6 +2089,60 @@ class ReceivingAttachment(models.Model):
 
     def __str__(self):
         return f'{self.kind} {self.receiving_id}'
+
+
+class ReceivingPhotoOverride(models.Model):
+    """Audited per-slot reason when completing Receiving without a required photo."""
+
+    SLOT_BOL = 'bol'
+    SLOT_TRUCK = 'truck'
+    SLOT_PALLET_SIDE = 'pallet_side'
+    SLOT_KIND_CHOICES = [
+        (SLOT_BOL, 'BOL'),
+        (SLOT_TRUCK, 'Truck'),
+        (SLOT_PALLET_SIDE, 'Pallet Side'),
+    ]
+    SIDE_CHOICES = ReceivingAttachment.SIDE_CHOICES
+
+    receiving = models.ForeignKey(
+        Receiving,
+        on_delete=models.CASCADE,
+        related_name='photo_overrides',
+    )
+    kind = models.CharField(max_length=20, choices=SLOT_KIND_CHOICES)
+    pallet_number = models.PositiveSmallIntegerField(null=True, blank=True)
+    side = models.CharField(max_length=10, choices=SIDE_CHOICES, blank=True, default='')
+    reason = models.TextField()
+    overridden_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='receiving_photo_overrides',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['receiving', 'kind']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=('receiving', 'kind'),
+                condition=models.Q(kind__in=('bol', 'truck')),
+                name='uniq_receiving_photo_override_bol_truck',
+            ),
+            models.UniqueConstraint(
+                fields=('receiving', 'kind', 'pallet_number', 'side'),
+                condition=models.Q(kind='pallet_side'),
+                name='uniq_receiving_photo_override_pallet_side',
+            ),
+        ]
+
+    def __str__(self):
+        if self.kind == self.SLOT_PALLET_SIDE:
+            return f'Override pallet {self.pallet_number} {self.side} ({self.receiving_id})'
+        return f'Override {self.kind} ({self.receiving_id})'
 
 
 class Dispute(models.Model):

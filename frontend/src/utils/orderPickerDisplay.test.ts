@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatRelevantOrderDateLine,
+  orderPickerProcessingBadgeColors,
+  orderPickerReceivingBadgeColors,
   orderPickerVendorGlyph,
   pickMostRelevantOrderDate,
 } from './orderPickerDisplay';
@@ -43,5 +45,30 @@ describe('pickMostRelevantOrderDate', () => {
   it('vendor glyph uses first two chars', () => {
     expect(orderPickerVendorGlyph('amazon')).toBe('AM');
     expect(orderPickerVendorGlyph('')).toBe('?');
+  });
+});
+
+describe('order picker badge colors', () => {
+  it('receiving: done / in progress / shipped / pending', () => {
+    expect(orderPickerReceivingBadgeColors({ receiving_status: 'done' }).label).toBe(
+      'Receiving done',
+    );
+    expect(orderPickerReceivingBadgeColors({ receiving_status: 'active' }).label).toBe(
+      'Receiving in progress',
+    );
+    expect(orderPickerReceivingBadgeColors({ status: 'shipped' }).label).toBe('Shipped — waiting');
+    expect(orderPickerReceivingBadgeColors({ status: 'paid' }).label).toBe('Pending shipment');
+  });
+
+  it('processing: done / active / delivered / shipped / paid', () => {
+    expect(orderPickerProcessingBadgeColors({ status: 'complete' }).label).toBe('Processing done');
+    expect(orderPickerProcessingBadgeColors({ processing_status: 'active' }).label).toBe(
+      'Processing active',
+    );
+    expect(orderPickerProcessingBadgeColors({ status: 'delivered' }).label).toBe(
+      'Delivered — ready',
+    );
+    expect(orderPickerProcessingBadgeColors({ status: 'shipped' }).label).toBe('Shipped');
+    expect(orderPickerProcessingBadgeColors({ status: 'paid' }).label).toBe('Paid — awaiting');
   });
 });

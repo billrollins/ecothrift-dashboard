@@ -8,7 +8,7 @@ from .models import (
     ProcessingRow,
     RestorationJob,
     RestorationTimelineEvent,
-    Receiving, ReceivingPallet, ReceivingAttachment,
+    Receiving, ReceivingPallet, ReceivingAttachment, ReceivingPhotoOverride,
     Dispute,
 )
 from .services.manual_item import find_or_create_product_for_manual_item
@@ -586,6 +586,8 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
             'total_cost',
             'retail_value',
             'has_manifest',
+            'receiving_status',
+            'processing_status',
             'created_at',
             'updated_at',
         ]
@@ -1055,6 +1057,7 @@ class ReceivingPalletSerializer(serializers.ModelSerializer):
 
 class ReceivingAttachmentSerializer(serializers.ModelSerializer):
     s3_file = S3FileSerializer(read_only=True)
+    thumbnail_file = S3FileSerializer(read_only=True, allow_null=True)
 
     class Meta:
         model = ReceivingAttachment
@@ -1065,13 +1068,62 @@ class ReceivingAttachmentSerializer(serializers.ModelSerializer):
             'side',
             'client_photo_id',
             's3_file',
+            'thumbnail_file',
             'created_at',
         ]
+
+
+class ReceivingPhotoOverrideSerializer(serializers.ModelSerializer):
+    key = serializers.SerializerMethodField()
+    label = serializers.SerializerMethodField()
+    overridden_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReceivingPhotoOverride
+        fields = [
+            'id',
+            'kind',
+            'pallet_number',
+            'side',
+            'key',
+            'label',
+            'reason',
+            'overridden_by',
+            'overridden_by_name',
+            'created_at',
+        ]
+
+    def get_key(self, obj):
+        from apps.inventory.services.receiving import MissingPhotoSlot
+
+        return MissingPhotoSlot(
+            kind=obj.kind,
+            pallet_number=obj.pallet_number,
+            side=obj.side or '',
+        ).key
+
+    def get_label(self, obj):
+        from apps.inventory.services.receiving import MissingPhotoSlot
+
+        return MissingPhotoSlot(
+            kind=obj.kind,
+            pallet_number=obj.pallet_number,
+            side=obj.side or '',
+        ).label
+
+    def get_overridden_by_name(self, obj):
+        user = obj.overridden_by
+        if not user:
+            return None
+        name = (getattr(user, 'full_name', None) or '').strip()
+        return name or user.email
 
 
 class ReceivingDetailSerializer(serializers.ModelSerializer):
     pallets = ReceivingPalletSerializer(many=True, read_only=True)
     attachments = ReceivingAttachmentSerializer(many=True, read_only=True)
+    photo_overrides = ReceivingPhotoOverrideSerializer(many=True, read_only=True)
+    missing_required_photos = serializers.SerializerMethodField()
     is_draft = serializers.SerializerMethodField()
 
     class Meta:
@@ -1090,6 +1142,8 @@ class ReceivingDetailSerializer(serializers.ModelSerializer):
             'is_draft',
             'pallets',
             'attachments',
+            'photo_overrides',
+            'missing_required_photos',
             'created_by',
             'created_at',
             'updated_at',
@@ -1104,6 +1158,13 @@ class ReceivingDetailSerializer(serializers.ModelSerializer):
 
     def get_is_draft(self, obj):
         return obj.completed_at is None
+
+    def get_missing_required_photos(self, obj):
+        from apps.inventory.services.receiving import list_missing_photo_slots
+
+        if obj.completed_at is not None:
+            return []
+        return [s.as_dict() for s in list_missing_photo_slots(obj)]
 
 
 class DisputeSerializer(serializers.ModelSerializer):
@@ -1186,7 +1247,6 @@ class OrderForReceivingListSerializer(PurchaseOrderListSerializer):
 
     class Meta(PurchaseOrderListSerializer.Meta):
         fields = PurchaseOrderListSerializer.Meta.fields + [
-            'receiving_status',
             'receiving_started_at',
             'receiving_done_at',
             'has_receiving_draft',

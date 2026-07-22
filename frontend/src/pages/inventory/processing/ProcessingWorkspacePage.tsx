@@ -37,6 +37,7 @@ import {
   useProcessingDataBuildStatus,
 } from '../../../hooks/useProcessingWorkspace';
 import type { ProcessingWorkspaceItemDTO, ProcessingWorkspaceRowDTO } from '../../../types/inventory.types';
+import { FLOOR_ORDER_PICKER_PARAMS } from '../../../utils/orderPickerDisplay';
 import {
   DEFAULT_QUEUE_FILTER_STATE,
   isSingleScanToken,
@@ -164,14 +165,8 @@ export default function ProcessingWorkspacePage() {
   }, [workspace]);
 
   // Include paid/shipped — staff often finalize prep before the PO is marked delivered.
-  const processingOrdersParams = useMemo(
-    () => ({
-      status__in: 'paid,shipped,delivered,processing,complete',
-      ordering: 'milestones',
-      page_size: 100,
-    }),
-    [],
-  );
+  // Keep in sync with Receiving picker / GET …/for-receiving/ (FLOOR_ORDER_PICKER_PARAMS).
+  const processingOrdersParams = useMemo(() => ({ ...FLOOR_ORDER_PICKER_PARAMS }), []);
   const { data: processingOrdersPage } = usePurchaseOrders(processingOrdersParams, orderId != null);
 
   const pickerOrders: ProcessingWorkspaceOrderPickRow[] = useMemo(() => {
@@ -183,6 +178,8 @@ export default function ProcessingWorkspacePage() {
       vendor_code: r.vendor_code,
       description: r.description,
       item_count: r.item_count,
+      status: r.status,
+      processing_status: r.processing_status,
       ordered_date: r.ordered_date,
       paid_date: r.paid_date,
       shipped_date: r.shipped_date,

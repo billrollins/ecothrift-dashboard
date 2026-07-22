@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Box, Typography } from '@mui/material';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { usePurchaseOrders } from '../../hooks/useInventory';
+import { FLOOR_ORDER_PICKER_PARAMS } from '../../utils/orderPickerDisplay';
 
 /**
  * `/inventory/processing` → `/inventory/processing/:id` using `?order=` or queue + last-used id.
@@ -19,11 +20,7 @@ export default function ProcessingEntryRedirect() {
   }, [legacyOrderParam, orderQ, navigate]);
 
   const { data, isLoading } = usePurchaseOrders(
-    {
-      status__in: 'paid,shipped,delivered,processing,complete',
-      ordering: 'milestones',
-      page_size: 100,
-    },
+    { ...FLOOR_ORDER_PICKER_PARAMS },
     !legacyOrderParam,
   );
 
