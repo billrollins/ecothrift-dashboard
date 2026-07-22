@@ -13,10 +13,22 @@ interface DepartmentCardGridProps {
   weeks: DepartmentDailyWeek[];
   getValue: (day: DepartmentDailyMetric) => string;
   getWeekTotal: (week: DepartmentDailyWeek) => string;
+  getCellState?: (day: DepartmentDailyMetric) => 'scheduled' | 'achieved' | undefined;
+  getWeekAchieved?: (week: DepartmentDailyWeek) => boolean;
   todayIso?: string;
 }
 
-function GridCell({ value, isToday }: { value: string; isToday?: boolean }) {
+function GridCell({
+  value,
+  isToday,
+  goalState,
+}: {
+  value: string;
+  isToday?: boolean;
+  goalState?: 'scheduled' | 'achieved';
+}) {
+  const achieved = goalState === 'achieved';
+  const scheduled = goalState === 'scheduled';
   return (
     <Box
       sx={{
@@ -24,18 +36,41 @@ function GridCell({ value, isToday }: { value: string; isToday?: boolean }) {
         py: 0.15,
         px: 0.1,
         border: '1px solid',
-        borderColor: isToday ? dashboardPalette.green : 'rgba(91, 111, 95, 0.32)',
+        borderColor: achieved
+          ? dashboardPalette.gold
+          : scheduled
+            ? 'rgba(189, 134, 24, 0.55)'
+            : isToday
+              ? dashboardPalette.green
+              : 'rgba(91, 111, 95, 0.32)',
+        borderStyle: scheduled && !achieved ? 'dashed' : 'solid',
         borderRadius: 0.75,
-        bgcolor: isToday ? dashboardPalette.greenSoft : 'transparent',
+        background: achieved
+          ? `linear-gradient(145deg, #fff7cf, ${dashboardPalette.goldSoft} 55%, #fffdf7)`
+          : isToday
+            ? dashboardPalette.greenSoft
+            : 'transparent',
         textAlign: 'center',
-        boxShadow: isToday ? '0 0 0 1px rgba(47, 122, 72, 0.5), inset 0 1px 0 rgba(255,255,255,0.45)' : 'none',
+        boxShadow: achieved
+          ? '0 0 0 1px rgba(189,134,24,0.28), inset 0 1px 0 rgba(255,255,255,0.8)'
+          : isToday
+            ? '0 0 0 1px rgba(47, 122, 72, 0.5), inset 0 1px 0 rgba(255,255,255,0.45)'
+            : 'none',
       }}
     >
       <Typography
         variant="caption"
-        fontWeight={isToday ? 900 : 800}
+        fontWeight={isToday || achieved ? 900 : 800}
         noWrap
-        sx={{ fontSize: '0.56rem', lineHeight: 1.2, color: isToday ? dashboardPalette.greenDark : 'inherit' }}
+        sx={{
+          fontSize: '0.56rem',
+          lineHeight: 1.2,
+          color: achieved
+            ? dashboardPalette.goldDark
+            : isToday
+              ? dashboardPalette.greenDark
+              : 'inherit',
+        }}
       >
         {value}
       </Typography>
@@ -47,9 +82,27 @@ function weekRowLabel(week: DepartmentDailyWeek): string {
   return shortDate(week.week_start);
 }
 
-function WeekLabelCell({ week, total }: { week: DepartmentDailyWeek; total: string }) {
+function WeekLabelCell({
+  week,
+  total,
+  achieved,
+}: {
+  week: DepartmentDailyWeek;
+  total: string;
+  achieved?: boolean;
+}) {
   return (
-    <Box sx={{ alignSelf: 'center', textAlign: 'center', minWidth: 0, px: 0.1 }}>
+    <Box
+      sx={{
+        alignSelf: 'center',
+        textAlign: 'center',
+        minWidth: 0,
+        px: 0.1,
+        py: achieved ? 0.25 : 0,
+        borderRadius: 0.75,
+        bgcolor: achieved ? dashboardPalette.goldSoft : 'transparent',
+      }}
+    >
       <Typography
         variant="caption"
         color="text.secondary"
@@ -63,9 +116,14 @@ function WeekLabelCell({ week, total }: { week: DepartmentDailyWeek; total: stri
         variant="caption"
         fontWeight={900}
         noWrap
-        sx={{ fontSize: '0.5rem', lineHeight: 1.15, display: 'block', color: 'text.primary' }}
+        sx={{
+          fontSize: '0.5rem',
+          lineHeight: 1.15,
+          display: 'block',
+          color: achieved ? dashboardPalette.goldDark : 'text.primary',
+        }}
       >
-        {total}
+        {achieved ? `★ ${total}` : total}
       </Typography>
     </Box>
   );
@@ -78,7 +136,14 @@ export function sumDepartmentWeek(
   return week.days.reduce((sum, day) => (day.is_future ? sum : sum + pick(day)), 0);
 }
 
-export function DepartmentCardGrid({ weeks, getValue, getWeekTotal, todayIso }: DepartmentCardGridProps) {
+export function DepartmentCardGrid({
+  weeks,
+  getValue,
+  getWeekTotal,
+  getCellState,
+  getWeekAchieved,
+  todayIso,
+}: DepartmentCardGridProps) {
   const orderedWeeks = [...weeks].reverse();
 
   return (
@@ -111,9 +176,18 @@ export function DepartmentCardGrid({ weeks, getValue, getWeekTotal, todayIso }: 
           key={week.week_start}
           sx={{ display: 'grid', gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))', gap: 0.25 }}
         >
-          <WeekLabelCell week={week} total={getWeekTotal(week)} />
+          <WeekLabelCell
+            week={week}
+            total={getWeekTotal(week)}
+            achieved={getWeekAchieved?.(week)}
+          />
           {week.days.map((day) => (
-            <GridCell key={day.date} value={getValue(day)} isToday={!!todayIso && day.date === todayIso} />
+            <GridCell
+              key={day.date}
+              value={getValue(day)}
+              isToday={!!todayIso && day.date === todayIso}
+              goalState={getCellState?.(day)}
+            />
           ))}
         </Box>
       ))}
@@ -150,5 +224,37 @@ export function restorationWeekTotal(week: DepartmentDailyWeek): string {
 }
 
 export function retailGridValue(day: DepartmentDailyMetric): string {
-  return day.is_future ? '—' : (day.retail ?? '—');
+  if (day.is_future) return '—';
+  const grade = day.retail ?? '—';
+  if (!day.retail_scheduled) return grade;
+  const count = day.retail_count ?? 0;
+  const required = day.retail_required ?? 0;
+  return day.retail_goal_met ? `${grade} ✓` : `${grade}·${count}/${required}`;
+}
+
+export function retailGoalCellState(
+  day: DepartmentDailyMetric,
+): 'scheduled' | 'achieved' | undefined {
+  if (!day.retail_scheduled || day.is_future) {
+    return day.retail_scheduled ? 'scheduled' : undefined;
+  }
+  return day.retail_goal_met ? 'achieved' : 'scheduled';
+}
+
+export function retailWeekGoalAchieved(week: DepartmentDailyWeek): boolean {
+  return Boolean(week.retail_week_goal_met);
+}
+
+/**
+ * Retail QA week score under the week label.
+ * Spec: LAST submitted grade in the week — never average, never highest.
+ */
+export function retailWeekTotal(week: DepartmentDailyWeek): string {
+  if (week.retail_week_grade) return week.retail_week_grade;
+  // Fallback if an older API payload omits retail_week_grade: last calendar day with a grade.
+  for (let i = week.days.length - 1; i >= 0; i -= 1) {
+    const day = week.days[i];
+    if (!day.is_future && day.retail) return day.retail;
+  }
+  return '—';
 }

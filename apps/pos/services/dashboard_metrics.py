@@ -378,13 +378,97 @@ def _restoration_metrics(today: date) -> dict[str, Any]:
     }
 
 
+_GRADE_POINTS = {
+    'A+': 4.3,
+    'A': 4.0,
+    'A-': 3.7,
+    'B+': 3.3,
+    'B': 3.0,
+    'B-': 2.7,
+    'C+': 2.3,
+    'C': 2.0,
+    'C-': 1.7,
+    'D+': 1.3,
+    'D': 1.0,
+    'D-': 0.7,
+    'F': 0.0,
+}
+
+
+def _grade_meets_goal(actual: str | None, target: str | None) -> bool:
+    """True when the submitted letter grade is at least the configured target."""
+    actual_key = (actual or '').strip().upper()
+    target_key = (target or '').strip().upper()
+    if not target_key:
+        return bool(actual_key)
+    actual_points = _GRADE_POINTS.get(actual_key)
+    target_points = _GRADE_POINTS.get(target_key)
+    if actual_points is None or target_points is None:
+        return actual_key == target_key
+    return actual_points >= target_points
+
+
+def _normalize_retail_schedule(raw: Any) -> dict[str, Any]:
+    """Defensive normalization for legacy/malformed goal rows."""
+    schedule = raw if isinstance(raw, dict) else {}
+    weekdays = []
+    for value in schedule.get('weekdays', []):
+        try:
+            day = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= day <= 6 and day not in weekdays:
+            weekdays.append(day)
+    try:
+        audits_per_day = int(schedule.get('audits_per_day', 1))
+    except (TypeError, ValueError):
+        audits_per_day = 1
+    return {
+        'weekdays': sorted(weekdays),
+        'audits_per_day': max(1, min(20, audits_per_day)),
+    }
+
+
+def _retail_audits_by_day(start: date, end: date) -> dict[date, dict[str, Any]]:
+    """Count audits and retain the last submitted grade per local calendar day."""
+    start_dt, end_dt = _day_range(start, end)
+    audits = (
+        QualityAudit.objects.filter(
+            form__feeds_dashboard=True,
+            status=QualityAudit.STATUS_SUBMITTED,
+            submitted_at__gte=start_dt,
+            submitted_at__lt=end_dt,
+        )
+        .exclude(overall_grade='')
+        .order_by('submitted_at')
+        .only('overall_grade', 'submitted_at')
+    )
+    by_day: dict[date, dict[str, Any]] = {}
+    for audit in audits:
+        if not audit.submitted_at or not audit.overall_grade:
+            continue
+        day = timezone.localtime(audit.submitted_at).date()
+        stats = by_day.setdefault(day, {'count': 0, 'last_grade': None})
+        stats['count'] += 1
+        # Query is ascending, so assignment preserves the last submitted grade.
+        stats['last_grade'] = audit.overall_grade
+    return by_day
+
+
 def _department_daily_weeks(
     today: date,
     *,
     buying_by_day: dict[date, Decimal],
     processing_by_day: dict[date, Decimal],
     restoration_by_day: dict[date, int],
+    retail_by_day: dict[date, dict[str, Any]] | None = None,
+    retail_schedule: dict[str, Any] | None = None,
+    retail_grade_goal: str = '',
 ) -> list[dict[str, Any]]:
+    retail_by_day = retail_by_day or {}
+    schedule = _normalize_retail_schedule(retail_schedule)
+    scheduled_weekdays = set(schedule['weekdays'])
+    audits_per_day = schedule['audits_per_day']
     this_week_start = _week_start_monday(today)
     week_specs = [
         ('Last Week', this_week_start - timedelta(days=7), False),
@@ -392,23 +476,70 @@ def _department_daily_weeks(
     ]
     weeks = []
     for label, week_start, is_current in week_specs:
+        week_end = week_start + timedelta(days=6)
         days = []
         for offset in range(7):
             day = week_start + timedelta(days=offset)
             is_future = is_current and day > today
+            retail_stats = retail_by_day.get(day, {})
+            retail_grade = retail_stats.get('last_grade')
+            retail_count = int(retail_stats.get('count') or 0)
+            retail_scheduled = offset in scheduled_weekdays
+            retail_required = audits_per_day if retail_scheduled else 0
+            retail_grade_met = _grade_meets_goal(retail_grade, retail_grade_goal)
+            retail_goal_met = (
+                retail_scheduled
+                and retail_count >= retail_required
+                and retail_grade_met
+            )
             days.append({
                 'date': day.isoformat(),
                 'day': day.strftime('%A'),
                 'buying': '0' if is_future else _str_dec(buying_by_day.get(day, Decimal('0'))),
                 'processing': '0' if is_future else _str_dec(processing_by_day.get(day, Decimal('0'))),
                 'restoration': 0 if is_future else restoration_by_day.get(day, 0),
-                'retail': None,
+                'retail': None if is_future else retail_grade,
+                'retail_count': 0 if is_future else retail_count,
+                'retail_required': retail_required,
+                'retail_scheduled': retail_scheduled,
+                'retail_grade_met': False if is_future else retail_grade_met,
+                'retail_goal_met': False if is_future else retail_goal_met,
                 'is_future': is_future,
             })
+        last_grade = next(
+            (
+                day['retail']
+                for day in reversed(days)
+                if not day['is_future'] and day['retail']
+            ),
+            None,
+        )
+        scheduled_days = [day for day in days if day['retail_scheduled']]
+        due_days = [day for day in scheduled_days if not day['is_future']]
+        completed_days = [day for day in scheduled_days if day['retail_goal_met']]
+        scheduled_count = len(scheduled_days)
+        required_audits = scheduled_count * audits_per_day
+        # Goal progress counts only audits submitted on configured schedule days.
+        submitted_audits = sum(day['retail_count'] for day in scheduled_days)
+        due_goal_met = bool(due_days) and all(day['retail_goal_met'] for day in due_days)
+        week_goal_met = (
+            bool(scheduled_days)
+            and not any(day['is_future'] for day in scheduled_days)
+            and len(completed_days) == len(scheduled_days)
+        )
         weeks.append({
             'label': label,
             'week_start': week_start.isoformat(),
-            'week_end': (week_start + timedelta(days=6)).isoformat(),
+            'week_end': week_end.isoformat(),
+            # Spec: week score = last submitted grade, never average/highest.
+            'retail_week_grade': last_grade,
+            'retail_week_audits': submitted_audits,
+            'retail_week_required': required_audits,
+            'retail_completed_days': len(completed_days),
+            'retail_scheduled_days': scheduled_count,
+            'retail_due_days': len(due_days),
+            'retail_due_goal_met': due_goal_met,
+            'retail_week_goal_met': week_goal_met,
             'days': days,
         })
     return weeks
@@ -416,12 +547,19 @@ def _department_daily_weeks(
 
 def _department_goals() -> dict[str, dict[str, Any]]:
     goals: dict[str, dict[str, Any]] = {}
-    for goal in DashboardDepartmentGoal.objects.all().only('id', 'department', 'value', 'description'):
+    for goal in DashboardDepartmentGoal.objects.all().only(
+        'id',
+        'department',
+        'value',
+        'description',
+        'schedule',
+    ):
         goals[goal.department] = {
             'id': goal.id,
             'department': goal.department,
             'value': goal.value,
             'description': goal.description,
+            'schedule': goal.schedule or {},
         }
     return goals
 
@@ -441,6 +579,23 @@ def build_department_metrics(today: date | None = None) -> dict[str, Any]:
         total_start=week_start,
     )
     restoration_by_day = _restoration_done_by_day(last_week_start, today)
+    goals = _department_goals()
+    retail_goal = goals.get(DashboardDepartmentGoal.RETAIL, {})
+    retail_schedule = _normalize_retail_schedule(retail_goal.get('schedule'))
+    retail_by_day = _retail_audits_by_day(last_week_start, today)
+    daily_weeks = _department_daily_weeks(
+        today,
+        buying_by_day=buying_by_day,
+        processing_by_day=processing_by_day,
+        restoration_by_day=restoration_by_day,
+        retail_by_day=retail_by_day,
+        retail_schedule=retail_schedule,
+        retail_grade_goal=retail_goal.get('value', ''),
+    )
+    current_retail_week = next(
+        (week for week in daily_weeks if week['label'] == 'This Week'),
+        None,
+    )
 
     latest_retail = (
         QualityAudit.objects.filter(
@@ -452,6 +607,8 @@ def build_department_metrics(today: date | None = None) -> dict[str, Any]:
         .first()
     )
     if latest_retail and latest_retail.overall_grade:
+        # Card Actual = last submitted overall (not a weekly average).
+        # ``average_grade`` is a legacy alias of ``last_grade`` — do not interpret as mean.
         retail_metrics = {
             'ready': True,
             'average_grade': latest_retail.overall_grade,
@@ -465,6 +622,17 @@ def build_department_metrics(today: date | None = None) -> dict[str, Any]:
             'last_grade': None,
             'note': 'No retail QA submitted yet.',
         }
+    retail_metrics.update({
+        'schedule': retail_schedule,
+        'grade_goal': retail_goal.get('value') or None,
+        'week_audits': (current_retail_week or {}).get('retail_week_audits', 0),
+        'week_required': (current_retail_week or {}).get('retail_week_required', 0),
+        'completed_days': (current_retail_week or {}).get('retail_completed_days', 0),
+        'scheduled_days': (current_retail_week or {}).get('retail_scheduled_days', 0),
+        'due_days': (current_retail_week or {}).get('retail_due_days', 0),
+        'due_goal_met': (current_retail_week or {}).get('retail_due_goal_met', False),
+        'week_goal_met': (current_retail_week or {}).get('retail_week_goal_met', False),
+    })
 
     return {
         'buying': {
@@ -477,13 +645,8 @@ def build_department_metrics(today: date | None = None) -> dict[str, Any]:
         },
         'restoration': _restoration_metrics(today),
         'retail': retail_metrics,
-        'goals': _department_goals(),
-        'daily_weeks': _department_daily_weeks(
-            today,
-            buying_by_day=buying_by_day,
-            processing_by_day=processing_by_day,
-            restoration_by_day=restoration_by_day,
-        ),
+        'goals': goals,
+        'daily_weeks': daily_weeks,
     }
 
 

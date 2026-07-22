@@ -8,12 +8,17 @@ const STATUS_COLOR_MAP: Record<string, ChipColor> = {
   approved: 'success',
   active: 'success',
   completed: 'success',
+  complete: 'success',
+  delivered: 'success',
   paid: 'success',
   on_shelf: 'success',
 
   pending: 'warning',
   ordered: 'warning',
   open: 'warning',
+  processing: 'info',
+  shipped: 'info',
+  in_transit: 'info',
 
   flagged: 'error',
   denied: 'error',

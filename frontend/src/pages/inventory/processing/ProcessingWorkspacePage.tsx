@@ -167,7 +167,7 @@ export default function ProcessingWorkspacePage() {
   const processingOrdersParams = useMemo(
     () => ({
       status__in: 'paid,shipped,delivered,processing,complete',
-      ordering: '-ordered_date',
+      ordering: 'milestones',
       page_size: 100,
     }),
     [],
@@ -180,8 +180,12 @@ export default function ProcessingWorkspacePage() {
       id: r.id,
       order_number: r.order_number,
       vendor_name: r.vendor_name,
+      vendor_code: r.vendor_code,
+      description: r.description,
       item_count: r.item_count,
       ordered_date: r.ordered_date,
+      paid_date: r.paid_date,
+      shipped_date: r.shipped_date,
       delivered_date: r.delivered_date,
     }));
     if (!workspace?.order?.id) return mapped;
@@ -192,8 +196,10 @@ export default function ProcessingWorkspacePage() {
         id: workspace.order.id,
         order_number: workspace.order.number,
         vendor_name: workspace.order.vendor,
+        vendor_code: workspace.order.vendor_code,
         item_count: workspace.progress.total_units,
         ordered_date: workspace.order.ordered_date,
+        paid_date: workspace.order.paid_date,
         delivered_date: workspace.order.delivered_date,
       },
     ];
@@ -202,7 +208,9 @@ export default function ProcessingWorkspacePage() {
     workspace?.order?.id,
     workspace?.order.number,
     workspace?.order.vendor,
+    workspace?.order.vendor_code,
     workspace?.order.ordered_date,
+    workspace?.order.paid_date,
     workspace?.order.delivered_date,
     workspace?.progress.total_units,
   ]);

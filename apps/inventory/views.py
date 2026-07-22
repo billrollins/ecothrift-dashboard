@@ -2249,6 +2249,30 @@ def _purchase_order_hot_path_queryset():
     return PurchaseOrder.objects.select_related('vendor', 'created_by').all()
 
 
+def order_purchase_orders_by_milestones(queryset):
+    """delivered → shipped → paid → ordered (desc, nulls first), then id desc.
+
+    Null milestones lead so not-yet-delivered / not-yet-paid work surfaces first;
+    within filled dates, newest first.
+    """
+    return queryset.order_by(
+        F('delivered_date').desc(nulls_first=True),
+        F('shipped_date').desc(nulls_first=True),
+        F('paid_date').desc(nulls_first=True),
+        F('ordered_date').desc(nulls_first=True),
+        F('id').desc(),
+    )
+
+
+def _wants_purchase_order_milestone_ordering(request) -> bool:
+    raw = (request.query_params.get('ordering') or '').replace(' ', '').lower()
+    if not raw:
+        return False
+    if raw == 'milestones':
+        return True
+    return raw.startswith('-delivered_date')
+
+
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseOrderSerializer
     permission_classes = [IsAuthenticated, IsStaff]
@@ -2256,23 +2280,88 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     filterset_fields = {
         'vendor': ['exact'],
         'status': ['exact', 'in'],
+        'condition': ['exact', 'in'],
     }
-    ordering_fields = ['ordered_date', 'expected_delivery', 'created_at']
+    ordering_fields = [
+        'ordered_date',
+        'expected_delivery',
+        'delivered_date',
+        'shipped_date',
+        'paid_date',
+        'created_at',
+        'id',
+        'item_count',
+        'total_cost',
+        'retail_value',
+        'order_number',
+        'status',
+    ]
     ordering = ['-ordered_date']
+
+    _LIST_FILTER_ACTIONS = frozenset(
+        {'list', 'summary', 'for_receiving', 'preprocessing_queue', 'page_metrics'},
+    )
 
     def _filter_purchase_order_list_extras(self, queryset, request):
         """Date range + word-split search on denormalized search_text (list/summary only)."""
+        from datetime import timedelta
+
         qs = queryset
-        da = request.query_params.get('ordered_date_after')
-        db = request.query_params.get('ordered_date_before')
+        date_field = (request.query_params.get('date_field') or 'ordered_date').strip()
+        allowed_date_fields = {
+            'ordered_date',
+            'paid_date',
+            'shipped_date',
+            'delivered_date',
+            'expected_delivery',
+        }
+        if date_field not in allowed_date_fields:
+            date_field = 'ordered_date'
+
+        da = (
+            request.query_params.get('date_after')
+            or request.query_params.get(f'{date_field}_after')
+            or request.query_params.get('ordered_date_after')
+        )
+        db = (
+            request.query_params.get('date_before')
+            or request.query_params.get(f'{date_field}_before')
+            or request.query_params.get('ordered_date_before')
+        )
         if da:
             d = parse_date(da)
             if d:
-                qs = qs.filter(ordered_date__gte=d)
+                qs = qs.filter(**{f'{date_field}__gte': d})
         if db:
             d = parse_date(db)
             if d:
-                qs = qs.filter(ordered_date__lte=d)
+                qs = qs.filter(**{f'{date_field}__lte': d})
+
+        # Opt-in recent window (dashboard sends include_older=0 by default).
+        # Keeps any PO with ordered/paid/shipped/delivered activity in the last ~6 months.
+        include_older = (request.query_params.get('include_older') or '1').strip().lower()
+        if include_older in ('0', 'false', 'no'):
+            cutoff = timezone.localdate() - timedelta(days=183)
+            qs = qs.filter(
+                Q(delivered_date__gte=cutoff)
+                | Q(shipped_date__gte=cutoff)
+                | Q(paid_date__gte=cutoff)
+                | Q(ordered_date__gte=cutoff)
+            )
+
+        item_min = request.query_params.get('item_count_min')
+        item_max = request.query_params.get('item_count_max')
+        if item_min not in (None, ''):
+            try:
+                qs = qs.filter(item_count__gte=int(item_min))
+            except (TypeError, ValueError):
+                pass
+        if item_max not in (None, ''):
+            try:
+                qs = qs.filter(item_count__lte=int(item_max))
+            except (TypeError, ValueError):
+                pass
+
         order_raw = (
             request.query_params.get('order')
             or request.query_params.get('id')
@@ -2293,15 +2382,21 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     def filter_queryset(self, queryset):
         qs = super().filter_queryset(queryset)
-        if getattr(self, 'action', None) in ('list', 'summary', 'for_receiving', 'preprocessing_queue'):
+        if getattr(self, 'action', None) in self._LIST_FILTER_ACTIONS:
             qs = self._filter_purchase_order_list_extras(qs, self.request)
+        if getattr(self, 'action', None) in (
+            'list',
+            'summary',
+            'page_metrics',
+        ) and _wants_purchase_order_milestone_ordering(self.request):
+            qs = order_purchase_orders_by_milestones(qs)
         return qs
 
     def get_queryset(self):
         act = getattr(self, 'action', None)
         if act in _PURCHASE_ORDER_HOT_PATH_ACTIONS:
             return _purchase_order_hot_path_queryset()
-        if act in ('list', 'summary', 'for_receiving', 'preprocessing_queue'):
+        if act in ('list', 'summary', 'for_receiving', 'preprocessing_queue', 'page_metrics'):
             # Whitelist big-box dashboard vendors. Prefer matching Vendor.name because
             # vendor_name_cache can be empty or stale (bulk inserts, legacy rows, failed saves).
             return PurchaseOrder.objects.filter(
@@ -2375,35 +2470,37 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):
-        """Cheap aggregates for KPI cards; uses same filters as the list (no joins)."""
-        qs = self.filter_queryset(self.get_queryset()).order_by()
-        agg = qs.aggregate(
-            n=Count('pk'),
-            tc=Sum('total_cost'),
-            rv=Sum('retail_value'),
-            ic=Sum('item_count'),
+        """Cost/Retail/Priced/Sold/Profit aggregates; same filters as list; optional ids subset."""
+        from apps.inventory.services.purchase_order_financials import (
+            aggregate_financials,
+            parse_id_list,
         )
-        total_orders = agg['n'] or 0
-        tc = agg['tc']
-        rv = agg['rv']
-        ic = agg['ic']
-        if tc is None:
-            tc = Decimal('0')
-        if rv is None:
-            rv = Decimal('0')
-        items_received = ic if ic is not None else 0
-        delivered_count = qs.filter(status='delivered').count()
-        margin_percent = None
-        if rv > 0:
-            margin_percent = float(((rv - tc) / rv * Decimal('100')).quantize(Decimal('0.01')))
-        return Response({
-            'total_orders': total_orders,
-            'total_cost': str(tc.quantize(Decimal('0.01'))),
-            'retail_value': str(rv.quantize(Decimal('0.01'))),
-            'items_received': items_received,
-            'delivered_count': delivered_count,
-            'margin_percent': margin_percent,
-        })
+
+        qs = self.filter_queryset(self.get_queryset()).order_by()
+        selected = parse_id_list(request.query_params.get('ids'))
+        if selected:
+            qs = qs.filter(pk__in=selected)
+        return Response(aggregate_financials(qs))
+
+    @action(detail=False, methods=['get'], url_path='page-metrics')
+    def page_metrics(self, request):
+        """Batched financial metrics for visible/selected order ids (no list N+1)."""
+        from apps.inventory.services.purchase_order_financials import (
+            parse_id_list,
+            serialize_order_metrics,
+        )
+
+        selected = parse_id_list(request.query_params.get('ids'))
+        if not selected:
+            return Response({'orders': {}})
+        # Restrict to dashboard-visible POs (same whitelist as list).
+        allowed = set(
+            self.filter_queryset(self.get_queryset())
+            .filter(pk__in=selected)
+            .values_list('id', flat=True)
+        )
+        ordered = [pk for pk in selected if pk in allowed]
+        return Response({'orders': serialize_order_metrics(ordered)})
 
     def perform_create(self, serializer):
         from apps.inventory.services.po_defaults import get_default_po_est_shrink
@@ -2702,9 +2799,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         except (TypeError, ValueError):
             page_size = 25
 
-        today = timezone.localdate()
-
-        qs = (
+        qs = order_purchase_orders_by_milestones(
             self.filter_queryset(self.get_queryset())
             .exclude(status__in=['delivered', 'complete', 'cancelled'])
             .only(
@@ -2715,6 +2810,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'order_number',
                 'status',
                 'ordered_date',
+                'paid_date',
+                'shipped_date',
                 'expected_delivery',
                 'delivered_date',
                 'condition',
@@ -2730,29 +2827,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'created_at',
                 'updated_at',
             )
-            .annotate(
-                _ed_epoch=Extract('expected_delivery', 'epoch'),
-                _od_epoch=Extract('ordered_date', 'epoch'),
-                _recv_bucket=Case(
-                    When(expected_delivery__isnull=True, then=Value(2)),
-                    When(expected_delivery__gte=today, then=Value(0)),
-                    default=Value(1),
-                    output_field=IntegerField(),
-                ),
-                _recv_sort_primary=Case(
-                    When(
-                        Q(expected_delivery__isnull=False) & Q(expected_delivery__gte=today),
-                        then=Cast(F('_ed_epoch'), FloatField()),
-                    ),
-                    When(
-                        Q(expected_delivery__isnull=False) & Q(expected_delivery__lt=today),
-                        then=ExpressionWrapper(-F('_ed_epoch'), output_field=FloatField()),
-                    ),
-                    default=ExpressionWrapper(-F('_od_epoch'), output_field=FloatField()),
-                    output_field=FloatField(),
-                ),
-            )
-            .order_by('_recv_bucket', '_recv_sort_primary', '-ordered_date', '-id')
         )
         offset = (page_num - 1) * page_size
         rows = list(qs[offset:offset + page_size + 1])

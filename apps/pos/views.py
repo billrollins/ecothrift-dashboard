@@ -1334,6 +1334,9 @@ class QualityAuditViewSet(viewsets.ModelViewSet):
         audit_type = self.request.query_params.get('audit_type')
         if audit_type:
             qs = qs.filter(audit_type=audit_type)
+        # Submitted history: newest finalization first for hub review list.
+        if status_filter == QualityAudit.STATUS_SUBMITTED:
+            qs = qs.order_by('-submitted_at', '-started_at', '-id')
         return qs
 
     def create(self, request, *args, **kwargs):
@@ -2451,6 +2454,9 @@ def dashboard_department_goals(request):
         created_by=request.user if existing is None else existing.created_by,
         updated_by=request.user,
     )
+    # Goal value/schedule affects computed department progress and celebration state.
+    from apps.pos.services.dashboard_metrics import invalidate_dashboard_metrics_cache
+    invalidate_dashboard_metrics_cache()
     return Response(
         serializer.data,
         status=status.HTTP_200_OK if existing else status.HTTP_201_CREATED,

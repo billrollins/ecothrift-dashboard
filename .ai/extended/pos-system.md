@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-21 (v2.52.0 unified Delivery Day Board) -->
+<!-- Last updated: 2026-07-22 (v2.53.0 Retail QA schedule goals + gold celebration) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -196,6 +196,6 @@ Hooks: `useRegisters`, `useDrawers` (accepts `options.enabled`), `useCarts` (acc
 
 ## Revenue Goals & Dashboard Metrics
 
-- **DashboardSalesGoal** / **DashboardDepartmentGoal** — weekly targets; CRUD under **`/api/pos/dashboard/`**
-- **dashboard_metrics** (`GET /api/pos/dashboard/metrics/`): sales run-rate (90-day chart, 14-week book), department cards (buying, processing, restoration, retail QA), cached 45s — **`apps/pos/services/dashboard_metrics.py`**
-- **Quality Audit (WIP):** **`QualityAuditForm`** + **`QualityAudit`**; **`GET/POST/PATCH /api/pos/quality-audit-forms/`** + **`/api/pos/quality-audits/`** + **`…/submit/`** (Manager+); latest **`feeds_dashboard`** submit drives retail QA card grade
+- **DashboardSalesGoal** / **DashboardDepartmentGoal** — weekly targets; CRUD under **`/api/pos/dashboard/`**. Retail QA adds `schedule = {weekdays: [0..6], audits_per_day: N}` (`pos.0019`) alongside the minimum grade in `value`.
+- **dashboard_metrics** (`GET /api/pos/dashboard/metrics/`): sales run-rate (90-day chart, 14-week book), department cards (buying, processing, restoration, retail QA), cached 45s — **`apps/pos/services/dashboard_metrics.py`**. Retail QA daily/week progress is count + last submitted grade; no averaging/highest-grade selection. Daily/full-week success drives gold UI.
+- **Quality Audit:** **`QualityAuditForm`** + **`QualityAudit`**; **`GET/POST/PATCH /api/pos/quality-audit-forms/`** + **`/api/pos/quality-audits/`** + **`…/submit/`** (Manager+); latest **`feeds_dashboard`** submit drives retail QA Actual grade, and submitted history is reviewable from the QA hub.

@@ -14,6 +14,7 @@ import type { ChangeEvent } from 'react';
 
 import { useSnackbar } from 'notistack';
 
+import { OrderPickerOptionRow } from '../OrderPickerOptionRow';
 import type { OrderForReceivingRow, PalletSideId, ReceivingDetailDTO } from '../../../types/inventory.types';
 import type { PendingPhotoKind } from '../../../services/receiving/receivingClient';
 import { PALLET_SIDES } from '../../../services/receiving/receivingClient';
@@ -1003,30 +1004,19 @@ export default function ReceivingDesktopWorkspace({
                       textTransform: 'none',
                     }}
                   >
-                    <Box
-                      sx={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: '7px',
-                        bgcolor: '#ecf6ed',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: '#475569',
-                        flexShrink: 0,
-                        mr: 1.25,
+                    <OrderPickerOptionRow
+                      orderNumber={row.order_number}
+                      description={row.description}
+                      vendorCode={row.vendor_code}
+                      monoFontFamily={TOKENS.fontMono}
+                      mutedColor={TOKENS.muted}
+                      dates={{
+                        delivered_date: row.delivered_date,
+                        shipped_date: row.shipped_date,
+                        paid_date: row.paid_date,
+                        ordered_date: row.ordered_date,
                       }}
-                    >
-                      {String(row.vendor_code ?? '').slice(0, 2).toUpperCase() || '?'}
-                    </Box>
-                    <Box>
-                      <Typography sx={{ fontSize: 13, fontWeight: 600, fontFamily: TOKENS.fontMono }}>
-                        {row.order_number}
-                      </Typography>
-                      <Typography sx={{ fontSize: 11, color: TOKENS.muted }}>{row.description || '—'}</Typography>
-                    </Box>
+                    />
                   </Button>
                 ))}
               </Box>

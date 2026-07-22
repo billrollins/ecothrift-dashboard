@@ -14,6 +14,7 @@ import {
 import Close from '@mui/icons-material/Close';
 import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import { Link as RouterLink } from 'react-router-dom';
+import { OrderPickerOptionRow } from '../../../components/inventory/OrderPickerOptionRow';
 import type { ProcessingWorkspaceOrderDTO, ProcessingWorkspaceRollupsDTO } from '../../../types/inventory.types';
 import { formatCurrency } from '../../../utils/format';
 import { processingTokens } from './processingTokens';
@@ -22,8 +23,12 @@ export interface ProcessingWorkspaceOrderPickRow {
   id: number;
   order_number: string;
   vendor_name: string;
+  vendor_code?: string | null;
+  description?: string | null;
   item_count?: number;
   ordered_date?: string | null;
+  paid_date?: string | null;
+  shipped_date?: string | null;
   delivered_date?: string | null;
 }
 
@@ -71,11 +76,6 @@ function formatCompactDate(value: string | null | undefined): string {
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
-}
-
-function formatDeliveredPickerDate(value: string | null | undefined): string {
-  if (!value) return '—';
-  return formatCompactDate(value);
 }
 
 function formatOrderedDeliveredDates(order: ProcessingWorkspaceOrderDTO): string {
@@ -363,21 +363,20 @@ export function ProcessingWorkspaceHeader({
               setOrderAnchorEl(null);
               onSelectOrderId(option.id);
             }}
-            sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.35, py: 1, px: 1.5 }}
+            sx={{ alignItems: 'flex-start', py: 1, px: 1.5 }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.5, width: '100%' }}>
-              <Typography sx={{ fontFamily: processingTokens.monoFontFamily, fontSize: 12, fontWeight: 800 }}>
-                {option.order_number}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
-                {option.item_count != null ?
-                  `${new Intl.NumberFormat().format(option.item_count)} item${option.item_count === 1 ? '' : 's'}`
-                : '— items'}
-              </Typography>
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem', lineHeight: 1.25 }}>
-              Ordered {formatCompactDate(option.ordered_date)} · Delivered {formatDeliveredPickerDate(option.delivered_date)}
-            </Typography>
+            <OrderPickerOptionRow
+              orderNumber={option.order_number}
+              description={option.description}
+              vendorCode={option.vendor_code}
+              monoFontFamily={processingTokens.monoFontFamily}
+              dates={{
+                delivered_date: option.delivered_date,
+                shipped_date: option.shipped_date,
+                paid_date: option.paid_date,
+                ordered_date: option.ordered_date,
+              }}
+            />
           </MenuItem>
         ))}
       </Menu>

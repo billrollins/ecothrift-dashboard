@@ -6,8 +6,12 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   InputAdornment,
+  Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -37,6 +41,15 @@ interface DepartmentGoalDialogProps {
 }
 
 const GOLD = dashboardPalette.gold;
+const WEEKDAYS = [
+  { value: 0, label: 'Mon' },
+  { value: 1, label: 'Tue' },
+  { value: 2, label: 'Wed' },
+  { value: 3, label: 'Thu' },
+  { value: 4, label: 'Fri' },
+  { value: 5, label: 'Sat' },
+  { value: 6, label: 'Sun' },
+] as const;
 
 export function formatDepartmentGoalValue(kind: DepartmentGoalKind, value: string): string {
   if (!value) return '—';
@@ -69,12 +82,16 @@ export function DepartmentGoalDialog({
   const queryClient = useQueryClient();
   const [value, setValue] = useState('');
   const [description, setDescription] = useState('');
+  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [auditsPerDay, setAuditsPerDay] = useState('1');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setValue(goal?.value ?? '');
     setDescription(goal?.description ?? '');
+    setWeekdays(goal?.schedule?.weekdays ?? []);
+    setAuditsPerDay(String(goal?.schedule?.audits_per_day ?? 1));
     setError(null);
   }, [open, goal]);
 
@@ -84,10 +101,22 @@ export function DepartmentGoalDialog({
       if (!trimmed) {
         throw new Error('Enter a goal value.');
       }
+      if (config.key === 'retail' && weekdays.length === 0) {
+        throw new Error('Choose at least one audit day.');
+      }
+      const count = Math.max(1, Math.min(20, Number.parseInt(auditsPerDay, 10) || 1));
       return upsertDashboardDepartmentGoal({
         department: config.key,
         value: trimmed,
         description: description.trim(),
+        ...(config.key === 'retail'
+          ? {
+              schedule: {
+                weekdays: [...weekdays].sort((a, b) => a - b),
+                audits_per_day: count,
+              },
+            }
+          : {}),
       });
     },
     onSuccess: ({ data }) => {
@@ -101,6 +130,8 @@ export function DepartmentGoalDialog({
           },
         };
       });
+      // Schedule changes also recalculate daily cells and current-week achievement.
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'metrics'] });
       onClose();
     },
     onError: (err: unknown) => {
@@ -116,7 +147,7 @@ export function DepartmentGoalDialog({
         : 'Letter grade, e.g. A, B+, C.';
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth={config.key === 'retail' ? 'sm' : 'xs'} fullWidth>
       <DialogTitle
         sx={{ textAlign: 'center', fontWeight: 900, fontSize: '1.25rem', pb: 0.5 }}
       >
@@ -149,7 +180,7 @@ export function DepartmentGoalDialog({
               color: 'text.secondary',
             }}
           >
-            Goal
+            {config.kind === 'grade' ? 'Minimum Grade' : 'Goal'}
           </Typography>
           {isSuperuser ? (
             <TextField
@@ -186,6 +217,109 @@ export function DepartmentGoalDialog({
           )}
         </Box>
 
+        {config.key === 'retail' ? (
+          <>
+            <Divider />
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: 'block',
+                  mb: 0.75,
+                  textAlign: 'center',
+                  fontWeight: 800,
+                  letterSpacing: 1.2,
+                  textTransform: 'uppercase',
+                  color: 'text.secondary',
+                }}
+              >
+                Required Audit Days
+              </Typography>
+              {isSuperuser ? (
+                <ToggleButtonGroup
+                  value={weekdays}
+                  onChange={(_, next: number[]) => setWeekdays(next)}
+                  aria-label="Required Retail QA weekdays"
+                  size="small"
+                  sx={{
+                    width: '100%',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+                    '& .MuiToggleButton-root': {
+                      minWidth: 0,
+                      px: 0.5,
+                      textTransform: 'none',
+                      fontWeight: 800,
+                      borderColor: 'divider',
+                    },
+                    '& .Mui-selected': {
+                      bgcolor: `${dashboardPalette.goldSoft} !important`,
+                      color: `${dashboardPalette.goldDark} !important`,
+                      borderColor: `${dashboardPalette.gold} !important`,
+                    },
+                  }}
+                >
+                  {WEEKDAYS.map((day) => (
+                    <ToggleButton key={day.value} value={day.value} aria-label={day.label}>
+                      {day.label}
+                    </ToggleButton>
+                  ))}
+                </ToggleButtonGroup>
+              ) : (
+                <Stack direction="row" spacing={0.75} justifyContent="center" flexWrap="wrap" useFlexGap>
+                  {WEEKDAYS.filter((day) => weekdays.includes(day.value)).map((day) => (
+                    <Box
+                      key={day.value}
+                      sx={{
+                        px: 1.15,
+                        py: 0.55,
+                        borderRadius: 99,
+                        bgcolor: dashboardPalette.goldSoft,
+                        color: dashboardPalette.goldDark,
+                        fontWeight: 800,
+                        fontSize: '0.78rem',
+                      }}
+                    >
+                      {day.label}
+                    </Box>
+                  ))}
+                  {weekdays.length === 0 ? (
+                    <Typography color="text.secondary">No days scheduled.</Typography>
+                  ) : null}
+                </Stack>
+              )}
+              <Typography variant="caption" color="text.secondary" display="block" textAlign="center" sx={{ mt: 0.75 }}>
+                Each selected day is measured independently.
+              </Typography>
+            </Box>
+
+            <TextField
+              label="Audits required per selected day"
+              value={auditsPerDay}
+              onChange={(e) => setAuditsPerDay(e.target.value.replace(/\D/g, '').slice(0, 2))}
+              onBlur={() => {
+                const parsed = Number.parseInt(auditsPerDay, 10) || 1;
+                setAuditsPerDay(String(Math.max(1, Math.min(20, parsed))));
+              }}
+              fullWidth
+              disabled={!isSuperuser}
+              inputProps={{ min: 1, max: 20, inputMode: 'numeric' }}
+              helperText={
+                weekdays.length
+                  ? `${weekdays.length} scheduled day${weekdays.length === 1 ? '' : 's'} × ${Number.parseInt(auditsPerDay, 10) || 1} = ${
+                      weekdays.length * (Number.parseInt(auditsPerDay, 10) || 1)
+                    } audit${weekdays.length * (Number.parseInt(auditsPerDay, 10) || 1) === 1 ? '' : 's'} per full week`
+                  : 'Choose days above to establish the weekly schedule.'
+              }
+            />
+
+            <Alert severity="info" sx={{ py: 0.25 }}>
+              A scheduled day is achieved only when its audit count is met and its last submitted
+              grade meets the minimum grade. Completed days—and the full week once finished—turn gold.
+            </Alert>
+          </>
+        ) : null}
+
         <TextField
           label="Description"
           value={isSuperuser ? description : description.trim() ? description : 'No description provided.'}
@@ -205,7 +339,11 @@ export function DepartmentGoalDialog({
           <Button
             variant="contained"
             onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending || !value.trim()}
+            disabled={
+              saveMutation.isPending ||
+              !value.trim() ||
+              (config.key === 'retail' && weekdays.length === 0)
+            }
           >
             Save Goal
           </Button>

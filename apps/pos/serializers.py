@@ -187,6 +187,41 @@ class DashboardSalesGoalSerializer(serializers.ModelSerializer):
 
 
 class DashboardDepartmentGoalSerializer(serializers.ModelSerializer):
+    def validate_schedule(self, value):
+        if value in (None, ''):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('Schedule must be an object.')
+
+        raw_days = value.get('weekdays', [])
+        if not isinstance(raw_days, list):
+            raise serializers.ValidationError('weekdays must be a list.')
+        weekdays = []
+        for raw_day in raw_days:
+            if isinstance(raw_day, bool):
+                raise serializers.ValidationError('Weekdays must be numbers from 0 (Monday) to 6 (Sunday).')
+            try:
+                day = int(raw_day)
+            except (TypeError, ValueError):
+                raise serializers.ValidationError('Weekdays must be numbers from 0 (Monday) to 6 (Sunday).')
+            if day < 0 or day > 6:
+                raise serializers.ValidationError('Weekdays must be numbers from 0 (Monday) to 6 (Sunday).')
+            if day not in weekdays:
+                weekdays.append(day)
+
+        raw_count = value.get('audits_per_day', 1)
+        try:
+            audits_per_day = int(raw_count)
+        except (TypeError, ValueError):
+            raise serializers.ValidationError('audits_per_day must be a whole number.')
+        if audits_per_day < 1 or audits_per_day > 20:
+            raise serializers.ValidationError('audits_per_day must be between 1 and 20.')
+
+        return {
+            'weekdays': sorted(weekdays),
+            'audits_per_day': audits_per_day,
+        }
+
     class Meta:
         model = DashboardDepartmentGoal
         fields = [
@@ -194,6 +229,7 @@ class DashboardDepartmentGoalSerializer(serializers.ModelSerializer):
             'department',
             'value',
             'description',
+            'schedule',
             'created_at',
             'updated_at',
         ]

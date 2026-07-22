@@ -157,6 +157,8 @@ export interface PurchaseOrderListRow {
   order_number: string;
   status: PurchaseOrderStatus;
   ordered_date: string;
+  paid_date?: string | null;
+  shipped_date?: string | null;
   expected_delivery: string | null;
   delivered_date: string | null;
   condition: PurchaseOrderCondition;
@@ -183,14 +185,35 @@ export interface PreprocessingQueueResponse {
   results: PreprocessingQueueOrder[];
 }
 
-/** GET /api/inventory/orders/summary/ KPI aggregates (matches current list filters). */
+/** Per-order financial metrics (`page-metrics` / summary profitability). */
+export interface PurchaseOrderFinancialMetrics {
+  cost: string;
+  retail: string;
+  priced: string;
+  sold: string;
+  profit: string;
+}
+
+/** GET /api/inventory/orders/summary/ KPI aggregates (matches current list filters or selected ids). */
 export interface PurchaseOrderSummary {
   total_orders: number;
   total_cost: string;
   retail_value: string;
+  /** Alias of total_cost for profitability strip. */
+  cost?: string;
+  /** Alias of retail_value for profitability strip. */
+  retail?: string;
+  priced: string;
+  sold: string;
+  profit: string;
   items_received: number;
   delivered_count: number;
   margin_percent: number | null;
+}
+
+/** GET /api/inventory/orders/page-metrics/?ids=1,2,3 */
+export interface PurchaseOrderPageMetricsResponse {
+  orders: Record<string, PurchaseOrderFinancialMetrics>;
 }
 
 export interface PurchaseOrder {

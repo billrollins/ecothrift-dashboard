@@ -1,11 +1,10 @@
-feat: unified Delivery Day Board (v2.52.0)
+feat: Orders profitability + Retail QA scheduled goals (v2.53.0)
 
-Release: v2.52.0
+Release: v2.53.0
 
-- One Day Board: persistent cards with stage-adaptive inline actions (calls → route → load → drive → return)
-- Details modal (mobile full-screen / desktop dialog); Add delivery from past sale, SKU, or describe
-- Guarded run transitions, report-issue, audited reschedule, address ETA recalc
-- Item counts follow linked sale-line qty; phone/desktop layout polish
-- Migrations: pos.0014–pos.0018
-
-See .ai/initiatives/_archived/_completed/pos_discount_and_delivery.md
+- Orders list: Cost/Retail/Priced/Sold/Profit strip, selection summary, page metrics
+- Orders UX: 90–60 / Last 60 / Select visible / Older orders gate; milestone nulls-first
+- Order pickers: shared card layout + milestone sort for Processing/Receiving
+- Quality Audit hub: full submitted history with read-only review
+- Retail QA goals: weekday schedule, audits/day, min grade; gold celebration on hit
+- Migration: pos.0019 DashboardDepartmentGoal.schedule

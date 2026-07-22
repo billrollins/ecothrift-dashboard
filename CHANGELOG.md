@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.52.0] — 2026-07-21 -->
-<!-- Last reviewed: 2026-07-21 (v2.52.0 unified Delivery Day Board) -->
+<!-- Line 1 release: ## [2.53.0] — 2026-07-22 -->
+<!-- Last reviewed: 2026-07-22 (v2.53.0 Orders profitability + Retail QA goals) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.53.0] — 2026-07-22
+
+User-facing theme: **Orders profitability dashboard + Retail QA scheduled goals with gold celebration**.
+
+Initiative: outside initiatives hotfix (Orders list redesign follow-on; Retail QA goal schedule).
+
+### Added
+
+- **Admin / Quality Audit history** — Hub lists **all submitted audits** (table on desktop, cards on phone); click **Review** to open a read-only walkthrough of sections + final grade. Submitted list ordered by newest `submitted_at`.
+- **Dashboard / Retail QA goals + week grid** — Superusers configure required weekdays, audits per selected day, and minimum letter grade. Daily cells show last grade + count progress; a day succeeds only when **count is met and that day's last submitted grade meets the minimum**. Successful cells turn gold; once every scheduled day in the week succeeds, the full card turns gold with **“Hurray — weekly goal hit!”** (`DashboardDepartmentGoal.schedule`, migration `pos.0019`). Week score remains the **last submitted** grade by `submitted_at` — never average or highest.
+- **Inventory / Orders dashboard profitability** — Top strip shows **Cost / Retail / Priced / Sold / Profit**; row selection recalculates the strip; `GET /orders/summary/?ids=` and `GET /orders/page-metrics/?ids=` return authoritative aggregates (shelf history for Priced; completed-cart net of discounts for Sold; Profit = Sold − Cost).
+
+### Changed
+
+- **Inventory / order pickers** — Processing + Receiving dropdowns share one card layout (vendor glyph, bold order #, description, most-relevant date as `DEL · Nov 22, 2026`). Lists sort by delivered → shipped → paid → ordered → id (nulls first); Receiving `for-receiving` uses the same sort; list API exposes `paid_date` / `shipped_date`.
+- **Inventory / Orders list (`/inventory/orders`)** — Server-paginated DataGrid with Status, Order #, Description, Dates, Condition, Items, Cost/Retail/Priced/Sold/Profit; no empty leading column or vendor column; URL-backed search/filters (status buckets, condition, date type/range, item count) with active chips. Quick **90–60** (delivered 90–60 days ago), **Last 60** (ordered in last 60 days), **Select visible** (current page), and **Older orders** toggle (default hides POs with no milestone in ~6 months via `include_older=0`). Milestone sort is delivered → shipped → paid → ordered **desc with nulls first**.
 
 ## [2.52.0] — 2026-07-21
 

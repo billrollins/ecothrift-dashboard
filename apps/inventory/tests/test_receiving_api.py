@@ -69,62 +69,63 @@ class ReceivingApiTests(TestCase):
         self.assertIn(self.po_eligible.id, ids)
         self.assertNotIn(self.po_bad.id, ids)
 
-    def test_for_receiving_orders_by_expected_delivery_tiers(self):
-        """Future (asc) before overdue (desc) before null ED; nulls by ordered_date."""
+    def test_for_receiving_orders_by_milestone_dates(self):
+        """Sort: shipped/paid/ordered desc (nulls first); delivered excluded from for-receiving."""
         today = timezone.localdate()
         v = self.vendor
         common = {
             'vendor': v,
-            'description': 'Tier test',
+            'description': 'Milestone sort',
             'status': 'paid',
             'purchase_cost': Decimal('10.00'),
             'retail_value': Decimal('40.00'),
             'item_count': 0,
         }
-        po_null = PurchaseOrder.objects.create(
+        po_old_ordered = PurchaseOrder.objects.create(
             **common,
-            order_number='PO-TIER-NULL',
-            ordered_date=today - timedelta(days=1),
-            expected_delivery=None,
+            order_number='PO-MS-OLD',
+            ordered_date=today - timedelta(days=30),
+            paid_date=None,
+            shipped_date=None,
         )
-        po_future_later = PurchaseOrder.objects.create(
+        po_paid = PurchaseOrder.objects.create(
             **common,
-            order_number='PO-TIER-F2',
-            ordered_date=today,
-            expected_delivery=today + timedelta(days=5),
+            order_number='PO-MS-PAID',
+            ordered_date=today - timedelta(days=20),
+            paid_date=today - timedelta(days=10),
+            shipped_date=None,
         )
-        po_future_soon = PurchaseOrder.objects.create(
+        po_shipped_older = PurchaseOrder.objects.create(
             **common,
-            order_number='PO-TIER-F1',
-            ordered_date=today,
-            expected_delivery=today + timedelta(days=1),
+            order_number='PO-MS-SHIP-OLD',
+            ordered_date=today - timedelta(days=15),
+            paid_date=today - timedelta(days=12),
+            shipped_date=today - timedelta(days=8),
         )
-        po_past_old = PurchaseOrder.objects.create(
+        po_shipped_newer = PurchaseOrder.objects.create(
             **common,
-            order_number='PO-TIER-POLD',
-            ordered_date=today,
-            expected_delivery=today - timedelta(days=40),
-        )
-        po_past_recent = PurchaseOrder.objects.create(
-            **common,
-            order_number='PO-TIER-PNEW',
-            ordered_date=today,
-            expected_delivery=today - timedelta(days=2),
+            order_number='PO-MS-SHIP-NEW',
+            ordered_date=today - timedelta(days=14),
+            paid_date=today - timedelta(days=11),
+            shipped_date=today - timedelta(days=2),
         )
 
         r = self.client.get('/api/inventory/orders/for-receiving/', {'page_size': 25})
         self.assertEqual(r.status_code, 200)
         ids = [row['id'] for row in r.data['results']]
-        expected_mid = [
-            po_future_soon.id,
-            po_future_later.id,
-            po_past_recent.id,
-            po_past_old.id,
+        # Null milestones first (not shipped / not paid), then newest dates.
+        expected = [
+            po_old_ordered.id,
+            po_paid.id,
+            po_shipped_newer.id,
+            po_shipped_older.id,
         ]
-        filtered = [i for i in ids if i in expected_mid]
-        self.assertListEqual(filtered, expected_mid)
-
-        self.assertLess(ids.index(po_past_old.id), ids.index(po_null.id), 'null ED after dated')
+        filtered = [i for i in ids if i in expected]
+        self.assertListEqual(filtered, expected)
+        # List payload exposes milestone dates for picker UI
+        sample = next(row for row in r.data['results'] if row['id'] == po_shipped_newer.id)
+        self.assertEqual(sample['shipped_date'], (today - timedelta(days=2)).isoformat())
+        self.assertIn('paid_date', sample)
 
     def test_patch_receiving_shapes_draft(self):
         r = self.client.patch(

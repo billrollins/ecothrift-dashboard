@@ -15,7 +15,10 @@ import {
   processingWeekTotal,
   restorationGridValue,
   restorationWeekTotal,
+  retailGoalCellState,
   retailGridValue,
+  retailWeekGoalAchieved,
+  retailWeekTotal,
 } from './DepartmentCardGrid';
 import { DepartmentStatCard } from './DepartmentStatCard';
 import {
@@ -42,9 +45,15 @@ interface CardConfig {
   actual: string;
   placeholder?: boolean;
   subStat?: ReactNode;
+  goalMet?: boolean;
+  goalStatus?: ReactNode;
   getValue: (day: DepartmentDailyMetric) => string;
   getWeekTotal: (week: DepartmentDailyWeek) => string;
+  getCellState?: (day: DepartmentDailyMetric) => 'scheduled' | 'achieved' | undefined;
+  getWeekAchieved?: (week: DepartmentDailyWeek) => boolean;
 }
+
+const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
   const { user } = useAuth();
@@ -118,8 +127,36 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
       icon: <WorkspacePremium />,
       actual: retail.ready && retail.last_grade ? retail.last_grade : '—',
       placeholder: !retail.ready,
+      goalMet: retail.week_goal_met,
+      goalStatus: retail.scheduled_days > 0 ? (
+        <Typography
+          variant="caption"
+          sx={{
+            fontSize: '0.62rem',
+            fontWeight: 800,
+            color: retail.due_goal_met ? dashboardPalette.greenDark : 'text.secondary',
+            lineHeight: 1.25,
+          }}
+        >
+          {retail.completed_days}/{retail.scheduled_days} days hit · {retail.week_audits}/
+          {retail.week_required} audits
+          {retail.schedule?.weekdays?.length
+            ? ` · ${retail.schedule.weekdays.map((day) => WEEKDAY_SHORT[day]).join(' ')}`
+            : ''}
+          {retail.due_goal_met && !retail.week_goal_met ? ' · On track' : ''}
+        </Typography>
+      ) : (
+        <Typography
+          variant="caption"
+          sx={{ fontSize: '0.62rem', fontWeight: 800, color: 'text.secondary' }}
+        >
+          Set required audit days in Goal
+        </Typography>
+      ),
       getValue: retailGridValue,
-      getWeekTotal: () => '—',
+      getWeekTotal: retailWeekTotal,
+      getCellState: retailGoalCellState,
+      getWeekAchieved: retailWeekGoalAchieved,
     },
   ];
 
@@ -143,6 +180,8 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
                 goalDisplay={formatDepartmentGoalValue(card.kind, goals[card.key]?.value ?? '')}
                 actualDisplay={card.actual}
                 placeholder={card.placeholder}
+                goalMet={card.goalMet}
+                goalStatus={card.goalStatus}
                 subStat={card.subStat}
                 onGoalClick={() => setOpenKey(card.key)}
                 showWeekDetailButton={isCompact}
@@ -153,6 +192,8 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
                       weeks={daily_weeks}
                       getValue={card.getValue}
                       getWeekTotal={card.getWeekTotal}
+                      getCellState={card.getCellState}
+                      getWeekAchieved={card.getWeekAchieved}
                       todayIso={todayIso}
                     />
                   )
@@ -181,6 +222,8 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
           weeks={daily_weeks}
           getValue={weekDetailCard.getValue}
           getWeekTotal={weekDetailCard.getWeekTotal}
+          getCellState={weekDetailCard.getCellState}
+          getWeekAchieved={weekDetailCard.getWeekAchieved}
           todayIso={todayIso}
         />
       : null}

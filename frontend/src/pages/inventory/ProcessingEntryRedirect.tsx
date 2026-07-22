@@ -21,7 +21,7 @@ export default function ProcessingEntryRedirect() {
   const { data, isLoading } = usePurchaseOrders(
     {
       status__in: 'paid,shipped,delivered,processing,complete',
-      ordering: '-ordered_date',
+      ordering: 'milestones',
       page_size: 100,
     },
     !legacyOrderParam,

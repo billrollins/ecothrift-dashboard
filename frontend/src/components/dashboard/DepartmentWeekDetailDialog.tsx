@@ -18,10 +18,22 @@ interface DepartmentWeekDetailDialogProps {
   weeks: DepartmentDailyWeek[];
   getValue: (day: DepartmentDailyMetric) => string;
   getWeekTotal: (week: DepartmentDailyWeek) => string;
+  getCellState?: (day: DepartmentDailyMetric) => 'scheduled' | 'achieved' | undefined;
+  getWeekAchieved?: (week: DepartmentDailyWeek) => boolean;
   todayIso?: string;
 }
 
-function GridCell({ value, isToday }: { value: string; isToday?: boolean }) {
+function GridCell({
+  value,
+  isToday,
+  goalState,
+}: {
+  value: string;
+  isToday?: boolean;
+  goalState?: 'scheduled' | 'achieved';
+}) {
+  const achieved = goalState === 'achieved';
+  const scheduled = goalState === 'scheduled';
   return (
     <Box
       sx={{
@@ -29,13 +41,32 @@ function GridCell({ value, isToday }: { value: string; isToday?: boolean }) {
         py: 0.35,
         px: 0.25,
         border: '1px solid',
-        borderColor: isToday ? dashboardPalette.green : 'rgba(91, 111, 95, 0.32)',
+        borderColor: achieved
+          ? dashboardPalette.gold
+          : scheduled
+            ? 'rgba(189, 134, 24, 0.55)'
+            : isToday
+              ? dashboardPalette.green
+              : 'rgba(91, 111, 95, 0.32)',
+        borderStyle: scheduled && !achieved ? 'dashed' : 'solid',
         borderRadius: 1,
-        bgcolor: isToday ? dashboardPalette.greenSoft : 'transparent',
+        bgcolor: achieved
+          ? dashboardPalette.goldSoft
+          : isToday
+            ? dashboardPalette.greenSoft
+            : 'transparent',
         textAlign: 'center',
       }}
     >
-      <Typography variant="caption" fontWeight={isToday ? 900 : 700} sx={{ fontSize: '0.75rem', lineHeight: 1.2 }}>
+      <Typography
+        variant="caption"
+        fontWeight={isToday || achieved ? 900 : 700}
+        sx={{
+          fontSize: '0.75rem',
+          lineHeight: 1.2,
+          color: achieved ? dashboardPalette.goldDark : 'inherit',
+        }}
+      >
         {value}
       </Typography>
     </Box>
@@ -49,6 +80,8 @@ export function DepartmentWeekDetailDialog({
   weeks,
   getValue,
   getWeekTotal,
+  getCellState,
+  getWeekAchieved,
   todayIso,
 }: DepartmentWeekDetailDialogProps) {
   const orderedWeeks = [...weeks].reverse();
@@ -77,7 +110,15 @@ export function DepartmentWeekDetailDialog({
               key={week.week_start}
               sx={{ display: 'grid', gridTemplateColumns: '48px repeat(7, minmax(0, 1fr))', gap: 0.35 }}
             >
-              <Box sx={{ alignSelf: 'center', textAlign: 'center' }}>
+              <Box
+                sx={{
+                  alignSelf: 'center',
+                  textAlign: 'center',
+                  borderRadius: 1,
+                  py: getWeekAchieved?.(week) ? 0.35 : 0,
+                  bgcolor: getWeekAchieved?.(week) ? dashboardPalette.goldSoft : 'transparent',
+                }}
+              >
                 <Typography
                   variant="caption"
                   color="text.secondary"
@@ -91,7 +132,7 @@ export function DepartmentWeekDetailDialog({
                   fontWeight={900}
                   sx={{ fontSize: '0.6rem', lineHeight: 1.15, display: 'block' }}
                 >
-                  {getWeekTotal(week)}
+                  {getWeekAchieved?.(week) ? `★ ${getWeekTotal(week)}` : getWeekTotal(week)}
                 </Typography>
               </Box>
               {week.days.map((day) => (
@@ -99,6 +140,7 @@ export function DepartmentWeekDetailDialog({
                   key={day.date}
                   value={getValue(day)}
                   isToday={!!todayIso && day.date === todayIso}
+                  goalState={getCellState?.(day)}
                 />
               ))}
             </Box>

@@ -14,6 +14,8 @@ interface DepartmentStatCardProps {
   goalDisplay: string;
   actualDisplay: string;
   placeholder?: boolean;
+  goalMet?: boolean;
+  goalStatus?: ReactNode;
   onGoalClick: () => void;
   footer?: ReactNode;
   subStat?: ReactNode;
@@ -30,6 +32,8 @@ export function DepartmentStatCard({
   goalDisplay,
   actualDisplay,
   placeholder = false,
+  goalMet = false,
+  goalStatus,
   onGoalClick,
   footer,
   subStat,
@@ -46,7 +50,24 @@ export function DepartmentStatCard({
         borderRadius: 3,
         overflow: 'hidden',
         ...dashboardRaisedDeptCardSx,
-        ...dashboardAccentLeftSx(accent),
+        ...(goalMet
+          ? {
+              borderColor: 'rgba(189, 134, 24, 0.72)',
+              borderLeft: `4px solid ${dashboardPalette.gold}`,
+              background: `linear-gradient(145deg, #fff9dc 0%, ${dashboardPalette.goldSoft} 48%, ${dashboardPalette.surface} 100%)`,
+              boxShadow:
+                'inset 0 1px 0 rgba(255,255,255,0.94), 0 0 0 1px rgba(242,201,76,0.28), 0 8px 24px rgba(122,84,14,0.38), 0 18px 40px rgba(20,30,24,0.38)',
+              '&::after': {
+                content: '"★"',
+                position: 'absolute',
+                top: 8,
+                right: 10,
+                color: dashboardPalette.gold,
+                fontSize: '1rem',
+                textShadow: '0 1px 0 #fff',
+              },
+            }
+          : dashboardAccentLeftSx(accent)),
         ...dashboardCardHoverLiftSx,
       }}
     >
@@ -70,10 +91,10 @@ export function DepartmentStatCard({
               width: 26,
               height: 26,
               borderRadius: 1.5,
-              color: accent,
-              bgcolor: `${accent}1A`,
+              color: goalMet ? dashboardPalette.goldDark : accent,
+              bgcolor: goalMet ? dashboardPalette.goldSoft : `${accent}1A`,
               border: '1px solid',
-              borderColor: `${accent}40`,
+              borderColor: goalMet ? 'rgba(189, 134, 24, 0.4)' : `${accent}40`,
               '& svg': { fontSize: 17 },
             }}
           >
@@ -83,7 +104,13 @@ export function DepartmentStatCard({
             variant="caption"
             display="block"
             lineHeight={1}
-            sx={{ fontWeight: 900, letterSpacing: 0.6, textTransform: 'uppercase', fontSize: '0.68rem', color: accent }}
+            sx={{
+              fontWeight: 900,
+              letterSpacing: 0.6,
+              textTransform: 'uppercase',
+              fontSize: '0.68rem',
+              color: goalMet ? dashboardPalette.goldDark : accent,
+            }}
           >
             {label}
           </Typography>
@@ -156,13 +183,44 @@ export function DepartmentStatCard({
                 fontWeight: 900,
                 lineHeight: 0.95,
                 letterSpacing: '-0.02em',
-                color: placeholder ? 'text.secondary' : accent,
+                color: placeholder
+                  ? 'text.secondary'
+                  : goalMet
+                    ? dashboardPalette.goldDark
+                    : accent,
               }}
             >
               {actualDisplay}
             </Typography>
           </Box>
         </Box>
+
+        {goalMet ? (
+          <Box
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              alignSelf: 'flex-start',
+              gap: 0.5,
+              px: 0.85,
+              py: 0.35,
+              borderRadius: 99,
+              bgcolor: 'rgba(242, 201, 76, 0.22)',
+              border: '1px solid rgba(189, 134, 24, 0.35)',
+              color: dashboardPalette.goldDark,
+              fontSize: '0.64rem',
+              fontWeight: 900,
+              letterSpacing: 0.25,
+            }}
+          >
+            <Box component="span" aria-hidden>
+              🏆
+            </Box>
+            HURRAY — WEEKLY GOAL HIT!
+          </Box>
+        ) : goalStatus ? (
+          goalStatus
+        ) : null}
 
         {subStat}
         {showWeekDetailButton && onViewWeekDetail ?

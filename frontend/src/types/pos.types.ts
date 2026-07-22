@@ -256,8 +256,22 @@ export interface RestorationMetrics {
 
 export interface RetailMetrics {
   ready: boolean;
+  /** Legacy alias of ``last_grade`` — not a mean of letter grades. */
   average_grade: string | null;
+  /** Most recently submitted dashboard-feeding QA grade (overall). */
   last_grade: string | null;
+  /** Weekly recurring QA schedule. Monday=0 ... Sunday=6. */
+  schedule: RetailQaGoalSchedule;
+  grade_goal: string | null;
+  week_audits: number;
+  week_required: number;
+  completed_days: number;
+  scheduled_days: number;
+  due_days: number;
+  /** All scheduled days due through today have hit count + grade. */
+  due_goal_met: boolean;
+  /** Every scheduled day in the full week has hit count + grade. */
+  week_goal_met: boolean;
   note?: string;
 }
 
@@ -268,6 +282,11 @@ export interface DepartmentDailyMetric {
   processing: string;
   restoration: number;
   retail: string | null;
+  retail_count?: number;
+  retail_required?: number;
+  retail_scheduled?: boolean;
+  retail_grade_met?: boolean;
+  retail_goal_met?: boolean;
   is_future: boolean;
 }
 
@@ -275,16 +294,34 @@ export interface DepartmentDailyWeek {
   label: string;
   week_start: string;
   week_end: string;
+  /**
+   * Retail QA week score: last submitted grade in that week (by submitted_at).
+   * Not average, not highest letter.
+   */
+  retail_week_grade?: string | null;
+  retail_week_audits?: number;
+  retail_week_required?: number;
+  retail_completed_days?: number;
+  retail_scheduled_days?: number;
+  retail_due_days?: number;
+  retail_due_goal_met?: boolean;
+  retail_week_goal_met?: boolean;
   days: DepartmentDailyMetric[];
 }
 
 export type DepartmentGoalKey = 'buying' | 'processing' | 'restoration' | 'retail';
+
+export interface RetailQaGoalSchedule {
+  weekdays: number[];
+  audits_per_day: number;
+}
 
 export interface DashboardDepartmentGoal {
   id: number;
   department: DepartmentGoalKey;
   value: string;
   description: string;
+  schedule?: RetailQaGoalSchedule;
   created_at?: string;
   updated_at?: string;
 }

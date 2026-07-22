@@ -20,6 +20,9 @@ interface QualityAuditSummaryStepProps {
   onSubmit: () => void;
   submitting?: boolean;
   error?: string | null;
+  /** Submitted audit: browse only (no submit / notes edit). */
+  readOnly?: boolean;
+  finalGrade?: string;
 }
 
 const RESULT_DOT: Record<string, string> = {
@@ -37,12 +40,14 @@ export function QualityAuditSummaryStep({
   onSubmit,
   submitting,
   error,
+  readOnly = false,
+  finalGrade,
 }: QualityAuditSummaryStepProps) {
   const total = totalChecks(responses);
   const answered = answeredChecks(responses);
   const allAnswered = answered === total;
   const rate = passRate(responses);
-  const grade = overallGrade(responses);
+  const grade = (readOnly && finalGrade ? finalGrade : overallGrade(responses)) || overallGrade(responses);
   const failCount = responses.sections.reduce(
     (sum, s) => sum + s.checks.filter((c) => deriveResult(c) === 'fail').length,
     0,
@@ -54,12 +59,12 @@ export function QualityAuditSummaryStep({
         <QaGradeRing grade={grade} value={rate} size={104} label="grade" sublabel={`${Math.round(rate * 100)}%`} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h6" fontWeight={800}>
-            Projected grade
+            {readOnly ? 'Final grade' : 'Projected grade'}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {answered}/{total} answered · {failCount} fail{failCount === 1 ? '' : 's'}
           </Typography>
-          {!allAnswered ? (
+          {!readOnly && !allAnswered ? (
             <Alert severity="warning" sx={{ mt: 1, py: 0 }}>
               Answer every check to submit.
             </Alert>
@@ -75,29 +80,33 @@ export function QualityAuditSummaryStep({
             key={section.id}
             section={section}
             onEdit={() => onEditSection(index)}
+            readOnly={readOnly}
           />
         ))}
       </Stack>
 
       <TextField
-        label="Overall notes (optional)"
+        label={readOnly ? 'Overall notes' : 'Overall notes (optional)'}
         fullWidth
         multiline
         minRows={3}
         value={summaryNotes}
         onChange={(e) => onSummaryNotesChange(e.target.value)}
+        InputProps={{ readOnly }}
       />
 
-      <Button
-        variant="contained"
-        fullWidth
-        size="large"
-        onClick={onSubmit}
-        disabled={submitting || !allAnswered}
-        sx={{ minHeight: 52, fontWeight: 800 }}
-      >
-        {submitting ? 'Submitting…' : 'Submit audit'}
-      </Button>
+      {readOnly ? null : (
+        <Button
+          variant="contained"
+          fullWidth
+          size="large"
+          onClick={onSubmit}
+          disabled={submitting || !allAnswered}
+          sx={{ minHeight: 52, fontWeight: 800 }}
+        >
+          {submitting ? 'Submitting…' : 'Submit audit'}
+        </Button>
+      )}
     </Stack>
   );
 }
@@ -105,9 +114,11 @@ export function QualityAuditSummaryStep({
 function SectionSummaryCard({
   section,
   onEdit,
+  readOnly,
 }: {
   section: QualityAuditSection;
   onEdit: () => void;
+  readOnly?: boolean;
 }) {
   const answered = countSectionAnswered(section);
   const total = section.checks.length;
@@ -124,7 +135,7 @@ function SectionSummaryCard({
           </Typography>
         </Box>
         <Button size="small" onClick={onEdit} sx={{ minHeight: 44, flexShrink: 0 }}>
-          Edit
+          {readOnly ? 'View' : 'Edit'}
         </Button>
       </Stack>
       <Stack direction="row" spacing={0.5} sx={{ mb: 1.25, flexWrap: 'wrap', rowGap: 0.5 }}>

@@ -575,6 +575,8 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
             'order_number',
             'status',
             'ordered_date',
+            'paid_date',
+            'shipped_date',
             'expected_delivery',
             'delivered_date',
             'condition',

@@ -5,6 +5,7 @@ import type {
   PurchaseOrderDetailSurface,
   PurchaseOrderListRow,
   PurchaseOrderSummary,
+  PurchaseOrderPageMetricsResponse,
   PreprocessingQueueOrder,
   PreprocessingQueueResponse,
   OrderForReceivingRow,
@@ -316,6 +317,12 @@ export function getOrderSummary(
   params?: Record<string, unknown>,
 ): Promise<{ data: PurchaseOrderSummary }> {
   return api.get<PurchaseOrderSummary>('/inventory/orders/summary/', { params });
+}
+
+export function getOrderPageMetrics(
+  params: { ids: string } & Record<string, unknown>,
+): Promise<{ data: PurchaseOrderPageMetricsResponse }> {
+  return api.get<PurchaseOrderPageMetricsResponse>('/inventory/orders/page-metrics/', { params });
 }
 
 export function getPreprocessingQueue(

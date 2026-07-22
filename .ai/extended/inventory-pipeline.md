@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-24 (label_printed_at + mark-labels-printed endpoint; edit check-in dialog) -->
+<!-- Last updated: 2026-07-22 (v2.53.0 Orders Cost/Retail/Priced/Sold/Profit + list UX) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -101,6 +101,8 @@ Orders dashboard queryset filter widening (stale **`vendor_name_cache`**): **`Q(
 `total_cost` is auto-computed in `save()` from: `purchase_cost + shipping_cost + fees`.
 
 **Item acquisition cost (v2.14.0):** Each **`Item.cost`** is allocated when units are created from a manifest and when **`PurchaseOrder.est_shrink`**, listing **`retail_value`**, or **`total_cost`** change — formula **`(item.retail_value / (PO.retail_value × (1 − est_shrink))) × PO.total_cost`**. **`PO.retail_value`** must stay the **B-Stock listing** total (do not replace with sum of line retails). Default **`est_shrink`** = **0.15**; Django admin can edit **`est_shrink`** per PO. One-shot backfill: **`python manage.py recompute_all_item_costs`**. The legacy nightly commands **`compute_vendor_metrics`**, **`compute_po_cost_analysis`**, **`compute_item_cost`**, **`recompute_cost_pipeline`** were **removed**.
+
+**Orders dashboard profitability (`/inventory/orders`):** Summary strip + per-row metrics from **`apps/inventory/services/purchase_order_financials.py`**. **Cost** = PO `total_cost`; **Retail** = PO `retail_value`; **Priced** = sum of `Item.price` for items that ever reached shelf (`listed_at`, status on_shelf/sold, or `ItemHistory` → on_shelf); **Sold** = net completed-cart merchandise after line/cart discounts (delivery/tax excluded; `Item.sold_for` fallback when no completed cart line); **Profit** = Sold − Cost. APIs: **`GET /orders/summary/`** (filters + optional `ids=`) and **`GET /orders/page-metrics/?ids=`** (batched row metrics). List stays lean (no Item joins on the paginated queryset).
 
 ### Additional Fields
 

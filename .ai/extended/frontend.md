@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-21 (v2.52.0 unified Delivery Day Board; Online Sales parked; TARS available) -->
+<!-- Last updated: 2026-07-22 (v2.53.0 Orders profitability + Retail QA gold goals) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -104,7 +104,8 @@
 
 **Inventory route behavior (M3)**:
 
-- (**`v2.20.0`**) **`/inventory/receiving`** resolves to the first PO from **`GET /api/inventory/orders/for-receiving/`** (**`ReceivingEntryRedirect`**) or **`/inventory/orders`**; **`/inventory/receiving/:id`** — **`ReceivingOrderPage`**. **`OrderListPage`**: **Receive** column (**`LocalShipping`**) when PO status permits receiving.
+- (**`v2.20.0`**) **`/inventory/receiving`** resolves to the first PO from **`GET /api/inventory/orders/for-receiving/`** (**`ReceivingEntryRedirect`**) or **`/inventory/orders`**; **`/inventory/receiving/:id`** — **`ReceivingOrderPage`**.
+- **`OrderListPage` (`/inventory/orders`)**: server-paginated DataGrid (Status, Order #, Description, Dates, Condition, Items, Cost/Retail/Priced/Sold/Profit); checkbox selection drives Cost/Retail/Priced/Sold/Profit strip; receive action on Order #; URL-backed filters (`orderList/urlState.ts`); metrics from **`usePurchaseOrderSummary`** / **`usePurchaseOrderPageMetrics`**.
 
 - **`OrderDetailPage`** handles order status management, **Raw Manifest** CSV upload/replace (`useUploadManifest` → `POST …/upload-manifest/`; multipart **`FormData`** without forcing boundary), and post-preprocessing actions (**Open Item Processor** → **`/inventory/processing/{id}`**, Mark Complete). **Preprocessing** unlocks when **`manifest_file`** exists. **Start Preprocessing** navigates to **`/inventory/preprocessing/:id`**.
 - **`PreprocessingPage`** (`/inventory/preprocessing/:id`) is a standalone 3-step wizard: Standardize Manifest → AI Cleanup → **Final Decisions** (stepper labels). Step 3 UI is **`PreprocessingReviewTable`** (staging **`PreprocessingRow`**); **`ManualReviewPanel`** is used for **`GET …/manual-review/`** responses (paginated **`ManifestRow`** pricing grid — also embedded read-only on Item Processor). Has own sidebar nav entry **Preprocessing**. **localStorage** persists last order ID. **Finalize** / **Open processing** navigates to **`/inventory/processing/{id}`**.

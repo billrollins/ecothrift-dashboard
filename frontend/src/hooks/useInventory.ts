@@ -12,6 +12,7 @@ import {
   updateVendor,
   getOrders,
   getOrderSummary,
+  getOrderPageMetrics,
   getPreprocessingQueue,
   getOrder,
   getOrderDetailSurface,
@@ -104,7 +105,14 @@ import type {
   PreprocessingReviewResetFinalPayload,
 } from '../api/inventory.api';
 import type { PaginatedResponse } from '../types/common.types';
-import type { Item, PurchaseOrder, PurchaseOrderListRow, PurchaseOrderSummary, PreprocessingQueueResponse } from '../types/inventory.types';
+import type {
+  Item,
+  PurchaseOrder,
+  PurchaseOrderListRow,
+  PurchaseOrderPageMetricsResponse,
+  PurchaseOrderSummary,
+  PreprocessingQueueResponse,
+} from '../types/inventory.types';
 
 type PurchaseOrdersQueryOptions = Pick<
   UseQueryOptions<PaginatedResponse<PurchaseOrderListRow>>,
@@ -113,6 +121,11 @@ type PurchaseOrdersQueryOptions = Pick<
 
 type PurchaseOrderSummaryQueryOptions = Pick<
   UseQueryOptions<PurchaseOrderSummary>,
+  'enabled' | 'placeholderData' | 'staleTime'
+>;
+
+type PurchaseOrderPageMetricsQueryOptions = Pick<
+  UseQueryOptions<PurchaseOrderPageMetricsResponse>,
   'enabled' | 'placeholderData' | 'staleTime'
 >;
 
@@ -221,6 +234,25 @@ export function usePurchaseOrderSummary(
       return data;
     },
     enabled: enabled !== false,
+    placeholderData,
+    staleTime,
+  });
+}
+
+export function usePurchaseOrderPageMetrics(
+  ids: number[],
+  options: boolean | PurchaseOrderPageMetricsQueryOptions = true,
+) {
+  const { enabled, placeholderData, staleTime } =
+    typeof options === 'boolean' ? { enabled: options } : { enabled: true, staleTime: 45_000, ...options };
+  const idKey = ids.slice().sort((a, b) => a - b).join(',');
+  return useQuery<PurchaseOrderPageMetricsResponse>({
+    queryKey: ['purchaseOrderPageMetrics', idKey],
+    queryFn: async () => {
+      const { data } = await getOrderPageMetrics({ ids: idKey });
+      return data;
+    },
+    enabled: enabled !== false && ids.length > 0,
     placeholderData,
     staleTime,
   });

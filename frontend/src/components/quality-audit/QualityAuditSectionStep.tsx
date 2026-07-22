@@ -6,6 +6,7 @@ import { controlLabel, countSectionAnswered, deriveResult } from './qaScoring';
 interface QualityAuditSectionStepProps {
   section: QualityAuditSection;
   onChange: (checkId: string, patch: CheckPatch) => void;
+  readOnly?: boolean;
 }
 
 const ACCENT: Record<string, string> = {
@@ -15,7 +16,11 @@ const ACCENT: Record<string, string> = {
   '': '#bd8618',
 };
 
-export function QualityAuditSectionStep({ section, onChange }: QualityAuditSectionStepProps) {
+export function QualityAuditSectionStep({
+  section,
+  onChange,
+  readOnly = false,
+}: QualityAuditSectionStepProps) {
   const answered = countSectionAnswered(section);
   const total = section.checks.length;
 
@@ -74,13 +79,15 @@ export function QualityAuditSectionStep({ section, onChange }: QualityAuditSecti
                 {check.hint}
               </Typography>
             ) : null}
-            <QaControl check={check} onChange={(patch) => onChange(check.id, patch)} />
+            <Box sx={readOnly ? { pointerEvents: 'none', opacity: 0.92 } : undefined}>
+              <QaControl check={check} onChange={(patch) => onChange(check.id, patch)} />
+            </Box>
             <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 1 }}>
               {controlLabel(check.control)}
             </Typography>
-            {result === 'fail' || result === 'na' ? (
+            {result === 'fail' || result === 'na' || (readOnly && check.notes) ? (
               <TextField
-                label="Optional note"
+                label={readOnly ? 'Note' : 'Optional note'}
                 fullWidth
                 multiline
                 minRows={2}
@@ -88,6 +95,7 @@ export function QualityAuditSectionStep({ section, onChange }: QualityAuditSecti
                 sx={{ mt: 1.25 }}
                 value={check.notes || ''}
                 onChange={(e) => onChange(check.id, { notes: e.target.value })}
+                InputProps={{ readOnly }}
               />
             ) : null}
           </Box>

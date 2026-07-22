@@ -372,6 +372,14 @@ class DashboardDepartmentGoal(models.Model):
     department = models.CharField(max_length=20, choices=DEPARTMENT_CHOICES, unique=True)
     value = models.CharField(max_length=50)
     description = models.TextField(blank=True, default='')
+    schedule = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=(
+            'Optional schedule configuration. Retail QA uses '
+            '{"weekdays": [0..6], "audits_per_day": N}.'
+        ),
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
