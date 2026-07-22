@@ -1,4 +1,4 @@
-fix(pos): migration-safe DeliveryDay backfill for Heroku release
+fix(pos): show delivery test datasets on Field days list
 
-Pass historical apps into 0021 backfill so ORM queries do not require
-Phase 2 columns added in 0023 (unblocks prod migrate after v2.56.0).
+Phone QA seeds are tagged as test datasets; Field must include them so
+Start Today is reachable without Desk include_test toggles.

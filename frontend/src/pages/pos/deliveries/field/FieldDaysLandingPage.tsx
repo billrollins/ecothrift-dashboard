@@ -18,13 +18,16 @@ export default function FieldDaysLandingPage() {
   const bucket = params.get('bucket');
   const listMode = bucket === 'past' || bucket === 'future';
 
+  // Field phone QA uses named test datasets — always include them here.
   const { data: todayData, isLoading: todayLoading } = useDeliveryDays({
     bucket: 'today',
     page_size: 5,
+    include_test: '1',
   });
   const { data: listData, isLoading: listLoading } = useDeliveryDays({
     bucket: listMode ? bucket : undefined,
     page_size: 50,
+    include_test: '1',
   });
   const today = todayData?.results?.[0] ?? null;
   const list = listData?.results ?? [];
