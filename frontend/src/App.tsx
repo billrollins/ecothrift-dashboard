@@ -42,7 +42,15 @@ import DrawerListPage from './pages/pos/DrawerListPage';
 import CashManagementPage from './pages/pos/CashManagementPage';
 import TransactionListPage from './pages/pos/TransactionListPage';
 import PosPrintablesPage from './pages/pos/PosPrintablesPage';
-import DeliveriesPage from './pages/pos/DeliveriesPage';
+import DeliveriesEntryRedirect from './pages/pos/deliveries/DeliveriesEntryRedirect';
+import DeliveryExperienceLayout from './pages/pos/deliveries/DeliveryExperienceLayout';
+import LegacyDeliveriesPage from './pages/pos/deliveries/LegacyDeliveriesPage';
+import DeskDaysPage from './pages/pos/deliveries/desk/DeskDaysPage';
+import DeskDayDetailPage from './pages/pos/deliveries/desk/DeskDayDetailPage';
+import DeskTotalDeliveriesPage from './pages/pos/deliveries/desk/DeskTotalDeliveriesPage';
+import FieldDaysLandingPage from './pages/pos/deliveries/field/FieldDaysLandingPage';
+import FieldDayDetailPage from './pages/pos/deliveries/field/FieldDayDetailPage';
+import FieldTotalDeliveriesPage from './pages/pos/deliveries/field/FieldTotalDeliveriesPage';
 import PosStoreSetupPage from './pages/admin/PosStoreSetupPage';
 import ConsignmentAccountsPage from './pages/consignment/AccountsPage';
 import ConsigneeDetailPage from './pages/consignment/ConsigneeDetailPage';
@@ -171,7 +179,18 @@ export default function App() {
         <Route path="/pos/cash" element={<CashManagementPage />} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
         <Route path="/pos/printables" element={<PosPrintablesPage />} />
-        <Route path="/pos/deliveries" element={<DeliveriesPage />} />
+        <Route path="/pos/deliveries" element={<DeliveriesEntryRedirect />} />
+        <Route path="/pos/deliveries/legacy" element={<LegacyDeliveriesPage />} />
+        <Route path="/pos/deliveries/desk" element={<DeliveryExperienceLayout experience="desk" />}>
+          <Route path="days" element={<DeskDaysPage />} />
+          <Route path="days/:dayId" element={<DeskDayDetailPage />} />
+          <Route path="total" element={<DeskTotalDeliveriesPage />} />
+        </Route>
+        <Route path="/pos/deliveries/field" element={<DeliveryExperienceLayout experience="field" />}>
+          <Route path="days" element={<FieldDaysLandingPage />} />
+          <Route path="days/:dayId" element={<FieldDayDetailPage />} />
+          <Route path="total" element={<FieldTotalDeliveriesPage />} />
+        </Route>
         <Route path="/buying/auctions" element={<AuctionListPage />} />
         <Route path="/buying/auctions/:id" element={<AuctionDetailPage />} />
         <Route path="/buying/watchlist" element={<WatchlistPage />} />

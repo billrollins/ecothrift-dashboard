@@ -165,6 +165,7 @@ from apps.inventory.services.receiving import (
 from apps.inventory.services.receiving_photos import (
     ReceivingPhotoError,
     delete_attachment_storage,
+    replace_receiving_photo,
     save_receiving_photo,
 )
 from apps.inventory.services.manifest_meta import compute_category_count
@@ -3020,6 +3021,118 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             updated_at=timezone.now(),
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path=r'receiving/photos/(?P<photo_id>[0-9]+)/replace',
+    )
+    def receiving_replace_photo(self, request, pk=None, photo_id=None):
+        """Replace high-res + thumbnail for an existing Receiving photo (edit/save)."""
+        order = self.get_object()
+        rec = Receiving.objects.filter(purchase_order=order).first()
+        if rec is None:
+            return Response(
+                {'detail': 'No receiving record.', 'code': 'no_receiving'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if rec.completed_at is not None:
+            return Response(
+                {'detail': 'Receiving is complete; photos are locked.', 'code': 'receiving_complete'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        try:
+            pid = int(photo_id)
+        except (TypeError, ValueError):
+            return Response({'detail': 'Invalid photo id.', 'code': 'invalid_id'}, status=status.HTTP_400_BAD_REQUEST)
+        att = (
+            rec.attachments.filter(pk=pid)
+            .select_related('s3_file', 'thumbnail_file')
+            .first()
+        )
+        if att is None:
+            return Response({'detail': 'Photo not found.', 'code': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'detail': 'No file.', 'code': 'missing_file'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            raw = file.read()
+        except Exception as e:
+            logger.exception('receiving_replace_photo read failed order=%s', order.pk)
+            return Response(
+                {'detail': f'Could not read file: {e}', 'code': 'storage_error'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        try:
+            saved = replace_receiving_photo(
+                attachment=att,
+                order_id=order.id,
+                raw=raw,
+                filename=file.name or (att.s3_file.filename if att.s3_file_id else 'photo.jpg'),
+                user=request.user,
+            )
+        except ReceivingPhotoError as e:
+            return Response(
+                {'detail': e.detail, 'code': e.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.exception('receiving_replace_photo failed order=%s photo=%s', order.pk, pid)
+            return Response(
+                {'detail': f'Could not save file: {e}', 'code': 'storage_error'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return Response(ReceivingAttachmentSerializer(saved.attachment).data)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path=r'receiving/photos/(?P<photo_id>[0-9]+)/download',
+    )
+    def receiving_download_photo(self, request, pk=None, photo_id=None):
+        """Authenticated download of the high-res Receiving photo (CORS-safe for canvas edits)."""
+        from django.http import FileResponse
+
+        order = self.get_object()
+        rec = Receiving.objects.filter(purchase_order=order).first()
+        if rec is None:
+            return Response(
+                {'detail': 'No receiving record.', 'code': 'no_receiving'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        try:
+            pid = int(photo_id)
+        except (TypeError, ValueError):
+            return Response({'detail': 'Invalid photo id.', 'code': 'invalid_id'}, status=status.HTTP_400_BAD_REQUEST)
+        att = (
+            rec.attachments.filter(pk=pid)
+            .select_related('s3_file')
+            .first()
+        )
+        if att is None or not att.s3_file_id:
+            return Response({'detail': 'Photo not found.', 'code': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
+        mf = att.s3_file
+        filename = mf.filename or f'receiving-{pid}.jpg'
+        safe_name = re.sub(r'[^\w.\-]+', '_', filename).strip('._') or f'receiving-{pid}.jpg'
+        try:
+            handle = default_storage.open(mf.key, 'rb')
+        except (OSError, FileNotFoundError):
+            return Response(
+                {'detail': 'Photo missing from storage.', 'code': 'storage_missing'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            logger.exception('receiving_download_photo open failed order=%s photo=%s', order.pk, pid)
+            return Response(
+                {'detail': f'Could not open photo: {e}', 'code': 'storage_error'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return FileResponse(
+            handle,
+            content_type=mf.content_type or 'image/jpeg',
+            as_attachment=True,
+            filename=safe_name,
+        )
 
     @action(detail=True, methods=['post'], url_path='receiving/complete')
     def receiving_complete(self, request, pk=None):

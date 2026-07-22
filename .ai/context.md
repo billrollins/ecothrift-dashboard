@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-22 (v2.54.0 Receiving photo variants + shared file viewers) -->
+<!-- Last updated: 2026-07-22 (Delivery Phase 1 / v2.55.0 Desk+Field foundation) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **No active initiatives** — **v2.54.0** Receiving photo thumbnails, required-photo overrides, shared image/CSV viewers. Next: resume Online Sales or TARS.
+- **Active — Delivery Mobile Operations Completion:** [`delivery_mobile_operations_completion`](initiatives/delivery_mobile_operations_completion.md) — **Phase 1 shipped in v2.55.0** (canonical Days/items, Desk+Field inactive shells, dummy-data loop, hardening). Next: Phase 2 active Field workflow; Phase 3 photos/signature/routing/SMS.
 - **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**; **v2.51.0** schedule-later; **v2.52.0** unified Day Board (calls → route → load → drive → return on the same cards).
 - **Parked — Online Sales Workspace:** [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md) — code retained; staff workspace + public holds **disabled** (`ONLINE_SALES_ENABLED=false`). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
 - **Parked — TARS decision guardrails:** [`tars_full_instruction_wizard_guidance`](initiatives/_archived/_pending/tars_full_instruction_wizard_guidance.md) — Studio at `/restoration/tars` **kept available**; floor validation + Phase 2/3 deferred. Contract: [`standalone_studio_contract.md`](reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).

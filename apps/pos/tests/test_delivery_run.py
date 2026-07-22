@@ -39,12 +39,14 @@ from apps.pos.services.delivery_run import (
 
 class DeliveryRunServiceTests(TestCase):
     def setUp(self):
+        manager, _ = Group.objects.get_or_create(name='Manager')
         self.user = User.objects.create_user(
             email='driver@example.com',
             first_name='Dee',
             last_name='Liver',
             password='test-pass-123',
         )
+        self.user.groups.add(manager)
         self.date = timezone.localdate() + timedelta(days=2)
         self.slot = DeliveryAvailability.objects.create(
             date=self.date,
@@ -183,7 +185,6 @@ class DeliveryRunServiceTests(TestCase):
         stop = run.stops.first()
         add_call_attempt(stop, user=self.user, result='answered_will_be_there')
         mark_loaded(stop, user=self.user)
-        mark_secured(stop, user=self.user)
         with self.assertRaises(ValueError) as ctx:
             set_phase(run, DeliveryRun.PHASE_ACTIVE, user=self.user)
         self.assertIn('begin_route', str(ctx.exception))
@@ -308,13 +309,14 @@ class DeliveryRunAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
         employee, _ = Group.objects.get_or_create(name='Employee')
+        manager, _ = Group.objects.get_or_create(name='Manager')
         self.user = User.objects.create_user(
             email='driver-api@example.com',
             first_name='Api',
             last_name='Driver',
             password='test-pass-123',
         )
-        self.user.groups.add(employee)
+        self.user.groups.add(employee, manager)
         self.client.force_authenticate(user=self.user)
         self.date = timezone.localdate() + timedelta(days=1)
         self.slot = DeliveryAvailability.objects.create(
@@ -355,19 +357,30 @@ class DeliveryRunAPITests(TestCase):
         self.assertEqual(r.data['phase'], 'calls')
         self.assertEqual(r.data['progress']['total'], 1)
         stop_id = r.data['stops'][0]['id']
+        item_id = r.data['stops'][0]['stop_items'][0]['id']
 
-        blocked = self.client.post(f'/api/pos/delivery-stops/{stop_id}/load/', {'loaded': True})
-        self.assertEqual(blocked.status_code, 400)
-
-        self._confirm_stop(stop_id)
+        # Phase 2: load is allowed while confirmation is still pending.
         loaded = self.client.post(f'/api/pos/delivery-stops/{stop_id}/load/', {'loaded': True})
         self.assertEqual(loaded.status_code, 200)
+
+        self._confirm_stop(stop_id)
+        # Secure requires item verified + photo (or exception).
+        self.client.post(
+            f'/api/pos/delivery-stop-items/{item_id}/skip/',
+            {'reason': 'No barcode on appliance'},
+            format='json',
+        )
+        self.client.post(
+            f'/api/pos/delivery-stop-items/{item_id}/photo-exception/',
+            {'reason': 'Camera offline for test'},
+            format='json',
+        )
         secured = self.client.post(f'/api/pos/delivery-stops/{stop_id}/secure/', {'secured': True})
         self.assertEqual(secured.status_code, 200)
         self.assertTrue(secured.data['all_loaded_secured'])
         self.assertTrue(secured.data['all_stops_called'])
 
-    def test_phase_route_requires_all_calls(self):
+    def test_phase_route_requires_truck_close(self):
         started = self.client.post(
             '/api/pos/delivery-runs/',
             {'date': self.date.isoformat()},
@@ -380,15 +393,14 @@ class DeliveryRunAPITests(TestCase):
             format='json',
         )
         self.assertEqual(blocked.status_code, 400)
-        stop_id = started.data['stops'][0]['id']
-        self._confirm_stop(stop_id)
-        ok = self.client.post(
+        # Load phase is allowed without confirmation.
+        ok_load = self.client.post(
             f'/api/pos/delivery-runs/{run_id}/phase/',
-            {'phase': 'route'},
+            {'phase': 'load'},
             format='json',
         )
-        self.assertEqual(ok.status_code, 200, ok.content)
-        self.assertEqual(ok.data['phase'], 'route')
+        self.assertEqual(ok_load.status_code, 200, ok_load.content)
+        self.assertEqual(ok_load.data['phase'], 'load')
 
     def test_begin_route_requires_truck_photo(self):
         started = self.client.post(
@@ -398,9 +410,19 @@ class DeliveryRunAPITests(TestCase):
         )
         run_id = started.data['id']
         stop_id = started.data['stops'][0]['id']
+        item_id = started.data['stops'][0]['stop_items'][0]['id']
         self._confirm_stop(stop_id)
         self.client.post(f'/api/pos/delivery-stops/{stop_id}/load/', {'loaded': True})
-        self.client.post(f'/api/pos/delivery-stops/{stop_id}/secure/', {'secured': True})
+        self.client.post(
+            f'/api/pos/delivery-stop-items/{item_id}/skip/',
+            {'reason': 'test'},
+            format='json',
+        )
+        self.client.post(
+            f'/api/pos/delivery-stop-items/{item_id}/photo-exception/',
+            {'reason': 'test'},
+            format='json',
+        )
         blocked = self.client.post(f'/api/pos/delivery-runs/{run_id}/begin-route/')
         self.assertEqual(blocked.status_code, 400)
         self.assertEqual(blocked.data['code'], 'BEGIN_ROUTE_BLOCKED')
@@ -413,9 +435,27 @@ class DeliveryRunAPITests(TestCase):
         )
         run_id = started.data['id']
         stop_id = started.data['stops'][0]['id']
+        item_id = started.data['stops'][0]['stop_items'][0]['id']
         self._confirm_stop(stop_id)
         self.client.post(f'/api/pos/delivery-stops/{stop_id}/load/', {'loaded': True})
-        self.client.post(f'/api/pos/delivery-stops/{stop_id}/secure/', {'secured': True})
+        self.client.post(
+            f'/api/pos/delivery-stop-items/{item_id}/skip/',
+            {'reason': 'test'},
+            format='json',
+        )
+        self.client.post(
+            f'/api/pos/delivery-stop-items/{item_id}/photo-exception/',
+            {'reason': 'test'},
+            format='json',
+        )
+        self.assertEqual(
+            self.client.post(
+                f'/api/pos/delivery-runs/{run_id}/phase/',
+                {'phase': 'load'},
+                format='json',
+            ).status_code,
+            200,
+        )
         img = SimpleUploadedFile('truck.jpg', b'\xff\xd8\xff\xd9fake', content_type='image/jpeg')
         up = self.client.post(
             f'/api/pos/delivery-runs/{run_id}/attachments/',
@@ -424,6 +464,13 @@ class DeliveryRunAPITests(TestCase):
         )
         self.assertEqual(up.status_code, 201, up.content)
         self.assertEqual(up.data['truck_photo_count'], 1)
+        closed = self.client.post(f'/api/pos/delivery-runs/{run_id}/close-truck/')
+        self.assertEqual(closed.status_code, 200, closed.content)
+        self.client.post(
+            f'/api/pos/delivery-runs/{run_id}/phase/',
+            {'phase': 'route'},
+            format='json',
+        )
         with patch('apps.pos.services.delivery_run.apply_route_plan') as mock_plan:
             mock_plan.return_value = {'optimized': False, 'etas': []}
             began = self.client.post(f'/api/pos/delivery-runs/{run_id}/begin-route/')

@@ -470,9 +470,10 @@ export default function ReceivingOrderPage() {
           disabled={patchMut.isPending || completeMut.isPending}
         />
       ) : (
-        poSurface != null ? (
+        poSurface != null && oid != null ? (
           <ReceivingDesktopWorkspace
             receiving={m}
+            orderId={oid}
             orderNumberMono={poSurface.order_number}
             vendorDisplay={poSurface.vendor_name}
             descriptionLine={poSurface.description ?? ''}
@@ -500,6 +501,9 @@ export default function ReceivingOrderPage() {
               intakeDisputeMut.mutate({ palletNumber, subjectPalletId });
             }}
             onRequestComplete={() => void openCompleteDialog()}
+            onReceivingPhotosChanged={async () => {
+              await queryClient.refetchQueries({ queryKey: receivingDetailQueryKey(oid) });
+            }}
             loadingBar={
               patchMut.isPending || completeMut.isPending || intakeDisputeMut.isPending ? (
                 <LinearProgress color="primary" sx={{ flexShrink: 0 }} />

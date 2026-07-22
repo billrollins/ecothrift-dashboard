@@ -8,12 +8,13 @@ const DB_NAME = 'ecothrift-delivery-v1';
 const STORE_QUEUE = 'photoQueue';
 const PARALLEL_UPLOADS = 3;
 
-export type DeliveryPendingKind = 'truck' | 'delivery_proof' | 'signature' | 'issue';
+export type DeliveryPendingKind = 'truck' | 'load_item' | 'delivery_proof' | 'signature' | 'issue';
 
 export interface DeliveryPendingPhoto {
   id: string;
   runId: number;
   stopId?: number;
+  stopItemId?: number;
   createdAt: number;
   clientPhotoId: string;
   kind: DeliveryPendingKind;
@@ -86,6 +87,14 @@ export async function enqueueDeliveryPhoto(
   await queuePut(rec);
 }
 
+/** Remove a queued photo after a successful direct upload (idempotent). */
+export async function deleteQueuedDeliveryPhoto(
+  runId: number,
+  clientPhotoId: string,
+): Promise<void> {
+  await queueDelete(`${runId}:${clientPhotoId}`);
+}
+
 export async function pendingCountForRun(runId: number): Promise<number> {
   const rows = await queueGetAll();
   return rows.filter((r) => r.runId === runId).length;
@@ -93,7 +102,12 @@ export async function pendingCountForRun(runId: number): Promise<number> {
 
 export type DeliveryUploadFn = (
   blob: Blob,
-  meta: { clientPhotoId: string; kind: DeliveryPendingKind; stopId?: number },
+  meta: {
+    clientPhotoId: string;
+    kind: DeliveryPendingKind;
+    stopId?: number;
+    stopItemId?: number;
+  },
 ) => Promise<void>;
 
 export async function drainDeliveryUploadQueue(
@@ -113,6 +127,7 @@ export async function drainDeliveryUploadQueue(
           clientPhotoId: rec.clientPhotoId,
           kind: rec.kind,
           stopId: rec.stopId,
+          stopItemId: rec.stopItemId,
         });
         await queueDelete(rec.id);
       } catch {

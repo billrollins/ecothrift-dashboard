@@ -4,7 +4,7 @@ from .models import (
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal, DashboardSalesGoal,
     DashboardDepartmentGoal, QualityAudit, QualityAuditForm,
-    DeliveryAvailability, DeliveryJob,
+    DeliveryAvailability, DeliveryDay, DeliveryJob, DeliveryJobItem,
 )
 
 
@@ -331,10 +331,11 @@ class DeliveryAvailabilitySerializer(serializers.ModelSerializer):
     items_booked = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
-        model = DeliveryAvailability
+        model = DeliveryDay
         fields = [
             'id', 'date', 'time_start', 'time_end', 'crew_size', 'assigned_to',
             'notes', 'is_active', 'delivery_count', 'items_booked',
+            'planning_disposition', 'location', 'primary_driver',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'delivery_count', 'items_booked', 'created_at', 'updated_at']
@@ -345,6 +346,17 @@ class DeliveryAvailabilitySerializer(serializers.ModelSerializer):
         if time_start and time_end and time_end <= time_start:
             raise serializers.ValidationError({'time_end': 'End time must be after start time.'})
         return attrs
+
+
+class DeliveryJobItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeliveryJobItem
+        fields = [
+            'id', 'job', 'sku', 'description', 'quantity', 'position',
+            'is_scannable', 'is_active', 'source_cart_line',
+            'removed_at', 'remove_reason', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
 
 
 class DeliveryJobSerializer(serializers.ModelSerializer):
@@ -363,34 +375,39 @@ class DeliveryJobSerializer(serializers.ModelSerializer):
     availability_crew_size = serializers.IntegerField(
         source='availability.crew_size', read_only=True, allow_null=True, default=None,
     )
+    day = serializers.IntegerField(source='availability_id', read_only=True, allow_null=True)
     needs_scheduling = serializers.SerializerMethodField()
     receipt_number = serializers.SerializerMethodField()
     original_address = serializers.SerializerMethodField()
     delivery_address = serializers.SerializerMethodField()
     address_corrected = serializers.SerializerMethodField()
     item_count = serializers.SerializerMethodField()
+    items = serializers.SerializerMethodField()
+    is_test = serializers.SerializerMethodField()
+    is_archived = serializers.SerializerMethodField()
 
     class Meta:
         model = DeliveryJob
         fields = [
-            'id', 'availability', 'scheduled_date', 'cart', 'cart_line',
+            'id', 'availability', 'day', 'scheduled_date', 'cart', 'cart_line',
             'receipt_number',
             'customer_name', 'phone', 'address', 'is_apt', 'unit',
             'original_address', 'delivery_address', 'address_corrected',
-            'items_delivered', 'item_count', 'tier', 'fee',
+            'items_delivered', 'item_count', 'items', 'tier', 'fee',
             'distance_miles', 'distance_mode', 'status', 'notes',
-            'needs_scheduling',
+            'needs_scheduling', 'is_test', 'is_archived',
             'created_by', 'created_by_name',
             'availability_time_start', 'availability_time_end',
             'availability_assigned_to', 'availability_crew_size',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'scheduled_date', 'cart', 'cart_line', 'receipt_number',
+            'id', 'day', 'scheduled_date', 'cart', 'cart_line', 'receipt_number',
             'original_address', 'delivery_address', 'address_corrected',
             'customer_name', 'phone',
-            'address', 'is_apt', 'unit', 'items_delivered', 'item_count', 'tier',
+            'address', 'is_apt', 'unit', 'items_delivered', 'item_count', 'items', 'tier',
             'fee', 'distance_miles', 'distance_mode', 'needs_scheduling',
+            'is_test', 'is_archived',
             'created_by', 'created_by_name',
             'availability_time_start', 'availability_time_end',
             'availability_assigned_to', 'availability_crew_size',
@@ -431,3 +448,34 @@ class DeliveryJobSerializer(serializers.ModelSerializer):
     def get_item_count(self, obj):
         from apps.pos.services.delivery_run import resolved_delivery_item_count
         return resolved_delivery_item_count(obj)
+
+    def get_items(self, obj):
+        cached = getattr(obj, '_prefetched_objects_cache', {}).get('items')
+        if cached is not None:
+            rows = [it for it in cached if it.is_active]
+        else:
+            rows = list(obj.items.filter(is_active=True).order_by('position', 'id'))
+        return DeliveryJobItemSerializer(rows, many=True).data
+
+    def get_is_test(self, obj):
+        return obj.test_dataset_id is not None
+
+    def get_is_archived(self, obj):
+        return obj.archived_at is not None
+
+
+class DeliveryDayWriteSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    time_start = serializers.TimeField()
+    time_end = serializers.TimeField()
+    crew_size = serializers.IntegerField(required=False, default=2)
+    assigned_to = serializers.CharField(required=False, allow_blank=True, default='')
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    primary_driver = serializers.IntegerField(required=False, allow_null=True)
+    location = serializers.IntegerField(required=False, allow_null=True)
+    is_active = serializers.BooleanField(required=False)
+    planning_disposition = serializers.ChoiceField(
+        choices=['planned', 'cancelled', 'not_run'],
+        required=False,
+    )
+    reason = serializers.CharField(required=False, allow_blank=True, default='')

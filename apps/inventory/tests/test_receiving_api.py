@@ -294,6 +294,72 @@ class ReceivingApiTests(TestCase):
         self.assertFalse(default_storage.exists(high_key))
         self.assertFalse(default_storage.exists(thumb_key))
 
+    def test_replace_photo_swaps_variants_keeps_attachment(self):
+        self._patch_receiving()
+        r = self._upload('bol', raw=_jpeg_bytes(100, 80, (1, 2, 3)))
+        self.assertEqual(r.status_code, 201)
+        att_id = r.data['id']
+        old_high = r.data['s3_file']['id']
+        old_thumb = r.data['thumbnail_file']['id']
+        att = ReceivingAttachment.objects.select_related('s3_file', 'thumbnail_file').get(pk=att_id)
+        old_high_key = att.s3_file.key
+        old_thumb_key = att.thumbnail_file.key
+        f = SimpleUploadedFile('edited.jpg', _jpeg_bytes(160, 120, (200, 10, 10)), content_type='image/jpeg')
+        repl = self.client.post(
+            f'/api/inventory/orders/{self.po_eligible.id}/receiving/photos/{att_id}/replace/',
+            {'file': f},
+            format='multipart',
+        )
+        self.assertEqual(repl.status_code, 200, repl.data)
+        self.assertEqual(repl.data['id'], att_id)
+        self.assertEqual(repl.data['kind'], 'bol')
+        self.assertNotEqual(repl.data['s3_file']['id'], old_high)
+        self.assertNotEqual(repl.data['thumbnail_file']['id'], old_thumb)
+        self.assertFalse(S3File.objects.filter(pk=old_high).exists())
+        self.assertFalse(S3File.objects.filter(pk=old_thumb).exists())
+        self.assertFalse(default_storage.exists(old_high_key))
+        self.assertFalse(default_storage.exists(old_thumb_key))
+        att.refresh_from_db()
+        self.assertTrue(default_storage.exists(att.s3_file.key))
+        self.assertTrue(default_storage.exists(att.thumbnail_file.key))
+
+    def test_replace_photo_locked_when_complete(self):
+        self._patch_receiving()
+        self._upload_required_photos(pallet_count=1)
+        self.assertEqual(
+            self.client.post(
+                f'/api/inventory/orders/{self.po_eligible.id}/receiving/complete/',
+                {},
+                format='json',
+            ).status_code,
+            200,
+        )
+        att = ReceivingAttachment.objects.filter(
+            receiving__purchase_order=self.po_eligible,
+            kind='bol',
+        ).first()
+        f = SimpleUploadedFile('edited.jpg', _jpeg_bytes(), content_type='image/jpeg')
+        repl = self.client.post(
+            f'/api/inventory/orders/{self.po_eligible.id}/receiving/photos/{att.id}/replace/',
+            {'file': f},
+            format='multipart',
+        )
+        self.assertEqual(repl.status_code, 409)
+        self.assertEqual(repl.data.get('code'), 'receiving_complete')
+
+    def test_download_photo_headers_and_body(self):
+        self._patch_receiving()
+        r = self._upload('truck', raw=_jpeg_bytes(90, 70))
+        att_id = r.data['id']
+        d = self.client.get(
+            f'/api/inventory/orders/{self.po_eligible.id}/receiving/photos/{att_id}/download/',
+        )
+        self.assertEqual(d.status_code, 200)
+        self.assertIn('attachment', d.get('Content-Disposition', ''))
+        body = b''.join(d.streaming_content)
+        self.assertGreater(len(body), 50)
+        self.assertEqual(body[:2], b'\xff\xd8')  # JPEG SOI
+
     def test_complete_requires_bol_truck_and_four_sides(self):
         self._patch_receiving(pallet_count=1)
         for side in ('front', 'right', 'back', 'left'):

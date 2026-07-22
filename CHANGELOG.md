@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.54.0] — 2026-07-22 -->
-<!-- Last reviewed: 2026-07-22 (v2.54.0 Receiving photo variants + shared file viewers) -->
+<!-- Line 1 release: ## [2.56.0] — 2026-07-22 -->
+<!-- Last reviewed: 2026-07-22 (v2.56.0 Delivery Phase 2 Field day workflow) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.56.0] — 2026-07-22
+
+User-facing theme: **Delivery Phase 2** — full-day Field workflow (contact → load → truck → route → drive → return) plus Desk live monitor.
+
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+
+### Added
+
+- **POS / contact truth** — Separate contact attempts (`call_placed` / `composer_opened` / `text_marked_sent`) from stop dispositions; explicit unconfirmed exclusion; legacy `/call/` remains an adapter (`pos.0023`).
+- **POS / item execution** — Runtime `DeliveryRunStopItem` snapshots on run start/sync; quantity-aware scans with `client_scan_id`; audited skip/load/photo-exception; `load_item` attachments scoped by `stop_item_id`.
+- **POS / workflow gates** — Phase order calls → load → truck → route → active → return; truck closeout; manager departure override; stale `route_revision` → 409; `assert_run_action` on phase/departure transitions.
+- **POS / day-scoped run API** — `GET /api/pos/delivery-days/{id}/run/` with contact/load/truck/current-stop monitor aggregates (keeps `start-run/`).
+- **POS / Field shell** — Mobile Start Today, sticky timer, stage router, bottom shortcuts (Unconfirmed/Route/Navigate/Current), dirty/outbox guard; stages for contact, load, truck, route, drive/deliver, return.
+- **POS / Desk live monitor** — Read-only polling monitor on Desk day detail (no driver wizard).
+- **Ops / active-run seed** — `seed_delivery_test_dataset --with-active-run --stage …`; `show` reports contact/load state.
+
+### Changed
+
+- **POS / Field cutover** — Start Today is the normal Field path; `/pos/deliveries/legacy` remains one-release deprecated escape hatch.
+- **POS / loading rules** — Candidates may load while replies are pending; departure still requires confirmed/rescheduled/cancelled/excluded resolution plus item+truck evidence (or manager override).
+
+## [2.55.0] — 2026-07-22
+
+User-facing theme: **Delivery Phase 1** — canonical Days + Total Deliveries, separate Desk/Field shells, and production-safe dummy datasets.
+
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+
+### Added
+
+- **POS / DeliveryDay domain** — In-place rename of availability → `DeliveryDay` (same table/IDs), normalized job items, stop-item snapshots, quantity-aware scans, change audit, and named `DeliveryTestDataset` ownership (`pos.0020`–`pos.0022`).
+- **POS / Days + Deliveries APIs** — Paginated `GET/POST /api/pos/delivery-days/` and `/api/pos/deliveries/` with search, archive/restore, item add/remove, and audited mutations. Legacy `/delivery-availabilities/` and `/delivery-jobs/` remain as compatibility adapters.
+- **POS / dummy-data loop** — `seed_delivery_test_dataset`, `show_delivery_test_dataset`, `reset_delivery_test_dataset` (dry-run default; production requires `--allow-production --confirm-dataset KEY --execute`).
+- **POS / Delivery Desk + Field** — Separate inactive experiences under `/pos/deliveries/desk/*` and `/pos/deliveries/field/*` (Days + Total Deliveries). Entry redirect at `/pos/deliveries` remembers Desk/Field preference.
+- **Ops / migration preflight** — `report_delivery_migration_conflicts` for duplicate dates/runs and related blockers before constraint rollout.
+
+### Changed
+
+- **POS / delivery correctness** — Structured cart-line lineage on board-created jobs; authoritative item quantities; manager-only proof override; completed-day start blocked; safer boolean parsing; successful photo uploads clear the IndexedDB outbox immediately.
+- **POS / Deliveries navigation** — Active unified board moved to `/pos/deliveries/legacy` for QA; new Desk/Field pages do not expose Start Today (Phase 2).
 
 ## [2.54.0] — 2026-07-22
 

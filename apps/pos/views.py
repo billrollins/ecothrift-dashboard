@@ -19,7 +19,8 @@ from .models import (
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal, HistoricalTransaction, DashboardSalesGoal,
     DashboardDepartmentGoal, QualityAudit, QualityAuditForm,
-    DeliveryAvailability, DeliveryJob, DeliveryRun, DeliveryRunStop, DeliveryAttachment,
+    DeliveryAvailability, DeliveryDay, DeliveryJob, DeliveryJobItem,
+    DeliveryRun, DeliveryRunStop, DeliveryAttachment,
 )
 from .serializers import (
     RegisterSerializer, DrawerSerializer,
@@ -30,7 +31,7 @@ from .serializers import (
     RevenueGoalSerializer, DashboardSalesGoalSerializer,
     DashboardDepartmentGoalSerializer, QualityAuditSerializer,
     QualityAuditFormSerializer, QualityAuditFormSummarySerializer,
-    DeliveryAvailabilitySerializer, DeliveryJobSerializer,
+    DeliveryAvailabilitySerializer, DeliveryJobSerializer, DeliveryDayWriteSerializer,
 )
 from .filters import CartFilter, DrawerFilter
 
@@ -93,16 +94,27 @@ def _customer_schedule_message(job: DeliveryJob) -> str:
     )
 
 
-def _availability_queryset():
-    return DeliveryAvailability.objects.annotate(
+def _availability_queryset(include_test: bool = False):
+    qs = DeliveryAvailability.objects.all()
+    if not include_test:
+        qs = qs.filter(test_dataset__isnull=True)
+    return qs.annotate(
         delivery_count=Count(
             'jobs',
-            filter=Q(jobs__status=DeliveryJob.STATUS_SCHEDULED),
+            filter=Q(
+                jobs__status=DeliveryJob.STATUS_SCHEDULED,
+                jobs__archived_at__isnull=True,
+            ),
+            distinct=True,
         ),
         items_booked=Coalesce(
             Sum(
-                'jobs__item_count',
-                filter=Q(jobs__status=DeliveryJob.STATUS_SCHEDULED),
+                'jobs__items__quantity',
+                filter=Q(
+                    jobs__status=DeliveryJob.STATUS_SCHEDULED,
+                    jobs__archived_at__isnull=True,
+                    jobs__items__is_active=True,
+                ),
             ),
             0,
         ),
@@ -1151,6 +1163,8 @@ class CartViewSet(viewsets.ModelViewSet):
                 job.notes = notes
                 job.status = job_status
                 job.save()
+                from apps.pos.services.delivery_crud import ensure_job_items
+                ensure_job_items(job, user=request.user if request.user.is_authenticated else None)
             else:
                 line = CartLine.objects.create(
                     cart=cart,
@@ -1161,7 +1175,7 @@ class CartViewSet(viewsets.ModelViewSet):
                     line_kind=CartLine.LINE_KIND_DELIVERY,
                     meta=meta,
                 )
-                DeliveryJob.objects.create(
+                job = DeliveryJob.objects.create(
                     availability=availability,
                     scheduled_date=scheduled_date,
                     cart=cart,
@@ -1181,6 +1195,8 @@ class CartViewSet(viewsets.ModelViewSet):
                     status=job_status,
                     created_by=request.user if request.user.is_authenticated else None,
                 )
+                from apps.pos.services.delivery_crud import ensure_job_items
+                ensure_job_items(job, user=request.user if request.user.is_authenticated else None)
 
         cart.recalculate()
         cart = self.get_queryset().get(pk=cart.pk)
@@ -1547,7 +1563,9 @@ class DeliveryAvailabilityViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        qs = _availability_queryset()
+        qs = _availability_queryset(
+            include_test=_parse_request_bool(self.request.query_params.get('include_test')),
+        )
         upcoming = self.request.query_params.get('upcoming')
         if upcoming in ('1', 'true', 'yes'):
             qs = qs.filter(is_active=True, date__gte=timezone.localdate())
@@ -1863,6 +1881,20 @@ def _delivery_run_error(exc: Exception, code: str = 'DELIVERY_RUN_ERROR'):
     return Response({'detail': str(exc), 'code': code}, status=400)
 
 
+def _parse_request_bool(raw, default: bool = False) -> bool:
+    """Truthy parsing that treats string 'false'/'0'/'no' as False."""
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    text = str(raw).strip().lower()
+    if text in ('1', 'true', 'yes', 'on'):
+        return True
+    if text in ('0', 'false', 'no', 'off', ''):
+        return False
+    return default
+
+
 @api_view(['GET', 'POST'])
 @perm_classes([IsAuthenticated, IsEmployee])
 def delivery_runs(request):
@@ -1901,11 +1933,14 @@ def delivery_runs(request):
         availability_id = int(availability_id) if availability_id not in (None, '') else None
     except (TypeError, ValueError):
         availability_id = None
-    run = start_or_resume_run(
-        date=run_date,
-        user=request.user,
-        availability_id=availability_id,
-    )
+    try:
+        run = start_or_resume_run(
+            date=run_date,
+            user=request.user,
+            availability_id=availability_id,
+        )
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'DAY_RUN_FINAL')
     return Response(serialize_run(run), status=status.HTTP_201_CREATED)
 
 
@@ -1956,21 +1991,32 @@ def delivery_run_begin_route(request, pk: int):
 @api_view(['POST'])
 @perm_classes([IsAuthenticated, IsEmployee])
 def delivery_run_optimize(request, pk: int):
-    from apps.pos.services.delivery_run import apply_route_plan, serialize_run
+    from apps.pos.services.delivery_run import StaleRouteRevision, apply_route_plan, serialize_run
 
     try:
         run = DeliveryRun.objects.get(pk=pk)
     except DeliveryRun.DoesNotExist:
         return Response({'detail': 'Not found.'}, status=404)
     optimize = request.data.get('optimize', True)
-    apply_route_plan(run, user=request.user, optimize=bool(optimize))
+    base_revision = request.data.get('base_revision')
+    try:
+        apply_route_plan(
+            run,
+            user=request.user,
+            optimize=bool(optimize),
+            base_revision=int(base_revision) if base_revision is not None else None,
+        )
+    except StaleRouteRevision as exc:
+        return Response({'detail': str(exc), 'code': 'STALE_ROUTE_REVISION'}, status=409)
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'OPTIMIZE_FAILED')
     return Response(serialize_run(run))
 
 
 @api_view(['POST'])
 @perm_classes([IsAuthenticated, IsEmployee])
 def delivery_run_reorder(request, pk: int):
-    from apps.pos.services.delivery_run import reorder_stops, serialize_run
+    from apps.pos.services.delivery_run import StaleRouteRevision, reorder_stops, serialize_run
 
     try:
         run = DeliveryRun.objects.get(pk=pk)
@@ -1979,8 +2025,16 @@ def delivery_run_reorder(request, pk: int):
     stop_ids = request.data.get('stop_ids')
     if not isinstance(stop_ids, list):
         return Response({'detail': 'stop_ids required.', 'code': 'STOP_IDS_REQUIRED'}, status=400)
+    base_revision = request.data.get('base_revision')
     try:
-        reorder_stops(run, [int(x) for x in stop_ids], user=request.user)
+        reorder_stops(
+            run,
+            [int(x) for x in stop_ids],
+            user=request.user,
+            base_revision=int(base_revision) if base_revision is not None else None,
+        )
+    except StaleRouteRevision as exc:
+        return Response({'detail': str(exc), 'code': 'STALE_ROUTE_REVISION'}, status=409)
     except (TypeError, ValueError) as exc:
         return _delivery_run_error(exc, 'REORDER_FAILED')
     return Response(serialize_run(run))
@@ -1995,7 +2049,7 @@ def delivery_run_finish(request, pk: int):
         run = DeliveryRun.objects.get(pk=pk)
     except DeliveryRun.DoesNotExist:
         return Response({'detail': 'Not found.'}, status=404)
-    force = bool(request.data.get('force'))
+    force = _parse_request_bool(request.data.get('force'))
     if force and not IsManagerOrAdmin().has_permission(request, None):
         return Response({'detail': 'Manager access required to force-finish.'}, status=403)
     try:
@@ -2024,12 +2078,26 @@ def delivery_run_upload(request, pk: int):
         return Response({'detail': 'file required.', 'code': 'FILE_REQUIRED'}, status=400)
     kind = str(request.data.get('kind') or '')
     stop = None
+    stop_item = None
     stop_id = request.data.get('stop_id')
+    stop_item_id = request.data.get('stop_item_id')
     if stop_id not in (None, ''):
         try:
             stop = DeliveryRunStop.objects.get(pk=int(stop_id), run=run)
         except (DeliveryRunStop.DoesNotExist, TypeError, ValueError):
             return Response({'detail': 'Invalid stop_id.', 'code': 'INVALID_STOP'}, status=400)
+    if stop_item_id not in (None, ''):
+        from apps.pos.models import DeliveryRunStopItem
+
+        try:
+            stop_item = DeliveryRunStopItem.objects.select_related('stop').get(
+                pk=int(stop_item_id), stop__run=run
+            )
+        except (DeliveryRunStopItem.DoesNotExist, TypeError, ValueError):
+            return Response(
+                {'detail': 'Invalid stop_item_id.', 'code': 'INVALID_STOP_ITEM'},
+                status=400,
+            )
     try:
         save_attachment(
             run=run,
@@ -2037,6 +2105,7 @@ def delivery_run_upload(request, pk: int):
             uploaded_file=uploaded,
             kind=kind,
             stop=stop,
+            stop_item=stop_item,
             client_photo_id=request.data.get('client_photo_id'),
         )
     except ValueError as exc:
@@ -2095,6 +2164,7 @@ def delivery_stop_secure(request, pk: int):
 @api_view(['POST'])
 @perm_classes([IsAuthenticated, IsEmployee])
 def delivery_stop_call(request, pk: int):
+    """Legacy adapter — prefer /contact-attempt/ and /disposition/."""
     from apps.pos.services.delivery_run import add_call_attempt, serialize_run
 
     try:
@@ -2107,10 +2177,208 @@ def delivery_stop_call(request, pk: int):
             user=request.user,
             result=str(request.data.get('result') or ''),
             note=str(request.data.get('note') or ''),
+            channel=str(request.data.get('channel') or ''),
+            action=str(request.data.get('action') or ''),
         )
     except ValueError as exc:
         return _delivery_run_error(exc, 'INVALID_CALL_RESULT')
     return Response(serialize_run(stop.run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_stop_contact_attempt(request, pk: int):
+    from apps.pos.services.delivery_phase2 import record_contact_attempt
+    from apps.pos.services.delivery_run import serialize_run
+
+    try:
+        stop = DeliveryRunStop.objects.select_related('run').get(pk=pk)
+    except DeliveryRunStop.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    try:
+        record_contact_attempt(
+            stop,
+            user=request.user,
+            channel=str(request.data.get('channel') or ''),
+            action=str(request.data.get('action') or ''),
+            note=str(request.data.get('note') or ''),
+        )
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'INVALID_CONTACT_ATTEMPT')
+    return Response(serialize_run(stop.run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_stop_disposition(request, pk: int):
+    from apps.pos.services.delivery_phase2 import set_contact_disposition
+    from apps.pos.services.delivery_run import serialize_run
+
+    try:
+        stop = DeliveryRunStop.objects.select_related('run').get(pk=pk)
+    except DeliveryRunStop.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    try:
+        set_contact_disposition(
+            stop,
+            user=request.user,
+            disposition=str(request.data.get('disposition') or ''),
+            note=str(request.data.get('note') or ''),
+        )
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'INVALID_DISPOSITION')
+    return Response(serialize_run(stop.run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_stop_exclude_unconfirmed(request, pk: int):
+    from apps.pos.services.delivery_phase2 import clear_unconfirmed_exclusion, exclude_unconfirmed_stop
+    from apps.pos.services.delivery_run import serialize_run
+
+    try:
+        stop = DeliveryRunStop.objects.select_related('run').get(pk=pk)
+    except DeliveryRunStop.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    clear = _parse_request_bool(request.data.get('clear'))
+    try:
+        if clear:
+            clear_unconfirmed_exclusion(stop, user=request.user)
+        else:
+            exclude_unconfirmed_stop(
+                stop,
+                user=request.user,
+                reason=str(request.data.get('reason') or ''),
+            )
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'EXCLUDE_UNCONFIRMED_FAILED')
+    return Response(serialize_run(stop.run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_stop_item_scan(request, pk: int):
+    from apps.pos.models import DeliveryRunStopItem
+    from apps.pos.services.delivery_phase2 import scan_stop_item
+    from apps.pos.services.delivery_run import serialize_run
+
+    try:
+        item = DeliveryRunStopItem.objects.select_related('stop__run').get(pk=pk)
+    except DeliveryRunStopItem.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    try:
+        scan_stop_item(
+            item,
+            user=request.user,
+            scanned_code=str(request.data.get('scanned_code') or request.data.get('sku') or ''),
+            client_scan_id=request.data.get('client_scan_id'),
+        )
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'SCAN_FAILED')
+    return Response(serialize_run(item.stop.run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_stop_item_skip(request, pk: int):
+    from apps.pos.models import DeliveryRunStopItem
+    from apps.pos.services.delivery_phase2 import skip_stop_item_verification
+    from apps.pos.services.delivery_run import serialize_run
+
+    try:
+        item = DeliveryRunStopItem.objects.select_related('stop__run').get(pk=pk)
+    except DeliveryRunStopItem.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    try:
+        skip_stop_item_verification(
+            item,
+            user=request.user,
+            reason=str(request.data.get('reason') or ''),
+        )
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'SKIP_FAILED')
+    return Response(serialize_run(item.stop.run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_stop_item_load(request, pk: int):
+    from apps.pos.models import DeliveryRunStopItem
+    from apps.pos.services.delivery_phase2 import set_stop_item_loaded
+    from apps.pos.services.delivery_run import serialize_run
+
+    try:
+        item = DeliveryRunStopItem.objects.select_related('stop__run').get(pk=pk)
+    except DeliveryRunStopItem.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    loaded = request.data.get('loaded', True)
+    try:
+        set_stop_item_loaded(item, user=request.user, loaded=_parse_request_bool(loaded, default=True))
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'ITEM_LOAD_FAILED')
+    return Response(serialize_run(item.stop.run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_stop_item_photo_exception(request, pk: int):
+    from apps.pos.models import DeliveryRunStopItem
+    from apps.pos.services.delivery_phase2 import set_stop_item_photo_exception
+    from apps.pos.services.delivery_run import serialize_run
+
+    try:
+        item = DeliveryRunStopItem.objects.select_related('stop__run').get(pk=pk)
+    except DeliveryRunStopItem.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    try:
+        set_stop_item_photo_exception(
+            item,
+            user=request.user,
+            reason=str(request.data.get('reason') or ''),
+        )
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'PHOTO_EXCEPTION_FAILED')
+    return Response(serialize_run(item.stop.run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_run_close_truck(request, pk: int):
+    from apps.pos.services.delivery_phase2 import close_truck
+    from apps.pos.services.delivery_run import serialize_run
+
+    try:
+        run = DeliveryRun.objects.get(pk=pk)
+    except DeliveryRun.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    try:
+        close_truck(run, user=request.user)
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'TRUCK_CLOSE_BLOCKED')
+    return Response(serialize_run(run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_run_departure_override(request, pk: int):
+    from apps.pos.services.delivery_phase2 import set_departure_override
+    from apps.pos.services.delivery_run import serialize_run
+
+    try:
+        run = DeliveryRun.objects.get(pk=pk)
+    except DeliveryRun.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    try:
+        set_departure_override(
+            run,
+            user=request.user,
+            reason=str(request.data.get('reason') or ''),
+        )
+    except PermissionError as exc:
+        return Response({'detail': str(exc), 'code': 'MANAGER_REQUIRED'}, status=403)
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'DEPARTURE_OVERRIDE_FAILED')
+    return Response(serialize_run(run))
 
 
 @api_view(['POST'])
@@ -2152,9 +2420,11 @@ def delivery_stop_complete(request, pk: int):
         complete_stop(
             stop,
             user=request.user,
-            override=bool(request.data.get('override')),
+            override=_parse_request_bool(request.data.get('override')),
             override_reason=str(request.data.get('override_reason') or ''),
         )
+    except PermissionError as exc:
+        return Response({'detail': str(exc), 'code': 'MANAGER_REQUIRED'}, status=403)
     except ValueError as exc:
         return _delivery_run_error(exc, 'COMPLETE_BLOCKED')
     return Response(serialize_run(stop.run))
@@ -2232,7 +2502,7 @@ def delivery_stop_return_reconcile(request, pk: int):
                 if 'issue_notes' in request.data
                 else None
             ),
-            reconcile=bool(request.data.get('reconcile')),
+            reconcile=_parse_request_bool(request.data.get('reconcile')),
         )
     except ValueError as exc:
         return _delivery_run_error(exc, 'RETURN_RECONCILE_BLOCKED')
@@ -2291,7 +2561,7 @@ def delivery_stop_report_issue(request, pk: int):
             user=request.user,
             issue_code=str(request.data.get('issue_code') or ''),
             note=str(request.data.get('note') or ''),
-            hold=bool(request.data.get('hold', True)),
+            hold=_parse_request_bool(request.data.get('hold'), default=True),
         )
     except ValueError as exc:
         return _delivery_run_error(exc, 'REPORT_ISSUE_BLOCKED')
@@ -2553,3 +2823,334 @@ def historical_revenue(request):
         'data': result,
         'summary': summary,
     })
+
+
+def _parse_bool_param(raw, default=False) -> bool:
+    return _parse_request_bool(raw, default=default)
+
+
+class DeliveryDayViewSet(viewsets.ViewSet):
+    """Canonical paginated Days list/detail + planning actions."""
+
+    permission_classes = [IsAuthenticated, IsEmployee]
+
+    def list(self, request):
+        from apps.pos.services.delivery_day import day_list_queryset, serialize_day_summary
+        from ecothrift.pagination import ConfigurablePageSizePagination
+
+        qs = day_list_queryset(
+            bucket=request.query_params.get('bucket'),
+            date_from=request.query_params.get('date_from'),
+            date_to=request.query_params.get('date_to'),
+            disposition=request.query_params.get('disposition'),
+            driver_id=int(request.query_params['driver']) if request.query_params.get('driver') else None,
+            search=request.query_params.get('search') or request.query_params.get('q'),
+            include_test=_parse_bool_param(request.query_params.get('include_test')),
+            include_archived=_parse_bool_param(request.query_params.get('include_archived')),
+        )
+        paginator = ConfigurablePageSizePagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        data = [serialize_day_summary(d) for d in page]
+        return paginator.get_paginated_response(data)
+
+    def retrieve(self, request, pk=None):
+        from apps.pos.services.delivery_day import annotate_day_queryset, serialize_day_detail
+
+        try:
+            day = annotate_day_queryset(
+                DeliveryDay.objects.select_related('location', 'primary_driver', 'test_dataset')
+            ).get(pk=pk)
+        except DeliveryDay.DoesNotExist:
+            return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=404)
+        return Response(serialize_day_detail(day))
+
+    def create(self, request):
+        from apps.accounts.models import User
+        from apps.pos.services.delivery_day import create_day, serialize_day_detail, annotate_day_queryset
+
+        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+            return Response({'detail': 'Manager required.'}, status=403)
+        ser = DeliveryDayWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        driver = None
+        if data.get('primary_driver'):
+            try:
+                driver = User.objects.get(pk=data['primary_driver'], is_active=True)
+            except User.DoesNotExist:
+                return Response({'detail': 'Driver not found.'}, status=400)
+        try:
+            day = create_day(
+                user=request.user,
+                day_date=data['date'],
+                time_start=data['time_start'],
+                time_end=data['time_end'],
+                crew_size=data.get('crew_size') or 2,
+                assigned_to=data.get('assigned_to') or '',
+                notes=data.get('notes') or '',
+                primary_driver=driver,
+                location_id=data.get('location'),
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc), 'code': 'DAY_CREATE_INVALID'}, status=400)
+        day = annotate_day_queryset(DeliveryDay.objects.filter(pk=day.id)).get()
+        return Response(serialize_day_detail(day), status=201)
+
+    def partial_update(self, request, pk=None):
+        from apps.accounts.models import User
+        from apps.pos.services.delivery_day import (
+            annotate_day_queryset, serialize_day_detail, update_day,
+        )
+
+        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+            return Response({'detail': 'Manager required.'}, status=403)
+        try:
+            day = DeliveryDay.objects.get(pk=pk)
+        except DeliveryDay.DoesNotExist:
+            return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=404)
+        ser = DeliveryDayWriteSerializer(data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        kwargs = {
+            'day': day,
+            'user': request.user,
+            'reason': data.get('reason') or '',
+        }
+        for key in ('time_start', 'time_end', 'crew_size', 'assigned_to', 'notes', 'is_active', 'planning_disposition'):
+            if key in data:
+                kwargs[key] = data[key]
+        if 'primary_driver' in data:
+            if data['primary_driver']:
+                try:
+                    kwargs['primary_driver'] = User.objects.get(pk=data['primary_driver'], is_active=True)
+                except User.DoesNotExist:
+                    return Response({'detail': 'Driver not found.'}, status=400)
+            else:
+                kwargs['primary_driver'] = None
+        try:
+            update_day(**kwargs)
+        except ValueError as exc:
+            return Response({'detail': str(exc), 'code': 'DAY_UPDATE_INVALID'}, status=400)
+        day = annotate_day_queryset(DeliveryDay.objects.filter(pk=day.id)).get()
+        return Response(serialize_day_detail(day))
+
+    def destroy(self, request, pk=None):
+        from apps.pos.services.delivery_day import archive_day
+
+        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+            return Response({'detail': 'Manager required.'}, status=403)
+        try:
+            day = DeliveryDay.objects.get(pk=pk)
+        except DeliveryDay.DoesNotExist:
+            return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=404)
+        archive_day(day=day, user=request.user, reason=str(request.data.get('reason') or ''))
+        return Response(status=204)
+
+    @action(detail=True, methods=['get'], url_path='run')
+    def run(self, request, pk=None):
+        """Day-scoped canonical run (active or completed)."""
+        from apps.pos.services.delivery_run import serialize_run
+
+        try:
+            day = DeliveryDay.objects.get(pk=pk)
+        except DeliveryDay.DoesNotExist:
+            return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=404)
+        run = day.runs.filter(is_canonical=True).order_by('-id').first()
+        if run is None:
+            return Response({'detail': 'No run for this day.', 'code': 'DAY_RUN_MISSING'}, status=404)
+        return Response(serialize_run(run))
+
+    @action(detail=True, methods=['post'], url_path='start-run')
+    def start_run(self, request, pk=None):
+        from apps.pos.services.delivery_day import start_or_resume_day_run
+        from apps.pos.services.delivery_run import serialize_run
+
+        try:
+            day = DeliveryDay.objects.get(pk=pk)
+        except DeliveryDay.DoesNotExist:
+            return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=404)
+        try:
+            run = start_or_resume_day_run(day=day, user=request.user)
+        except PermissionError:
+            return Response(
+                {'detail': 'This day already has a completed run.', 'code': 'DAY_RUN_FINAL'},
+                status=409,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc), 'code': 'DAY_START_INVALID'}, status=400)
+        return Response(serialize_run(run))
+
+
+class DeliveryViewSet(viewsets.ViewSet):
+    """Canonical paginated Total Deliveries search + CRUD actions."""
+
+    permission_classes = [IsAuthenticated, IsEmployee]
+
+    def list(self, request):
+        from apps.pos.services.delivery_crud import delivery_search_queryset
+        from ecothrift.pagination import ConfigurablePageSizePagination
+
+        qs = delivery_search_queryset(
+            search=request.query_params.get('search') or request.query_params.get('q'),
+            status=request.query_params.get('status'),
+            date_from=request.query_params.get('date_from'),
+            date_to=request.query_params.get('date_to'),
+            day_id=int(request.query_params['day']) if request.query_params.get('day') else None,
+            include_test=_parse_bool_param(request.query_params.get('include_test')),
+            include_archived=_parse_bool_param(request.query_params.get('include_archived')),
+        )
+        paginator = ConfigurablePageSizePagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        return paginator.get_paginated_response(DeliveryJobSerializer(page, many=True).data)
+
+    def retrieve(self, request, pk=None):
+        try:
+            job = DeliveryJob.objects.select_related(
+                'availability', 'cart', 'cart__receipt', 'cart_line', 'created_by',
+            ).prefetch_related('address_revisions', 'items').get(pk=pk)
+        except DeliveryJob.DoesNotExist:
+            return Response({'detail': 'Delivery not found.', 'code': 'DELIVERY_NOT_FOUND'}, status=404)
+        return Response(DeliveryJobSerializer(job).data)
+
+    def create(self, request):
+        from apps.pos.services.delivery_crud import create_delivery
+
+        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+            return Response({'detail': 'Manager required.'}, status=403)
+        day = None
+        day_id = request.data.get('day') or request.data.get('day_id') or request.data.get('availability')
+        schedule_later = _parse_bool_param(request.data.get('schedule_later')) or day_id in (None, '', 'none')
+        if not schedule_later:
+            try:
+                day = DeliveryDay.objects.get(pk=int(day_id))
+            except (DeliveryDay.DoesNotExist, ValueError, TypeError):
+                return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=400)
+        try:
+            job = create_delivery(
+                user=request.user,
+                customer_name=str(request.data.get('customer_name') or ''),
+                phone=str(request.data.get('phone') or ''),
+                address=str(request.data.get('address') or ''),
+                items_delivered=str(request.data.get('items_delivered') or ''),
+                is_apt=_parse_bool_param(request.data.get('is_apt')),
+                unit=str(request.data.get('unit') or ''),
+                notes=str(request.data.get('notes') or ''),
+                day=day,
+                schedule_later=schedule_later,
+                tier=str(request.data.get('tier') or ''),
+                fee=request.data.get('fee'),
+                item_count=request.data.get('item_count'),
+                item_rows=request.data.get('items') if isinstance(request.data.get('items'), list) else None,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc), 'code': 'DELIVERY_CREATE_INVALID'}, status=400)
+        job = DeliveryJob.objects.prefetch_related('items', 'address_revisions').get(pk=job.id)
+        return Response(DeliveryJobSerializer(job).data, status=201)
+
+    def partial_update(self, request, pk=None):
+        from apps.pos.services.delivery_crud import update_delivery
+
+        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+            return Response({'detail': 'Manager required.'}, status=403)
+        try:
+            job = DeliveryJob.objects.get(pk=pk)
+        except DeliveryJob.DoesNotExist:
+            return Response({'detail': 'Delivery not found.', 'code': 'DELIVERY_NOT_FOUND'}, status=404)
+        try:
+            update_delivery(
+                job=job,
+                user=request.user,
+                reason=str(request.data.get('reason') or ''),
+                customer_name=request.data.get('customer_name'),
+                phone=request.data.get('phone'),
+                notes=request.data.get('notes'),
+                items_delivered=request.data.get('items_delivered'),
+                is_apt=request.data.get('is_apt') if 'is_apt' in request.data else None,
+                unit=request.data.get('unit'),
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=400)
+        job = DeliveryJob.objects.prefetch_related('items', 'address_revisions').get(pk=job.id)
+        return Response(DeliveryJobSerializer(job).data)
+
+    def destroy(self, request, pk=None):
+        from apps.pos.services.delivery_crud import archive_delivery
+
+        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+            return Response({'detail': 'Manager required.'}, status=403)
+        try:
+            job = DeliveryJob.objects.get(pk=pk)
+        except DeliveryJob.DoesNotExist:
+            return Response({'detail': 'Delivery not found.', 'code': 'DELIVERY_NOT_FOUND'}, status=404)
+        archive_delivery(job=job, user=request.user, reason=str(request.data.get('reason') or ''))
+        return Response(status=204)
+
+    @action(detail=True, methods=['post'], url_path='restore')
+    def restore(self, request, pk=None):
+        from apps.pos.services.delivery_crud import restore_delivery
+
+        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+            return Response({'detail': 'Manager required.'}, status=403)
+        try:
+            job = DeliveryJob.objects.get(pk=pk)
+        except DeliveryJob.DoesNotExist:
+            return Response({'detail': 'Delivery not found.', 'code': 'DELIVERY_NOT_FOUND'}, status=404)
+        restore_delivery(job=job, user=request.user, reason=str(request.data.get('reason') or ''))
+        return Response(DeliveryJobSerializer(job).data)
+
+    @action(detail=True, methods=['post'], url_path='assign-day')
+    def assign_day(self, request, pk=None):
+        from apps.pos.services.delivery_crud import assign_delivery_to_day
+
+        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+            return Response({'detail': 'Manager required.'}, status=403)
+        try:
+            job = DeliveryJob.objects.get(pk=pk)
+        except DeliveryJob.DoesNotExist:
+            return Response({'detail': 'Delivery not found.', 'code': 'DELIVERY_NOT_FOUND'}, status=404)
+        try:
+            day = DeliveryDay.objects.get(pk=int(request.data.get('day') or request.data.get('day_id')))
+        except (DeliveryDay.DoesNotExist, ValueError, TypeError):
+            return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=400)
+        assign_delivery_to_day(
+            job=job,
+            day=day,
+            user=request.user,
+            reason=str(request.data.get('reason') or ''),
+        )
+        return Response(DeliveryJobSerializer(job).data)
+
+    @action(detail=True, methods=['post'], url_path='items')
+    def add_item(self, request, pk=None):
+        from apps.pos.services.delivery_crud import add_job_item
+        from apps.pos.serializers import DeliveryJobItemSerializer
+
+        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+            return Response({'detail': 'Manager required.'}, status=403)
+        try:
+            job = DeliveryJob.objects.get(pk=pk)
+        except DeliveryJob.DoesNotExist:
+            return Response({'detail': 'Delivery not found.', 'code': 'DELIVERY_NOT_FOUND'}, status=404)
+        item = add_job_item(
+            job=job,
+            user=request.user,
+            description=str(request.data.get('description') or ''),
+            quantity=int(request.data.get('quantity') or 1),
+            sku=str(request.data.get('sku') or ''),
+            reason=str(request.data.get('reason') or ''),
+        )
+        return Response(DeliveryJobItemSerializer(item).data, status=201)
+
+    @action(detail=True, methods=['post'], url_path=r'items/(?P<item_id>[^/.]+)/remove')
+    def remove_item(self, request, pk=None, item_id=None):
+        from apps.pos.services.delivery_crud import remove_job_item
+        from apps.pos.serializers import DeliveryJobItemSerializer
+
+        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+            return Response({'detail': 'Manager required.'}, status=403)
+        try:
+            item = DeliveryJobItem.objects.select_related('job').get(pk=item_id, job_id=pk)
+        except DeliveryJobItem.DoesNotExist:
+            return Response({'detail': 'Item not found.', 'code': 'ITEM_NOT_FOUND'}, status=404)
+        remove_job_item(item=item, user=request.user, reason=str(request.data.get('reason') or ''))
+        return Response(DeliveryJobItemSerializer(item).data)

@@ -366,6 +366,77 @@ export interface DeliveryAvailability {
   is_active: boolean;
   delivery_count: number;
   items_booked: number;
+  planning_disposition?: 'planned' | 'cancelled' | 'not_run';
+  location?: number | null;
+  primary_driver?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type DeliveryDayDisplayState =
+  | 'planned'
+  | 'active'
+  | 'completed'
+  | 'cancelled'
+  | 'not_run';
+
+export interface DeliveryDaySummary {
+  id: number;
+  date: string;
+  time_start: string | null;
+  time_end: string | null;
+  crew_size: DeliveryCrewSize;
+  assigned_to: string;
+  notes: string;
+  is_active: boolean;
+  is_bookable: boolean;
+  planning_disposition: 'planned' | 'cancelled' | 'not_run';
+  display_state: DeliveryDayDisplayState;
+  location_id: number | null;
+  primary_driver_id: number | null;
+  primary_driver_name: string | null;
+  delivery_count: number;
+  items_booked: number;
+  completed_count: number;
+  cancelled_count: number;
+  is_test: boolean;
+  test_dataset_key: string | null;
+  run: {
+    id: number;
+    status: string;
+    phase: string;
+    active_seconds: number;
+    started_at: string | null;
+    ended_at: string | null;
+  } | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DeliveryDayDetail extends DeliveryDaySummary {
+  assignments: Array<{
+    id: number;
+    user_id: number;
+    user_name: string;
+    role: string;
+    display_order: number;
+  }>;
+  jobs: DeliveryJob[];
+  items: DeliveryJobItem[];
+}
+
+export interface DeliveryJobItem {
+  id: number;
+  job: number;
+  sku: string;
+  description: string;
+  quantity: number;
+  position: number;
+  is_scannable: boolean;
+  is_active: boolean;
+  source_cart_line?: number | null;
+  removed_at?: string | null;
+  remove_reason?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -373,6 +444,7 @@ export interface DeliveryAvailability {
 export interface DeliveryJob {
   id: number;
   availability: number | null;
+  day?: number | null;
   scheduled_date: string | null;
   cart: number | null;
   cart_line: number | null;
@@ -390,6 +462,7 @@ export interface DeliveryJob {
   unit: string;
   items_delivered: string;
   item_count: number;
+  items?: DeliveryJobItem[];
   tier: string;
   fee: string;
   distance_miles: string | null;
@@ -397,6 +470,8 @@ export interface DeliveryJob {
   status: DeliveryJobStatus;
   notes: string;
   needs_scheduling?: boolean;
+  is_test?: boolean;
+  is_archived?: boolean;
   created_by: number | null;
   created_by_name?: string | null;
   availability_time_start?: string | null;
@@ -413,13 +488,27 @@ export type DeliveryRunStatus = 'preparing' | 'en_route' | 'completed';
 export type DeliveryRunPhase =
   | 'start'
   | 'calls'
-  | 'route'
   | 'load'
+  | 'truck'
+  | 'route'
   | 'active'
   | 'return'
   /** @deprecated Legacy phases remapped by API */
-  | 'review'
-  | 'truck';
+  | 'review';
+export type DeliveryContactChannel = 'call' | 'text';
+export type DeliveryContactAttemptAction =
+  | 'call_placed'
+  | 'composer_opened'
+  | 'text_marked_sent';
+export type DeliveryContactDisposition =
+  | 'awaiting_reply'
+  | 'confirmed'
+  | 'reschedule_requested'
+  | 'cancel_requested'
+  | 'no_answer'
+  | 'voicemail'
+  | 'wrong_number'
+  | 'other';
 export type DeliveryRunStopState =
   | 'queued'
   | 'next_up'
@@ -427,7 +516,12 @@ export type DeliveryRunStopState =
   | 'completed'
   | 'failed'
   | 'rescheduled';
-export type DeliveryAttachmentKind = 'truck' | 'delivery_proof' | 'signature' | 'issue';
+export type DeliveryAttachmentKind =
+  | 'truck'
+  | 'load_item'
+  | 'delivery_proof'
+  | 'signature'
+  | 'issue';
 
 export interface DeliveryRunEvent {
   id: number;
@@ -464,10 +558,95 @@ export interface DeliveryAttachment {
 
 export interface DeliveryCallAttempt {
   id: number;
-  result: DeliveryCallResult;
+  result?: DeliveryCallResult;
+  channel?: DeliveryContactChannel | string;
+  action?: DeliveryContactAttemptAction | string;
   note: string;
   created_at: string;
   created_by: string;
+}
+
+export interface DeliveryStopItemScan {
+  id: number;
+  scanned_code: string;
+  client_scan_id: string | null;
+  scanned_at: string;
+}
+
+export interface DeliveryStopItemPhoto {
+  id: number;
+  kind: DeliveryAttachmentKind;
+  url: string;
+  client_photo_id: string | null;
+  created_at: string;
+}
+
+export interface DeliveryStopItem {
+  id: number;
+  stop_id: number;
+  job_item_id: number | null;
+  sku: string;
+  description: string;
+  quantity: number;
+  position: number;
+  is_scannable: boolean;
+  scan_count: number;
+  scans_required: number;
+  is_verified: boolean;
+  verification_skipped: boolean;
+  verification_skip_reason: string;
+  loaded_at: string | null;
+  has_load_photo: boolean;
+  photo_exception: boolean;
+  photo_exception_reason: string;
+  is_ready: boolean;
+  scans: DeliveryStopItemScan[];
+  photos: DeliveryStopItemPhoto[];
+}
+
+export interface DeliveryContactDispositionOption {
+  value: DeliveryContactDisposition | string;
+  label: string;
+}
+
+export interface DeliveryRunMonitorContact {
+  total: number;
+  confirmed: number;
+  awaiting_reply: number;
+  excluded_unconfirmed: number;
+  unresolved: number;
+  all_resolved: boolean;
+}
+
+export interface DeliveryRunMonitorLoad {
+  total_items: number;
+  verified: number;
+  loaded: number;
+  photographed: number;
+  ready: number;
+  all_ready: boolean;
+}
+
+export interface DeliveryRunMonitorRoute {
+  revision: number;
+  optimized: boolean;
+  etas_available: boolean;
+  provider_status: 'optimized' | 'fallback' | 'none' | string;
+  last_optimized_at: string | null;
+}
+
+export interface DeliveryRunMonitor {
+  contact: DeliveryRunMonitorContact;
+  load: DeliveryRunMonitorLoad;
+  truck_closed: boolean;
+  truck_closed_at: string | null;
+  departure_override: boolean;
+  current_stop: DeliveryRunStop | null;
+  next_stop: DeliveryRunStop | null;
+  unconfirmed: DeliveryRunStop[];
+  route: DeliveryRunMonitorRoute;
+  pending_media: number;
+  exceptions: DeliveryRunStop[];
 }
 
 export interface DeliveryTextTemplate {
@@ -537,9 +716,17 @@ export interface DeliveryRunStop {
   latest_call_result: DeliveryCallResult | null;
   latest_call_at: string | null;
   latest_call_note: string;
+  contact_disposition?: DeliveryContactDisposition | string;
+  contact_disposition_at?: string | null;
+  excluded_unconfirmed?: boolean;
+  excluded_unconfirmed_at?: string | null;
+  excluded_unconfirmed_reason?: string;
   is_confirmed: boolean;
   needs_call_again: boolean;
   has_call_result: boolean;
+  stop_items?: DeliveryStopItem[];
+  items_ready_count?: number;
+  items_total_count?: number;
   returned_unloaded_at: string | null;
   returned_items_stored_at: string | null;
   return_issue_code: string;
@@ -569,6 +756,7 @@ export interface DeliveryRun {
   route_summary?: {
     optimized?: boolean;
     etas_available?: boolean;
+    provider_status?: 'optimized' | 'fallback' | 'none' | string;
     total_drive_seconds?: number | null;
     total_distance_meters?: number | null;
     return_drive_seconds?: number | null;
@@ -577,6 +765,14 @@ export interface DeliveryRun {
     stop_count?: number;
     confirmed_count?: number;
   };
+  day_id?: number | null;
+  truck_closed_at?: string | null;
+  truck_closed?: boolean;
+  departure_override?: boolean;
+  departure_override_reason?: string;
+  all_stops_resolved?: boolean;
+  contact_dispositions?: DeliveryContactDispositionOption[];
+  monitor?: DeliveryRunMonitor;
   notes: string;
   returned_to_store_at: string | null;
   truck_photos: DeliveryAttachment[];

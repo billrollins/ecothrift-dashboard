@@ -39,6 +39,7 @@ import {
 import {
   compressImageToJpeg,
   drainDeliveryUploadQueue,
+  deleteQueuedDeliveryPhoto,
   enqueueDeliveryPhoto,
   pendingCountForRun,
 } from '../../../services/delivery/deliveryMediaClient';
@@ -203,6 +204,7 @@ export function DeliveryDayBoard({
       form.append('client_photo_id', clientPhotoId);
       if (stopId) form.append('stop_id', String(stopId));
       await actions.upload.mutateAsync({ runId: run.id, form });
+      await deleteQueuedDeliveryPhoto(run.id, clientPhotoId);
       setPendingUploads(await pendingCountForRun(run.id));
       enqueueSnackbar('Photo uploaded', { variant: 'success' });
     } catch {
@@ -345,6 +347,7 @@ export function DeliveryDayBoard({
             form.append('client_photo_id', clientPhotoId);
             form.append('stop_id', String(card.stop.id));
             await actions.upload.mutateAsync({ runId: run.id, form });
+            await deleteQueuedDeliveryPhoto(run.id, clientPhotoId);
             enqueueSnackbar('Signature saved', { variant: 'success' });
           }}
           onComplete={async () => {

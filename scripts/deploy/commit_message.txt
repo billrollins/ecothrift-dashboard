@@ -1,9 +1,5 @@
-feat: Receiving photo thumbnails, viewers, and complete photo guards (v2.54.0)
+feat(pos): Delivery Phase 1+2 Desk/Field day workflow (v2.56.0)
 
-Release: v2.54.0
-
-- Add 480px Receiving thumbnails alongside 2048px high-res; click-to-view lightbox
-- Require BOL/truck/four sides (or per-slot override reasons) before complete
-- Shared ImageViewerDialog / CsvViewerDialog + PurchaseOrderManifestDialog
-- Lean manifest-preview and authenticated manifest-download endpoints
-- Idempotent backfill_receiving_photo_thumbnails for production rollout
+Ship canonical DeliveryDay + datasets (0020–0022), then Phase 2 contact
+truth, stop-item load/truck/route gates, Field Start Today shell, and Desk
+live monitor (0023). Legacy board kept as a one-release escape hatch.

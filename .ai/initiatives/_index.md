@@ -1,33 +1,108 @@
-<!-- Last updated: 2026-07-21 (v2.50.0 Deliveries shipped; POS initiative completed; TARS + Online Sales parked) -->
+<!-- Last updated: 2026-07-22 (Delivery Phase 2 / v2.56.0) -->
 # Initiatives index
 
-**Initiatives** are bounded pieces of work (often **hours to a few days**), tracked as **one markdown file** each—separate from month/year **roadmap** strategy, from **projects** (roughly week-scale), and from an AI’s internal **plan** / TODO execution.
+Bounded work (hours–days), one `.md` per initiative. Not roadmap strategy, not week-scale projects, not an AI plan/TODO list.
 
-**Version / releases:** repo root [`.version`](../.version) and [`CHANGELOG.md`](../CHANGELOG.md) only — do not duplicate release history in initiative files. **Rule:** every production push warrants a semver bump and changelog entry.
+**Releases:** [`.version`](../.version) + [`CHANGELOG.md`](../../CHANGELOG.md) only. Every production push → semver + changelog.
+
+Session details live **only** in each file under **`## Sessions`**.
 
 ---
 
-## Active initiatives
+## Active
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| *(none)* | — | **v2.50.0** Deliveries release complete. Resume parked Online Sales or TARS next. |
-
-**Parked (off this index):** [online_sales_workspace](./_archived/_pending/online_sales_workspace.md) — code kept; staff workspace + public holds disabled for v2.50; resume after Deliveries release. [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md) — Studio available; resume owner/Mike floor validation then Phase 2. [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) — Phases 0–2 + bench live; resume **Phase 3–4**. [public_website](./_archived/_pending/public_website.md) — storefront rebuild **shipped in code** (**v2.26.0**); resume for Heroku deploy, `seed_shop_categories`, Helcim + email wiring.
-
-Other `.md` files in this folder (e.g. buying or UI polish history) stay for **session logs and reference** until archived; they are **not** active initiatives until listed above.
-
-**Current session details** (goal, finish line, updates) live **only** in each initiative file under **`## Sessions`** — not duplicated here.
-
-**Archived initiatives** (completed, pending, backlog, abandoned) are listed only in [`_archived/ARCHIVE.md`](./_archived/ARCHIVE.md). Start there with **[TOC — `_completed/`](./_archived/ARCHIVE.md#toc-completed)**; the same file has the other disposition tables. Recent completions: [custom_label_studio](./_archived/_completed/custom_label_studio.md) (2026-07-10; Label Studio + print-server **1.4.1**, **v2.48.0**–**v2.48.2**), [floorplan_builder](./_archived/_completed/floorplan_builder.md) (2026-07-09; editor + DB kinds + walls/cut **v2.39.0**–**v2.47.0**), [retail_quality_audit](./_archived/_completed/retail_quality_audit.md) (2026-07-09; Retail QA MVP + forms **v2.38.0** / **v2.43.0**), [hr_time_clock_mvp](./_archived/_completed/hr_time_clock_mvp.md) (2026-06-23; time clock + Time & payroll + Employees, **v2.33.0**–**v2.33.1**), [product_item_crud_and_processing](./_archived/_completed/product_item_crud_and_processing.md) (2026-06-22; catalog + processing integration **v2.29.0–v2.32.0**), [preprocessing_ai_cleanup_review](./_archived/_completed/preprocessing_ai_cleanup_review.md) (2026-06-10; Step 2 web AI cleanup review + implementation, **v2.28.0**), [blog_studio](./_archived/_completed/blog_studio.md) (2026-06-06; Blog Studio + DB-backed public blog, **v2.27.0**–**v2.27.2**). Recent pending: [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) (2026-07-09; resume Phase 3–4), [public_website](./_archived/_pending/public_website.md) (2026-05-30; v2.26.0 code shipped), [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) (2026-04-10). Recent backlog: [vendor_avatars](./_archived/_backlog/vendor_avatars.md) (2026-04-29).
+| [delivery_mobile_operations_completion](./delivery_mobile_operations_completion.md) | Phase 2 shipped → Phase 3 next | **v2.56.0** Field full-day workflow + Desk live monitor. Next: routing/ETA/signature/SMS polish. |
 
 ---
 
-## What an initiative is
+## Pending
 
-- A **single outcome** or coherent slice of work with acceptance-style notes and links into the repo (apps, `printserver/`, `frontend/`, etc.).
-- **One file per initiative** at the initiatives root while it is **live** (active, on hold, or not yet archived).
-- Optional machine-readable line (HTML comment) at the top of the file:
+Paused to resume later. Full checklists and sessions are in each file.
+
+| Initiative | Description | Pending since | Why / resume |
+|------------|-------------|---------------|--------------|
+| [online_sales_workspace](./_archived/_pending/online_sales_workspace.md) | Online Sales workspace + Listing Studio (holds, publish, channel copy, pickup-only policy). Phase 0 contract + substantial Phase 1 code retained. | 2026-07-21 | Disabled for **v2.50** Deliveries (`ONLINE_SALES_ENABLED=false`, nav/routes/holds off). **Resume:** re-enable flag + UI; hard-control corrections; A-grade Studio; Phase 2 ops. |
+| [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md) | TARS decision guardrails / worksheet / guidance (process canon + Bill-managed catalogs + improvement loop). Phase 1.5 Studio (`/restoration/tars`) shipped. | 2026-07-21 | Deferred for Deliveries release. **Resume:** owner/Mike floor validation → Phase 2 catalogs → Phase 3 improvement loop. |
+| [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) | TARS Restoration transactional product: queue + live bench. Phases 0–2 + hardening shipped (**~v2.39.0**). | 2026-07-09 | Bench live; execution/steering deferred. **Resume:** Phase 3 (verb panels, complete → location/dispatch) + Phase 4 (time premium / `AppSetting` steering). |
+| [public_website](./_archived/_pending/public_website.md) | Public storefront rebuild (hostname split, curated catalog, shop UX). Engineering Phases 0–4 + polish shipped **v2.26.0**. | 2026-05-30 | Code done; launch ops deferred. **Resume:** Heroku deploy, prod `seed_shop_categories`, Helcim + email wiring. Note: online-pay policy may be superseded by Online Sales (reserve online / pay in store). |
+| [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) | Historical sell-through by category; PO extract + manual `PricingRule` seeds shipped. | 2026-04-10 | Deeper legacy DB / CSV / sales-join phases deferred until needed. |
+| [print_server_receipt_format](./_archived/_pending/print_server_receipt_format.md) | GDI receipt layout + `receipt_data` parity; workspace tooling for reference. | 2026-03-28 | Paused pre-production. |
+| [create_location_label](./_archived/_pending/create_location_label.md) | Inventory-scan thermal location label (3×2, QR + aisle/shelf/category). | 2026-03-28 | Product integration deferred. |
+| [historical_data_export](./_archived/_pending/historical_data_export.md) | Legacy → V3 data path. Phase 1 (pickles + manifest) done. | 2026-03-28 | Phase 2 (seed, reporting, DS/embeddings) paused. |
+| [bstock_scraper](./_archived/_pending/bstock_scraper.md) | B-Stock notebook scraper; Phase 1 package in place. | 2026-03-27 | Manifests/pipeline deferred. |
+
+---
+
+## Backlog
+
+Not started / future; not scheduled.
+
+| Initiative | Notes |
+|------------|-------|
+| [vendor_avatars](./_archived/_backlog/vendor_avatars.md) | Upload image per vendor; show on PO dashboard + Create PO. |
+| [item_retail_price_on_instance](./_archived/_backlog/item_retail_price_on_instance.md) | Retail/estimated retail on `Item` (not Product). |
+| [category_taxonomy_from_sales_history](./_archived/_backlog/category_taxonomy_from_sales_history.md) | Derive canonical categories from historical sales/inventory. |
+| [schema_public_to_ecothrift](./_archived/_backlog/schema_public_to_ecothrift.md) | Move V3 Django tables from `public` to schema `ecothrift`. |
+
+---
+
+## Completed
+
+Name only. Details in each file.
+
+- [pos_discount_and_delivery](./_archived/_completed/pos_discount_and_delivery.md)
+- [custom_label_studio](./_archived/_completed/custom_label_studio.md)
+- [floorplan_builder](./_archived/_completed/floorplan_builder.md)
+- [retail_quality_audit](./_archived/_completed/retail_quality_audit.md)
+- [hr_time_clock_mvp](./_archived/_completed/hr_time_clock_mvp.md)
+- [product_item_crud_and_processing](./_archived/_completed/product_item_crud_and_processing.md)
+- [intake_processing_improvements](./_archived/_completed/intake_processing_improvements.md)
+- [preprocessing_ai_cleanup_review](./_archived/_completed/preprocessing_ai_cleanup_review.md)
+- [blog_studio](./_archived/_completed/blog_studio.md)
+- [web_ui_cleanup](./_archived/_completed/web_ui_cleanup.md)
+- [order_processing_pipeline_rebuild](./_archived/_completed/order_processing_pipeline_rebuild.md)
+- [staff_nav_redesign](./_archived/_completed/staff_nav_redesign.md)
+- [ui_ux_polish](./_archived/_completed/ui_ux_polish.md)
+- [bstock_auction_intelligence](./_archived/_completed/bstock_auction_intelligence.md)
+- [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md)
+- [docs_restructure](./_archived/_completed/docs_restructure.md)
+- [category_sales_inventory_and_taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md)
+- [pos_unscannable_manual_line](./_archived/_completed/pos_unscannable_manual_line.md)
+- [pos_sold_item_scan_ux_and_audit_trail](./_archived/_completed/pos_sold_item_scan_ux_and_audit_trail.md)
+- [pos_cart_total_stale_prefetch_bug](./_archived/_completed/pos_cart_total_stale_prefetch_bug.md)
+- [django_admin_legacy_navigation](./_archived/_completed/django_admin_legacy_navigation.md)
+- [add_item_dialog_and_sources](./_archived/_completed/add_item_dialog_and_sources.md)
+- [e2e_retag_quick_reprice_fixes](./_archived/_completed/e2e_retag_quick_reprice_fixes.md)
+- [retag_cutover](./_archived/_completed/retag_cutover.md)
+- [codebase_organization](./_archived/_completed/codebase_organization.md)
+- [print_server_v3_testing_and_migration](./_archived/_completed/print_server_v3_testing_and_migration.md)
+- [print_server_label_price_layout](./_archived/_completed/print_server_label_price_layout.md)
+- [print_server_label_design](./_archived/_completed/print_server_label_design.md)
+
+---
+
+## Abandoned
+
+- [inventory_intake_pipeline](./_archived/_abandoned/inventory_intake_pipeline.md)
+
+---
+
+## Lifecycle
+
+| Phase | Action |
+|-------|--------|
+| **Draft** | File may exist unlisted until scope is clear. |
+| **Active** | Row in **Active**; update checklists/acceptance while working. |
+| **Pending** | Off Active; listed in **Pending**; resume later. |
+| **Backlog** | Future / not started; listed in **Backlog**. |
+| **Completed** | Scope delivered; move to **Completed** list. |
+| **Abandoned** | Will not pursue; move to **Abandoned** list. |
+
+**Human gate:** do not move an initiative out of Active without explicit user approval.
+
+Optional file header:
 
 ```html
 <!-- initiative: slug=my-feature status=active updated=2026-03-27 -->
@@ -35,39 +110,20 @@ Other `.md` files in this folder (e.g. buying or UI polish history) stay for **s
 
 ---
 
-## Lifecycle (keep the `.md` current)
+## Releases vs initiative docs
 
-| Phase | What to do |
-|-------|------------|
-| **Draft** | File may exist unlisted until scope is clear. |
-| **Active** | Listed in the **Active initiatives** table above; update checklists and acceptance as you work. |
-| **On hold** | Status banner at top of file **and** keep the file at the initiatives root until you archive or reactivate. |
-| **Archived** | Move under `_archived/<bucket>/` per [`ARCHIVE.md`](./_archived/ARCHIVE.md). **Human gate:** do **not** archive unless the **user explicitly** approves (or confirms when asked). |
+| Do | Don't |
+|----|-------|
+| Add `[Unreleased]` when **shipping code** that fulfills an initiative | Bump `.version` / `CHANGELOG` only because an initiative `.md` changed |
+| Follow [`session.9.Close.md`](../protocols/session.9.Close.md) on release | Treat “one initiative” as “one minor bump” |
 
 ---
 
-## CHANGELOG, `.version`, and releases
+## Create / move
 
-- **Do not** bump repo root [`.version`](../.version) or [CHANGELOG.md](../../CHANGELOG.md) **only** because an initiative file was added, edited, or archived. That keeps **product semver** separate from **steering docs**.
-- **Do** add **`[Unreleased]`** bullets when **shipping code** that fulfills an initiative; you may cite the initiative filename for traceability.
-- **On release:** follow [`.ai/protocols/session.9.Close.md`](../protocols/session.9.Close.md) (bump `.version`, root `package.json`, new `CHANGELOG` section). **Patch vs minor** follows user-visible/API semver for the app—not “one minor bump per initiative.”
+**Create:** add `descriptive_snake_name.md` → context, objectives, acceptance, `## Sessions`, See also → Active row → bump this file’s `Last updated`.
 
----
-
-## How to create a new initiative
-
-1. Add `descriptive_snake_name.md` under **`.ai/initiatives/`**.
-2. Include context, objectives, acceptance, **`## Sessions`** (when work starts), and “See also” links.
-3. Add a row to **Active initiatives** above.
-4. Update the `<!-- Last updated: ... -->` timestamp on this file when you change the index.
-
----
-
-## How to archive (short)
-
-1. **Confirm with the user** that the initiative should leave the active index.
-2. Follow [`.ai/initiatives/_archived/ARCHIVE.md`](./_archived/ARCHIVE.md) — disposition, `git mv`, archive marker, update **`ARCHIVE.md`** and **this** `_index.md` in one pass.
-3. Prefer the matching file under [`.ai/initiatives/_archived/_protocols/`](./_archived/_protocols/README.md) (`move_initiative_to_*`, `activate_initiative`) plus [`.ai/protocols/session.9.Close.md`](../protocols/session.9.Close.md) so **`.ai/context.md`** and **`CHANGELOG.md`** stay aligned.
+**Move** (pending / backlog / completed / abandoned): confirm with user → matching protocol under [`_protocols/`](./_archived/_protocols/README.md) → update **this** `_index.md` in one pass.
 
 ---
 

@@ -263,22 +263,94 @@ def ensure_thumbnail_for_attachment(
     return sf
 
 
-def delete_attachment_storage(att: ReceivingAttachment) -> None:
-    """Delete high-res + thumbnail storage objects and S3File rows for one attachment."""
-    high = att.s3_file
-    thumb = att.thumbnail_file
+def _delete_s3_file_pair(high: S3File | None, thumb: S3File | None) -> None:
+    """Delete storage objects + S3File rows for a high-res/thumb pair (attachment kept)."""
     high_key = high.key if high else None
     thumb_key = thumb.key if thumb else None
-    with transaction.atomic():
-        att.delete()
-        if thumb is not None:
-            thumb.delete()
-        if high is not None:
-            high.delete()
+    if thumb is not None:
+        thumb.delete()
+    if high is not None:
+        high.delete()
     for key in (thumb_key, high_key):
         if not key:
             continue
         try:
             default_storage.delete(key)
         except Exception:
-            logger.warning('receiving_delete_photo storage delete failed key=%s', key, exc_info=True)
+            logger.warning('receiving_photos storage delete failed key=%s', key, exc_info=True)
+
+
+def delete_attachment_storage(att: ReceivingAttachment) -> None:
+    """Delete high-res + thumbnail storage objects and S3File rows for one attachment."""
+    high = att.s3_file
+    thumb = att.thumbnail_file
+    with transaction.atomic():
+        att.delete()
+        _delete_s3_file_pair(high, thumb)
+
+
+def replace_receiving_photo(
+    *,
+    attachment: ReceivingAttachment,
+    order_id: int,
+    raw: bytes,
+    filename: str,
+    user,
+) -> SavedReceivingPhoto:
+    """Replace high-res + thumbnail for an existing attachment; preserve slot metadata."""
+    high_bytes, thumb_bytes = prepare_high_res_and_thumb(raw)
+    hex_id = uuid.uuid4().hex
+    high_key = f'receiving/orders/{order_id}/{hex_id}.jpg'
+    saved_keys: list[str] = []
+    old_high = attachment.s3_file
+    old_thumb = attachment.thumbnail_file
+    try:
+        high_saved = _save_bytes(high_key, high_bytes)
+        saved_keys.append(high_saved)
+        thumb_key = thumb_key_for_high_res(high_saved)
+        thumb_saved = _save_bytes(thumb_key, thumb_bytes)
+        saved_keys.append(thumb_saved)
+
+        with transaction.atomic():
+            high_sf = S3File.objects.create(
+                key=high_saved,
+                filename=filename or f'{hex_id}.jpg',
+                size=len(high_bytes),
+                content_type='image/jpeg',
+                uploaded_by=user,
+            )
+            thumb_sf = S3File.objects.create(
+                key=thumb_saved,
+                filename=(
+                    f'{(filename or hex_id).rsplit(".", 1)[0]}_thumb.jpg'
+                    if filename
+                    else f'{hex_id}_thumb.jpg'
+                ),
+                size=len(thumb_bytes),
+                content_type='image/jpeg',
+                uploaded_by=user,
+            )
+            ReceivingAttachment.objects.filter(pk=attachment.pk).update(
+                s3_file=high_sf,
+                thumbnail_file=thumb_sf,
+            )
+            Receiving.objects.filter(pk=attachment.receiving_id).update(
+                draft_version=F('draft_version') + 1,
+                updated_at=timezone.now(),
+            )
+            # Drop old storage after FK swap (attachment row kept).
+            _delete_s3_file_pair(old_high, old_thumb)
+
+        att = (
+            ReceivingAttachment.objects.filter(pk=attachment.pk)
+            .select_related('s3_file', 'thumbnail_file')
+            .first()
+        )
+        return SavedReceivingPhoto(attachment=att, high_res=high_sf, thumbnail=thumb_sf)
+    except Exception:
+        for key in saved_keys:
+            try:
+                default_storage.delete(key)
+            except Exception:
+                logger.warning('receiving_photos replace cleanup failed key=%s', key, exc_info=True)
+        raise

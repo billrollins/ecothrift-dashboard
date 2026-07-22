@@ -22,7 +22,9 @@ from apps.pos.models import (
     DeliveryRun,
     DeliveryRunEvent,
     DeliveryRunStop,
+    DeliveryRunStopItem,
 )
+from apps.pos.services import delivery_phase2 as phase2
 from apps.pos.services.delivery_distance import (
     SERVICE_SECONDS_PER_STOP,
     build_google_maps_route_url,
@@ -40,18 +42,18 @@ ALLOWED_IMAGE_TYPES = {
 }
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024
 
-# User-facing phases for the revised wizard (legacy values remapped).
+# Phase 2 order: calls → load → truck → route → active → return.
 ACTIVE_PHASES = {
     DeliveryRun.PHASE_START,
     DeliveryRun.PHASE_CALLS,
-    DeliveryRun.PHASE_ROUTE,
     DeliveryRun.PHASE_LOAD,
+    DeliveryRun.PHASE_TRUCK,
+    DeliveryRun.PHASE_ROUTE,
     DeliveryRun.PHASE_ACTIVE,
     DeliveryRun.PHASE_RETURN,
 }
 LEGACY_PHASE_MAP = {
     DeliveryRun.PHASE_REVIEW: DeliveryRun.PHASE_CALLS,
-    DeliveryRun.PHASE_TRUCK: DeliveryRun.PHASE_LOAD,
 }
 RETURN_ISSUE_CODES = {
     'no_customer': 'No customer',
@@ -71,11 +73,8 @@ EXCLUDED_ROUTE_STATES = (
 
 
 def normalize_phase(phase: str) -> str:
-    """Map legacy phase values onto the five-step flow."""
-    mapped = LEGACY_PHASE_MAP.get(phase, phase)
-    # Old "route" meant the begin-departure screen; new "route" is confirmed ETAs.
-    # En-route runs with leftover "route" should be treated as active driving.
-    return mapped
+    """Map legacy phase values onto the Phase 2 flow."""
+    return LEGACY_PHASE_MAP.get(phase, phase)
 
 
 def ensure_canonical_phase(run: DeliveryRun) -> DeliveryRun:
@@ -94,25 +93,21 @@ def latest_call_attempt(stop: DeliveryRunStop) -> DeliveryCallAttempt | None:
 
 
 def is_stop_confirmed(stop: DeliveryRunStop) -> bool:
-    latest = latest_call_attempt(stop)
-    return bool(
-        latest
-        and latest.result == DeliveryCallAttempt.RESULT_ANSWERED_WILL_BE_THERE
-    )
+    return phase2.is_stop_confirmed(stop)
 
 
 def stop_needs_call_again(stop: DeliveryRunStop) -> bool:
-    latest = latest_call_attempt(stop)
-    if latest is None:
-        return True
-    return latest.result != DeliveryCallAttempt.RESULT_ANSWERED_WILL_BE_THERE
+    return phase2.stop_needs_contact(stop)
 
 
 def stop_has_any_call(stop: DeliveryRunStop) -> bool:
+    if stop.contact_disposition:
+        return True
     return latest_call_attempt(stop) is not None
 
 
 def all_stops_have_call_result(run: DeliveryRun) -> bool:
+    """Compatibility: every stop has some contact activity or disposition."""
     stops = list(run.stops.all())
     if not stops:
         return False
@@ -176,16 +171,19 @@ def sync_job_onto_open_run(job: DeliveryJob, *, user=None) -> DeliveryRun | None
     run = get_open_run_for_date(job.scheduled_date)
     if not run:
         return None
-    if run.stops.filter(job=job).exists():
+    existing_stop = run.stops.filter(job=job).first()
+    if existing_stop:
+        phase2.snapshot_stop_items(existing_stop, user=user)
         return run
     max_pos = run.stops.order_by('-position').values_list('position', flat=True).first()
     pos = (max_pos + 1) if max_pos is not None else 0
-    DeliveryRunStop.objects.create(
+    stop = DeliveryRunStop.objects.create(
         run=run,
         job=job,
         position=pos,
         state=DeliveryRunStop.STATE_QUEUED,
     )
+    phase2.snapshot_stop_items(stop, user=user)
     ensure_next_up(run)
     if user is not None:
         log_event(run, 'note', actor=user, payload={'added_job_id': job.id})
@@ -310,6 +308,38 @@ def create_delivery_job(
         status=job_status,
         created_by=user,
     )
+    # Persist structured lineage so scans/qty survive without cart_line.meta.
+    if source_cart_line_ids:
+        from apps.pos.models import DeliveryJobItem
+
+        lines = {
+            ln.id: ln
+            for ln in CartLine.objects.filter(pk__in=source_cart_line_ids).select_related('item')
+        }
+        pos = 0
+        for lid in source_cart_line_ids:
+            ln = lines.get(int(lid))
+            if not ln:
+                continue
+            if cart is not None and ln.cart_id != cart.id:
+                continue
+            sku = ''
+            if ln.item_id and ln.item:
+                sku = (ln.item.sku or '').strip()
+            if not sku:
+                sku = (ln.resale_source_sku or '').strip()
+            DeliveryJobItem.objects.create(
+                job=job,
+                source_cart_line=ln,
+                source_item_id=ln.item_id,
+                sku=sku[:64],
+                description=(ln.description or '').strip() or 'Item',
+                quantity=max(1, int(ln.quantity or 1)),
+                position=pos,
+                is_scannable=bool(sku),
+                created_by=user,
+            )
+            pos += 1
     sync_job_onto_open_run(job, user=user)
     return job
 
@@ -366,6 +396,15 @@ def ensure_next_up(run: DeliveryRun) -> DeliveryRunStop | None:
 
 @transaction.atomic
 def start_or_resume_run(*, date, user, availability_id: int | None = None) -> DeliveryRun:
+    completed = (
+        DeliveryRun.objects.select_for_update()
+        .filter(date=date, status=DeliveryRun.STATUS_COMPLETED, is_canonical=True)
+        .order_by('-id')
+        .first()
+    )
+    if completed is not None:
+        raise ValueError('A completed delivery run already exists for this date.')
+
     run = (
         DeliveryRun.objects.select_for_update()
         .filter(date=date)
@@ -391,15 +430,17 @@ def start_or_resume_run(*, date, user, availability_id: int | None = None) -> De
             phase=DeliveryRun.PHASE_CALLS,
             started_at=timezone.now(),
             started_by=user,
+            is_canonical=True,
         )
         jobs = _eligible_jobs_for_date(date)
         for idx, job in enumerate(jobs):
-            DeliveryRunStop.objects.create(
+            stop = DeliveryRunStop.objects.create(
                 run=run,
                 job=job,
                 position=idx,
                 state=DeliveryRunStop.STATE_QUEUED,
             )
+            phase2.snapshot_stop_items(stop, user=user)
         ensure_next_up(run)
         log_event(run, 'start', actor=user, payload={'job_count': len(jobs)})
         log_event(run, 'phase', actor=user, payload={'phase': run.phase})
@@ -415,13 +456,15 @@ def start_or_resume_run(*, date, user, availability_id: int | None = None) -> De
         for job in _eligible_jobs_for_date(date):
             if job.id in existing:
                 continue
-            DeliveryRunStop.objects.create(
+            stop = DeliveryRunStop.objects.create(
                 run=run,
                 job=job,
                 position=pos,
                 state=DeliveryRunStop.STATE_QUEUED,
             )
+            phase2.snapshot_stop_items(stop, user=user)
             pos += 1
+        phase2.sync_stop_item_snapshots_for_run(run, user=user)
         ensure_next_up(run)
         log_event(run, 'start', actor=user, payload={'resumed': True})
 
@@ -445,12 +488,27 @@ def set_phase(run: DeliveryRun, phase: str, *, user) -> DeliveryRun:
         raise ValueError('Use begin_route to start driving')
     if phase == DeliveryRun.PHASE_RETURN:
         raise ValueError('Use return-store endpoint to mark returned to store')
-    if phase == DeliveryRun.PHASE_ROUTE and not all_stops_have_call_result(run):
-        raise ValueError('Every stop needs a call result before route review')
+    try:
+        phase2.assert_run_action(run, f'set_phase:{phase}', user)
+    except phase2.RunActionDenied as exc:
+        raise ValueError(str(exc)) from exc
+    # Phase 2 order: calls → load → truck → route → active → return
     if phase == DeliveryRun.PHASE_LOAD:
-        confirmed = confirmed_stops_qs(run)
-        if not confirmed.exists():
-            raise ValueError('Confirm at least one stop before loading')
+        # Loading allowed while replies pending — no confirmation required.
+        pass
+    if phase == DeliveryRun.PHASE_TRUCK:
+        load = phase2.load_progress(run)
+        if not load.get('all_ready') and not run.departure_override:
+            raise ValueError('All candidate items must be ready before truck closeout')
+    if phase == DeliveryRun.PHASE_ROUTE:
+        if not phase2.truck_is_closed(run) and not run.departure_override:
+            raise ValueError('Close the truck before route review')
+        if not phase2.all_candidate_stops_resolved(run):
+            raise ValueError(
+                'Every stop must be confirmed, rescheduled/cancelled, or explicitly excluded'
+            )
+        if not confirmed_stops_qs(run).exists():
+            raise ValueError('Confirm at least one stop before route review')
     run.phase = phase
     run.save(update_fields=['phase', 'updated_at'])
     log_event(run, 'phase', actor=user, payload={'phase': phase})
@@ -458,7 +516,7 @@ def set_phase(run: DeliveryRun, phase: str, *, user) -> DeliveryRun:
 
 
 def confirmed_stops_qs(run: DeliveryRun):
-    """Stops whose latest call result is answered_will_be_there."""
+    """Stops whose disposition is confirmed."""
     confirmed_ids = []
     for stop in run.stops.prefetch_related(
         Prefetch(
@@ -472,8 +530,14 @@ def confirmed_stops_qs(run: DeliveryRun):
 
 
 def mark_loaded(stop: DeliveryRunStop, *, user, loaded: bool = True) -> DeliveryRunStop:
-    if loaded and not is_stop_confirmed(stop):
-        raise ValueError('Only confirmed stops can be loaded')
+    """Compatibility stop-level load — also mirrors onto stop items when present."""
+    # Phase 2: loading allowed for every same-day candidate while replies pending.
+    items = list(stop.stop_items.all())
+    if items:
+        for item in items:
+            phase2.set_stop_item_loaded(item, user=user, loaded=loaded)
+        stop.refresh_from_db()
+        return stop
     stop.loaded_at = timezone.now() if loaded else None
     stop.loaded_by = user if loaded else None
     stop.save(update_fields=['loaded_at', 'loaded_by', 'updated_at'])
@@ -482,8 +546,14 @@ def mark_loaded(stop: DeliveryRunStop, *, user, loaded: bool = True) -> Delivery
 
 
 def mark_secured(stop: DeliveryRunStop, *, user, secured: bool = True) -> DeliveryRunStop:
-    if secured and not is_stop_confirmed(stop):
-        raise ValueError('Only confirmed stops can be secured')
+    """Compatibility secure checkpoint — with stop items, secured mirrors item readiness."""
+    items = list(stop.stop_items.all())
+    if items:
+        phase2.mirror_stop_load_state(stop)
+        stop.refresh_from_db()
+        if secured and not all(phase2.stop_item_is_ready(i) for i in items):
+            raise ValueError('All stop items must be verified, loaded, and photographed')
+        return stop
     stop.secured_at = timezone.now() if secured else None
     stop.secured_by = user if secured else None
     stop.save(update_fields=['secured_at', 'secured_by', 'updated_at'])
@@ -503,7 +573,14 @@ def all_confirmed_loaded_and_secured(run: DeliveryRun) -> bool:
     )
     if not stops:
         return False
-    return all(s.loaded_at and s.secured_at for s in stops)
+    for s in stops:
+        items = list(s.stop_items.prefetch_related('scans', 'attachments'))
+        if items:
+            if not all(phase2.stop_item_is_ready(i) for i in items):
+                return False
+        elif not (s.loaded_at and s.secured_at):
+            return False
+    return True
 
 
 def all_stops_loaded_and_secured(run: DeliveryRun) -> bool:
@@ -522,36 +599,35 @@ def add_call_attempt(
     user,
     result: str,
     note: str = '',
+    channel: str = '',
+    action: str = '',
 ) -> DeliveryCallAttempt:
+    """Legacy adapter: call result maps onto disposition; channel/action optional."""
+    result = (result or '').strip()
+    channel = (channel or '').strip()
+    action = (action or '').strip()
+
+    # Prefer explicit attempt actions when provided without a dispositional result.
+    if action and action in phase2.VALID_ATTEMPT_ACTIONS and not result:
+        return phase2.record_contact_attempt(
+            stop,
+            user=user,
+            channel=channel or DeliveryCallAttempt.CHANNEL_CALL,
+            action=action,
+            note=note,
+        )
+
     if result not in dict(DeliveryCallAttempt.RESULT_CHOICES):
         raise ValueError('Invalid call result')
-    attempt = DeliveryCallAttempt.objects.create(
-        stop=stop,
-        result=result,
-        note=(note or '')[:300],
-        created_by=user,
-    )
-    log_event(
-        stop.run,
-        'call',
-        actor=user,
-        stop=stop,
-        payload={'result': result, 'note': note[:120]},
-    )
-    # Confirmation changes who is eligible for next-up / route ETAs
-    run = stop.run
-    if result == DeliveryCallAttempt.RESULT_ANSWERED_WILL_BE_THERE:
-        ensure_next_up(run)
-        if run.status == DeliveryRun.STATUS_EN_ROUTE and stop.state not in EXCLUDED_ROUTE_STATES:
-            apply_route_plan(run, user=user, optimize=False)
-    else:
-        if stop.state == DeliveryRunStop.STATE_NEXT_UP:
-            stop.state = DeliveryRunStop.STATE_QUEUED
-            stop.save(update_fields=['state', 'updated_at'])
-        ensure_next_up(run)
-        if run.status == DeliveryRun.STATUS_EN_ROUTE:
-            apply_route_plan(run, user=user, optimize=False)
-    return attempt
+
+    disposition = phase2.RESULT_TO_DISPOSITION.get(result, DeliveryRunStop.DISPOSITION_OTHER)
+    # Record attempt + set disposition through the truthful path.
+    if channel and action and action in phase2.VALID_ATTEMPT_ACTIONS:
+        phase2.record_contact_attempt(
+            stop, user=user, channel=channel, action=action, note=note
+        )
+    phase2.set_contact_disposition(stop, user=user, disposition=disposition, note=note)
+    return latest_call_attempt(stop)
 
 
 @transaction.atomic
@@ -635,9 +711,25 @@ def _routable_stops(run: DeliveryRun) -> list[DeliveryRunStop]:
     return [s for s in stops if is_stop_confirmed(s)]
 
 
+class StaleRouteRevision(ValueError):
+    """Raised when a client submits a stale base route revision."""
+
+    code = 'STALE_ROUTE_REVISION'
+
+
 @transaction.atomic
-def reorder_stops(run: DeliveryRun, stop_ids: list[int], *, user) -> DeliveryRun:
+def reorder_stops(
+    run: DeliveryRun,
+    stop_ids: list[int],
+    *,
+    user,
+    base_revision: int | None = None,
+) -> DeliveryRun:
     """Reorder the confirmed/routable subset. Unconfirmed stops keep relative tails."""
+    if base_revision is not None and int(base_revision) != int(run.route_revision):
+        raise StaleRouteRevision(
+            f'Route revision {base_revision} is stale; current is {run.route_revision}'
+        )
     routable = _routable_stops(run)
     routable_ids = {s.id for s in routable}
     if not stop_ids:
@@ -668,7 +760,7 @@ def reorder_stops(run: DeliveryRun, stop_ids: list[int], *, user) -> DeliveryRun
     run.route_revision += 1
     run.save(update_fields=['route_revision', 'updated_at'])
     log_event(run, 'reorder', actor=user, payload={'stop_ids': stop_ids})
-    apply_route_plan(run, user=user, optimize=False)
+    apply_route_plan(run, user=user, optimize=False, bump_revision=False)
     return run
 
 
@@ -678,8 +770,14 @@ def apply_route_plan(
     user,
     optimize: bool = True,
     origin_address: str | None = None,
+    bump_revision: bool = True,
+    base_revision: int | None = None,
 ) -> dict[str, Any]:
     """Optimize (optional) and write ETA windows onto confirmed routable stops."""
+    if base_revision is not None and int(base_revision) != int(run.route_revision):
+        raise StaleRouteRevision(
+            f'Route revision {base_revision} is stale; current is {run.route_revision}'
+        )
     active = _routable_stops(run)
     addresses = [format_stop_address(s.job) for s in active]
     plan = plan_delivery_route_with_etas(
@@ -747,6 +845,7 @@ def apply_route_plan(
     run.route_summary = {
         'optimized': bool(plan.get('optimized')),
         'etas_available': bool(plan.get('etas_available')),
+        'provider_status': 'optimized' if plan.get('optimized') else 'fallback',
         'total_drive_seconds': plan.get('total_drive_seconds'),
         'total_distance_meters': plan.get('total_distance_meters'),
         'return_drive_seconds': plan.get('return_drive_seconds'),
@@ -760,22 +859,23 @@ def apply_route_plan(
         'confirmed_count': len(active),
     }
     run.last_optimized_at = timezone.now()
-    run.route_revision += 1
-    run.save(
-        update_fields=[
-            'maps_url',
-            'route_summary',
-            'last_optimized_at',
-            'route_revision',
-            'updated_at',
-        ]
-    )
+    update_fields = [
+        'maps_url',
+        'route_summary',
+        'last_optimized_at',
+        'updated_at',
+    ]
+    if bump_revision:
+        run.route_revision += 1
+        update_fields.append('route_revision')
+    run.save(update_fields=update_fields)
     log_event(
         run,
         'route',
         actor=user,
         payload={
             'optimized': bool(plan.get('optimized')),
+            'provider_status': run.route_summary.get('provider_status'),
             'stop_count': len(active),
             'etas_available': bool(etas),
         },
@@ -786,11 +886,15 @@ def apply_route_plan(
 
 @transaction.atomic
 def begin_route(run: DeliveryRun, *, user) -> DeliveryRun:
-    if not all_confirmed_loaded_and_secured(run):
-        raise ValueError('All confirmed stops must be loaded and secured before departure')
-    if truck_photo_count(run) < 1:
-        raise ValueError('At least one truck photo is required before departure')
-    apply_route_plan(run, user=user, optimize=True)
+    try:
+        phase2.assert_run_action(run, 'begin_route', user)
+    except phase2.RunActionDenied as exc:
+        raise ValueError(str(exc)) from exc
+    ok, reason = phase2.departure_gates_ok(run)
+    if not ok:
+        raise ValueError(reason)
+    # Route review should already have happened; ensure ETAs exist for departure.
+    apply_route_plan(run, user=user, optimize=bool(not (run.route_summary or {}).get('optimized')))
     run.status = DeliveryRun.STATUS_EN_ROUTE
     run.phase = DeliveryRun.PHASE_ACTIVE
     run.save(update_fields=['status', 'phase', 'updated_at'])
@@ -926,6 +1030,14 @@ def can_finish_run(run: DeliveryRun) -> bool:
 
 
 @transaction.atomic
+def _user_is_manager_or_admin(user) -> bool:
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if getattr(user, 'is_superuser', False):
+        return True
+    return user.groups.filter(name__in=['Manager', 'Admin']).exists()
+
+
 def complete_stop(
     stop: DeliveryRunStop,
     *,
@@ -935,6 +1047,9 @@ def complete_stop(
 ) -> DeliveryRunStop:
     if stop.state in (DeliveryRunStop.STATE_COMPLETED, DeliveryRunStop.STATE_FAILED):
         return stop
+
+    if override and not _user_is_manager_or_admin(user):
+        raise PermissionError('Proof override requires a manager or admin.')
 
     if not override:
         if not stop.contact_present_at:
@@ -1037,6 +1152,7 @@ def save_attachment(
     uploaded_file,
     kind: str,
     stop: DeliveryRunStop | None = None,
+    stop_item: DeliveryRunStopItem | None = None,
     client_photo_id: str | None = None,
 ) -> DeliveryAttachment:
     if kind not in dict(DeliveryAttachment.KIND_CHOICES):
@@ -1045,6 +1161,13 @@ def save_attachment(
         if truck_photo_count(run) >= MAX_TRUCK_PHOTOS:
             raise ValueError(f'Maximum {MAX_TRUCK_PHOTOS} truck photos')
         stop = None
+        stop_item = None
+    elif kind == DeliveryAttachment.KIND_LOAD_ITEM:
+        if stop_item is None:
+            raise ValueError('stop_item_id is required for load_item photos')
+        stop = stop_item.stop
+        if stop.run_id != run.id:
+            raise ValueError('stop_item does not belong to this run')
     else:
         if stop is None:
             raise ValueError('stop is required for proof/signature')
@@ -1071,7 +1194,10 @@ def save_attachment(
     name = getattr(uploaded_file, 'name', '') or ''
     if '.' in name:
         ext = name.rsplit('.', 1)[-1].lower()[:8] or 'jpg'
-    key = f'delivery/runs/{run.id}/{uuid.uuid4().hex}.{ext}'
+    if stop_item is not None:
+        key = f'delivery/runs/{run.id}/items/{stop_item.id}/{uuid.uuid4().hex}.{ext}'
+    else:
+        key = f'delivery/runs/{run.id}/{uuid.uuid4().hex}.{ext}'
     saved_key = default_storage.save(key, uploaded_file)
     s3 = S3File.objects.create(
         key=saved_key,
@@ -1083,6 +1209,7 @@ def save_attachment(
     att = DeliveryAttachment.objects.create(
         run=run,
         stop=stop,
+        stop_item=stop_item,
         s3_file=s3,
         kind=kind,
         client_photo_id=cid,
@@ -1093,8 +1220,14 @@ def save_attachment(
         'photo',
         actor=user,
         stop=stop,
-        payload={'kind': kind, 'attachment_id': att.id},
+        payload={
+            'kind': kind,
+            'attachment_id': att.id,
+            'stop_item_id': stop_item.id if stop_item else None,
+        },
     )
+    if stop_item is not None:
+        phase2.mirror_stop_load_state(stop_item.stop)
     return att
 
 
@@ -1192,6 +1325,27 @@ def _cart_line_ids_from_job(job: DeliveryJob) -> list[int]:
 
 def resolve_job_line_items(job: DeliveryJob) -> list[dict[str, Any]]:
     """Resolve scannable cart lines linked at sale time; fallback to text parts."""
+    # Prefer normalized DeliveryJobItem rows when present.
+    try:
+        from apps.pos.models import DeliveryJobItem
+
+        normalized = list(
+            DeliveryJobItem.objects.filter(job_id=job.id, is_active=True).order_by('position', 'id')
+        )
+    except Exception:
+        normalized = []
+    if normalized:
+        return [
+            {
+                'line_id': it.source_cart_line_id,
+                'sku': it.sku,
+                'description': it.description,
+                'quantity': int(it.quantity or 1),
+                'scannable': bool(it.is_scannable and it.sku),
+            }
+            for it in normalized
+        ]
+
     items: list[dict[str, Any]] = []
     cleaned_ids = _cart_line_ids_from_job(job)
 
@@ -1314,6 +1468,7 @@ def serialize_attachment(att: DeliveryAttachment) -> dict[str, Any]:
         'id': att.id,
         'kind': att.kind,
         'stop_id': att.stop_id,
+        'stop_item_id': att.stop_item_id,
         'client_photo_id': str(att.client_photo_id) if att.client_photo_id else None,
         'url': url,
         'filename': att.s3_file.filename,
@@ -1354,6 +1509,8 @@ def serialize_stop(stop: DeliveryRunStop) -> dict[str, Any]:
     calls = [
         {
             'id': c.id,
+            'channel': c.channel,
+            'action': c.action,
             'result': c.result,
             'note': c.note,
             'created_at': c.created_at.isoformat(),
@@ -1362,9 +1519,14 @@ def serialize_stop(stop: DeliveryRunStop) -> dict[str, Any]:
         for c in call_list
     ]
     latest = call_list[0] if call_list else None
-    confirmed = bool(
-        latest and latest.result == DeliveryCallAttempt.RESULT_ANSWERED_WILL_BE_THERE
-    )
+    disposition = phase2.stop_disposition(stop)
+    confirmed = disposition == DeliveryRunStop.DISPOSITION_CONFIRMED
+    stop_items = [
+        phase2.serialize_stop_item(i)
+        for i in stop.stop_items.prefetch_related('scans', 'attachments__s3_file').order_by(
+            'position', 'id'
+        )
+    ]
     attachments = [serialize_attachment(a) for a in stop.attachments.select_related('s3_file')]
     revisions = [
         {
@@ -1420,9 +1582,21 @@ def serialize_stop(stop: DeliveryRunStop) -> dict[str, Any]:
         'latest_call_result': latest.result if latest else None,
         'latest_call_at': latest.created_at.isoformat() if latest else None,
         'latest_call_note': latest.note if latest else '',
+        'contact_disposition': disposition,
+        'contact_disposition_at': (
+            stop.contact_disposition_at.isoformat() if stop.contact_disposition_at else None
+        ),
+        'excluded_unconfirmed': bool(stop.excluded_unconfirmed_at),
+        'excluded_unconfirmed_at': (
+            stop.excluded_unconfirmed_at.isoformat() if stop.excluded_unconfirmed_at else None
+        ),
+        'excluded_unconfirmed_reason': stop.excluded_unconfirmed_reason,
         'is_confirmed': confirmed,
-        'needs_call_again': (not confirmed),
-        'has_call_result': latest is not None,
+        'needs_call_again': phase2.stop_needs_contact(stop),
+        'has_call_result': bool(disposition) or latest is not None,
+        'stop_items': stop_items,
+        'items_ready_count': sum(1 for i in stop_items if i.get('is_ready')),
+        'items_total_count': len(stop_items),
         'returned_unloaded_at': (
             stop.returned_unloaded_at.isoformat() if stop.returned_unloaded_at else None
         ),
@@ -1462,6 +1636,12 @@ def serialize_run(run: DeliveryRun) -> dict[str, Any]:
                 queryset=DeliveryAttachment.objects.select_related('s3_file'),
             ),
             Prefetch(
+                'stop_items',
+                queryset=DeliveryRunStopItem.objects.prefetch_related(
+                    'scans', 'attachments__s3_file'
+                ).order_by('position', 'id'),
+            ),
+            Prefetch(
                 'job__address_revisions',
                 queryset=DeliveryAddressRevision.objects.select_related('created_by').order_by(
                     '-created_at'
@@ -1484,10 +1664,13 @@ def serialize_run(run: DeliveryRun) -> dict[str, Any]:
         serialize_event(e)
         for e in run.events.select_related('actor').order_by('-created_at', '-id')[:50]
     ]
+    monitor = phase2.monitor_aggregates(run, stop_payloads)
+    route_summary = run.route_summary or {}
     return {
         'id': run.id,
         'date': run.date.isoformat(),
         'availability_id': run.availability_id,
+        'day_id': run.availability_id,
         'status': run.status,
         'phase': run.phase,
         'started_at': run.started_at.isoformat() if run.started_at else None,
@@ -1497,22 +1680,40 @@ def serialize_run(run: DeliveryRun) -> dict[str, Any]:
         'route_revision': run.route_revision,
         'last_optimized_at': run.last_optimized_at.isoformat() if run.last_optimized_at else None,
         'maps_url': run.maps_url,
-        'route_summary': run.route_summary or {},
+        'route_summary': {
+            **route_summary,
+            'provider_status': route_summary.get('provider_status')
+            or (
+                'optimized'
+                if route_summary.get('optimized')
+                else 'fallback'
+                if route_summary
+                else 'none'
+            ),
+        },
         'notes': run.notes,
         'returned_to_store_at': (
             run.returned_to_store_at.isoformat() if run.returned_to_store_at else None
         ),
+        'truck_closed_at': run.truck_closed_at.isoformat() if run.truck_closed_at else None,
+        'truck_closed': phase2.truck_is_closed(run),
+        'departure_override': bool(run.departure_override),
+        'departure_override_reason': run.departure_override_reason,
         'truck_photos': truck,
         'truck_photo_count': len(truck),
         'max_truck_photos': MAX_TRUCK_PHOTOS,
         'all_loaded_secured': all_confirmed_loaded_and_secured(run),
         'all_stops_called': all(s.get('has_call_result') for s in stop_payloads) if stop_payloads else False,
+        'all_stops_resolved': phase2.all_candidate_stops_resolved(run),
         'can_finish': can_finish_run(run),
         'next_action': next_action_for_run(run),
         'allowed_actions': allowed_actions_for_run(run),
         'events': recent_events,
         'return_issue_codes': [
             {'value': k, 'label': v} for k, v in RETURN_ISSUE_CODES.items()
+        ],
+        'contact_dispositions': [
+            {'value': c[0], 'label': c[1]} for c in DeliveryRunStop.DISPOSITION_CHOICES
         ],
         'progress': {
             'total': len(stop_payloads),
@@ -1529,7 +1730,10 @@ def serialize_run(run: DeliveryRun) -> dict[str, Any]:
                 for s in stop_payloads
                 if s['state'] != 'completed' and not s.get('return_reconciled_at')
             ),
+            'contact': monitor['contact'],
+            'load': monitor['load'],
         },
+        'monitor': monitor,
         'next_up': next_up,
         'stops': stop_payloads,
         'service_minutes_per_stop': SERVICE_SECONDS_PER_STOP // 60,
@@ -1751,43 +1955,94 @@ def cancel_job_with_run_sync(job: DeliveryJob, *, user) -> DeliveryJob:
 
 
 def allowed_actions_for_run(run: DeliveryRun) -> list[str]:
-    """Phase-gated actions the client may invoke."""
+    """Phase-gated actions the client may invoke (enforced via assert_run_action)."""
     if run.status == DeliveryRun.STATUS_COMPLETED:
         return []
 
     phase = normalize_phase(run.phase)
-    actions: list[str] = ['append_address', 'reschedule', 'cancel']
+    actions: list[str] = ['append_address', 'reschedule', 'cancel', 'contact_attempt', 'disposition']
 
-    if phase == DeliveryRun.PHASE_CALLS:
-        actions.extend(['call', 'hold', 'release', 'notes'])
-        if all_stops_have_call_result(run):
-            actions.append('set_phase:route')
-    elif phase == DeliveryRun.PHASE_ROUTE:
-        actions.extend(['call', 'hold', 'release', 'reorder', 'optimize', 'notes'])
-        if confirmed_stops_qs(run).exists():
-            actions.append('set_phase:load')
+    if phase in (DeliveryRun.PHASE_START, DeliveryRun.PHASE_CALLS):
+        actions.extend(['call', 'hold', 'release', 'notes', 'exclude_unconfirmed', 'load', 'scan_verify'])
+        actions.append('set_phase:load')
     elif phase == DeliveryRun.PHASE_LOAD:
-        actions.extend(['load', 'secure', 'scan_verify', 'call', 'hold', 'release', 'notes'])
-        actions.append('upload_truck_photo')
-        if all_confirmed_loaded_and_secured(run) and truck_photo_count(run) >= 1:
+        actions.extend(
+            [
+                'load',
+                'secure',
+                'scan_verify',
+                'skip_verification',
+                'upload_item_photo',
+                'call',
+                'contact_attempt',
+                'disposition',
+                'exclude_unconfirmed',
+                'hold',
+                'release',
+                'notes',
+            ]
+        )
+        load = phase2.load_progress(run)
+        if load.get('all_ready') or run.departure_override:
+            actions.append('set_phase:truck')
+            actions.append('close_truck')
+            actions.append('upload_truck_photo')
+        else:
+            actions.append('upload_truck_photo')
+        actions.append('departure_override')
+    elif phase == DeliveryRun.PHASE_TRUCK:
+        actions.extend(
+            [
+                'upload_truck_photo',
+                'close_truck',
+                'departure_override',
+                'call',
+                'contact_attempt',
+                'disposition',
+                'exclude_unconfirmed',
+                'notes',
+            ]
+        )
+        if phase2.truck_is_closed(run) or run.departure_override:
+            if phase2.all_candidate_stops_resolved(run) and confirmed_stops_qs(run).exists():
+                actions.append('set_phase:route')
+    elif phase == DeliveryRun.PHASE_ROUTE:
+        actions.extend(
+            [
+                'call',
+                'contact_attempt',
+                'disposition',
+                'exclude_unconfirmed',
+                'hold',
+                'release',
+                'reorder',
+                'optimize',
+                'notes',
+            ]
+        )
+        ok, _ = phase2.departure_gates_ok(run)
+        if ok:
             actions.append('begin_route')
-        if all_stops_have_call_result(run):
-            actions.append('set_phase:route')
     elif phase == DeliveryRun.PHASE_ACTIVE:
-        actions.extend([
-            'call',
-            'hold',
-            'release',
-            'report_issue',
-            'contact_present',
-            'delivered',
-            'complete',
-            'upload_proof',
-            'notes',
-            'optimize',
-        ])
+        actions.extend(
+            [
+                'call',
+                'contact_attempt',
+                'disposition',
+                'hold',
+                'release',
+                'report_issue',
+                'contact_present',
+                'delivered',
+                'complete',
+                'upload_proof',
+                'notes',
+                'optimize',
+                'return_store',
+            ]
+        )
     elif phase == DeliveryRun.PHASE_RETURN:
-        actions.extend(['return_reconcile', 'notes'])
+        actions.extend(['return_reconcile', 'notes', 'force_finish'])
         if can_finish_run(run):
             actions.append('finish')
         if not run.returned_to_store_at:
@@ -1797,32 +2052,39 @@ def allowed_actions_for_run(run: DeliveryRun) -> list[str]:
 
 
 def next_action_for_run(run: DeliveryRun) -> str | None:
-    """Primary recommended action for the unified day board."""
+    """Primary recommended action for Field stage routing."""
     if run.status == DeliveryRun.STATUS_COMPLETED:
         return None
 
     phase = normalize_phase(run.phase)
     stops = list(run.stops.all())
 
-    if phase == DeliveryRun.PHASE_CALLS:
+    if phase in (DeliveryRun.PHASE_START, DeliveryRun.PHASE_CALLS):
         if any(stop_needs_call_again(s) for s in stops if s.state not in EXCLUDED_ROUTE_STATES):
-            return 'call'
-        if all_stops_have_call_result(run):
-            return 'set_phase:route'
-        return 'call'
-
-    if phase == DeliveryRun.PHASE_ROUTE:
-        if not confirmed_stops_qs(run).exists():
             return 'call'
         return 'set_phase:load'
 
     if phase == DeliveryRun.PHASE_LOAD:
-        if not all_stops_have_call_result(run):
-            return 'call'
-        if not all_confirmed_loaded_and_secured(run):
+        load = phase2.load_progress(run)
+        if not load.get('all_ready'):
             return 'load'
         if truck_photo_count(run) < 1:
             return 'upload_truck_photo'
+        return 'close_truck'
+
+    if phase == DeliveryRun.PHASE_TRUCK:
+        if not phase2.truck_is_closed(run) and not run.departure_override:
+            if truck_photo_count(run) < 1:
+                return 'upload_truck_photo'
+            return 'close_truck'
+        if not phase2.all_candidate_stops_resolved(run):
+            return 'disposition'
+        return 'set_phase:route'
+
+    if phase == DeliveryRun.PHASE_ROUTE:
+        ok, _ = phase2.departure_gates_ok(run)
+        if not ok:
+            return 'disposition'
         return 'begin_route'
 
     if phase == DeliveryRun.PHASE_ACTIVE:

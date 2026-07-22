@@ -5,6 +5,7 @@ from .views import (
     BankTransactionViewSet, CartViewSet, ReceiptViewSet,
     RevenueGoalViewSet, QualityAuditViewSet, QualityAuditFormViewSet,
     DeliveryAvailabilityViewSet, DeliveryJobViewSet,
+    DeliveryDayViewSet, DeliveryViewSet,
     dashboard_metrics, dashboard_alerts, dashboard_sales_goal,
     dashboard_department_goals, historical_revenue,
     delivery_address_suggest, delivery_distance_quote, delivery_optimize_route,
@@ -13,10 +14,15 @@ from .views import (
     delivery_run_finish, delivery_run_upload, delivery_run_delete_attachment,
     delivery_run_return_store,
     delivery_stop_load, delivery_stop_secure, delivery_stop_call,
+    delivery_stop_contact_attempt, delivery_stop_disposition,
+    delivery_stop_exclude_unconfirmed,
     delivery_stop_hold, delivery_stop_release, delivery_stop_complete,
     delivery_stop_contact_present, delivery_stop_delivered,
     delivery_stop_return_reconcile,
     delivery_stop_notes, delivery_stop_scan_verify, delivery_stop_report_issue,
+    delivery_stop_item_scan, delivery_stop_item_skip, delivery_stop_item_load,
+    delivery_stop_item_photo_exception,
+    delivery_run_close_truck, delivery_run_departure_override,
     delivery_job_append_address, delivery_job_reschedule,
 )
 
@@ -32,6 +38,8 @@ router.register(r'quality-audits', QualityAuditViewSet, basename='qualityaudit')
 router.register(r'quality-audit-forms', QualityAuditFormViewSet, basename='qualityauditform')
 router.register(r'delivery-availabilities', DeliveryAvailabilityViewSet, basename='deliveryavailability')
 router.register(r'delivery-jobs', DeliveryJobViewSet, basename='deliveryjob')
+router.register(r'delivery-days', DeliveryDayViewSet, basename='deliveryday')
+router.register(r'deliveries', DeliveryViewSet, basename='delivery')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -59,6 +67,21 @@ urlpatterns = [
     path('delivery-stops/<int:pk>/load/', delivery_stop_load, name='delivery-stop-load'),
     path('delivery-stops/<int:pk>/secure/', delivery_stop_secure, name='delivery-stop-secure'),
     path('delivery-stops/<int:pk>/call/', delivery_stop_call, name='delivery-stop-call'),
+    path(
+        'delivery-stops/<int:pk>/contact-attempt/',
+        delivery_stop_contact_attempt,
+        name='delivery-stop-contact-attempt',
+    ),
+    path(
+        'delivery-stops/<int:pk>/disposition/',
+        delivery_stop_disposition,
+        name='delivery-stop-disposition',
+    ),
+    path(
+        'delivery-stops/<int:pk>/exclude-unconfirmed/',
+        delivery_stop_exclude_unconfirmed,
+        name='delivery-stop-exclude-unconfirmed',
+    ),
     path('delivery-stops/<int:pk>/hold/', delivery_stop_hold, name='delivery-stop-hold'),
     path('delivery-stops/<int:pk>/release/', delivery_stop_release, name='delivery-stop-release'),
     path('delivery-stops/<int:pk>/complete/', delivery_stop_complete, name='delivery-stop-complete'),
@@ -87,6 +110,36 @@ urlpatterns = [
         'delivery-stops/<int:pk>/report-issue/',
         delivery_stop_report_issue,
         name='delivery-stop-report-issue',
+    ),
+    path(
+        'delivery-stop-items/<int:pk>/scan/',
+        delivery_stop_item_scan,
+        name='delivery-stop-item-scan',
+    ),
+    path(
+        'delivery-stop-items/<int:pk>/skip/',
+        delivery_stop_item_skip,
+        name='delivery-stop-item-skip',
+    ),
+    path(
+        'delivery-stop-items/<int:pk>/load/',
+        delivery_stop_item_load,
+        name='delivery-stop-item-load',
+    ),
+    path(
+        'delivery-stop-items/<int:pk>/photo-exception/',
+        delivery_stop_item_photo_exception,
+        name='delivery-stop-item-photo-exception',
+    ),
+    path(
+        'delivery-runs/<int:pk>/close-truck/',
+        delivery_run_close_truck,
+        name='delivery-run-close-truck',
+    ),
+    path(
+        'delivery-runs/<int:pk>/departure-override/',
+        delivery_run_departure_override,
+        name='delivery-run-departure-override',
     ),
     path(
         'delivery-jobs/<int:pk>/append-address/',

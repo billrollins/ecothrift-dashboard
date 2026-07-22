@@ -16,6 +16,7 @@ import { useSnackbar } from 'notistack';
 
 import { OrderPickerOptionRow } from '../OrderPickerOptionRow';
 import { ImageViewerDialog } from '../../common/ImageViewerDialog';
+import { downloadReceivingPhoto, replaceReceivingPhoto } from '../../../api/inventory.api';
 import type {
   OrderForReceivingRow,
   PalletSideId,
@@ -23,16 +24,24 @@ import type {
   ReceivingDetailDTO,
 } from '../../../types/inventory.types';
 import type { PendingPhotoKind } from '../../../services/receiving/receivingClient';
-import { PALLET_SIDES } from '../../../services/receiving/receivingClient';
+import { compressImageToJpeg, PALLET_SIDES } from '../../../services/receiving/receivingClient';
 import { preventWheelChangeNumber, selectInputContentsOnFocus } from '../../../utils/formInputs';
 import { orderPickerReceivingBadgeColors } from '../../../utils/orderPickerDisplay';
+import { downloadBlob } from '../../../utils/downloadBlob';
+import {
+  buildReceivingPhotoGallery,
+  galleryIndexForAttachment,
+} from '../../../utils/receivingPhotoGallery';
 import { attachmentFullUrl, attachmentThumbUrl } from '../../../utils/receivingPhotoUrls';
 
 type ViewerState = {
+  attachmentId: number;
   src: string;
   alt: string;
   title: string;
   filename?: string | null;
+  /** Revoke on close when set (authenticated blob URL for crop/canvas). */
+  objectUrl?: string;
 };
 import {
   RCV_BRAND,
@@ -47,6 +56,7 @@ import {
 
 interface Props {
   receiving: ReceivingDetailDTO;
+  orderId: number;
   /** Order number (monospace in UI) */
   orderNumberMono: string;
   vendorDisplay: string;
@@ -71,6 +81,8 @@ interface Props {
   onOpenIntakeDisputeForPallet?: (palletNumber: number, subjectPalletId: number | null) => void;
   /** Open complete dialog (photos may be missing — dialog collects overrides). */
   onRequestComplete: () => void;
+  /** After in-viewer replace, refresh receiving detail. */
+  onReceivingPhotosChanged?: () => void | Promise<void>;
   /** Slim offline / pending banners */
   banners?: React.ReactNode;
   loadingBar?: React.ReactNode;
@@ -673,6 +685,7 @@ function PalletCard({
 
 export default function ReceivingDesktopWorkspace({
   receiving: m,
+  orderId,
   orderNumberMono,
   vendorDisplay,
   descriptionLine,
@@ -695,10 +708,12 @@ export default function ReceivingDesktopWorkspace({
   onDamaged,
   onOpenIntakeDisputeForPallet,
   onRequestComplete,
+  onReceivingPhotosChanged,
   banners,
   loadingBar,
   disabled,
 }: Props) {
+  const { enqueueSnackbar } = useSnackbar();
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerAnchor = useRef<HTMLDivElement>(null);
   const endSyncedToStartPending = useRef(false);
@@ -711,15 +726,86 @@ export default function ReceivingDesktopWorkspace({
   const bolThumbUrl = attachmentThumbUrl(bol);
   const truckThumbUrl = attachmentThumbUrl(truck);
 
-  const openAttachment = (att: ReceivingAttachmentDTO, title: string) => {
-    const src = attachmentFullUrl(att);
-    if (!src) return;
-    setViewer({
-      src,
-      alt: title,
-      title,
-      filename: att.s3_file?.filename,
+  const photoGallery = useMemo(() => buildReceivingPhotoGallery(m), [m]);
+  const viewerIndex =
+    viewer != null ? galleryIndexForAttachment(photoGallery, viewer.attachmentId) : -1;
+
+  const closeViewer = () => {
+    setViewer((prev) => {
+      if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl);
+      return null;
     });
+  };
+
+  const openAttachment = (att: ReceivingAttachmentDTO, title: string) => {
+    const fallback = attachmentFullUrl(att);
+    if (!fallback) return;
+    setViewer((prev) => {
+      if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl);
+      return {
+        attachmentId: att.id,
+        src: fallback,
+        alt: title,
+        title,
+        filename: att.s3_file?.filename,
+      };
+    });
+    void (async () => {
+      try {
+        const { data } = await downloadReceivingPhoto(orderId, att.id);
+        const objectUrl = URL.createObjectURL(data);
+        setViewer((prev) => {
+          if (!prev || prev.attachmentId !== att.id) {
+            URL.revokeObjectURL(objectUrl);
+            return prev;
+          }
+          if (prev.objectUrl) URL.revokeObjectURL(prev.objectUrl);
+          return { ...prev, src: objectUrl, objectUrl };
+        });
+      } catch {
+        // Keep presigned URL for view; crop/save may still fail if S3 CORS blocks canvas.
+      }
+    })();
+  };
+
+  const goGalleryDelta = (delta: number) => {
+    if (viewerIndex < 0) return;
+    const next = photoGallery[viewerIndex + delta];
+    if (!next) return;
+    openAttachment(next.attachment, next.title);
+  };
+
+  const applyReplacedPhoto = async (
+    blob: Blob,
+    messages: { success: string; failure: string },
+  ) => {
+    if (!viewer) return;
+    try {
+      const { data: updated } = await replaceReceivingPhoto(
+        orderId,
+        viewer.attachmentId,
+        blob,
+        viewer.filename || 'photo.jpg',
+      );
+      const nextUrl = attachmentFullUrl(updated) ?? URL.createObjectURL(blob);
+      setViewer((prev) => {
+        if (!prev) return prev;
+        if (prev.objectUrl) URL.revokeObjectURL(prev.objectUrl);
+        const objectUrl = nextUrl.startsWith('blob:') ? nextUrl : URL.createObjectURL(blob);
+        return {
+          ...prev,
+          attachmentId: updated.id,
+          src: objectUrl,
+          objectUrl,
+          filename: updated.s3_file?.filename ?? prev.filename,
+        };
+      });
+      await onReceivingPhotosChanged?.();
+      enqueueSnackbar(messages.success, { variant: 'success' });
+    } catch (err) {
+      enqueueSnackbar(messages.failure, { variant: 'error' });
+      throw err;
+    }
   };
 
   const [palletDraft, setPalletDraft] = useState('');
@@ -1642,11 +1728,50 @@ export default function ReceivingDesktopWorkspace({
 
       <ImageViewerDialog
         open={viewer != null}
-        onClose={() => setViewer(null)}
+        onClose={closeViewer}
         src={viewer?.src ?? null}
         alt={viewer?.alt ?? 'Photo'}
         title={viewer?.title}
         filename={viewer?.filename}
+        canEdit={!disabled && !m.completed_at}
+        hasPrev={viewerIndex > 0}
+        hasNext={viewerIndex >= 0 && viewerIndex < photoGallery.length - 1}
+        positionLabel={
+          viewerIndex >= 0 && photoGallery.length > 0
+            ? `${viewerIndex + 1} / ${photoGallery.length}`
+            : null
+        }
+        onPrev={photoGallery.length > 1 ? () => goGalleryDelta(-1) : undefined}
+        onNext={photoGallery.length > 1 ? () => goGalleryDelta(1) : undefined}
+        onDownload={
+          viewer
+            ? async () => {
+                const { data } = await downloadReceivingPhoto(orderId, viewer.attachmentId);
+                downloadBlob(data, viewer.filename || 'photo.jpg');
+              }
+            : undefined
+        }
+        onSaveEdited={
+          viewer && !disabled && !m.completed_at
+            ? async (blob) => {
+                await applyReplacedPhoto(blob, {
+                  success: 'Photo saved',
+                  failure: 'Could not save edited photo',
+                });
+              }
+            : undefined
+        }
+        onReplaceFile={
+          viewer && !disabled && !m.completed_at
+            ? async (file) => {
+                const blob = await compressImageToJpeg(file);
+                await applyReplacedPhoto(blob, {
+                  success: 'Photo replaced',
+                  failure: 'Could not replace photo',
+                });
+              }
+            : undefined
+        }
       />
     </Box>
   );

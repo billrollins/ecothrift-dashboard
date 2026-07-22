@@ -7,7 +7,10 @@ import type {
   Register,
   Drawer,
   DeliveryAvailability,
+  DeliveryDayDetail,
+  DeliveryDaySummary,
   DeliveryJob,
+  DeliveryJobItem,
   DeliveryRun,
 } from '../types/pos.types';
 import api from './client';
@@ -263,6 +266,156 @@ export function deleteDeliveryAvailability(id: number): Promise<void> {
   return api.delete(`/pos/delivery-availabilities/${id}/`);
 }
 
+export function getDeliveryDays(
+  params?: Record<string, unknown>,
+): Promise<{ data: PaginatedResponse<DeliveryDaySummary> }> {
+  return api.get<PaginatedResponse<DeliveryDaySummary>>('/pos/delivery-days/', { params });
+}
+
+export function getDeliveryDay(id: number): Promise<{ data: DeliveryDayDetail }> {
+  return api.get<DeliveryDayDetail>(`/pos/delivery-days/${id}/`);
+}
+
+export function createDeliveryDay(
+  data: Record<string, unknown>,
+): Promise<{ data: DeliveryDayDetail }> {
+  return api.post<DeliveryDayDetail>('/pos/delivery-days/', data);
+}
+
+export function updateDeliveryDay(
+  id: number,
+  data: Record<string, unknown>,
+): Promise<{ data: DeliveryDayDetail }> {
+  return api.patch<DeliveryDayDetail>(`/pos/delivery-days/${id}/`, data);
+}
+
+export function archiveDeliveryDay(id: number, reason = ''): Promise<void> {
+  return api.delete(`/pos/delivery-days/${id}/`, { data: { reason } });
+}
+
+export function searchDeliveries(
+  params?: Record<string, unknown>,
+): Promise<{ data: PaginatedResponse<DeliveryJob> }> {
+  return api.get<PaginatedResponse<DeliveryJob>>('/pos/deliveries/', { params });
+}
+
+export function getDelivery(id: number): Promise<{ data: DeliveryJob }> {
+  return api.get<DeliveryJob>(`/pos/deliveries/${id}/`);
+}
+
+export function createDelivery(data: Record<string, unknown>): Promise<{ data: DeliveryJob }> {
+  return api.post<DeliveryJob>('/pos/deliveries/', data);
+}
+
+export function updateDelivery(
+  id: number,
+  data: Record<string, unknown>,
+): Promise<{ data: DeliveryJob }> {
+  return api.patch<DeliveryJob>(`/pos/deliveries/${id}/`, data);
+}
+
+export function archiveDelivery(id: number, reason = ''): Promise<void> {
+  return api.delete(`/pos/deliveries/${id}/`, { data: { reason } });
+}
+
+export function restoreDelivery(
+  id: number,
+  reason = '',
+): Promise<{ data: DeliveryJob }> {
+  return api.post<DeliveryJob>(`/pos/deliveries/${id}/restore/`, { reason });
+}
+
+export function assignDeliveryDay(
+  id: number,
+  dayId: number,
+  reason = '',
+): Promise<{ data: DeliveryJob }> {
+  return api.post<DeliveryJob>(`/pos/deliveries/${id}/assign-day/`, { day: dayId, reason });
+}
+
+export function getDeliveryDayRun(dayId: number): Promise<{ data: DeliveryRun }> {
+  return api.get<DeliveryRun>(`/pos/delivery-days/${dayId}/run/`);
+}
+
+export function startDeliveryDayRun(dayId: number): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-days/${dayId}/start-run/`, {});
+}
+
+export function recordDeliveryStopContactAttempt(
+  stopId: number,
+  data: { channel: string; action: string; note?: string },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/contact-attempt/`, data);
+}
+
+export function setDeliveryStopDisposition(
+  stopId: number,
+  data: { disposition: string; note?: string },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/disposition/`, data);
+}
+
+export function excludeDeliveryStopUnconfirmed(
+  stopId: number,
+  data: { reason?: string; clear?: boolean },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/exclude-unconfirmed/`, data);
+}
+
+export function scanDeliveryStopItem(
+  itemId: number,
+  data: { scanned_code?: string; sku?: string; client_scan_id?: string },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stop-items/${itemId}/scan/`, data);
+}
+
+export function skipDeliveryStopItemVerification(
+  itemId: number,
+  data: { reason: string },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stop-items/${itemId}/skip/`, data);
+}
+
+export function setDeliveryStopItemLoaded(
+  itemId: number,
+  loaded = true,
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stop-items/${itemId}/load/`, { loaded });
+}
+
+export function setDeliveryStopItemPhotoException(
+  itemId: number,
+  data: { reason: string },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stop-items/${itemId}/photo-exception/`, data);
+}
+
+export function closeDeliveryRunTruck(runId: number): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${runId}/close-truck/`, {});
+}
+
+export function setDeliveryRunDepartureOverride(
+  runId: number,
+  data: { reason: string },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${runId}/departure-override/`, data);
+}
+
+export function addDeliveryItem(
+  id: number,
+  data: { description: string; quantity?: number; sku?: string; reason?: string },
+): Promise<{ data: DeliveryJobItem }> {
+  return api.post<DeliveryJobItem>(`/pos/deliveries/${id}/items/`, data);
+}
+
+export function removeDeliveryItem(
+  id: number,
+  itemId: number,
+  reason = '',
+): Promise<{ data: DeliveryJobItem }> {
+  return api.post<DeliveryJobItem>(`/pos/deliveries/${id}/items/${itemId}/remove/`, { reason });
+}
+
 export function getDeliveryJobs(
   params?: Record<string, unknown>,
 ): Promise<{ data: DeliveryJob[] }> {
@@ -326,12 +479,26 @@ export function beginDeliveryRoute(id: number): Promise<{ data: DeliveryRun }> {
   return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/begin-route/`);
 }
 
-export function optimizeDeliveryRun(id: number, optimize = true): Promise<{ data: DeliveryRun }> {
-  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/optimize/`, { optimize });
+export function optimizeDeliveryRun(
+  id: number,
+  optimize = true,
+  baseRevision?: number,
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/optimize/`, {
+    optimize,
+    ...(baseRevision != null ? { base_revision: baseRevision } : {}),
+  });
 }
 
-export function reorderDeliveryRun(id: number, stop_ids: number[]): Promise<{ data: DeliveryRun }> {
-  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/reorder/`, { stop_ids });
+export function reorderDeliveryRun(
+  id: number,
+  stop_ids: number[],
+  baseRevision?: number,
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/reorder/`, {
+    stop_ids,
+    ...(baseRevision != null ? { base_revision: baseRevision } : {}),
+  });
 }
 
 export function finishDeliveryRun(

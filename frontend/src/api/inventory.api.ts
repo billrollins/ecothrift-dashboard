@@ -2100,6 +2100,40 @@ export function deleteReceivingPhoto(orderId: number, attachmentId: number): Pro
   return api.delete(`/inventory/orders/${orderId}/receiving/photos/${attachmentId}/`);
 }
 
+export function replaceReceivingPhoto(
+  orderId: number,
+  attachmentId: number,
+  file: Blob,
+  filename = 'photo.jpg',
+): Promise<{ data: import('../types/inventory.types').ReceivingAttachmentDTO }> {
+  const formData = new FormData();
+  formData.append('file', file, filename);
+  type Att = import('../types/inventory.types').ReceivingAttachmentDTO;
+  return api.post<Att>(
+    `/inventory/orders/${orderId}/receiving/photos/${attachmentId}/replace/`,
+    formData,
+    {
+      transformRequest: [
+        (body, headers) => {
+          if (body instanceof FormData) {
+            delete headers['Content-Type'];
+          }
+          return body;
+        },
+      ],
+    },
+  );
+}
+
+export function downloadReceivingPhoto(
+  orderId: number,
+  attachmentId: number,
+): Promise<{ data: Blob }> {
+  return api.get(`/inventory/orders/${orderId}/receiving/photos/${attachmentId}/download/`, {
+    responseType: 'blob',
+  });
+}
+
 export function completeReceiving(
   orderId: number,
   body?: { photo_overrides?: import('../types/inventory.types').ReceivingPhotoOverridePayload[] },
