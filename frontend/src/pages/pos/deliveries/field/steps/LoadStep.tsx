@@ -731,6 +731,7 @@ export function LoadStep({
           // Browsing stops manually pauses camera auto-open.
           if (scanTarget == null) setAutoScan(false);
         }}
+        disabled={busy}
       >
         {stop && (
           <FieldDeliveryCardFrame

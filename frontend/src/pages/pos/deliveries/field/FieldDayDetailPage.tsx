@@ -20,7 +20,8 @@ import { EcoFieldRunShell } from './EcoFieldRunShell';
 import { FieldDayCompleteSummary } from './components/FieldDayCompleteSummary';
 import { hasDirtyFieldState, isFieldDayToday, resolveFieldStage } from './fieldRunUtils';
 import { pendingCountForRun } from '../../../../services/delivery/deliveryMediaClient';
-import type { DeliveryDayDetail, DeliveryJob } from '../../../../types/pos.types';
+import { DeliveryRouteMap } from '../components/DeliveryRouteMap';
+import type { DeliveryDayDetail } from '../../../../types/pos.types';
 import {
   ecoField,
   ecoFieldCardSx,
@@ -273,61 +274,11 @@ export default function FieldDayDetailPage() {
   );
 }
 
-function MiniMap({ jobs }: { jobs: DeliveryJob[] }) {
-  return (
-    <Box
-      sx={{
-        height: 170,
-        position: 'relative',
-        overflow: 'hidden',
-        bgcolor: ecoField.map,
-        borderRadius: 2.5,
-        border: `1.5px solid ${ecoField.line}`,
-      }}
-    >
-      {[22, 48, 74].map((top) => (
-        <Box key={`h-${top}`} sx={{ position: 'absolute', top: `${top}%`, left: 0, right: 0, height: 1, bgcolor: '#DDE6E0' }} />
-      ))}
-      {[20, 45, 70].map((left) => (
-        <Box key={`v-${left}`} sx={{ position: 'absolute', left: `${left}%`, top: 0, bottom: 0, width: 1, bgcolor: '#DDE6E0' }} />
-      ))}
-      {jobs.map((job, index) => {
-        const positions = [
-          { left: '22%', top: '30%' },
-          { left: '62%', top: '22%' },
-          { left: '72%', top: '64%' },
-          { left: '34%', top: '68%' },
-        ];
-        return (
-          <Box
-            key={job.id}
-            sx={{
-              position: 'absolute',
-              ...positions[index % positions.length],
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              bgcolor: job.status === 'cancelled' ? '#C9D4CE' : ecoField.ink,
-              color: '#fff',
-              display: 'grid',
-              placeItems: 'center',
-              fontWeight: 800,
-              boxShadow: ecoField.shadow,
-            }}
-          >
-            {index + 1}
-          </Box>
-        );
-      })}
-    </Box>
-  );
-}
-
 function InactiveDayPreview({ day }: { day: DeliveryDayDetail }) {
   const jobs = day.jobs || [];
   return (
     <Box>
-      <MiniMap jobs={jobs} />
+      <DeliveryRouteMap dayId={day.id} height={170} />
       {jobs.some((job) => job.notes) && (
         <Box sx={{ display: 'flex', gap: 1, bgcolor: ecoField.amberTint, color: ecoField.amber, borderRadius: 2, p: 1.5, mt: 1.5, fontWeight: 650 }}>
           📦 Check delivery notes before this day starts.

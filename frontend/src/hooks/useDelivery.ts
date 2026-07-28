@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  addDeliveryItem,
   archiveDelivery,
   archiveDeliveryDay,
   assignDeliveryDay,
@@ -7,7 +8,10 @@ import {
   createDeliveryDay,
   getDelivery,
   getDeliveryDay,
+  getDeliveryDayHistory,
   getDeliveryDays,
+  getDeliveryHistory,
+  removeDeliveryItem,
   restoreDelivery,
   searchDeliveries,
   updateDelivery,
@@ -25,6 +29,8 @@ function invalidateDeliveryDomain(queryClient: ReturnType<typeof useQueryClient>
   queryClient.invalidateQueries({ queryKey: ['delivery-jobs'] });
   queryClient.invalidateQueries({ queryKey: ['delivery-run'] });
   queryClient.invalidateQueries({ queryKey: ['delivery-day-run'] });
+  queryClient.invalidateQueries({ queryKey: ['delivery-day-history'] });
+  queryClient.invalidateQueries({ queryKey: ['delivery-history'] });
 }
 
 export function useDeliveryDays(params?: Record<string, unknown>) {
@@ -68,6 +74,30 @@ export function useDeliveryDay(id: number | undefined) {
     queryFn: async () => {
       const { data } = await getDeliveryDay(id!);
       return data as DeliveryDayDetail;
+    },
+  });
+}
+
+/** Audit timeline for a day (day rows + every job row on it). */
+export function useDeliveryDayHistory(id: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['delivery-day-history', id],
+    enabled: Boolean(id) && enabled,
+    queryFn: async () => {
+      const { data } = await getDeliveryDayHistory(id!);
+      return data.results;
+    },
+  });
+}
+
+/** Audit timeline for a single delivery. */
+export function useDeliveryHistory(id: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['delivery-history', id],
+    enabled: Boolean(id) && enabled,
+    queryFn: async () => {
+      const { data } = await getDeliveryHistory(id!);
+      return data.results;
     },
   });
 }
@@ -162,5 +192,33 @@ export function useDeliveryMutations() {
     },
     onSuccess: () => invalidateDeliveryDomain(queryClient),
   });
-  return { create, update, archive, restore, assignDay };
+  const addItem = useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: { description: string; quantity?: number; sku?: string; reason?: string };
+    }) => {
+      const { data: item } = await addDeliveryItem(id, data);
+      return item;
+    },
+    onSuccess: () => invalidateDeliveryDomain(queryClient),
+  });
+  const removeItem = useMutation({
+    mutationFn: async ({
+      id,
+      itemId,
+      reason,
+    }: {
+      id: number;
+      itemId: number;
+      reason?: string;
+    }) => {
+      const { data } = await removeDeliveryItem(id, itemId, reason);
+      return data;
+    },
+    onSuccess: () => invalidateDeliveryDomain(queryClient),
+  });
+  return { create, update, archive, restore, assignDay, addItem, removeItem };
 }

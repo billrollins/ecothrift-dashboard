@@ -157,10 +157,27 @@ export function mapsNavigateUrl(address: string): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${q}`;
 }
 
-/** Digits (and leading +) suitable for tel:/sms: URLs. */
+/**
+ * Trailing extension markers ("x12", "ext. 4", "#210"). Dialing these as part of
+ * the number reaches nobody, so they are dropped before we build tel:/sms: URLs.
+ */
+const PHONE_EXTENSION_RE =
+  /[\s,;./|-]*\(?\s*(?:(?:extension|extn|ext|x)\.?\s*:?|#)\s*(\d+)\s*\)?\s*$/i;
+
+/** Digits (and leading +) suitable for tel:/sms: URLs, extension stripped. */
 export function normalizePhoneDigits(phone: string | null | undefined): string {
   if (!phone) return '';
-  return phone.replace(/[^\d+]/g, '');
+  const trimmed = String(phone).trim();
+  const withoutExtension = trimmed.replace(PHONE_EXTENSION_RE, '');
+  const base = withoutExtension || trimmed;
+  return (base.startsWith('+') ? '+' : '') + base.replace(/\D/g, '');
+}
+
+/** The extension digits, if the number carried one. */
+export function phoneExtension(phone: string | null | undefined): string {
+  if (!phone) return '';
+  const match = String(phone).trim().match(PHONE_EXTENSION_RE);
+  return match?.[1] ?? '';
 }
 
 export function hasPhoneDigits(phone: string | null | undefined): boolean {

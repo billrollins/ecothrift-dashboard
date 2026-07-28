@@ -7,6 +7,7 @@ import type {
   Register,
   Drawer,
   DeliveryAvailability,
+  DeliveryChangeEvent,
   DeliveryDayDetail,
   DeliveryDaySummary,
   DeliveryJob,
@@ -224,46 +225,10 @@ export function suggestDeliveryAddresses(
   return api.get('/pos/delivery/address-suggest/', { params: { q } });
 }
 
-export function quoteDeliveryDistance(body: {
-  lat: number;
-  lon: number;
-}): Promise<{
-  data: {
-    distance_miles: string;
-    tier: '5mi' | '10mi' | null;
-    fee: string | null;
-    too_far: boolean;
-    store_label: string;
-  };
-}> {
-  return api.post('/pos/delivery/quote/', body);
-}
-
 export function getDeliveryAvailabilities(
   params?: Record<string, unknown>,
 ): Promise<{ data: DeliveryAvailability[] }> {
   return api.get<DeliveryAvailability[]>('/pos/delivery-availabilities/', { params });
-}
-
-export function createDeliveryAvailability(
-  data: Partial<DeliveryAvailability> & {
-    date: string;
-    time_start: string;
-    time_end: string;
-  },
-): Promise<{ data: DeliveryAvailability }> {
-  return api.post<DeliveryAvailability>('/pos/delivery-availabilities/', data);
-}
-
-export function updateDeliveryAvailability(
-  id: number,
-  data: Partial<DeliveryAvailability>,
-): Promise<{ data: DeliveryAvailability }> {
-  return api.patch<DeliveryAvailability>(`/pos/delivery-availabilities/${id}/`, data);
-}
-
-export function deleteDeliveryAvailability(id: number): Promise<void> {
-  return api.delete(`/pos/delivery-availabilities/${id}/`);
 }
 
 export function getDeliveryDays(
@@ -301,6 +266,25 @@ export function searchDeliveries(
 
 export function getDelivery(id: number): Promise<{ data: DeliveryJob }> {
   return api.get<DeliveryJob>(`/pos/deliveries/${id}/`);
+}
+
+/** Server-rendered static route map PNG (the Maps key stays on the server). */
+export function getDeliveryDayRouteMap(dayId: number): Promise<{ data: Blob }> {
+  return api.get<Blob>(`/pos/delivery-days/${dayId}/route-map/`, {
+    responseType: 'blob',
+  });
+}
+
+export function getDeliveryDayHistory(
+  dayId: number,
+): Promise<{ data: { results: DeliveryChangeEvent[] } }> {
+  return api.get<{ results: DeliveryChangeEvent[] }>(`/pos/delivery-days/${dayId}/history/`);
+}
+
+export function getDeliveryHistory(
+  jobId: number,
+): Promise<{ data: { results: DeliveryChangeEvent[] } }> {
+  return api.get<{ results: DeliveryChangeEvent[] }>(`/pos/deliveries/${jobId}/history/`);
 }
 
 export function createDelivery(data: Record<string, unknown>): Promise<{ data: DeliveryJob }> {
@@ -452,61 +436,6 @@ export function removeDeliveryItem(
   return api.post<DeliveryJobItem>(`/pos/deliveries/${id}/items/${itemId}/remove/`, { reason });
 }
 
-export function getDeliveryJobs(
-  params?: Record<string, unknown>,
-): Promise<{ data: DeliveryJob[] }> {
-  return api.get<DeliveryJob[]>('/pos/delivery-jobs/', { params });
-}
-
-export function createDeliveryJob(data: {
-  customer_name: string;
-  phone: string;
-  address: string;
-  items_delivered: string;
-  is_apt?: boolean;
-  unit?: string;
-  notes?: string;
-  tier?: string;
-  fee?: string | number;
-  availability_id?: number;
-  schedule_later?: boolean;
-  cart_id?: number;
-  cart_line_ids?: number[];
-  item_count?: number;
-  distance_miles?: string | number;
-  distance_mode?: string;
-}): Promise<{ data: DeliveryJob & { customer_schedule_message?: string } }> {
-  return api.post('/pos/delivery-jobs/', data);
-}
-
-export function optimizeDeliveryRoute(addresses: string[]): Promise<{
-  data: {
-    ordered_addresses: string[];
-    optimized: boolean;
-    maps_url: string | null;
-    waypoint_cap: number;
-    truncated: number;
-    store_address: string;
-  };
-}> {
-  return api.post('/pos/delivery/optimize-route/', { addresses });
-}
-
-export function getDeliveryRun(date: string): Promise<{ data: DeliveryRun | null }> {
-  return api.get<DeliveryRun | null>('/pos/delivery-runs/', { params: { date } });
-}
-
-export function startDeliveryRun(data: {
-  date: string;
-  availability_id?: number | null;
-}): Promise<{ data: DeliveryRun }> {
-  return api.post<DeliveryRun>('/pos/delivery-runs/', data);
-}
-
-export function getDeliveryRunById(id: number): Promise<{ data: DeliveryRun }> {
-  return api.get<DeliveryRun>(`/pos/delivery-runs/${id}/`);
-}
-
 export function setDeliveryRunPhase(id: number, phase: string): Promise<{ data: DeliveryRun }> {
   return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/phase/`, { phase });
 }
@@ -595,17 +524,21 @@ export function finishDeliveryRun(
   return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/finish/`, data || {});
 }
 
-export function uploadDeliveryAttachment(runId: number, form: FormData): Promise<{ data: DeliveryRun }> {
+export function uploadDeliveryAttachment(
+  runId: number,
+  form: FormData,
+  onProgress?: (fraction: number) => void,
+): Promise<{ data: DeliveryRun }> {
   return api.post<DeliveryRun>(`/pos/delivery-runs/${runId}/attachments/`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: onProgress
+      ? (event) => {
+          // `total` is absent on some mobile browsers; leave the bar indeterminate then.
+          if (!event.total) return;
+          onProgress(Math.min(1, event.loaded / event.total));
+        }
+      : undefined,
   });
-}
-
-export function deleteDeliveryAttachment(
-  runId: number,
-  attachmentId: number,
-): Promise<{ data: DeliveryRun }> {
-  return api.delete<DeliveryRun>(`/pos/delivery-runs/${runId}/attachments/${attachmentId}/`);
 }
 
 export function markDeliveryStopLoaded(
@@ -617,17 +550,6 @@ export function markDeliveryStopLoaded(
     loaded,
     ...(reason ? { reason } : {}),
   });
-}
-
-export function markDeliveryStopSecured(stopId: number, secured = true): Promise<{ data: DeliveryRun }> {
-  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/secure/`, { secured });
-}
-
-export function addDeliveryStopCall(
-  stopId: number,
-  data: { result: string; note?: string },
-): Promise<{ data: DeliveryRun }> {
-  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/call/`, data);
 }
 
 export function holdDeliveryStop(stopId: number, reason?: string): Promise<{ data: DeliveryRun }> {
@@ -692,13 +614,6 @@ export function rescheduleDeliveryJob(
 
 export function updateDeliveryStopNotes(stopId: number, notes: string): Promise<{ data: DeliveryRun }> {
   return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/notes/`, { notes });
-}
-
-export function scanVerifyDeliveryStop(
-  stopId: number,
-  sku: string,
-): Promise<{ data: DeliveryRun }> {
-  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/scan-verify/`, { sku });
 }
 
 export function appendDeliveryJobAddress(

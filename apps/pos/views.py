@@ -3059,6 +3059,62 @@ class DeliveryDayViewSet(viewsets.ViewSet):
             return Response({'detail': 'No run for this day.', 'code': 'DAY_RUN_MISSING'}, status=404)
         return Response(serialize_run(run))
 
+    @action(detail=True, methods=['get'], url_path='route-map')
+    def route_map(self, request, pk=None):
+        """PNG of the day's real route. Rendered server-side to keep the Maps key private."""
+        from django.http import HttpResponse
+
+        from apps.pos.services.delivery_distance import STORE_MAPS_ADDRESS
+        from apps.pos.services.delivery_route_map import fetch_route_map_png
+        from apps.pos.services.delivery_run import format_stop_address, routable_stops_in_order
+
+        try:
+            day = DeliveryDay.objects.get(pk=pk)
+        except DeliveryDay.DoesNotExist:
+            return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=404)
+
+        run = day.runs.filter(is_canonical=True).order_by('-id').first()
+        polyline = None
+        if run is not None:
+            summary = run.route_summary if isinstance(run.route_summary, dict) else {}
+            polyline = summary.get('polyline') or None
+            addresses = [format_stop_address(s.job) for s in routable_stops_in_order(run)]
+        else:
+            addresses = [
+                format_stop_address(job)
+                for job in day.jobs.filter(archived_at__isnull=True)
+                .exclude(status=DeliveryJob.STATUS_CANCELLED)
+                .order_by('id')
+            ]
+
+        png = fetch_route_map_png(
+            stop_addresses=addresses,
+            store_address=STORE_MAPS_ADDRESS,
+            polyline=polyline,
+        )
+        if png is None:
+            return Response(
+                {'detail': 'Route map unavailable.', 'code': 'ROUTE_MAP_UNAVAILABLE'},
+                status=404,
+            )
+        response = HttpResponse(png, content_type='image/png')
+        response['Cache-Control'] = 'private, max-age=300'
+        return response
+
+    @action(detail=True, methods=['get'], url_path='history')
+    def history(self, request, pk=None):
+        """Audit timeline for the day and the deliveries currently on it."""
+        from apps.pos.services.delivery_audit import (
+            HISTORY_PAGE_LIMIT,
+            day_history_queryset,
+            serialize_change_event,
+        )
+
+        if not DeliveryDay.objects.filter(pk=pk).exists():
+            return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=404)
+        events = day_history_queryset(int(pk))[:HISTORY_PAGE_LIMIT]
+        return Response({'results': [serialize_change_event(e) for e in events]})
+
     @action(detail=True, methods=['post'], url_path='start-run')
     def start_run(self, request, pk=None):
         from apps.pos.services.delivery_day import start_or_resume_day_run
@@ -3124,6 +3180,26 @@ class DeliveryViewSet(viewsets.ViewSet):
                 day = DeliveryDay.objects.get(pk=int(day_id))
             except (DeliveryDay.DoesNotExist, ValueError, TypeError):
                 return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=400)
+        cart = None
+        cart_id = request.data.get('cart_id') or request.data.get('cart')
+        if cart_id not in (None, ''):
+            try:
+                cart = Cart.objects.get(pk=int(cart_id))
+            except (Cart.DoesNotExist, ValueError, TypeError):
+                return Response(
+                    {'detail': 'Sale/cart not found.', 'code': 'CART_NOT_FOUND'},
+                    status=400,
+                )
+
+        source_line_ids: list[int] = []
+        raw_line_ids = request.data.get('cart_line_ids')
+        if isinstance(raw_line_ids, list):
+            for raw_id in raw_line_ids:
+                try:
+                    source_line_ids.append(int(raw_id))
+                except (TypeError, ValueError):
+                    continue
+
         try:
             job = create_delivery(
                 user=request.user,
@@ -3139,6 +3215,8 @@ class DeliveryViewSet(viewsets.ViewSet):
                 tier=str(request.data.get('tier') or ''),
                 fee=request.data.get('fee'),
                 item_count=request.data.get('item_count'),
+                cart=cart,
+                source_cart_line_ids=source_line_ids or None,
                 item_rows=request.data.get('items') if isinstance(request.data.get('items'), list) else None,
             )
         except ValueError as exc:
@@ -3196,6 +3274,20 @@ class DeliveryViewSet(viewsets.ViewSet):
             return Response({'detail': 'Delivery not found.', 'code': 'DELIVERY_NOT_FOUND'}, status=404)
         restore_delivery(job=job, user=request.user, reason=str(request.data.get('reason') or ''))
         return Response(DeliveryJobSerializer(job).data)
+
+    @action(detail=True, methods=['get'], url_path='history')
+    def history(self, request, pk=None):
+        """Audit timeline for one delivery, including its items."""
+        from apps.pos.services.delivery_audit import (
+            HISTORY_PAGE_LIMIT,
+            job_history_queryset,
+            serialize_change_event,
+        )
+
+        if not DeliveryJob.objects.filter(pk=pk).exists():
+            return Response({'detail': 'Delivery not found.', 'code': 'DELIVERY_NOT_FOUND'}, status=404)
+        events = job_history_queryset(int(pk))[:HISTORY_PAGE_LIMIT]
+        return Response({'results': [serialize_change_event(e) for e in events]})
 
     @action(detail=True, methods=['post'], url_path='assign-day')
     def assign_day(self, request, pk=None):

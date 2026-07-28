@@ -336,8 +336,16 @@ export function useFieldDeliveryRunMutations(dayId: number | undefined) {
       onSuccess: onRun,
     }),
     upload: useMutation({
-      mutationFn: async ({ runId, form }: { runId: number; form: FormData }) => {
-        const { data } = await uploadDeliveryAttachment(runId, form);
+      mutationFn: async ({
+        runId,
+        form,
+        onProgress,
+      }: {
+        runId: number;
+        form: FormData;
+        onProgress?: (fraction: number) => void;
+      }) => {
+        const { data } = await uploadDeliveryAttachment(runId, form, onProgress);
         return normalizeRun(data);
       },
       onSuccess: onRun,

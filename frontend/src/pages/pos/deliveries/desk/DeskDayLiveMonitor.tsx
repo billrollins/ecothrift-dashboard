@@ -29,6 +29,13 @@ import {
   liveElapsedSeconds,
   normalizeFieldPhase,
 } from '../field/fieldRunUtils';
+import {
+  ecoField,
+  ecoFieldCardSx,
+  ecoFieldPrimaryButtonSx,
+  ecoFieldStatusChipSx,
+} from '../../../../theme/deliveryTheme';
+import { DeliveryRouteMap } from '../components/DeliveryRouteMap';
 
 type Props = {
   day: DeliveryDayDetail;
@@ -106,15 +113,25 @@ export function DeskDayLiveMonitor({ day }: Props) {
     summary?.provider_status ?? monitor?.route?.provider_status ?? 'none';
 
   return (
-    <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+    <Paper
+      variant="outlined"
+      sx={{
+        ...ecoFieldCardSx,
+        p: 2,
+        mb: 3,
+      }}
+    >
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" fontWeight={700}>
+        <Typography variant="subtitle1" fontWeight={800} sx={{ color: ecoField.ink }}>
           Live monitor
         </Typography>
         <Chip
           size="small"
-          color={run.status === 'completed' ? 'success' : 'warning'}
           label={run.status === 'completed' ? 'Completed' : 'Active'}
+          sx={{
+            ...ecoFieldStatusChipSx(run.status === 'completed' ? 'ok' : 'warn'),
+            fontWeight: 750,
+          }}
         />
       </Stack>
 
@@ -156,6 +173,7 @@ export function DeskDayLiveMonitor({ day }: Props) {
 
       <RoutePanel
         run={run}
+        dayId={day.id}
         routed={routed}
         busy={mutations.optimize.isPending || mutations.reorder.isPending}
         onOptimize={() =>
@@ -212,11 +230,13 @@ export function DeskDayLiveMonitor({ day }: Props) {
 
 function RoutePanel({
   run,
+  dayId,
   routed,
   busy,
   onOptimize,
 }: {
   run: DeliveryRun;
+  dayId: number;
   routed: DeliveryRunStop[];
   busy: boolean;
   onOptimize: () => void;
@@ -228,7 +248,13 @@ function RoutePanel({
         <Typography variant="subtitle2" fontWeight={700}>
           Route & ETAs
         </Typography>
-        <Button size="small" variant="outlined" disabled={busy || routed.length === 0} onClick={onOptimize}>
+        <Button
+          size="small"
+          variant="contained"
+          disabled={busy || routed.length === 0}
+          onClick={onOptimize}
+          sx={ecoFieldPrimaryButtonSx('desktop')}
+        >
           Optimize route
         </Button>
       </Stack>
@@ -250,6 +276,14 @@ function RoutePanel({
           {summary.provider ? ` (${summary.provider})` : ''}
         </Alert>
       )}
+      <Box sx={{ mb: 1.5 }}>
+        <DeliveryRouteMap
+          dayId={dayId}
+          height={240}
+          revision={run.route_revision}
+          mapsUrl={run.maps_url}
+        />
+      </Box>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -336,22 +370,37 @@ function CompletedRunReview({ run }: { run: DeliveryRun }) {
                 {stop.items_ready_count ?? 0}/{stop.items_total_count ?? 0}
               </TableCell>
               <TableCell>
-                {stop.attachments?.map((a) => (
-                  <Link
-                    key={a.id}
-                    href={a.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{ mr: 1 }}
-                  >
-                    {a.kind}
-                  </Link>
-                ))}
-                {stop.has_signature ? (
-                  <Typography variant="caption" display="block">
-                    Signature on file
+                <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
+                  {(stop.attachments ?? []).map((a) => (
+                    <Link
+                      key={a.id}
+                      href={a.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={a.kind}
+                    >
+                      <Box
+                        component="img"
+                        src={a.url}
+                        alt={a.kind}
+                        loading="lazy"
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          objectFit: 'cover',
+                          borderRadius: 1,
+                          border: `1px solid ${ecoField.line}`,
+                          display: 'block',
+                        }}
+                      />
+                    </Link>
+                  ))}
+                </Stack>
+                {!(stop.attachments ?? []).length && (
+                  <Typography variant="caption" sx={{ color: ecoField.muted }}>
+                    No evidence captured
                   </Typography>
-                ) : null}
+                )}
                 {(stop.call_attempts?.length ?? 0) > 0 && (
                   <Typography variant="caption" display="block">
                     {stop.call_attempts?.length} attempt(s):{' '}

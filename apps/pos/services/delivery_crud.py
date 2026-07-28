@@ -192,7 +192,19 @@ def update_delivery(*, job: DeliveryJob, user, reason: str = '', **fields) -> De
 
 @transaction.atomic
 def assign_delivery_to_day(*, job: DeliveryJob, day: DeliveryDay, user, reason: str = '') -> DeliveryJob:
+    from apps.pos.services.delivery_run import (
+        apply_route_plan,
+        ensure_next_up,
+        log_event,
+        open_stop_for_job,
+        sync_job_onto_open_run,
+    )
+    from apps.pos.models import DeliveryRun, DeliveryRunStop
+
     before = job_snapshot(job)
+    old_stop = open_stop_for_job(job)
+    old_run = old_stop.run if old_stop else None
+
     job.availability = day
     job.scheduled_date = day.date
     if job.status == DeliveryJob.STATUS_NEEDS_SCHEDULING:
@@ -210,20 +222,65 @@ def assign_delivery_to_day(*, job: DeliveryJob, day: DeliveryDay, user, reason: 
         after=job_snapshot(job),
         reason=reason,
     )
+
+    # Leave any previous open-run stop so the day board stays truthful.
+    if (
+        old_stop
+        and old_run
+        and old_stop.state not in (
+            DeliveryRunStop.STATE_COMPLETED,
+            DeliveryRunStop.STATE_RESCHEDULED,
+            DeliveryRunStop.STATE_FAILED,
+        )
+        and old_run.date != day.date
+    ):
+        old_stop.state = DeliveryRunStop.STATE_RESCHEDULED
+        old_stop.rescheduled_at = timezone.now()
+        old_stop.rescheduled_by = user
+        old_stop.rescheduled_to_date = day.date
+        old_stop.save(
+            update_fields=[
+                'state',
+                'rescheduled_at',
+                'rescheduled_by',
+                'rescheduled_to_date',
+                'updated_at',
+            ]
+        )
+        log_event(
+            old_run,
+            'reschedule',
+            actor=user,
+            stop=old_stop,
+            payload={
+                'job_id': job.id,
+                'to_date': day.date.isoformat(),
+                'via': 'assign_delivery_to_day',
+            },
+        )
+        ensure_next_up(old_run)
+        if old_run.status == DeliveryRun.STATUS_EN_ROUTE:
+            apply_route_plan(old_run, user=user, optimize=False)
+
+    sync_job_onto_open_run(job, user=user)
     return job
 
 
 @transaction.atomic
 def archive_delivery(*, job: DeliveryJob, user, reason: str = '') -> DeliveryJob:
+    from apps.pos.services.delivery_run import cancel_job_with_run_sync
+
     before = job_snapshot(job)
-    job.status = DeliveryJob.STATUS_CANCELLED
+    # Fail/remove the open-run stop before soft-archiving (same sync as cancel).
+    cancel_job_with_run_sync(job, user=user)
+    job.refresh_from_db()
     job.archived_at = timezone.now()
     job.archived_by = user
     job.archive_reason = (reason or '')[:300]
     job.updated_by = user
     job.save(
         update_fields=[
-            'status', 'archived_at', 'archived_by', 'archive_reason', 'updated_by', 'updated_at',
+            'archived_at', 'archived_by', 'archive_reason', 'updated_by', 'updated_at',
         ]
     )
     record_change(

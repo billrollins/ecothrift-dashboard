@@ -9,9 +9,11 @@ import {
   deliveryStopTone,
   hasContactOutcome,
   isContactTerminal,
+  isBehindLiveStep,
   isExcludedFromLoad,
   isOnRoute,
   isUiStepUnlocked,
+  resolveUiStepSync,
   loadStopTone,
   gestureSuppressesTap,
   lockSwipeAxis,
@@ -420,6 +422,51 @@ describe('fieldStepUtils', () => {
     expect(lockSwipeAxis(2, 2)).toBeNull();
     expect(lockSwipeAxis(40, 8)).toBe('h');
     expect(lockSwipeAxis(8, 40)).toBe('v');
+  });
+
+  it('follows the live phase only when the driver was riding it', () => {
+    // Riding the live edge: advance with the run.
+    expect(
+      resolveUiStepSync({
+        uiStep: 'routes',
+        serverStep: 'deliveries',
+        previousServerStep: 'routes',
+        manual: false,
+      }),
+    ).toBe('deliveries');
+    // Manually parked on the step the run just left: still follow forward.
+    expect(
+      resolveUiStepSync({
+        uiStep: 'routes',
+        serverStep: 'deliveries',
+        previousServerStep: 'routes',
+        manual: true,
+      }),
+    ).toBe('deliveries');
+    // Deliberately reviewing an earlier step: stay put.
+    expect(
+      resolveUiStepSync({
+        uiStep: 'contact',
+        serverStep: 'deliveries',
+        previousServerStep: 'routes',
+        manual: true,
+      }),
+    ).toBe('contact');
+    // Never drag the driver backwards.
+    expect(
+      resolveUiStepSync({
+        uiStep: 'finish',
+        serverStep: 'deliveries',
+        previousServerStep: 'routes',
+        manual: false,
+      }),
+    ).toBe('finish');
+  });
+
+  it('knows when the driver is behind the live step', () => {
+    expect(isBehindLiveStep('contact', 'deliveries')).toBe(true);
+    expect(isBehindLiveStep('deliveries', 'deliveries')).toBe(false);
+    expect(isBehindLiveStep('finish', 'deliveries')).toBe(false);
   });
 
   it('only suppresses taps after the swipe dead zone', () => {

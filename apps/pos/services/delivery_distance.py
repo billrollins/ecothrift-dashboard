@@ -511,7 +511,7 @@ def _routes_api_route(
         body['optimizeWaypointOrder'] = True
 
     field_mask = (
-        'routes.duration,routes.distanceMeters,'
+        'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,'
         'routes.legs.duration,routes.legs.distanceMeters'
     )
     if optimize_order:
@@ -556,11 +556,15 @@ def _routes_api_route(
     if not isinstance(waypoint_order, list):
         waypoint_order = None
 
+    polyline = route.get('polyline')
+    encoded = polyline.get('encodedPolyline') if isinstance(polyline, dict) else None
+
     return {
         'legs': legs_out,
         'waypoint_order': waypoint_order,
         'duration': _parse_duration_seconds(route.get('duration')),
         'distanceMeters': route.get('distanceMeters'),
+        'polyline': str(encoded) if encoded else None,
         'capped_count': len(capped),
     }, None
 
@@ -726,6 +730,7 @@ def plan_delivery_route_with_etas(
         'truncated': 0,
         'waypoint_cap': MAX_MAPS_WAYPOINTS,
         'route_waypoint_cap': MAX_ROUTE_WAYPOINTS,
+        'polyline': None,
     }
     if not cleaned:
         return empty
@@ -850,6 +855,8 @@ def plan_delivery_route_with_etas(
         'truncated': max(0, len(cleaned) - MAX_MAPS_WAYPOINTS),
         'waypoint_cap': MAX_MAPS_WAYPOINTS,
         'route_waypoint_cap': MAX_ROUTE_WAYPOINTS,
+        # Encoded geometry for the static route map; None when Google was unavailable.
+        'polyline': (route or {}).get('polyline'),
     }
 
 

@@ -49,6 +49,7 @@ import { FieldDeliveryDetailsSheet } from '../components/FieldDeliveryDetailsShe
 import { FieldStopSummaryRow } from '../components/FieldStopSummaryRow';
 import { FieldStepSummaryShell } from '../components/FieldStepSummaryShell';
 import { FieldSheet } from '../components/FieldSheet';
+import { DeliveryRouteMap } from '../../components/DeliveryRouteMap';
 import {
   canBeginRouteFromRun,
   canReopenTruckFromRun,
@@ -691,6 +692,14 @@ export function RoutesStep({
               Last optimized {formatClock(run.last_optimized_at)}
             </Typography>
           )}
+          <Box sx={{ mt: 1 }}>
+            <DeliveryRouteMap
+              dayId={day.id}
+              height={170}
+              revision={run.route_revision}
+              mapsUrl={run.maps_url}
+            />
+          </Box>
         </Box>
       </Collapse>
     </Box>

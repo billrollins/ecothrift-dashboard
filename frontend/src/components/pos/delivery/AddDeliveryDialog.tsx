@@ -37,7 +37,7 @@ import { format, parseISO, isValid, subDays } from 'date-fns';
 import { getCart, getCarts, suggestDeliveryAddresses } from '../../../api/pos.api';
 import type { DeliveryAddressSuggestion } from '../../../api/pos.api';
 import { getItems } from '../../../api/inventory.api';
-import { useCreateDeliveryJob } from '../../../hooks/usePOS';
+import { useDeliveryMutations } from '../../../hooks/useDelivery';
 import { formatPhone, maskPhoneInput } from '../../../utils/formatPhone';
 import type { DeliveryAvailability } from '../../../types/pos.types';
 
@@ -80,7 +80,7 @@ export function AddDeliveryDialog({
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const createJob = useCreateDeliveryJob();
+  const { create: createDelivery } = useDeliveryMutations();
 
   const [itemMode, setItemMode] = useState<ItemMode>('describe');
   const [customerName, setCustomerName] = useState('');
@@ -243,7 +243,7 @@ export function AddDeliveryDialog({
   const handleSubmit = async () => {
     if (!canSubmit) return;
     try {
-      await createJob.mutateAsync({
+      await createDelivery.mutateAsync({
         customer_name: customerName.trim(),
         phone: formatPhone(phone) || phone.trim(),
         address: address.trim(),
@@ -253,7 +253,8 @@ export function AddDeliveryDialog({
         notes: notes.trim(),
         tier: tier || undefined,
         schedule_later: availId === 'later',
-        availability_id: availId === 'later' || availId === '' ? undefined : Number(availId),
+        // Canonical /deliveries/ accepts day / day_id / availability.
+        day: availId === 'later' || availId === '' ? undefined : Number(availId),
         cart_id: selectedCart?.id,
         cart_line_ids: selectedLineIds.length ? selectedLineIds : undefined,
       });
@@ -649,7 +650,7 @@ export function AddDeliveryDialog({
         </Button>
         <Button
           variant="contained"
-          disabled={!canSubmit || createJob.isPending}
+          disabled={!canSubmit || createDelivery.isPending}
           onClick={() => void handleSubmit()}
           sx={{ minHeight: 48, flex: 1.4 }}
         >

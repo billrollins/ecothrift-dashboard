@@ -229,6 +229,7 @@ export function FinishStep({ day, run, mutations, busy, canManage }: Props) {
         selectedId={selectedId}
         toneFor={finishStopTone}
         onSelect={setSelectedId}
+        disabled={busy}
       >
         {stop && (
           <FieldDeliveryCardFrame

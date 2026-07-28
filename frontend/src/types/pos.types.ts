@@ -556,6 +556,25 @@ export interface DeliveryAttachment {
   created_at: string;
 }
 
+/** One append-only audit row from `DeliveryChangeEvent`. */
+export interface DeliveryChangeEvent {
+  id: number;
+  entity_type: 'day' | 'job' | 'item';
+  entity_id: number;
+  day_id: number | null;
+  job_id: number | null;
+  action: string;
+  /** Server-rendered human line, e.g. `Delivery updated · notes, phone`. */
+  summary: string;
+  reason: string;
+  changed_fields: string[];
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  actor_id: number | null;
+  actor_name: string;
+  created_at: string;
+}
+
 export interface DeliveryCallAttempt {
   id: number;
   result?: DeliveryCallResult;

@@ -17,6 +17,8 @@ type Mutations = ReturnType<typeof useFieldDeliveryRunMutations>;
 export type FieldPhotoUploadBusy = {
   kind: DeliveryPendingKind;
   label: string;
+  /** 0–1 of bytes sent, or null while the browser withholds a total. */
+  progress: number | null;
 } | null;
 
 function uploadLabel(kind: DeliveryPendingKind): string {
@@ -48,12 +50,19 @@ export function useFieldPhotoUpload(run: DeliveryRun | null | undefined, mutatio
 
   const beginUpload = (kind: DeliveryPendingKind) => {
     uploadDepthRef.current += 1;
-    setUploading({ kind, label: uploadLabel(kind) });
+    setUploading({ kind, label: uploadLabel(kind), progress: null });
   };
 
   const endUpload = () => {
     uploadDepthRef.current = Math.max(0, uploadDepthRef.current - 1);
     if (uploadDepthRef.current === 0) setUploading(null);
+  };
+
+  /** Byte-level progress for the transfer currently on the wire. */
+  const trackProgress = (kind: DeliveryPendingKind) => (fraction: number) => {
+    setUploading((prev) =>
+      prev && prev.kind === kind ? { ...prev, progress: fraction } : prev,
+    );
   };
 
   const refreshPending = useCallback(async () => {
@@ -90,7 +99,7 @@ export function useFieldPhotoUpload(run: DeliveryRun | null | undefined, mutatio
             beginUpload(meta.kind);
             started = true;
           } else {
-            setUploading({ kind: meta.kind, label: uploadLabel(meta.kind) });
+            setUploading({ kind: meta.kind, label: uploadLabel(meta.kind), progress: null });
           }
           const form = new FormData();
           form.append('file', blob, `${meta.kind}.jpg`);
@@ -98,7 +107,11 @@ export function useFieldPhotoUpload(run: DeliveryRun | null | undefined, mutatio
           form.append('client_photo_id', meta.clientPhotoId);
           if (meta.stopId) form.append('stop_id', String(meta.stopId));
           if (meta.stopItemId) form.append('stop_item_id', String(meta.stopItemId));
-          await mutations.upload.mutateAsync({ runId: run.id, form });
+          await mutations.upload.mutateAsync({
+            runId: run.id,
+            form,
+            onProgress: trackProgress(meta.kind),
+          });
         });
         await refreshPending();
       } finally {
@@ -158,7 +171,11 @@ export function useFieldPhotoUpload(run: DeliveryRun | null | undefined, mutatio
         form.append('client_photo_id', clientPhotoId);
         if (opts?.stopId) form.append('stop_id', String(opts.stopId));
         if (opts?.stopItemId) form.append('stop_item_id', String(opts.stopItemId));
-        await mutations.upload.mutateAsync({ runId: run.id, form });
+        await mutations.upload.mutateAsync({
+          runId: run.id,
+          form,
+          onProgress: trackProgress(kind),
+        });
         await deleteQueuedDeliveryPhoto(run.id, clientPhotoId);
         await refreshPending();
         enqueueSnackbar('Photo uploaded', { variant: 'success' });
@@ -215,7 +232,11 @@ export function useFieldPhotoUpload(run: DeliveryRun | null | undefined, mutatio
         form.append('client_photo_id', clientPhotoId);
         if (opts?.stopId) form.append('stop_id', String(opts.stopId));
         if (opts?.stopItemId) form.append('stop_item_id', String(opts.stopItemId));
-        await mutations.upload.mutateAsync({ runId: run.id, form });
+        await mutations.upload.mutateAsync({
+          runId: run.id,
+          form,
+          onProgress: trackProgress(kind),
+        });
         await deleteQueuedDeliveryPhoto(run.id, clientPhotoId);
         await refreshPending();
         enqueueSnackbar(kind === 'signature' ? 'Signature saved' : 'Uploaded', {

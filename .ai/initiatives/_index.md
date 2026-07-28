@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-27 (Delivery Phase 4C device fixes) -->
+<!-- Last updated: 2026-07-28 (Delivery Phase 5B Desk add/adjust) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not roadmap strategy, not week-scale projects, not an AI plan/TODO list.
@@ -13,7 +13,7 @@ Session details live **only** in each file under **`## Sessions`**.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [delivery_mobile_operations_completion](./delivery_mobile_operations_completion.md) | Phase 4 done → Phase 5 | **v2.57.0** + `[Unreleased]` Field polish + device fixes. Next: Phase 5 Desk unify + prod add/adjust. |
+| [delivery_mobile_operations_completion](./delivery_mobile_operations_completion.md) | Phase 5C done | **v2.59.0** shipped (Desk add/adjust, route maps, change history, shared theme). Code complete; only owner phone hardware pass + visual sign-off remain. |
 
 ---
 

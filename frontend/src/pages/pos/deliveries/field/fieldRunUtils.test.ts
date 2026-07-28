@@ -13,6 +13,8 @@ import {
   isFieldDayToday,
   localTodayYmd,
   normalizeFieldPhase,
+  normalizePhoneDigits,
+  phoneExtension,
   resolveFieldStage,
   smsComposerUrl,
   unconfirmedStops,
@@ -208,6 +210,28 @@ describe('fieldRunUtils', () => {
     expect(hasDirtyFieldState({ pendingUploads: 0, draftNote: '', draftSku: '' })).toBe(false);
     expect(hasDirtyFieldState({ pendingUploads: 1, draftNote: '', draftSku: '' })).toBe(true);
     expect(hasDirtyFieldState({ pendingUploads: 0, draftNote: 'x', draftSku: '' })).toBe(true);
+  });
+
+  it('strips trailing extensions from dialable digits', () => {
+    expect(normalizePhoneDigits('(402) 555-0100 ext. 12')).toBe('4025550100');
+    expect(normalizePhoneDigits('402-555-0100x89')).toBe('4025550100');
+    expect(normalizePhoneDigits('402.555.0100 #210')).toBe('4025550100');
+    expect(normalizePhoneDigits('402-555-0100 extension 4')).toBe('4025550100');
+    expect(normalizePhoneDigits('+1 (402) 555-0100')).toBe('+14025550100');
+    expect(normalizePhoneDigits('402-555-0100')).toBe('4025550100');
+    expect(normalizePhoneDigits(null)).toBe('');
+  });
+
+  it('reports the extension separately so drivers can still dial it', () => {
+    expect(phoneExtension('402-555-0100 ext. 12')).toBe('12');
+    expect(phoneExtension('402-555-0100x89')).toBe('89');
+    expect(phoneExtension('402-555-0100')).toBe('');
+  });
+
+  it('still treats an extension-only value as having digits it can dial', () => {
+    expect(hasPhoneDigits('402-555-0100 ext 12')).toBe(true);
+    expect(hasPhoneDigits('')).toBe(false);
+    expect(hasPhoneDigits('no phone on file')).toBe(false);
   });
 
   it('smsComposerUrl uses platform-specific body separators', () => {

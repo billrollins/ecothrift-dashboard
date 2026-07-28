@@ -18,6 +18,7 @@ import {
   deliverySmsTemplates,
   hasPhoneDigits,
   mapsNavigateUrl,
+  phoneExtension,
   smsComposerUrl,
   telHref,
 } from '../fieldRunUtils';
@@ -68,6 +69,7 @@ type EvidenceButtonProps = {
   label: string;
   done: boolean;
   uploading?: boolean;
+  uploadProgress?: number | null;
   thumbUrl?: string | null;
   fallbackIcon: React.ReactNode;
   onActivate: () => void;
@@ -78,13 +80,19 @@ function EvidenceButton({
   label,
   done,
   uploading,
+  uploadProgress,
   thumbUrl,
   fallbackIcon,
   onActivate,
   onViewThumb,
 }: EvidenceButtonProps) {
   const leading = uploading ? (
-    <CircularProgress size={20} sx={{ color: ecoField.greenDeep }} />
+    <CircularProgress
+      size={20}
+      variant={uploadProgress != null ? 'determinate' : 'indeterminate'}
+      value={uploadProgress != null ? Math.round(uploadProgress * 100) : undefined}
+      sx={{ color: ecoField.greenDeep }}
+    />
   ) : thumbUrl ? (
     <Box
       component="img"
@@ -280,6 +288,7 @@ export function DeliveriesStep({
         selectedId={selectedId}
         toneFor={deliveryStopTone}
         onSelect={setSelectedId}
+        disabled={busy}
       >
         <FieldDeliveryCardFrame
           stop={stop}
@@ -295,6 +304,27 @@ export function DeliveriesStep({
           statusTone={tone === 'complete' ? 'ok' : tone === 'issue' ? 'bad' : 'warn'}
           onOpenDetails={() => setDetailsOpen(true)}
           onOpenItems={() => setItemsOpen(true)}
+          footer={
+            stop.state !== 'completed' && tone !== 'issue' ? (
+              arrived ? (
+                <FieldHoldToComplete
+                  disabledLabel={holdDisabledLabel}
+                  disabled={busy || !canComplete}
+                  onComplete={completeStop}
+                />
+              ) : (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  disabled={busy}
+                  onClick={() => void mutations.contactPresent.mutateAsync({ stopId: stop.id })}
+                  sx={ecoFieldPrimaryButtonSx}
+                >
+                  I’ve arrived
+                </Button>
+              )
+            ) : undefined
+          }
         >
           <Typography
             variant="caption"
@@ -345,7 +375,7 @@ export function DeliveriesStep({
                     }}
                   >
                     <LocalPhoneRounded />
-                    Call
+                    {phoneExtension(stop.phone) ? `Call x${phoneExtension(stop.phone)}` : 'Call'}
                   </Button>
                 ) : (
                   <Button
@@ -379,15 +409,6 @@ export function DeliveriesStep({
                   Text ETA
                 </Button>
               </Box>
-              <Button
-                fullWidth
-                variant="contained"
-                disabled={busy}
-                onClick={() => void mutations.contactPresent.mutateAsync({ stopId: stop.id })}
-                sx={{ ...ecoFieldPrimaryButtonSx, mt: 2 }}
-              >
-                I’ve arrived
-              </Button>
             </>
           )}
 
@@ -398,6 +419,7 @@ export function DeliveriesStep({
                   label={stop.has_proof_photo ? 'Replace proof photo' : 'Proof photo at the door'}
                   done={Boolean(stop.has_proof_photo)}
                   uploading={photo.uploading?.kind === 'delivery_proof'}
+                  uploadProgress={photo.uploading?.progress ?? null}
                   thumbUrl={proofAtt?.url}
                   fallbackIcon={<CameraAltOutlined />}
                   onActivate={() => photo.pickPhoto('delivery_proof', { stopId: stop.id })}
@@ -407,17 +429,13 @@ export function DeliveriesStep({
                   label={stop.has_signature ? 'Replace signature' : 'Customer signature'}
                   done={Boolean(stop.has_signature)}
                   uploading={photo.uploading?.kind === 'signature'}
+                  uploadProgress={photo.uploading?.progress ?? null}
                   thumbUrl={signatureAtt?.url}
                   fallbackIcon={<GestureRounded />}
                   onActivate={() => setSignatureOpen(true)}
                   onViewThumb={signatureAtt ? () => setViewerUrl(signatureAtt.url) : undefined}
                 />
               </Stack>
-              <FieldHoldToComplete
-                disabledLabel={holdDisabledLabel}
-                disabled={busy || !canComplete}
-                onComplete={completeStop}
-              />
             </>
           )}
 

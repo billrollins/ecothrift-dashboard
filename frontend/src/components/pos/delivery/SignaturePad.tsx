@@ -6,12 +6,23 @@ type Props = {
   disabled?: boolean;
 };
 
+type Size = { w: number; h: number };
+
+/** Aspect-preserving centred fit of `from` inside `to`. */
+export function letterboxRect(from: Size, to: Size): { x: number; y: number; w: number; h: number } {
+  if (from.w <= 0 || from.h <= 0) return { x: 0, y: 0, w: to.w, h: to.h };
+  const scale = Math.min(to.w / from.w, to.h / from.h);
+  const w = from.w * scale;
+  const h = from.h * scale;
+  return { x: (to.w - w) / 2, y: (to.h - h) / 2, w, h };
+}
+
 /** Simple finger/stylus signature capture for mobile delivery completion. */
 export function SignaturePad({ onCapture, disabled }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const activePointerId = useRef<number | null>(null);
-  const lastWidthRef = useRef(0);
+  const lastCssSizeRef = useRef({ w: 0, h: 0 });
   const [hasInk, setHasInk] = useState(false);
   const [saving, setSaving] = useState(false);
   const inkSnapshotRef = useRef<ImageData | null>(null);
@@ -32,9 +43,10 @@ export function SignaturePad({ onCapture, disabled }: Props) {
       if (drawing.current) return;
       const parent = canvas.parentElement;
       const w = parent?.clientWidth || 320;
-      if (w === lastWidthRef.current && canvas.width > 0) return;
-      lastWidthRef.current = w;
       const h = 160;
+      const previous = lastCssSizeRef.current;
+      if (w === previous.w && canvas.width > 0) return;
+      lastCssSizeRef.current = { w, h };
       const ratio = window.devicePixelRatio || 1;
       const prev = inkSnapshotRef.current;
       canvas.width = Math.floor(w * ratio);
@@ -46,15 +58,17 @@ export function SignaturePad({ onCapture, disabled }: Props) {
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       applyStyle(ctx);
       ctx.fillRect(0, 0, w, h);
-      if (prev) {
-        // Restore prior ink into the new canvas geometry (may soft-stretch on width change).
+      if (prev && previous.w > 0 && previous.h > 0) {
         const tmp = document.createElement('canvas');
         tmp.width = prev.width;
         tmp.height = prev.height;
         const tctx = tmp.getContext('2d');
         if (tctx) {
           tctx.putImageData(prev, 0, 0);
-          ctx.drawImage(tmp, 0, 0, w, h);
+          // Letterbox rather than stretch: a rotated signature must stay the
+          // customer's signature, not a distorted version of it.
+          const box = letterboxRect(previous, { w, h });
+          ctx.drawImage(tmp, 0, 0, prev.width, prev.height, box.x, box.y, box.w, box.h);
           inkSnapshotRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
         }
       }

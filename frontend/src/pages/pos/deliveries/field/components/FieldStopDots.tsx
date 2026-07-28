@@ -9,12 +9,14 @@ type Props = {
   selectedId: number | null;
   toneFor: (stop: DeliveryRunStop) => DotTone;
   onSelect: (stopId: number) => void;
+  disabled?: boolean;
 };
 
-export function FieldStopDots({ stops, selectedId, toneFor, onSelect }: Props) {
+export function FieldStopDots({ stops, selectedId, toneFor, onSelect, disabled }: Props) {
   const scrubbing = useRef(false);
 
   const pickFromClientX = (clientX: number, target: HTMLElement) => {
+    if (disabled) return;
     const rect = target.getBoundingClientRect();
     if (!stops.length || rect.width <= 0) return;
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
@@ -31,6 +33,7 @@ export function FieldStopDots({ stops, selectedId, toneFor, onSelect }: Props) {
       role="tablist"
       aria-label="Deliveries in this step"
       onPointerDown={(e) => {
+        if (disabled) return;
         scrubbing.current = true;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         pickFromClientX(e.clientX, e.currentTarget);
@@ -62,7 +65,9 @@ export function FieldStopDots({ stops, selectedId, toneFor, onSelect }: Props) {
             role="tab"
             aria-selected={selected}
             aria-label={`Stop ${index + 1}, ${tone}`}
-            onClick={() => onSelect(stop.id)}
+            onClick={() => {
+              if (!disabled) onSelect(stop.id);
+            }}
             sx={{
               width: selected ? 22 : 9,
               height: 9,
@@ -71,7 +76,8 @@ export function FieldStopDots({ stops, selectedId, toneFor, onSelect }: Props) {
               boxShadow: selected ? `0 0 0 4px ${ecoFieldDotRing(tone)}` : 'none',
               transition: 'width 160ms ease, background-color 160ms ease',
               flexShrink: 0,
-              cursor: 'pointer',
+              cursor: disabled ? 'default' : 'pointer',
+              opacity: disabled && !selected ? 0.55 : 1,
             }}
           />
         );

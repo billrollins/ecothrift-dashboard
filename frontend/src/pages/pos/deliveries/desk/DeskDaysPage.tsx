@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
+import AddRounded from '@mui/icons-material/AddRounded';
 import {
   Box,
+  Button,
   Chip,
   Stack,
   Table,
@@ -14,12 +16,20 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
+import { useAuth } from '../../../../hooks/useAuth';
 import { useDeliveryDays } from '../../../../hooks/useDelivery';
+import {
+  ecoField,
+  ecoFieldBucketTone,
+  ecoFieldPrimaryButtonSx,
+  ecoFieldStatusChipSx,
+} from '../../../../theme/deliveryTheme';
 import {
   deskDaysStateToApiParams,
   deskDaysStateToParams,
   parseDeskDaysUrlState,
 } from './daysUrlState';
+import { DeskDayDialog } from './DeskDayDialog';
 
 function formatWindow(start: string | null, end: string | null) {
   if (!start || !end) return '—';
@@ -32,12 +42,16 @@ export default function DeskDaysPage() {
   const state = useMemo(() => parseDeskDaysUrlState(searchParams), [searchParams]);
   const { data, isLoading, isError } = useDeliveryDays(deskDaysStateToApiParams(state));
   const rows = data?.results ?? [];
+  const { hasRole } = useAuth();
+  const canManage = hasRole('Manager') || hasRole('Admin');
+  const [newDayOpen, setNewDayOpen] = useState(false);
 
   const patchState = (patch: Partial<typeof state>) => {
     setSearchParams(deskDaysStateToParams({ ...state, ...patch, page: patch.page ?? 1 }), {
       replace: true,
     });
   };
+  const bucket = ecoFieldBucketTone(state.bucket === 'past' ? 'past' : 'days');
 
   return (
     <Box>
@@ -60,12 +74,39 @@ export default function DeskDaysPage() {
           onChange={(e) => patchState({ search: e.target.value, page: 1 })}
           sx={{ minWidth: 280 }}
         />
+        <Box sx={{ flex: 1 }} />
+        {canManage && (
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddRounded />}
+            onClick={() => setNewDayOpen(true)}
+            sx={ecoFieldPrimaryButtonSx('desktop')}
+          >
+            New delivery day
+          </Button>
+        )}
       </Stack>
 
       {isLoading && <Typography color="text.secondary">Loading days…</Typography>}
       {isError && <Typography color="error">Failed to load days.</Typography>}
 
-      <Table size="small">
+      <Table
+        size="small"
+        sx={{
+          border: `1.5px solid ${ecoField.line}`,
+          borderRadius: `${ecoField.radius}px`,
+          overflow: 'hidden',
+          '& th': {
+            bgcolor: bucket.accentSoft,
+            color: ecoField.ink,
+            fontWeight: 800,
+            borderBottom: `1px solid ${ecoField.line}`,
+          },
+          '& td': { borderBottom: `1px solid ${ecoField.line}` },
+          '& tbody tr:hover': { bgcolor: bucket.rowHover },
+        }}
+      >
         <TableHead>
           <TableRow>
             <TableCell>Date</TableCell>
@@ -90,7 +131,7 @@ export default function DeskDaysPage() {
                   component={RouterLink}
                   to={`/pos/deliveries/desk/days/${day.id}`}
                   onClick={(e) => e.stopPropagation()}
-                  sx={{ fontWeight: 600, textDecoration: 'none', color: 'inherit' }}
+                  sx={{ fontWeight: 700, textDecoration: 'none', color: ecoField.ink }}
                 >
                   {day.date}
                 </Typography>
@@ -98,7 +139,14 @@ export default function DeskDaysPage() {
               <TableCell>{formatWindow(day.time_start, day.time_end)}</TableCell>
               <TableCell>{day.primary_driver_name || day.assigned_to || '—'}</TableCell>
               <TableCell>
-                <Chip size="small" label={day.display_state} />
+                <Chip
+                  size="small"
+                  label={day.display_state}
+                  sx={{
+                    ...ecoFieldStatusChipSx(day.display_state === 'active' ? 'ok' : 'muted'),
+                    fontWeight: 750,
+                  }}
+                />
               </TableCell>
               <TableCell align="right">{day.delivery_count}</TableCell>
               <TableCell align="right">{day.items_booked}</TableCell>
@@ -107,8 +155,13 @@ export default function DeskDaysPage() {
                   {day.run && (
                     <Chip
                       size="small"
-                      color={day.run.status === 'completed' ? 'success' : 'info'}
                       label={day.run.status}
+                      sx={{
+                        ...ecoFieldStatusChipSx(
+                          day.run.status === 'completed' ? 'ok' : 'muted',
+                        ),
+                        fontWeight: 750,
+                      }}
                     />
                   )}
                 </Stack>
@@ -124,6 +177,14 @@ export default function DeskDaysPage() {
           )}
         </TableBody>
       </Table>
+
+      <DeskDayDialog
+        open={newDayOpen}
+        onClose={() => setNewDayOpen(false)}
+        onSaved={(dayId) => {
+          if (dayId) navigate(`/pos/deliveries/desk/days/${dayId}`);
+        }}
+      />
     </Box>
   );
 }

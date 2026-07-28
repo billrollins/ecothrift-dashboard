@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Box, IconButton, LinearProgress, Stack, Typography } from '@mui/material';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, ButtonBase, IconButton, LinearProgress, Stack, Typography } from '@mui/material';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
+import BoltRounded from '@mui/icons-material/BoltRounded';
 import { useNavigate } from 'react-router-dom';
 import type { DeliveryDayDetail, DeliveryRun } from '../../../../types/pos.types';
 import { useFieldDeliveryRunMutations } from '../../../../hooks/useFieldDeliveryRun';
@@ -8,7 +9,9 @@ import { formatElapsed, liveElapsedSeconds } from './fieldRunUtils';
 import {
   FIELD_UI_STEP_LABELS,
   type FieldUiStep,
+  isBehindLiveStep,
   isUiStepUnlocked,
+  resolveUiStepSync,
   uiStepFromPhase,
 } from './fieldStepUtils';
 import { useFieldPhotoUpload } from './useFieldPhotoUpload';
@@ -32,11 +35,15 @@ function TimerChrome({
   tick,
   eyebrow,
   stepAccent,
+  liveLabel,
+  onFollowLive,
 }: {
   run: DeliveryRun;
   tick: number;
   eyebrow: string;
   stepAccent: EcoFieldStepKey;
+  liveLabel?: string;
+  onFollowLive?: () => void;
 }) {
   const navigate = useNavigate();
   const accent = ecoFieldStepAccent[stepAccent];
@@ -85,9 +92,30 @@ function TimerChrome({
             {eyebrow}
           </Typography>
         </Stack>
-        <Typography variant="body2" fontWeight={800} noWrap>
-          Field run
-        </Typography>
+        {liveLabel && onFollowLive ? (
+          <ButtonBase
+            onClick={onFollowLive}
+            sx={{
+              mt: 0.25,
+              px: 0.9,
+              py: 0.2,
+              borderRadius: 99,
+              gap: 0.4,
+              bgcolor: ecoField.ink,
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: 12,
+              '& .MuiSvgIcon-root': { fontSize: 14 },
+            }}
+          >
+            <BoltRounded />
+            Live: {liveLabel}
+          </ButtonBase>
+        ) : (
+          <Typography variant="body2" fontWeight={800} noWrap>
+            Field run
+          </Typography>
+        )}
       </Box>
       {run.status !== 'completed' && (
         <Stack
@@ -131,20 +159,31 @@ export function EcoFieldRunShell({ day, run, canManage }: Props) {
   const [tick, setTick] = useState(0);
   const serverStep = uiStepFromPhase(run.phase);
   const [uiStep, setUiStep] = useState<FieldUiStep>(serverStep);
+  // Manual navigation earns the driver the right to stay put when the run advances.
+  const manualStepRef = useRef(false);
+  const previousServerStepRef = useRef(serverStep);
 
   useEffect(() => {
     setUiStep((prev) => {
       if (isUiStepUnlocked(run, prev)) return prev;
+      manualStepRef.current = false;
       return serverStep;
     });
   }, [run, serverStep]);
 
   useEffect(() => {
-    // Follow server forward when phase advances past the user's review step.
+    const previousServerStep = previousServerStepRef.current;
+    previousServerStepRef.current = serverStep;
+    if (previousServerStep === serverStep) return;
     setUiStep((prev) => {
-      const order: FieldUiStep[] = ['contact', 'load', 'routes', 'deliveries', 'finish'];
-      if (order.indexOf(serverStep) > order.indexOf(prev)) return serverStep;
-      return prev;
+      const next = resolveUiStepSync({
+        uiStep: prev,
+        serverStep,
+        previousServerStep,
+        manual: manualStepRef.current,
+      });
+      if (next !== prev) manualStepRef.current = false;
+      return next;
     });
   }, [serverStep]);
 
@@ -161,10 +200,20 @@ export function EcoFieldRunShell({ day, run, canManage }: Props) {
     [mutations],
   );
 
-  const eyebrow = `${FIELD_UI_STEP_LABELS[uiStep]} · ${FIELD_UI_STEP_LABELS[serverStep]} live`;
+  const behindLive = isBehindLiveStep(uiStep, serverStep);
+  const eyebrow = FIELD_UI_STEP_LABELS[uiStep];
 
+  /** Rail / follow-live taps: remember that the driver chose this step themselves. */
   const selectStep = (step: FieldUiStep) => {
-    if (isUiStepUnlocked(run, step)) setUiStep(step);
+    if (!isUiStepUnlocked(run, step)) return;
+    manualStepRef.current = step !== serverStep;
+    setUiStep(step);
+  };
+
+  /** Step transitions the driver just committed — they ride the live edge again. */
+  const advanceToStep = (step: FieldUiStep) => {
+    manualStepRef.current = false;
+    setUiStep(step);
   };
 
   return (
@@ -196,7 +245,14 @@ export function EcoFieldRunShell({ day, run, canManage }: Props) {
           void photo.onFilePicked(file);
         }}
       />
-      <TimerChrome run={run} tick={tick} eyebrow={eyebrow} stepAccent={uiStep} />
+      <TimerChrome
+        run={run}
+        tick={tick}
+        eyebrow={eyebrow}
+        stepAccent={uiStep}
+        liveLabel={behindLive ? FIELD_UI_STEP_LABELS[serverStep] : undefined}
+        onFollowLive={behindLive ? () => advanceToStep(serverStep) : undefined}
+      />
       {photo.uploading && (
         <Box
           sx={{
@@ -210,8 +266,17 @@ export function EcoFieldRunShell({ day, run, canManage }: Props) {
         >
           <Typography variant="caption" fontWeight={750} sx={{ color: ecoField.greenDeep }}>
             {photo.uploading.label}
+            {photo.uploading.progress != null
+              ? ` ${Math.round(photo.uploading.progress * 100)}%`
+              : ''}
           </Typography>
           <LinearProgress
+            variant={photo.uploading.progress != null ? 'determinate' : 'indeterminate'}
+            value={
+              photo.uploading.progress != null
+                ? Math.round(photo.uploading.progress * 100)
+                : undefined
+            }
             sx={{
               mt: 0.75,
               height: 6,
@@ -233,7 +298,7 @@ export function EcoFieldRunShell({ day, run, canManage }: Props) {
             onContinueLoad={() => {
               void finalActionThenAdvance(
                 () => mutations.setPhase.mutateAsync({ runId: run.id, phase: 'load' }),
-                () => setUiStep('load'),
+                () => advanceToStep('load'),
               );
             }}
           />
@@ -246,7 +311,7 @@ export function EcoFieldRunShell({ day, run, canManage }: Props) {
             photo={photo}
             busy={busy}
             canManage={canManage}
-            onContinueRoutes={() => setUiStep('routes')}
+            onContinueRoutes={() => advanceToStep('routes')}
           />
         )}
         {uiStep === 'routes' && (
@@ -256,8 +321,8 @@ export function EcoFieldRunShell({ day, run, canManage }: Props) {
             mutations={mutations}
             busy={busy}
             canManage={canManage}
-            onContinueDeliveries={() => setUiStep('deliveries')}
-            onGoToLoad={() => setUiStep('load')}
+            onContinueDeliveries={() => advanceToStep('deliveries')}
+            onGoToLoad={() => selectStep('load')}
           />
         )}
         {uiStep === 'deliveries' && (
@@ -268,7 +333,7 @@ export function EcoFieldRunShell({ day, run, canManage }: Props) {
             photo={photo}
             busy={busy}
             canManage={canManage}
-            onContinueFinish={() => setUiStep('finish')}
+            onContinueFinish={() => advanceToStep('finish')}
           />
         )}
         {uiStep === 'finish' && (

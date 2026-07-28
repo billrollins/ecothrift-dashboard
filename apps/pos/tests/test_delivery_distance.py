@@ -203,3 +203,62 @@ class DeliveryMapsRouteTests(SimpleTestCase):
         self.assertEqual(len(plan['etas']), 2)
         self.assertIsNotNone(plan['etas'][0]['arrive_at'])
         self.assertEqual(plan['etas'][0]['drive_seconds'], 600)
+
+    @override_settings(GOOGLE_MAPS_API_KEY='test-key')
+    @patch('apps.pos.services.delivery_distance._http_post_json')
+    def test_plan_captures_route_polyline(self, mock_post):
+        mock_post.return_value = (
+            {
+                'routes': [
+                    {
+                        'duration': '600s',
+                        'distanceMeters': 3000,
+                        'polyline': {'encodedPolyline': '_p~iF~ps|U'},
+                        'legs': [
+                            {'duration': '300s', 'distanceMeters': 1500},
+                            {'duration': '300s', 'distanceMeters': 1500},
+                        ],
+                    }
+                ]
+            },
+            200,
+            None,
+        )
+        plan = plan_delivery_route_with_etas(['A St'], optimize=False)
+        self.assertEqual(plan['polyline'], '_p~iF~ps|U')
+        headers = mock_post.call_args.kwargs.get('headers') or mock_post.call_args[1].get('headers')
+        self.assertIn('routes.polyline.encodedPolyline', headers['X-Goog-FieldMask'])
+
+
+class RouteMapUrlTests(SimpleTestCase):
+    def _url(self, **kwargs):
+        from apps.pos.services.delivery_route_map import build_static_map_url
+
+        params = {
+            'key': 'test-key',
+            'stop_addresses': ['1 A St', '2 B St'],
+            'store_address': STORE_MAPS_ADDRESS,
+            'polyline': 'abc123',
+            'width': 640,
+            'height': 360,
+        }
+        params.update(kwargs)
+        return build_static_map_url(**params)
+
+    def test_builds_labelled_markers_and_path(self):
+        url = self._url()
+        self.assertIn('label%3A1', url)
+        self.assertIn('label%3A2', url)
+        self.assertIn('label%3AS', url)
+        self.assertIn('enc%3Aabc123', url)
+        self.assertIn('key=test-key', url)
+
+    def test_no_stops_means_no_map(self):
+        self.assertIsNone(self._url(stop_addresses=[]))
+        self.assertIsNone(self._url(stop_addresses=['   ']))
+
+    def test_oversized_polyline_falls_back_to_markers(self):
+        url = self._url(polyline='x' * 20000)
+        self.assertIsNotNone(url)
+        self.assertNotIn('enc%3A', url)
+        self.assertIn('label%3A1', url)

@@ -20,6 +20,8 @@ type Props = {
   toneFor: (stop: DeliveryRunStop) => DotTone;
   onSelect: (stopId: number) => void;
   children: React.ReactNode;
+  /** Freeze paging while a write is in flight so the card cannot swap under it. */
+  disabled?: boolean;
 };
 
 type GesturePhase = 'idle' | 'dragging' | 'completing' | 'entering' | 'resetting';
@@ -38,7 +40,14 @@ const IDLE_VISUAL: DragVisual = {
   phase: 'idle',
 };
 
-export function FieldDeliveryPager({ stops, selectedId, toneFor, onSelect, children }: Props) {
+export function FieldDeliveryPager({
+  stops,
+  selectedId,
+  toneFor,
+  onSelect,
+  children,
+  disabled,
+}: Props) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
@@ -220,7 +229,7 @@ export function FieldDeliveryPager({ stops, selectedId, toneFor, onSelect, child
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || disabled) return;
     const phase = visualRef.current.phase;
     if (phase === 'completing' || phase === 'entering') return;
 
@@ -335,6 +344,7 @@ export function FieldDeliveryPager({ stops, selectedId, toneFor, onSelect, child
           selectedId={selectedId}
           toneFor={toneFor}
           onSelect={onSelect}
+          disabled={disabled}
         />
       )}
       <Box

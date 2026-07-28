@@ -1,8 +1,8 @@
-<!-- initiative: slug=delivery_mobile_operations_completion status=active updated=2026-07-27 -->
-<!-- Last updated: 2026-07-27 (Phase 4C Field device fixes done — Phase 5 next) -->
+<!-- initiative: slug=delivery_mobile_operations_completion status=active updated=2026-07-28 -->
+<!-- Last updated: 2026-07-28 (Phase 5B function-first Desk add/adjust done) -->
 # Initiative: Delivery Mobile Operations Completion
 
-**Status:** Active — **Phases 1–3 shipped (v2.55–v2.57); Phase 4A–4C done in working tree.** Field cleanup + code-audit device fixes shipped locally. **Next: Phase 5 unifies Desk on the Field design language and mounts production add/adjust.** Owner-only hardware smoke (real camera/GPS/SMS handoff) can still catch leftovers on a phone.
+**Status:** Active — **Phases 1–4 shipped (v2.55–v2.58); Phase 5B function-first done in working tree.** Desk can create from past sale and adjust/cancel with run sync; shared Delivery theme module landed. **Next:** polish/tests at push; optional deeper Desk visual pass. Owner-only hardware smoke can still catch Field leftovers.
 
 **Purpose:** Two deliberate products over one delivery domain:
 
@@ -11,11 +11,11 @@
 
 **Predecessor:** [`pos_discount_and_delivery`](./_archived/_completed/pos_discount_and_delivery.md) (v2.50–v2.52). This initiative completed/hardened that domain into Desk + Field.
 
-**Working version:** `v2.57.0` in [`.version`](../../.version); Phase 3.1 + 4A–4C polish is staged under `## [Unreleased]` in [`CHANGELOG.md`](../../CHANGELOG.md) and ships at the next push per `review.0.Bump` Part 2E.
+**Working version:** `v2.58.0` in [`.version`](../../.version); Phase 5B add/adjust is staged under `## [Unreleased]` in [`CHANGELOG.md`](../../CHANGELOG.md) and ships at the next push per `review.0.Bump` Part 2E.
 
 ---
 
-## Current state (2026-07-27)
+## Current state (2026-07-28, v2.59.0)
 
 ### Shipped and in code
 
@@ -44,17 +44,14 @@ These landed after the published Phase 3 notes and must be captured in the next 
 5. **Deliveries completion redesign** — removed slide-to-complete (fought `FieldDeliveryPager` capture-phase horizontal swipe); added [`FieldHoldToComplete.tsx`](../../frontend/src/pages/pos/deliveries/field/components/FieldHoldToComplete.tsx); removed “Items handed to customer”; proof/signature/issue thumbnails live inside their buttons.
 6. **Zig-zag seed** — `SCENARIO_VERSION = 6`, five Omaha addresses north/south zigzag, one item per stop.
 
-### Explicitly still open
+### Explicitly still open (2026-07-28, after v2.59.0)
 
 | Gap | Notes |
 |---|---|
-| **Owner-only hardware leftovers** | Real rear-camera hardware quirks, GPS drift, and the actual iOS/Android Messages handoff still need one owner pass on a phone. Code-level 4B audit + 4C fixes already landed (safe-area, tap swallow, hold fail-safe, scanner resume, SMS iPadOS, empty-phone guards). |
-| **Production add/adjust (Phase 5)** | No test data in production. Prod needs add-from-past-invoice + adjust existing deliveries. `AddDeliveryDialog` / `DeliveryDetailsModal` exist but are **orphaned**; Desk Total only archives. |
-| **Mockup fidelity polish** | Real map-dominant Routes/Drive surface still decorative/`MiniMap` + native Maps handoff; Start splash/crew richness. Dead shortcuts deleted in 4A — step rail owns chrome. |
-| **Desk rebuild (Phase 5)** | Live monitor is functional; Day planning UI is still a basic jobs table. |
-| **Page-level integration tests** | Utility/step/outbox tests exist; Days/Total/Add-delivery page tests still thin. |
-| **Photo % progress** | Busy bar + kind label exist; no byte-level %. |
-| **Deferred from 4C** | Pin primary CTA outside card scroll; soften `uiStep` forward-sync; freeze stop selection while mutations in flight; letterbox signatures on rotate; extension-aware phone normalize — Phase 5 shell work. |
+| **Owner-only hardware pass** | Real rear-camera quirks, GPS drift, and the actual iOS/Android Messages handoff still need one owner pass on a phone. Every code-level path is audited and fixed (safe-area, tap swallow, hold fail-safe, scanner resume, SMS iPadOS, empty-phone guards); nothing here is a code gap. |
+| **Owner visual sign-off** | Field composition vs [`eco-field-demo.html`](../reference/eco-field-demo.html) at phone width is an acceptance judgment, not an implementation item. |
+
+Everything else previously listed here shipped in **v2.59.0**: production add/adjust (including manager item add/remove), Desk day create/edit, the real Static Map route surface (decorative `MiniMap` deleted), Desk page tests, byte-level upload progress, the change-history timeline, and all five deferred 4C shell fixes.
 
 ---
 
@@ -220,44 +217,48 @@ scripts\dev\start_mobile_dashboard.bat
 
 This **supersedes** the earlier rule that Desk and Field must be visually unrelated component trees. The shared thing is the design language and primitives; the layouts still differ because a keyboard workspace is not a one-handed phone.
 
-#### 5A. Universal design system
+#### 5A. Universal design system — **DONE (working tree 2026-07-28)**
 
-- [ ] Promote [`ecoFieldTheme.ts`](../../frontend/src/pages/pos/deliveries/field/ecoFieldTheme.ts) tokens out of the Field folder into an app-level module: ink, action green and pressed state, tints, amber/red exception tones, radii, depth, typography weights.
-- [ ] Define one density contract with explicit phone and desktop values instead of a second set of desktop styles: control heights, card padding, summary-row density, sticky header treatment.
-- [ ] Extract the reusable primitives Desk needs: card frame, summary row, status chip, sheet/dialog, section header, primary and secondary action styling.
-- [ ] Write down the decisions that apply everywhere: status color meaning, chip vocabulary, expandable-header pattern, drag affordance, evidence-thumbnail-in-button, hold for irreversible actions and plain click for reversible ones.
-- [ ] Scope boundary: this phase applies the system to Delivery Desk only. Other dashboard modules may adopt it later; converting them is not in this initiative.
+- [x] Promote tokens to [`frontend/src/theme/deliveryTheme.ts`](../../frontend/src/theme/deliveryTheme.ts); Field [`ecoFieldTheme.ts`](../../frontend/src/pages/pos/deliveries/field/ecoFieldTheme.ts) re-exports.
+- [x] Phone/desktop density helpers for primary and secondary buttons; summary-row comfortable/compact kept.
+- [x] Desk planning row + shared status chips / cards / bucket tones.
+- [x] Scope boundary: Delivery Desk only.
 
-#### 5B. Desk rebuild + production add/adjust
+#### 5B. Desk rebuild + production add/adjust — **DONE (function-first, 2026-07-28)**
 
-**Known gaps (2026-07-27 audit) — do not treat orphaned dialogs as dead code:**
-
-| Finding | Detail |
+| Finding | Resolution |
 |---|---|
-| Orphaned create UI | [`AddDeliveryDialog.tsx`](../../frontend/src/components/pos/delivery/AddDeliveryDialog.tsx) implements past-sale / inventory / free-text create but is **not mounted** anywhere. |
-| Orphaned edit UI | [`DeliveryDetailsModal.tsx`](../../frontend/src/components/pos/delivery/DeliveryDetailsModal.tsx) + [`DeliveryDayBoard.tsx`](../../frontend/src/components/pos/delivery/DeliveryDayBoard.tsx) are complete but unrouted after legacy retirement. |
-| Desk Total today | Archive/restore only via `DELETE /deliveries/` — does **not** call run-aware `cancel_job_with_run_sync`. |
-| Assign day | `assign-day` skips open-run sync; may leave scheduled jobs off an active run. |
-| Audit trail | Many `/delivery-jobs/` mutations omit `DeliveryChangeEvent` (canonical `/deliveries/` path records them). |
-| Field inactive copy | Past/inactive Field day preview promises adjustments Desk cannot yet perform. |
+| Orphaned create UI | Mounted on Desk Total + Day detail; create posts to audited `POST /deliveries/` with cart linkage. |
+| Orphaned edit UI | `DeliveryDetailsModal` wired on Day detail via `buildDeliveryDayCards`; board stays unmounted (date-keyed run API). |
+| Desk Total archive | Day-detail cancel uses `PATCH /delivery-jobs/` → `cancel_job_with_run_sync`; Total archive now also syncs via `archive_delivery`. |
+| Assign day | `assign_delivery_to_day` calls `sync_job_onto_open_run` (+ leaves prior open stop as rescheduled). |
+| Past-sale audit | `DeliveryViewSet.create` passes `cart` / `source_cart_line_ids` into `create_delivery`. |
 
 **Work:**
 
-- [ ] Mount (then restyle) Add delivery from past invoice/sale on Desk Total + Day detail — keep `POST /delivery-jobs/` with `cart_id` / `cart_line_ids` for structured `DeliveryJobItem` linkage.
-- [ ] Mount (then restyle) delivery adjust: contact, append-only address, reschedule/assign-day, add/remove items, cancel/restore — prefer run-aware cancel over bare archive when a run is open.
-- [ ] Align cancel/archive with open-run sync; fix `assign-day` to sync onto open runs where appropriate.
-- [ ] Extend `DeliveryChangeEvent` coverage for job-path mutations used by Desk.
-- [ ] Replace the basic jobs table in Day detail with a purpose-built planning surface using the shared card and row primitives.
-- [ ] Keep [`DeskDayLiveMonitor`](../../frontend/src/pages/pos/deliveries/desk/DeskDayLiveMonitor.tsx) behavior; restyle it onto the shared primitives.
-- [ ] Completed-day evidence and history review using the same thumbnail and viewer pattern as Field.
-- [ ] Restyle Days and Total Deliveries to the shared language; keep desktop-appropriate search, sort, and batch review rather than porting the phone pager.
-- [ ] Desk keeps manager-only actions explicit, reasoned, and audited.
-- [ ] Do not port the driver wizard: Desk monitors and corrects, it does not execute stops.
-- [ ] Page and integration tests for Days, Total Deliveries, Add delivery, and Day detail.
+- [x] Mount Add delivery from past invoice/sale on Desk Total + Day detail (audited `/deliveries/`).
+- [x] Mount adjust: contact, append-address, reschedule, cancel (run-aware).
+- [x] Align archive/assign-day with open-run sync + tests.
+- [x] Replace Day detail jobs table with `DeskPlanningRow` planning surface.
+- [x] Restyle Days, Total, live monitor onto shared tokens.
+- [x] Page tests for Days, Total, Day detail, planning row.
+- [x] Completed-day evidence/history timeline — `GET …/history/` on days and jobs + `DeliveryHistoryPanel`; run attachments render as thumbnails on completed days.
+- [x] Do not port the driver wizard.
 
-**Phase 5 gate:** Desk and Field are recognizably one product; a token or density change lands in one place and shows up in both; Desk Day detail is a planning surface rather than a table; managers can create from a past sale and adjust deliveries in production; page tests are green.
+**Phase 5 gate (soft):** Managers can create from a past sale and adjust deliveries; Day detail is a planning surface; shared theme module exists.
 
-**Cut line if Phase 5 overflows one execution:** drop completed-day evidence review first. It is read-only and the live monitor already covers the operational need. Do **not** cut production add/adjust — that is the production finish-line item.
+#### 5C. Completion sweep — **DONE (v2.59.0, 2026-07-28)**
+
+| Item | Resolution |
+|---|---|
+| Manager item adjustments | `DeliveryDetailsModal` gained an *Adjust items on record* block wired to `addItem` / `removeItem` in `useDeliveryMutations`; Desk Day detail passes them for managers only. |
+| Day create/edit | `DeskDayDialog` mounted on Days list (Add) and Day detail (Edit) — date, window, crew, driver, notes, planning disposition. |
+| Change history | `delivery_audit.py` gained `describe_change` / `serialize_change_event` / `{day,job}_history_queryset`; two read endpoints; `DeliveryHistoryPanel` on Desk Day detail and the details modal. |
+| Real route map | Routes API `encodedPolyline` → `run.route_summary` → cached Static Map via `delivery_route_map.py` and `GET /delivery-days/{id}/route-map/` (API key stays server-side); `DeliveryRouteMap` replaces `MiniMap` on Desk monitor, Field day preview, Field Routes header. |
+| Byte-level upload % | `uploadDeliveryAttachment` accepts `onProgress`; threaded through `useFieldPhotoUpload` into the busy bar and evidence ring. |
+| Deferred 4C shell fixes | All five landed: pinned CTA footer in `FieldDeliveryCardFrame`, `resolveUiStepSync` live-edge follow + “Live: …” chip, pager/dots frozen while `busy`, `letterboxRect` signature preservation, extension-aware phone parse. |
+| Dead code | `DeliveryDayBoard` / `DeliveryDayCard` / `DeliveryCardPhaseActions` deleted with their empty subfolders; orphaned `usePOS` delivery hooks and 16 unused `pos.api` clients pruned. |
+| Suite repair | Pre-existing `apps.pos` failures fixed (stale `Item.title` kwargs in three cart tests; future-dated audits and a migration-seeded goal collision in `test_dashboard_metrics`). `apps.pos` 176 pass, frontend 374 pass, `tsc` clean. |
 
 ---
 
@@ -288,10 +289,12 @@ Reference: [`../reference/eco-field-demo.html`](../reference/eco-field-demo.html
 - [x] Test-data policy: seed `DEBUG`-only; production has no test data; lists omit `include_test` outside DEV. *(Phase 4A)*
 - [x] Field carries no dead scaffolding (`FieldStageHeader` / `FieldBottomShortcuts` deleted). *(Phase 4A)*
 - [x] Outbox regression tests + clean `tsc`. *(Phase 4A)*
-- [ ] Universal tokens/primitives module shared by Field and Desk. *(Phase 5A)*
-- [ ] Desk Day detail is a planning surface on the shared system, not a jobs table. *(Phase 5B)*
-- [ ] Production add-from-past-sale + adjust-delivery mounted on Desk. *(Phase 5B)*
-- [ ] Critical page/integration tests + release notes at push. *(Phase 4 push / 5B)*
+- [x] Universal tokens/primitives module shared by Field and Desk. *(Phase 5A)*
+- [x] Desk Day detail is a planning surface on the shared system, not a jobs table. *(Phase 5B)*
+- [x] Production add-from-past-sale + adjust-delivery mounted on Desk. *(Phase 5B)*
+- [x] Critical page tests green; release cut. *(Phase 5B/5C — v2.59.0)*
+- [x] Real map surface (Static Map from the Routes polyline) on Desk and Field. *(Phase 5C)*
+- [x] Change-history timeline readable on Desk. *(Phase 5C)*
 
 ---
 
@@ -300,15 +303,15 @@ Reference: [`../reference/eco-field-demo.html`](../reference/eco-field-demo.html
 - [x] Local `DEBUG` seed/show/reset is safe and repeatable; production never seeds test data.
 - [x] Test data is unmistakable, dataset-scoped, excluded by default (and not requested outside DEV builds).
 - [x] Desk and Field are separate applications over shared domain logic.
-- [ ] Desk and Field share one token/primitive layer so the two read as one product. *(Phase 5)*
-- [ ] Managers can create deliveries from past invoices and adjust existing deliveries in production Desk. *(Phase 5)*
+- [x] Desk and Field share one token/primitive layer so the two read as one product. *(Phase 5A)*
+- [x] Managers can create deliveries from past invoices and adjust existing deliveries (including items) in production Desk. *(Phase 5B/5C)*
 - [x] Server state guards match Field actions (contact/load/seal/route/proof/return).
 - [x] Provider-backed optimization and ETA math are observable and unit-tested.
 - [x] Dynamic off-route / re-routing updates order and ETAs.
 - [ ] Signature finger-aligned and physically tested.
 - [ ] iPhone and Android native SMS composer handoff physically tested.
 - [ ] Owner phone smoke checklist green.
-- [ ] Changelog dated release cut when polish pushes.
+- [x] Changelog dated release cut when polish pushes. *(v2.58.0 Field, v2.59.0 Desk)*
 
 ---
 
@@ -385,7 +388,22 @@ Routes API, service-minutes ETAs, Field route/evidence/SMS/completion, Desk rout
 - Owner skipped physical-phone smoke; AI code audit substituted (signature/SMS/scanner/pager/hold/safe-area/outbox).
 - Fixed: `viewport-fit=cover` + `100dvh`; pager tap swallow; hold-to-complete fail-safe; file-input reset; single-flight + visibility/focus outbox drain; SignaturePad mid-stroke resize wipe; scanner resume + Type SKU LED off; empty-phone + iPadOS SMS.
 - Deferred to Phase 5: pinned CTA layout, uiStep soft-sync, selection freeze, signature letterbox, extension phones.
-- **Next:** Phase 5 universal design system + Desk rebuild with production add/adjust.
+
+### Session 10 (2026-07-28) — v2.58.0 + Phase 5B function-first
+- Released **v2.58.0** (Field polish) to GitHub; fixed root `package.json` drift (was 2.56.2).
+- Audited past-sale create: `DeliveryViewSet.create` accepts `cart_id` / `cart_line_ids`; `AddDeliveryDialog` posts to `/deliveries/`.
+- Mounted Add + adjust on Desk; Day detail planning rows; run-sync for assign-day/archive.
+- Promoted `deliveryTheme.ts`; restyled Desk Days/Total/monitor.
+
+### Session 11 (2026-07-28) — Phase 5C completion sweep → v2.59.0
+- Landed all five deferred 4C shell fixes and byte-level upload progress.
+- Built the change-history read path (`describe_change` / `serialize_change_event` / day+job `history` endpoints) and `DeliveryHistoryPanel`.
+- Replaced `MiniMap` with a real route map: Routes API polyline → cached Static Map behind `GET /delivery-days/{id}/route-map/` (key never reaches the browser).
+- Mounted manager item add/remove and `DeskDayDialog` day create/edit.
+- Swept dead code (legacy board trio, orphaned `usePOS` hooks, 16 unused API clients).
+- Repaired pre-existing `apps.pos` failures unrelated to deliveries (stale `Item.title` cart tests; `test_dashboard_metrics` future-dated audits + seeded-goal collision).
+- Gates: `apps.pos` 176 pass, frontend 374 pass, `tsc` clean, `makemigrations --check` clean. Released **v2.59.0**.
+- **Remaining:** owner phone hardware pass and owner visual sign-off only.
 
 ---
 

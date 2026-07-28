@@ -742,6 +742,11 @@ def _routable_stops(run: DeliveryRun) -> list[DeliveryRunStop]:
     return [s for s in stops if _stop_is_routable(s)]
 
 
+def routable_stops_in_order(run: DeliveryRun) -> list[DeliveryRunStop]:
+    """Public read-only view of the planned route order (used by the route map)."""
+    return _routable_stops(run)
+
+
 class StaleRouteRevision(ValueError):
     """Raised when a client submits a stale base route revision."""
 
@@ -1178,6 +1183,8 @@ def apply_route_plan(
         'optimized_stop_ids': optimized_stop_ids,
         'stop_count': len(active),
         'confirmed_count': len(active),
+        # Encoded route geometry, used to draw the real static route map.
+        'polyline': plan.get('polyline'),
     }
     run.last_optimized_at = timezone.now()
     update_fields = [

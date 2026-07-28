@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.core.models import WorkLocation
-from apps.inventory.models import Item, ItemScanHistory
+from apps.inventory.models import Category, Item, ItemScanHistory, Product
 from apps.pos.models import CartLine, Drawer, Register
 
 
@@ -41,15 +41,16 @@ class CartAddItemAuditTests(TestCase):
             opened_at=timezone.now(),
             status='open',
         )
+        category = Category.objects.create(name='POS Audit Cat', slug='pos-audit-cat')
         self.item_on_shelf = Item.objects.create(
             sku='POS-AUDIT-SHELF',
-            title='On shelf',
+            product=Product.objects.create(title='On shelf', brand='QA', category=category),
             price=Decimal('10.00'),
             status='on_shelf',
         )
         self.item_sold = Item.objects.create(
             sku='POS-AUDIT-SOLD',
-            title='Sold unit',
+            product=Product.objects.create(title='Sold unit', brand='QA', category=category),
             price=Decimal('7.50'),
             status='sold',
         )

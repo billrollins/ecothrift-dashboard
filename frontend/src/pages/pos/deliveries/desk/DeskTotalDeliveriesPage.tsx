@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Box,
+  Button,
   Chip,
   Drawer,
   FormControlLabel,
@@ -12,9 +13,19 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import AddRounded from '@mui/icons-material/AddRounded';
 import CloseIcon from '@mui/icons-material/Close';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import { useQueryClient } from '@tanstack/react-query';
+import { AddDeliveryDialog } from '../../../../components/pos/delivery/AddDeliveryDialog';
 import { useDeliveriesSearch, useDeliveryMutations } from '../../../../hooks/useDelivery';
+import { useDeliveryAvailabilities } from '../../../../hooks/usePOS';
+import { useAuth } from '../../../../hooks/useAuth';
+import {
+  ecoField,
+  ecoFieldPrimaryButtonSx,
+  ecoFieldStatusChipSx,
+} from '../../../../theme/deliveryTheme';
 import type { DeliveryJob } from '../../../../types/pos.types';
 import {
   deskTotalStateToApiParams,
@@ -25,9 +36,14 @@ import {
 export default function DeskTotalDeliveriesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const state = useMemo(() => parseDeskTotalUrlState(searchParams), [searchParams]);
+  const queryClient = useQueryClient();
   const { data, isLoading } = useDeliveriesSearch(deskTotalStateToApiParams(state));
+  const { data: daySlots = [] } = useDeliveryAvailabilities({ upcoming: '1' });
   const { archive, restore } = useDeliveryMutations();
+  const { hasRole } = useAuth();
+  const canManage = hasRole('Manager') || hasRole('Admin');
   const [selected, setSelected] = useState<DeliveryJob | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   const rows = data?.results ?? [];
 
   const patchState = (patch: Partial<typeof state>) => {
@@ -53,7 +69,12 @@ export default function DeskTotalDeliveriesPage() {
 
   return (
     <Box>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={1.5}
+        sx={{ mb: 2 }}
+        alignItems={{ md: 'center' }}
+      >
         <TextField
           size="small"
           label="Search customer / phone / address / SKU / receipt"
@@ -85,9 +106,34 @@ export default function DeskTotalDeliveriesPage() {
           }
           label="Archived"
         />
+        {canManage && (
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddRounded />}
+            onClick={() => setAddOpen(true)}
+            sx={{ ...ecoFieldPrimaryButtonSx('desktop'), whiteSpace: 'nowrap' }}
+          >
+            Add delivery
+          </Button>
+        )}
       </Stack>
 
-      <Box sx={{ height: 520, width: '100%' }}>
+      <Box
+        sx={{
+          height: 520,
+          width: '100%',
+          border: `1.5px solid ${ecoField.line}`,
+          borderRadius: `${ecoField.radius}px`,
+          overflow: 'hidden',
+          '& .MuiDataGrid-columnHeaders': {
+            bgcolor: ecoField.tint,
+            color: ecoField.ink,
+            fontWeight: 800,
+          },
+          '& .MuiDataGrid-row:hover': { bgcolor: 'rgba(53, 92, 74, 0.06)' },
+        }}
+      >
         <DataGrid
           rows={rows}
           columns={columns}
@@ -112,14 +158,32 @@ export default function DeskTotalDeliveriesPage() {
           </Stack>
           {selected && (
             <Stack spacing={1.25}>
-              <Typography fontWeight={700}>{selected.customer_name}</Typography>
+              <Typography fontWeight={800} sx={{ color: ecoField.ink }}>
+                {selected.customer_name}
+              </Typography>
               <Typography variant="body2">{selected.phone}</Typography>
               <Typography variant="body2">
                 {selected.delivery_address || selected.address}
               </Typography>
-              <Typography variant="body2">
-                {selected.scheduled_date || 'Unscheduled'} · {selected.status}
-              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="body2">
+                  {selected.scheduled_date || 'Unscheduled'}
+                </Typography>
+                <Chip
+                  size="small"
+                  label={selected.status}
+                  sx={{
+                    ...ecoFieldStatusChipSx(
+                      selected.status === 'completed'
+                        ? 'ok'
+                        : selected.status === 'cancelled' || selected.status === 'failed'
+                          ? 'bad'
+                          : 'muted',
+                    ),
+                    fontWeight: 750,
+                  }}
+                />
+              </Stack>
               <Typography variant="body2">
                 Items ({selected.item_count}): {selected.items_delivered}
               </Typography>
@@ -160,6 +224,16 @@ export default function DeskTotalDeliveriesPage() {
           )}
         </Box>
       </Drawer>
+
+      <AddDeliveryDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        daySlots={daySlots}
+        onCreated={() => {
+          void queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+          void queryClient.invalidateQueries({ queryKey: ['delivery-days'] });
+        }}
+      />
     </Box>
   );
 }

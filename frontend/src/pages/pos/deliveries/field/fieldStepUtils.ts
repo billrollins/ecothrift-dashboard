@@ -89,6 +89,31 @@ export function isUiStepUnlocked(run: DeliveryRun, step: FieldUiStep): boolean {
   return unlockedUiSteps(run).includes(step);
 }
 
+export function uiStepIndex(step: FieldUiStep): number {
+  return FIELD_UI_STEPS.indexOf(step);
+}
+
+/**
+ * Server phase advances should not yank a driver out of a step they deliberately
+ * opened. Follow the live edge only when they were already sitting on it.
+ */
+export function resolveUiStepSync(input: {
+  uiStep: FieldUiStep;
+  serverStep: FieldUiStep;
+  previousServerStep: FieldUiStep;
+  manual: boolean;
+}): FieldUiStep {
+  const { uiStep, serverStep, previousServerStep, manual } = input;
+  if (uiStepIndex(serverStep) <= uiStepIndex(uiStep)) return uiStep;
+  if (!manual) return serverStep;
+  return uiStep === previousServerStep ? serverStep : uiStep;
+}
+
+/** True when the driver is reviewing a step behind the live server phase. */
+export function isBehindLiveStep(uiStep: FieldUiStep, serverStep: FieldUiStep): boolean {
+  return uiStepIndex(uiStep) < uiStepIndex(serverStep);
+}
+
 export function stopDisplayName(stop: DeliveryRunStop): string {
   return (stop.customer_name || '').replace(/^\[TEST\]\s*/, '');
 }

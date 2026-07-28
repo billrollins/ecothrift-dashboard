@@ -1,5 +1,6 @@
 """Canonical /api/pos/delivery-days/ and /api/pos/deliveries/ API tests."""
 from datetime import time, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth.models import Group
 from django.test import TestCase
@@ -8,7 +9,19 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.core.models import WorkLocation
-from apps.pos.models import DeliveryChangeEvent, DeliveryDay, DeliveryJob, DeliveryJobItem
+from apps.pos.models import (
+    Cart,
+    CartLine,
+    DeliveryChangeEvent,
+    DeliveryDay,
+    DeliveryJob,
+    DeliveryJobItem,
+    DeliveryRun,
+    DeliveryRunStop,
+    Drawer,
+    Register,
+)
+from apps.pos.services.delivery_run import start_or_resume_run
 
 
 class DeliveryDaysAPITests(TestCase):
@@ -119,3 +132,199 @@ class DeliveryDaysAPITests(TestCase):
         self.assertEqual(removed.status_code, 200, removed.content)
         item.refresh_from_db()
         self.assertFalse(item.is_active)
+
+    def test_create_delivery_from_past_cart_is_audited(self):
+        register = Register.objects.create(
+            location=self.location,
+            name='Days API Reg',
+            code='DAYS-API1',
+        )
+        drawer = Drawer.objects.create(
+            register=register,
+            date=self.today,
+            current_cashier=self.user,
+            opened_by=self.user,
+            opened_at=timezone.now(),
+            status='open',
+        )
+        cart = Cart.objects.create(
+            drawer=drawer,
+            cashier=self.user,
+            status='completed',
+            completed_at=timezone.now(),
+        )
+        line = CartLine.objects.create(
+            cart=cart,
+            description='Past Sofa',
+            quantity=1,
+            unit_price='100.00',
+            line_total='100.00',
+            line_kind=CartLine.LINE_KIND_ITEM,
+        )
+        r = self.client.post(
+            '/api/pos/deliveries/',
+            {
+                'day': self.day.id,
+                'customer_name': 'Past Sale Customer',
+                'phone': '402-555-0199',
+                'address': '99 Past St',
+                'items_delivered': 'Past Sofa',
+                'cart_id': cart.id,
+                'cart_line_ids': [line.id],
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        job = DeliveryJob.objects.get(pk=r.data['id'])
+        self.assertEqual(job.cart_id, cart.id)
+        items = list(job.items.filter(is_active=True))
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].source_cart_line_id, line.id)
+        self.assertEqual(items[0].description, 'Past Sofa')
+        self.assertTrue(
+            DeliveryChangeEvent.objects.filter(
+                entity_type='job',
+                entity_id=job.id,
+                action='create',
+            ).exists()
+        )
+
+    def test_route_map_serves_png_and_hides_the_key(self):
+        DeliveryJob.objects.create(
+            availability=self.day,
+            scheduled_date=self.day.date,
+            customer_name='Map Customer',
+            phone='402-555-0188',
+            address='88 Map St',
+            items_delivered='Fridge',
+            item_count=1,
+            status=DeliveryJob.STATUS_SCHEDULED,
+        )
+        with patch(
+            'apps.pos.services.delivery_route_map.fetch_route_map_png',
+            return_value=b'\x89PNG-bytes',
+        ) as fetch:
+            r = self.client.get(f'/api/pos/delivery-days/{self.day.id}/route-map/')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r['Content-Type'], 'image/png')
+        self.assertEqual(r.content, b'\x89PNG-bytes')
+        self.assertIn('88 Map St', ' '.join(fetch.call_args.kwargs['stop_addresses']))
+
+        with patch(
+            'apps.pos.services.delivery_route_map.fetch_route_map_png',
+            return_value=None,
+        ):
+            missing = self.client.get(f'/api/pos/delivery-days/{self.day.id}/route-map/')
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(missing.data['code'], 'ROUTE_MAP_UNAVAILABLE')
+
+    def test_day_and_delivery_history_endpoints(self):
+        job = DeliveryJob.objects.create(
+            availability=self.day,
+            scheduled_date=self.day.date,
+            customer_name='History Customer',
+            phone='402-555-0177',
+            address='77 History Ln',
+            items_delivered='Table',
+            item_count=1,
+            status=DeliveryJob.STATUS_SCHEDULED,
+        )
+        patched = self.client.patch(
+            f'/api/pos/deliveries/{job.id}/',
+            {'notes': 'gate code 4321', 'reason': 'customer called'},
+            format='json',
+        )
+        self.assertEqual(patched.status_code, 200, patched.content)
+
+        day_history = self.client.get(f'/api/pos/delivery-days/{self.day.id}/history/')
+        self.assertEqual(day_history.status_code, 200, day_history.content)
+        actions = [row['action'] for row in day_history.data['results']]
+        self.assertIn('update', actions)
+
+        job_history = self.client.get(f'/api/pos/deliveries/{job.id}/history/')
+        self.assertEqual(job_history.status_code, 200, job_history.content)
+        rows = job_history.data['results']
+        self.assertTrue(rows)
+        update_row = next(r for r in rows if r['action'] == 'update')
+        self.assertIn('notes', update_row['changed_fields'])
+        self.assertEqual(update_row['reason'], 'customer called')
+        self.assertTrue(update_row['summary'])
+        self.assertEqual(update_row['job_id'], job.id)
+
+        self.assertEqual(self.client.get('/api/pos/delivery-days/999999/history/').status_code, 404)
+        self.assertEqual(self.client.get('/api/pos/deliveries/999999/history/').status_code, 404)
+
+    def test_assign_day_syncs_onto_open_run(self):
+        run = start_or_resume_run(
+            date=self.day.date,
+            user=self.user,
+            availability_id=self.day.id,
+        )
+        self.assertEqual(run.status, DeliveryRun.STATUS_PREPARING)
+        job = DeliveryJob.objects.create(
+            customer_name='Late Add',
+            phone='402-555-0144',
+            address='44 Late St',
+            items_delivered='Chair',
+            item_count=1,
+            status=DeliveryJob.STATUS_NEEDS_SCHEDULING,
+            created_by=self.user,
+        )
+        r = self.client.post(
+            f'/api/pos/deliveries/{job.id}/assign-day/',
+            {'day': self.day.id, 'reason': 'desk assign'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        job.refresh_from_db()
+        self.assertEqual(job.availability_id, self.day.id)
+        self.assertEqual(job.status, DeliveryJob.STATUS_SCHEDULED)
+        stop = DeliveryRunStop.objects.filter(run=run, job=job).first()
+        self.assertIsNotNone(stop)
+        self.assertEqual(stop.state, DeliveryRunStop.STATE_QUEUED)
+        self.assertTrue(
+            DeliveryChangeEvent.objects.filter(
+                entity_type='job',
+                entity_id=job.id,
+                action='schedule',
+            ).exists()
+        )
+
+    def test_archive_fails_open_run_stop(self):
+        job = DeliveryJob.objects.create(
+            availability=self.day,
+            scheduled_date=self.day.date,
+            customer_name='Archive Run Sync',
+            phone='402-555-0155',
+            address='55 Archive St',
+            items_delivered='Table',
+            item_count=1,
+            status=DeliveryJob.STATUS_SCHEDULED,
+            created_by=self.user,
+        )
+        run = start_or_resume_run(
+            date=self.day.date,
+            user=self.user,
+            availability_id=self.day.id,
+        )
+        stop = DeliveryRunStop.objects.get(run=run, job=job)
+        self.assertNotEqual(stop.state, DeliveryRunStop.STATE_FAILED)
+
+        arch = self.client.delete(
+            f'/api/pos/deliveries/{job.id}/',
+            {'reason': 'desk archive'},
+            format='json',
+        )
+        self.assertEqual(arch.status_code, 204, arch.content)
+        job.refresh_from_db()
+        stop.refresh_from_db()
+        self.assertIsNotNone(job.archived_at)
+        self.assertEqual(job.status, DeliveryJob.STATUS_CANCELLED)
+        self.assertEqual(stop.state, DeliveryRunStop.STATE_FAILED)
+        self.assertTrue(
+            DeliveryChangeEvent.objects.filter(
+                entity_type='job',
+                entity_id=job.id,
+                action='archive',
+            ).exists()
+        )

@@ -215,8 +215,10 @@ class DashboardMetricsTests(TestCase):
             form.save(update_fields=['feeds_dashboard'])
 
         week_start = _week_start_monday(self.today)
-        earlier = timezone.make_aware(datetime.combine(week_start, datetime.min.time())) + timedelta(hours=10)
-        later = earlier + timedelta(days=2, hours=3)
+        self.assertLessEqual(week_start, self.today)
+        # Both audits must already be submitted (never future-dated) or the week rollup drops them.
+        later = timezone.now() - timedelta(minutes=5)
+        earlier = later - timedelta(minutes=10)
         QualityAudit.objects.create(
             form=form,
             audit_type='retail',
@@ -257,13 +259,15 @@ class DashboardMetricsTests(TestCase):
         if not form.feeds_dashboard:
             form.feeds_dashboard = True
             form.save(update_fields=['feeds_dashboard'])
-        DashboardDepartmentGoal.objects.create(
+        DashboardDepartmentGoal.objects.update_or_create(
             department=DashboardDepartmentGoal.RETAIL,
-            value='B',
-            description='Two audits today at B or better.',
-            schedule={
-                'weekdays': [self.today.weekday()],
-                'audits_per_day': 2,
+            defaults={
+                'value': 'B',
+                'description': 'Two audits today at B or better.',
+                'schedule': {
+                    'weekdays': [self.today.weekday()],
+                    'audits_per_day': 2,
+                },
             },
         )
         now = timezone.now()

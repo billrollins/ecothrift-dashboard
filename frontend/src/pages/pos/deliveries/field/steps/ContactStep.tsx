@@ -205,6 +205,7 @@ export function ContactStep({ day, run, mutations, busy, canManage, onContinueLo
         selectedId={selectedId}
         toneFor={contactStopTone}
         onSelect={setSelectedId}
+        disabled={busy}
       >
         <FieldDeliveryCardFrame
           stop={stop}

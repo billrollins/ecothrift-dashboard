@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.58.0] -->
-<!-- Last reviewed: 2026-07-28 (v2.58.0 Field polish release) -->
+<!-- Line 1 release: ## [Unreleased] -->
+<!-- Last reviewed: 2026-07-28 (v2.59.0 Desk add/adjust + route maps + history) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [Unreleased]
+
+## [2.59.0] — 2026-07-28
+
+User-facing theme: **Delivery Desk production add/adjust** — create from past sale, day-detail adjust/cancel, real route maps, change history, shared Delivery tokens.
+
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md) Phase 5B–5C (function-first, then unification).
+
+### Added
+
+- **POS / Desk Add delivery** — Mounted `AddDeliveryDialog` on Desk Total and Day detail; past-sale create via audited `POST /deliveries/` with `cart_id` / `cart_line_ids`.
+- **POS / Desk adjust** — Day detail planning rows open `DeliveryDetailsModal` for notes, contact, append-address, reschedule, run-aware cancel, and manager item add/remove (`POST /deliveries/{id}/items/`, `…/items/{itemId}/remove/`).
+- **POS / Desk day create + edit** — `DeskDayDialog` for date, window, crew, driver, notes, and planning disposition from Days list and Day detail.
+- **POS / change history** — `GET /delivery-days/{id}/history/` and `GET /deliveries/{id}/history/` serialize `DeliveryChangeEvent` into a human-readable timeline (`DeliveryHistoryPanel`) on Desk Day detail and the details modal.
+- **POS / real route map** — Routes API `encodedPolyline` persisted in `run.route_summary` and rendered as a cached server-side Static Map (`GET /delivery-days/{id}/route-map/`, `delivery_route_map.py`) on Desk live monitor, Field day preview, and the Field Routes header; the decorative MiniMap is gone.
+- **POS / upload progress** — Byte-level photo upload progress (axios `onUploadProgress`) drives the run busy bar and the evidence button ring.
+- **POS / shared Delivery theme** — `frontend/src/theme/deliveryTheme.ts` with phone/desktop density; Field re-exports from it.
+
+### Changed
+
+- **POS / assign-day + archive** — Sync onto open runs (`sync_job_onto_open_run` / `cancel_job_with_run_sync`); Desk Day detail uses card planning rows instead of a bare jobs table.
+- **POS / Desk chrome** — Days, Total, and live monitor restyled onto shared Delivery tokens.
+- **POS / Field step sync** — The run only auto-follows the server phase when the driver is already at the live edge; stepping back keeps position and offers a “Live: …” jump chip (`resolveUiStepSync`).
+- **POS / Field stop card** — Primary action pinned outside the card scroll area; stop selection freezes while a mutation is in flight; Call shows a parsed phone extension.
+- **POS / SignaturePad** — Rotation and resize letterbox existing ink instead of stretching it.
+
+### Fixed
+
+- **POS / stale cart tests** — `test_cart_totals`, `test_cart_add_item_audit`, and `test_cart_add_resale_copy` create Items through `Product` (the `Item.title` field is long gone); `test_dashboard_metrics` no longer future-dates audits or collides with the migration-seeded retail goal. `apps.pos` is green again (176 tests).
+
+### Removed
+
+- **POS / legacy driver wizard** — `DeliveryDayBoard`, `DeliveryDayCard`, `DeliveryCardPhaseActions`, their orphaned `usePOS` hooks, and 16 unused delivery API clients.
 
 ## [2.58.0] — 2026-07-28
 

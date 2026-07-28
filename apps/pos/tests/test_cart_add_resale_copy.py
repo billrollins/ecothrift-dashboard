@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.core.models import WorkLocation
-from apps.inventory.models import Item
+from apps.inventory.models import Category, Item, Product
 from apps.pos.models import Cart, CartLine, Drawer, Register
 
 
@@ -39,15 +39,18 @@ class CartAddResaleCopyTests(TestCase):
             opened_at=timezone.now(),
             status='open',
         )
+        category = Category.objects.create(name='POS Resale Cat', slug='pos-resale-cat')
         self.item_sold = Item.objects.create(
             sku='POS-RESALE-SOLD',
-            title='Sold for resale test',
+            product=Product.objects.create(
+                title='Sold for resale test', brand='QA', category=category,
+            ),
             price=Decimal('12.00'),
             status='sold',
         )
         self.item_on_shelf = Item.objects.create(
             sku='POS-RESALE-SHELF',
-            title='On shelf',
+            product=Product.objects.create(title='On shelf', brand='QA', category=category),
             price=Decimal('5.00'),
             status='on_shelf',
         )

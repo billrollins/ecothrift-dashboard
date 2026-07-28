@@ -29,6 +29,7 @@ import QrCodeScanner from '@mui/icons-material/QrCodeScanner';
 import ReceiptLong from '@mui/icons-material/ReceiptLong';
 import { useSnackbar } from 'notistack';
 import { getCart } from '../../../api/pos.api';
+import { useDeliveryHistory } from '../../../hooks/useDelivery';
 import type { Cart, DeliveryAvailability, DeliveryJob, DeliveryRun } from '../../../types/pos.types';
 import { formatPhone, maskPhoneInput } from '../../../utils/formatPhone';
 import { TransactionDetailDialog } from '../TransactionDetailDialog';
@@ -55,6 +56,12 @@ type Props = {
     data: { customer_name?: string; phone?: string },
   ) => Promise<void>;
   onScanVerify?: (stopId: number, sku: string) => Promise<void>;
+  /** Manager item adjustments on the delivery record itself. */
+  onAddItem?: (
+    jobId: number,
+    data: { description: string; quantity: number; sku?: string; reason?: string },
+  ) => Promise<void>;
+  onRemoveItem?: (jobId: number, itemId: number, reason?: string) => Promise<void>;
 };
 
 type PendingAddress = {
@@ -85,6 +92,8 @@ export function DeliveryDetailsModal({
   onAppendAddress,
   onUpdateContact,
   onScanVerify,
+  onAddItem,
+  onRemoveItem,
 }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
@@ -107,6 +116,14 @@ export function DeliveryDetailsModal({
   const [scanBusy, setScanBusy] = useState(false);
   const [txnCart, setTxnCart] = useState<Cart | null>(null);
   const [txnLoading, setTxnLoading] = useState(false);
+  const { data: auditEvents = [], isLoading: auditLoading } = useDeliveryHistory(
+    card?.job.id,
+    open && showHistory,
+  );
+  const [newItemDescription, setNewItemDescription] = useState('');
+  const [newItemQuantity, setNewItemQuantity] = useState('1');
+  const [newItemSku, setNewItemSku] = useState('');
+  const [itemBusy, setItemBusy] = useState(false);
 
   useEffect(() => {
     if (!card) return;
@@ -481,6 +498,108 @@ export function DeliveryDetailsModal({
                 </Button>
               </Stack>
             )}
+            {canManage && (onAddItem || onRemoveItem) && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="caption" fontWeight={800} color="text.secondary">
+                  ADJUST ITEMS ON RECORD
+                </Typography>
+                <Stack spacing={0.5} sx={{ mt: 0.35 }}>
+                  {(card.job.items ?? [])
+                    .filter((item) => item.is_active !== false)
+                    .map((item) => (
+                      <Stack
+                        key={item.id}
+                        direction="row"
+                        alignItems="center"
+                        spacing={1}
+                        sx={{ px: 1, py: 0.4, border: 1, borderColor: 'divider', borderRadius: 1 }}
+                      >
+                        <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }}>
+                          {item.quantity > 1 ? `${item.quantity}× ` : ''}
+                          {item.description}
+                          {item.sku ? ` · ${item.sku}` : ''}
+                        </Typography>
+                        {onRemoveItem && (
+                          <Button
+                            size="small"
+                            color="error"
+                            disabled={itemBusy}
+                            onClick={() => {
+                              void (async () => {
+                                setItemBusy(true);
+                                try {
+                                  await onRemoveItem(card.job.id, item.id, 'Desk adjustment');
+                                } catch {
+                                  enqueueSnackbar('Could not remove item', { variant: 'error' });
+                                } finally {
+                                  setItemBusy(false);
+                                }
+                              })();
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </Stack>
+                    ))}
+                </Stack>
+                {onAddItem && (
+                  <Stack direction="row" spacing={1} sx={{ mt: 0.75 }}>
+                    <TextField
+                      size="small"
+                      label="Add item"
+                      value={newItemDescription}
+                      onChange={(e) => setNewItemDescription(e.target.value)}
+                      fullWidth
+                      sx={fieldSx}
+                    />
+                    <TextField
+                      size="small"
+                      label="SKU"
+                      value={newItemSku}
+                      onChange={(e) => setNewItemSku(e.target.value)}
+                      sx={{ ...fieldSx, width: 120 }}
+                    />
+                    <TextField
+                      size="small"
+                      label="Qty"
+                      type="number"
+                      value={newItemQuantity}
+                      onChange={(e) => setNewItemQuantity(e.target.value)}
+                      inputProps={{ min: 1 }}
+                      sx={{ ...fieldSx, width: 78 }}
+                    />
+                    <Button
+                      variant="contained"
+                      disabled={itemBusy || !newItemDescription.trim()}
+                      onClick={() => {
+                        void (async () => {
+                          setItemBusy(true);
+                          try {
+                            await onAddItem(card.job.id, {
+                              description: newItemDescription.trim(),
+                              quantity: Number(newItemQuantity) || 1,
+                              sku: newItemSku.trim(),
+                              reason: 'Desk adjustment',
+                            });
+                            setNewItemDescription('');
+                            setNewItemSku('');
+                            setNewItemQuantity('1');
+                          } catch {
+                            enqueueSnackbar('Could not add item', { variant: 'error' });
+                          } finally {
+                            setItemBusy(false);
+                          }
+                        })();
+                      }}
+                      sx={{ minHeight: 40, flexShrink: 0 }}
+                    >
+                      Add
+                    </Button>
+                  </Stack>
+                )}
+              </Box>
+            )}
           </Box>
 
           <Box>
@@ -568,8 +687,7 @@ export function DeliveryDetailsModal({
             </FormControl>
           )}
 
-          {(stop || events.length > 0) && (
-            <Box>
+          <Box>
               <Button
                 size="small"
                 onClick={() => setShowHistory((v) => !v)}
@@ -603,10 +721,21 @@ export function DeliveryDetailsModal({
                       {e.actor ? ` · ${e.actor}` : ''}
                     </Typography>
                   ))}
+                  {auditEvents.map((e) => (
+                    <Typography key={`audit-${e.id}`} variant="caption" display="block">
+                      {e.created_at.slice(0, 16)} · {e.summary}
+                      {e.actor_name ? ` · ${e.actor_name}` : ''}
+                      {e.reason ? ` · ${e.reason}` : ''}
+                    </Typography>
+                  ))}
+                  {!stop && !events.length && !auditEvents.length && (
+                    <Typography variant="caption" color="text.secondary">
+                      {auditLoading ? 'Loading history…' : 'No recorded changes yet.'}
+                    </Typography>
+                  )}
                 </Stack>
               </Collapse>
             </Box>
-          )}
         </Stack>
       </DialogContent>
 

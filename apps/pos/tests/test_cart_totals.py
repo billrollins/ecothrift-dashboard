@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.core.models import WorkLocation
-from apps.inventory.models import Item
+from apps.inventory.models import Category, Item, Product
 from apps.pos.models import Cart, CartLine, Drawer, Register
 
 
@@ -53,15 +53,16 @@ class CartTotalsAPITests(TestCase):
             opened_at=timezone.now(),
             status='open',
         )
+        category = Category.objects.create(name='POS Totals Cat', slug='pos-totals-cat')
         self.item_a = Item.objects.create(
             sku='POS-T-SKU-A',
-            title='Item A',
+            product=Product.objects.create(title='Item A', brand='QA', category=category),
             price=Decimal('7.50'),
             status='on_shelf',
         )
         self.item_b = Item.objects.create(
             sku='POS-T-SKU-B',
-            title='Item B',
+            product=Product.objects.create(title='Item B', brand='QA', category=category),
             price=Decimal('5.00'),
             status='on_shelf',
         )
@@ -163,7 +164,7 @@ class CartTotalsAPITests(TestCase):
         CartLine.objects.create(
             cart=cart_pf,
             item=self.item_a,
-            description=self.item_a.title,
+            description=self.item_a.product.title,
             quantity=1,
             unit_price=self.item_a.price,
         )

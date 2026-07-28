@@ -19,6 +19,8 @@ type Props = {
   onOpenDetails: () => void;
   onOpenItems?: () => void;
   children: React.ReactNode;
+  /** Primary commit control — pinned inside the card, never behind the scroll. */
+  footer?: React.ReactNode;
 };
 
 export function FieldDeliveryCardFrame({
@@ -29,6 +31,7 @@ export function FieldDeliveryCardFrame({
   onOpenDetails,
   onOpenItems,
   children,
+  footer,
 }: Props) {
   return (
     <Box
@@ -47,14 +50,13 @@ export function FieldDeliveryCardFrame({
       <Box
         sx={{
           ...ecoFieldActionCardSx(stepAccent),
-          p: 2.25,
+          p: 0,
           flex: 1,
           minHeight: 0,
-          overflowY: 'auto',
-          overscrollBehaviorX: 'none',
-          touchAction: 'pan-y',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
           position: 'relative',
-          WebkitOverflowScrolling: 'touch',
           ...(statusTone === 'ok'
             ? {
                 border: `1.5px solid ${ecoField.green}`,
@@ -80,39 +82,66 @@ export function FieldDeliveryCardFrame({
         >
           <MoreHorizRounded />
         </IconButton>
-        <Stack spacing={0.5} sx={{ pr: 5, touchAction: 'pan-y' }}>
-          <Typography sx={{ fontSize: 28, fontWeight: 800, lineHeight: 1.05 }}>
-            {stopDisplayName(stop)}
-          </Typography>
-          <Typography color="text.secondary" fontWeight={600}>
-            {stop.address}
-            {stop.unit ? ` · Unit ${stop.unit}` : ''}
-          </Typography>
-          <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ pt: 0.5 }}>
-            <Chip
-              label={`${stop.item_count || stop.stop_items?.length || 0} items`}
-              onClick={onOpenItems}
-              sx={{
-                ...ecoFieldMetaChipSx,
-                cursor: onOpenItems ? 'pointer' : 'default',
-                touchAction: 'manipulation',
-              }}
-            />
-            {statusLabel && (
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            overscrollBehaviorX: 'none',
+            touchAction: 'pan-y',
+            WebkitOverflowScrolling: 'touch',
+            p: 2.25,
+          }}
+        >
+          <Stack spacing={0.5} sx={{ pr: 5, touchAction: 'pan-y' }}>
+            <Typography sx={{ fontSize: 28, fontWeight: 800, lineHeight: 1.05 }}>
+              {stopDisplayName(stop)}
+            </Typography>
+            <Typography color="text.secondary" fontWeight={600}>
+              {stop.address}
+              {stop.unit ? ` · Unit ${stop.unit}` : ''}
+            </Typography>
+            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ pt: 0.5 }}>
               <Chip
-                label={statusLabel}
-                sx={{ fontWeight: 750, ...ecoFieldStatusChipSx(statusTone) }}
+                label={`${stop.item_count || stop.stop_items?.length || 0} items`}
+                onClick={onOpenItems}
+                sx={{
+                  ...ecoFieldMetaChipSx,
+                  cursor: onOpenItems ? 'pointer' : 'default',
+                  touchAction: 'manipulation',
+                }}
               />
-            )}
-            {stop.is_apt && (
-              <Chip
-                label={`Apartment${stop.unit ? ` · ${stop.unit}` : ''}`}
-                sx={{ bgcolor: ecoField.amberTint, color: ecoField.amber, fontWeight: 700 }}
-              />
-            )}
+              {statusLabel && (
+                <Chip
+                  label={statusLabel}
+                  sx={{ fontWeight: 750, ...ecoFieldStatusChipSx(statusTone) }}
+                />
+              )}
+              {stop.is_apt && (
+                <Chip
+                  label={`Apartment${stop.unit ? ` · ${stop.unit}` : ''}`}
+                  sx={{ bgcolor: ecoField.amberTint, color: ecoField.amber, fontWeight: 700 }}
+                />
+              )}
+            </Stack>
           </Stack>
-        </Stack>
-        <Box sx={{ mt: 2, touchAction: 'pan-y' }}>{children}</Box>
+          <Box sx={{ mt: 2, touchAction: 'pan-y' }}>{children}</Box>
+        </Box>
+        {footer && (
+          <Box
+            sx={{
+              flexShrink: 0,
+              px: 2.25,
+              pt: 1.25,
+              pb: 2,
+              borderTop: `1px solid ${ecoField.line}`,
+              bgcolor: 'rgba(255,255,255,.98)',
+              touchAction: 'pan-y',
+            }}
+          >
+            {footer}
+          </Box>
+        )}
       </Box>
     </Box>
   );
