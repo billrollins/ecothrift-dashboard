@@ -10,32 +10,71 @@ type Props = {
 export function SignaturePad({ onCapture, disabled }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
+  const activePointerId = useRef<number | null>(null);
+  const lastWidthRef = useRef(0);
   const [hasInk, setHasInk] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const inkSnapshotRef = useRef<ImageData | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const resize = () => {
-      const parent = canvas.parentElement;
-      const w = parent?.clientWidth || 320;
-      const ratio = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(w * ratio);
-      canvas.height = Math.floor(160 * ratio);
-      canvas.style.width = `${w}px`;
-      canvas.style.height = '160px';
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+    const applyStyle = (ctx: CanvasRenderingContext2D) => {
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
       ctx.strokeStyle = '#111';
       ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, w, 160);
     };
+
+    const resize = () => {
+      // Skip mid-stroke and no-op width changes (iOS toolbar collapse fires resize).
+      if (drawing.current) return;
+      const parent = canvas.parentElement;
+      const w = parent?.clientWidth || 320;
+      if (w === lastWidthRef.current && canvas.width > 0) return;
+      lastWidthRef.current = w;
+      const h = 160;
+      const ratio = window.devicePixelRatio || 1;
+      const prev = inkSnapshotRef.current;
+      canvas.width = Math.floor(w * ratio);
+      canvas.height = Math.floor(h * ratio);
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      applyStyle(ctx);
+      ctx.fillRect(0, 0, w, h);
+      if (prev) {
+        // Restore prior ink into the new canvas geometry (may soft-stretch on width change).
+        const tmp = document.createElement('canvas');
+        tmp.width = prev.width;
+        tmp.height = prev.height;
+        const tctx = tmp.getContext('2d');
+        if (tctx) {
+          tctx.putImageData(prev, 0, 0);
+          ctx.drawImage(tmp, 0, 0, w, h);
+          inkSnapshotRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        }
+      }
+    };
+
     resize();
     window.addEventListener('resize', resize);
-    return () => window.removeEventListener('resize', resize);
+    window.addEventListener('orientationchange', resize);
+    return () => {
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('orientationchange', resize);
+    };
   }, []);
+
+  const snapshotInk = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    inkSnapshotRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  };
 
   const pos = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -43,10 +82,12 @@ export function SignaturePad({ onCapture, disabled }: Props) {
   };
 
   const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (disabled) return;
+    if (disabled || saving) return;
+    if (activePointerId.current != null) return;
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!ctx) return;
+    activePointerId.current = e.pointerId;
     drawing.current = true;
     e.currentTarget.setPointerCapture(e.pointerId);
     const p = pos(e);
@@ -55,7 +96,8 @@ export function SignaturePad({ onCapture, disabled }: Props) {
   };
 
   const onMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawing.current || disabled) return;
+    if (!drawing.current || disabled || saving) return;
+    if (activePointerId.current != null && e.pointerId !== activePointerId.current) return;
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
     const p = pos(e);
@@ -64,17 +106,20 @@ export function SignaturePad({ onCapture, disabled }: Props) {
     setHasInk(true);
   };
 
-  const onUp = () => {
+  const onUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (activePointerId.current != null && e.pointerId !== activePointerId.current) return;
+    if (drawing.current) snapshotInk();
     drawing.current = false;
+    activePointerId.current = null;
   };
 
   const clear = () => {
+    if (saving) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const w = canvas.clientWidth;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
     const ratio = window.devicePixelRatio || 1;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.fillStyle = '#fff';
@@ -82,26 +127,35 @@ export function SignaturePad({ onCapture, disabled }: Props) {
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#111';
+    inkSnapshotRef.current = null;
     setHasInk(false);
   };
 
   const save = async () => {
     const canvas = canvasRef.current;
-    if (!canvas || !hasInk) return;
-    await new Promise<void>((resolve, reject) => {
-      canvas.toBlob(
-        async (b) => {
-          if (!b) {
-            reject(new Error('encode_failed'));
-            return;
-          }
-          await onCapture(b);
-          resolve();
-        },
-        'image/jpeg',
-        0.92,
-      );
-    });
+    if (!canvas || !hasInk || saving) return;
+    setSaving(true);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        canvas.toBlob(
+          async (b) => {
+            if (!b) {
+              reject(new Error('encode_failed'));
+              return;
+            }
+            try {
+              await onCapture(b);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          },
+          'image/png',
+        );
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -121,21 +175,27 @@ export function SignaturePad({ onCapture, disabled }: Props) {
           onPointerMove={onMove}
           onPointerUp={onUp}
           onPointerCancel={onUp}
-          style={{ display: 'block', width: '100%', height: 160, cursor: 'crosshair' }}
+          style={{
+            display: 'block',
+            width: '100%',
+            height: 160,
+            cursor: 'crosshair',
+            touchAction: 'none',
+          }}
         />
       </Box>
       <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-        <Button size="large" onClick={clear} disabled={disabled} sx={{ minHeight: 44 }}>
+        <Button size="large" onClick={clear} disabled={disabled || saving} sx={{ minHeight: 44 }}>
           Clear
         </Button>
         <Button
           size="large"
           variant="contained"
           onClick={() => void save()}
-          disabled={disabled || !hasInk}
+          disabled={disabled || saving || !hasInk}
           sx={{ minHeight: 44, flex: 1 }}
         >
-          Save signature
+          {saving ? 'Saving…' : 'Save signature'}
         </Button>
       </Stack>
     </Box>

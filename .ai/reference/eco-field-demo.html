@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Eco Field — Driver Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14201A; --paper:#fff; --green:#0E8A4E; --green-deep:#0A6B3C;
+  --tint:#E9F6EF; --line:#E4E9E6; --mut:#66736C; --amber:#B45D00;
+  --amber-tint:#FFF4E3; --red:#C6362B; --red-tint:#FBEAE8;
+  --r:16px; --shadow:0 10px 30px rgba(20,32,26,.10);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Archivo',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  background:#dfe5e1; color:var(--ink);
+  font-variant-numeric:tabular-nums;
+  overscroll-behavior:none;
+}
+#phone{
+  position:relative; max-width:430px; height:100dvh; margin:0 auto;
+  background:var(--paper); overflow:hidden;
+}
+/* ---------- screens ---------- */
+.screen{
+  position:absolute; inset:0; background:var(--paper);
+  transform:translateX(100%); transition:transform .32s cubic-bezier(.32,.72,.28,1);
+  display:flex; flex-direction:column; visibility:hidden;
+}
+.screen.on{transform:translateX(0); visibility:visible; z-index:2}
+.screen.left{transform:translateX(-18%); visibility:visible; z-index:1}
+@media (prefers-reduced-motion:reduce){.screen{transition:none}}
+.scroll{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 20px}
+/* ---------- type ---------- */
+.h-mega{font-size:34px; font-weight:800; letter-spacing:-.5px; line-height:1.05}
+.h1{font-size:24px; font-weight:800; letter-spacing:-.3px}
+.h2{font-size:18px; font-weight:700}
+.sub{font-size:14px; color:var(--mut); font-weight:500}
+.eyebrow{font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--mut)}
+.big-num{font-stretch:112%; font-weight:800}
+/* ---------- chrome ---------- */
+.topbar{
+  display:flex; align-items:center; gap:12px;
+  padding:calc(14px + env(safe-area-inset-top,0px)) 20px 12px;
+}
+.topbar .grow{flex:1}
+.back{
+  width:42px; height:42px; border-radius:50%; border:1px solid var(--line);
+  background:#fff; display:flex; align-items:center; justify-content:center;
+  font-size:18px; color:var(--ink); flex:0 0 auto;
+}
+.timerpill{
+  display:flex; align-items:center; gap:7px; background:var(--ink); color:#fff;
+  border-radius:999px; padding:8px 14px; font-weight:700; font-size:14px;
+}
+.timerpill .dot{width:7px; height:7px; border-radius:50%; background:#4BE38A; animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.stagedots{display:flex; gap:6px; align-items:center}
+.stagedots i{width:7px; height:7px; border-radius:99px; background:var(--line); transition:all .3s}
+.stagedots i.done{background:var(--green)}
+.stagedots i.now{width:22px; background:var(--green)}
+/* ---------- buttons ---------- */
+.cta-wrap{padding:14px 20px calc(16px + var(--safe-b)); background:linear-gradient(to top,#fff 75%,rgba(255,255,255,0))}
+.cta{
+  width:100%; height:58px; border:none; border-radius:18px;
+  background:var(--green); color:#fff; font-family:inherit;
+  font-size:17px; font-weight:800; letter-spacing:.01em;
+  display:flex; align-items:center; justify-content:center; gap:9px;
+}
+.cta:active{background:var(--green-deep); transform:scale(.985)}
+.cta:disabled{background:#C9D4CE; color:#fff}
+.cta.ghost{background:#fff; color:var(--ink); border:1.5px solid var(--line)}
+.cta.dark{background:var(--ink)}
+.textlink{background:none; border:none; font-family:inherit; color:var(--mut); font-size:14px; font-weight:600; text-decoration:underline; padding:12px}
+/* ---------- home ---------- */
+.hero{
+  border-radius:24px; background:var(--ink); color:#fff; padding:24px 22px;
+  box-shadow:var(--shadow); position:relative; overflow:hidden;
+}
+.hero .glow{position:absolute; right:-60px; top:-60px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(75,227,138,.28),transparent 70%)}
+.hero .eyebrow{color:#9FB4A8}
+.hero .h-mega{margin:6px 0 4px}
+.hero-meta{display:flex; gap:16px; margin-top:16px}
+.hero-meta b{display:block; font-size:22px; font-weight:800}
+.hero-meta span{font-size:12px; color:#9FB4A8; font-weight:600}
+.hero .crew{display:flex; margin-top:18px; align-items:center; gap:10px}
+.avatars{display:flex}
+.avatar{width:30px; height:30px; border-radius:50%; border:2px solid var(--ink); margin-left:-8px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:#fff}
+.avatar:first-child{margin-left:0}
+.hero-start{
+  margin-top:20px; width:100%; height:56px; border:none; border-radius:16px;
+  background:var(--green); color:#fff; font-family:inherit; font-size:17px; font-weight:800;
+}
+.hero-start:active{background:var(--green-deep)}
+.daycard{
+  border:1.5px solid var(--line); border-radius:20px; padding:18px;
+  display:flex; align-items:center; gap:14px; margin-bottom:12px; background:#fff;
+}
+.daycard:active{background:#FAFBFA}
+.datebox{
+  width:54px; height:58px; border-radius:14px; background:var(--tint);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; flex:0 0 auto;
+}
+.datebox b{font-size:20px; font-weight:800; color:var(--green-deep)}
+.datebox span{font-size:11px; font-weight:700; color:var(--green-deep); text-transform:uppercase}
+.daycard .grow{flex:1}
+.daycard h4{font-size:16px; font-weight:700}
+.daycard .sub{margin-top:2px; font-size:13px}
+.chev{color:#B7C1BB; font-size:20px}
+.done-ring{width:54px;height:58px;border-radius:14px;background:var(--tint);display:flex;align-items:center;justify-content:center;color:var(--green);font-size:22px;flex:0 0 auto}
+/* ---------- chips ---------- */
+.chip{display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:5px 11px; font-size:12px; font-weight:700; background:#F1F4F2; color:var(--mut)}
+.chip.warn{background:var(--amber-tint); color:var(--amber)}
+.chip.ok{background:var(--tint); color:var(--green-deep)}
+.chip.bad{background:var(--red-tint); color:var(--red)}
+/* ---------- preview stops ---------- */
+.stoprow{display:flex; gap:14px; padding:16px 0; border-bottom:1px solid var(--line)}
+.stoprow .pin{
+  width:32px; height:32px; border-radius:50%; background:var(--ink); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; flex:0 0 auto;
+}
+.stoprow.gray .pin{background:#C9D4CE}
+.stoprow h4{font-size:16px; font-weight:700}
+.stoprow .sub{font-size:13px; margin:2px 0 7px}
+.maplite{border-radius:20px; overflow:hidden; border:1.5px solid var(--line); margin:6px 0 18px}
+/* ---------- splash ---------- */
+#splash{background:var(--ink); color:#fff; align-items:center; justify-content:center; text-align:center; display:flex}
+#splash .h-mega{font-size:44px}
+#splash .sub{color:#9FB4A8; font-size:16px}
+.splash-stats{display:flex; gap:34px; margin-top:30px; justify-content:center}
+.splash-stats b{display:block; font-size:40px; font-weight:800}
+.splash-stats span{font-size:13px; color:#9FB4A8; font-weight:600}
+/* ---------- confirm deck ---------- */
+.deck{flex:1; display:flex; flex-direction:column; padding:0 20px; overflow:hidden}
+.custcard{
+  flex:1; border:1.5px solid var(--line); border-radius:26px; padding:28px 24px;
+  display:flex; flex-direction:column; box-shadow:var(--shadow); background:#fff;
+  animation:cardin .34s cubic-bezier(.32,.72,.28,1); margin-bottom:8px; overflow-y:auto;
+}
+@keyframes cardin{from{opacity:0; transform:translateX(40px)}to{opacity:1; transform:none}}
+.custcard.out{animation:cardout .28s forwards}
+@keyframes cardout{to{opacity:0; transform:translateX(-60px)}}
+.custcard .h-mega{margin:8px 0 4px}
+.itemline{display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px dashed var(--line); font-size:15px; font-weight:600}
+.itemline .qty{background:var(--tint); color:var(--green-deep); border-radius:8px; padding:2px 9px; font-size:13px; font-weight:800}
+.contactrow{display:flex; gap:12px; margin-top:auto; padding-top:22px}
+.bigact{
+  flex:1; height:76px; border-radius:18px; border:none; font-family:inherit;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  font-size:15px; font-weight:800; background:var(--tint); color:var(--green-deep);
+}
+.bigact:active{background:#D7EEE1}
+.bigact .ico{font-size:24px}
+.tray{display:flex; gap:8px; padding:10px 20px 4px; overflow-x:auto}
+.tray .chip{flex:0 0 auto}
+/* ---------- sheets ---------- */
+#dim{position:absolute; inset:0; background:rgba(16,24,20,.45); opacity:0; pointer-events:none; transition:opacity .25s; z-index:40}
+#dim.on{opacity:1; pointer-events:auto}
+.sheet{
+  position:absolute; left:0; right:0; bottom:0; background:#fff; z-index:50;
+  border-radius:26px 26px 0 0; padding:10px 20px calc(20px + var(--safe-b));
+  transform:translateY(105%); transition:transform .3s cubic-bezier(.32,.72,.28,1);
+  box-shadow:0 -12px 40px rgba(20,32,26,.18); max-height:88%; overflow-y:auto;
+}
+.sheet.on{transform:translateY(0)}
+.handle{width:40px; height:4px; border-radius:99px; background:#DCE3DF; margin:4px auto 16px}
+.dispgrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px}
+.disp{
+  border:1.5px solid var(--line); border-radius:16px; background:#fff; font-family:inherit;
+  padding:16px 12px; font-size:15px; font-weight:700; color:var(--ink);
+  display:flex; flex-direction:column; gap:3px; align-items:center; text-align:center;
+}
+.disp:active{background:#F5F8F6}
+.disp.full{grid-column:1/-1}
+.disp .ico{font-size:20px}
+.disp.green{border-color:var(--green); background:var(--tint); color:var(--green-deep)}
+.disp small{font-size:12px; font-weight:600; color:var(--mut)}
+/* ---------- load stage ---------- */
+.ring-wrap{display:flex; align-items:center; gap:14px}
+.ring{position:relative; width:52px; height:52px; flex:0 0 auto}
+.ring svg{transform:rotate(-90deg)}
+.ring .rc{stroke:var(--line)} .ring .rv{stroke:var(--green); transition:stroke-dashoffset .4s}
+.ring b{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800}
+.loadcard{
+  flex:1; border-radius:26px; border:1.5px solid var(--line); background:#fff;
+  padding:26px 24px; display:flex; flex-direction:column; box-shadow:var(--shadow);
+  animation:cardin .34s cubic-bezier(.32,.72,.28,1); margin-bottom:8px; overflow-y:auto;
+}
+.skucode{
+  margin-top:14px; background:#F5F8F6; border:1.5px dashed #C9D4CE; border-radius:14px;
+  padding:14px; font-size:20px; font-weight:800; letter-spacing:.14em; text-align:center;
+}
+.photo-slot{
+  margin-top:16px; border-radius:16px; height:120px; border:1.5px dashed #C9D4CE;
+  display:flex; align-items:center; justify-content:center; color:var(--mut);
+  font-size:14px; font-weight:600; overflow:hidden; position:relative;
+}
+.photo-slot.filled{border-style:solid; border-color:var(--green)}
+.fakephoto{position:absolute; inset:0; display:flex; align-items:flex-end; padding:10px; color:#fff; font-size:12px; font-weight:700}
+/* ---------- camera sim ---------- */
+#cam{position:absolute; inset:0; background:#0B0F0D; z-index:80; display:none; flex-direction:column; color:#fff}
+#cam.on{display:flex}
+.viewfinder{flex:1; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center}
+.vf-noise{position:absolute; inset:0; background:
+  radial-gradient(ellipse at 30% 40%, #2A3A31 0%, transparent 55%),
+  radial-gradient(ellipse at 70% 65%, #1E2C25 0%, transparent 55%), #131B16}
+.scanbox{width:230px; height:230px; border-radius:22px; position:relative; z-index:2}
+.scanbox i{position:absolute; width:34px; height:34px; border:4px solid #4BE38A}
+.scanbox i:nth-child(1){top:0;left:0;border-right:none;border-bottom:none;border-radius:14px 0 0 0}
+.scanbox i:nth-child(2){top:0;right:0;border-left:none;border-bottom:none;border-radius:0 14px 0 0}
+.scanbox i:nth-child(3){bottom:0;left:0;border-right:none;border-top:none;border-radius:0 0 0 14px}
+.scanbox i:nth-child(4){bottom:0;right:0;border-left:none;border-top:none;border-radius:0 0 14px 0}
+.scanline{position:absolute; left:8%; right:8%; height:2px; background:#4BE38A; box-shadow:0 0 14px #4BE38A; animation:scan 1.6s ease-in-out infinite; z-index:2}
+@keyframes scan{0%,100%{top:12%}50%{top:86%}}
+.cam-label{position:absolute; top:calc(20px + env(safe-area-inset-top,0px)); left:0; right:0; text-align:center; font-weight:700; z-index:3}
+.cam-bottom{padding:20px 0 calc(28px + var(--safe-b)); display:flex; justify-content:center; position:relative}
+.shutter{width:74px; height:74px; border-radius:50%; border:5px solid #fff; background:transparent; position:relative}
+.shutter::after{content:""; position:absolute; inset:6px; border-radius:50%; background:#fff}
+.shutter:active::after{background:#cfd8d2}
+.cam-cancel{position:absolute; left:26px; top:50%; transform:translateY(-50%); background:none; border:none; color:#fff; font-family:inherit; font-size:15px; font-weight:700}
+.flashfx{position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:90}
+.flashfx.go{animation:flash .45s}
+@keyframes flash{0%{opacity:.95}100%{opacity:0}}
+.okfx{position:absolute; inset:0; background:var(--green); z-index:85; display:none; align-items:center; justify-content:center; flex-direction:column; color:#fff; gap:10px}
+.okfx.on{display:flex; animation:okpop .6s}
+.okfx .big{font-size:64px}
+@keyframes okpop{0%{opacity:0}18%{opacity:1}100%{opacity:1}}
+/* ---------- map ---------- */
+.mapwrap{position:relative; flex:1; min-height:180px; overflow:hidden; background:#EDF2EE}
+.mapwrap svg{position:absolute; inset:0; width:100%; height:100%}
+.mappin{filter:drop-shadow(0 3px 5px rgba(20,32,26,.35))}
+/* ---------- route sheet list ---------- */
+.routesheet{
+  background:#fff; border-radius:26px 26px 0 0; margin-top:-24px; position:relative; z-index:5;
+  padding:8px 20px 0; box-shadow:0 -12px 30px rgba(20,32,26,.12);
+  display:flex; flex-direction:column; max-height:58%;
+}
+.routesheet .scrollin{overflow-y:auto; flex:1}
+.etarow{display:flex; align-items:center; gap:13px; padding:13px 0; border-bottom:1px solid var(--line)}
+.etarow .pin{width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex:0 0 auto}
+.etarow.gray{opacity:.55}.etarow.gray .pin{background:#C9D4CE}
+.etarow .grow{flex:1}
+.etarow h5{font-size:15px; font-weight:700}
+.etarow .sub{font-size:12.5px}
+.eta-t{font-size:15px; font-weight:800; color:var(--green-deep)}
+.provider{display:flex; align-items:center; gap:7px; padding:10px 0 4px; font-size:12px; font-weight:700; color:var(--mut)}
+.provider .dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+/* ---------- drive ---------- */
+.stopcard{
+  background:#fff; border-radius:26px 26px 0 0; margin-top:-24px; position:relative; z-index:5;
+  padding:8px 20px calc(16px + var(--safe-b)); box-shadow:0 -12px 30px rgba(20,32,26,.14);
+  display:flex; flex-direction:column; max-height:72%; overflow-y:auto;
+}
+.eta-banner{display:flex; align-items:baseline; justify-content:space-between; margin-top:2px}
+.eta-banner .t{font-size:30px; font-weight:800; color:var(--green-deep)}
+.actrow3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:16px}
+.act3{
+  height:70px; border-radius:16px; border:1.5px solid var(--line); background:#fff; font-family:inherit;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  font-size:13px; font-weight:800; color:var(--ink);
+}
+.act3:active{background:#F5F8F6}
+.act3 .ico{font-size:21px}
+.act3.primary{background:var(--ink); color:#fff; border-color:var(--ink)}
+.tasklist{margin-top:16px; display:flex; flex-direction:column; gap:10px}
+.task{
+  display:flex; align-items:center; gap:12px; border:1.5px solid var(--line); border-radius:16px; padding:15px 16px;
+  font-size:15px; font-weight:700; background:#fff;
+}
+.task:active{background:#F5F8F6}
+.task .tick{width:26px;height:26px;border-radius:50%;border:2px solid #C9D4CE;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px}
+.task.done{border-color:var(--green); background:var(--tint)}
+.task.done .tick{background:var(--green); border-color:var(--green)}
+.task .grow{flex:1}
+/* slide to complete */
+.slider{
+  margin-top:16px; height:60px; border-radius:18px; background:var(--tint);
+  position:relative; overflow:hidden; border:1.5px solid #CFEADC;
+}
+.slider.locked{opacity:.45; pointer-events:none}
+.slider .label{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-weight:800; color:var(--green-deep); font-size:15px; letter-spacing:.02em}
+.knob{
+  position:absolute; top:5px; left:5px; width:48px; height:48px; border-radius:14px;
+  background:var(--green); color:#fff; display:flex; align-items:center; justify-content:center;
+  font-size:20px; touch-action:none; box-shadow:0 4px 10px rgba(14,138,78,.35);
+}
+/* banner */
+.confirm-banner{
+  position:absolute; left:14px; right:14px; top:calc(14px + env(safe-area-inset-top,0px)); z-index:30;
+  background:var(--ink); color:#fff; border-radius:18px; padding:15px 16px;
+  display:flex; align-items:center; gap:12px; box-shadow:var(--shadow);
+  transform:translateY(-140%); transition:transform .4s cubic-bezier(.32,.72,.28,1);
+}
+.confirm-banner.on{transform:none}
+.confirm-banner b{font-size:14.5px}
+.confirm-banner .sub{color:#9FB4A8; font-size:12.5px}
+.mini-cta{border:none; border-radius:12px; background:var(--green); color:#fff; font-family:inherit; font-weight:800; font-size:13px; padding:11px 14px}
+/* signature */
+#sig-canvas{width:100%; height:230px; border:1.5px dashed #C9D4CE; border-radius:16px; touch-action:none; background:#fff; display:block}
+.sigline{border:none; border-top:1.5px solid var(--line); margin:-40px 26px 0; position:relative; z-index:2; pointer-events:none}
+/* summary */
+.sum-hero{background:var(--tint); border-radius:24px; padding:26px 22px; text-align:center; margin-top:6px}
+.sum-hero .big{font-size:52px}
+.sumgrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px}
+.sumcell{border:1.5px solid var(--line); border-radius:18px; padding:16px}
+.sumcell b{display:block; font-size:26px; font-weight:800}
+.sumcell span{font-size:12.5px; color:var(--mut); font-weight:600}
+.photostrip{display:flex; gap:8px; overflow-x:auto; padding:12px 0 4px}
+.photostrip .ph{flex:0 0 auto; width:86px; height:86px; border-radius:14px; display:flex; align-items:flex-end; padding:7px; color:#fff; font-size:10.5px; font-weight:700}
+/* misc */
+.notice{display:flex; gap:10px; background:var(--amber-tint); color:var(--amber); border-radius:14px; padding:13px 14px; font-size:13.5px; font-weight:600; margin-top:14px}
+.section-t{display:flex; align-items:baseline; justify-content:space-between; margin:22px 0 8px}
+.toast{
+  position:absolute; left:20px; right:20px; bottom:calc(96px + var(--safe-b)); z-index:70;
+  background:var(--ink); color:#fff; border-radius:14px; padding:14px 16px; font-size:14px; font-weight:700;
+  transform:translateY(20px); opacity:0; transition:all .3s; pointer-events:none; text-align:center;
+}
+.toast.on{transform:none; opacity:1}
+</style>
+</head>
+<body>
+<div id="phone">
+
+  <!-- HOME -->
+  <div class="screen on" id="s-home">
+    <div class="topbar">
+      <div class="grow">
+        <div class="eyebrow">Eco-Thrift · Delivery Field · demo</div>
+        <div class="h1" id="home-greet">Morning, Bill</div>
+      </div>
+      <div class="avatar" style="background:var(--green);width:42px;height:42px;font-size:15px;border:none">B</div>
+    </div>
+    <div class="scroll" id="home-scroll"></div>
+  </div>
+
+  <!-- FUTURE DAY PREVIEW -->
+  <div class="screen" id="s-preview">
+    <div class="topbar">
+      <button class="back" onclick="go('s-home')">←</button>
+      <div class="grow">
+        <div class="eyebrow">Upcoming · read only</div>
+        <div class="h2" id="pv-title">Fri, Jul 24</div>
+      </div>
+    </div>
+    <div class="scroll" id="pv-body"></div>
+  </div>
+
+  <!-- PAST DAY -->
+  <div class="screen" id="s-past">
+    <div class="topbar">
+      <button class="back" onclick="go('s-home')">←</button>
+      <div class="grow"><div class="eyebrow">Completed</div><div class="h2">Mon, Jul 20</div></div>
+    </div>
+    <div class="scroll" id="past-body"></div>
+  </div>
+
+  <!-- SPLASH -->
+  <div class="screen" id="splash">
+    <div>
+      <div class="sub">Wednesday, Jul 22 · 10:00 AM – 2:00 PM</div>
+      <div class="h-mega big-num" style="margin-top:8px">Here's your day.</div>
+      <div class="splash-stats">
+        <div><b class="big-num">6</b><span>stops</span></div>
+        <div><b class="big-num">9</b><span>items</span></div>
+        <div><b class="big-num">2</b><span>crew</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRM -->
+  <div class="screen" id="s-confirm">
+    <div class="topbar">
+      <div class="grow">
+        <div class="eyebrow" id="cf-count">Confirm · 1 of 6</div>
+        <div class="stagedots" id="dots-confirm"></div>
+      </div>
+      <div class="timerpill"><span class="dot"></span><span class="tval">0:00</span></div>
+    </div>
+    <div class="tray" id="cf-tray" style="display:none"></div>
+    <div class="deck" id="cf-deck"></div>
+    <div class="cta-wrap"><button class="cta" id="cf-continue" disabled onclick="finishConfirm()">Confirm everyone first</button></div>
+  </div>
+
+  <!-- LOAD -->
+  <div class="screen" id="s-load">
+    <div class="topbar">
+      <div class="grow">
+        <div class="eyebrow" id="ld-count">Load · item 1 of 8</div>
+        <div class="stagedots" id="dots-load"></div>
+      </div>
+      <div class="timerpill"><span class="dot"></span><span class="tval">0:00</span></div>
+    </div>
+    <div class="deck" id="ld-deck"></div>
+    <div class="cta-wrap" id="ld-cta"></div>
+  </div>
+
+  <!-- TRUCK -->
+  <div class="screen" id="s-truck">
+    <div class="topbar">
+      <div class="grow"><div class="eyebrow">Load complete</div><div class="stagedots" id="dots-truck"></div></div>
+      <div class="timerpill"><span class="dot"></span><span class="tval">0:00</span></div>
+    </div>
+    <div class="scroll" id="truck-body"></div>
+    <div class="cta-wrap"><button class="cta" id="truck-cta" onclick="openCam('truck')">📷&ensp;Photo of closed truck</button></div>
+  </div>
+
+  <!-- ROUTE -->
+  <div class="screen" id="s-route">
+    <div class="topbar">
+      <div class="grow"><div class="eyebrow">Route</div><div class="stagedots" id="dots-route"></div></div>
+      <div class="timerpill"><span class="dot"></span><span class="tval">0:00</span></div>
+    </div>
+    <div class="mapwrap" id="route-map"></div>
+    <div class="routesheet">
+      <div class="handle"></div>
+      <div class="provider"><span class="dot"></span><span>Optimized · Google Routes · 20 min per stop · calc 10:02 AM</span></div>
+      <div class="scrollin" id="route-list"></div>
+      <div class="cta-wrap" style="padding-left:0;padding-right:0"><button class="cta" onclick="startRoute()">Start route&ensp;→</button></div>
+    </div>
+  </div>
+
+  <!-- DRIVE -->
+  <div class="screen" id="s-drive">
+    <div class="topbar" style="position:absolute;left:0;right:0;z-index:6">
+      <div class="grow"><div class="stagedots" id="dots-drive" style="background:rgba(255,255,255,.8);border-radius:99px;padding:8px 12px;width:max-content"></div></div>
+      <div class="timerpill"><span class="dot"></span><span class="tval">0:00</span></div>
+    </div>
+    <div class="mapwrap" id="drive-map"></div>
+    <div class="stopcard" id="drive-card"></div>
+    <div class="confirm-banner" id="banner">
+      <div class="grow"><b>Dana just confirmed 🎉</b><div class="sub">Add her stop after #3 · +18 min to route</div></div>
+      <button class="mini-cta" onclick="previewInsert()">Review</button>
+    </div>
+  </div>
+
+  <!-- RETURN -->
+  <div class="screen" id="s-return">
+    <div class="topbar">
+      <div class="grow"><div class="eyebrow">Back at store</div><div class="h2">Return &amp; reconcile</div></div>
+      <div class="timerpill"><span class="dot"></span><span class="tval">0:00</span></div>
+    </div>
+    <div class="scroll" id="return-body"></div>
+    <div class="cta-wrap"><button class="cta" id="return-cta" disabled onclick="endDay()">Unload item first</button></div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="screen" id="s-summary">
+    <div class="topbar"><div class="grow"><div class="eyebrow">Wednesday, Jul 22</div><div class="h1">Day complete</div></div></div>
+    <div class="scroll" id="sum-body"></div>
+    <div class="cta-wrap"><button class="cta dark" onclick="backHome()">Done</button></div>
+  </div>
+
+  <!-- overlays -->
+  <div id="dim" onclick="closeSheets()"></div>
+  <div class="sheet" id="sheet-disp"></div>
+  <div class="sheet" id="sheet-generic"></div>
+  <div id="cam">
+    <div class="viewfinder">
+      <div class="vf-noise"></div>
+      <div class="cam-label" id="cam-label">Scan SKU</div>
+      <div class="scanbox" id="cam-box"><i></i><i></i><i></i><i></i><div class="scanline" id="cam-line"></div></div>
+    </div>
+    <div class="cam-bottom">
+      <button class="cam-cancel" onclick="closeCam()">Cancel</button>
+      <button class="shutter" id="shutter" onclick="camCapture()"></button>
+    </div>
+  </div>
+  <div class="okfx" id="okfx"><div class="big">✓</div><div class="h2" id="okfx-t">Loaded</div></div>
+  <div class="flashfx" id="flash"></div>
+  <div class="toast" id="toast"></div>
+</div>
+<script>
+/* ===== Eco Field demo — dummy data, no real network/camera/SMS ===== */
+var stops=[
+ {id:1,name:'Maria Sandoval',ph:'(402) 555-0134',addr:'5214 Leavenworth St',area:'Midtown',mx:22,my:38,
+  items:[{sku:'ET-88412',t:'Loveseat, gray fabric',q:1}],chips:[]},
+ {id:2,name:'James Whitfield',ph:'(402) 555-0177',addr:'3801 Q St · Apt 3C',area:'South Omaha',mx:38,my:74,
+  items:[{sku:'ET-90031',t:'Dresser, 6-drawer oak',q:1},{sku:'ET-90032',t:'Nightstand, oak',q:2}],chips:['Apartment · 3rd floor']},
+ {id:3,name:'Ruth Okafor',ph:'(402) 555-0129',addr:'7715 Cass St',area:'West Omaha',mx:14,my:20,
+  items:[{sku:'ET-87755',t:'Dining table, walnut',q:1}],chips:['Heavy · 2-person']},
+ {id:4,name:'Tom Brenner',ph:'(402) 555-0163',addr:'2210 S 13th St',area:'Little Italy',mx:66,my:62,
+  items:[{sku:'ET-91208',t:'Bookshelf, 5-shelf',q:1}],chips:[]},
+ {id:5,name:'Dana Kowalski',ph:'(402) 555-0188',addr:'6120 Maple St',area:'Benson',mx:30,my:14,
+  items:[{sku:'ET-89540',t:'Armchair, green velvet',q:1}],chips:[]},
+ {id:6,name:'Priya Nair',ph:'(402) 555-0142',addr:'1503 Farnam St',area:'Downtown',mx:78,my:34,
+  items:[{sku:'ET-92116',t:'Wall mirror, arched',q:1},{sku:'ET-92117',t:'Floor lamp, brass',q:1}],chips:['Fragile']}
+];
+var DISPS=[
+ {k:'confirmed',t:'Confirmed',i:'✅',cls:'green'},
+ {k:'no_answer',t:'No answer',i:'📵'},
+ {k:'awaiting',t:'Awaiting reply',i:'⏳'},
+ {k:'resched',t:'Reschedule',i:'📅'},
+ {k:'cancel',t:'Cancelled',i:'🚫'},
+ {k:'wrong',t:'Wrong number',i:'❓'}
+];
+var S={
+ started:false,t0:null,disp:{},cfIdx:0,cfOrder:[0,1,2,3,4,5],
+ loadQ:[],ldIdx:0,photos:[],
+ route:[],pool:[],driveIdx:0,completed:[],held:[],
+ tasks:{},bannerShown:false,bannerStop:null,camMode:null,dayDone:false,
+ unloaded:false
+};
+function $(id){return document.getElementById(id)}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+function toast(m){var t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove('on')},2200)}
+/* ---------- nav ---------- */
+function go(id){
+ var scr=document.querySelectorAll('.screen');
+ for(var i=0;i<scr.length;i++){scr[i].classList.remove('on','left')}
+ $(id).classList.add('on');
+ window.scrollTo(0,0);
+}
+/* ---------- timer ---------- */
+function startTimer(){
+ S.t0=Date.now();
+ setInterval(function(){
+  if(!S.t0)return;
+  var s=Math.floor((Date.now()-S.t0)/1000),m=Math.floor(s/60);
+  var txt=(Math.floor(m/60)?Math.floor(m/60)+':'+String(m%60).padStart(2,'0'):m)+':'+String(s%60).padStart(2,'0');
+  var els=document.querySelectorAll('.tval');
+  for(var i=0;i<els.length;i++)els[i].textContent=txt;
+ },1000);
+}
+/* ---------- stage dots ---------- */
+var STAGES=['confirm','load','truck','route','drive'];
+function renderDots(now){
+ var ids=['dots-confirm','dots-load','dots-truck','dots-route','dots-drive'];
+ var ni=STAGES.indexOf(now);
+ ids.forEach(function(id){
+  var el=$(id);if(!el)return;var h='';
+  for(var i=0;i<STAGES.length;i++){h+='<i class="'+(i<ni?'done':i===ni?'now':'')+'"></i>'}
+  el.innerHTML=h;
+ });
+}
+/* ---------- map svg ---------- */
+function svgMap(opts){
+ opts=opts||{};
+ var pins=opts.pins||[],path=opts.path||null,cls=opts.cls||'';
+ var h='<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" class="'+cls+'">';
+ h+='<rect width="100" height="100" fill="#EDF2EE"/>';
+ h+='<g stroke="#DDE6E0" stroke-width="1.1">';
+ [12,30,48,66,84].forEach(function(y){h+='<line x1="0" y1="'+y+'" x2="100" y2="'+y+'"/>'});
+ [10,26,44,60,76,92].forEach(function(x){h+='<line x1="'+x+'" y1="0" x2="'+x+'" y2="100"/>'});
+ h+='</g>';
+ h+='<path d="M0,55 Q30,50 55,58 T100,52" stroke="#C7DCCE" stroke-width="4" fill="none"/>';
+ h+='<circle cx="88" cy="80" r="9" fill="#DFEDE4"/><circle cx="6" cy="8" r="7" fill="#DFEDE4"/>';
+ if(path){
+  var d='M'+path.map(function(p){return p.x+','+p.y}).join(' L');
+  h+='<path d="'+d+'" stroke="#0E8A4E" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-dasharray="0.1 4.2" stroke-linejoin="round"/>';
+ }
+ pins.forEach(function(p){
+  var col=p.gray?'#C9D4CE':(p.now?'#0E8A4E':'#14201A');
+  h+='<g class="mappin"><circle cx="'+p.x+'" cy="'+p.y+'" r="'+(p.now?5.6:4.6)+'" fill="'+col+'"/>';
+  h+='<text x="'+p.x+'" y="'+(p.y+1.7)+'" text-anchor="middle" font-size="4.6" font-weight="800" fill="#fff" font-family="Archivo,sans-serif">'+p.n+'</text></g>';
+  if(p.now){h+='<circle cx="'+p.x+'" cy="'+p.y+'" r="8.4" fill="none" stroke="#0E8A4E" stroke-width="1" opacity=".45"/>'}
+ });
+ /* truck at store */
+ h+='<text x="52" y="94" font-size="6">🚚</text>';
+ h+='</svg>';
+ return h;
+}
+/* ---------- HOME ---------- */
+function renderHome(){
+ var h='';
+ if(!S.dayDone){
+  h+='<div class="hero"><div class="glow"></div>'
+   +'<div class="eyebrow">Today · Wed, Jul 22</div>'
+   +'<div class="h-mega big-num">Delivery day</div>'
+   +'<div class="sub" style="color:#9FB4A8">10:00 AM – 2:00 PM window</div>'
+   +'<div class="hero-meta"><div><b class="big-num">6</b><span>stops</span></div><div><b class="big-num">9</b><span>items</span></div><div><b class="big-num">24</b><span>est mi</span></div></div>'
+   +'<div class="crew"><div class="avatars"><div class="avatar" style="background:#0E8A4E">B</div><div class="avatar" style="background:#5A6E63">MK</div></div><span class="sub" style="color:#9FB4A8">You + Marcus</span></div>'
+   +'<button class="hero-start" onclick="startDay()">Start today&ensp;→</button></div>';
+ }else{
+  h+='<div class="hero"><div class="glow"></div><div class="eyebrow">Today · Wed, Jul 22</div>'
+   +'<div class="h-mega big-num">Day complete ✓</div>'
+   +'<div class="sub" style="color:#9FB4A8;margin-top:6px">'+S.completed.length+' delivered · tap for summary</div>'
+   +'<button class="hero-start" style="background:#2A3A31" onclick="go(\'s-summary\')">View summary</button></div>';
+ }
+ h+='<div class="section-t"><div class="h2">Upcoming</div></div>'
+  +'<div class="daycard" onclick="go(\'s-preview\')"><div class="datebox"><span>Fri</span><b>24</b></div>'
+  +'<div class="grow"><h4>4 stops · 6 items</h4><div class="sub">9:00 AM window · You + Marcus</div>'
+  +'<div style="margin-top:7px"><span class="chip warn">1 not confirmed</span></div></div><span class="chev">›</span></div>';
+ h+='<div class="section-t"><div class="h2">Past days</div></div>'
+  +'<div class="daycard" onclick="go(\'s-past\')"><div class="done-ring">✓</div>'
+  +'<div class="grow"><h4>Mon, Jul 20</h4><div class="sub">5 delivered · 3h 12m · no issues</div></div><span class="chev">›</span></div>'
+  +'<div style="height:24px"></div>';
+ $('home-scroll').innerHTML=h;
+}
+/* ---------- PREVIEW (future day) ---------- */
+function renderPreview(){
+ var pv=[
+  {n:1,name:'K. Osei',area:'Dundee',items:'Sofa',chips:['Confirmed'],ok:true,x:24,y:30},
+  {n:2,name:'L. Tran',area:'Aksarben',items:'Desk + chair',chips:['Confirmed'],ok:true,x:36,y:58},
+  {n:3,name:'R. Meyer',area:'Papillion',items:'Bed frame',chips:['Heavy · 2-person'],ok:true,x:58,y:82},
+  {n:4,name:'S. Duran',area:'Downtown',items:'2 lamps',chips:['Not confirmed yet'],ok:false,x:76,y:36}
+ ];
+ var h='<div class="maplite" style="height:170px;position:relative">'+svgMap({pins:pv.map(function(p){return{x:p.x,y:p.y,n:p.n,gray:!p.ok}})})+'</div>';
+ h+='<div class="notice">📦&ensp;Bring the dolly — one heavy 2-person item in Papillion.</div>';
+ pv.forEach(function(p){
+  h+='<div class="stoprow'+(p.ok?'':' gray')+'"><div class="pin">'+p.n+'</div><div class="grow"><h4>'+p.name+'</h4>'
+   +'<div class="sub">'+p.area+' · '+p.items+'</div>'
+   +p.chips.map(function(c){return '<span class="chip '+(c.indexOf('Not')===0?'warn':c==='Confirmed'?'ok':'')+'">'+c+'</span> '}).join('')
+   +'</div></div>';
+ });
+ h+='<div class="sub" style="text-align:center;padding:18px 0 28px">Planning happens at the store · this view is read-only</div>';
+ $('pv-body').innerHTML=h;
+}
+/* ---------- PAST ---------- */
+function renderPast(){
+ var h='<div class="sum-hero"><div class="h-mega big-num" style="color:var(--green-deep)">5 / 5</div><div class="sub">stops delivered</div></div>'
+  +'<div class="sumgrid">'
+  +'<div class="sumcell"><b>3h 12m</b><span>day duration</span></div>'
+  +'<div class="sumcell"><b>8</b><span>items delivered</span></div>'
+  +'<div class="sumcell"><b>14</b><span>photos captured</span></div>'
+  +'<div class="sumcell"><b>0</b><span>issues</span></div></div>'
+  +'<div class="section-t"><div class="h2">Evidence</div></div><div class="photostrip">'
+  +['#4E6B5B','#3C5A4A','#5B7263','#2F4A3C','#6B8273'].map(function(c,i){return '<div class="ph" style="background:linear-gradient(160deg,'+c+',#1E2C25)">IMG_0'+(41+i)+'</div>'}).join('')
+  +'</div><div style="height:28px"></div>';
+ $('past-body').innerHTML=h;
+}
+/* ---------- START DAY ---------- */
+function startDay(){
+ if(S.started){resumeDay();return}
+ S.started=true;
+ go('splash');
+ startTimer();
+ setTimeout(function(){renderConfirm();go('s-confirm');renderDots('confirm')},1900);
+}
+function resumeDay(){ /* refresh-proof resume in the real app; demo returns to current stage */
+ go('s-confirm');
+}
+/* ---------- CONFIRM STAGE ---------- */
+function pendingIdx(){return S.cfOrder.filter(function(i){return !S.disp[stops[i].id]})}
+function renderConfirm(){
+ var pend=pendingIdx();
+ var total=stops.length,donen=total-pend.length;
+ $('cf-count').textContent='Confirm calls · '+Math.min(donen+1,total)+' of '+total;
+ /* tray */
+ var trayH='';
+ stops.forEach(function(st){
+  var d=S.disp[st.id];if(!d)return;
+  var m={confirmed:'ok',no_answer:'warn',awaiting:'warn',resched:'',cancel:'bad',wrong:'warn'};
+  var lbl=DISPS.filter(function(x){return x.k===d})[0];
+  trayH+='<span class="chip '+(m[d]||'')+'">'+lbl.i+' '+st.name.split(' ')[0]+'</span>';
+ });
+ $('cf-tray').style.display=trayH?'flex':'none';
+ $('cf-tray').innerHTML=trayH;
+ /* card */
+ if(!pend.length){$('cf-deck').innerHTML=emptyDeck('All customers contacted');updateCfCta();return}
+ var st=stops[pend[0]];
+ var h='<div class="custcard" id="cf-card">'
+  +'<div class="eyebrow">'+st.area+'</div>'
+  +'<div class="h-mega big-num">'+st.name+'</div>'
+  +'<div class="sub">'+st.addr+'</div>'
+  +'<div style="margin:10px 0 4px">'+st.chips.map(function(c){return '<span class="chip warn">'+c+'</span> '}).join('')+'</div>'
+  +'<div style="margin-top:8px">'
+  +st.items.map(function(it){return '<div class="itemline"><span class="qty">×'+it.q+'</span>'+it.t+'</div>'}).join('')
+  +'</div>'
+  +'<div class="contactrow">'
+  +'<button class="bigact" onclick="simText('+st.id+')"><span class="ico">💬</span>Text</button>'
+  +'<button class="bigact" onclick="simCall('+st.id+')"><span class="ico">📞</span>Call</button>'
+  +'</div>'
+  +'<button class="textlink" onclick="openDisp('+st.id+',false)">Skip contact · record outcome</button>'
+  +'</div>';
+ $('cf-deck').innerHTML=h;
+ updateCfCta();
+}
+function emptyDeck(msg){return '<div class="custcard" style="align-items:center;justify-content:center;text-align:center"><div style="font-size:44px">🎯</div><div class="h2" style="margin-top:10px">'+msg+'</div><div class="sub" style="margin-top:6px">Review the tray above, then continue.</div></div>'}
+function updateCfCta(){
+ var pend=pendingIdx().length;
+ var unresolved=stops.filter(function(s){return S.disp[s.id]==='awaiting'}).length;
+ var b=$('cf-continue');
+ if(pend>0){b.disabled=true;b.textContent=pend+' customer'+(pend>1?'s':'')+' left to contact'}
+ else{b.disabled=false;b.textContent=unresolved?('Start loading · '+unresolved+' still pending'):'Start loading →'}
+}
+function simCall(id){
+ var st=stops.filter(function(s){return s.id===id})[0];
+ toast('Demo: dialing '+st.ph+' …');
+ setTimeout(function(){openDisp(id,true)},900);
+}
+function simText(id){
+ var st=stops.filter(function(s){return s.id===id})[0];
+ var h='<div class="handle"></div><div class="eyebrow">Demo · native Messages opens here</div>'
+  +'<div class="h2" style="margin:6px 0 12px">Text '+st.name.split(' ')[0]+'</div>'
+  +'<div style="background:#F5F8F6;border-radius:16px;padding:15px;font-size:14.5px;line-height:1.5">Hi '+st.name.split(' ')[0]+'! Eco-Thrift here — we have your delivery scheduled today between 10 AM and 2 PM. Reply YES to confirm and we\u2019ll text you an exact ETA once we\u2019re rolling. 🚚</div>'
+  +'<div class="dispgrid">'
+  +'<button class="disp green" onclick="textBack('+id+',true)"><span class="ico">📤</span>I sent it</button>'
+  +'<button class="disp" onclick="textBack('+id+',false)"><span class="ico">↩️</span>Didn\u2019t send</button>'
+  +'</div>';
+ openSheet('sheet-generic',h);
+}
+function textBack(id,sent){
+ closeSheets();
+ toast(sent?'Text marked sent':'Attempt logged · no text sent');
+ setTimeout(function(){openDisp(id,true)},450);
+}
+function openDisp(id,afterContact){
+ var st=stops.filter(function(s){return s.id===id})[0];
+ var h='<div class="handle"></div><div class="eyebrow">'+(afterContact?'Attempt logged':'No contact attempt')+'</div>'
+  +'<div class="h2" style="margin:4px 0 2px">What happened with '+st.name.split(' ')[0]+'?</div>'
+  +'<div class="dispgrid">';
+ DISPS.forEach(function(d,i){
+  h+='<button class="disp '+(d.cls||'')+(i===0?' full':'')+'" onclick="setDisp('+id+',\''+d.k+'\')"><span class="ico">'+d.i+'</span>'+d.t+(d.k==='confirmed'?'<small>added to route</small>':'')+'</button>';
+ });
+ h+='</div>';
+ openSheet('sheet-disp',h);
+}
+function setDisp(id,k){
+ S.disp[id]=k;
+ closeSheets();
+ var card=$('cf-card');
+ if(card){card.classList.add('out');setTimeout(renderConfirm,240)}else{renderConfirm()}
+ if(k==='resched')toast('Reschedule request sent to the Desk');
+ if(k==='cancel')toast('Cancellation logged · removed from today');
+}
+function finishConfirm(){
+ /* build load queue: everything except cancelled/rescheduled */
+ S.loadQ=[];
+ stops.forEach(function(st){
+  var d=S.disp[st.id];
+  if(d==='cancel'||d==='resched')return;
+  st.items.forEach(function(it){
+   for(var q=1;q<=it.q;q++)S.loadQ.push({stop:st,sku:it.sku,t:it.t,q:q,qt:it.q});
+  });
+ });
+ S.ldIdx=0;
+ renderDots('load');
+ renderLoad();
+ go('s-load');
+}
+/* ---------- LOAD STAGE ---------- */
+function renderLoad(){
+ var n=S.loadQ.length;
+ if(S.ldIdx>=n){renderTruck();go('s-truck');renderDots('truck');return}
+ var it=S.loadQ[S.ldIdx];
+ $('ld-count').textContent='Load · item '+(S.ldIdx+1)+' of '+n;
+ var conf=S.disp[it.stop.id]==='confirmed';
+ var pct=S.ldIdx/n,C=2*Math.PI*22;
+ var h='<div class="loadcard">'
+  +'<div class="ring-wrap"><div class="ring"><svg width="52" height="52"><circle class="rc" cx="26" cy="26" r="22" fill="none" stroke-width="5"/><circle class="rv" cx="26" cy="26" r="22" fill="none" stroke-width="5" stroke-linecap="round" stroke-dasharray="'+C+'" stroke-dashoffset="'+(C*(1-pct))+'"/></svg><b>'+S.ldIdx+'/'+n+'</b></div>'
+  +'<div><div class="eyebrow">For '+esc(it.stop.name)+(conf?'':' · not confirmed')+'</div><div class="h2">'+esc(it.t)+'</div></div></div>'
+  +(it.qt>1?'<div style="margin-top:10px"><span class="chip ok">Unit '+it.q+' of '+it.qt+' · scan each one</span></div>':'')
+  +(conf?'':'<div class="notice">⏳&ensp;'+it.stop.name.split(' ')[0]+' hasn\u2019t confirmed — load it anyway so we can add the stop if they reply.</div>')
+  +'<div class="skucode">'+it.sku+'</div>'
+  +'<div class="photo-slot" id="ld-photo">In-truck photo appears here</div>'
+  +'</div>';
+ $('ld-deck').innerHTML=h;
+ $('ld-cta').innerHTML='<button class="cta" onclick="openCam(\'scan\')">📷&ensp;Scan &amp; photo</button>'
+  +'<button class="textlink" style="display:block;margin:2px auto 0" onclick="skipSheet()">Can\u2019t scan?</button>';
+}
+function skipSheet(){
+ var it=S.loadQ[S.ldIdx];
+ var h='<div class="handle"></div><div class="h2">Can\u2019t scan '+it.sku+'?</div>'
+  +'<div class="sub" style="margin-top:4px">Skips are audited with a reason.</div>'
+  +'<div class="dispgrid">'
+  +'<button class="disp full" onclick="skipDone(\'Label missing\')"><span class="ico">🏷️</span>Label missing or damaged</button>'
+  +'<button class="disp" onclick="skipDone(\'Manual SKU\')"><span class="ico">⌨️</span>Typed SKU</button>'
+  +'<button class="disp" onclick="skipDone(\'Other\')"><span class="ico">📝</span>Other reason</button>'
+  +'</div>';
+ openSheet('sheet-generic',h);
+}
+function skipDone(r){
+ closeSheets();
+ toast('Verification skipped · "'+r+'" logged');
+ setTimeout(function(){openCam('photo')},400);
+}
+/* ---------- CAMERA SIM ---------- */
+function openCam(mode){
+ S.camMode=mode;
+ var scanning=(mode==='scan');
+ $('cam-box').style.display=scanning?'block':'none';
+ $('cam-line').style.display=scanning?'block':'none';
+ $('cam-label').textContent=scanning?'Point at the SKU label':(mode==='truck'?'Closed truck doors':(mode==='proof'?'Delivery proof photo':(mode==='unload'?'Back-in-store photo':'Photo of item in truck')));
+ $('cam').classList.add('on');
+ if(scanning){
+  clearTimeout(window._scanH);
+  window._scanH=setTimeout(function(){
+   if(!$('cam').classList.contains('on')||S.camMode!=='scan')return;
+   flash();
+   toast('SKU matched ✓');
+   S.camMode='photo';
+   $('cam-box').style.display='none';
+   $('cam-label').textContent='Now a quick photo of it in the truck';
+  },1700);
+ }
+}
+function closeCam(){$('cam').classList.remove('on');clearTimeout(window._scanH)}
+function flash(){var f=$('flash');f.classList.remove('go');void f.offsetWidth;f.classList.add('go')}
+function camCapture(){
+ var m=S.camMode;
+ if(m==='scan'){ /* user tapped shutter before auto-match: treat as match */
+  clearTimeout(window._scanH);flash();toast('SKU matched ✓');S.camMode='photo';
+  $('cam-box').style.display='none';$('cam-label').textContent='Now a quick photo of it in the truck';return;
+ }
+ flash();
+ closeCam();
+ if(m==='photo'){
+  S.photos.push('Item · '+S.loadQ[S.ldIdx].sku);
+  okFx('Loaded ✓',function(){S.ldIdx++;renderLoad()});
+ }else if(m==='truck'){
+  S.photos.push('Truck closed');
+  okFx('Truck sealed ✓',function(){buildRoute();renderRoute();go('s-route');renderDots('route')});
+ }else if(m==='proof'){
+  S.photos.push('Proof · stop '+(S.driveIdx+1));
+  S.tasks.proof=true;renderDrive();
+ }else if(m==='unload'){
+  S.photos.push('Returned item');
+  S.unloaded=true;renderReturn();
+ }
+}
+function okFx(t,cb){
+ $('okfx-t').textContent=t;
+ var o=$('okfx');o.classList.add('on');
+ if(navigator.vibrate)navigator.vibrate(30);
+ setTimeout(function(){o.classList.remove('on');cb&&cb()},700);
+}
+/* ---------- TRUCK ---------- */
+function renderTruck(){
+ var conf=stops.filter(function(s){return S.disp[s.id]==='confirmed'}).length;
+ var pend=stops.filter(function(s){return ['awaiting','no_answer','wrong'].indexOf(S.disp[s.id])>=0});
+ var h='<div class="sum-hero"><div style="font-size:46px">🚚</div><div class="h1" style="margin-top:6px">Everything\u2019s on board</div>'
+  +'<div class="sub" style="margin-top:4px">'+S.loadQ.length+' items · '+conf+' confirmed stops</div></div>';
+ if(pend.length){
+  h+='<div class="notice">⏳&ensp;'+pend.map(function(s){return s.name.split(' ')[0]}).join(', ')+' still unconfirmed — on the truck, outside the route. We\u2019ll ping you if they reply.</div>';
+ }
+ h+='<div class="sub" style="text-align:center;padding:16px 4px">One last photo of the closed doors, then we\u2019ll build the route.</div>';
+ $('truck-body').innerHTML=h;
+}
+/* ---------- ROUTE ---------- */
+var LEGS=[12,9,14,8,11,10,9];
+function fmtTime(min){ /* minutes after 10:05 */
+ var t=10*60+5+min,hh=Math.floor(t/60),mm=t%60,ap=hh>=12?'PM':'AM';hh=hh>12?hh-12:hh;
+ return hh+':'+String(mm).padStart(2,'0')+' '+ap;
+}
+function computeEtas(){
+ var m=0;
+ S.route.forEach(function(r,i){
+  m+=LEGS[i%LEGS.length];
+  r.eta=fmtTime(m);r.leg=LEGS[i%LEGS.length];
+  m+=20;
+ });
+}
+function buildRoute(){
+ S.route=stops.filter(function(s){return S.disp[s.id]==='confirmed'}).map(function(s){return{stop:s}});
+ S.pool=stops.filter(function(s){return ['awaiting','no_answer','wrong'].indexOf(S.disp[s.id])>=0});
+ computeEtas();
+}
+function renderRoute(){
+ $('route-map').innerHTML=svgMap({
+  pins:S.route.map(function(r,i){return{x:r.stop.mx,y:r.stop.my,n:i+1}})
+   .concat(S.pool.map(function(s){return{x:s.mx,y:s.my,n:'?',gray:true}})),
+  path:[{x:52,y:90}].concat(S.route.map(function(r){return{x:r.stop.mx,y:r.stop.my}}))
+ });
+ var h='';
+ S.route.forEach(function(r,i){
+  h+='<div class="etarow"><div class="pin">'+(i+1)+'</div><div class="grow"><h5>'+r.stop.name+'</h5><div class="sub">'+r.stop.addr+' · '+r.leg+' min drive</div></div><div class="eta-t">'+r.eta+'</div></div>';
+ });
+ S.pool.forEach(function(s){
+  h+='<div class="etarow gray"><div class="pin">?</div><div class="grow"><h5>'+s.name+'</h5><div class="sub">Unconfirmed · slots in if they reply</div></div><div class="eta-t">—</div></div>';
+ });
+ $('route-list').innerHTML=h;
+}
+function startRoute(){
+ S.driveIdx=0;S.tasks={};
+ renderDots('drive');
+ renderDrive();
+ go('s-drive');
+}
+/* ---------- DRIVE ---------- */
+function renderDrive(){
+ if(S.driveIdx>=S.route.length){afterLastStop();return}
+ var r=S.route[S.driveIdx],st=r.stop;
+ $('drive-map').innerHTML=svgMap({
+  pins:S.route.map(function(x,i){return{x:x.stop.mx,y:x.stop.my,n:i+1,now:i===S.driveIdx,gray:i<S.driveIdx}}),
+  path:[{x:52,y:90}].concat(S.route.slice(S.driveIdx).map(function(x){return{x:x.stop.mx,y:x.stop.my}}))
+ });
+ var arrived=S.tasks.arrived;
+ var h='<div class="handle"></div>'
+  +'<div class="eyebrow">Stop '+(S.driveIdx+1)+' of '+S.route.length+(arrived?' · you\u2019re here':'')+'</div>'
+  +'<div class="h1" style="margin-top:2px">'+st.name+'</div>'
+  +'<div class="sub">'+st.addr+'</div>';
+ if(!arrived){
+  h+='<div class="eta-banner"><span class="sub">Arriving</span><span class="t big-num">'+r.eta+'</span></div>'
+   +'<div style="margin-top:6px">'+st.items.map(function(it){return '<span class="chip">×'+it.q+' '+it.t.split(',')[0]+'</span> '}).join('')+'</div>'
+   +'<div class="actrow3">'
+   +'<button class="act3 primary" onclick="toast(\'Demo: opens Google Maps\')"><span class="ico">🧭</span>Navigate</button>'
+   +'<button class="act3" onclick="toast(\'Demo: dialing '+st.ph+'\')"><span class="ico">📞</span>Call</button>'
+   +'<button class="act3" onclick="driveText(\''+st.name.split(' ')[0]+'\',\''+r.eta+'\')"><span class="ico">💬</span>Text ETA</button>'
+   +'</div>'
+   +'<button class="cta" style="margin-top:16px" onclick="arriveStop()">I\u2019ve arrived</button>'
+   +'<button class="textlink" style="display:block;margin:0 auto" onclick="problemSheet()">Problem at this stop</button>';
+ }else{
+  h+='<div class="tasklist">'
+   +'<div class="task'+(S.tasks.proof?' done':'')+'" onclick="openCam(\'proof\')"><div class="tick">'+(S.tasks.proof?'✓':'')+'</div><div class="grow">Proof photo at the door</div><span class="chev">›</span></div>'
+   +'<div class="task'+(S.tasks.sig?' done':'')+'" onclick="openSig()"><div class="tick">'+(S.tasks.sig?'✓':'')+'</div><div class="grow">Customer signature</div><span class="chev">›</span></div>'
+   +'</div>'
+   +'<div class="slider'+(S.tasks.proof&&S.tasks.sig?'':' locked')+'" id="slider"><div class="label">Slide to complete&ensp;→</div><div class="knob" id="knob">→</div></div>'
+   +'<button class="textlink" style="display:block;margin:0 auto" onclick="problemSheet()">Problem at this stop</button>';
+ }
+ $('drive-card').innerHTML=h;
+ if(arrived)initSlider();
+}
+function driveText(name,eta){
+ toast('Demo: Messages opens — "Hi '+name+'! Your Eco-Thrift delivery is about '+eta+'. See you soon! 🚚"');
+}
+function arriveStop(){S.tasks={arrived:true};renderDrive()}
+function problemSheet(){
+ var h='<div class="handle"></div><div class="h2">Problem at this stop?</div>'
+  +'<div class="dispgrid">'
+  +'<button class="disp full" onclick="holdStop(\'No one home\')"><span class="ico">🚪</span>No one home · hold items</button>'
+  +'<button class="disp" onclick="holdStop(\'Won\u2019t fit\')"><span class="ico">📐</span>Won\u2019t fit</button>'
+  +'<button class="disp" onclick="holdStop(\'Damaged\')"><span class="ico">💥</span>Damaged</button>'
+  +'</div>';
+ openSheet('sheet-generic',h);
+}
+function holdStop(r){
+ closeSheets();
+ var st=S.route[S.driveIdx].stop;
+ S.held.push({stop:st,reason:r});
+ toast('Stop held · "'+r+'" · items return to store');
+ S.driveIdx++;S.tasks={};
+ setTimeout(function(){renderDrive();maybeBanner()},500);
+}
+function completeStop(){
+ var st=S.route[S.driveIdx].stop;
+ S.completed.push(st);
+ okFx('Delivered ✓',function(){
+  S.driveIdx++;S.tasks={};
+  renderDrive();
+  maybeBanner();
+ });
+}
+/* ---- mid-route confirm banner ---- */
+function maybeBanner(){
+ if(S.bannerShown||!S.pool.length)return;
+ if(S.driveIdx<1||S.driveIdx>=S.route.length)return;
+ S.bannerShown=true;
+ S.bannerStop=S.pool.filter(function(s){return S.disp[s.id]==='awaiting'})[0]||S.pool[0];
+ var b=$('banner');
+ b.querySelector('b').textContent=S.bannerStop.name.split(' ')[0]+' just confirmed 🎉';
+ b.querySelector('.sub').textContent='Add the stop · re-optimize · +'+(LEGS[0]+20)+' min';
+ setTimeout(function(){b.classList.add('on')},900);
+}
+function previewInsert(){
+ $('banner').classList.remove('on');
+ var s=S.bannerStop;
+ var h='<div class="handle"></div><div class="eyebrow">Route revision preview</div>'
+  +'<div class="h2" style="margin:4px 0 10px">Add '+s.name.split(' ')[0]+' to the route?</div>'
+  +'<div class="etarow"><div class="pin" style="background:var(--green)">+</div><div class="grow"><h5>'+s.name+'</h5><div class="sub">'+s.addr+'</div></div><div class="eta-t">+'+(LEGS[0]+20)+' min</div></div>'
+  +'<div class="sub" style="padding:10px 0">Slots in after your current stop. Later ETAs shift and customers can be re-texted.</div>'
+  +'<div class="dispgrid">'
+  +'<button class="disp green full" onclick="commitInsert()"><span class="ico">🗺️</span>Add &amp; re-optimize</button>'
+  +'<button class="disp full" onclick="dismissInsert()"><span class="ico">⏳</span>Keep them on hold</button>'
+  +'</div>';
+ openSheet('sheet-generic',h);
+}
+function commitInsert(){
+ closeSheets();
+ var s=S.bannerStop;
+ S.pool=S.pool.filter(function(x){return x.id!==s.id});
+ S.disp[s.id]='confirmed';
+ S.route.splice(S.driveIdx+1,0,{stop:s});
+ computeEtas();
+ toast('Route v2 committed · ETAs updated');
+ renderDrive();
+}
+function dismissInsert(){closeSheets();toast('Kept on hold · still on the truck')}
+/* ---- slider ---- */
+function initSlider(){
+ var sl=$('slider'),kn=$('knob');
+ if(!sl||sl.classList.contains('locked'))return;
+ var startX=0,cur=0,max=0,drag=false;
+ kn.addEventListener('pointerdown',function(e){
+  drag=true;startX=e.clientX;max=sl.clientWidth-kn.offsetWidth-10;
+  kn.setPointerCapture(e.pointerId);
+ });
+ kn.addEventListener('pointermove',function(e){
+  if(!drag)return;
+  cur=Math.max(0,Math.min(max,e.clientX-startX));
+  kn.style.transform='translateX('+cur+'px)';
+ });
+ kn.addEventListener('pointerup',function(){
+  if(!drag)return;drag=false;
+  if(cur>max*0.8){kn.style.transform='translateX('+max+'px)';completeStop()}
+  else{kn.style.transition='transform .25s';kn.style.transform='translateX(0)';setTimeout(function(){kn.style.transition=''},260)}
+  cur=0;
+ });
+}
+/* ---------- after last stop ---------- */
+function afterLastStop(){
+ var leftovers=S.pool.length+S.held.length;
+ if(leftovers){renderReturn();go('s-return')}
+ else endDay();
+}
+/* ---------- RETURN ---------- */
+function renderReturn(){
+ var rows=[];
+ S.pool.forEach(function(s){rows.push({who:s.name,why:'Never confirmed',items:s.items})});
+ S.held.forEach(function(hh){rows.push({who:hh.stop.name,why:hh.reason,items:hh.stop.items})});
+ var h='<div class="sub" style="padding-top:4px">These items came back. Photograph them back in the store to reconcile.</div>';
+ rows.forEach(function(r){
+  h+='<div class="stoprow"><div class="pin" style="background:var(--amber)">↩</div><div class="grow"><h4>'+r.who+'</h4>'
+   +'<div class="sub">'+r.why+'</div>'
+   +r.items.map(function(it){return '<span class="chip warn">×'+it.q+' '+it.t.split(',')[0]+'</span> '}).join('')
+   +'</div></div>';
+ });
+ h+='<div class="photo-slot'+(S.unloaded?' filled':'')+'" style="margin-top:16px" onclick="openCam(\'unload\')">'
+  +(S.unloaded?'<div class="fakephoto" style="background:linear-gradient(160deg,#4E6B5B,#1E2C25)">Back-in-store · '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'</div>':'📷&ensp;Tap for back-in-store photo')
+  +'</div>';
+ h+='<div style="height:20px"></div>';
+ $('return-body').innerHTML=h;
+ var b=$('return-cta');
+ if(S.unloaded){b.disabled=false;b.textContent='End day →'}
+ else{b.disabled=true;b.textContent='Unload photo first'}
+}
+/* ---------- END DAY / SUMMARY ---------- */
+function endDay(){
+ S.dayDone=true;
+ var mins=S.t0?Math.max(1,Math.round((Date.now()-S.t0)/60000)):0;
+ var h='<div class="sum-hero"><div class="h-mega big-num" style="color:var(--green-deep)">'+S.completed.length+' / '+S.route.length+'</div><div class="sub">stops delivered</div></div>'
+  +'<div class="sumgrid">'
+  +'<div class="sumcell"><b>'+mins+'m</b><span>day duration (demo)</span></div>'
+  +'<div class="sumcell"><b>'+S.photos.length+'</b><span>photos captured</span></div>'
+  +'<div class="sumcell"><b>'+(S.held.length+S.pool.length)+'</b><span>returned / held</span></div>'
+  +'<div class="sumcell"><b>'+S.completed.filter(function(){return true}).length+'</b><span>signatures</span></div>'
+  +'</div>'
+  +'<div class="section-t"><div class="h2">Evidence</div></div><div class="photostrip">'
+  +S.photos.map(function(p,i){var cols=['#4E6B5B','#3C5A4A','#5B7263','#2F4A3C','#6B8273'];return '<div class="ph" style="background:linear-gradient(160deg,'+cols[i%5]+',#1E2C25)">'+p+'</div>'}).join('')
+  +'</div>'
+  +'<div class="sub" style="text-align:center;padding:16px 0 26px">Everything above syncs to the Desk for review.</div>';
+ $('sum-body').innerHTML=h;
+ renderHome();
+ go('s-summary');
+}
+function backHome(){renderHome();go('s-home')}
+/* ---------- SIGNATURE ---------- */
+function openSig(){
+ var st=S.route[S.driveIdx].stop;
+ var h='<div class="handle"></div><div class="eyebrow">Hand the phone to the customer</div>'
+  +'<div class="h2" style="margin:4px 0 12px">'+st.name+', sign below</div>'
+  +'<canvas id="sig-canvas"></canvas><hr class="sigline">'
+  +'<div class="dispgrid" style="grid-template-columns:1fr 2fr">'
+  +'<button class="disp" onclick="sigClear()"><span class="ico">🧽</span>Clear</button>'
+  +'<button class="disp green" onclick="sigSave()"><span class="ico">✍️</span>Save signature</button>'
+  +'</div>';
+ openSheet('sheet-generic',h);
+ setTimeout(initSig,80);
+}
+var sigInk=false;
+function initSig(){
+ var c=$('sig-canvas');if(!c)return;
+ var dpr=window.devicePixelRatio||1;
+ var r=c.getBoundingClientRect();
+ c.width=Math.round(r.width*dpr);c.height=Math.round(r.height*dpr);
+ var ctx=c.getContext('2d');
+ ctx.scale(dpr,dpr);
+ ctx.lineWidth=2.6;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#14201A';
+ sigInk=false;
+ var drawing=false;
+ function pos(e){var b=c.getBoundingClientRect();return{x:e.clientX-b.left,y:e.clientY-b.top}}
+ c.addEventListener('pointerdown',function(e){drawing=true;sigInk=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);c.setPointerCapture(e.pointerId);e.preventDefault()});
+ c.addEventListener('pointermove',function(e){if(!drawing)return;var p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();e.preventDefault()});
+ c.addEventListener('pointerup',function(){drawing=false});
+ c.addEventListener('pointercancel',function(){drawing=false});
+ c._ctx=ctx;
+}
+function sigClear(){var c=$('sig-canvas');if(!c)return;var dpr=window.devicePixelRatio||1;c._ctx.clearRect(0,0,c.width/dpr,c.height/dpr);sigInk=false}
+function sigSave(){
+ if(!sigInk){toast('Need a signature first');return}
+ closeSheets();
+ S.tasks.sig=true;
+ toast('Signature saved · compact PNG');
+ renderDrive();
+}
+/* ---------- sheets ---------- */
+function openSheet(id,html){
+ $(id).innerHTML=html;
+ $('dim').classList.add('on');
+ $(id).classList.add('on');
+}
+function closeSheets(){
+ $('dim').classList.remove('on');
+ $('sheet-disp').classList.remove('on');
+ $('sheet-generic').classList.remove('on');
+}
+/* ---------- boot ---------- */
+renderHome();renderPreview();renderPast();
+
+</script>
+</body>
+</html>

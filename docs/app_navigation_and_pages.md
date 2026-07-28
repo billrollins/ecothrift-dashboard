@@ -199,10 +199,10 @@ Grouped the way the **current navbar** presents them. Paths are staff SPA routes
 |------|------|----------------|
 | **Terminal** | `/pos/terminal` | Live POS register: cart, tender, discounts, delivery lines, checkout. |
 | **Transactions** | `/pos/transactions` | Historical completed sales / lookups. |
-| **Deliveries** | `/pos/deliveries` | Entry redirect into **Delivery Desk** or **Delivery Field** (Days + Total Deliveries). Legacy board at `/pos/deliveries/legacy` is a one-release deprecated escape hatch. |
-| **Delivery Desk** | `/pos/deliveries/desk/days`, `/desk/total`, `/desk/days/:dayId` | Office planning/review + live run monitor on day detail; never renders the Field driver wizard. |
-| **Delivery Field** | `/pos/deliveries/field/days`, `/field/total`, `/field/days/:dayId` | Mobile full-day run: Start Today → contact → load → truck → route → drive → return; sticky timer + bottom shortcuts. |
-| **Deliveries (legacy)** | `/pos/deliveries/legacy` | Deprecated one-release escape hatch for the prior unified Day Board. |
+| **Deliveries** | `/pos/deliveries` | Entry redirect into **Delivery Desk** (desktop) or **Delivery Field** (mobile) Days. |
+| **Delivery Desk** | `/pos/deliveries/desk/days`, `/desk/total`, `/desk/days/:dayId` | Office planning/review + live run/route/ETA monitor on day detail; never renders the Field driver wizard. |
+| **Delivery Field** | `/pos/deliveries/field/days`, `/field/total`, `/field/days/:dayId` | Mobile full-day run: Contact → Load → Routes → Deliveries → Finish; Routes API ETAs; sticky timer + step rail. |
+| **Deliveries (legacy)** | `/pos/deliveries/legacy` | Redirects to `/pos/deliveries` (retired in v2.57.0). |
 | **Drawers** | `/pos/drawers` | Cash drawer open/close status by register/day. |
 | **Cash Management** | `/pos/cash` | Drops, pickups, safe / reconciliation workflows. |
 | **Printables** | `/pos/printables` | Policy sheets / driver logs and similar printables. |

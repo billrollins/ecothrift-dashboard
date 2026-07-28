@@ -2,13 +2,19 @@ import { describe, expect, it } from 'vitest';
 import type { DeliveryDayDetail, DeliveryRun, DeliveryRunStop } from '../../../../types/pos.types';
 import {
   confirmedStops,
+  deliverySmsTemplates,
+  detectSmsPlatform,
   fieldPrimaryAction,
   fieldStageLabel,
   flattenStopItemsQueue,
   formatElapsed,
   hasDirtyFieldState,
+  hasPhoneDigits,
+  isFieldDayToday,
+  localTodayYmd,
   normalizeFieldPhase,
   resolveFieldStage,
+  smsComposerUrl,
   unconfirmedStops,
 } from './fieldRunUtils';
 
@@ -133,6 +139,13 @@ describe('fieldRunUtils', () => {
     ).toBe('completed');
   });
 
+  it('compares Field day dates to local today', () => {
+    const now = new Date(2026, 6, 22, 15, 0, 0); // local Jul 22 2026
+    expect(localTodayYmd(now)).toBe('2026-07-22');
+    expect(isFieldDayToday('2026-07-22', now)).toBe(true);
+    expect(isFieldDayToday('2026-07-29', now)).toBe(false);
+  });
+
   it('formats elapsed timer', () => {
     expect(formatElapsed(65)).toBe('1:05');
     expect(formatElapsed(3661)).toBe('1:01:01');
@@ -195,5 +208,52 @@ describe('fieldRunUtils', () => {
     expect(hasDirtyFieldState({ pendingUploads: 0, draftNote: '', draftSku: '' })).toBe(false);
     expect(hasDirtyFieldState({ pendingUploads: 1, draftNote: '', draftSku: '' })).toBe(true);
     expect(hasDirtyFieldState({ pendingUploads: 0, draftNote: 'x', draftSku: '' })).toBe(true);
+  });
+
+  it('smsComposerUrl uses platform-specific body separators', () => {
+    expect(smsComposerUrl('402-555-0100', 'Hi there', 'ios')).toBe(
+      'sms:4025550100&body=Hi%20there',
+    );
+    expect(smsComposerUrl('402-555-0100', 'Hi there', 'android')).toBe(
+      'sms:4025550100?body=Hi%20there',
+    );
+  });
+
+  it('detectSmsPlatform treats iPadOS desktop Safari as iOS', () => {
+    expect(
+      detectSmsPlatform({
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
+        platform: 'MacIntel',
+        maxTouchPoints: 5,
+      }),
+    ).toBe('ios');
+    expect(
+      detectSmsPlatform({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        platform: 'Win32',
+        maxTouchPoints: 0,
+      }),
+    ).toBe('other');
+    expect(
+      detectSmsPlatform({
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+        platform: 'iPhone',
+        maxTouchPoints: 5,
+      }),
+    ).toBe('ios');
+  });
+
+  it('hasPhoneDigits rejects empty or punctuation-only phones', () => {
+    expect(hasPhoneDigits('402-555-0100')).toBe(true);
+    expect(hasPhoneDigits('')).toBe(false);
+    expect(hasPhoneDigits('   ')).toBe(false);
+    expect(hasPhoneDigits('---')).toBe(false);
+    expect(hasPhoneDigits(null)).toBe(false);
+  });
+
+  it('deliverySmsTemplates include ETA variants', () => {
+    const templates = deliverySmsTemplates({ firstName: 'Pat', eta: '2:15 PM', date: '2026-07-24' });
+    expect(templates.map((t) => t.key)).toEqual(['on_my_way', 'revised_eta', 'delayed']);
+    expect(templates[0].body).toContain('2:15 PM');
   });
 });

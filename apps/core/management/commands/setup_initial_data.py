@@ -194,6 +194,11 @@ class Command(BaseCommand):
                 90,
                 'Sold-items lookback (days) for category need SQL and related buying aggregates.',
             ),
+            (
+                'delivery_service_minutes_per_stop',
+                20,
+                'Delivery Field: assumed unload/service minutes per stop for ETA math (5–120).',
+            ),
             ('store_name', 'Eco-Thrift', 'Business name'),
             ('store_address', '8425 West Center Road, Omaha NE 68124', 'Store address'),
             ('store_phone', '(402) 881-9861', 'Store phone'),

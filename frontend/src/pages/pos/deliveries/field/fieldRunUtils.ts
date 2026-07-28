@@ -32,6 +32,18 @@ export function normalizeFieldPhase(phase: DeliveryRunPhase | string | undefined
   return phase as DeliveryRunPhase;
 }
 
+/** Local calendar YYYY-MM-DD (avoids UTC shift from toISOString). */
+export function localTodayYmd(now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function isFieldDayToday(dayDate: string, now: Date = new Date()): boolean {
+  return dayDate === localTodayYmd(now);
+}
+
 export function resolveFieldStage(
   day: DeliveryDayDetail,
   run: DeliveryRun | null | undefined,
@@ -145,13 +157,74 @@ export function mapsNavigateUrl(address: string): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${q}`;
 }
 
-export function smsComposerUrl(phone: string, body: string): string {
-  const digits = phone.replace(/[^\d+]/g, '');
-  return `sms:${digits}?body=${encodeURIComponent(body)}`;
+/** Digits (and leading +) suitable for tel:/sms: URLs. */
+export function normalizePhoneDigits(phone: string | null | undefined): string {
+  if (!phone) return '';
+  return phone.replace(/[^\d+]/g, '');
+}
+
+export function hasPhoneDigits(phone: string | null | undefined): boolean {
+  return normalizePhoneDigits(phone).replace(/\D/g, '').length > 0;
+}
+
+/**
+ * iOS Messages wants `sms:number&body=`; Android prefers `sms:number?body=`.
+ * iPadOS 13+ "desktop" Safari often reports MacIntel without "iPad" in the UA.
+ */
+export function detectSmsPlatform(
+  nav: Pick<Navigator, 'userAgent' | 'platform' | 'maxTouchPoints'> | undefined = typeof navigator !==
+  'undefined'
+    ? navigator
+    : undefined,
+): 'ios' | 'other' {
+  if (!nav) return 'other';
+  if (/iPhone|iPad|iPod/i.test(nav.userAgent)) return 'ios';
+  if (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1) return 'ios';
+  return 'other';
+}
+
+/** Build a native SMS composer URL. iOS wants `&body=`; Android/`sms:` prefers `?body=`. */
+export function smsComposerUrl(
+  phone: string,
+  body: string,
+  platform?: 'ios' | 'android' | 'other',
+): string {
+  const digits = normalizePhoneDigits(phone);
+  const encoded = encodeURIComponent(body);
+  const detected = platform ?? detectSmsPlatform();
+  if (detected === 'ios') {
+    return `sms:${digits}&body=${encoded}`;
+  }
+  return `sms:${digits}?body=${encoded}`;
+}
+
+export function deliverySmsTemplates(vars: {
+  firstName: string;
+  eta: string;
+  date?: string;
+}): { key: string; label: string; body: string }[] {
+  const { firstName, eta, date } = vars;
+  return [
+    {
+      key: 'on_my_way',
+      label: 'On my way',
+      body: `Hi ${firstName}! Your Eco-Thrift delivery is on the way. Current ETA: ${eta}.`,
+    },
+    {
+      key: 'revised_eta',
+      label: 'Revised ETA',
+      body: `Hi ${firstName} — quick update: your Eco-Thrift delivery ETA is now ${eta}.`,
+    },
+    {
+      key: 'delayed',
+      label: 'Running late',
+      body: `Hi ${firstName}, we’re running a bit behind on deliveries${date ? ` for ${date}` : ''}. New ETA: ${eta}. Thanks for your patience!`,
+    },
+  ];
 }
 
 export function telHref(phone: string): string {
-  return `tel:${phone.replace(/[^\d+]/g, '')}`;
+  return `tel:${normalizePhoneDigits(phone)}`;
 }
 
 export interface FieldPrimaryAction {
@@ -170,7 +243,7 @@ export function fieldPrimaryAction(run: DeliveryRun | null | undefined): FieldPr
     return { label: 'Record contact', action: 'contact' };
   }
   if (next === 'set_phase:load' && allowed.has('set_phase:load')) {
-    return { label: 'Start loading', action: 'set_phase:load' };
+    return { label: 'Complete Contact', action: 'set_phase:load' };
   }
   if (next === 'load' || phase === 'load') {
     const item = nextIncompleteLoadItem(run);

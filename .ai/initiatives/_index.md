@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-22 (Delivery Phase 2 / v2.56.0) -->
+<!-- Last updated: 2026-07-27 (Delivery Phase 4C device fixes) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not roadmap strategy, not week-scale projects, not an AI plan/TODO list.
@@ -13,7 +13,7 @@ Session details live **only** in each file under **`## Sessions`**.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [delivery_mobile_operations_completion](./delivery_mobile_operations_completion.md) | Phase 2 shipped → Phase 3 next | **v2.56.0** Field full-day workflow + Desk live monitor. Next: routing/ETA/signature/SMS polish. |
+| [delivery_mobile_operations_completion](./delivery_mobile_operations_completion.md) | Phase 4 done → Phase 5 | **v2.57.0** + `[Unreleased]` Field polish + device fixes. Next: Phase 5 Desk unify + prod add/adjust. |
 
 ---
 

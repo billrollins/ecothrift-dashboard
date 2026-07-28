@@ -11,7 +11,11 @@ from apps.pos.services.delivery_test_dataset import DeliveryDatasetError, seed_d
 
 
 class Command(BaseCommand):
-    help = 'Seed a named [TEST] delivery dataset (Today/past/future + contact scenarios).'
+    help = (
+        'Seed a named delivery QA dataset for local/DEBUG only (relative to today): '
+        'Past 2 (good+bad), Today 4 (1/2/3/4 items), Future 3 (2 same day + 1 later). '
+        'Rows look like real deliveries; ownership is tracked via DeliveryTestDataset for reset.'
+    )
 
     def add_arguments(self, parser):
         parser.add_argument('--key', required=True, help='Stable dataset key, e.g. phase1-smoke')

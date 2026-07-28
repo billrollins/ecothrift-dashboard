@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   archiveDelivery,
   archiveDeliveryDay,
@@ -33,6 +33,30 @@ export function useDeliveryDays(params?: Record<string, unknown>) {
     queryFn: async () => {
       const { data } = await getDeliveryDays(params);
       return data as PaginatedResponse<DeliveryDaySummary>;
+    },
+  });
+}
+
+/** Paginated Days list for Field Future/Past sections (Load more). */
+export function useDeliveryDaysInfinite(
+  base: { bucket: 'past' | 'future'; include_test?: '1' },
+  pageSize = 5,
+) {
+  return useInfiniteQuery({
+    queryKey: ['delivery-days', 'infinite', base, pageSize] as const,
+    queryFn: async ({ pageParam }) => {
+      const { data } = await getDeliveryDays({
+        ...base,
+        page: pageParam,
+        page_size: pageSize,
+      });
+      return data as PaginatedResponse<DeliveryDaySummary>;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((acc, p) => acc + p.results.length, 0);
+      if (loaded >= lastPage.count) return undefined;
+      return allPages.length + 1;
     },
   });
 }

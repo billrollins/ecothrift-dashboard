@@ -33,7 +33,6 @@ export default function DeskDayDetailPage() {
           {day.date}
         </Typography>
         <Chip size="small" label={day.display_state} />
-        {day.is_test && <Chip size="small" color="warning" label="TEST" />}
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         {day.time_start?.slice(0, 5)}–{day.time_end?.slice(0, 5)} ·{' '}
@@ -47,7 +46,7 @@ export default function DeskDayDetailPage() {
           <Button component={RouterLink} to={`/pos/deliveries/field/days/${day.id}`} size="small">
             Field day board
           </Button>
-          . Legacy board remains available as fallback.
+          .
         </Alert>
       )}
 

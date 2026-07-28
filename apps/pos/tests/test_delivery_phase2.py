@@ -99,14 +99,18 @@ class DeliveryPhase2ContactTests(TestCase):
         stop.refresh_from_db()
         self.assertEqual(stop.contact_disposition, DeliveryRunStop.DISPOSITION_CONFIRMED)
 
-    def test_exclude_unconfirmed_requires_reason(self):
+    def test_exclude_defaults_reason_and_allows_confirmed(self):
         run = start_or_resume_run(date=self.date, user=self.user)
         stop = run.stops.get(job=self.job)
-        with self.assertRaises(ValueError):
-            phase2.exclude_unconfirmed_stop(stop, user=self.user, reason='')
-        phase2.exclude_unconfirmed_stop(stop, user=self.user, reason='No reply by departure')
+        phase2.set_contact_disposition(
+            stop, user=self.user, disposition=DeliveryRunStop.DISPOSITION_CONFIRMED
+        )
+        stop.refresh_from_db()
+        phase2.exclude_unconfirmed_stop(stop, user=self.user, reason='')
         stop.refresh_from_db()
         self.assertTrue(stop.excluded_unconfirmed_at)
+        self.assertEqual(stop.excluded_unconfirmed_reason, 'Taken off route')
+        self.assertTrue(stop.contact_disposition == DeliveryRunStop.DISPOSITION_CONFIRMED)
         self.assertTrue(phase2.stop_has_contact_resolution(stop))
 
 
@@ -189,6 +193,84 @@ class DeliveryPhase2ItemTests(TestCase):
         self.assertTrue(item.verification_skipped_at)
         self.assertTrue(phase2.stop_item_is_verified(item))
 
+    def test_scan_mismatch_looks_up_run_item(self):
+        other_job = DeliveryJob.objects.create(
+            availability=self.slot,
+            scheduled_date=self.date,
+            customer_name='Reese',
+            phone='402-555-0201',
+            address='201 Oak St, Omaha, NE',
+            items_delivered='Lamp',
+            item_count=1,
+            status=DeliveryJob.STATUS_SCHEDULED,
+            created_by=self.user,
+        )
+        DeliveryJobItem.objects.create(
+            job=other_job,
+            sku='LAMP-99',
+            description='Floor lamp',
+            quantity=1,
+            position=0,
+            is_scannable=True,
+            created_by=self.user,
+        )
+        run = start_or_resume_run(date=self.date, user=self.user)
+        chair = run.stops.get(job=self.job).stop_items.get()
+        with self.assertRaises(phase2.ScanMismatchError) as ctx:
+            phase2.scan_stop_item(chair, user=self.user, scanned_code='LAMP-99')
+        err = ctx.exception
+        self.assertEqual(err.scanned_code, 'LAMP-99')
+        self.assertEqual(err.expected_sku, 'CHAIR-01')
+        self.assertEqual(err.found['source'], 'run_item')
+        self.assertEqual(err.found['description'], 'Floor lamp')
+        self.assertEqual(err.found['customer_name'], 'Reese')
+        self.assertEqual(chair.scans.count(), 0)
+
+    def test_scan_mismatch_override_accepts_code(self):
+        run = start_or_resume_run(date=self.date, user=self.user)
+        item = run.stops.get(job=self.job).stop_items.get()
+        phase2.scan_stop_item(
+            item,
+            user=self.user,
+            scanned_code='WRONG-SKU',
+            allow_mismatch=True,
+        )
+        self.assertEqual(item.scans.count(), 1)
+        self.assertEqual(item.scans.get().scanned_code, 'WRONG-SKU')
+
+    def test_scan_marks_loaded_when_quantity_complete(self):
+        run = start_or_resume_run(date=self.date, user=self.user)
+        item = run.stops.get(job=self.job).stop_items.get()
+        self.assertEqual(item.quantity, 2)
+        phase2.scan_stop_item(item, user=self.user, scanned_code='CHAIR-01')
+        item.refresh_from_db()
+        self.assertFalse(item.loaded_at)
+        phase2.scan_stop_item(item, user=self.user, scanned_code='CHAIR-01')
+        item.refresh_from_db()
+        self.assertTrue(item.loaded_at)
+        self.assertTrue(phase2.stop_item_is_ready(item))
+
+    def test_skip_marks_loaded(self):
+        run = start_or_resume_run(date=self.date, user=self.user)
+        item = run.stops.get(job=self.job).stop_items.get()
+        phase2.skip_stop_item_verification(item, user=self.user, reason='No SKU on item')
+        item.refresh_from_db()
+        self.assertTrue(item.loaded_at)
+        self.assertTrue(phase2.stop_item_is_ready(item))
+
+    def test_unload_stop_with_reason_clears_loaded(self):
+        run = start_or_resume_run(date=self.date, user=self.user)
+        stop = run.stops.get(job=self.job)
+        item = stop.stop_items.get()
+        phase2.scan_stop_item(item, user=self.user, scanned_code='CHAIR-01')
+        phase2.scan_stop_item(item, user=self.user, scanned_code='CHAIR-01')
+        item.refresh_from_db()
+        self.assertTrue(item.loaded_at)
+        mark_loaded(stop, user=self.user, loaded=False, reason='Left at dock by mistake')
+        item.refresh_from_db()
+        self.assertIsNone(item.loaded_at)
+        self.assertFalse(phase2.stop_item_is_ready(item))
+
     def test_load_allowed_while_unconfirmed(self):
         run = start_or_resume_run(date=self.date, user=self.user)
         stop = run.stops.get(job=self.job)
@@ -246,9 +328,11 @@ class DeliveryPhase2GateTests(TestCase):
         )
 
     def _ready_item(self, item: DeliveryRunStopItem):
+        # Scan (or skip) marks the item loaded automatically — no per-item photo.
         phase2.scan_stop_item(item, user=self.user, scanned_code=item.sku)
-        phase2.set_stop_item_loaded(item, user=self.user, loaded=True)
-        phase2.set_stop_item_photo_exception(item, user=self.user, reason='Test photo exception')
+        item.refresh_from_db()
+        self.assertTrue(item.loaded_at)
+        self.assertTrue(phase2.stop_item_is_ready(item))
 
     @override_settings(
         DEFAULT_FILE_STORAGE='django.core.files.storage.FileSystemStorage',
@@ -275,7 +359,7 @@ class DeliveryPhase2GateTests(TestCase):
         run.refresh_from_db()
         self.assertTrue(run.truck_closed_at)
 
-        # Route blocked until contact resolved.
+        # Need at least one confirmed stop before route review (yellows may remain).
         with self.assertRaises(ValueError):
             set_phase(run, DeliveryRun.PHASE_ROUTE, user=self.user)
 
@@ -293,6 +377,16 @@ class DeliveryPhase2GateTests(TestCase):
         self.assertEqual(run.status, DeliveryRun.STATUS_EN_ROUTE)
         self.assertEqual(run.phase, DeliveryRun.PHASE_ACTIVE)
 
+        # Active runs cannot unload or reorder via phase-gated actions.
+        from apps.pos.services.delivery_run import allowed_actions_for_run, reorder_stops
+
+        self.assertNotIn('load', allowed_actions_for_run(run))
+        self.assertNotIn('reorder', allowed_actions_for_run(run))
+        with self.assertRaises(phase2.RunActionDenied):
+            phase2.set_stop_item_loaded(item, user=self.user, loaded=False, reason='too late')
+        with self.assertRaises(ValueError):
+            reorder_stops(run, [stop.id], user=self.user, base_revision=run.route_revision)
+
     def test_employee_cannot_departure_override(self):
         run = start_or_resume_run(date=self.date, user=self.user)
         with self.assertRaises(PermissionError):
@@ -300,6 +394,257 @@ class DeliveryPhase2GateTests(TestCase):
         phase2.set_departure_override(run, user=self.user, reason='Manager approved skip')
         run.refresh_from_db()
         self.assertTrue(run.departure_override)
+
+    @override_settings(
+        DEFAULT_FILE_STORAGE='django.core.files.storage.FileSystemStorage',
+        MEDIA_ROOT='/tmp/delivery-phase2-media',
+    )
+    def test_close_truck_allows_unloaded_stops_left_off(self):
+        """Seal when at least one delivery is fully on truck; unloaded stops don't block."""
+        job2 = DeliveryJob.objects.create(
+            availability=self.slot,
+            scheduled_date=self.date,
+            customer_name='Off Truck',
+            phone='402-555-0301',
+            address='301 Pine St, Omaha, NE',
+            items_delivered='Chair',
+            item_count=1,
+            status=DeliveryJob.STATUS_SCHEDULED,
+            created_by=self.user,
+        )
+        DeliveryJobItem.objects.create(
+            job=job2,
+            sku='CHAIR-01',
+            description='Chair',
+            quantity=1,
+            position=0,
+            is_scannable=True,
+            created_by=self.user,
+        )
+        run = start_or_resume_run(date=self.date, user=self.user)
+        set_phase(run, DeliveryRun.PHASE_LOAD, user=self.user)
+        on_truck = run.stops.get(job=self.job)
+        left_off = run.stops.get(job=job2)
+        self._ready_item(on_truck.stop_items.get())
+        # left_off stays unloaded
+        self.assertFalse(phase2.stop_item_is_ready(left_off.stop_items.get()))
+        progress = phase2.load_progress(run)
+        self.assertTrue(progress['can_close_truck'])
+        self.assertFalse(progress['all_ready'])
+        uploaded = SimpleUploadedFile('truck.jpg', b'fakeimage', content_type='image/jpeg')
+        save_attachment(run=run, user=self.user, uploaded_file=uploaded, kind='truck')
+        phase2.close_truck(run, user=self.user)
+        run.refresh_from_db()
+        self.assertTrue(run.truck_closed_at)
+
+    @override_settings(
+        DEFAULT_FILE_STORAGE='django.core.files.storage.FileSystemStorage',
+        MEDIA_ROOT='/tmp/delivery-phase2-media',
+    )
+    def test_route_review_allows_unresolved_yellow_contacts(self):
+        """After seal, enter route with confirmed + yellow; begin_route still hard-gates."""
+        job2 = DeliveryJob.objects.create(
+            availability=self.slot,
+            scheduled_date=self.date,
+            customer_name='Yellow Contact',
+            phone='402-555-0302',
+            address='302 Pine St, Omaha, NE',
+            items_delivered='Table',
+            item_count=1,
+            status=DeliveryJob.STATUS_SCHEDULED,
+            created_by=self.user,
+        )
+        DeliveryJobItem.objects.create(
+            job=job2,
+            sku='TABLE-01',
+            description='Table',
+            quantity=1,
+            position=0,
+            is_scannable=True,
+            created_by=self.user,
+        )
+        run = start_or_resume_run(date=self.date, user=self.user)
+        set_phase(run, DeliveryRun.PHASE_LOAD, user=self.user)
+        confirmed = run.stops.get(job=self.job)
+        yellow = run.stops.get(job=job2)
+        phase2.set_contact_disposition(
+            confirmed, user=self.user, disposition=DeliveryRunStop.DISPOSITION_CONFIRMED
+        )
+        phase2.set_contact_disposition(
+            yellow, user=self.user, disposition=DeliveryRunStop.DISPOSITION_NO_ANSWER
+        )
+        self._ready_item(confirmed.stop_items.get())
+        uploaded = SimpleUploadedFile('truck.jpg', b'fakeimage', content_type='image/jpeg')
+        save_attachment(run=run, user=self.user, uploaded_file=uploaded, kind='truck')
+        phase2.close_truck(run, user=self.user)
+        run.refresh_from_db()
+
+        self.assertFalse(phase2.all_candidate_stops_resolved(run))
+        self.assertIn('set_phase:route', serialize_run(run)['allowed_actions'])
+        set_phase(run, DeliveryRun.PHASE_ROUTE, user=self.user)
+        run.refresh_from_db()
+        self.assertEqual(run.phase, DeliveryRun.PHASE_ROUTE)
+
+        with self.assertRaises(ValueError) as ctx:
+            begin_route(run, user=self.user)
+        self.assertTrue(
+            'excluded' in str(ctx.exception).lower()
+            or 'confirmed' in str(ctx.exception).lower()
+            or 'reply' in str(ctx.exception).lower()
+        )
+
+    @override_settings(
+        DEFAULT_FILE_STORAGE='django.core.files.storage.FileSystemStorage',
+        MEDIA_ROOT='/tmp/delivery-phase2-media',
+    )
+    def test_begin_route_blocks_confirmed_not_on_truck(self):
+        """Seal may leave a confirmed stop off the truck; Start Deliveries cannot."""
+        job2 = DeliveryJob.objects.create(
+            availability=self.slot,
+            scheduled_date=self.date,
+            customer_name='Left Off Truck',
+            phone='402-555-0303',
+            address='303 Pine St, Omaha, NE',
+            items_delivered='Desk',
+            item_count=1,
+            status=DeliveryJob.STATUS_SCHEDULED,
+            created_by=self.user,
+        )
+        DeliveryJobItem.objects.create(
+            job=job2,
+            sku='DESK-01',
+            description='Desk',
+            quantity=1,
+            position=0,
+            is_scannable=True,
+            created_by=self.user,
+        )
+        run = start_or_resume_run(date=self.date, user=self.user)
+        set_phase(run, DeliveryRun.PHASE_LOAD, user=self.user)
+        on_truck = run.stops.get(job=self.job)
+        left_off = run.stops.get(job=job2)
+        phase2.set_contact_disposition(
+            on_truck, user=self.user, disposition=DeliveryRunStop.DISPOSITION_CONFIRMED
+        )
+        phase2.set_contact_disposition(
+            left_off, user=self.user, disposition=DeliveryRunStop.DISPOSITION_CONFIRMED
+        )
+        self._ready_item(on_truck.stop_items.get())
+        uploaded = SimpleUploadedFile('truck.jpg', b'fakeimage', content_type='image/jpeg')
+        save_attachment(run=run, user=self.user, uploaded_file=uploaded, kind='truck')
+        phase2.close_truck(run, user=self.user)
+        set_phase(run, DeliveryRun.PHASE_ROUTE, user=self.user)
+
+        ok, reason = phase2.departure_gates_ok(run)
+        self.assertFalse(ok)
+        self.assertIn('not on the truck', reason)
+        self.assertIn('reopen the truck', reason)
+        self.assertIn('Left Off Truck', reason)
+        with self.assertRaises(ValueError) as ctx:
+            begin_route(run, user=self.user)
+        self.assertIn('not on the truck', str(ctx.exception))
+        self.assertIn('reopen the truck', str(ctx.exception))
+
+    @override_settings(
+        DEFAULT_FILE_STORAGE='django.core.files.storage.FileSystemStorage',
+        MEDIA_ROOT='/tmp/delivery-phase2-media',
+    )
+    def test_reopen_truck_requires_fresh_photo_and_clears_override(self):
+        """Reopen rolls route→truck, clears seal + override; reseal needs a new photo."""
+        from apps.pos.services.delivery_run import allowed_actions_for_run
+
+        run = start_or_resume_run(date=self.date, user=self.user)
+        set_phase(run, DeliveryRun.PHASE_LOAD, user=self.user)
+        stop = run.stops.get(job=self.job)
+        phase2.set_contact_disposition(
+            stop, user=self.user, disposition=DeliveryRunStop.DISPOSITION_CONFIRMED
+        )
+        item = stop.stop_items.get()
+        self._ready_item(item)
+        uploaded = SimpleUploadedFile('truck1.jpg', b'fakeimage1', content_type='image/jpeg')
+        save_attachment(run=run, user=self.user, uploaded_file=uploaded, kind='truck')
+        phase2.close_truck(run, user=self.user)
+        phase2.set_departure_override(run, user=self.user, reason='Skip photo once')
+        set_phase(run, DeliveryRun.PHASE_ROUTE, user=self.user)
+        run.refresh_from_db()
+        self.assertEqual(run.phase, DeliveryRun.PHASE_ROUTE)
+        self.assertTrue(run.truck_closed_at)
+        self.assertTrue(run.departure_override)
+        self.assertIn('reopen_truck', allowed_actions_for_run(run))
+        self.assertIn('reorder', allowed_actions_for_run(run))
+
+        phase2.reopen_truck(run, user=self.user, reason='Forgot a delivery')
+        run.refresh_from_db()
+        self.assertEqual(run.phase, DeliveryRun.PHASE_TRUCK)
+        self.assertIsNone(run.truck_closed_at)
+        self.assertIsNotNone(run.truck_reopened_at)
+        self.assertFalse(run.departure_override)
+        self.assertEqual(run.departure_override_reason, '')
+        self.assertFalse(phase2.truck_is_closed(run))
+
+        actions = allowed_actions_for_run(run)
+        self.assertIn('load', actions)
+        self.assertIn('scan_verify', actions)
+        self.assertNotIn('reorder', actions)
+        self.assertNotIn('optimize', actions)
+        self.assertNotIn('begin_route', actions)
+        self.assertNotIn('reopen_truck', actions)
+
+        # Old photo does not satisfy reseal.
+        with self.assertRaises(ValueError) as ctx:
+            phase2.close_truck(run, user=self.user)
+        self.assertIn('new closed-door truck photo', str(ctx.exception).lower())
+
+        # Load still works after reopen.
+        phase2.set_stop_item_loaded(item, user=self.user, loaded=False, reason='adjust')
+        item.refresh_from_db()
+        self.assertIsNone(item.loaded_at)
+        phase2.set_stop_item_loaded(item, user=self.user, loaded=True)
+        item.refresh_from_db()
+        self.assertTrue(item.loaded_at)
+
+        uploaded2 = SimpleUploadedFile('truck2.jpg', b'fakeimage2', content_type='image/jpeg')
+        save_attachment(run=run, user=self.user, uploaded_file=uploaded2, kind='truck')
+        phase2.close_truck(run, user=self.user)
+        run.refresh_from_db()
+        self.assertTrue(run.truck_closed_at)
+        self.assertTrue(phase2.truck_is_closed(run))
+        payload = serialize_run(run)
+        self.assertEqual(payload['truck_photo_count'], 2)
+        self.assertEqual(payload['truck_seal_photo_count'], 1)
+        self.assertIsNotNone(payload['truck_reopened_at'])
+
+    @override_settings(
+        DEFAULT_FILE_STORAGE='django.core.files.storage.FileSystemStorage',
+        MEDIA_ROOT='/tmp/delivery-phase2-media',
+    )
+    def test_reopen_truck_blocked_after_departure(self):
+        run = start_or_resume_run(date=self.date, user=self.user)
+        set_phase(run, DeliveryRun.PHASE_LOAD, user=self.user)
+        stop = run.stops.get(job=self.job)
+        phase2.set_contact_disposition(
+            stop, user=self.user, disposition=DeliveryRunStop.DISPOSITION_CONFIRMED
+        )
+        self._ready_item(stop.stop_items.get())
+        uploaded = SimpleUploadedFile('truck.jpg', b'fakeimage', content_type='image/jpeg')
+        save_attachment(run=run, user=self.user, uploaded_file=uploaded, kind='truck')
+        phase2.close_truck(run, user=self.user)
+        set_phase(run, DeliveryRun.PHASE_ROUTE, user=self.user)
+        with patch('apps.pos.services.delivery_run.apply_route_plan') as mock_plan:
+            mock_plan.return_value = {'optimized': False, 'etas': []}
+            begin_route(run, user=self.user)
+        run.refresh_from_db()
+        self.assertEqual(run.status, DeliveryRun.STATUS_EN_ROUTE)
+        self.assertNotIn('reopen_truck', serialize_run(run)['allowed_actions'])
+        with self.assertRaises(ValueError) as ctx:
+            phase2.reopen_truck(run, user=self.user)
+        self.assertIn('not allowed', str(ctx.exception).lower())
+
+    def test_reopen_truck_blocked_when_not_sealed(self):
+        run = start_or_resume_run(date=self.date, user=self.user)
+        with self.assertRaises(ValueError) as ctx:
+            phase2.reopen_truck(run, user=self.user)
+        self.assertIn('not sealed', str(ctx.exception).lower())
 
     def test_stale_route_revision_raises(self):
         from apps.pos.services.delivery_run import StaleRouteRevision, reorder_stops
@@ -309,6 +654,8 @@ class DeliveryPhase2GateTests(TestCase):
         phase2.set_contact_disposition(
             stop, user=self.user, disposition=DeliveryRunStop.DISPOSITION_CONFIRMED
         )
+        run.phase = DeliveryRun.PHASE_ROUTE
+        run.save(update_fields=['phase', 'updated_at'])
         with self.assertRaises(StaleRouteRevision):
             with patch('apps.pos.services.delivery_run.apply_route_plan') as mock_plan:
                 mock_plan.return_value = {}

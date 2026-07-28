@@ -8,22 +8,26 @@ import {
 describe('desk days url state', () => {
   it('round-trips filters', () => {
     const state = parseDeskDaysUrlState(
-      new URLSearchParams('bucket=past&q=jose&include_test=1&page=2'),
+      new URLSearchParams('bucket=past&q=jose&page=2'),
     );
     expect(state).toEqual({
       bucket: 'past',
       search: 'jose',
-      includeTest: true,
       page: 2,
     });
     expect(deskDaysStateToParams(state).toString()).toBe(
-      'bucket=past&q=jose&include_test=1&page=2',
+      'bucket=past&q=jose&page=2',
     );
-    expect(deskDaysStateToApiParams(state)).toMatchObject({
+    const api = deskDaysStateToApiParams(state);
+    expect(api).toMatchObject({
       bucket: 'past',
       search: 'jose',
-      include_test: '1',
       page: 2,
     });
+    if (import.meta.env.DEV) {
+      expect(api.include_test).toBe('1');
+    } else {
+      expect(api).not.toHaveProperty('include_test');
+    }
   });
 });

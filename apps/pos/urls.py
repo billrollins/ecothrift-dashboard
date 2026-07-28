@@ -11,6 +11,7 @@ from .views import (
     delivery_address_suggest, delivery_distance_quote, delivery_optimize_route,
     delivery_runs, delivery_run_detail, delivery_run_set_phase,
     delivery_run_begin_route, delivery_run_optimize, delivery_run_reorder,
+    delivery_run_preview_insert, delivery_run_commit_insert,
     delivery_run_finish, delivery_run_upload, delivery_run_delete_attachment,
     delivery_run_return_store,
     delivery_stop_load, delivery_stop_secure, delivery_stop_call,
@@ -22,7 +23,7 @@ from .views import (
     delivery_stop_notes, delivery_stop_scan_verify, delivery_stop_report_issue,
     delivery_stop_item_scan, delivery_stop_item_skip, delivery_stop_item_load,
     delivery_stop_item_photo_exception,
-    delivery_run_close_truck, delivery_run_departure_override,
+    delivery_run_close_truck, delivery_run_reopen_truck, delivery_run_departure_override,
     delivery_job_append_address, delivery_job_reschedule,
 )
 
@@ -52,6 +53,16 @@ urlpatterns = [
     path('delivery-runs/<int:pk>/begin-route/', delivery_run_begin_route, name='delivery-run-begin-route'),
     path('delivery-runs/<int:pk>/optimize/', delivery_run_optimize, name='delivery-run-optimize'),
     path('delivery-runs/<int:pk>/reorder/', delivery_run_reorder, name='delivery-run-reorder'),
+    path(
+        'delivery-runs/<int:pk>/preview-insert/',
+        delivery_run_preview_insert,
+        name='delivery-run-preview-insert',
+    ),
+    path(
+        'delivery-runs/<int:pk>/commit-insert/',
+        delivery_run_commit_insert,
+        name='delivery-run-commit-insert',
+    ),
     path('delivery-runs/<int:pk>/finish/', delivery_run_finish, name='delivery-run-finish'),
     path(
         'delivery-runs/<int:pk>/return-store/',
@@ -135,6 +146,11 @@ urlpatterns = [
         'delivery-runs/<int:pk>/close-truck/',
         delivery_run_close_truck,
         name='delivery-run-close-truck',
+    ),
+    path(
+        'delivery-runs/<int:pk>/reopen-truck/',
+        delivery_run_reopen_truck,
+        name='delivery-run-reopen-truck',
     ),
     path(
         'delivery-runs/<int:pk>/departure-override/',

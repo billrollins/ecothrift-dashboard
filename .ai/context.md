@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-22 (Delivery Phase 1 / v2.55.0 Desk+Field foundation) -->
+<!-- Last updated: 2026-07-28 (v2.58.0 shipped; Phase 5 next) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active — Delivery Mobile Operations Completion:** [`delivery_mobile_operations_completion`](initiatives/delivery_mobile_operations_completion.md) — **Phase 1 shipped in v2.55.0** (canonical Days/items, Desk+Field inactive shells, dummy-data loop, hardening). Next: Phase 2 active Field workflow; Phase 3 photos/signature/routing/SMS.
+- **Active — Delivery Mobile Operations Completion:** [`delivery_mobile_operations_completion`](initiatives/delivery_mobile_operations_completion.md) — **Phases 1–4 shipped (v2.55–v2.58)**; Field polish + device-path fixes in **v2.58.0**. No production test data. **Next:** **Phase 5** Desk production add/adjust (function-first), then universal tokens + Desk restyle.
 - **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**; **v2.51.0** schedule-later; **v2.52.0** unified Day Board (calls → route → load → drive → return on the same cards).
 - **Parked — Online Sales Workspace:** [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md) — code retained; staff workspace + public holds **disabled** (`ONLINE_SALES_ENABLED=false`). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
 - **Parked — TARS decision guardrails:** [`tars_full_instruction_wizard_guidance`](initiatives/_archived/_pending/tars_full_instruction_wizard_guidance.md) — Studio at `/restoration/tars` **kept available**; floor validation + Phase 2/3 deferred. Contract: [`standalone_studio_contract.md`](reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).
@@ -89,7 +89,7 @@ ecothrift-dashboard/
 │   ├── App.tsx             Router + route guards
 │   └── main.tsx            Entry point + providers
 ├── printserver/            Local print server (FastAPI, Python, Windows installer)
-├── scripts/                Committed dev/deploy automation — **`dev/start_dashboard.bat`**, **`dev/start_website.bat`**, **`dev/kill_servers.bat`**, **`dev/daily_scheduled_tasks.bat`** (Heroku-parity buying jobs; see `.ai/extended/development.md`)
+├── scripts/                Committed dev/deploy automation — **`dev/start_dashboard.bat`**, **`dev/start_mobile_dashboard.bat`**, **`dev/start_website.bat`**, **`dev/kill_servers.bat`**, **`dev/daily_scheduled_tasks.bat`** (Heroku-parity buying jobs; see `.ai/extended/development.md`)
 ├── efforts/                Optional per-effort handoffs (`<slug>/CONTEXT.md`) — read after startup when continuing that thread; see `efforts/README.md`
 ├── .ai/                    AI steering — see `.ai/README.md`
 │   ├── README.md           Load order and folder roles
@@ -240,6 +240,6 @@ Capability summary — detail lives in the extended docs above and initiative fi
 | `.ai/` layout | `.ai/README.md` |
 | Reference artifacts | `.ai/reference/README.md` |
 | Protocols | `.ai/protocols/` — `code.0.Startup.md`, **`sql.0.UpdateSchema.md`**, `session.1.Checkpoint.md`, `code.1.Bearing.md`, `review.0.Bump.md`, `code.9.Push.md`, `review.9.Deep.md`, `session.9.Close.md`; optional advisor bundle — `.ai/extended/consultant_handoff.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
-| Dev scripts | `scripts/dev/` — **`daily_scheduled_tasks.bat`** (buying jobs), **`start_dashboard.bat`**, **`start_website.bat`**, **`kill_servers.bat`** |
+| Dev scripts | `scripts/dev/` — **`daily_scheduled_tasks.bat`** (buying jobs), **`start_dashboard.bat`**, **`start_mobile_dashboard.bat`**, **`start_website.bat`**, **`kill_servers.bat`** |
 | Scratch / notebooks | `workspace/` (mostly gitignored) |
 | E2E test templates | `workspace/testing/` |

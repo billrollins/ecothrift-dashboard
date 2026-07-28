@@ -100,6 +100,19 @@ export async function pendingCountForRun(runId: number): Promise<number> {
   return rows.filter((r) => r.runId === runId).length;
 }
 
+/** Queued kinds for a stop (used to explain why complete stays disabled). */
+export async function pendingKindsForStop(
+  runId: number,
+  stopId: number,
+): Promise<DeliveryPendingKind[]> {
+  const rows = await queueGetAll();
+  const kinds = new Set<DeliveryPendingKind>();
+  for (const r of rows) {
+    if (r.runId === runId && r.stopId === stopId) kinds.add(r.kind);
+  }
+  return [...kinds];
+}
+
 export type DeliveryUploadFn = (
   blob: Blob,
   meta: {

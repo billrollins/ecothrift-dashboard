@@ -50,7 +50,7 @@ class DeliveryDaysAPITests(TestCase):
             '/api/pos/deliveries/',
             {
                 'day': self.day.id,
-                'customer_name': '[TEST] Search Me',
+                'customer_name': 'Search Me',
                 'phone': '402-555-0177',
                 'address': '77 Search St',
                 'items_delivered': 'Washer',

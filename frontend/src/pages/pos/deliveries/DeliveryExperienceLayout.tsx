@@ -1,6 +1,5 @@
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Box, Button, useMediaQuery } from '@mui/material';
-import { useIncludeTestPreference } from '../../../hooks/useIncludeTestPreference';
 import type { DeliveryExperience } from '../../../utils/delivery/experiencePreference';
 import { FieldListBottomNav } from './field/FieldListBottomNav';
 
@@ -11,7 +10,7 @@ type Props = {
 /**
  * Thin shell for Desk/Field delivery routes.
  * Experience is viewport-driven (no Desk/Field toggle).
- * Field list pages use a bottom Days/Deliveries/Test bar; open-day keeps its own shortcuts.
+ * Field list pages use a bottom Days/Deliveries bar; open-day keeps its own shortcuts.
  */
 export default function DeliveryExperienceLayout({ experience }: Props) {
   const location = useLocation();
@@ -20,11 +19,10 @@ export default function DeliveryExperienceLayout({ experience }: Props) {
   const expected: DeliveryExperience = isMobile ? 'field' : 'desk';
   const onTotal = location.pathname.includes('/total');
   const onDayDetail = /\/days\/\d+/.test(location.pathname);
-  const [includeTest, setIncludeTest] = useIncludeTestPreference();
   const showFieldListBar = experience === 'field' && !onDayDetail;
 
   if (experience !== expected) {
-    // Preserve day detail id + query (include_test, bucket, q) when flipping experiences.
+    // Preserve day detail id + query (bucket, q) when flipping experiences.
     const dayMatch = location.pathname.match(/\/days\/(\d+)/);
     const target = dayMatch
       ? `/pos/deliveries/${expected}/days/${dayMatch[1]}`
@@ -62,7 +60,7 @@ export default function DeliveryExperienceLayout({ experience }: Props) {
     );
   }
 
-  // Desk (and any non-Field list): compact top Test + Days/Deliveries controls.
+  // Desk: compact Days/Deliveries control.
   return (
     <Box
       sx={{
@@ -81,23 +79,6 @@ export default function DeliveryExperienceLayout({ experience }: Props) {
           minHeight: 28,
         }}
       >
-        <Button
-          size="small"
-          variant="text"
-          onClick={() => setIncludeTest(!includeTest)}
-          aria-pressed={includeTest}
-          sx={{
-            minWidth: 0,
-            px: 0.75,
-            py: 0.25,
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            textTransform: 'none',
-            color: includeTest ? 'warning.dark' : 'text.secondary',
-          }}
-        >
-          {includeTest ? 'Test on' : 'Test'}
-        </Button>
         <Button
           size="small"
           variant="text"

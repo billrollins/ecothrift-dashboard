@@ -44,7 +44,6 @@ import TransactionListPage from './pages/pos/TransactionListPage';
 import PosPrintablesPage from './pages/pos/PosPrintablesPage';
 import DeliveriesEntryRedirect from './pages/pos/deliveries/DeliveriesEntryRedirect';
 import DeliveryExperienceLayout from './pages/pos/deliveries/DeliveryExperienceLayout';
-import LegacyDeliveriesPage from './pages/pos/deliveries/LegacyDeliveriesPage';
 import DeskDaysPage from './pages/pos/deliveries/desk/DeskDaysPage';
 import DeskDayDetailPage from './pages/pos/deliveries/desk/DeskDayDetailPage';
 import DeskTotalDeliveriesPage from './pages/pos/deliveries/desk/DeskTotalDeliveriesPage';
@@ -180,7 +179,7 @@ export default function App() {
         <Route path="/pos/transactions" element={<TransactionListPage />} />
         <Route path="/pos/printables" element={<PosPrintablesPage />} />
         <Route path="/pos/deliveries" element={<DeliveriesEntryRedirect />} />
-        <Route path="/pos/deliveries/legacy" element={<LegacyDeliveriesPage />} />
+        <Route path="/pos/deliveries/legacy" element={<Navigate to="/pos/deliveries" replace />} />
         <Route path="/pos/deliveries/desk" element={<DeliveryExperienceLayout experience="desk" />}>
           <Route path="days" element={<DeskDaysPage />} />
           <Route path="days/:dayId" element={<DeskDayDetailPage />} />

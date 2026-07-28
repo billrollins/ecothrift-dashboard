@@ -625,6 +625,8 @@ export interface DeliveryRunMonitorLoad {
   photographed: number;
   ready: number;
   all_ready: boolean;
+  /** At least one full delivery on truck; no partial loads. */
+  can_close_truck?: boolean;
 }
 
 export interface DeliveryRunMonitorRoute {
@@ -721,6 +723,8 @@ export interface DeliveryRunStop {
   excluded_unconfirmed?: boolean;
   excluded_unconfirmed_at?: string | null;
   excluded_unconfirmed_reason?: string;
+  off_route?: boolean;
+  off_route_reason?: string;
   is_confirmed: boolean;
   needs_call_again: boolean;
   has_call_result: boolean;
@@ -756,18 +760,27 @@ export interface DeliveryRun {
   route_summary?: {
     optimized?: boolean;
     etas_available?: boolean;
-    provider_status?: 'optimized' | 'fallback' | 'none' | string;
+    provider_status?: 'optimized' | 'fallback' | 'none' | 'matrix' | string;
+    provider?: string | null;
+    fallback_reason?: string | null;
+    calculated_at?: string | null;
+    departure_at?: string | null;
+    service_seconds_per_stop?: number | null;
+    total_service_seconds?: number | null;
+    total_eta_seconds?: number | null;
     total_drive_seconds?: number | null;
     total_distance_meters?: number | null;
     return_drive_seconds?: number | null;
     return_distance_meters?: number | null;
     estimated_finish_at?: string | null;
+    optimized_stop_ids?: number[];
     stop_count?: number;
     confirmed_count?: number;
   };
   day_id?: number | null;
   truck_closed_at?: string | null;
   truck_closed?: boolean;
+  truck_reopened_at?: string | null;
   departure_override?: boolean;
   departure_override_reason?: string;
   all_stops_resolved?: boolean;
@@ -777,6 +790,7 @@ export interface DeliveryRun {
   returned_to_store_at: string | null;
   truck_photos: DeliveryAttachment[];
   truck_photo_count: number;
+  truck_seal_photo_count?: number;
   max_truck_photos: number;
   all_loaded_secured: boolean;
   all_stops_called: boolean;

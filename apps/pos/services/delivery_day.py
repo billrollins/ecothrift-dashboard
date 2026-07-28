@@ -107,6 +107,12 @@ def day_list_queryset(
                 | Q(primary_driver__last_name__icontains=term)
                 | Q(jobs__customer_name__icontains=term)
             ).distinct()
+    # Future: soonest first. Past: closest-to-today first (newest past first).
+    # Today: prefer days with deliveries (avoids empty orphan auto-days hiding seeded Today).
+    if bucket == 'past':
+        return qs.order_by('-date', '-time_start', '-id')
+    if bucket == 'today':
+        return qs.order_by('-delivery_count', '-is_active', 'id')
     return qs.order_by('date', 'time_start', 'id')
 
 

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.56.2] — 2026-07-22 -->
-<!-- Last reviewed: 2026-07-22 (v2.56.2 Field bottom nav + shared Test) -->
+<!-- Line 1 release: ## [2.58.0] -->
+<!-- Last reviewed: 2026-07-28 (v2.58.0 Field polish release) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.58.0] — 2026-07-28
+
+User-facing theme: **Delivery Field polish** — hold-to-complete, off-route membership, camera-first reseal, compact Routes, device-path fixes, honest test-data scoping.
+
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md) Phase 4A–4C.
+
+### Added
+
+- **POS / camera-first seal** — Seal/Reseal opens the camera when the seal-window photo is missing; reopen truck requires a fresh seal photo (`truck_reopened_at`).
+- **POS / off-route membership** — Confirmed stops can leave and re-enter the route via drag-and-drop or one-touch toggle (`excluded_unconfirmed_at`); serialize `off_route` / `off_route_reason`.
+- **POS / hold-to-complete** — Press-and-hold stop completion that does not fight card swipe paging (`FieldHoldToComplete`); window-level release cancel + pending guard.
+- **POS / evidence-in-buttons** — Proof, signature, and issue thumbnails live inside their capture buttons (tap thumb → viewer; rest of button retakes).
+- **POS / zig-zag seed** — Scenario v6: five Omaha Today stops, one item each, intentionally suboptimal order for Optimize demos.
+
+### Changed
+
+- **POS / Field Routes UI** — Compact one-line expandable ETA header; footer icon row (Optimize / Maps / Add N); Undo snackbar after reorder (replaces Restore optimized order); collapsible Off-route section; compact row density.
+- **POS / stop completion** — `complete_stop` stamps `delivered_at` when unset; Field no longer requires a separate “Items handed to customer” tap.
+- **POS / test-data lists** — Desk/Field list queries send `include_test=1` only in Vite `DEV` builds so production never asks for QA rows.
+- **POS / Routes API** — Omit past `departureTime` (INVALID_ARGUMENT); conditional optimized-waypoint field mask.
+- **POS / Field safe area** — `viewport-fit=cover` + run shell `100dvh`; bottom inset only on the step rail so iPhone home indicator no longer overlaps chrome.
+- **POS / Field pager taps** — Call/Text/Navigate no longer lose the first tap to a 10px swipe lock; only past the swipe dead zone suppresses the click.
+- **POS / Field outbox** — Single-flight drain; also drains on focus/visibility; retake of the same file works; hold label says “Proof uploading…” when evidence is queued.
+- **POS / SignaturePad** — Mid-stroke iOS toolbar resize no longer wipes ink; save guard; single-pointer drawing.
+- **POS / barcode scanner** — Camera restarts after app backgrounding; Type SKU stops the camera LED.
+- **POS / Call/Text** — Disabled with “No phone” when the stop has no digits; iPadOS desktop Safari uses the iOS SMS `&body=` separator.
+
+### Removed
+
+- **POS / Field chrome** — Unused `FieldSlideToComplete`, `FieldStageHeader`, and `FieldBottomShortcuts` (step rail + `FieldListBottomNav` own chrome).
+
+## [2.57.0] — 2026-07-24
+
+User-facing theme: **Delivery Phase 3** — Google Routes API optimization/ETAs, configurable unload time, Field route/evidence polish, Desk route monitor, legacy board retired.
+
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+
+### Added
+
+- **POS / Routes API** — `computeRoutes` + `computeRouteMatrix` replace Directions/Distance Matrix; traffic-aware ETAs, honest `provider` / `fallback_reason`, optimized-order snapshot.
+- **POS / unload setting** — `AppSetting` `delivery_service_minutes_per_stop` (default 20) on Admin → Assumptions; ETA totals = drive + unload × stops.
+- **POS / Field Routes** — Depart/finish/total header, per-stop ETA + drive, always-available Optimize, late-confirm insert support.
+- **POS / Field evidence** — Signature PNG + outbox, proof/issue capture + viewer/replace, iOS/Android SMS templates with ETA.
+- **POS / Desk live monitor** — Route/ETA panel, pending media, exception list, completed evidence (signatures/overrides/return issues), manager Optimize.
+- **POS / manager force-finish** — Available in Field Finish after return-to-store (reconcile may still be forced with reason).
+
+### Changed
+
+- **POS / insert preview** — One route-matrix call + cheapest-insertion math (no N+2 provider loop).
+- **POS / ETA refresh** — Hold/release recalculate remaining ETAs.
+- **POS / legacy board** — `/pos/deliveries/legacy` redirects to Desk/Field entry; unmounted Field stage shell removed.
 
 ## [2.56.2] — 2026-07-22
 

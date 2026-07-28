@@ -3,17 +3,24 @@ import { isAxiosError } from 'axios';
 import {
   beginDeliveryRoute,
   closeDeliveryRunTruck,
+  reopenDeliveryRunTruck,
+  commitDeliveryRouteInsert,
   completeDeliveryStop,
   excludeDeliveryStopUnconfirmed,
   finishDeliveryRun,
   getDeliveryDayRun,
+  holdDeliveryStop,
   markDeliveryRunReturnedToStore,
   markDeliveryStopContactPresent,
   markDeliveryStopDelivered,
+  markDeliveryStopLoaded,
   optimizeDeliveryRun,
+  previewDeliveryRouteInsert,
   reconcileDeliveryStopReturn,
   recordDeliveryStopContactAttempt,
   reorderDeliveryRun,
+  reportDeliveryStopIssue,
+  releaseDeliveryStop,
   scanDeliveryStopItem,
   setDeliveryRunDepartureOverride,
   setDeliveryRunPhase,
@@ -165,12 +172,18 @@ export function useFieldDeliveryRunMutations(dayId: number | undefined) {
         itemId,
         scanned_code,
         client_scan_id,
+        allow_mismatch,
       }: {
         itemId: number;
         scanned_code: string;
         client_scan_id?: string;
+        allow_mismatch?: boolean;
       }) => {
-        const { data } = await scanDeliveryStopItem(itemId, { scanned_code, client_scan_id });
+        const { data } = await scanDeliveryStopItem(itemId, {
+          scanned_code,
+          client_scan_id,
+          allow_mismatch,
+        });
         return normalizeRun(data);
       },
       onSuccess: onRun,
@@ -183,8 +196,35 @@ export function useFieldDeliveryRunMutations(dayId: number | undefined) {
       onSuccess: onRun,
     }),
     loadItem: useMutation({
-      mutationFn: async ({ itemId, loaded }: { itemId: number; loaded?: boolean }) => {
-        const { data } = await setDeliveryStopItemLoaded(itemId, loaded ?? true);
+      mutationFn: async ({
+        itemId,
+        loaded,
+        reason,
+      }: {
+        itemId: number;
+        loaded?: boolean;
+        reason?: string;
+      }) => {
+        const { data } = await setDeliveryStopItemLoaded(
+          itemId,
+          loaded ?? true,
+          reason || '',
+        );
+        return normalizeRun(data);
+      },
+      onSuccess: onRun,
+    }),
+    loadStop: useMutation({
+      mutationFn: async ({
+        stopId,
+        loaded,
+        reason,
+      }: {
+        stopId: number;
+        loaded?: boolean;
+        reason?: string;
+      }) => {
+        const { data } = await markDeliveryStopLoaded(stopId, loaded ?? true, reason || '');
         return normalizeRun(data);
       },
       onSuccess: onRun,
@@ -199,6 +239,13 @@ export function useFieldDeliveryRunMutations(dayId: number | undefined) {
     closeTruck: useMutation({
       mutationFn: async (runId: number) => {
         const { data } = await closeDeliveryRunTruck(runId);
+        return normalizeRun(data);
+      },
+      onSuccess: onRun,
+    }),
+    reopenTruck: useMutation({
+      mutationFn: async ({ runId, reason }: { runId: number; reason?: string }) => {
+        const { data } = await reopenDeliveryRunTruck(runId, reason ? { reason } : undefined);
         return normalizeRun(data);
       },
       onSuccess: onRun,
@@ -254,6 +301,40 @@ export function useFieldDeliveryRunMutations(dayId: number | undefined) {
       },
       onSuccess: onRun,
     }),
+    previewInsert: useMutation({
+      mutationFn: async ({
+        runId,
+        stopId,
+        base_revision,
+      }: {
+        runId: number;
+        stopId: number;
+        base_revision?: number;
+      }) => {
+        const { data } = await previewDeliveryRouteInsert(runId, stopId, base_revision);
+        return data;
+      },
+    }),
+    commitInsert: useMutation({
+      mutationFn: async ({
+        runId,
+        stopId,
+        base_revision,
+        position,
+      }: {
+        runId: number;
+        stopId: number;
+        base_revision?: number;
+        position?: number;
+      }) => {
+        const { data } = await commitDeliveryRouteInsert(runId, stopId, {
+          baseRevision: base_revision,
+          position,
+        });
+        return normalizeRun(data);
+      },
+      onSuccess: onRun,
+    }),
     upload: useMutation({
       mutationFn: async ({ runId, form }: { runId: number; form: FormData }) => {
         const { data } = await uploadDeliveryAttachment(runId, form);
@@ -286,6 +367,37 @@ export function useFieldDeliveryRunMutations(dayId: number | undefined) {
         override_reason?: string;
       }) => {
         const { data } = await completeDeliveryStop(stopId, { override, override_reason });
+        return normalizeRun(data);
+      },
+      onSuccess: onRun,
+    }),
+    hold: useMutation({
+      mutationFn: async ({ stopId, reason }: { stopId: number; reason?: string }) => {
+        const { data } = await holdDeliveryStop(stopId, reason);
+        return normalizeRun(data);
+      },
+      onSuccess: onRun,
+    }),
+    release: useMutation({
+      mutationFn: async (stopId: number) => {
+        const { data } = await releaseDeliveryStop(stopId);
+        return normalizeRun(data);
+      },
+      onSuccess: onRun,
+    }),
+    reportIssue: useMutation({
+      mutationFn: async ({
+        stopId,
+        issue_code,
+        note,
+        hold,
+      }: {
+        stopId: number;
+        issue_code: string;
+        note: string;
+        hold?: boolean;
+      }) => {
+        const { data } = await reportDeliveryStopIssue(stopId, { issue_code, note, hold });
         return normalizeRun(data);
       },
       onSuccess: onRun,

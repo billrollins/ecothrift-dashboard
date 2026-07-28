@@ -21,6 +21,87 @@ from apps.pos.models import (
 )
 
 
+class ScanMismatchError(ValueError):
+    """Scanned code does not match the stop item SKU; includes DB lookup for the driver UI."""
+
+    def __init__(
+        self,
+        *,
+        scanned_code: str,
+        expected_sku: str,
+        expected_description: str,
+        found: dict[str, Any],
+    ):
+        self.scanned_code = scanned_code
+        self.expected_sku = expected_sku
+        self.expected_description = expected_description
+        self.found = found
+        super().__init__(f'Scan does not match expected SKU {expected_sku}')
+
+    def as_api_payload(self) -> dict[str, Any]:
+        return {
+            'detail': str(self),
+            'code': 'SCAN_MISMATCH',
+            'scanned_code': self.scanned_code,
+            'expected_sku': self.expected_sku,
+            'expected_description': self.expected_description,
+            'found': self.found,
+        }
+
+
+def lookup_scanned_code(*, run: DeliveryRun, scanned_code: str) -> dict[str, Any]:
+    """Identify a scanned SKU from this run's items, then inventory."""
+    code = (scanned_code or '').strip()
+    empty = {
+        'source': 'unknown',
+        'sku': code,
+        'description': '',
+        'stop_item_id': None,
+        'stop_id': None,
+        'customer_name': '',
+        'inventory_item_id': None,
+    }
+    if not code:
+        return empty
+
+    match = (
+        DeliveryRunStopItem.objects.filter(stop__run=run, sku__iexact=code)
+        .select_related('stop__job')
+        .order_by('id')
+        .first()
+    )
+    if match:
+        job = match.stop.job if match.stop_id else None
+        return {
+            'source': 'run_item',
+            'sku': match.sku,
+            'description': match.description or match.sku,
+            'stop_item_id': match.id,
+            'stop_id': match.stop_id,
+            'customer_name': (job.customer_name if job else '') or '',
+            'inventory_item_id': None,
+        }
+
+    from apps.inventory.models import Item
+
+    inv = Item.objects.filter(sku__iexact=code).select_related('product').first()
+    if inv:
+        title = ''
+        if inv.product_id:
+            title = (getattr(inv.product, 'title', None) or '').strip()
+        return {
+            'source': 'inventory',
+            'sku': inv.sku,
+            'description': title or inv.sku,
+            'stop_item_id': None,
+            'stop_id': None,
+            'customer_name': '',
+            'inventory_item_id': inv.id,
+        }
+
+    return empty
+
+
 RESULT_TO_DISPOSITION = {
     DeliveryCallAttempt.RESULT_ANSWERED_WILL_BE_THERE: DeliveryRunStop.DISPOSITION_CONFIRMED,
     DeliveryCallAttempt.RESULT_ANSWERED_NOT_AVAILABLE: DeliveryRunStop.DISPOSITION_RESCHEDULE_REQUESTED,
@@ -198,7 +279,19 @@ def stop_item_has_photo(item: DeliveryRunStopItem) -> bool:
 
 
 def stop_item_is_ready(item: DeliveryRunStopItem) -> bool:
-    return bool(item.loaded_at) and stop_item_is_verified(item) and stop_item_has_photo(item)
+    """Verified (or skip) + loaded. Truck photos are taken once at closeout, not per item."""
+    return bool(item.loaded_at) and stop_item_is_verified(item)
+
+
+def mark_item_loaded_when_verified(item: DeliveryRunStopItem, *, user) -> None:
+    """After scan/skip completes verification, mark the line loaded in the same step."""
+    if not stop_item_is_verified(item):
+        return
+    if item.loaded_at:
+        return
+    item.loaded_at = timezone.now()
+    item.loaded_by = user
+    item.save(update_fields=['loaded_at', 'loaded_by'])
 
 
 def mirror_stop_load_state(stop: DeliveryRunStop) -> None:
@@ -248,34 +341,76 @@ def mirror_stop_load_state(stop: DeliveryRunStop) -> None:
     )
 
 
-def all_candidate_items_ready(run: DeliveryRun) -> bool:
-    """Every non-terminal stop must have all stop items ready (or stop excluded/rescheduled)."""
-    ready_any = False
+def stop_is_out_of_load_pool(stop: DeliveryRunStop) -> bool:
+    """Stops that are not part of truck loading (terminal / cancel / reschedule)."""
+    if stop.state in (
+        DeliveryRunStop.STATE_COMPLETED,
+        DeliveryRunStop.STATE_FAILED,
+        DeliveryRunStop.STATE_RESCHEDULED,
+    ):
+        return True
+    disp = stop_disposition(stop)
+    return disp in (
+        DeliveryRunStop.DISPOSITION_CANCEL_REQUESTED,
+        DeliveryRunStop.DISPOSITION_RESCHEDULE_REQUESTED,
+    )
+
+
+def truck_close_items_ok(run: DeliveryRun) -> tuple[bool, str]:
+    """
+    Truck seal gate for the load board:
+    - at least one delivery fully on the truck
+    - no partially loaded deliveries
+    - unloaded / not-on-truck deliveries do not block seal
+    """
+    on_truck = 0
     for stop in run.stops.prefetch_related('stop_items__scans', 'stop_items__attachments'):
-        if stop.state in (
-            DeliveryRunStop.STATE_COMPLETED,
-            DeliveryRunStop.STATE_FAILED,
-            DeliveryRunStop.STATE_RESCHEDULED,
-        ):
+        if stop_is_out_of_load_pool(stop):
             continue
-        if stop_is_excluded_unconfirmed(stop) and stop_disposition(stop) != DeliveryRunStop.DISPOSITION_CONFIRMED:
-            # Excluded unconfirmed stops do not need to travel, but if already loaded keep them.
-            items = list(stop.stop_items.all())
-            if not items:
-                continue
+        items = list(stop.stop_items.all())
+        if not items:
+            continue
+        ready_n = sum(1 for i in items if stop_item_is_ready(i))
+        if ready_n == 0:
+            continue
+        if ready_n < len(items):
+            return False, 'Finish or unload partially loaded deliveries before sealing the truck'
+        on_truck += 1
+    if on_truck == 0:
+        return False, 'Load at least one delivery onto the truck before sealing'
+    return True, ''
+
+
+def all_candidate_items_ready(run: DeliveryRun) -> bool:
+    """True when every load-pool stop is fully ready (nothing left off the truck)."""
+    any_pool = False
+    for stop in run.stops.prefetch_related('stop_items__scans', 'stop_items__attachments'):
+        if stop_is_out_of_load_pool(stop):
+            continue
         items = list(stop.stop_items.all())
         if not items:
             return False
         if not all(stop_item_is_ready(i) for i in items):
             return False
-        ready_any = True
-    return ready_any
+        any_pool = True
+    return any_pool
+
+
+def seal_window_photos_qs(run: DeliveryRun):
+    """Truck photos that count for the current seal attempt.
+
+    When the truck has been reopened, only photos taken at or after
+    ``truck_reopened_at`` satisfy reseal. Full history remains on the run
+    for desk/audit via unfiltered attachment queries.
+    """
+    qs = run.attachments.filter(kind=DeliveryAttachment.KIND_TRUCK)
+    if run.truck_reopened_at:
+        qs = qs.filter(created_at__gte=run.truck_reopened_at)
+    return qs
 
 
 def truck_is_closed(run: DeliveryRun) -> bool:
-    return bool(run.truck_closed_at) and run.attachments.filter(
-        kind=DeliveryAttachment.KIND_TRUCK
-    ).exists()
+    return bool(run.truck_closed_at) and seal_window_photos_qs(run).exists()
 
 
 def departure_gates_ok(run: DeliveryRun) -> tuple[bool, str]:
@@ -283,7 +418,7 @@ def departure_gates_ok(run: DeliveryRun) -> tuple[bool, str]:
         return False, 'Every stop must be confirmed, rescheduled/cancelled, or explicitly excluded'
     confirmed = [
         s
-        for s in run.stops.all()
+        for s in run.stops.select_related('job').all()
         if is_stop_confirmed(s)
         and s.state
         not in (
@@ -296,8 +431,20 @@ def departure_gates_ok(run: DeliveryRun) -> tuple[bool, str]:
         return False, 'Confirm at least one stop before departure'
     for stop in confirmed:
         items = list(stop.stop_items.prefetch_related('scans', 'attachments'))
-        if not items or not all(stop_item_is_ready(i) for i in items):
-            return False, 'All confirmed stop items must be verified, loaded, and photographed'
+        ready_n = sum(1 for i in items if stop_item_is_ready(i))
+        if items and ready_n == len(items):
+            continue
+        name = (getattr(stop.job, 'customer_name', None) or f'Stop {stop.id}').strip()
+        name = name.replace('[TEST] ', '')
+        if not items or ready_n == 0:
+            return (
+                False,
+                f'{name} is confirmed but not on the truck — remove from route, or reopen the truck to load it',
+            )
+        return (
+            False,
+            f'{name} is only partially loaded — finish loading or unload before Start Deliveries',
+        )
     if not truck_is_closed(run) and not run.departure_override:
         return False, 'Closed-door truck photo and truck closeout are required'
     return True, ''
@@ -391,17 +538,23 @@ def set_contact_disposition(
     disposition = (disposition or '').strip()
     if disposition not in VALID_DISPOSITIONS:
         raise ValueError('Invalid contact disposition')
+    was_confirmed = is_stop_confirmed(stop)
     stop.contact_disposition = disposition
     stop.contact_disposition_at = timezone.now()
     stop.contact_disposition_by = user
-    # Clear exclusion when confirmed.
+    # First-time confirm clears an "unconfirmed exclusion". Re-tapping Confirmed on a
+    # stop that was deliberately taken off route must NOT force it back on.
     fields = [
         'contact_disposition',
         'contact_disposition_at',
         'contact_disposition_by',
         'updated_at',
     ]
-    if disposition == DeliveryRunStop.DISPOSITION_CONFIRMED and stop.excluded_unconfirmed_at:
+    if (
+        disposition == DeliveryRunStop.DISPOSITION_CONFIRMED
+        and stop.excluded_unconfirmed_at
+        and not was_confirmed
+    ):
         stop.excluded_unconfirmed_at = None
         stop.excluded_unconfirmed_by = None
         stop.excluded_unconfirmed_reason = ''
@@ -459,12 +612,10 @@ def exclude_unconfirmed_stop(
     *,
     user,
     reason: str,
+    refresh_route: bool = True,
 ) -> DeliveryRunStop:
-    reason = (reason or '').strip()
-    if not reason:
-        raise ValueError('Reason is required to exclude an unconfirmed stop')
-    if is_stop_confirmed(stop):
-        raise ValueError('Confirmed stops cannot be excluded as unconfirmed')
+    """Take a stop off the route plan (contact outcome is unchanged)."""
+    reason = (reason or '').strip() or 'Taken off route'
     stop.excluded_unconfirmed_at = timezone.now()
     stop.excluded_unconfirmed_by = user
     stop.excluded_unconfirmed_reason = reason[:300]
@@ -479,21 +630,41 @@ def exclude_unconfirmed_stop(
             'updated_at',
         ]
     )
-    from apps.pos.services.delivery_run import ensure_next_up, log_event
+    from apps.pos.services.delivery_run import apply_route_plan, ensure_next_up, log_event
 
+    items = list(stop.stop_items.all())
+    on_truck_count = sum(1 for i in items if stop_item_is_ready(i) or i.loaded_at)
     log_event(
         stop.run,
         'override',
         actor=user,
         stop=stop,
-        payload={'excluded_unconfirmed': True, 'reason': reason[:120]},
+        payload={
+            'excluded_unconfirmed': True,
+            'off_route': True,
+            'reason': reason[:120],
+            'on_truck_item_count': on_truck_count,
+            'unload_reminder': (
+                f'Remember to unload {on_truck_count} item(s) when you get back'
+                if on_truck_count
+                else ''
+            ),
+        },
     )
     ensure_next_up(stop.run)
+    if refresh_route:
+        apply_route_plan(stop.run, user=user, optimize=False)
     return stop
 
 
 @transaction.atomic
-def clear_unconfirmed_exclusion(stop: DeliveryRunStop, *, user) -> DeliveryRunStop:
+def clear_unconfirmed_exclusion(
+    stop: DeliveryRunStop,
+    *,
+    user,
+    refresh_route: bool = True,
+) -> DeliveryRunStop:
+    """Put an off-route stop back onto the route plan."""
     stop.excluded_unconfirmed_at = None
     stop.excluded_unconfirmed_by = None
     stop.excluded_unconfirmed_reason = ''
@@ -505,15 +676,18 @@ def clear_unconfirmed_exclusion(stop: DeliveryRunStop, *, user) -> DeliveryRunSt
             'updated_at',
         ]
     )
-    from apps.pos.services.delivery_run import log_event
+    from apps.pos.services.delivery_run import apply_route_plan, ensure_next_up, log_event
 
     log_event(
         stop.run,
         'override',
         actor=user,
         stop=stop,
-        payload={'excluded_unconfirmed': False},
+        payload={'excluded_unconfirmed': False, 'off_route': False},
     )
+    ensure_next_up(stop.run)
+    if refresh_route and is_stop_confirmed(stop):
+        apply_route_plan(stop.run, user=user, optimize=False)
     return stop
 
 
@@ -524,7 +698,9 @@ def scan_stop_item(
     user,
     scanned_code: str,
     client_scan_id: str | None = None,
+    allow_mismatch: bool = False,
 ) -> DeliveryItemScan:
+    assert_run_action(item.stop.run, 'scan_verify', user)
     code = (scanned_code or '').strip()
     if not code:
         raise ValueError('scanned_code is required')
@@ -542,10 +718,21 @@ def scan_stop_item(
         # Already fully verified — idempotent no-op via returning last scan.
         last = item.scans.order_by('-scanned_at', '-id').first()
         if last:
+            mark_item_loaded_when_verified(item, user=user)
+            mirror_stop_load_state(item.stop)
             return last
+    mismatch_override = False
     if item.is_scannable and item.sku:
         if code.upper() != item.sku.strip().upper():
-            raise ValueError(f'Scan does not match expected SKU {item.sku}')
+            if not allow_mismatch:
+                found = lookup_scanned_code(run=item.stop.run, scanned_code=code)
+                raise ScanMismatchError(
+                    scanned_code=code[:64],
+                    expected_sku=item.sku,
+                    expected_description=item.description or item.sku,
+                    found=found,
+                )
+            mismatch_override = True
     scan = DeliveryItemScan.objects.create(
         stop_item=item,
         scanned_code=code[:64],
@@ -556,15 +743,23 @@ def scan_stop_item(
 
     log_event(
         item.stop.run,
-        'load',
+        'load' if not mismatch_override else 'override',
         actor=user,
         stop=item.stop,
         payload={
             'stop_item_id': item.id,
             'scanned_code': code[:64],
             'client_scan_id': str(cid) if cid else None,
+            'expected_sku': item.sku or '',
+            'mismatch_override': mismatch_override,
+            'reason': (
+                f'Driver confirmed scanned {code[:64]} is the correct ID for expected {item.sku}'
+                if mismatch_override
+                else None
+            ),
         },
     )
+    mark_item_loaded_when_verified(item, user=user)
     mirror_stop_load_state(item.stop)
     return scan
 
@@ -576,6 +771,7 @@ def skip_stop_item_verification(
     user,
     reason: str,
 ) -> DeliveryRunStopItem:
+    assert_run_action(item.stop.run, 'skip_verification', user)
     reason = (reason or '').strip()
     if not reason:
         raise ValueError('Skip reason is required')
@@ -602,6 +798,7 @@ def skip_stop_item_verification(
             'reason': reason[:120],
         },
     )
+    mark_item_loaded_when_verified(item, user=user)
     mirror_stop_load_state(item.stop)
     return item
 
@@ -612,18 +809,25 @@ def set_stop_item_loaded(
     *,
     user,
     loaded: bool = True,
+    reason: str = '',
 ) -> DeliveryRunStopItem:
+    assert_run_action(item.stop.run, 'load', user)
     item.loaded_at = timezone.now() if loaded else None
     item.loaded_by = user if loaded else None
     item.save(update_fields=['loaded_at', 'loaded_by'])
     from apps.pos.services.delivery_run import log_event
 
+    note = (reason or '').strip()
     log_event(
         item.stop.run,
-        'load',
+        'load' if loaded else 'override',
         actor=user,
         stop=item.stop,
-        payload={'stop_item_id': item.id, 'loaded': loaded},
+        payload={
+            'stop_item_id': item.id,
+            'loaded': loaded,
+            'reason': note[:120] if note else None,
+        },
     )
     mirror_stop_load_state(item.stop)
     return item
@@ -664,27 +868,19 @@ def set_stop_item_photo_exception(
 
 @transaction.atomic
 def close_truck(run: DeliveryRun, *, user) -> DeliveryRun:
+    # Prefer actionable load/photo errors over a generic phase denial when the
+    # client enables Seal ahead of allowed_actions refresh.
+    if not seal_window_photos_qs(run).exists():
+        if run.truck_reopened_at:
+            raise ValueError('Capture a new closed-door truck photo before resealing the truck')
+        raise ValueError('Capture a closed-door truck photo before closing the truck')
+    items_ok, items_msg = truck_close_items_ok(run)
+    if not items_ok and not run.departure_override:
+        raise ValueError(items_msg)
     try:
         assert_run_action(run, 'close_truck', user)
     except RunActionDenied as exc:
         raise ValueError(str(exc)) from exc
-    if not run.attachments.filter(kind=DeliveryAttachment.KIND_TRUCK).exists():
-        raise ValueError('Capture a closed-door truck photo before closing the truck')
-    # Item readiness for candidates that will travel or are still in the load pool.
-    items_ok = True
-    for stop in run.stops.prefetch_related('stop_items__scans', 'stop_items__attachments'):
-        if stop.state in (
-            DeliveryRunStop.STATE_COMPLETED,
-            DeliveryRunStop.STATE_FAILED,
-            DeliveryRunStop.STATE_RESCHEDULED,
-        ):
-            continue
-        items = list(stop.stop_items.all())
-        if not items or not all(stop_item_is_ready(i) for i in items):
-            items_ok = False
-            break
-    if not items_ok and not run.departure_override:
-        raise ValueError('All candidate items must be loaded with photos before truck close')
     run.truck_closed_at = timezone.now()
     run.truck_closed_by = user
     run.phase = DeliveryRun.PHASE_TRUCK
@@ -692,6 +888,57 @@ def close_truck(run: DeliveryRun, *, user) -> DeliveryRun:
     from apps.pos.services.delivery_run import log_event
 
     log_event(run, 'phase', actor=user, payload={'phase': run.phase, 'truck_closed': True})
+    return run
+
+
+@transaction.atomic
+def reopen_truck(run: DeliveryRun, *, user, reason: str = '') -> DeliveryRun:
+    """Unseal the truck so the driver can load more before departure.
+
+    Rolls phase back to ``truck``, clears the seal and any manager departure
+    override, and starts a new seal window (fresh photo required to reseal).
+    Route order and already-loaded items are left untouched.
+    """
+    if not run.truck_closed_at:
+        raise ValueError('Truck is not sealed')
+    try:
+        assert_run_action(run, 'reopen_truck', user)
+    except RunActionDenied as exc:
+        raise ValueError(str(exc)) from exc
+    had_override = bool(run.departure_override)
+    run.phase = DeliveryRun.PHASE_TRUCK
+    run.truck_closed_at = None
+    run.truck_closed_by = None
+    run.truck_reopened_at = timezone.now()
+    run.truck_reopened_by = user
+    run.departure_override = False
+    run.departure_override_reason = ''
+    run.departure_override_by = None
+    run.save(
+        update_fields=[
+            'phase',
+            'truck_closed_at',
+            'truck_closed_by',
+            'truck_reopened_at',
+            'truck_reopened_by',
+            'departure_override',
+            'departure_override_reason',
+            'departure_override_by',
+            'updated_at',
+        ]
+    )
+    from apps.pos.services.delivery_run import log_event
+
+    log_event(
+        run,
+        'phase',
+        actor=user,
+        payload={
+            'reopened_truck': True,
+            'reason': (reason or '')[:120],
+            'cleared_departure_override': had_override,
+        },
+    )
     return run
 
 
@@ -818,14 +1065,17 @@ def contact_progress(run: DeliveryRun, stop_payloads: list[dict] | None = None) 
 
 
 def load_progress(run: DeliveryRun) -> dict[str, Any]:
-    items = list(
-        DeliveryRunStopItem.objects.filter(stop__run=run).prefetch_related('scans', 'attachments')
-    )
+    items = []
+    for stop in run.stops.prefetch_related('stop_items__scans', 'stop_items__attachments'):
+        if stop_is_out_of_load_pool(stop):
+            continue
+        items.extend(list(stop.stop_items.all()))
     total = len(items)
     verified = sum(1 for i in items if stop_item_is_verified(i))
     loaded = sum(1 for i in items if i.loaded_at)
     photographed = sum(1 for i in items if stop_item_has_photo(i))
     ready = sum(1 for i in items if stop_item_is_ready(i))
+    can_close, _ = truck_close_items_ok(run)
     return {
         'total_items': total,
         'verified': verified,
@@ -833,6 +1083,7 @@ def load_progress(run: DeliveryRun) -> dict[str, Any]:
         'photographed': photographed,
         'ready': ready,
         'all_ready': total > 0 and ready == total,
+        'can_close_truck': can_close,
     }
 
 

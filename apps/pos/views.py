@@ -2042,6 +2042,66 @@ def delivery_run_reorder(request, pk: int):
 
 @api_view(['POST'])
 @perm_classes([IsAuthenticated, IsEmployee])
+def delivery_run_preview_insert(request, pk: int):
+    from apps.pos.services.delivery_run import StaleRouteRevision, preview_insert_stop
+
+    try:
+        run = DeliveryRun.objects.get(pk=pk)
+    except DeliveryRun.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    stop_id = request.data.get('stop_id')
+    if stop_id is None:
+        return Response({'detail': 'stop_id required.', 'code': 'STOP_ID_REQUIRED'}, status=400)
+    base_revision = request.data.get('base_revision')
+    try:
+        preview = preview_insert_stop(
+            run,
+            int(stop_id),
+            base_revision=int(base_revision) if base_revision is not None else None,
+        )
+    except StaleRouteRevision as exc:
+        return Response({'detail': str(exc), 'code': 'STALE_ROUTE_REVISION'}, status=409)
+    except (TypeError, ValueError) as exc:
+        return _delivery_run_error(exc, 'PREVIEW_INSERT_FAILED')
+    return Response(preview)
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_run_commit_insert(request, pk: int):
+    from apps.pos.services.delivery_run import (
+        StaleRouteRevision,
+        commit_insert_stop,
+        serialize_run,
+    )
+
+    try:
+        run = DeliveryRun.objects.get(pk=pk)
+    except DeliveryRun.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    stop_id = request.data.get('stop_id')
+    if stop_id is None:
+        return Response({'detail': 'stop_id required.', 'code': 'STOP_ID_REQUIRED'}, status=400)
+    base_revision = request.data.get('base_revision')
+    position = request.data.get('position')
+    try:
+        commit_insert_stop(
+            run,
+            int(stop_id),
+            user=request.user,
+            base_revision=int(base_revision) if base_revision is not None else None,
+            position=int(position) if position is not None else None,
+        )
+    except StaleRouteRevision as exc:
+        return Response({'detail': str(exc), 'code': 'STALE_ROUTE_REVISION'}, status=409)
+    except (TypeError, ValueError) as exc:
+        return _delivery_run_error(exc, 'COMMIT_INSERT_FAILED')
+    run.refresh_from_db()
+    return Response(serialize_run(run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
 def delivery_run_finish(request, pk: int):
     from apps.pos.services.delivery_run import finish_run, serialize_run
 
@@ -2137,8 +2197,14 @@ def delivery_stop_load(request, pk: int):
     except DeliveryRunStop.DoesNotExist:
         return Response({'detail': 'Not found.'}, status=404)
     loaded = request.data.get('loaded', True)
+    reason = str(request.data.get('reason') or '')
     try:
-        mark_loaded(stop, user=request.user, loaded=bool(loaded))
+        mark_loaded(
+            stop,
+            user=request.user,
+            loaded=_parse_request_bool(loaded, default=True),
+            reason=reason,
+        )
     except ValueError as exc:
         return _delivery_run_error(exc, 'LOAD_BLOCKED')
     return Response(serialize_run(stop.run))
@@ -2259,7 +2325,7 @@ def delivery_stop_exclude_unconfirmed(request, pk: int):
 @perm_classes([IsAuthenticated, IsEmployee])
 def delivery_stop_item_scan(request, pk: int):
     from apps.pos.models import DeliveryRunStopItem
-    from apps.pos.services.delivery_phase2 import scan_stop_item
+    from apps.pos.services.delivery_phase2 import ScanMismatchError, scan_stop_item
     from apps.pos.services.delivery_run import serialize_run
 
     try:
@@ -2272,7 +2338,10 @@ def delivery_stop_item_scan(request, pk: int):
             user=request.user,
             scanned_code=str(request.data.get('scanned_code') or request.data.get('sku') or ''),
             client_scan_id=request.data.get('client_scan_id'),
+            allow_mismatch=_parse_request_bool(request.data.get('allow_mismatch')),
         )
+    except ScanMismatchError as exc:
+        return Response(exc.as_api_payload(), status=409)
     except ValueError as exc:
         return _delivery_run_error(exc, 'SCAN_FAILED')
     return Response(serialize_run(item.stop.run))
@@ -2312,8 +2381,14 @@ def delivery_stop_item_load(request, pk: int):
     except DeliveryRunStopItem.DoesNotExist:
         return Response({'detail': 'Not found.'}, status=404)
     loaded = request.data.get('loaded', True)
+    reason = str(request.data.get('reason') or '')
     try:
-        set_stop_item_loaded(item, user=request.user, loaded=_parse_request_bool(loaded, default=True))
+        set_stop_item_loaded(
+            item,
+            user=request.user,
+            loaded=_parse_request_bool(loaded, default=True),
+            reason=reason,
+        )
     except ValueError as exc:
         return _delivery_run_error(exc, 'ITEM_LOAD_FAILED')
     return Response(serialize_run(item.stop.run))
@@ -2355,6 +2430,27 @@ def delivery_run_close_truck(request, pk: int):
         close_truck(run, user=request.user)
     except ValueError as exc:
         return _delivery_run_error(exc, 'TRUCK_CLOSE_BLOCKED')
+    return Response(serialize_run(run))
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsEmployee])
+def delivery_run_reopen_truck(request, pk: int):
+    from apps.pos.services.delivery_phase2 import reopen_truck
+    from apps.pos.services.delivery_run import serialize_run
+
+    try:
+        run = DeliveryRun.objects.get(pk=pk)
+    except DeliveryRun.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+    try:
+        reopen_truck(
+            run,
+            user=request.user,
+            reason=str(request.data.get('reason') or ''),
+        )
+    except ValueError as exc:
+        return _delivery_run_error(exc, 'TRUCK_REOPEN_BLOCKED')
     return Response(serialize_run(run))
 
 
@@ -2454,7 +2550,10 @@ def delivery_stop_delivered(request, pk: int):
     except DeliveryRunStop.DoesNotExist:
         return Response({'detail': 'Not found.'}, status=404)
     delivered = request.data.get('delivered', True)
-    mark_delivered(stop, user=request.user, delivered=bool(delivered))
+    try:
+        mark_delivered(stop, user=request.user, delivered=bool(delivered))
+    except ValueError as exc:
+        return Response({'detail': str(exc)}, status=400)
     return Response(serialize_run(stop.run))
 
 

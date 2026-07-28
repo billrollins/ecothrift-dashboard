@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-06 (processing search_string rebuild maintenance note) -->
+<!-- Last updated: 2026-07-22 (start_mobile_dashboard.bat for phone LAN testing) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -86,6 +86,8 @@ If **POS registers** or **supplemental drawer** rows are missing (e.g. after `re
 | Script | What it does |
 |--------|-------------|
 | `scripts/dev/start_dashboard.bat` | Kills listeners on 8000/5173, starts Django + staff Vite in new windows (uses `venv` if present) |
+| `scripts/dev/start_mobile_dashboard.bat` | Same as `start_dashboard.bat`, but Vite binds `--host 0.0.0.0` and prints this PC’s LAN URL for phone testing on the same Wi‑Fi (API still proxied to local Django). Reminds about local delivery QA seed. |
+| `scripts/dev/seed_delivery_test_dataset.bat` | **Delivery Field/Desk QA (local/DEBUG only) —** drag into terminal to wipe all local QA datasets and reseed for **today** (default key `phase2-phone`). Pack: Past 2 (good+bad), Today 4 (1/2/3/4 items), Future 3 (2 same day + 1 later). Rows look like normal deliveries (tracked via `DeliveryTestDataset` for reset). Extra flags forward to `seed_delivery_test_dataset` (e.g. `--with-active-run --stage load`). Seed refuses when `DEBUG=False`. Does **not** seed production. |
 | `scripts/dev/start_website.bat` | Kills listeners on 8000/5174, starts Django + public Vite in new windows (uses `venv` if present) |
 | `scripts/dev/kill_servers.bat` | Stops processes using ports 8000, 5173, and 5174 |
 | `scripts/dev/daily_scheduled_tasks.bat` | **Buying —** local batch mirroring scheduled work: `compute_daily_category_stats`, `scheduled_sweep`, `watch_auctions`. Optional **`SKIP_BSTOCK=1`** for stats-only. See **Heroku Scheduler** + **Local parity** above. |

@@ -3,20 +3,18 @@ import { resolveDeliveryExperience } from '../../../utils/delivery/experiencePre
 
 /**
  * /pos/deliveries → Desk (desktop) or Field (mobile) Days.
- * Legacy bookmarks with tab/date go to the compatibility board.
+ * Legacy `?tab=` / `?date=` bookmarks land on the matching Days list.
  */
 export default function DeliveriesEntryRedirect() {
   const [params] = useSearchParams();
+  const experience = resolveDeliveryExperience(params.get('experience'));
+  const next = new URLSearchParams();
   const tab = params.get('tab');
   const date = params.get('date');
-  if (tab || date) {
-    const next = new URLSearchParams();
-    if (tab) next.set('tab', tab);
-    if (date) next.set('date', date);
-    const qs = next.toString();
-    return <Navigate to={`/pos/deliveries/legacy${qs ? `?${qs}` : ''}`} replace />;
+  if (tab === 'past' || tab === 'future' || tab === 'today') {
+    next.set('bucket', tab === 'today' ? 'today' : tab);
   }
-  // Viewport-driven only (ignore stale localStorage preference).
-  const experience = resolveDeliveryExperience(params.get('experience'));
-  return <Navigate to={`/pos/deliveries/${experience}/days`} replace />;
+  if (date) next.set('q', date);
+  const qs = next.toString();
+  return <Navigate to={`/pos/deliveries/${experience}/days${qs ? `?${qs}` : ''}`} replace />;
 }

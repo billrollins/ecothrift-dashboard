@@ -20,9 +20,10 @@ const ASSUMPTION_KEYS = [
   'po_default_est_shrink',
   'pricing_shrinkage_factor',
   'pricing_need_window_days',
+  'delivery_service_minutes_per_stop',
 ] as const;
 
-type ValueKind = 'fraction' | 'days';
+type ValueKind = 'fraction' | 'days' | 'minutes';
 
 const KEY_META: Record<
   string,
@@ -44,6 +45,12 @@ const KEY_META: Record<
     label: 'Category need — sold lookback (days)',
     help: 'Buying: window for sold-items stats used in category need / SQL aggregates (e.g. 90).',
     kind: 'days',
+  },
+  delivery_service_minutes_per_stop: {
+    label: 'Delivery unload time (minutes / stop)',
+    help:
+      'Delivery Field: assumed on-site unload/service minutes per stop for ETA totals (5–120). Default 20.',
+    kind: 'minutes',
   },
 };
 
@@ -74,10 +81,12 @@ export default function AssumptionsPage() {
     const meta = KEY_META[key];
     const kind = meta?.kind ?? 'fraction';
 
-    if (kind === 'days') {
+    if (kind === 'days' || kind === 'minutes') {
       const n = parseInt(editValue, 10);
-      if (Number.isNaN(n) || n < 1 || n > 3650) {
-        enqueueSnackbar('Enter a whole number from 1 to 3650.', { variant: 'warning' });
+      const min = kind === 'minutes' ? 5 : 1;
+      const max = kind === 'minutes' ? 120 : 3650;
+      if (Number.isNaN(n) || n < min || n > max) {
+        enqueueSnackbar(`Enter a whole number from ${min} to ${max}.`, { variant: 'warning' });
         return;
       }
       try {
@@ -114,7 +123,7 @@ export default function AssumptionsPage() {
     <Box>
       <PageHeader
         title="Assumptions"
-        subtitle="Universal defaults (AppSetting keys) for inventory PO shrink, buying valuation shrink, and category-need window"
+        subtitle="Universal defaults (AppSetting keys) for inventory PO shrink, buying valuation shrink, category-need window, and delivery unload time"
       />
 
       <Alert severity="info" sx={{ mb: 2 }}>
@@ -183,8 +192,14 @@ export default function AssumptionsPage() {
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           sx={{ width: 160 }}
-                          type={meta.kind === 'days' ? 'number' : 'text'}
-                          inputProps={meta.kind === 'days' ? { min: 1, max: 3650 } : undefined}
+                          type={meta.kind === 'days' || meta.kind === 'minutes' ? 'number' : 'text'}
+                          inputProps={
+                            meta.kind === 'days'
+                              ? { min: 1, max: 3650 }
+                              : meta.kind === 'minutes'
+                                ? { min: 5, max: 120 }
+                                : undefined
+                          }
                         />
                         <Button
                           variant="contained"

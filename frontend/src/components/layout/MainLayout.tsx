@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar,
@@ -37,6 +37,7 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard';
+  const isFieldMobile = isMobile && location.pathname.startsWith('/pos/deliveries/field');
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
   const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
@@ -56,6 +57,12 @@ export default function MainLayout() {
     },
     staleTime: Infinity,
   });
+
+  useEffect(() => {
+    const openFieldNavigation = () => setMobileOpen(true);
+    window.addEventListener('eco-field-toggle-nav', openFieldNavigation);
+    return () => window.removeEventListener('eco-field-toggle-nav', openFieldNavigation);
+  }, []);
 
   const sidebarContent = (
     <Box
@@ -128,61 +135,63 @@ export default function MainLayout() {
       {/* Main Content */}
       <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* AppBar */}
-        <AppBar
-          position="sticky"
-          color="default"
-          elevation={0}
-          sx={{
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-            bgcolor: 'background.paper',
-          }}
-        >
-          <Toolbar>
-            {isMobile && (
-              <IconButton edge="start" onClick={handleDrawerToggle} sx={{ mr: 2 }}>
-                <MenuIcon />
-              </IconButton>
-            )}
-            <Box sx={{ flexGrow: 1 }} />
-            {user && (
-              <>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ mr: 1, display: { xs: 'none', sm: 'block' } }}
-                >
-                  {user.full_name}
-                </Typography>
-                <IconButton onClick={handleMenuOpen} size="small">
-                  <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
-                    {user.first_name?.[0]}{user.last_name?.[0]}
-                  </Avatar>
+        {!isFieldMobile && (
+          <AppBar
+            position="sticky"
+            color="default"
+            elevation={0}
+            sx={{
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'background.paper',
+            }}
+          >
+            <Toolbar>
+              {isMobile && (
+                <IconButton edge="start" onClick={handleDrawerToggle} sx={{ mr: 2 }}>
+                  <MenuIcon />
                 </IconButton>
-                <Menu
-                  anchorEl={anchorEl}
-                  open={Boolean(anchorEl)}
-                  onClose={handleMenuClose}
-                  transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-                  anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-                >
-                  <MenuItem disabled>
-                    <ListItemIcon><Person fontSize="small" /></ListItemIcon>
-                    <ListItemText
-                      primary={user.full_name}
-                      secondary={user.role}
-                    />
-                  </MenuItem>
-                  <Divider />
-                  <MenuItem onClick={handleLogout}>
-                    <ListItemIcon><Logout fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Logout" />
-                  </MenuItem>
-                </Menu>
-              </>
-            )}
-          </Toolbar>
-        </AppBar>
+              )}
+              <Box sx={{ flexGrow: 1 }} />
+              {user && (
+                <>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mr: 1, display: { xs: 'none', sm: 'block' } }}
+                  >
+                    {user.full_name}
+                  </Typography>
+                  <IconButton onClick={handleMenuOpen} size="small">
+                    <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
+                      {user.first_name?.[0]}{user.last_name?.[0]}
+                    </Avatar>
+                  </IconButton>
+                  <Menu
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl)}
+                    onClose={handleMenuClose}
+                    transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                    anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                  >
+                    <MenuItem disabled>
+                      <ListItemIcon><Person fontSize="small" /></ListItemIcon>
+                      <ListItemText
+                        primary={user.full_name}
+                        secondary={user.role}
+                      />
+                    </MenuItem>
+                    <Divider />
+                    <MenuItem onClick={handleLogout}>
+                      <ListItemIcon><Logout fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Logout" />
+                    </MenuItem>
+                  </Menu>
+                </>
+              )}
+            </Toolbar>
+          </AppBar>
+        )}
 
         {/* Page Content */}
         <Box
@@ -196,13 +205,13 @@ export default function MainLayout() {
             flexDirection: 'column',
             overflowX: 'hidden',
             overflowY: 'auto',
-            p: isDashboard ? { xs: 1, sm: 2, md: 3 } : 3,
+            p: isFieldMobile ? 0 : isDashboard ? { xs: 1, sm: 2, md: 3 } : 3,
             ...(isDashboard
               ? {
                   background: DASHBOARD_BACKDROP,
                 }
               : {}),
-            bgcolor: isDashboard ? DASHBOARD_BACKDROP : 'background.default',
+            bgcolor: isFieldMobile ? '#fff' : isDashboard ? DASHBOARD_BACKDROP : 'background.default',
           }}
         >
           <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>

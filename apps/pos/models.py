@@ -822,6 +822,14 @@ class DeliveryRun(models.Model):
         blank=True,
         related_name='delivery_runs_truck_closed',
     )
+    truck_reopened_at = models.DateTimeField(null=True, blank=True)
+    truck_reopened_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivery_runs_truck_reopened',
+    )
     departure_override = models.BooleanField(default=False)
     departure_override_reason = models.CharField(max_length=300, blank=True, default='')
     departure_override_by = models.ForeignKey(

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -15,7 +15,6 @@ import {
   Typography,
 } from '@mui/material';
 import { useDeliveryDays } from '../../../../hooks/useDelivery';
-import { useIncludeTestPreference } from '../../../../hooks/useIncludeTestPreference';
 import {
   deskDaysStateToApiParams,
   deskDaysStateToParams,
@@ -30,28 +29,15 @@ function formatWindow(start: string | null, end: string | null) {
 export default function DeskDaysPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [includeTest, setIncludeTest] = useIncludeTestPreference();
   const state = useMemo(() => parseDeskDaysUrlState(searchParams), [searchParams]);
-  const merged = useMemo(() => ({ ...state, includeTest }), [state, includeTest]);
-  const { data, isLoading, isError } = useDeliveryDays(deskDaysStateToApiParams(merged));
+  const { data, isLoading, isError } = useDeliveryDays(deskDaysStateToApiParams(state));
   const rows = data?.results ?? [];
 
   const patchState = (patch: Partial<typeof state>) => {
-    setSearchParams(deskDaysStateToParams({ ...merged, ...patch, page: patch.page ?? 1 }), {
+    setSearchParams(deskDaysStateToParams({ ...state, ...patch, page: patch.page ?? 1 }), {
       replace: true,
     });
   };
-
-  // URL ?include_test=1 seeds the shared preference (Desk ↔ Field).
-  useEffect(() => {
-    if (state.includeTest && !includeTest) setIncludeTest(true);
-  }, [state.includeTest, includeTest, setIncludeTest]);
-
-  // Keep shareable URL in sync with the layout Test toggle.
-  useEffect(() => {
-    if (state.includeTest === includeTest) return;
-    setSearchParams(deskDaysStateToParams({ ...state, includeTest }), { replace: true });
-  }, [includeTest, state, setSearchParams]);
 
   return (
     <Box>
@@ -118,7 +104,6 @@ export default function DeskDaysPage() {
               <TableCell align="right">{day.items_booked}</TableCell>
               <TableCell>
                 <Stack direction="row" spacing={0.5}>
-                  {day.is_test && <Chip size="small" color="warning" label="TEST" />}
                   {day.run && (
                     <Chip
                       size="small"

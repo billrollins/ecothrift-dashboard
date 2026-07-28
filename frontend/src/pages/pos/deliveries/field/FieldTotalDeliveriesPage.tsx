@@ -10,21 +10,18 @@ import {
   Typography,
 } from '@mui/material';
 import { useDeliveriesSearch } from '../../../../hooks/useDelivery';
-import { useIncludeTestPreference } from '../../../../hooks/useIncludeTestPreference';
-import { includeTestApiParam } from '../../../../utils/delivery/includeTestPreference';
 
 export default function FieldTotalDeliveriesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [includeTest] = useIncludeTestPreference();
   const q = searchParams.get('q') || '';
   const [draft, setDraft] = useState(q);
   const params = useMemo(
     () => ({
       search: q || undefined,
       page_size: 30,
-      include_test: includeTestApiParam(includeTest),
+      ...(import.meta.env.DEV ? { include_test: '1' as const } : {}),
     }),
-    [q, includeTest],
+    [q],
   );
   const { data, isLoading } = useDeliveriesSearch(params);
   const rows = data?.results ?? [];
@@ -64,18 +61,11 @@ export default function FieldTotalDeliveriesPage() {
               <Typography variant="caption" color="text.secondary">
                 {job.scheduled_date || 'Unscheduled'} · {job.item_count} items
               </Typography>
-              {job.is_test && (
-                <Chip size="small" color="warning" label="TEST" sx={{ mt: 0.5 }} />
-              )}
             </CardContent>
           </Card>
         ))}
         {!isLoading && rows.length === 0 && (
-          <Typography color="text.secondary">
-            {includeTest
-              ? 'No deliveries found.'
-              : 'No deliveries found. Tap Test in the bottom bar to show [TEST] data.'}
-          </Typography>
+          <Typography color="text.secondary">No deliveries found.</Typography>
         )}
       </Stack>
     </Box>

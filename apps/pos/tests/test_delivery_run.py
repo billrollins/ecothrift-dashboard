@@ -23,7 +23,6 @@ from apps.pos.services.delivery_run import (
     complete_stop,
     log_event,
     mark_contact_present,
-    mark_delivered,
     mark_loaded,
     mark_returned_to_store,
     mark_secured,
@@ -132,6 +131,8 @@ class DeliveryRunServiceTests(TestCase):
         stop_b = run.stops.get(job=self.job_b)
         add_call_attempt(stop_a, user=self.user, result='answered_will_be_there')
         add_call_attempt(stop_b, user=self.user, result='no_answer')
+        run.phase = DeliveryRun.PHASE_ROUTE
+        run.save(update_fields=['phase', 'updated_at'])
         with patch('apps.pos.services.delivery_run.apply_route_plan') as mock_plan:
             mock_plan.return_value = {}
             reorder_stops(run, [stop_a.id], user=self.user)
@@ -142,15 +143,19 @@ class DeliveryRunServiceTests(TestCase):
         run = start_or_resume_run(date=self.date, user=self.user)
         stop = run.stops.order_by('position').first()
         add_call_attempt(stop, user=self.user, result='answered_will_be_there')
+        run.phase = DeliveryRun.PHASE_ACTIVE
+        run.status = DeliveryRun.STATUS_EN_ROUTE
+        run.save(update_fields=['phase', 'status', 'updated_at'])
         with self.assertRaises(ValueError):
             complete_stop(stop, user=self.user, override=False)
         mark_contact_present(stop, user=self.user)
-        mark_delivered(stop, user=self.user)
+        # Delivered is stamped at completion; missing proof still blocks.
         with self.assertRaises(ValueError):
             complete_stop(stop, user=self.user, override=False)
         complete_stop(stop, user=self.user, override=True, override_reason='Customer signed paper')
         stop.refresh_from_db()
         self.assertEqual(stop.state, DeliveryRunStop.STATE_COMPLETED)
+        self.assertIsNotNone(stop.delivered_at)
         self.job_a.refresh_from_db()
         self.assertEqual(self.job_a.status, DeliveryJob.STATUS_COMPLETED)
 
@@ -484,12 +489,21 @@ class DeliveryRunAPITests(TestCase):
             {'date': self.date.isoformat()},
             format='json',
         )
+        run_id = started.data['id']
         stop_id = started.data['stops'][0]['id']
         self._confirm_stop(stop_id)
+        # Delivery proof actions are only allowed after begin_route (active phase).
+        run = DeliveryRun.objects.get(pk=run_id)
+        run.phase = DeliveryRun.PHASE_ACTIVE
+        run.status = DeliveryRun.STATUS_EN_ROUTE
+        run.save(update_fields=['phase', 'status', 'updated_at'])
         blocked = self.client.post(f'/api/pos/delivery-stops/{stop_id}/complete/', {})
         self.assertEqual(blocked.status_code, 400)
         self.client.post(f'/api/pos/delivery-stops/{stop_id}/contact-present/', {'present': True})
-        self.client.post(f'/api/pos/delivery-stops/{stop_id}/delivered/', {'delivered': True})
+        delivered = self.client.post(
+            f'/api/pos/delivery-stops/{stop_id}/delivered/', {'delivered': True}
+        )
+        self.assertEqual(delivered.status_code, 200, delivered.content)
         still = self.client.post(f'/api/pos/delivery-stops/{stop_id}/complete/', {})
         self.assertEqual(still.status_code, 400)
         ok = self.client.post(
@@ -542,6 +556,42 @@ class DeliveryRunAPITests(TestCase):
         finished = self.client.post(f'/api/pos/delivery-runs/{run_id}/finish/')
         self.assertEqual(finished.status_code, 200, finished.content)
         self.assertEqual(finished.data['status'], 'completed')
+
+    def test_force_finish_requires_return_store_and_reason(self):
+        started = self.client.post(
+            '/api/pos/delivery-runs/',
+            {'date': self.date.isoformat()},
+            format='json',
+        )
+        run_id = started.data['id']
+        stop_id = started.data['stops'][0]['id']
+        self.client.post(
+            f'/api/pos/delivery-stops/{stop_id}/call/',
+            {'result': 'no_answer'},
+            format='json',
+        )
+        # Force without return-to-store is blocked.
+        blocked = self.client.post(
+            f'/api/pos/delivery-runs/{run_id}/finish/',
+            {'force': True, 'reason': 'Manager closing early'},
+            format='json',
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.client.post(f'/api/pos/delivery-runs/{run_id}/return-store/')
+        # Force without reason while open stops remain is blocked.
+        no_reason = self.client.post(
+            f'/api/pos/delivery-runs/{run_id}/finish/',
+            {'force': True, 'reason': ''},
+            format='json',
+        )
+        self.assertEqual(no_reason.status_code, 400)
+        forced = self.client.post(
+            f'/api/pos/delivery-runs/{run_id}/finish/',
+            {'force': True, 'reason': 'Manager closing with open return'},
+            format='json',
+        )
+        self.assertEqual(forced.status_code, 200, forced.content)
+        self.assertEqual(forced.data['status'], 'completed')
 
     def test_call_and_templates(self):
         started = self.client.post(

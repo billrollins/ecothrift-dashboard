@@ -1,7 +1,10 @@
-"""Geocode delivery destinations and distance to Eco-Thrift Canfield store.
+"""Geocode delivery destinations and plan routes via Google Routes API.
 
 Primary geocoder: US Census Bureau (free, strong for US street addresses).
 Fallback: OpenStreetMap Nominatim when Census returns no match.
+
+Route planning uses Routes API (computeRoutes / computeRouteMatrix).
+Legacy Directions and Distance Matrix are not called.
 """
 
 from __future__ import annotations
@@ -12,7 +15,7 @@ import math
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 from typing import Any
 
@@ -26,18 +29,25 @@ STORE_LABEL = 'Eco-Thrift — 8425 West Center Road, Omaha NE 68124'
 STORE_MAPS_ADDRESS = '8425 West Center Road, Omaha, NE 68124'
 # google.com/maps/dir allows up to 9 waypoints when origin + destination are set.
 MAX_MAPS_WAYPOINTS = 9
-DIRECTIONS_URL = 'https://maps.googleapis.com/maps/api/directions/json'
+# Routes API intermediate waypoint cap (optimizeWaypointOrder still capped lower by Google).
+MAX_ROUTE_WAYPOINTS = 25
+
+ROUTES_COMPUTE_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes'
+ROUTES_MATRIX_URL = 'https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix'
 # Assumed on-site service time between deliveries when estimating ETAs.
+# Prefer get_delivery_service_seconds() at call sites; constant is the fallback default.
 SERVICE_SECONDS_PER_STOP = 20 * 60
 
 CENSUS_ONELINE = 'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress'
 NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search'
 USER_AGENT = 'EcoThriftDashboard/1.0 (pos-delivery; local staff tool)'
-REQUEST_TIMEOUT_S = 6
+REQUEST_TIMEOUT_S = 12
 
 TIER_5MI_FEE = Decimal('50.00')
 TIER_10MI_FEE = Decimal('75.00')
 MAX_DELIVERY_MILES = Decimal('10')
+
+PROVIDER_GOOGLE_ROUTES = 'google_routes'
 
 
 def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -91,6 +101,127 @@ def _http_get_json(url: str, *, headers: dict[str, str] | None = None) -> Any:
         raise RuntimeError('Address lookup is temporarily unavailable.') from exc
 
 
+def _http_post_json(
+    url: str,
+    body: dict[str, Any],
+    *,
+    headers: dict[str, str] | None = None,
+) -> tuple[Any, int | None, str | None]:
+    """POST JSON; return (parsed_body_or_None, http_status_or_None, error_detail)."""
+    data = json.dumps(body).encode('utf-8')
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method='POST',
+        headers={
+            'User-Agent': USER_AGENT,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            **(headers or {}),
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_S) as resp:
+            raw = resp.read().decode('utf-8')
+            status = getattr(resp, 'status', None) or 200
+            if not raw.strip():
+                return None, status, 'empty_body'
+            try:
+                return json.loads(raw), status, None
+            except json.JSONDecodeError as exc:
+                return None, status, f'parse_failed:{exc}'
+    except urllib.error.HTTPError as exc:
+        detail = ''
+        try:
+            payload = json.loads(exc.read().decode('utf-8'))
+            if isinstance(payload, dict):
+                err = payload.get('error') or {}
+                if isinstance(err, dict):
+                    status_text = str(err.get('status') or '').strip()
+                    message = str(err.get('message') or '').strip()
+                    if status_text and message:
+                        detail = f'{status_text}: {message}'[:240]
+                    else:
+                        detail = (status_text or message or '')[:240]
+                else:
+                    detail = str(payload)[:240]
+        except Exception:  # noqa: BLE001
+            detail = str(exc.reason or '')[:240]
+        logger.warning('Routes HTTP %s (%s): %s', exc.code, url.split('?', 1)[0], detail)
+        return None, exc.code, detail or f'http_{exc.code}'
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        logger.warning('Routes HTTP failed (%s): %s', url.split('?', 1)[0], exc)
+        return None, None, 'network_error'
+
+
+def _parse_duration_seconds(value: Any) -> int | None:
+    """Parse Routes API duration strings like '1234s' or numeric seconds."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, dict):
+        # Rare proto-json form: {"seconds": "1234"}
+        if 'seconds' in value:
+            try:
+                return int(value['seconds'])
+            except (TypeError, ValueError):
+                return None
+        return None
+    text = str(value).strip()
+    if text.endswith('s'):
+        text = text[:-1]
+    try:
+        return int(float(text))
+    except (TypeError, ValueError):
+        return None
+
+
+def _maps_api_key() -> str:
+    from django.conf import settings
+
+    return (getattr(settings, 'GOOGLE_MAPS_API_KEY', None) or '').strip()
+
+
+def _waypoint_payload(address_or_latlng: str) -> dict[str, Any]:
+    """Build a Routes API waypoint from an address string or 'lat,lng' pair."""
+    text = (address_or_latlng or '').strip()
+    if ',' in text:
+        parts = [p.strip() for p in text.split(',')]
+        if len(parts) == 2:
+            try:
+                lat = float(parts[0])
+                lon = float(parts[1])
+                return {'location': {'latLng': {'latitude': lat, 'longitude': lon}}}
+            except ValueError:
+                pass
+    return {'address': text}
+
+
+def _departure_rfc3339_or_none(start_at) -> str | None:
+    """RFC3339 UTC departure, or None when not safely in the future.
+
+    Routes rejects any departureTime that has already occurred. When we do not
+    have a future departure (already departed, missing, or "now"), omit the
+    field entirely so Google defaults to request time.
+    """
+    if start_at is None:
+        return None
+    now = datetime.now(dt_timezone.utc)
+    dt = start_at
+    if timezone_is_naive(dt):
+        dt = dt.replace(tzinfo=dt_timezone.utc)
+    else:
+        dt = dt.astimezone(dt_timezone.utc)
+    if dt < now + timedelta(seconds=60):
+        return None
+    return dt.isoformat().replace('+00:00', 'Z')
+
+
+def timezone_is_naive(dt) -> bool:
+    return getattr(dt, 'tzinfo', None) is None or dt.tzinfo.utcoffset(dt) is None
+
+
 def _normalize_query(query: str) -> str:
     q = (query or '').strip()
     lower = q.lower()
@@ -100,39 +231,60 @@ def _normalize_query(query: str) -> str:
 
 
 def _google_driving_miles(dest_lat: float, dest_lon: float) -> tuple[float, str] | None:
-    """Return (miles, 'driving') via Google Distance Matrix, or None if unavailable."""
-    from django.conf import settings
-
-    key = (getattr(settings, 'GOOGLE_MAPS_API_KEY', None) or '').strip()
+    """Return (miles, 'driving') via Routes computeRouteMatrix, or None if unavailable."""
+    key = _maps_api_key()
     if not key:
         return None
 
-    params = urllib.parse.urlencode(
-        {
-            'origins': f'{STORE_LAT},{STORE_LON}',
-            'destinations': f'{dest_lat},{dest_lon}',
-            'mode': 'driving',
-            'units': 'imperial',
-            'key': key,
-        }
+    body = {
+        'origins': [
+            {
+                'waypoint': {
+                    'location': {
+                        'latLng': {'latitude': STORE_LAT, 'longitude': STORE_LON}
+                    }
+                }
+            }
+        ],
+        'destinations': [
+            {
+                'waypoint': {
+                    'location': {
+                        'latLng': {'latitude': dest_lat, 'longitude': dest_lon}
+                    }
+                }
+            }
+        ],
+        'travelMode': 'DRIVE',
+        'routingPreference': 'TRAFFIC_AWARE',
+    }
+    data, status, detail = _http_post_json(
+        ROUTES_MATRIX_URL,
+        body,
+        headers={
+            'X-Goog-Api-Key': key,
+            'X-Goog-FieldMask': 'originIndex,destinationIndex,distanceMeters,duration,status',
+        },
     )
-    url = f'https://maps.googleapis.com/maps/api/distancematrix/json?{params}'
-    try:
-        data = _http_get_json(url)
-    except RuntimeError:
+    if data is None:
+        logger.warning('Route matrix distance quote failed: %s %s', status, detail)
         return None
 
-    if not isinstance(data, dict) or data.get('status') != 'OK':
-        logger.warning('Google Distance Matrix status: %s', data.get('status') if isinstance(data, dict) else data)
+    # Matrix may return a list of elements or {"elements": [...]} depending on shape.
+    rows = data if isinstance(data, list) else (data.get('elements') if isinstance(data, dict) else None)
+    if not isinstance(rows, list) or not rows:
         return None
+    element = rows[0]
+    if not isinstance(element, dict):
+        return None
+    el_status = element.get('status')
+    if isinstance(el_status, dict) and el_status.get('code') not in (None, 0, 'OK'):
+        return None
+    meters = element.get('distanceMeters')
     try:
-        element = data['rows'][0]['elements'][0]
-        if element.get('status') != 'OK':
-            return None
-        meters = float(element['distance']['value'])
-    except (KeyError, IndexError, TypeError, ValueError):
+        return float(meters) / 1609.344, 'driving'
+    except (TypeError, ValueError):
         return None
-    return meters / 1609.344, 'driving'
 
 
 def _distance_quote(lat: float, lon: float) -> dict[str, Any]:
@@ -326,8 +478,153 @@ def build_google_maps_route_url(stops: list[str]) -> str | None:
     return url
 
 
+def _routes_api_route(
+    addresses: list[str],
+    *,
+    origin: str,
+    destination: str,
+    optimize: bool,
+    departure_at=None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Call computeRoutes. Returns (normalized_route, fallback_reason)."""
+    cleaned = [s.strip() for s in addresses if (s or '').strip()]
+    if not cleaned:
+        return None, 'too_few_stops'
+
+    key = _maps_api_key()
+    if not key:
+        return None, 'no_key'
+
+    capped = cleaned[:MAX_ROUTE_WAYPOINTS]
+    optimize_order = bool(optimize and len(capped) >= 2)
+    body: dict[str, Any] = {
+        'origin': _waypoint_payload(origin),
+        'destination': _waypoint_payload(destination),
+        'intermediates': [_waypoint_payload(a) for a in capped],
+        'travelMode': 'DRIVE',
+        'routingPreference': 'TRAFFIC_AWARE',
+    }
+    departure = _departure_rfc3339_or_none(departure_at)
+    if departure:
+        body['departureTime'] = departure
+    if optimize_order:
+        body['optimizeWaypointOrder'] = True
+
+    field_mask = (
+        'routes.duration,routes.distanceMeters,'
+        'routes.legs.duration,routes.legs.distanceMeters'
+    )
+    if optimize_order:
+        field_mask += ',routes.optimizedIntermediateWaypointIndex'
+
+    data, status, detail = _http_post_json(
+        ROUTES_COMPUTE_URL,
+        body,
+        headers={
+            'X-Goog-Api-Key': key,
+            'X-Goog-FieldMask': field_mask,
+        },
+    )
+    if data is None:
+        if status in (401, 403):
+            return None, f'http_{status}'
+        if detail:
+            return None, detail if detail.startswith('http_') else f'http_{status or "err"}:{detail}'[:80]
+        return None, f'http_{status or "err"}'
+
+    try:
+        route = data['routes'][0]
+    except (KeyError, IndexError, TypeError):
+        return None, 'parse_failed'
+
+    if not isinstance(route, dict):
+        return None, 'parse_failed'
+
+    # Normalize to the shape plan_delivery_route_with_etas already expects.
+    legs_out = []
+    for leg in route.get('legs') or []:
+        if not isinstance(leg, dict):
+            continue
+        legs_out.append(
+            {
+                'duration': {'value': _parse_duration_seconds(leg.get('duration'))},
+                'distance': {'value': leg.get('distanceMeters')},
+            }
+        )
+
+    waypoint_order = route.get('optimizedIntermediateWaypointIndex')
+    if not isinstance(waypoint_order, list):
+        waypoint_order = None
+
+    return {
+        'legs': legs_out,
+        'waypoint_order': waypoint_order,
+        'duration': _parse_duration_seconds(route.get('duration')),
+        'distanceMeters': route.get('distanceMeters'),
+        'capped_count': len(capped),
+    }, None
+
+
+def compute_route_matrix(
+    origins: list[str],
+    destinations: list[str],
+    *,
+    departure_at=None,
+) -> tuple[list[list[int | None]] | None, str | None]:
+    """Return duration matrix [origin_i][dest_j] in seconds, or (None, reason)."""
+    o_clean = [s.strip() for s in origins if (s or '').strip()]
+    d_clean = [s.strip() for s in destinations if (s or '').strip()]
+    if not o_clean or not d_clean:
+        return None, 'too_few_stops'
+
+    key = _maps_api_key()
+    if not key:
+        return None, 'no_key'
+
+    body: dict[str, Any] = {
+        'origins': [{'waypoint': _waypoint_payload(a)} for a in o_clean],
+        'destinations': [{'waypoint': _waypoint_payload(a)} for a in d_clean],
+        'travelMode': 'DRIVE',
+        'routingPreference': 'TRAFFIC_AWARE',
+    }
+    departure = _departure_rfc3339_or_none(departure_at)
+    if departure:
+        body['departureTime'] = departure
+    data, status, detail = _http_post_json(
+        ROUTES_MATRIX_URL,
+        body,
+        headers={
+            'X-Goog-Api-Key': key,
+            'X-Goog-FieldMask': 'originIndex,destinationIndex,duration,distanceMeters,status',
+        },
+    )
+    if data is None:
+        return None, detail or f'http_{status or "err"}'
+
+    elements = data if isinstance(data, list) else (data.get('elements') if isinstance(data, dict) else None)
+    if not isinstance(elements, list):
+        return None, 'parse_failed'
+
+    matrix: list[list[int | None]] = [[None] * len(d_clean) for _ in o_clean]
+    for el in elements:
+        if not isinstance(el, dict):
+            continue
+        try:
+            oi = int(el.get('originIndex', 0))
+            di = int(el.get('destinationIndex', 0))
+        except (TypeError, ValueError):
+            continue
+        if not (0 <= oi < len(o_clean) and 0 <= di < len(d_clean)):
+            continue
+        el_status = el.get('status')
+        if isinstance(el_status, dict) and el_status.get('code') not in (None, 0, 'OK'):
+            continue
+        matrix[oi][di] = _parse_duration_seconds(el.get('duration'))
+    return matrix, None
+
+
 def optimize_delivery_stop_order(stops: list[str]) -> tuple[list[str], bool]:
-    """Reorder stops for fastest drive via Directions optimize:true.
+    """Reorder stops for fastest drive via Routes optimizeWaypointOrder.
 
     Returns (ordered_stops, optimized). Passthrough when key missing, <2 stops,
     or Google fails.
@@ -336,53 +633,28 @@ def optimize_delivery_stop_order(stops: list[str]) -> tuple[list[str], bool]:
     if len(cleaned) < 2:
         return cleaned, False
 
-    from django.conf import settings
-
-    key = (getattr(settings, 'GOOGLE_MAPS_API_KEY', None) or '').strip()
-    if not key:
-        return cleaned, False
-
-    # Directions allows more waypoints than Maps URLs; still cap for our URL.
-    capped = cleaned[:MAX_MAPS_WAYPOINTS]
     store = f'{STORE_LAT},{STORE_LON}'
-    waypoints = 'optimize:true|' + '|'.join(capped)
-    params = urllib.parse.urlencode(
-        {
-            'origin': store,
-            'destination': store,
-            'waypoints': waypoints,
-            'mode': 'driving',
-            'key': key,
-        }
+    route, _reason = _routes_api_route(
+        cleaned,
+        origin=store,
+        destination=store,
+        optimize=True,
     )
-    try:
-        data = _http_get_json(f'{DIRECTIONS_URL}?{params}')
-    except RuntimeError:
+    if not route:
         return cleaned, False
 
-    if not isinstance(data, dict) or data.get('status') != 'OK':
-        logger.warning(
-            'Google Directions status: %s',
-            data.get('status') if isinstance(data, dict) else data,
-        )
+    order = route.get('waypoint_order')
+    capped_n = int(route.get('capped_count') or min(len(cleaned), MAX_ROUTE_WAYPOINTS))
+    if not isinstance(order, list) or len(order) != capped_n:
         return cleaned, False
 
     try:
-        order = data['routes'][0]['waypoint_order']
-    except (KeyError, IndexError, TypeError):
-        return cleaned, False
-
-    if not isinstance(order, list) or len(order) != len(capped):
-        return cleaned, False
-
-    try:
-        reordered = [capped[int(i)] for i in order]
+        reordered = [cleaned[int(i)] for i in order]
     except (ValueError, TypeError, IndexError):
         return cleaned, False
 
-    # Preserve any overflow past the Maps waypoint cap in original order.
-    if len(cleaned) > len(capped):
-        return reordered + cleaned[len(capped) :], True
+    if len(cleaned) > capped_n:
+        return reordered + cleaned[capped_n:], True
     return reordered, True
 
 
@@ -402,54 +674,13 @@ def build_optimized_delivery_route(addresses: list[str]) -> dict[str, Any]:
     }
 
 
-def _directions_route(
-    addresses: list[str],
-    *,
-    origin: str,
-    destination: str,
-    optimize: bool,
-) -> dict[str, Any] | None:
-    """Call Google Directions; return raw route dict or None."""
-    from django.conf import settings
-
-    cleaned = [s.strip() for s in addresses if (s or '').strip()]
-    if not cleaned:
-        return None
-    key = (getattr(settings, 'GOOGLE_MAPS_API_KEY', None) or '').strip()
-    if not key:
-        return None
-
-    capped = cleaned[:MAX_MAPS_WAYPOINTS]
-    if optimize and len(capped) >= 2:
-        waypoints = 'optimize:true|' + '|'.join(capped)
-    elif capped:
-        waypoints = '|'.join(capped)
-    else:
-        return None
-
-    params = urllib.parse.urlencode(
-        {
-            'origin': origin,
-            'destination': destination,
-            'waypoints': waypoints,
-            'mode': 'driving',
-            'key': key,
-        }
-    )
+def _service_seconds() -> int:
     try:
-        data = _http_get_json(f'{DIRECTIONS_URL}?{params}')
-    except RuntimeError:
-        return None
-    if not isinstance(data, dict) or data.get('status') != 'OK':
-        logger.warning(
-            'Google Directions status: %s',
-            data.get('status') if isinstance(data, dict) else data,
-        )
-        return None
-    try:
-        return data['routes'][0]
-    except (KeyError, IndexError, TypeError):
-        return None
+        from apps.pos.services.delivery_settings import get_delivery_service_seconds
+
+        return get_delivery_service_seconds()
+    except Exception:  # noqa: BLE001 — settings layer must never break routing
+        return SERVICE_SECONDS_PER_STOP
 
 
 def plan_delivery_route_with_etas(
@@ -458,6 +689,7 @@ def plan_delivery_route_with_etas(
     origin_address: str | None = None,
     optimize: bool = True,
     start_at=None,
+    service_seconds: int | None = None,
 ) -> dict[str, Any]:
     """Plan stop order + ETA windows (drive time + service allowance).
 
@@ -471,33 +703,48 @@ def plan_delivery_route_with_etas(
     start = start_at or dj_tz.now()
     origin = (origin_address or '').strip() or f'{STORE_LAT},{STORE_LON}'
     destination = f'{STORE_LAT},{STORE_LON}'
+    svc = int(service_seconds) if service_seconds is not None else _service_seconds()
 
+    empty = {
+        'ordered_addresses': [],
+        'order_indices': [],
+        'optimized': False,
+        'maps_url': build_google_maps_route_url([]),
+        'etas': [],
+        'etas_available': False,
+        'store_address': STORE_MAPS_ADDRESS,
+        'service_seconds_per_stop': svc,
+        'provider': None,
+        'fallback_reason': 'too_few_stops',
+        'total_drive_seconds': None,
+        'total_distance_meters': None,
+        'return_drive_seconds': None,
+        'return_distance_meters': None,
+        'total_service_seconds': 0,
+        'total_eta_seconds': None,
+        'estimated_finish_at': None,
+        'truncated': 0,
+        'waypoint_cap': MAX_MAPS_WAYPOINTS,
+        'route_waypoint_cap': MAX_ROUTE_WAYPOINTS,
+    }
     if not cleaned:
-        return {
-            'ordered_addresses': [],
-            'order_indices': [],
-            'optimized': False,
-            'maps_url': build_google_maps_route_url([]),
-            'etas': [],
-            'etas_available': False,
-            'store_address': STORE_MAPS_ADDRESS,
-            'service_seconds_per_stop': SERVICE_SECONDS_PER_STOP,
-        }
+        return empty
 
-    route = _directions_route(
+    route, fallback_reason = _routes_api_route(
         cleaned,
         origin=origin,
         destination=destination,
         optimize=optimize and len(cleaned) >= 2,
+        departure_at=start,
     )
 
     order_indices = list(range(len(cleaned)))
     optimized = False
     if route and optimize and len(cleaned) >= 2:
         raw_order = route.get('waypoint_order')
-        if isinstance(raw_order, list) and len(raw_order) == min(len(cleaned), MAX_MAPS_WAYPOINTS):
+        capped_n = int(route.get('capped_count') or min(len(cleaned), MAX_ROUTE_WAYPOINTS))
+        if isinstance(raw_order, list) and len(raw_order) == capped_n:
             try:
-                capped_n = min(len(cleaned), MAX_MAPS_WAYPOINTS)
                 order_indices = [int(i) for i in raw_order]
                 if len(cleaned) > capped_n:
                     order_indices.extend(range(capped_n, len(cleaned)))
@@ -513,16 +760,21 @@ def plan_delivery_route_with_etas(
     total_distance_meters = 0
     return_drive_seconds = None
     return_distance_meters = None
+    provider = PROVIDER_GOOGLE_ROUTES if route else None
 
     if route:
         legs = route.get('legs') or []
         for leg in legs:
             try:
-                total_drive_seconds += int(leg['duration']['value'])
+                drive_v = leg['duration']['value']
+                if drive_v is not None:
+                    total_drive_seconds += int(drive_v)
             except (KeyError, TypeError, ValueError):
                 pass
             try:
-                total_distance_meters += int(leg['distance']['value'])
+                dist_v = leg['distance']['value']
+                if dist_v is not None:
+                    total_distance_meters += int(dist_v)
             except (KeyError, TypeError, ValueError):
                 pass
         if len(legs) > len(ordered):
@@ -536,13 +788,13 @@ def plan_delivery_route_with_etas(
                 pass
 
         # legs: origin→stop1, stop1→stop2, ..., last→destination(store)
-        # For n stops there are n+1 legs when returning to store.
         cursor = start
         for idx in range(len(ordered)):
             drive = None
             if idx < len(legs):
                 try:
-                    drive = int(legs[idx]['duration']['value'])
+                    drive = legs[idx]['duration']['value']
+                    drive = int(drive) if drive is not None else None
                 except (KeyError, TypeError, ValueError):
                     drive = None
             if drive is None:
@@ -556,7 +808,7 @@ def plan_delivery_route_with_etas(
                 continue
             etas_available = True
             arrive = cursor + timedelta(seconds=drive)
-            window_end = arrive + timedelta(seconds=SERVICE_SECONDS_PER_STOP)
+            window_end = arrive + timedelta(seconds=svc)
             etas.append(
                 {
                     'arrive_at': arrive,
@@ -565,8 +817,14 @@ def plan_delivery_route_with_etas(
                 }
             )
             cursor = window_end
+    elif fallback_reason is None:
+        fallback_reason = 'parse_failed'
 
     maps_url = build_google_maps_route_url(ordered)
+    total_service_seconds = svc * len(ordered)
+    total_eta_seconds = (
+        total_drive_seconds + total_service_seconds if route else None
+    )
     return {
         'ordered_addresses': ordered,
         'order_indices': order_indices,
@@ -575,22 +833,23 @@ def plan_delivery_route_with_etas(
         'etas': etas,
         'etas_available': etas_available,
         'store_address': STORE_MAPS_ADDRESS,
-        'service_seconds_per_stop': SERVICE_SECONDS_PER_STOP,
+        'service_seconds_per_stop': svc,
+        'provider': provider,
+        'fallback_reason': None if route else fallback_reason,
         'total_drive_seconds': total_drive_seconds if route else None,
         'total_distance_meters': total_distance_meters if route else None,
         'return_drive_seconds': return_drive_seconds,
         'return_distance_meters': return_distance_meters,
+        'total_service_seconds': total_service_seconds,
+        'total_eta_seconds': total_eta_seconds,
         'estimated_finish_at': (
-            start
-            + timedelta(
-                seconds=total_drive_seconds
-                + (SERVICE_SECONDS_PER_STOP * len(ordered))
-            )
-            if route
+            start + timedelta(seconds=total_eta_seconds)
+            if total_eta_seconds is not None
             else None
         ),
         'truncated': max(0, len(cleaned) - MAX_MAPS_WAYPOINTS),
         'waypoint_cap': MAX_MAPS_WAYPOINTS,
+        'route_waypoint_cap': MAX_ROUTE_WAYPOINTS,
     }
 
 

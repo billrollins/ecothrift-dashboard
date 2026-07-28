@@ -362,9 +362,34 @@ export function excludeDeliveryStopUnconfirmed(
   return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/exclude-unconfirmed/`, data);
 }
 
+export type ScanMismatchFound = {
+  source: 'run_item' | 'inventory' | 'unknown' | string;
+  sku: string;
+  description: string;
+  stop_item_id?: number | null;
+  stop_id?: number | null;
+  customer_name?: string;
+  inventory_item_id?: number | null;
+};
+
+export type ScanMismatchPayload = {
+  detail: string;
+  code: 'SCAN_MISMATCH';
+  scanned_code: string;
+  expected_sku: string;
+  expected_description: string;
+  found: ScanMismatchFound;
+};
+
 export function scanDeliveryStopItem(
   itemId: number,
-  data: { scanned_code?: string; sku?: string; client_scan_id?: string },
+  data: {
+    scanned_code?: string;
+    sku?: string;
+    client_scan_id?: string;
+    /** Driver confirms the scanned code is the correct ID for this line. */
+    allow_mismatch?: boolean;
+  },
 ): Promise<{ data: DeliveryRun }> {
   return api.post<DeliveryRun>(`/pos/delivery-stop-items/${itemId}/scan/`, data);
 }
@@ -379,8 +404,12 @@ export function skipDeliveryStopItemVerification(
 export function setDeliveryStopItemLoaded(
   itemId: number,
   loaded = true,
+  reason = '',
 ): Promise<{ data: DeliveryRun }> {
-  return api.post<DeliveryRun>(`/pos/delivery-stop-items/${itemId}/load/`, { loaded });
+  return api.post<DeliveryRun>(`/pos/delivery-stop-items/${itemId}/load/`, {
+    loaded,
+    ...(reason ? { reason } : {}),
+  });
 }
 
 export function setDeliveryStopItemPhotoException(
@@ -392,6 +421,13 @@ export function setDeliveryStopItemPhotoException(
 
 export function closeDeliveryRunTruck(runId: number): Promise<{ data: DeliveryRun }> {
   return api.post<DeliveryRun>(`/pos/delivery-runs/${runId}/close-truck/`, {});
+}
+
+export function reopenDeliveryRunTruck(
+  runId: number,
+  data?: { reason?: string },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${runId}/reopen-truck/`, data ?? {});
 }
 
 export function setDeliveryRunDepartureOverride(
@@ -501,6 +537,57 @@ export function reorderDeliveryRun(
   });
 }
 
+export interface DeliveryRouteInsertPreview {
+  stop_id: number;
+  proposed_position: number;
+  neighbors: {
+    before: { id: number; name: string } | null;
+    after: { id: number; name: string } | null;
+  };
+  added_drive_seconds: number | null;
+  added_service_seconds: number;
+  provisional_eta: string | null;
+  provider_status: string;
+  route_revision: number;
+  stop: {
+    id: number;
+    job_id: number;
+    customer_name: string;
+    phone: string;
+    address: string;
+    contact_disposition: string;
+    excluded_unconfirmed: boolean;
+    state: string;
+    position: number;
+  };
+  etas_available?: boolean;
+  total_drive_seconds?: number | null;
+  baseline_drive_seconds?: number | null;
+}
+
+export function previewDeliveryRouteInsert(
+  id: number,
+  stopId: number,
+  baseRevision?: number,
+): Promise<{ data: DeliveryRouteInsertPreview }> {
+  return api.post<DeliveryRouteInsertPreview>(`/pos/delivery-runs/${id}/preview-insert/`, {
+    stop_id: stopId,
+    ...(baseRevision != null ? { base_revision: baseRevision } : {}),
+  });
+}
+
+export function commitDeliveryRouteInsert(
+  id: number,
+  stopId: number,
+  options?: { baseRevision?: number; position?: number },
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-runs/${id}/commit-insert/`, {
+    stop_id: stopId,
+    ...(options?.baseRevision != null ? { base_revision: options.baseRevision } : {}),
+    ...(options?.position != null ? { position: options.position } : {}),
+  });
+}
+
 export function finishDeliveryRun(
   id: number,
   data?: { force?: boolean; reason?: string },
@@ -521,8 +608,15 @@ export function deleteDeliveryAttachment(
   return api.delete<DeliveryRun>(`/pos/delivery-runs/${runId}/attachments/${attachmentId}/`);
 }
 
-export function markDeliveryStopLoaded(stopId: number, loaded = true): Promise<{ data: DeliveryRun }> {
-  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/load/`, { loaded });
+export function markDeliveryStopLoaded(
+  stopId: number,
+  loaded = true,
+  reason = '',
+): Promise<{ data: DeliveryRun }> {
+  return api.post<DeliveryRun>(`/pos/delivery-stops/${stopId}/load/`, {
+    loaded,
+    ...(reason ? { reason } : {}),
+  });
 }
 
 export function markDeliveryStopSecured(stopId: number, secured = true): Promise<{ data: DeliveryRun }> {
