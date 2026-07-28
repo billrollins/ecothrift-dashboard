@@ -3303,12 +3303,15 @@ class DeliveryViewSet(viewsets.ViewSet):
             day = DeliveryDay.objects.get(pk=int(request.data.get('day') or request.data.get('day_id')))
         except (DeliveryDay.DoesNotExist, ValueError, TypeError):
             return Response({'detail': 'Day not found.', 'code': 'DAY_NOT_FOUND'}, status=400)
-        assign_delivery_to_day(
-            job=job,
-            day=day,
-            user=request.user,
-            reason=str(request.data.get('reason') or ''),
-        )
+        try:
+            assign_delivery_to_day(
+                job=job,
+                day=day,
+                user=request.user,
+                reason=str(request.data.get('reason') or ''),
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc), 'code': 'ASSIGN_DAY_BLOCKED'}, status=400)
         return Response(DeliveryJobSerializer(job).data)
 
     @action(detail=True, methods=['post'], url_path='items')

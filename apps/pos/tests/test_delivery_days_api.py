@@ -328,3 +328,64 @@ class DeliveryDaysAPITests(TestCase):
                 action='archive',
             ).exists()
         )
+
+        # Restore must put the stop back on the live route, not just un-archive the job.
+        restored = self.client.post(
+            f'/api/pos/deliveries/{job.id}/restore/',
+            {'reason': 'desk undo'},
+            format='json',
+        )
+        self.assertEqual(restored.status_code, 200, restored.content)
+        job.refresh_from_db()
+        stop.refresh_from_db()
+        self.assertIsNone(job.archived_at)
+        self.assertEqual(job.status, DeliveryJob.STATUS_SCHEDULED)
+        self.assertEqual(stop.state, DeliveryRunStop.STATE_QUEUED)
+        self.assertEqual(stop.return_issue_code, '')
+        self.assertEqual(stop.hold_reason, '')
+
+    def test_assign_day_blocked_for_loaded_or_en_route_stop(self):
+        job = DeliveryJob.objects.create(
+            availability=self.day,
+            scheduled_date=self.day.date,
+            customer_name='On The Truck',
+            phone='402-555-0188',
+            address='88 Loaded Ln',
+            items_delivered='Sofa',
+            item_count=1,
+            status=DeliveryJob.STATUS_SCHEDULED,
+            created_by=self.user,
+        )
+        run = start_or_resume_run(
+            date=self.day.date,
+            user=self.user,
+            availability_id=self.day.id,
+        )
+        stop = DeliveryRunStop.objects.get(run=run, job=job)
+        stop.loaded_at = timezone.now()
+        stop.save(update_fields=['loaded_at', 'updated_at'])
+
+        other_day = DeliveryDay.objects.create(
+            date=self.day.date + timedelta(days=2),
+            time_start=time(9, 0),
+            time_end=time(15, 0),
+            location=self.location,
+            assigned_to='Days Api',
+        )
+        r = self.client.post(
+            f'/api/pos/deliveries/{job.id}/assign-day/',
+            {'day': other_day.id, 'reason': 'desk move'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400, r.content)
+        self.assertEqual(r.data['code'], 'ASSIGN_DAY_BLOCKED')
+
+        # The job and its stop must be untouched by the rejected move.
+        job.refresh_from_db()
+        stop.refresh_from_db()
+        self.assertEqual(job.availability_id, self.day.id)
+        self.assertEqual(job.scheduled_date, self.day.date)
+        self.assertEqual(stop.state, DeliveryRunStop.STATE_QUEUED)
+        self.assertFalse(
+            DeliveryRunStop.objects.filter(job=job, run__date=other_day.date).exists()
+        )

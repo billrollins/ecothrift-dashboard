@@ -167,15 +167,64 @@ def _eligible_jobs_for_date(date) -> list[DeliveryJob]:
     )
 
 
-def sync_job_onto_open_run(job: DeliveryJob, *, user=None) -> DeliveryRun | None:
-    """If an open run exists for the job's date, ensure a stop exists for it."""
+def sync_job_onto_open_run(
+    job: DeliveryJob,
+    *,
+    user=None,
+    requeue_inactive: bool = False,
+) -> DeliveryRun | None:
+    """If an open run exists for the job's date, ensure a stop exists for it.
+
+    ``requeue_inactive`` revives a stop this job already has that was failed or
+    rescheduled off the run (restore-after-archive), so the delivery reappears on
+    the live route instead of only looking scheduled on the Desk.
+    """
     if not job.scheduled_date or job.status != DeliveryJob.STATUS_SCHEDULED:
         return None
     run = get_open_run_for_date(job.scheduled_date)
     if not run:
         return None
-    existing_stop = run.stops.filter(job=job).first()
+    existing_stop = run.stops.filter(job=job).order_by('-id').first()
     if existing_stop:
+        inactive_states = (
+            DeliveryRunStop.STATE_FAILED,
+            DeliveryRunStop.STATE_RESCHEDULED,
+        )
+        if requeue_inactive and existing_stop.state in inactive_states:
+            existing_stop.state = DeliveryRunStop.STATE_QUEUED
+            existing_stop.hold_reason = ''
+            existing_stop.return_issue_code = ''
+            existing_stop.return_issue_notes = ''
+            existing_stop.return_reconciled_at = None
+            existing_stop.rescheduled_at = None
+            existing_stop.rescheduled_by = None
+            existing_stop.rescheduled_to_date = None
+            existing_stop.save(
+                update_fields=[
+                    'state',
+                    'hold_reason',
+                    'return_issue_code',
+                    'return_issue_notes',
+                    'return_reconciled_at',
+                    'rescheduled_at',
+                    'rescheduled_by',
+                    'rescheduled_to_date',
+                    'updated_at',
+                ]
+            )
+            phase2.snapshot_stop_items(existing_stop, user=user)
+            ensure_next_up(run)
+            if user is not None:
+                log_event(
+                    run,
+                    'note',
+                    actor=user,
+                    stop=existing_stop,
+                    payload={'requeued_job_id': job.id},
+                )
+            if run.status == DeliveryRun.STATUS_EN_ROUTE:
+                apply_route_plan(run, user=user, optimize=False)
+            return run
         phase2.snapshot_stop_items(existing_stop, user=user)
         return run
     max_pos = run.stops.order_by('-position').values_list('position', flat=True).first()

@@ -12,6 +12,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **POS / assign-day guard** — `POST /deliveries/{id}/assign-day/` refuses to move a delivery to another day once its stop is loaded or its run is en route (400 `ASSIGN_DAY_BLOCKED`), matching the reschedule guard; the job is no longer re-dated before the check.
+- **POS / restore after archive** — Restoring an archived delivery re-queues the run stop that archive failed (`sync_job_onto_open_run(..., requeue_inactive=True)`), so it reappears on the live route instead of only looking scheduled on the Desk.
+
 ## [2.59.0] — 2026-07-28
 
 User-facing theme: **Delivery Desk production add/adjust** — create from past sale, day-detail adjust/cancel, real route maps, change history, shared Delivery tokens.

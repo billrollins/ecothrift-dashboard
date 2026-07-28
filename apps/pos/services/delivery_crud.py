@@ -205,6 +205,19 @@ def assign_delivery_to_day(*, job: DeliveryJob, day: DeliveryDay, user, reason: 
     old_stop = open_stop_for_job(job)
     old_run = old_stop.run if old_stop else None
 
+    # Same guard as reschedule_job_from_run: freight already on the truck cannot
+    # be moved to another day from the Desk.
+    if (
+        old_stop
+        and old_run
+        and old_run.date != day.date
+        and (old_stop.loaded_at or old_run.status == DeliveryRun.STATUS_EN_ROUTE)
+    ):
+        raise ValueError(
+            'Cannot move a loaded or en-route delivery to another day — '
+            'report an issue and reconcile the return first'
+        )
+
     job.availability = day
     job.scheduled_date = day.date
     if job.status == DeliveryJob.STATUS_NEEDS_SCHEDULING:
@@ -299,6 +312,8 @@ def archive_delivery(*, job: DeliveryJob, user, reason: str = '') -> DeliveryJob
 
 @transaction.atomic
 def restore_delivery(*, job: DeliveryJob, user, reason: str = '') -> DeliveryJob:
+    from apps.pos.services.delivery_run import sync_job_onto_open_run
+
     before = job_snapshot(job)
     job.archived_at = None
     job.archived_by = None
@@ -324,6 +339,8 @@ def restore_delivery(*, job: DeliveryJob, user, reason: str = '') -> DeliveryJob
         after=job_snapshot(job),
         reason=reason,
     )
+    # Archive failed the open-run stop; restoring must put it back on the route.
+    sync_job_onto_open_run(job, user=user, requeue_inactive=True)
     return job
 
 
