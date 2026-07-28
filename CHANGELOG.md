@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [Unreleased] -->
-<!-- Last reviewed: 2026-07-28 (v2.59.0 Desk add/adjust + route maps + history) -->
+<!-- Line 1 release: ## [2.59.1] — 2026-07-28 -->
+<!-- Last reviewed: 2026-07-28 (v2.59.1 assign-day / restore run-sync) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,7 +10,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.59.1] — 2026-07-28
+
+User-facing theme: **Delivery Desk run-sync safety** — assign-day blocked when freight is loaded or en route; restore re-queues the archived stop.
+
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
 
 ### Fixed
 

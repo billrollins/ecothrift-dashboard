@@ -13,7 +13,7 @@ Session details live **only** in each file under **`## Sessions`**.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [delivery_mobile_operations_completion](./delivery_mobile_operations_completion.md) | Phase 5C done | **v2.59.0** shipped (Desk add/adjust, route maps, change history, shared theme). Code complete; only owner phone hardware pass + visual sign-off remain. |
+| [delivery_mobile_operations_completion](./delivery_mobile_operations_completion.md) | Phase 5C done | **v2.59.1** live path (assign-day/restore run-sync). Code complete; only owner phone hardware pass + visual sign-off remain. |
 
 ---
 

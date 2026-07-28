@@ -1,19 +1,12 @@
-feat(pos): Delivery Desk add/adjust, route maps, change history (v2.59.0)
+fix(pos): assign-day and restore run-sync safety (v2.59.1)
 
-Phase 5B/5C of delivery_mobile_operations_completion.
+Release: v2.59.1
 
-- Desk: manager item add/remove on the details modal; DeskDayDialog day
-  create/edit from Days list and Day detail.
-- Change history: day + job history endpoints over DeliveryChangeEvent with
-  human-readable summaries, rendered by DeliveryHistoryPanel.
-- Route map: Routes API encodedPolyline persisted on run.route_summary and
-  served as a cached Static Map from the backend so the Maps key stays
-  server-side; replaces the decorative MiniMap on Desk and Field.
-- Field: byte-level upload progress, pinned stop CTA, live-edge step sync,
-  selection freeze during mutations, signature letterboxing, phone extensions.
-- Removed the legacy driver-wizard board, its orphaned hooks, and 16 unused
-  delivery API clients.
-- Repaired pre-existing apps.pos failures (stale Item.title cart tests;
-  future-dated audits and seeded-goal collision in test_dashboard_metrics).
+- Block POST /deliveries/{id}/assign-day/ when the stop is loaded or the
+  run is en route (400 ASSIGN_DAY_BLOCKED); mutate only after the guard.
+- On restore after archive, re-queue the failed stop via
+  sync_job_onto_open_run(requeue_inactive=True) so the delivery returns
+  to the live route.
+- Steering docs + CHANGELOG for the patch release.
 
-Gates: apps.pos 176 pass, frontend 374 pass, tsc clean, makemigrations clean.
+Initiative: delivery_mobile_operations_completion.
