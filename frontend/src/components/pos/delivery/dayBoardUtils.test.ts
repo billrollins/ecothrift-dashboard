@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  boardPrimaryAction,
-  buildDeliveryDayCards,
-  resolveDayBoardStage,
-  stageLabel,
-} from './dayBoardUtils';
+import { buildDeliveryDayCards, resolveDayBoardStage } from './dayBoardUtils';
 import type { DeliveryJob, DeliveryRun, DeliveryRunStop } from '../../../types/pos.types';
 
 function job(partial: Partial<DeliveryJob> & { id: number }): DeliveryJob {
@@ -81,7 +76,6 @@ function stop(
 describe('dayBoardUtils', () => {
   it('resolves stages from run', () => {
     expect(resolveDayBoardStage(null)).toBe('initial');
-    expect(stageLabel('calls')).toBe('Make calls');
     expect(
       resolveDayBoardStage({
         status: 'completed',
@@ -132,21 +126,6 @@ describe('dayBoardUtils', () => {
     expect(cards[0].customer_name).toBe('Alice');
     expect(cards[0].group).toBe('actionable');
     expect(cards[1].group).toBe('excluded');
-  });
-
-  it('gates primary board actions', () => {
-    expect(boardPrimaryAction('initial', null)?.action).toBe('start');
-    expect(
-      boardPrimaryAction('calls', {
-        all_stops_called: false,
-      } as DeliveryRun)?.disabled,
-    ).toBe(true);
-    expect(
-      boardPrimaryAction('load', {
-        all_loaded_secured: true,
-        truck_photo_count: 1,
-      } as DeliveryRun)?.action,
-    ).toBe('begin_drive');
   });
 
   it('keeps rescheduled and completed cards discoverable', () => {

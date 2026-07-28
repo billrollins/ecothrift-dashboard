@@ -60,27 +60,6 @@ export function resolveDayBoardStage(run: DeliveryRun | null | undefined): DayBo
   return 'initial';
 }
 
-export function stageLabel(stage: DayBoardStage): string {
-  switch (stage) {
-    case 'initial':
-      return 'Not started';
-    case 'calls':
-      return 'Make calls';
-    case 'route':
-      return 'Optimize route';
-    case 'load':
-      return 'Load truck';
-    case 'active':
-      return 'Delivering';
-    case 'return':
-      return 'Return & reconcile';
-    case 'completed':
-      return 'Day complete';
-    default:
-      return stage;
-  }
-}
-
 export function formatMoney(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num ?? 0);
@@ -225,73 +204,6 @@ function groupSortRank(group: DeliveryDayCardModel['group'], stage: DayBoardStag
   if (group === 'hold') return 2;
   if (group === 'rescheduled') return 3;
   return 4;
-}
-
-export function boardPrimaryAction(
-  stage: DayBoardStage,
-  run: DeliveryRun | null | undefined,
-): { label: string; action: string; disabled: boolean; disabledReason?: string } | null {
-  if (stage === 'initial') {
-    return { label: 'Start delivery day', action: 'start', disabled: false };
-  }
-  if (!run || stage === 'completed') return null;
-  if (stage === 'calls') {
-    const ok = Boolean(run.all_stops_called);
-    return {
-      label: ok ? 'Continue to route' : 'Record a call for every stop',
-      action: 'to_route',
-      disabled: !ok,
-      disabledReason: ok ? undefined : 'Every stop needs a call result',
-    };
-  }
-  if (stage === 'route') {
-    const confirmed = (run.progress?.confirmed ?? 0) > 0 || run.stops.some((s) => s.is_confirmed);
-    return {
-      label: 'Continue to load',
-      action: 'to_load',
-      disabled: !confirmed,
-      disabledReason: confirmed ? undefined : 'Confirm at least one stop',
-    };
-  }
-  if (stage === 'load') {
-    const ok = Boolean(run.all_loaded_secured) && (run.truck_photo_count || 0) >= 1;
-    return {
-      label: ok ? 'Start drive' : 'Load, secure, and add truck photo',
-      action: 'begin_drive',
-      disabled: !ok,
-    };
-  }
-  if (stage === 'active') {
-    const hasNext = Boolean(run.next_up?.is_confirmed);
-    if (!hasNext) {
-      return { label: 'Return to store', action: 'return_store', disabled: false };
-    }
-    return null;
-  }
-  if (stage === 'return') {
-    const ok = Boolean(run.can_finish);
-    return {
-      label: ok ? 'End day' : 'Reconcile undelivered stops',
-      action: 'finish',
-      disabled: !ok,
-    };
-  }
-  return null;
-}
-
-export function phaseProgress(stage: DayBoardStage): { key: DayBoardStage; label: string }[] {
-  return [
-    { key: 'calls', label: 'Calls' },
-    { key: 'route', label: 'Route' },
-    { key: 'load', label: 'Load' },
-    { key: 'active', label: 'Drive' },
-    { key: 'return', label: 'Return' },
-  ];
-}
-
-export function isStageReached(current: DayBoardStage, step: DayBoardStage): boolean {
-  const order: DayBoardStage[] = ['initial', 'calls', 'route', 'load', 'active', 'return', 'completed'];
-  return order.indexOf(current) >= order.indexOf(step);
 }
 
 export type { DeliveryRunPhase };

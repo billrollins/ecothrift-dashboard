@@ -1,17 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canBeginDriving,
-  canCompleteStopNormally,
-  canFinishDay,
-  canProceedFromCalls,
-  canProceedFromLoad,
-  canProceedFromTruck,
-  confirmationChip,
   confirmedStops,
-  groupStopsByBoard,
   interpolateTemplateTokens,
   normalizeWizardPhase,
-  stopsNeedingReconcile,
+  stopLineItems,
+  telHref,
+  unconfirmedStops,
 } from './driverWizardUtils';
 import type { DeliveryRunStop } from '../../../types/pos.types';
 
@@ -71,77 +65,26 @@ describe('driverWizardUtils', () => {
     expect(normalizeWizardPhase('active')).toBe('active');
   });
 
-  it('gates calls / load / truck / begin driving', () => {
-    expect(canProceedFromCalls({ all_stops_called: false })).toBe(false);
-    expect(canProceedFromCalls({ all_stops_called: true })).toBe(true);
-    expect(canProceedFromLoad({ all_loaded_secured: false })).toBe(false);
-    expect(canProceedFromLoad({ all_loaded_secured: true })).toBe(true);
-    expect(canProceedFromTruck({ truck_photo_count: 0 })).toBe(false);
-    expect(canProceedFromTruck({ truck_photo_count: 1 })).toBe(true);
-    expect(canBeginDriving({ all_loaded_secured: true, truck_photo_count: 0 })).toBe(false);
-    expect(canBeginDriving({ all_loaded_secured: true, truck_photo_count: 1 })).toBe(true);
-  });
-
-  it('requires contact + delivered + proof + signature for normal complete', () => {
-    expect(
-      canCompleteStopNormally({
-        contact_present_at: 'x',
-        delivered_at: 'x',
-        has_proof_photo: true,
-        has_signature: false,
-      }),
-    ).toBe(false);
-    expect(
-      canCompleteStopNormally({
-        contact_present_at: 'x',
-        delivered_at: 'x',
-        has_proof_photo: true,
-        has_signature: true,
-      }),
-    ).toBe(true);
-  });
-
-  it('chips confirmation from latest call', () => {
-    expect(confirmationChip({ is_confirmed: true, latest_call_result: 'answered_will_be_there', has_call_result: true }).label).toBe(
-      'Confirmed',
-    );
-    expect(
-      confirmationChip({
-        is_confirmed: false,
-        latest_call_result: 'wrong_number',
-        has_call_result: true,
-      }).label,
-    ).toBe('Unavailable');
-    expect(
-      confirmationChip({ is_confirmed: false, latest_call_result: null, has_call_result: false }).label,
-    ).toBe('Needs call');
-  });
-
-  it('groups board queues and reconcile candidates', () => {
-    const groups = groupStopsByBoard([
+  it('splits partitions confirmed from unconfirmed stops', () => {
+    const stops = [
       stop({ id: 1, state: 'next_up', is_confirmed: true }),
-      stop({ id: 2, state: 'on_hold' }),
-      stop({ id: 3, state: 'completed', is_confirmed: true }),
-      stop({ id: 4, state: 'queued', is_confirmed: true }),
-      stop({ id: 5, state: 'queued', is_confirmed: false, has_call_result: true }),
-    ]);
-    expect(groups.nextUp).toHaveLength(1);
-    expect(groups.onHold.length).toBeGreaterThanOrEqual(1);
-    expect(groups.completed).toHaveLength(1);
-    expect(groups.queued).toHaveLength(1);
-    expect(confirmedStops(groups.queued.concat(groups.nextUp))).toHaveLength(2);
-    expect(
-      stopsNeedingReconcile([
-        stop({ id: 1, state: 'completed' }),
-        stop({ id: 2, state: 'queued' }),
-        stop({ id: 3, state: 'failed', return_reconciled_at: 'x' }),
-      ]),
-    ).toHaveLength(1);
+      stop({ id: 2, state: 'queued', is_confirmed: false }),
+      stop({ id: 3, state: 'queued', is_confirmed: true }),
+    ];
+    expect(confirmedStops(stops)).toHaveLength(2);
+    expect(unconfirmedStops(stops)).toHaveLength(1);
   });
 
-  it('gates end day', () => {
-    expect(canFinishDay({ can_finish: true, returned_to_store_at: null })).toBe(false);
-    expect(canFinishDay({ can_finish: true, returned_to_store_at: 'x' })).toBe(true);
+  it('falls back to parsed item text when a stop has no line items', () => {
+    const parsed = stopLineItems(stop({ id: 1, state: 'queued', items_delivered: 'Washer, Dryer' }));
+    expect(parsed.map((i) => i.description)).toEqual(['Washer', 'Dryer']);
+    const empty = stopLineItems(stop({ id: 2, state: 'queued', items_delivered: '' }));
+    expect(empty).toHaveLength(1);
+    expect(empty[0].description).toBe('Delivery items');
+  });
+
+  it('strips punctuation from tel hrefs', () => {
+    expect(telHref('(402) 555-0177')).toBe('tel:4025550177');
   });
 
   it('interpolates template tokens', () => {
