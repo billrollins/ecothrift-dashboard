@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-22 (v2.53.0 Retail QA schedule goals + gold celebration) -->
+<!-- Last updated: 2026-07-29 (v2.60.0 Retail QA reliability + 8-week dashboard) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -197,5 +197,5 @@ Hooks: `useRegisters`, `useDrawers` (accepts `options.enabled`), `useCarts` (acc
 ## Revenue Goals & Dashboard Metrics
 
 - **DashboardSalesGoal** / **DashboardDepartmentGoal** — weekly targets; CRUD under **`/api/pos/dashboard/`**. Retail QA adds `schedule = {weekdays: [0..6], audits_per_day: N}` (`pos.0019`) alongside the minimum grade in `value`.
-- **dashboard_metrics** (`GET /api/pos/dashboard/metrics/`): sales run-rate (90-day chart, 14-week book), department cards (buying, processing, restoration, retail QA), cached 45s — **`apps/pos/services/dashboard_metrics.py`**. Retail QA daily/week progress is count + last submitted grade; no averaging/highest-grade selection. Daily/full-week success drives gold UI.
-- **Quality Audit:** **`QualityAuditForm`** + **`QualityAudit`**; **`GET/POST/PATCH /api/pos/quality-audit-forms/`** + **`/api/pos/quality-audits/`** + **`…/submit/`** (Manager+); latest **`feeds_dashboard`** submit drives retail QA Actual grade, and submitted history is reviewable from the QA hub.
+- **dashboard_metrics** (`GET /api/pos/dashboard/metrics/?weeks=`): sales run-rate (90-day chart, 14-week book), department cards (buying, processing, restoration, retail QA), cached 45s — **`apps/pos/services/dashboard_metrics.py`**. `weeks` defaults to **8** (clamped 2–12); cache key includes weeks. Retail QA daily/week progress is count + last submitted grade; days expose **`retail_audit_ids`**; retail block includes **`form_slug`**. No averaging/highest-grade selection. Daily/full-week success drives gold UI. Manager+ day cells deep-link into submitted audits.
+- **Quality Audit:** **`QualityAuditForm`** + **`QualityAudit`** (`updated_at`, migration **`pos.0025`**); **`GET/POST/PATCH/DELETE /api/pos/quality-audit-forms/`** + **`/api/pos/quality-audits/`** (draft DELETE; list `limit`) + **`…/submit/`** (Manager+). Grades use +/- bands in **`apps/pos/services/quality_audit.py`**. Hub shows drafts + submitted; wizard autosaves. Latest **`feeds_dashboard`** submit drives retail QA Actual. Recovery: **`finalize_stranded_qa_audits`**.

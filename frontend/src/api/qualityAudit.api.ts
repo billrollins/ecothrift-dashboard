@@ -32,3 +32,7 @@ export function submitQualityAudit(
 ): Promise<{ data: QualityAudit }> {
   return api.post<QualityAudit>(`/pos/quality-audits/${id}/submit/`, data);
 }
+
+export function deleteQualityAudit(id: number): Promise<void> {
+  return api.delete(`/pos/quality-audits/${id}/`).then(() => undefined);
+}

@@ -15,6 +15,22 @@ from apps.pos.quality_audit_controls import (
 
 VALID_RESULTS = frozenset({'pass', 'fail', 'na'})
 
+# Pass-rate bands → letter (+/-). Thresholds are inclusive lower bounds.
+_GRADE_BANDS = [
+    (0.98, 'A+'),
+    (0.93, 'A'),
+    (0.90, 'A-'),
+    (0.87, 'B+'),
+    (0.83, 'B'),
+    (0.80, 'B-'),
+    (0.77, 'C+'),
+    (0.73, 'C'),
+    (0.70, 'C-'),
+    (0.67, 'D+'),
+    (0.63, 'D'),
+    (0.60, 'D-'),
+]
+
 
 def compute_overall_grade(responses: dict[str, Any]) -> str:
     """Map pass rate among scored checks (pass + fail) to a letter grade."""
@@ -30,14 +46,9 @@ def compute_overall_grade(responses: dict[str, Any]) -> str:
     if scored == 0:
         return 'F'
     rate = passed / scored
-    if rate >= 0.95:
-        return 'A'
-    if rate >= 0.85:
-        return 'B'
-    if rate >= 0.75:
-        return 'C'
-    if rate >= 0.65:
-        return 'D'
+    for threshold, grade in _GRADE_BANDS:
+        if rate >= threshold:
+            return grade
     return 'F'
 
 
@@ -114,6 +125,7 @@ def normalize_responses(responses: dict[str, Any]) -> dict[str, Any]:
                 photo = None
             comment = (check.get('comment') or '').strip() if isinstance(check.get('comment'), str) else ''
             notes = (check.get('notes') or '').strip() if isinstance(check.get('notes'), str) else ''
+            touched = bool(check.get('touched'))
 
             base = {
                 'id': check.get('id'),
@@ -134,6 +146,7 @@ def normalize_responses(responses: dict[str, Any]) -> dict[str, Any]:
                 'comment': comment,
                 'letter': letter,
                 'score': score,
+                'touched': touched,
             }
             base['result'] = derive_result(base) or base['result']
             if base['result'] not in VALID_RESULTS:

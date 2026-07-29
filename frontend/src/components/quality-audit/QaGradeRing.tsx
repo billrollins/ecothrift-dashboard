@@ -1,4 +1,5 @@
 import { Box, Typography } from '@mui/material';
+import { gradeLetterColor } from './qaScoring';
 
 interface QaGradeRingProps {
   grade: string;
@@ -7,14 +8,6 @@ interface QaGradeRingProps {
   size?: number;
   label?: string;
   sublabel?: string;
-}
-
-function gradeColor(grade: string): string {
-  if (grade === 'A') return '#2f7a48';
-  if (grade === 'B') return '#5a9b3f';
-  if (grade === 'C') return '#bd8618';
-  if (grade === 'D') return '#bf7417';
-  return '#b3261e';
 }
 
 export function QaGradeRing({
@@ -29,7 +22,7 @@ export function QaGradeRing({
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.max(0, Math.min(1, value));
   const dash = circumference * clamped;
-  const color = gradeColor(grade || 'F');
+  const color = gradeLetterColor(grade || 'F');
 
   return (
     <Box

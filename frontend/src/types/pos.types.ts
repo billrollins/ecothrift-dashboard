@@ -260,6 +260,8 @@ export interface RetailMetrics {
   average_grade: string | null;
   /** Most recently submitted dashboard-feeding QA grade (overall). */
   last_grade: string | null;
+  /** Slug of the form that feeds the dashboard (for deep links). */
+  form_slug?: string | null;
   /** Weekly recurring QA schedule. Monday=0 ... Sunday=6. */
   schedule: RetailQaGoalSchedule;
   grade_goal: string | null;
@@ -287,11 +289,15 @@ export interface DepartmentDailyMetric {
   retail_scheduled?: boolean;
   retail_grade_met?: boolean;
   retail_goal_met?: boolean;
+  /** Submitted QA audit ids for this day (Retail card deep links). */
+  retail_audit_ids?: number[];
   is_future: boolean;
 }
 
 export interface DepartmentDailyWeek {
   label: string;
+  /** True for the Mon–Sun week containing today. */
+  is_current?: boolean;
   week_start: string;
   week_end: string;
   /**

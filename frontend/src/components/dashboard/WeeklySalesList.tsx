@@ -12,7 +12,8 @@ interface WeeklySalesListProps {
 }
 
 export function WeeklySalesList({ weeks, todayIso, todayDay }: WeeklySalesListProps) {
-  const { isCompact } = useDashboardLayout();
+  // Use the readable accordion list through md (<900px); 8-col row only on desktop.
+  const { isMobile } = useDashboardLayout();
 
   return (
     <Card
@@ -46,11 +47,13 @@ export function WeeklySalesList({ weeks, todayIso, todayDay }: WeeklySalesListPr
           sx={{
             flex: 1,
             minHeight: 0,
-            overflowY: isCompact ? 'visible' : 'auto',
+            maxHeight: isMobile ? { xs: 360, sm: 420 } : undefined,
+            overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
             gap: 0.5,
-            pr: isCompact ? 0 : 0.25,
+            pr: 0.25,
+            WebkitOverflowScrolling: 'touch',
             '&::-webkit-scrollbar': { width: 8 },
             '&::-webkit-scrollbar-thumb': {
               bgcolor: `${dashboardPalette.muted}52`,
@@ -58,7 +61,7 @@ export function WeeklySalesList({ weeks, todayIso, todayDay }: WeeklySalesListPr
             },
           }}
         >
-          {isCompact ?
+          {isMobile ?
             <WeeklySalesWeekList weeks={weeks} todayIso={todayIso} todayDay={todayDay} />
           : weeks.map((week) => (
               <WeeklySalesRow

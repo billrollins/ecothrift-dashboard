@@ -669,8 +669,10 @@ export function getCarts(params?: Record<string, unknown>): Promise<{ data: Pagi
 }
 
 // Dashboard
-export function getDashboardMetrics(): Promise<{ data: DashboardMetrics }> {
-  return api.get<DashboardMetrics>('/pos/dashboard/metrics/');
+export function getDashboardMetrics(params?: {
+  weeks?: number;
+}): Promise<{ data: DashboardMetrics }> {
+  return api.get<DashboardMetrics>('/pos/dashboard/metrics/', { params });
 }
 
 export function upsertDashboardSalesGoal(data: {

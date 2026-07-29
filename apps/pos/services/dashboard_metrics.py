@@ -13,9 +13,28 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from apps.inventory.models import ItemHistory, PurchaseOrder, RestorationJob
-from apps.pos.models import Cart, CartLine, DashboardDepartmentGoal, DashboardSalesGoal, QualityAudit
+from apps.pos.models import (
+    Cart,
+    CartLine,
+    DashboardDepartmentGoal,
+    DashboardSalesGoal,
+    QualityAudit,
+    QualityAuditForm,
+)
 DASHBOARD_CACHE_SECONDS = 45
 QUICK_REPRICE_NOTE = 'Quick reprice'
+DEFAULT_DEPARTMENT_WEEKS = 8
+MIN_DEPARTMENT_WEEKS = 2
+MAX_DEPARTMENT_WEEKS = 12
+
+
+def clamp_department_weeks(raw: Any) -> int:
+    """Clamp a weeks window for department daily grids (default 8)."""
+    try:
+        weeks = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_DEPARTMENT_WEEKS
+    return max(MIN_DEPARTMENT_WEEKS, min(MAX_DEPARTMENT_WEEKS, weeks))
 
 
 def _dec(value: Decimal | None) -> Decimal:
@@ -430,7 +449,7 @@ def _normalize_retail_schedule(raw: Any) -> dict[str, Any]:
 
 
 def _retail_audits_by_day(start: date, end: date) -> dict[date, dict[str, Any]]:
-    """Count audits and retain the last submitted grade per local calendar day."""
+    """Count audits and retain the last submitted grade + ids per local calendar day."""
     start_dt, end_dt = _day_range(start, end)
     audits = (
         QualityAudit.objects.filter(
@@ -441,18 +460,27 @@ def _retail_audits_by_day(start: date, end: date) -> dict[date, dict[str, Any]]:
         )
         .exclude(overall_grade='')
         .order_by('submitted_at')
-        .only('overall_grade', 'submitted_at')
+        .only('id', 'overall_grade', 'submitted_at')
     )
     by_day: dict[date, dict[str, Any]] = {}
     for audit in audits:
         if not audit.submitted_at or not audit.overall_grade:
             continue
         day = timezone.localtime(audit.submitted_at).date()
-        stats = by_day.setdefault(day, {'count': 0, 'last_grade': None})
+        stats = by_day.setdefault(day, {'count': 0, 'last_grade': None, 'audit_ids': []})
         stats['count'] += 1
         # Query is ascending, so assignment preserves the last submitted grade.
         stats['last_grade'] = audit.overall_grade
+        stats['audit_ids'].append(audit.id)
     return by_day
+
+
+def _week_label(week_start: date, this_week_start: date) -> str:
+    if week_start == this_week_start:
+        return 'This Week'
+    if week_start == this_week_start - timedelta(days=7):
+        return 'Last Week'
+    return week_start.isoformat()
 
 
 def _department_daily_weeks(
@@ -464,18 +492,22 @@ def _department_daily_weeks(
     retail_by_day: dict[date, dict[str, Any]] | None = None,
     retail_schedule: dict[str, Any] | None = None,
     retail_grade_goal: str = '',
+    weeks_back: int = DEFAULT_DEPARTMENT_WEEKS,
 ) -> list[dict[str, Any]]:
     retail_by_day = retail_by_day or {}
     schedule = _normalize_retail_schedule(retail_schedule)
     scheduled_weekdays = set(schedule['weekdays'])
     audits_per_day = schedule['audits_per_day']
     this_week_start = _week_start_monday(today)
+    weeks_back = clamp_department_weeks(weeks_back)
+    # Oldest → newest so index 0 is the furthest week back.
     week_specs = [
-        ('Last Week', this_week_start - timedelta(days=7), False),
-        ('This Week', this_week_start, True),
+        (this_week_start - timedelta(days=7 * i), i == 0)
+        for i in reversed(range(weeks_back))
     ]
     weeks = []
-    for label, week_start, is_current in week_specs:
+    for week_start, is_current in week_specs:
+        label = _week_label(week_start, this_week_start)
         week_end = week_start + timedelta(days=6)
         days = []
         for offset in range(7):
@@ -484,6 +516,7 @@ def _department_daily_weeks(
             retail_stats = retail_by_day.get(day, {})
             retail_grade = retail_stats.get('last_grade')
             retail_count = int(retail_stats.get('count') or 0)
+            retail_audit_ids = list(retail_stats.get('audit_ids') or [])
             retail_scheduled = offset in scheduled_weekdays
             retail_required = audits_per_day if retail_scheduled else 0
             retail_grade_met = _grade_meets_goal(retail_grade, retail_grade_goal)
@@ -504,6 +537,7 @@ def _department_daily_weeks(
                 'retail_scheduled': retail_scheduled,
                 'retail_grade_met': False if is_future else retail_grade_met,
                 'retail_goal_met': False if is_future else retail_goal_met,
+                'retail_audit_ids': [] if is_future else retail_audit_ids,
                 'is_future': is_future,
             })
         last_grade = next(
@@ -519,8 +553,9 @@ def _department_daily_weeks(
         completed_days = [day for day in scheduled_days if day['retail_goal_met']]
         scheduled_count = len(scheduled_days)
         required_audits = scheduled_count * audits_per_day
-        # Goal progress counts only audits submitted on configured schedule days.
-        submitted_audits = sum(day['retail_count'] for day in scheduled_days)
+        # Week counter includes every submitted audit in the week (on- or off-schedule).
+        # Days-hit / goal achievement remain scheduled-days only.
+        submitted_audits = sum(day['retail_count'] for day in days)
         due_goal_met = bool(due_days) and all(day['retail_goal_met'] for day in due_days)
         week_goal_met = (
             bool(scheduled_days)
@@ -529,6 +564,7 @@ def _department_daily_weeks(
         )
         weeks.append({
             'label': label,
+            'is_current': is_current,
             'week_start': week_start.isoformat(),
             'week_end': week_end.isoformat(),
             # Spec: week score = last submitted grade, never average/highest.
@@ -564,25 +600,30 @@ def _department_goals() -> dict[str, dict[str, Any]]:
     return goals
 
 
-def build_department_metrics(today: date | None = None) -> dict[str, Any]:
+def build_department_metrics(
+    today: date | None = None,
+    *,
+    weeks_back: int = DEFAULT_DEPARTMENT_WEEKS,
+) -> dict[str, Any]:
     today = today or timezone.now().date()
+    weeks_back = clamp_department_weeks(weeks_back)
     week_start = _week_start_sunday(today)
     this_week_start = _week_start_monday(today)
-    last_week_start = this_week_start - timedelta(days=7)
+    history_start = this_week_start - timedelta(days=7 * (weeks_back - 1))
 
-    buying_by_day = _buying_by_day(last_week_start, today)
-    # One pass over the wide window: by-day spans (last_week_start, today) for the
+    buying_by_day = _buying_by_day(history_start, today)
+    # One pass over the wide window: by-day spans (history_start, today) for the
     # daily grid while the unique-item week total is narrowed to (week_start, today).
     processing_week_total, processing_by_day = _processing_on_shelf_aggregate(
-        min(last_week_start, week_start),
+        min(history_start, week_start),
         today,
         total_start=week_start,
     )
-    restoration_by_day = _restoration_done_by_day(last_week_start, today)
+    restoration_by_day = _restoration_done_by_day(history_start, today)
     goals = _department_goals()
     retail_goal = goals.get(DashboardDepartmentGoal.RETAIL, {})
     retail_schedule = _normalize_retail_schedule(retail_goal.get('schedule'))
-    retail_by_day = _retail_audits_by_day(last_week_start, today)
+    retail_by_day = _retail_audits_by_day(history_start, today)
     daily_weeks = _department_daily_weeks(
         today,
         buying_by_day=buying_by_day,
@@ -591,11 +632,19 @@ def build_department_metrics(today: date | None = None) -> dict[str, Any]:
         retail_by_day=retail_by_day,
         retail_schedule=retail_schedule,
         retail_grade_goal=retail_goal.get('value', ''),
+        weeks_back=weeks_back,
     )
     current_retail_week = next(
-        (week for week in daily_weeks if week['label'] == 'This Week'),
+        (week for week in daily_weeks if week.get('is_current')),
         None,
     )
+
+    dashboard_form = (
+        QualityAuditForm.objects.filter(feeds_dashboard=True)
+        .only('slug')
+        .first()
+    )
+    form_slug = dashboard_form.slug if dashboard_form else None
 
     latest_retail = (
         QualityAudit.objects.filter(
@@ -623,6 +672,7 @@ def build_department_metrics(today: date | None = None) -> dict[str, Any]:
             'note': 'No retail QA submitted yet.',
         }
     retail_metrics.update({
+        'form_slug': form_slug,
         'schedule': retail_schedule,
         'grade_goal': retail_goal.get('value') or None,
         'week_audits': (current_retail_week or {}).get('retail_week_audits', 0),
@@ -650,28 +700,44 @@ def build_department_metrics(today: date | None = None) -> dict[str, Any]:
     }
 
 
-def build_dashboard_metrics(today: date | None = None) -> dict[str, Any]:
+def build_dashboard_metrics(
+    today: date | None = None,
+    *,
+    weeks_back: int = DEFAULT_DEPARTMENT_WEEKS,
+) -> dict[str, Any]:
     today = today or timezone.now().date()
     return {
         'sales': build_sales_metrics(today),
-        'department_metrics': build_department_metrics(today),
+        'department_metrics': build_department_metrics(today, weeks_back=weeks_back),
     }
 
 
+def _metrics_cache_key(today: date, weeks_back: int) -> str:
+    return f'dashboard:metrics:{today.isoformat()}:{clamp_department_weeks(weeks_back)}'
+
+
 def invalidate_dashboard_metrics_cache(today: date | None = None) -> None:
-    """Clear cached dashboard metrics (e.g. after QA submit)."""
+    """Clear cached dashboard metrics for all week windows (e.g. after QA submit)."""
     today = today or timezone.now().date()
+    # Legacy key (pre-weeks param) plus every clamped window.
     cache.delete(f'dashboard:metrics:{today.isoformat()}')
+    for weeks in range(MIN_DEPARTMENT_WEEKS, MAX_DEPARTMENT_WEEKS + 1):
+        cache.delete(_metrics_cache_key(today, weeks))
 
 
-def get_dashboard_metrics(today: date | None = None) -> dict[str, Any]:
+def get_dashboard_metrics(
+    today: date | None = None,
+    *,
+    weeks_back: int = DEFAULT_DEPARTMENT_WEEKS,
+) -> dict[str, Any]:
     """Cached dashboard payload for the API."""
     today = today or timezone.now().date()
-    cache_key = f'dashboard:metrics:{today.isoformat()}'
+    weeks_back = clamp_department_weeks(weeks_back)
+    cache_key = _metrics_cache_key(today, weeks_back)
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
 
-    payload = build_dashboard_metrics(today)
+    payload = build_dashboard_metrics(today, weeks_back=weeks_back)
     cache.set(cache_key, payload, DASHBOARD_CACHE_SECONDS)
     return payload

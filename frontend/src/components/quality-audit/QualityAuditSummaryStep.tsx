@@ -23,6 +23,8 @@ interface QualityAuditSummaryStepProps {
   /** Submitted audit: browse only (no submit / notes edit). */
   readOnly?: boolean;
   finalGrade?: string;
+  /** When true, omit the in-body submit button (wizard pins it in the sticky footer). */
+  hideSubmitButton?: boolean;
 }
 
 const RESULT_DOT: Record<string, string> = {
@@ -42,6 +44,7 @@ export function QualityAuditSummaryStep({
   error,
   readOnly = false,
   finalGrade,
+  hideSubmitButton = false,
 }: QualityAuditSummaryStepProps) {
   const total = totalChecks(responses);
   const answered = answeredChecks(responses);
@@ -95,7 +98,7 @@ export function QualityAuditSummaryStep({
         InputProps={{ readOnly }}
       />
 
-      {readOnly ? null : (
+      {readOnly || hideSubmitButton ? null : (
         <Button
           variant="contained"
           fullWidth

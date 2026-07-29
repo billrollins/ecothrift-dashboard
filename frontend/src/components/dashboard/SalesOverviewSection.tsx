@@ -265,7 +265,7 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
     () =>
       sales.daily_last_90_days
         .filter((d) => d.day === 'Monday')
-        .filter((_, i) => !isCompact || i % 2 === 0)
+        .filter((_, i) => !isCompact || i % 3 === 0)
         .map((d) => d.date),
     [sales.daily_last_90_days, isCompact],
   );
@@ -345,8 +345,7 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
                       overflowX: 'auto',
                       flexWrap: 'nowrap',
                       pb: 0.25,
-                      mx: -0.5,
-                      px: 0.5,
+                      px: 0.25,
                       WebkitOverflowScrolling: 'touch',
                       '& > *': { flexShrink: 0 },
                     }
@@ -375,8 +374,8 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
             sx={{
               width: '100%',
               flex: 1,
-              minHeight: { xs: 220, md: 140 },
-              minWidth: 200,
+              minHeight: { xs: 200, md: 140 },
+              minWidth: 0,
               overflow: 'hidden',
               pt: 0.5,
               pr: 0.5,

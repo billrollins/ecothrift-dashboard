@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-07-13 (v2.49.0 Restorations hub) -->
+<!-- Last updated: 2026-07-29 (v2.60.0 Retail QA reliability + dashboard metrics) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-07-29 (v2.60.0) — POS / Retail QA + dashboard metrics:** **`QualityAudit.updated_at`** (migration **`pos.0025`**); draft DELETE + list `limit`; +/- **`compute_overall_grade`**; week audit count includes off-schedule days. **`GET /api/pos/dashboard/metrics/?weeks=`** (default 8, clamp 2–12); cache key `dashboard:metrics:{date}:{weeks}`; retail days emit **`retail_audit_ids`** + **`form_slug`**. Command **`finalize_stranded_qa_audits`**. Orders **`page-metrics`**: `sold_last_week`, `priced_retail`.
 
 **2026-07-13 (v2.49.0) — Processing / Restorations hub:** Restoration check-in may omit complete grade values (`needs_setup`); returns list includes untouched + desk summary fields (`direction`, `from_family`, `work_verbs`, `unit_kind`, `sale_state`, `decision_reason`); `mark-handled` accepts untouched; queued job `PATCH` may update `processing_handoff` on the check-in snapshot; check-in responses include `restoration_job_id`.
 

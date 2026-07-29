@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.59.1] — 2026-07-28 -->
-<!-- Last reviewed: 2026-07-28 (v2.59.1 assign-day / restore run-sync) -->
+<!-- Line 1 release: ## [2.60.0] -->
+<!-- Last reviewed: 2026-07-29 (v2.60.0 Retail QA reliability + dashboard) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.60.0] — 2026-07-29
+
+User-facing theme: **Retail QA reliability + dashboard deep links** — stranded audits recovered, drafts resumable, 8-week department grids, mobile dashboard overhaul.
+
+Initiative: [`retail_qa_submission_reliability`](.ai/initiatives/retail_qa_submission_reliability.md).
+
+### Added
+
+- **Dashboard / Retail QA deep links** — Day cells with submitted audits open that audit (Manager+); multi-audit days offer a picker. Metrics payload adds `retail_audit_ids` and `retail.form_slug`.
+- **Dashboard / 8-week department grids** — All four department cards load 8 weeks of history in a fixed-height scroll area (`GET /api/pos/dashboard/metrics/?weeks=`, default 8, clamped 2–12).
+- **POS / `finalize_stranded_qa_audits`** — Management command to finalize complete draft audits (dry-run default; `--apply`, `--ids`, `--database`).
+
+### Fixed
+
+- **POS / Retail QA submission** — Drafts are visible and resumable on the Quality Audit hub; the wizard autosaves, persists on section jumps, pins Submit in the sticky footer, and warns before leaving a fully answered but unsubmitted audit. Untouched photo/chips checks no longer auto-answer. Week audit counter includes off-schedule days. Plus/minus grade bands so goals like `B+` are achievable.
+- **Dashboard / mobile** — Department grids stay inline on phones with readable fonts and 44px touch targets; weekly sales book uses the accordion list through 900px; sales chart no longer forces horizontal overflow; department cards go 2-up until `lg`.
+
+### Changed
+
+- **Inventory / Orders list** — Two-line cells with named ratios: Order # adds vendor · condition (Cond column removed), Cost adds **EST REC** (priced ÷ cost), Retail adds **PRC** (priced $ vs manifested retail), Priced adds **MFT** (listing retail on priced items vs manifested retail), Profit adds **ACT REC** (sold ÷ cost, recovery banked so far), Items adds pallet count, Sold adds last-7-day revenue. The three 100%-is-break-even ratios (EST REC, MFT, ACT REC) share one color scale (&lt;75/85/90/95/100 → bright green over 100%); PRC stays neutral. Money primaries read as a progression — cost dark red, retail near-black, priced dark green, sold lighter green. Zero-value secondary lines are suppressed. Order # is abbreviated to its first and last dash-delimited segments (`TRGET-ORD-G511` → `TRGET…G511`, or first 3 / last 4 characters when undashed) with the full value on hover. `page-metrics` adds `sold_last_week` and `priced_retail`.
+- **Inventory / Orders list layout** — Column widths are budgeted from worst-case content with tabular numerals; Description is the only flex column so money columns stay pinned right, and a `ResizeObserver` on the grid drops Priced → Sold → Retail → Profit → Cost only when the measured width cannot fit them (replaces viewport breakpoints, which ignored the sidebar).
+- **Dev scripts** — `scripts/dev/` is three starters: `start_dashboard.bat`, `start_mobile_dashboard.bat`, `start_website.bat`. Removed `start_mobile_vite.bat`, `kill_servers.bat`, `seed_delivery_test_dataset.bat`, `reset_intake_test_env.bat`.
+- **POS / QualityAudit** — `updated_at` field (migration `pos.0025`); draft DELETE allowed; list `limit` query param.
 
 ## [2.59.1] — 2026-07-28
 

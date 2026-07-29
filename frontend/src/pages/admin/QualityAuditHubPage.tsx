@@ -1,11 +1,18 @@
+import { useMemo, useState } from 'react';
 import {
+  Alert,
   Avatar,
   Box,
+  Button,
   Card,
   CardActionArea,
   CardContent,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Stack,
   Table,
   TableBody,
@@ -25,9 +32,13 @@ import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { useCreateQualityAudit, useQualityAudits } from '../../hooks/useQualityAudit';
 import { useQualityAuditForms } from '../../hooks/useQualityAuditForms';
 import { useSnackbar } from 'notistack';
-import type { QualityAudit } from '../../types/qualityAudit.types';
+import type { QualityAudit, QualityAuditStatus } from '../../types/qualityAudit.types';
+import { gradeLetterColor } from '../../components/quality-audit/qaScoring';
 
-function formatSubmittedAt(iso: string): string {
+type HubFilter = 'all' | 'submitted' | 'draft';
+
+function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return date.toLocaleString(undefined, {
@@ -37,14 +48,6 @@ function formatSubmittedAt(iso: string): string {
     hour: 'numeric',
     minute: '2-digit',
   });
-}
-
-function gradeColor(grade: string): string {
-  if (grade === 'A') return '#2f7a48';
-  if (grade === 'B') return '#5a9b3f';
-  if (grade === 'C') return '#bd8618';
-  if (grade === 'D') return '#bf7417';
-  return '#b3261e';
 }
 
 function GradeBadge({ grade }: { grade: string }) {
@@ -57,10 +60,10 @@ function GradeBadge({ grade }: { grade: string }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: gradeColor(grade || 'F'),
+        bgcolor: gradeLetterColor(grade || 'F'),
         color: '#fff',
         fontWeight: 800,
-        fontSize: '1.1rem',
+        fontSize: grade.length > 1 ? '0.85rem' : '1.1rem',
         flexShrink: 0,
       }}
     >
@@ -74,6 +77,10 @@ function auditReviewPath(audit: QualityAudit): string {
   return `/admin/quality-audit/run/${slug}/${audit.id}`;
 }
 
+function statusLabel(status: QualityAuditStatus): string {
+  return status === 'submitted' ? 'Submitted' : 'In progress';
+}
+
 export default function QualityAuditHubPage() {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -82,20 +89,45 @@ export default function QualityAuditHubPage() {
   const { enqueueSnackbar } = useSnackbar();
   const createAudit = useCreateQualityAudit();
   const { data: forms, isLoading: formsLoading } = useQualityAuditForms(true);
-  const { data: submittedAudits, isLoading: auditsLoading } = useQualityAudits({
-    status: 'submitted',
-  });
+  const { data: allAudits, isLoading: auditsLoading } = useQualityAudits({ limit: 100 });
+  const [filter, setFilter] = useState<HubFilter>('all');
+  const [resumePrompt, setResumePrompt] = useState<{
+    slug: string;
+    title: string;
+    draft: QualityAudit;
+  } | null>(null);
 
   const isSuperuser = Boolean(user?.is_superuser);
-  const audits = submittedAudits ?? [];
+  const audits = useMemo(() => {
+    const rows = allAudits ?? [];
+    if (filter === 'submitted') return rows.filter((a) => a.status === 'submitted');
+    if (filter === 'draft') return rows.filter((a) => a.status === 'draft');
+    return rows;
+  }, [allAudits, filter]);
 
-  async function startAudit(slug: string) {
+  const myDrafts = useMemo(() => {
+    if (!user?.id) return [];
+    return (allAudits ?? []).filter(
+      (a) => a.status === 'draft' && a.conducted_by === user.id,
+    );
+  }, [allAudits, user?.id]);
+
+  async function createAndOpen(slug: string) {
     try {
       const audit = await createAudit.mutateAsync(slug);
       navigate(`/admin/quality-audit/run/${slug}/${audit.id}`);
     } catch {
       enqueueSnackbar('Could not start audit. Try again.', { variant: 'error' });
     }
+  }
+
+  function startAudit(slug: string, title: string) {
+    const existing = myDrafts.find((a) => (a.form_slug || a.audit_type) === slug);
+    if (existing) {
+      setResumePrompt({ slug, title, draft: existing });
+      return;
+    }
+    void createAndOpen(slug);
   }
 
   if (formsLoading || auditsLoading) {
@@ -120,13 +152,32 @@ export default function QualityAuditHubPage() {
         }
       />
 
-      <Stack spacing={2.5} sx={{ maxWidth: 860 }}>
+      <Stack spacing={2.5} sx={{ maxWidth: 960 }}>
+        {myDrafts.length > 0 ? (
+          <Alert
+            severity="warning"
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => navigate(auditReviewPath(myDrafts[0]))}
+                sx={{ fontWeight: 800 }}
+              >
+                Resume
+              </Button>
+            }
+          >
+            You have {myDrafts.length} in-progress audit{myDrafts.length === 1 ? '' : 's'}. Resume to
+            finish and submit so the dashboard updates.
+          </Alert>
+        ) : null}
+
         <Stack spacing={1.5} sx={{ maxWidth: 640 }}>
           {forms && forms.length > 0 ? (
             forms.map((form) => (
               <Card key={form.id} variant="outlined" sx={{ borderRadius: 3 }}>
                 <CardActionArea
-                  onClick={() => startAudit(form.slug)}
+                  onClick={() => startAudit(form.slug, form.title)}
                   disabled={createAudit.isPending}
                   sx={{ p: 0 }}
                 >
@@ -167,12 +218,43 @@ export default function QualityAuditHubPage() {
         </Stack>
 
         <Box>
-          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Submitted audits
-          </Typography>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="wrap"
+            useFlexGap
+            sx={{ mb: 1.25 }}
+          >
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mr: 0.5 }}>
+              Audit history
+            </Typography>
+            {(
+              [
+                ['all', 'All'],
+                ['submitted', 'Submitted'],
+                ['draft', 'In progress'],
+              ] as const
+            ).map(([key, label]) => (
+              <Chip
+                key={key}
+                size="small"
+                label={label}
+                color={filter === key ? 'primary' : 'default'}
+                variant={filter === key ? 'filled' : 'outlined'}
+                onClick={() => setFilter(key)}
+                clickable
+              />
+            ))}
+          </Stack>
+
           {audits.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              No submitted audits yet. Complete a checklist to see history here.
+              {filter === 'draft'
+                ? 'No in-progress audits.'
+                : filter === 'submitted'
+                  ? 'No submitted audits yet. Complete a checklist to see history here.'
+                  : 'No audits yet. Start a checklist above.'}
             </Typography>
           ) : isNarrow ? (
             <Stack spacing={1}>
@@ -183,18 +265,29 @@ export default function QualityAuditHubPage() {
                       <Stack direction="row" spacing={1.25} alignItems="center">
                         <GradeBadge grade={audit.overall_grade} />
                         <Box sx={{ minWidth: 0, flex: 1 }}>
-                          <Typography variant="body2" fontWeight={700} noWrap>
-                            {audit.form_title || 'Audit'}
-                          </Typography>
+                          <Stack direction="row" spacing={0.75} alignItems="center">
+                            <Typography variant="body2" fontWeight={700} noWrap>
+                              {audit.form_title || 'Audit'}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={statusLabel(audit.status)}
+                              color={audit.status === 'submitted' ? 'success' : 'warning'}
+                              variant="outlined"
+                            />
+                          </Stack>
                           <Typography variant="caption" color="text.secondary" display="block" noWrap>
                             {audit.conducted_by_name || 'Unknown'}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {audit.submitted_at ? formatSubmittedAt(audit.submitted_at) : '—'}
+                            Started {formatDateTime(audit.started_at)}
+                            {audit.submitted_at
+                              ? ` · Submitted ${formatDateTime(audit.submitted_at)}`
+                              : ''}
                           </Typography>
                         </Box>
                         <Typography variant="caption" color="primary.main" fontWeight={700}>
-                          Review
+                          {audit.status === 'draft' ? 'Resume' : 'Review'}
                         </Typography>
                       </Stack>
                     </CardContent>
@@ -211,12 +304,14 @@ export default function QualityAuditHubPage() {
                 bgcolor: 'background.paper',
               }}
             >
-              <Table size="small" aria-label="Submitted quality audits">
+              <Table size="small" aria-label="Quality audits">
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 700, width: 72 }}>Grade</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Form</TableCell>
+                    <TableCell sx={{ fontWeight: 700, width: 120 }}>Status</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Auditor</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Started</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Submitted</TableCell>
                     <TableCell sx={{ fontWeight: 700, width: 88 }} align="right">
                       Action
@@ -240,18 +335,31 @@ export default function QualityAuditHubPage() {
                         </Typography>
                       </TableCell>
                       <TableCell>
+                        <Chip
+                          size="small"
+                          label={statusLabel(audit.status)}
+                          color={audit.status === 'submitted' ? 'success' : 'warning'}
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell>
                         <Typography variant="body2" color="text.secondary">
                           {audit.conducted_by_name || 'Unknown'}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                          {audit.submitted_at ? formatSubmittedAt(audit.submitted_at) : '—'}
+                          {formatDateTime(audit.started_at)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {formatDateTime(audit.submitted_at)}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="body2" color="primary.main" fontWeight={700}>
-                          Review
+                          {audit.status === 'draft' ? 'Resume' : 'Review'}
                         </Typography>
                       </TableCell>
                     </TableRow>
@@ -262,6 +370,39 @@ export default function QualityAuditHubPage() {
           )}
         </Box>
       </Stack>
+
+      <Dialog open={Boolean(resumePrompt)} onClose={() => setResumePrompt(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Resume in-progress audit?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            You already have an unfinished {resumePrompt?.title || 'audit'}. Resume it, or start a new
+            one (the unfinished draft stays in history).
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setResumePrompt(null)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              if (!resumePrompt) return;
+              const slug = resumePrompt.slug;
+              setResumePrompt(null);
+              void createAndOpen(slug);
+            }}
+          >
+            Start new
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (!resumePrompt) return;
+              navigate(auditReviewPath(resumePrompt.draft));
+              setResumePrompt(null);
+            }}
+          >
+            Resume
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -187,8 +187,16 @@ export function QaControl({ check, onChange, compact }: QaControlProps) {
   if (control === 'chips') {
     const tags = check.tags || [];
     const options = check.options || [];
+    const noIssues = Boolean(check.touched) && tags.length === 0;
     return (
       <Stack direction="row" useFlexGap flexWrap="wrap" spacing={0.75} sx={{ rowGap: 0.75 }}>
+        <Chip
+          label="No issues"
+          color={noIssues ? 'success' : 'default'}
+          variant={noIssues ? 'filled' : 'outlined'}
+          onClick={() => onChange({ touched: true, tags: [] })}
+          sx={{ minHeight: 36 }}
+        />
         {options.map((opt) => {
           const active = tags.includes(opt);
           return (
@@ -198,7 +206,10 @@ export function QaControl({ check, onChange, compact }: QaControlProps) {
               color={active ? 'error' : 'default'}
               variant={active ? 'filled' : 'outlined'}
               onClick={() =>
-                onChange({ tags: active ? tags.filter((t) => t !== opt) : [...tags, opt] })
+                onChange({
+                  touched: true,
+                  tags: active ? tags.filter((t) => t !== opt) : [...tags, opt],
+                })
               }
               sx={{ minHeight: 36 }}
             />
@@ -259,7 +270,7 @@ export function QaControl({ check, onChange, compact }: QaControlProps) {
             const file = e.target.files?.[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = () => onChange({ photo: String(reader.result) });
+            reader.onload = () => onChange({ photo: String(reader.result), result: 'pass', touched: true });
             reader.readAsDataURL(file);
           }}
         />
@@ -271,6 +282,13 @@ export function QaControl({ check, onChange, compact }: QaControlProps) {
         >
           {check.photo ? 'Retake' : 'Capture'}
         </Button>
+        <Button
+          variant={check.result === 'na' ? 'contained' : 'outlined'}
+          onClick={() => onChange({ photo: null, result: 'na', touched: true })}
+          sx={touchSx({})}
+        >
+          N/A
+        </Button>
         {check.photo ? (
           <Box sx={{ position: 'relative' }}>
             <Box
@@ -281,7 +299,7 @@ export function QaControl({ check, onChange, compact }: QaControlProps) {
             />
             <IconButton
               size="small"
-              onClick={() => onChange({ photo: null })}
+              onClick={() => onChange({ photo: null, result: '', touched: false })}
               sx={{ position: 'absolute', top: -8, right: -8, bgcolor: 'background.paper' }}
             >
               <DeleteOutlineIcon fontSize="small" color="error" />

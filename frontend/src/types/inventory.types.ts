@@ -192,7 +192,11 @@ export interface PurchaseOrderFinancialMetrics {
   cost: string;
   retail: string;
   priced: string;
+  /** Sum of Item.retail on shelf-eligible (priced) items — manifest + extras. */
+  priced_retail?: string;
   sold: string;
+  /** Net sold revenue in the last 7 days (same rules as `sold`). */
+  sold_last_week?: string;
   profit: string;
 }
 

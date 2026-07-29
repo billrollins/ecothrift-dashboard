@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createQualityAudit,
+  deleteQualityAudit,
   getQualityAudit,
   getQualityAudits,
   submitQualityAudit,
@@ -11,13 +12,17 @@ import type {
   QualityAuditResponses,
 } from '../types/qualityAudit.types';
 
-export function useQualityAudits(params?: QualityAuditListParams) {
+export function useQualityAudits(
+  params?: QualityAuditListParams,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['qualityAudits', params],
     queryFn: async () => {
       const { data } = await getQualityAudits(params);
       return data;
     },
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -87,6 +92,20 @@ export function useSubmitQualityAudit() {
       queryClient.setQueryData(['qualityAudits', data.id], data);
       queryClient.invalidateQueries({ queryKey: ['qualityAudits'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+export function useDeleteQualityAudit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await deleteQualityAudit(id);
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.removeQueries({ queryKey: ['qualityAudits', id] });
+      queryClient.invalidateQueries({ queryKey: ['qualityAudits'] });
     },
   });
 }

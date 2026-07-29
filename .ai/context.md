@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-29 (delivery_mobile_operations_completion → _completed/) -->
+<!-- Last updated: 2026-07-29 (v2.60.0 Retail QA reliability) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **No active initiatives** — next work starts a new initiative when needed.
+- **Active:** [`retail_qa_submission_reliability`](initiatives/retail_qa_submission_reliability.md) — **v2.60.0** shipped (autosave/resume, +/- grades, deep links, 8-week grids); follow-ups remain (photo S3, archive when done).
 - **Delivery Mobile Ops (shipped):** archived [`delivery_mobile_operations_completion`](initiatives/_archived/_completed/delivery_mobile_operations_completion.md) — Desk + Field, Routes API, evidence/SMS, add/adjust, route maps, change history. **v2.55.0–v2.59.1**.
 - **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**; **v2.51.0** schedule-later; **v2.52.0** unified Day Board (calls → route → load → drive → return on the same cards).
 - **Parked — Online Sales Workspace:** [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md) — code retained; staff workspace + public holds **disabled** (`ONLINE_SALES_ENABLED=false`). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
@@ -90,7 +90,7 @@ ecothrift-dashboard/
 │   ├── App.tsx             Router + route guards
 │   └── main.tsx            Entry point + providers
 ├── printserver/            Local print server (FastAPI, Python, Windows installer)
-├── scripts/                Committed dev/deploy automation — **`dev/start_dashboard.bat`**, **`dev/start_mobile_dashboard.bat`**, **`dev/start_website.bat`**, **`dev/kill_servers.bat`**, **`dev/daily_scheduled_tasks.bat`** (Heroku-parity buying jobs; see `.ai/extended/development.md`)
+├── scripts/                Committed dev/deploy automation — **`dev/start_dashboard.bat`**, **`dev/start_mobile_dashboard.bat`**, **`dev/start_website.bat`** (see `.ai/extended/development.md`)
 ├── efforts/                Optional per-effort handoffs (`<slug>/CONTEXT.md`) — read after startup when continuing that thread; see `efforts/README.md`
 ├── .ai/                    AI steering — see `.ai/README.md`
 │   ├── README.md           Load order and folder roles
@@ -124,7 +124,7 @@ Domain deep-dives loaded **on demand** (do not read all at session start). Each 
 | [`consignment.md`](extended/consignment.md) | Consignment | Agreements, consignment items, payouts, consignee portal |
 | [`consultant_handoff.md`](extended/consultant_handoff.md) | AI / ops | Flat **`workspace/to_consultant/files-update/`** bundle; mid-session advisor snapshot |
 | [`databases.md`](extended/databases.md) | Data | Three-generation DB overview (V1/V2/V3), `search_path`, Django test DB uses `public`, `.env` keys |
-| [`development.md`](extended/development.md) | Dev ops | Dev setup, **`scripts/dev/`** (e.g. **`daily_scheduled_tasks.bat`**, `start_dashboard`, `start_website`, `kill_servers`), environment, logging, Heroku Scheduler |
+| [`development.md`](extended/development.md) | Dev ops | Dev setup, **`scripts/dev/`** (`start_dashboard`, `start_mobile_dashboard`, `start_website`), environment, logging, Heroku Scheduler |
 | [`frontend.md`](extended/frontend.md) | Frontend | React 18.3 + TS + MUI v7, pages, components, routing, React Query hooks |
 | [`inventory-pipeline.md`](extended/inventory-pipeline.md) | Inventory | PO processing, M3 pipeline, preprocessing, manifest templates, fast-cat |
 | [`pos-system.md`](extended/pos-system.md) | POS | Registers, drawers, carts, transactions, terminal UI, receipt flow |
@@ -219,7 +219,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 - When you change auth or permissions, update `.ai/extended/auth-and-roles.md`.
 - When you add or rename databases / connection patterns, update `.ai/extended/databases.md` (never put secrets in `.ai/`).
 - **When you add, rename, or remove a file in `.ai/extended/`:** update the **Extended docs TOC** in this file.
-- **Heroku Scheduler / buying background jobs:** When schedules change, update **`scripts/dev/daily_scheduled_tasks.bat`**, **`.ai/extended/development.md`**, and root **`CHANGELOG.md`** `[Unreleased]` if user-visible.
+- **Heroku Scheduler / buying background jobs:** When schedules change, update **`.ai/extended/development.md`** and root **`CHANGELOG.md`** `[Unreleased]` if user-visible.
 - When releasing: bump repo root `.version`, root `package.json` `"version"`, and add a dated section to **`CHANGELOG.md`** only (see `.ai/protocols/session.9.Close.md` Part 2). Link shipped work to initiatives in `_index.md` where applicable.
 - Always update the `<!-- Last updated: ... -->` timestamp at the top of any file you modify.
 - When you edit an `.ai/extended/*.md` file, update its top timestamp.
@@ -241,6 +241,6 @@ Capability summary — detail lives in the extended docs above and initiative fi
 | `.ai/` layout | `.ai/README.md` |
 | Reference artifacts | `.ai/reference/README.md` |
 | Protocols | `.ai/protocols/` — `code.0.Startup.md`, **`sql.0.UpdateSchema.md`**, `session.1.Checkpoint.md`, `code.1.Bearing.md`, `review.0.Bump.md`, `code.9.Push.md`, `review.9.Deep.md`, `session.9.Close.md`; optional advisor bundle — `.ai/extended/consultant_handoff.md`; initiative lifecycle — `.ai/initiatives/_archived/_protocols/README.md` |
-| Dev scripts | `scripts/dev/` — **`daily_scheduled_tasks.bat`** (buying jobs), **`start_dashboard.bat`**, **`start_mobile_dashboard.bat`**, **`start_website.bat`**, **`kill_servers.bat`** |
+| Dev scripts | `scripts/dev/` — **`start_dashboard.bat`**, **`start_mobile_dashboard.bat`**, **`start_website.bat`** |
 | Scratch / notebooks | `workspace/` (mostly gitignored) |
 | E2E test templates | `workspace/testing/` |

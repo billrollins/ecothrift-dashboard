@@ -257,6 +257,7 @@ class QualityAuditSerializer(serializers.ModelSerializer):
             'conducted_by',
             'conducted_by_name',
             'started_at',
+            'updated_at',
             'submitted_at',
             'responses',
             'overall_grade',
@@ -271,6 +272,7 @@ class QualityAuditSerializer(serializers.ModelSerializer):
             'conducted_by',
             'conducted_by_name',
             'started_at',
+            'updated_at',
             'submitted_at',
             'overall_grade',
         ]

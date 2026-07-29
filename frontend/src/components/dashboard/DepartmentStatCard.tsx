@@ -80,6 +80,7 @@ export function DepartmentStatCard({
           flexDirection: 'column',
           gap: 0.85,
           height: '100%',
+          minHeight: 0,
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.85 }}>
@@ -88,14 +89,14 @@ export function DepartmentStatCard({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 26,
-              height: 26,
+              width: { xs: 32, md: 26 },
+              height: { xs: 32, md: 26 },
               borderRadius: 1.5,
               color: goalMet ? dashboardPalette.goldDark : accent,
               bgcolor: goalMet ? dashboardPalette.goldSoft : `${accent}1A`,
               border: '1px solid',
               borderColor: goalMet ? 'rgba(189, 134, 24, 0.4)' : `${accent}40`,
-              '& svg': { fontSize: 17 },
+              '& svg': { fontSize: { xs: 18, md: 17 } },
             }}
           >
             {icon}
@@ -108,7 +109,7 @@ export function DepartmentStatCard({
               fontWeight: 900,
               letterSpacing: 0.6,
               textTransform: 'uppercase',
-              fontSize: '0.68rem',
+              fontSize: { xs: '0.72rem', md: '0.68rem' },
               color: goalMet ? dashboardPalette.goldDark : accent,
             }}
           >
@@ -132,6 +133,8 @@ export function DepartmentStatCard({
             onClick={onGoalClick}
             sx={{
               p: 0,
+              py: 0.5,
+              minHeight: 44,
               border: 'none',
               background: 'none',
               cursor: 'pointer',
@@ -147,7 +150,14 @@ export function DepartmentStatCard({
               variant="caption"
               display="block"
               lineHeight={1}
-              sx={{ fontSize: '0.58rem', fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase', color: GOLD, mb: 0.25 }}
+              sx={{
+                fontSize: { xs: '0.65rem', md: '0.58rem' },
+                fontWeight: 900,
+                letterSpacing: 0.8,
+                textTransform: 'uppercase',
+                color: GOLD,
+                mb: 0.25,
+              }}
             >
               Goal
             </Typography>
@@ -167,12 +177,27 @@ export function DepartmentStatCard({
             </Typography>
           </Box>
 
-          <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
+          <Box
+            sx={{
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-end',
+              alignItems: { xs: 'flex-start', sm: 'flex-end' },
+            }}
+          >
             <Typography
               variant="caption"
               display="block"
               lineHeight={1}
-              sx={{ fontSize: '0.58rem', fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase', color: 'text.secondary', mb: 0.25 }}
+              sx={{
+                fontSize: { xs: '0.65rem', md: '0.58rem' },
+                fontWeight: 900,
+                letterSpacing: 0.8,
+                textTransform: 'uppercase',
+                color: 'text.secondary',
+                mb: 0.25,
+              }}
             >
               Actual
             </Typography>
@@ -223,11 +248,16 @@ export function DepartmentStatCard({
         ) : null}
 
         {subStat}
-        {showWeekDetailButton && onViewWeekDetail ?
-          <Button size="small" variant="text" onClick={onViewWeekDetail} sx={{ alignSelf: 'flex-start', px: 0, minHeight: 28 }}>
+        {showWeekDetailButton && onViewWeekDetail ? (
+          <Button
+            size="small"
+            variant="text"
+            onClick={onViewWeekDetail}
+            sx={{ alignSelf: 'flex-start', px: 0.5, minHeight: 44 }}
+          >
             View week detail
           </Button>
-        : null}
+        ) : null}
         {footer}
       </CardContent>
     </Card>

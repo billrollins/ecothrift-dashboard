@@ -244,13 +244,21 @@ export function DepartmentGoalDialog({
                   sx={{
                     width: '100%',
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+                    gridTemplateColumns: {
+                      xs: 'repeat(4, minmax(0, 1fr))',
+                      sm: 'repeat(7, minmax(0, 1fr))',
+                    },
+                    gap: 0.5,
                     '& .MuiToggleButton-root': {
                       minWidth: 0,
+                      minHeight: 44,
                       px: 0.5,
                       textTransform: 'none',
                       fontWeight: 800,
                       borderColor: 'divider',
+                      borderRadius: '8px !important',
+                      borderLeft: '1px solid',
+                      marginLeft: '0 !important',
                     },
                     '& .Mui-selected': {
                       bgcolor: `${dashboardPalette.goldSoft} !important`,

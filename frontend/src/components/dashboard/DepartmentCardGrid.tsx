@@ -16,66 +16,123 @@ interface DepartmentCardGridProps {
   getCellState?: (day: DepartmentDailyMetric) => 'scheduled' | 'achieved' | undefined;
   getWeekAchieved?: (week: DepartmentDailyWeek) => boolean;
   todayIso?: string;
+  /** When set, day cells with content become buttons that call this. */
+  onCellClick?: (day: DepartmentDailyMetric, event: React.MouseEvent<HTMLElement>) => void;
+  /** Predicate: should this day cell be clickable? */
+  isCellClickable?: (day: DepartmentDailyMetric) => boolean;
+  /** Optional handler when the sticky day-head row is tapped (e.g. open week detail). */
+  onDayHeadsClick?: () => void;
+  cellAriaLabel?: (day: DepartmentDailyMetric, value: string) => string;
+}
+
+/** True when a retail day cell can deep-link (has submitted audit ids). */
+export function retailDayIsClickable(day: DepartmentDailyMetric): boolean {
+  return !day.is_future && Array.isArray(day.retail_audit_ids) && day.retail_audit_ids.length > 0;
 }
 
 function GridCell({
   value,
   isToday,
   goalState,
+  clickable,
+  onClick,
+  ariaLabel,
 }: {
   value: string;
   isToday?: boolean;
   goalState?: 'scheduled' | 'achieved';
+  clickable?: boolean;
+  onClick?: (event: React.MouseEvent<HTMLElement>) => void;
+  ariaLabel?: string;
 }) {
   const achieved = goalState === 'achieved';
   const scheduled = goalState === 'scheduled';
-  return (
-    <Box
+  const cellSx = {
+    minWidth: 0,
+    width: '100%',
+    py: { xs: 0.45, md: 0.15 },
+    px: 0.1,
+    minHeight: { xs: 44, md: 'auto' },
+    border: '1px solid',
+    borderColor: achieved
+      ? dashboardPalette.gold
+      : scheduled
+        ? 'rgba(189, 134, 24, 0.55)'
+        : isToday
+          ? dashboardPalette.green
+          : 'rgba(91, 111, 95, 0.32)',
+    borderStyle: scheduled && !achieved ? 'dashed' : 'solid',
+    borderRadius: 0.75,
+    background: achieved
+      ? `linear-gradient(145deg, #fff7cf, ${dashboardPalette.goldSoft} 55%, #fffdf7)`
+      : isToday
+        ? dashboardPalette.greenSoft
+        : 'transparent',
+    textAlign: 'center' as const,
+    boxShadow: achieved
+      ? '0 0 0 1px rgba(189,134,24,0.28), inset 0 1px 0 rgba(255,255,255,0.8)'
+      : isToday
+        ? '0 0 0 1px rgba(47, 122, 72, 0.5), inset 0 1px 0 rgba(255,255,255,0.45)'
+        : 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(clickable
+      ? {
+          cursor: 'pointer',
+          font: 'inherit',
+          color: 'inherit',
+          appearance: 'none' as const,
+          WebkitAppearance: 'none' as const,
+          transition: 'box-shadow 0.15s ease, transform 0.15s ease',
+          '@media (hover: hover)': {
+            '&:hover': {
+              boxShadow: '0 0 0 2px rgba(47, 103, 173, 0.45)',
+            },
+          },
+          '&:focus-visible': {
+            outline: '2px solid',
+            outlineColor: dashboardPalette.blue,
+            outlineOffset: 1,
+          },
+        }
+      : {}),
+  };
+
+  const content = (
+    <Typography
+      variant="caption"
+      fontWeight={isToday || achieved ? 900 : 800}
+      noWrap
       sx={{
-        minWidth: 0,
-        py: 0.15,
-        px: 0.1,
-        border: '1px solid',
-        borderColor: achieved
-          ? dashboardPalette.gold
-          : scheduled
-            ? 'rgba(189, 134, 24, 0.55)'
-            : isToday
-              ? dashboardPalette.green
-              : 'rgba(91, 111, 95, 0.32)',
-        borderStyle: scheduled && !achieved ? 'dashed' : 'solid',
-        borderRadius: 0.75,
-        background: achieved
-          ? `linear-gradient(145deg, #fff7cf, ${dashboardPalette.goldSoft} 55%, #fffdf7)`
+        fontSize: { xs: '0.7rem', md: '0.56rem' },
+        lineHeight: 1.2,
+        color: achieved
+          ? dashboardPalette.goldDark
           : isToday
-            ? dashboardPalette.greenSoft
-            : 'transparent',
-        textAlign: 'center',
-        boxShadow: achieved
-          ? '0 0 0 1px rgba(189,134,24,0.28), inset 0 1px 0 rgba(255,255,255,0.8)'
-          : isToday
-            ? '0 0 0 1px rgba(47, 122, 72, 0.5), inset 0 1px 0 rgba(255,255,255,0.45)'
-            : 'none',
+            ? dashboardPalette.greenDark
+            : 'inherit',
       }}
     >
-      <Typography
-        variant="caption"
-        fontWeight={isToday || achieved ? 900 : 800}
-        noWrap
-        sx={{
-          fontSize: '0.56rem',
-          lineHeight: 1.2,
-          color: achieved
-            ? dashboardPalette.goldDark
-            : isToday
-              ? dashboardPalette.greenDark
-              : 'inherit',
-        }}
-      >
-        {value}
-      </Typography>
-    </Box>
+      {value}
+    </Typography>
   );
+
+  if (clickable && onClick) {
+    return (
+      <Box
+        component="button"
+        type="button"
+        onClick={onClick}
+        aria-label={ariaLabel}
+        sx={cellSx}
+      >
+        {content}
+      </Box>
+    );
+  }
+
+  return <Box sx={cellSx}>{content}</Box>;
 }
 
 function weekRowLabel(week: DepartmentDailyWeek): string {
@@ -108,7 +165,7 @@ function WeekLabelCell({
         color="text.secondary"
         fontWeight={700}
         noWrap
-        sx={{ fontSize: '0.53rem', lineHeight: 1.15, display: 'block' }}
+        sx={{ fontSize: { xs: '0.65rem', md: '0.53rem' }, lineHeight: 1.15, display: 'block' }}
       >
         {weekRowLabel(week)}
       </Typography>
@@ -117,7 +174,7 @@ function WeekLabelCell({
         fontWeight={900}
         noWrap
         sx={{
-          fontSize: '0.5rem',
+          fontSize: { xs: '0.6rem', md: '0.5rem' },
           lineHeight: 1.15,
           display: 'block',
           color: achieved ? dashboardPalette.goldDark : 'text.primary',
@@ -143,7 +200,12 @@ export function DepartmentCardGrid({
   getCellState,
   getWeekAchieved,
   todayIso,
+  onCellClick,
+  isCellClickable,
+  onDayHeadsClick,
+  cellAriaLabel,
 }: DepartmentCardGridProps) {
+  // Newest week first so the scroller opens on the current week.
   const orderedWeeks = [...weeks].reverse();
 
   return (
@@ -155,9 +217,39 @@ export function DepartmentCardGrid({
         pt: 0.35,
         borderTop: '1px solid',
         borderColor: 'divider',
+        minHeight: 0,
       }}
     >
-      <Box sx={{ display: 'grid', gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))', gap: 0.25 }}>
+      <Box
+        component={onDayHeadsClick ? 'button' : 'div'}
+        type={onDayHeadsClick ? 'button' : undefined}
+        onClick={onDayHeadsClick}
+        aria-label={onDayHeadsClick ? 'Open full week detail' : undefined}
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))',
+          gap: 0.25,
+          ...(onDayHeadsClick
+            ? {
+                p: 0,
+                m: 0,
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                font: 'inherit',
+                color: 'inherit',
+                width: '100%',
+                borderRadius: 0.75,
+                minHeight: { xs: 36, md: 'auto' },
+                '&:focus-visible': {
+                  outline: '2px solid',
+                  outlineColor: dashboardPalette.blue,
+                  outlineOffset: 1,
+                },
+              }
+            : {}),
+        }}
+      >
         <Box />
         {DAY_HEADS.map((head, idx) => (
           <Typography
@@ -165,32 +257,61 @@ export function DepartmentCardGrid({
             variant="caption"
             color="text.secondary"
             textAlign="center"
-            sx={{ fontSize: '0.52rem', fontWeight: 900, lineHeight: 1.2, letterSpacing: 0.2 }}
+            sx={{
+              fontSize: { xs: '0.65rem', md: '0.52rem' },
+              fontWeight: 900,
+              lineHeight: 1.2,
+              letterSpacing: 0.2,
+            }}
           >
             {head}
           </Typography>
         ))}
       </Box>
-      {orderedWeeks.map((week) => (
-        <Box
-          key={week.week_start}
-          sx={{ display: 'grid', gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))', gap: 0.25 }}
-        >
-          <WeekLabelCell
-            week={week}
-            total={getWeekTotal(week)}
-            achieved={getWeekAchieved?.(week)}
-          />
-          {week.days.map((day) => (
-            <GridCell
-              key={day.date}
-              value={getValue(day)}
-              isToday={!!todayIso && day.date === todayIso}
-              goalState={getCellState?.(day)}
+      <Box
+        sx={{
+          overflowY: 'auto',
+          overscrollBehavior: 'contain',
+          maxHeight: { xs: 168, md: 132 },
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.25,
+          pr: 0.15,
+          '&::-webkit-scrollbar': { width: 4 },
+          '&::-webkit-scrollbar-thumb': {
+            bgcolor: `${dashboardPalette.muted}52`,
+            borderRadius: 999,
+          },
+        }}
+      >
+        {orderedWeeks.map((week) => (
+          <Box
+            key={week.week_start}
+            sx={{ display: 'grid', gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))', gap: 0.25 }}
+          >
+            <WeekLabelCell
+              week={week}
+              total={getWeekTotal(week)}
+              achieved={getWeekAchieved?.(week)}
             />
-          ))}
-        </Box>
-      ))}
+            {week.days.map((day) => {
+              const value = getValue(day);
+              const clickable = Boolean(isCellClickable?.(day) && onCellClick);
+              return (
+                <GridCell
+                  key={day.date}
+                  value={value}
+                  isToday={!!todayIso && day.date === todayIso}
+                  goalState={getCellState?.(day)}
+                  clickable={clickable}
+                  onClick={clickable ? (event) => onCellClick?.(day, event) : undefined}
+                  ariaLabel={cellAriaLabel?.(day, value)}
+                />
+              );
+            })}
+          </Box>
+        ))}
+      </Box>
     </Box>
   );
 }
@@ -257,4 +378,12 @@ export function retailWeekTotal(week: DepartmentDailyWeek): string {
     if (!day.is_future && day.retail) return day.retail;
   }
   return '—';
+}
+
+export function retailCellAriaLabel(day: DepartmentDailyMetric, value: string): string {
+  const ids = day.retail_audit_ids ?? [];
+  const count = ids.length;
+  const dateLabel = shortDate(day.date);
+  if (count === 0) return `${dateLabel} — ${value}`;
+  return `${dateLabel} — grade ${day.retail ?? value}, ${count} audit${count === 1 ? '' : 's'}`;
 }

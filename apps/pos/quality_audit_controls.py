@@ -71,6 +71,7 @@ def empty_check_values(control: str) -> dict[str, Any]:
         'comment': '',
         'letter': '',
         'score': None,
+        'touched': False,
     }
     return base
 
@@ -93,6 +94,7 @@ def derive_result(check: dict[str, Any]) -> str:
     priority = (check.get('priority') or '').strip().lower()
     comment = (check.get('comment') or '').strip()
     letter = (check.get('letter') or '').strip().upper()
+    touched = bool(check.get('touched'))
 
     if control in ('rating', 'emoji'):
         if isinstance(rating, (int, float)):
@@ -113,6 +115,9 @@ def derive_result(check: dict[str, Any]) -> str:
             return 'na'
         return ''
     if control == 'chips':
+        # Untouched chips cannot distinguish "no issues" from "never opened".
+        if not touched:
+            return ''
         return 'pass' if not tags else 'fail'
     if control == 'counter':
         if isinstance(count, (int, float)):
@@ -121,7 +126,8 @@ def derive_result(check: dict[str, Any]) -> str:
     if control == 'zone':
         return 'pass' if zone else ''
     if control == 'photo':
-        return 'pass' if photo else 'fail'
+        # No photo = unanswered (auditor may mark N/A via explicit result).
+        return 'pass' if photo else ''
     if control == 'confidence':
         return 'pass' if confidence in VALID_CONFIDENCE else ''
     if control == 'priority':

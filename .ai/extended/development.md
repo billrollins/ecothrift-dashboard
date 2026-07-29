@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-22 (start_mobile_dashboard.bat for phone LAN testing) -->
+<!-- Last updated: 2026-07-29 (scripts/dev: dashboard / mobile / website) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -10,7 +10,7 @@
 | `printserver/` | **Local print server** — FastAPI on `127.0.0.1:8888`; build/installer here. Installed exe lives under `%LOCALAPPDATA%\EcoThrift\PrintServer\` (not source). |
 | `.ai/` | AI steering: `context.md`, `protocols/`, `initiatives/`, **`extended/`** (this file and domain deep-dives). |
 | `workspace/` | Local scratch, notebooks, temp artifacts — almost entirely gitignored; generated CSV/JSON under **`workspace/data/`** is not tracked (only **`.gitkeep`**). Jupyter setup is below. |
-| `scripts/dev/` | Windows helpers — start/stop servers, **daily Heroku-parity buying jobs** (see `daily_scheduled_tasks.bat`). |
+| `scripts/dev/` | Windows helpers — `start_dashboard.bat`, `start_mobile_dashboard.bat`, `start_website.bat`. |
 | `scripts/deploy/` | Deploy-related helpers (e.g. commit message staging). |
 | `workspace/notebooks/` | Jupyter — tracked **`.ipynb`**, **`.py`**, **`_shared/config.example.py`**, **`requirements-notebooks.txt`**, category-research **`taxonomy_v1.example.json`**, **`docs/taxonomy_input_schema.md`**, **`discovery_lockin.example.md`**, SQL under **`ai_scripts/sql/`**. |
 
@@ -66,11 +66,9 @@ npm run dev
 
 **Inventory / Item Processor:** optional safety net for `ProcessingRow.search_string` (bulk/SQL paths that bypass ORM `save()`): e.g. weekly `python manage.py rebuild_processing_search_string` (defaults to excluding `complete`/`cancelled` POs; add `--dry-run` to count rows only).
 
-**Also polled in-app (not necessarily the same Heroku clock):** **`watch_auctions`** updates watchlisted auctions via anonymous batch GET (`auction.bstock.com`) when **`WatchlistEntry`** poll intervals allow — run it yourself or wire a scheduler; **`scripts/dev/daily_scheduled_tasks.bat`** includes it after `scheduled_sweep`.
+**Also polled in-app (not necessarily the same Heroku clock):** **`watch_auctions`** updates watchlisted auctions via anonymous batch GET (`auction.bstock.com`) when **`WatchlistEntry`** poll intervals allow — run it yourself or wire a scheduler.
 
-### Local parity: `scripts/dev/daily_scheduled_tasks.bat`
-
-From the repo root (or double-click), runs **`compute_daily_category_stats`** → **`scheduled_sweep`** → **`watch_auctions`** against the **default** database. Uses **`venv`** if present. **`SKIP_BSTOCK=1`** runs only **`compute_daily_category_stats`** (offline / no B-Stock HTTP). **Maintenance:** when production schedules or included commands change, update this `.bat` **and** this **development.md** section and **`.ai/context.md`** (file map). Not included: **`recompute_all_item_costs`** (on-demand backfill after data fixes, not daily).
+**Local buying parity (manual):** from the repo root with `venv` active, run in order: `python manage.py compute_daily_category_stats` → `python manage.py scheduled_sweep` → `python manage.py watch_auctions`. Not included: **`recompute_all_item_costs`** (on-demand backfill after data fixes, not daily).
 
 ## Backend tests
 
@@ -85,13 +83,9 @@ If **POS registers** or **supplemental drawer** rows are missing (e.g. after `re
 
 | Script | What it does |
 |--------|-------------|
-| `scripts/dev/start_dashboard.bat` | Kills listeners on 8000/5173, starts Django + staff Vite in new windows (uses `venv` if present) |
-| `scripts/dev/start_mobile_dashboard.bat` | Same as `start_dashboard.bat`, but Vite binds `--host 0.0.0.0` and prints this PC’s LAN URL for phone testing on the same Wi‑Fi (API still proxied to local Django). Reminds about local delivery QA seed. |
-| `scripts/dev/seed_delivery_test_dataset.bat` | **Delivery Field/Desk QA (local/DEBUG only) —** drag into terminal to wipe all local QA datasets and reseed for **today** (default key `phase2-phone`). Pack: Past 2 (good+bad), Today 4 (1/2/3/4 items), Future 3 (2 same day + 1 later). Rows look like normal deliveries (tracked via `DeliveryTestDataset` for reset). Extra flags forward to `seed_delivery_test_dataset` (e.g. `--with-active-run --stage load`). Seed refuses when `DEBUG=False`. Does **not** seed production. |
-| `scripts/dev/start_website.bat` | Kills listeners on 8000/5174, starts Django + public Vite in new windows (uses `venv` if present) |
-| `scripts/dev/kill_servers.bat` | Stops processes using ports 8000, 5173, and 5174 |
-| `scripts/dev/daily_scheduled_tasks.bat` | **Buying —** local batch mirroring scheduled work: `compute_daily_category_stats`, `scheduled_sweep`, `watch_auctions`. Optional **`SKIP_BSTOCK=1`** for stats-only. See **Heroku Scheduler** + **Local parity** above. |
-| `scripts/dev/reset_intake_test_env.bat` | **Intake regression loop —** prod `ecothrift` schema → local (`scripts/deploy/0_pull_prod_to_local.bat`), `migrate`, then `reset_intake_test_po --apply --stage after-upload`: purges PO **WLMRT-OJU-3V74** pipeline artifacts (Items/batches/ProcessingRows/ManifestRows/staging) and restores post-CSV-upload so the full Standardize → Cleanup → Final Decisions → Finalize → Check-in walk is repeatable. `--skip-pull` for fast same-day loops; `--stage before-upload` for a blank slate. Manifest source order: storage → rebuild from `PreprocessingRow.raw_row` → validated `workspace/intake-test-fixtures/` cache (cleanup-export-format and row-count-mismatch fixtures rejected). **Local dev only** (DEBUG/ENVIRONMENT guard). Service: `apps/inventory/services/intake_test_reset.py`. |
+| `scripts/dev/start_dashboard.bat` | Desktop staff: Django + Vite on 8000/5173. |
+| `scripts/dev/start_mobile_dashboard.bat` | Same + Vite HTTPS on LAN (`0.0.0.0`) for phone testing. |
+| `scripts/dev/start_website.bat` | Public site: Django + Vite on 8000/5174. |
 | `python scripts/data/extract_po_descriptions.py` (if present locally) | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3**; writes CSV under **`workspace/data/`** (**`CHANGELOG`** **2.7.1**). Requires **`psycopg2`** and root **`.env`** DB vars. |
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |

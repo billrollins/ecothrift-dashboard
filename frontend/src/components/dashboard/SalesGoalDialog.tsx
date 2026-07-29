@@ -179,7 +179,7 @@ export function SalesGoalDialog({ open, onClose, goal, isSuperuser }: SalesGoalD
                             size="small"
                             aria-label="Increase by 100"
                             onClick={() => adjust(STEP)}
-                            sx={{ p: 0.25, color: GOLD }}
+                            sx={{ p: 0, width: 44, height: 44, color: GOLD }}
                           >
                             <KeyboardArrowUp fontSize="small" />
                           </IconButton>
@@ -187,7 +187,7 @@ export function SalesGoalDialog({ open, onClose, goal, isSuperuser }: SalesGoalD
                             size="small"
                             aria-label="Decrease by 100"
                             onClick={() => adjust(-STEP)}
-                            sx={{ p: 0.25, color: GOLD }}
+                            sx={{ p: 0, width: 44, height: 44, color: GOLD }}
                           >
                             <KeyboardArrowDown fontSize="small" />
                           </IconButton>

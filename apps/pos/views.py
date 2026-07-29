@@ -1336,7 +1336,7 @@ class RevenueGoalViewSet(viewsets.ModelViewSet):
 class QualityAuditViewSet(viewsets.ModelViewSet):
     serializer_class = QualityAuditSerializer
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
-    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
     pagination_class = None
 
     def get_queryset(self):
@@ -1353,7 +1353,29 @@ class QualityAuditViewSet(viewsets.ModelViewSet):
         # Submitted history: newest finalization first for hub review list.
         if status_filter == QualityAudit.STATUS_SUBMITTED:
             qs = qs.order_by('-submitted_at', '-started_at', '-id')
+        else:
+            qs = qs.order_by('-started_at', '-id')
         return qs
+
+    def list(self, request, *args, **kwargs):
+        try:
+            limit = int(request.query_params.get('limit', 100))
+        except (TypeError, ValueError):
+            limit = 100
+        limit = max(1, min(500, limit))
+        queryset = self.filter_queryset(self.get_queryset())[:limit]
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        audit = self.get_object()
+        if audit.status != QualityAudit.STATUS_DRAFT:
+            return Response(
+                {'detail': 'Submitted audits cannot be deleted.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        audit.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def create(self, request, *args, **kwargs):
         form_ref = request.data.get('form') or request.data.get('form_slug') or request.data.get('audit_type')
@@ -2736,10 +2758,15 @@ def delivery_job_append_address(request, pk: int):
 @api_view(['GET'])
 @perm_classes([IsAuthenticated])
 def dashboard_metrics(request):
-    """Dashboard: sales overview and department metric stat cards."""
-    from apps.pos.services.dashboard_metrics import get_dashboard_metrics
+    """Dashboard: sales overview and department metric stat cards.
 
-    return Response(get_dashboard_metrics())
+    Query params:
+        weeks: department daily-grid lookback (2–12, default 8).
+    """
+    from apps.pos.services.dashboard_metrics import clamp_department_weeks, get_dashboard_metrics
+
+    weeks_back = clamp_department_weeks(request.query_params.get('weeks'))
+    return Response(get_dashboard_metrics(weeks_back=weeks_back))
 
 
 @api_view(['GET'])

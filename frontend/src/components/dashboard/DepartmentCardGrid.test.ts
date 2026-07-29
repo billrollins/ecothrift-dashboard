@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DepartmentDailyMetric, DepartmentDailyWeek } from '../../types/pos.types';
 import {
+  retailDayIsClickable,
   retailGoalCellState,
   retailGridValue,
   retailWeekGoalAchieved,
@@ -54,5 +55,14 @@ describe('Retail QA goal presentation', () => {
     });
     expect(retailWeekTotal(result)).toBe('F');
     expect(retailWeekGoalAchieved(result)).toBe(true);
+  });
+
+  it('marks a day clickable only when it has submitted audit ids', () => {
+    expect(retailDayIsClickable(day({ retail: 'B', retail_audit_ids: [17] }))).toBe(true);
+    expect(retailDayIsClickable(day({ retail: 'B', retail_audit_ids: [] }))).toBe(false);
+    expect(retailDayIsClickable(day({ retail: null }))).toBe(false);
+    expect(
+      retailDayIsClickable(day({ is_future: true, retail_audit_ids: [1] })),
+    ).toBe(false);
   });
 });

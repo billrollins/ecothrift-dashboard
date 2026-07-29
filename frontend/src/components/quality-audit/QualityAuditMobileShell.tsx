@@ -27,6 +27,8 @@ interface QualityAuditMobileShellProps {
   onJumpStep: (step: number) => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** Draft autosave status shown next to the auditor line. */
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
 }
 
 function formatStartedAt(iso: string): string {
@@ -61,8 +63,17 @@ export function QualityAuditMobileShell({
   onJumpStep,
   children,
   footer,
+  saveStatus = 'idle',
 }: QualityAuditMobileShellProps) {
   const sectionLabels = stepLabels.slice(0, stepLabels.length - 1);
+  const saveLabel =
+    saveStatus === 'saving'
+      ? 'Saving…'
+      : saveStatus === 'saved'
+        ? 'Saved'
+        : saveStatus === 'error'
+          ? 'Save failed'
+          : null;
 
   return (
     <Box
@@ -103,13 +114,24 @@ export function QualityAuditMobileShell({
                 {intro}
               </Typography>
             ) : null}
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
               <Avatar sx={{ width: 22, height: 22, fontSize: 12, bgcolor: 'rgba(255,255,255,0.18)' }}>
                 {initials(auditorName)}
               </Avatar>
               <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)' }}>
                 {auditorName || '—'} · {formatStartedAt(startedAt)}
               </Typography>
+              {saveLabel ? (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: saveStatus === 'error' ? '#ffb4ab' : 'rgba(255,255,255,0.75)',
+                    fontWeight: 700,
+                  }}
+                >
+                  · {saveLabel}
+                </Typography>
+              ) : null}
             </Stack>
           </Box>
         </Stack>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -14,9 +14,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Typography,
-  useMediaQuery,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
 import Add from '@mui/icons-material/Add';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
@@ -38,7 +36,12 @@ import {
   usePurchaseOrderSummary,
 } from '../../hooks/useInventory';
 import type { PurchaseOrderCondition } from '../../types/inventory.types';
-import { buildOrderListColumns, type OrderListRowView } from './orderList/orderListColumns';
+import {
+  buildOrderListColumns,
+  orderListColumnVisibility,
+  orderListIsCompact,
+  type OrderListRowView,
+} from './orderList/orderListColumns';
 import { ProfitabilitySummary } from './orderList/ProfitabilitySummary';
 import {
   activeFilterChips,
@@ -131,9 +134,10 @@ export default function OrderListPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { enqueueSnackbar } = useSnackbar();
-  const theme = useTheme();
-  const isMdDown = useMediaQuery(theme.breakpoints.down('md'));
-  const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
+  // Column fit is driven by the grid's own width, not the viewport: the staff
+  // sidebar means the two differ by a few hundred pixels.
+  const gridWrapRef = useRef<HTMLDivElement | null>(null);
+  const [gridWidth, setGridWidth] = useState(0);
 
   const [state, setState] = useState<OrderListUrlState>(() =>
     parseOrderListSearchParams(searchParams),
@@ -167,6 +171,17 @@ export default function OrderListPage() {
       navigate(location.pathname + location.search, { replace: true, state: {} });
     }
   }, [location.state, location.pathname, location.search, navigate, enqueueSnackbar]);
+
+  useEffect(() => {
+    const el = gridWrapRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setGridWidth(width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -232,9 +247,9 @@ export default function OrderListPage() {
     () =>
       buildOrderListColumns({
         onReceive: (id) => navigate(`/inventory/receiving/${id}`),
-        compact: isMdDown,
+        compact: orderListIsCompact(gridWidth),
       }),
-    [navigate, isMdDown],
+    [navigate, gridWidth],
   );
 
   const chips = activeFilterChips(state);
@@ -256,24 +271,10 @@ export default function OrderListPage() {
     [pageIds],
   );
 
-  const visibilityModel: GridColumnVisibilityModel = useMemo(() => {
-    const model: GridColumnVisibilityModel = {};
-    if (isSmDown) {
-      model.condition = false;
-      model.cost = false;
-      model.retail = false;
-      model.priced = false;
-      model.sold = false;
-      model.profit = false;
-      return model;
-    }
-    if (isMdDown) {
-      model.condition = false;
-      model.priced = false;
-      model.sold = false;
-    }
-    return model;
-  }, [isMdDown, isSmDown]);
+  const visibilityModel: GridColumnVisibilityModel = useMemo(
+    () => orderListColumnVisibility(gridWidth),
+    [gridWidth],
+  );
 
   if (isLoading && rows.length === 0) return <LoadingScreen />;
 
@@ -548,6 +549,7 @@ export default function OrderListPage() {
         </Paper>
 
         <Paper
+          ref={gridWrapRef}
           variant="outlined"
           sx={{
             flex: 1,
@@ -574,6 +576,8 @@ export default function OrderListPage() {
             paginationMode="server"
             sortingMode="server"
             rowCount={totalCount}
+            rowHeight={64}
+            columnHeaderHeight={48}
             paginationModel={{ page: state.page, pageSize: state.pageSize }}
             onPaginationModelChange={(pm) =>
               setState((s) => ({ ...s, page: pm.page, pageSize: pm.pageSize }))
@@ -601,13 +605,17 @@ export default function OrderListPage() {
             onRowClick={(params) => navigate(`/inventory/orders/${params.id}`)}
             sx={{
               border: 0,
+              width: '100%',
+              '& .MuiDataGrid-main': { width: '100%' },
               '& .MuiDataGrid-row': { cursor: 'pointer' },
               '& .MuiDataGrid-columnHeaders': { bgcolor: '#fff', color: '#64748b' },
               '& .MuiDataGrid-cell': {
                 borderColor: '#f1f5f9',
                 display: 'flex',
                 alignItems: 'center',
+                px: 1.25,
               },
+              '& .MuiDataGrid-columnHeader': { px: 1.25 },
               '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 700 },
             }}
             slotProps={{

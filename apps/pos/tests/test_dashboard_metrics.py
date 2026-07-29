@@ -244,6 +244,65 @@ class DashboardMetricsTests(TestCase):
         self.assertEqual(this_week['retail_week_grade'], 'F')
         self.assertEqual(payload['department_metrics']['retail']['last_grade'], 'F')
 
+    def test_retail_week_audits_count_includes_off_schedule_days(self):
+        """Week audit counter includes every submitted audit, not only scheduled days."""
+        from datetime import datetime, time as dt_time
+
+        from apps.pos.services.dashboard_metrics import _week_start_monday
+
+        form, _ = QualityAuditForm.objects.get_or_create(
+            slug='retail',
+            defaults={
+                'title': 'Retail floor operations',
+                'definition': build_retail_form_definition(),
+                'feeds_dashboard': True,
+                'is_system': True,
+                'is_active': True,
+            },
+        )
+        if not form.feeds_dashboard:
+            form.feeds_dashboard = True
+            form.save(update_fields=['feeds_dashboard'])
+        # Schedule only Monday so a mid-week submit is off-schedule.
+        DashboardDepartmentGoal.objects.update_or_create(
+            department=DashboardDepartmentGoal.RETAIL,
+            defaults={
+                'value': 'B',
+                'description': 'Monday only.',
+                'schedule': {'weekdays': [0], 'audits_per_day': 1},
+            },
+        )
+        week_start = _week_start_monday(self.today)
+        target_day = self.today
+        for offset in range(7):
+            day = week_start + timedelta(days=offset)
+            if day <= self.today and day.weekday() != 0:
+                target_day = day
+                break
+        submitted_at = timezone.make_aware(datetime.combine(target_day, dt_time(15, 0)))
+        QualityAudit.objects.create(
+            form=form,
+            audit_type='retail',
+            status=QualityAudit.STATUS_SUBMITTED,
+            conducted_by=self.user,
+            submitted_at=submitted_at,
+            overall_grade='B',
+            responses={'template_version': 1, 'sections': []},
+        )
+        payload = build_dashboard_metrics(self.today)
+        this_week = next(
+            w for w in payload['department_metrics']['daily_weeks'] if w['label'] == 'This Week'
+        )
+        self.assertGreaterEqual(this_week['retail_week_audits'], 1)
+        # Off-schedule day still contributes to the week counter.
+        if target_day.weekday() != 0:
+            self.assertEqual(this_week['retail_week_audits'], 1)
+            self.assertEqual(this_week['retail_completed_days'], 0)
+        self.assertEqual(
+            payload['department_metrics']['retail']['week_audits'],
+            this_week['retail_week_audits'],
+        )
+
     def test_retail_scheduled_goal_requires_count_and_last_grade(self):
         """Gold achievement requires the day's count and its last grade."""
         form, _ = QualityAuditForm.objects.get_or_create(
@@ -366,11 +425,59 @@ class DashboardMetricsTests(TestCase):
         payload = build_dashboard_metrics(self.today)
         weeks = payload['department_metrics']['daily_weeks']
 
-        self.assertEqual(len(weeks), 2)
-        self.assertEqual([w['label'] for w in weeks], ['Last Week', 'This Week'])
+        self.assertEqual(len(weeks), 8)
+        self.assertEqual(weeks[-1]['label'], 'This Week')
+        self.assertEqual(weeks[-2]['label'], 'Last Week')
+        self.assertTrue(weeks[-1]['is_current'])
+        self.assertEqual(sum(1 for w in weeks if w.get('is_current')), 1)
         self.assertEqual(len(weeks[0]['days']), 7)
         self.assertEqual(weeks[0]['days'][0]['day'], 'Monday')
         self.assertEqual(weeks[0]['days'][-1]['day'], 'Sunday')
+
+    def test_department_weeks_param_clamps(self):
+        two = build_dashboard_metrics(self.today, weeks_back=2)
+        self.assertEqual(len(two['department_metrics']['daily_weeks']), 2)
+        twelve = build_dashboard_metrics(self.today, weeks_back=99)
+        self.assertEqual(len(twelve['department_metrics']['daily_weeks']), 12)
+
+    def test_retail_audit_ids_and_form_slug(self):
+        form, _ = QualityAuditForm.objects.get_or_create(
+            slug='retail',
+            defaults={
+                'title': 'Retail floor operations',
+                'definition': build_retail_form_definition(),
+                'feeds_dashboard': True,
+                'is_system': True,
+                'is_active': True,
+            },
+        )
+        if not form.feeds_dashboard:
+            form.feeds_dashboard = True
+            form.save(update_fields=['feeds_dashboard'])
+        audit = QualityAudit.objects.create(
+            form=form,
+            audit_type='retail',
+            status=QualityAudit.STATUS_SUBMITTED,
+            conducted_by=self.user,
+            submitted_at=timezone.now(),
+            overall_grade='B',
+            responses={'template_version': 1, 'sections': []},
+        )
+        payload = build_dashboard_metrics(self.today)
+        self.assertEqual(payload['department_metrics']['retail']['form_slug'], 'retail')
+        today_iso = self.today.isoformat()
+        day_payload = None
+        for week in payload['department_metrics']['daily_weeks']:
+            for day in week['days']:
+                if day['date'] == today_iso:
+                    day_payload = day
+        self.assertIsNotNone(day_payload)
+        self.assertIn(audit.id, day_payload['retail_audit_ids'])
+        # Future days have empty audit ids.
+        this_week = next(w for w in payload['department_metrics']['daily_weeks'] if w['is_current'])
+        for day in this_week['days']:
+            if day['is_future']:
+                self.assertEqual(day['retail_audit_ids'], [])
 
     def test_processing_daily_weeks_include_last_week(self):
         """Processing by-day must span last week for the department grid."""
@@ -396,7 +503,9 @@ class DashboardMetricsTests(TestCase):
         ItemHistory.objects.filter(pk=history.pk).update(created_at=created_at)
 
         payload = build_dashboard_metrics(self.today)
-        last_week = payload['department_metrics']['daily_weeks'][0]
+        last_week = next(
+            w for w in payload['department_metrics']['daily_weeks'] if w['label'] == 'Last Week'
+        )
         last_week_day_payload = next(d for d in last_week['days'] if d['date'] == last_week_day.isoformat())
 
         self.assertEqual(last_week_day_payload['processing'], '40.00')

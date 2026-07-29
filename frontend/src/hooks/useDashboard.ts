@@ -25,9 +25,9 @@ function writeCachedDashboardMetrics(metrics: DashboardMetrics) {
 
 export function useDashboardMetrics() {
   return useQuery<DashboardMetrics>({
-    queryKey: ['dashboard', 'metrics'],
+    queryKey: ['dashboard', 'metrics', { weeks: 8 }],
     queryFn: async () => {
-      const { data } = await getDashboardMetrics();
+      const { data } = await getDashboardMetrics({ weeks: 8 });
       writeCachedDashboardMetrics(data);
       return data;
     },

@@ -11,16 +11,19 @@ Definitions (Orders dashboard):
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Iterable
 
 from django.db.models import Count, Exists, OuterRef, Q, Sum
+from django.utils import timezone
 
 from apps.inventory.models import Item, ItemHistory, PurchaseOrder
 from apps.pos.models import CartLine
 
 ZERO = Decimal('0.00')
 MAX_SELECTED_IDS = 200
+SOLD_LAST_WEEK_DAYS = 7
 
 
 def _q2(value: Decimal | None) -> Decimal:
@@ -76,28 +79,43 @@ def shelf_eligible_item_ids(po_ids: Iterable[int]) -> set[int]:
     return set(qs)
 
 
-def priced_by_po(po_ids: Iterable[int]) -> dict[int, Decimal]:
-    """Sum Item.price for shelf-eligible items, grouped by PO."""
+def priced_by_po(po_ids: Iterable[int]) -> dict[int, dict[str, Decimal]]:
+    """Shelf-eligible Item.price and Item.retail totals, grouped by PO.
+
+    Returns ``{po_id: {'priced': …, 'priced_retail': …}}``.
+    ``priced_retail`` is listing retail on those same items (manifest + extras).
+    """
     ids = list(po_ids)
     if not ids:
         return {}
     eligible = shelf_eligible_item_ids(ids)
-    out = {pk: ZERO for pk in ids}
+    out = {pk: {'priced': ZERO, 'priced_retail': ZERO} for pk in ids}
     if not eligible:
         return out
 
     rows = (
         Item.objects.filter(id__in=eligible, purchase_order_id__in=ids)
         .values('purchase_order_id')
-        .annotate(total=Sum('price'))
+        .annotate(priced_total=Sum('price'), retail_total=Sum('retail'))
     )
     for row in rows:
-        out[int(row['purchase_order_id'])] = _q2(row['total'])
+        out[int(row['purchase_order_id'])] = {
+            'priced': _q2(row['priced_total']),
+            'priced_retail': _q2(row['retail_total']),
+        }
     return out
 
 
-def sold_by_po(po_ids: Iterable[int]) -> dict[int, Decimal]:
-    """Net sold revenue per PO from completed carts (discounts allocated) + historical fallback."""
+def sold_by_po(
+    po_ids: Iterable[int],
+    *,
+    since: datetime | None = None,
+) -> dict[int, Decimal]:
+    """Net sold revenue per PO from completed carts (discounts allocated) + historical fallback.
+
+    When ``since`` is set, only carts with ``completed_at >= since`` and fallback items with
+    ``sold_at >= since`` are included (sold in the recent window).
+    """
     ids = list(po_ids)
     if not ids:
         return {}
@@ -110,15 +128,13 @@ def sold_by_po(po_ids: Iterable[int]) -> dict[int, Decimal]:
         return out
 
     item_ids = list(item_po.keys())
-    cart_ids = list(
-        CartLine.objects.filter(
-            cart__status='completed',
-            item_id__in=item_ids,
-        )
-        .exclude(line_kind=CartLine.LINE_KIND_DELIVERY)
-        .values_list('cart_id', flat=True)
-        .distinct()
-    )
+    cart_line_qs = CartLine.objects.filter(
+        cart__status='completed',
+        item_id__in=item_ids,
+    ).exclude(line_kind=CartLine.LINE_KIND_DELIVERY)
+    if since is not None:
+        cart_line_qs = cart_line_qs.filter(cart__completed_at__gte=since)
+    cart_ids = list(cart_line_qs.values_list('cart_id', flat=True).distinct())
 
     items_with_cart_revenue: set[int] = set()
     if cart_ids:
@@ -178,16 +194,14 @@ def sold_by_po(po_ids: Iterable[int]) -> dict[int, Decimal]:
                 items_with_cart_revenue.add(ln.item_id)
 
     # Historical fallback: sold items with sold_for and no completed cart line.
-    fallback = (
-        Item.objects.filter(
-            purchase_order_id__in=ids,
-            status='sold',
-            sold_for__isnull=False,
-        )
-        .exclude(id__in=items_with_cart_revenue)
-        .values('purchase_order_id')
-        .annotate(total=Sum('sold_for'))
-    )
+    fallback_qs = Item.objects.filter(
+        purchase_order_id__in=ids,
+        status='sold',
+        sold_for__isnull=False,
+    ).exclude(id__in=items_with_cart_revenue)
+    if since is not None:
+        fallback_qs = fallback_qs.filter(sold_at__gte=since)
+    fallback = fallback_qs.values('purchase_order_id').annotate(total=Sum('sold_for'))
     for row in fallback:
         out[int(row['purchase_order_id'])] += _q2(row['total'])
 
@@ -195,7 +209,7 @@ def sold_by_po(po_ids: Iterable[int]) -> dict[int, Decimal]:
 
 
 def financials_for_orders(po_ids: Iterable[int]) -> dict[int, dict[str, Decimal]]:
-    """Per-order financial dict with cost/retail/priced/sold/profit."""
+    """Per-order financial dict with cost/retail/priced/sold/sold_last_week/profit."""
     ids = list(po_ids)
     if not ids:
         return {}
@@ -207,19 +221,24 @@ def financials_for_orders(po_ids: Iterable[int]) -> dict[int, dict[str, Decimal]
         }
         for row in PurchaseOrder.objects.filter(pk__in=ids).values('id', 'total_cost', 'retail_value')
     }
-    priced = priced_by_po(ids)
+    priced_map = priced_by_po(ids)
     sold = sold_by_po(ids)
+    week_since = timezone.now() - timedelta(days=SOLD_LAST_WEEK_DAYS)
+    sold_week = sold_by_po(ids, since=week_since)
 
     out: dict[int, dict[str, Decimal]] = {}
     for pk in ids:
         base = cost_retail.get(pk, {'cost': ZERO, 'retail': ZERO})
         s = sold.get(pk, ZERO)
         c = base['cost']
+        priced_row = priced_map.get(pk, {'priced': ZERO, 'priced_retail': ZERO})
         out[pk] = {
             'cost': c,
             'retail': base['retail'],
-            'priced': priced.get(pk, ZERO),
+            'priced': priced_row['priced'],
+            'priced_retail': priced_row['priced_retail'],
             'sold': s,
+            'sold_last_week': sold_week.get(pk, ZERO),
             'profit': _q2(s - c),
         }
     return out
@@ -256,6 +275,7 @@ def aggregate_financials(po_qs) -> dict:
 
     fin = financials_for_orders(ids)
     priced_total = _q2(sum((v['priced'] for v in fin.values()), ZERO))
+    priced_retail_total = _q2(sum((v['priced_retail'] for v in fin.values()), ZERO))
     sold_total = _q2(sum((v['sold'] for v in fin.values()), ZERO))
     profit_total = _q2(sold_total - cost)
     delivered_count = po_qs.filter(status='delivered').count()
@@ -270,6 +290,7 @@ def aggregate_financials(po_qs) -> dict:
         'cost': str(cost),
         'retail': str(retail),
         'priced': str(priced_total),
+        'priced_retail': str(priced_retail_total),
         'sold': str(sold_total),
         'profit': str(profit_total),
         'items_received': items_received,
@@ -286,7 +307,9 @@ def serialize_order_metrics(po_ids: Iterable[int]) -> dict[str, dict[str, str]]:
             'cost': str(v['cost']),
             'retail': str(v['retail']),
             'priced': str(v['priced']),
+            'priced_retail': str(v['priced_retail']),
             'sold': str(v['sold']),
+            'sold_last_week': str(v['sold_last_week']),
             'profit': str(v['profit']),
         }
         for pk, v in fin.items()

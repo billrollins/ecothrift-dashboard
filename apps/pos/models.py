@@ -466,6 +466,7 @@ class QualityAudit(models.Model):
         related_name='quality_audits_conducted',
     )
     started_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     responses = models.JSONField(default=dict)
     overall_grade = models.CharField(max_length=4, blank=True, default='')

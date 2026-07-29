@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-07-22 (ImageViewer zoom/pan/crop/rotate + Receiving photo replace) -->
+<!-- Last updated: 2026-07-29 (v2.60.0 Retail QA reliability + dashboard) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-07-29 (v2.60.0) — Retail QA + dashboard:** Hub All/Submitted/In progress with Resume; wizard debounced autosave, sticky Submit, leave guards; +/- grades in **`qaScoring.ts`**. Department grids: 8-week scroll, retail day cells deep-link to `/admin/quality-audit/run/:slug/:id` (Manager+). Mobile: grids inline with 44px targets, weekly sales accordion through 900px, chart overflow fixed. Orders list two-line ratio cells + content-budget column drop.
 
 **2026-07-22 (v2.56.0) — Delivery Phase 2 Field day:** Field day detail runs the full contact→load→truck→route→drive→return shell (`FieldRunShell`, `useFieldDeliveryRun`). Desk day detail shows read-only `DeskDayLiveMonitor`. Legacy board `/pos/deliveries/legacy` is a deprecated escape hatch for one release.
 

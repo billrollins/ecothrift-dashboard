@@ -136,6 +136,8 @@ class PurchaseOrderFinancialsApiTests(TestCase):
         metrics = r.data['orders'][str(self.po.id)]
         # 40 + 55 + 30 (history-only still uses retained tag price)
         self.assertEqual(Decimal(metrics['priced']), Decimal('125.00'))
+        # 50 + 60 + 35 listing retail on the same shelf-eligible items
+        self.assertEqual(Decimal(metrics['priced_retail']), Decimal('145.00'))
         self.assertEqual(Decimal(metrics['cost']), Decimal('100.00'))
         self.assertEqual(Decimal(metrics['retail']), Decimal('400.00'))
 
@@ -230,6 +232,52 @@ class PurchaseOrderFinancialsApiTests(TestCase):
         self.assertEqual(r.status_code, 200)
         # Falls back to item.sold_for = 50
         self.assertEqual(Decimal(r.data['orders'][str(self.po.id)]['sold']), Decimal('50.00'))
+
+    def test_sold_last_week_includes_recent_cart_only(self):
+        recent = Cart.objects.create(drawer=self.drawer, cashier=self.user, status='open')
+        CartLine.objects.create(
+            cart=recent,
+            item=self.item_sold,
+            description='Recent sale',
+            quantity=1,
+            unit_price=Decimal('40.00'),
+            line_kind=CartLine.LINE_KIND_ITEM,
+        )
+        recent.status = 'completed'
+        recent.completed_at = timezone.now() - timedelta(days=2)
+        recent.save(update_fields=['status', 'completed_at'])
+
+        old_item = Item.objects.create(
+            sku='FIN-SOLD-OLD',
+            product=self.product,
+            purchase_order=self.po,
+            price=Decimal('25.00'),
+            status='sold',
+            listed_at=timezone.now() - timedelta(days=40),
+            sold_at=timezone.now() - timedelta(days=30),
+            sold_for=Decimal('25.00'),
+        )
+        old = Cart.objects.create(drawer=self.drawer, cashier=self.user, status='open')
+        CartLine.objects.create(
+            cart=old,
+            item=old_item,
+            description='Old sale',
+            quantity=1,
+            unit_price=Decimal('25.00'),
+            line_kind=CartLine.LINE_KIND_ITEM,
+        )
+        old.status = 'completed'
+        old.completed_at = timezone.now() - timedelta(days=30)
+        old.save(update_fields=['status', 'completed_at'])
+
+        r = self.client.get(
+            '/api/inventory/orders/page-metrics/',
+            {'ids': str(self.po.id)},
+        )
+        self.assertEqual(r.status_code, 200)
+        metrics = r.data['orders'][str(self.po.id)]
+        self.assertEqual(Decimal(metrics['sold']), Decimal('65.00'))
+        self.assertEqual(Decimal(metrics['sold_last_week']), Decimal('40.00'))
 
     def test_summary_ids_subset_and_filters(self):
         r = self.client.get(

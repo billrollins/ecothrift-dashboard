@@ -26,25 +26,44 @@ def _fill_all_responses(result: str = 'pass') -> dict:
 
 
 class QualityAuditGradeTests(TestCase):
-    def test_compute_grade_a_for_perfect_score(self):
+    def test_compute_grade_a_plus_for_perfect_score(self):
         responses = _fill_all_responses('pass')
-        self.assertEqual(compute_overall_grade(responses), 'A')
+        self.assertEqual(compute_overall_grade(responses), 'A+')
 
     def test_compute_grade_f_for_all_fail(self):
         responses = _fill_all_responses('fail')
         self.assertEqual(compute_overall_grade(responses), 'F')
+
+    def test_grade_bands_include_plus_minus(self):
+        """~87% pass rate maps to B+ so dashboard B+ goals are reachable."""
+        responses = _fill_all_responses('pass')
+        checks = [c for s in responses['sections'] for c in s['checks']]
+        # Fail enough checks to land near 0.87 (B+ band is [0.87, 0.93)).
+        fail_count = max(1, round(len(checks) * 0.13))
+        for check in checks[:fail_count]:
+            check['result'] = 'fail'
+        self.assertEqual(compute_overall_grade(responses), 'B+')
 
     def test_na_excluded_from_scoring(self):
         responses = _fill_all_responses('pass')
         responses['sections'][0]['checks'][0]['result'] = 'fail'
         responses['sections'][0]['checks'][1]['result'] = 'na'
         grade = compute_overall_grade(responses)
-        self.assertIn(grade, ('A', 'B', 'C', 'D', 'F'))
+        self.assertRegex(grade, r'^[A-F][+-]?$')
 
     def test_validate_incomplete_checks(self):
         responses = _blank_responses()
         errors = validate_responses_complete(responses)
-        self.assertTrue(len(errors) > 0)
+        total = sum(len(s['checks']) for s in responses['sections'])
+        self.assertEqual(len(errors), total)
+
+    def test_untouched_photo_and_chips_are_incomplete(self):
+        from apps.pos.quality_audit_controls import derive_result
+
+        self.assertEqual(derive_result({'control': 'photo', 'photo': None, 'result': ''}), '')
+        self.assertEqual(derive_result({'control': 'chips', 'tags': [], 'touched': False, 'result': ''}), '')
+        self.assertEqual(derive_result({'control': 'chips', 'tags': [], 'touched': True, 'result': ''}), 'pass')
+        self.assertEqual(derive_result({'control': 'photo', 'photo': 'data:x', 'result': ''}), 'pass')
 
     def test_definition_cycles_through_all_15_controls(self):
         from apps.pos.quality_audit_controls import VALID_CONTROLS
@@ -119,9 +138,35 @@ class QualityAuditApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['status'], 'submitted')
-        self.assertEqual(response.data['overall_grade'], 'A')
+        self.assertEqual(response.data['overall_grade'], 'A+')
+        self.assertIn('updated_at', response.data)
         audit = QualityAudit.objects.get(pk=audit_id)
         self.assertIsNotNone(audit.submitted_at)
+
+    def test_delete_draft_allowed_submitted_rejected(self):
+        self.client.force_authenticate(user=self.manager)
+        create = self.client.post('/api/pos/quality-audits/', {'form': 'retail'}, format='json')
+        draft_id = create.data['id']
+        delete_draft = self.client.delete(f'/api/pos/quality-audits/{draft_id}/')
+        self.assertEqual(delete_draft.status_code, 204)
+
+        create2 = self.client.post('/api/pos/quality-audits/', {'form': 'retail'}, format='json')
+        audit_id = create2.data['id']
+        self.client.post(
+            f'/api/pos/quality-audits/{audit_id}/submit/',
+            {'responses': _fill_all_responses('pass')},
+            format='json',
+        )
+        delete_submitted = self.client.delete(f'/api/pos/quality-audits/{audit_id}/')
+        self.assertEqual(delete_submitted.status_code, 400)
+
+    def test_list_respects_limit(self):
+        self.client.force_authenticate(user=self.manager)
+        for _ in range(3):
+            self.client.post('/api/pos/quality-audits/', {'form': 'retail'}, format='json')
+        response = self.client.get('/api/pos/quality-audits/', {'limit': 2})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 2)
 
     def test_dashboard_retail_grade_from_latest_submit(self):
         from apps.pos.services.dashboard_metrics import build_department_metrics
@@ -137,4 +182,4 @@ class QualityAuditApiTests(TestCase):
         )
         retail = build_department_metrics()['retail']
         self.assertTrue(retail['ready'])
-        self.assertEqual(retail['last_grade'], 'A')
+        self.assertEqual(retail['last_grade'], 'A+')

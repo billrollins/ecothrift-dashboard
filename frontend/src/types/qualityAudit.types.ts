@@ -41,6 +41,8 @@ export interface QualityAuditCheck {
   comment?: string;
   letter?: string;
   score?: number | null;
+  /** Set by the client when the auditor interacts with chips (and similar). */
+  touched?: boolean;
 }
 
 export interface QualityAuditSection {
@@ -66,6 +68,7 @@ export interface QualityAudit {
   conducted_by: number | null;
   conducted_by_name: string | null;
   started_at: string;
+  updated_at: string;
   submitted_at: string | null;
   responses: QualityAuditResponses;
   overall_grade: string;
@@ -76,6 +79,7 @@ export interface QualityAuditListParams {
   status?: QualityAuditStatus;
   form?: string;
   audit_type?: string;
+  limit?: number;
 }
 
 // ── Form definition (super-admin editable) ────────────────────────────────────

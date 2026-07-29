@@ -1,12 +1,5 @@
-fix(pos): assign-day and restore run-sync safety (v2.59.1)
+Release v2.60.0: Retail QA reliability + dashboard deep links / 8-week grids / mobile.
 
-Release: v2.59.1
-
-- Block POST /deliveries/{id}/assign-day/ when the stop is loaded or the
-  run is en route (400 ASSIGN_DAY_BLOCKED); mutate only after the guard.
-- On restore after archive, re-queue the failed stop via
-  sync_job_onto_open_run(requeue_inactive=True) so the delivery returns
-  to the live route.
-- Steering docs + CHANGELOG for the patch release.
-
-Initiative: delivery_mobile_operations_completion.
+- Recover stranded complete drafts; autosave + hub resume; +/- grade bands
+- Dashboard retail day cells deep-link to audits; metrics ?weeks= (default 8)
+- Mobile department + sales polish; orders-list secondary ratios; leaner scripts/dev

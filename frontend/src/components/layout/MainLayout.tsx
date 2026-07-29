@@ -162,8 +162,12 @@ export default function MainLayout() {
                   >
                     {user.full_name}
                   </Typography>
-                  <IconButton onClick={handleMenuOpen} size="small">
-                    <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: 14 }}>
+                  <IconButton
+                    onClick={handleMenuOpen}
+                    aria-label="Account menu"
+                    sx={{ width: 44, height: 44 }}
+                  >
+                    <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: 14 }}>
                       {user.first_name?.[0]}{user.last_name?.[0]}
                     </Avatar>
                   </IconButton>

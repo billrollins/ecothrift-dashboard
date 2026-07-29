@@ -33,14 +33,17 @@ export function deriveResult(check: QualityAuditCheck): QualityCheckResult {
     }
     return '';
   }
-  if (control === 'chips') return check.tags && check.tags.length > 0 ? 'fail' : 'pass';
+  if (control === 'chips') {
+    if (!check.touched) return '';
+    return check.tags && check.tags.length > 0 ? 'fail' : 'pass';
+  }
   if (control === 'counter') {
     const c = check.count;
     if (typeof c === 'number') return c === 0 ? 'pass' : 'fail';
     return '';
   }
   if (control === 'zone') return check.zone ? 'pass' : '';
-  if (control === 'photo') return check.photo ? 'pass' : 'fail';
+  if (control === 'photo') return check.photo ? 'pass' : '';
   if (control === 'confidence') return check.confidence ? 'pass' : '';
   if (control === 'priority') return check.priority ? 'pass' : '';
   if (control === 'comment') return check.comment && check.comment.trim() ? 'pass' : '';
@@ -89,11 +92,26 @@ export function passRate(responses: QualityAuditResponses): number {
   return passed / scored;
 }
 
+/** Pass-rate bands mirrored from apps/pos/services/quality_audit.py */
+const GRADE_BANDS: Array<[number, string]> = [
+  [0.98, 'A+'],
+  [0.93, 'A'],
+  [0.9, 'A-'],
+  [0.87, 'B+'],
+  [0.83, 'B'],
+  [0.8, 'B-'],
+  [0.77, 'C+'],
+  [0.73, 'C'],
+  [0.7, 'C-'],
+  [0.67, 'D+'],
+  [0.63, 'D'],
+  [0.6, 'D-'],
+];
+
 export function gradeFromPassRate(rate: number): string {
-  if (rate >= 0.95) return 'A';
-  if (rate >= 0.85) return 'B';
-  if (rate >= 0.75) return 'C';
-  if (rate >= 0.65) return 'D';
+  for (const [threshold, grade] of GRADE_BANDS) {
+    if (rate >= threshold) return grade;
+  }
   return 'F';
 }
 
@@ -138,7 +156,10 @@ export function summarizeCheck(check: QualityAuditCheck): string {
     return check.score != null ? `Condition ${check.score}/100` : 'Not answered';
   }
   if (control === 'chips') {
-    return check.tags && check.tags.length > 0 ? `${check.tags.length} issue${check.tags.length > 1 ? 's' : ''} · ${check.tags.join(', ')}` : 'No issues';
+    if (!check.touched) return 'Not answered';
+    return check.tags && check.tags.length > 0
+      ? `${check.tags.length} issue${check.tags.length > 1 ? 's' : ''} · ${check.tags.join(', ')}`
+      : 'No issues';
   }
   if (control === 'counter') {
     return check.count != null ? `${check.count} found` : 'Not answered';
@@ -147,7 +168,8 @@ export function summarizeCheck(check: QualityAuditCheck): string {
     return check.zone ? `Zone: ${check.zone}` : 'Not answered';
   }
   if (control === 'photo') {
-    return check.photo ? 'Photo captured' : 'No photo';
+    if (check.result === 'na') return 'N/A';
+    return check.photo ? 'Photo captured' : 'Not answered';
   }
   if (control === 'confidence') {
     return check.confidence ? `${check.confidence} confidence` : 'Not answered';
@@ -166,4 +188,14 @@ export function summarizeCheck(check: QualityAuditCheck): string {
 
 export function controlLabel(control: string): string {
   return QA_CONTROL_LABELS[control as keyof typeof QA_CONTROL_LABELS] ?? control;
+}
+
+/** Color for letter grades including +/- (keys off first character). */
+export function gradeLetterColor(grade: string): string {
+  const letter = (grade || 'F').trim().charAt(0).toUpperCase();
+  if (letter === 'A') return '#2f7a48';
+  if (letter === 'B') return '#5a9b3f';
+  if (letter === 'C') return '#bd8618';
+  if (letter === 'D') return '#bf7417';
+  return '#b3261e';
 }
