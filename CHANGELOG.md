@@ -14,7 +14,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 User-facing theme: **Delivery Desk run-sync safety** — assign-day blocked when freight is loaded or en route; restore re-queues the archived stop.
 
-Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/_archived/_completed/delivery_mobile_operations_completion.md).
 
 ### Fixed
 
@@ -25,7 +25,7 @@ Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_m
 
 User-facing theme: **Delivery Desk production add/adjust** — create from past sale, day-detail adjust/cancel, real route maps, change history, shared Delivery tokens.
 
-Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md) Phase 5B–5C (function-first, then unification).
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/_archived/_completed/delivery_mobile_operations_completion.md) Phase 5B–5C (function-first, then unification).
 
 ### Added
 
@@ -57,7 +57,7 @@ Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_m
 
 User-facing theme: **Delivery Field polish** — hold-to-complete, off-route membership, camera-first reseal, compact Routes, device-path fixes, honest test-data scoping.
 
-Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md) Phase 4A–4C.
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/_archived/_completed/delivery_mobile_operations_completion.md) Phase 4A–4C.
 
 ### Added
 
@@ -88,7 +88,7 @@ Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_m
 
 User-facing theme: **Delivery Phase 3** — Google Routes API optimization/ETAs, configurable unload time, Field route/evidence polish, Desk route monitor, legacy board retired.
 
-Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/_archived/_completed/delivery_mobile_operations_completion.md).
 
 ### Added
 
@@ -109,7 +109,7 @@ Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_m
 
 User-facing theme: **Field list bottom nav** — Days / Deliveries / Test as a fixed button bar; shared Include [TEST] across Desk and Field.
 
-Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/_archived/_completed/delivery_mobile_operations_completion.md).
 
 ### Added
 
@@ -123,7 +123,7 @@ Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_m
 
 User-facing theme: **Field chrome** — viewport Desk/Field, compact Days/Deliveries swap, Start Today unblocked.
 
-Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/_archived/_completed/delivery_mobile_operations_completion.md).
 
 ### Changed
 
@@ -135,7 +135,7 @@ Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_m
 
 User-facing theme: **Delivery Phase 2** — full-day Field workflow (contact → load → truck → route → drive → return) plus Desk live monitor.
 
-Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/_archived/_completed/delivery_mobile_operations_completion.md).
 
 ### Added
 
@@ -156,7 +156,7 @@ Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_m
 
 User-facing theme: **Delivery Phase 1** — canonical Days + Total Deliveries, separate Desk/Field shells, and production-safe dummy datasets.
 
-Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/delivery_mobile_operations_completion.md).
+Initiative: [`delivery_mobile_operations_completion`](.ai/initiatives/_archived/_completed/delivery_mobile_operations_completion.md).
 
 ### Added
 

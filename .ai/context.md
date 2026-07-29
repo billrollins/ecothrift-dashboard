@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-28 (v2.59.1 assign-day/restore run-sync; delivery Phases 1–5 shipped) -->
+<!-- Last updated: 2026-07-29 (delivery_mobile_operations_completion → _completed/) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,8 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active — Delivery Mobile Operations Completion:** [`delivery_mobile_operations_completion`](initiatives/delivery_mobile_operations_completion.md) — **Phases 1–5 shipped (v2.55–v2.59.1)**. Desk add/adjust, route maps, change history, shared theme; **v2.59.1** blocks assign-day when loaded/en route and re-queues stops on restore. No production test data. **Next:** owner phone hardware pass + visual sign-off only.
+- **No active initiatives** — next work starts a new initiative when needed.
+- **Delivery Mobile Ops (shipped):** archived [`delivery_mobile_operations_completion`](initiatives/_archived/_completed/delivery_mobile_operations_completion.md) — Desk + Field, Routes API, evidence/SMS, add/adjust, route maps, change history. **v2.55.0–v2.59.1**.
 - **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**; **v2.51.0** schedule-later; **v2.52.0** unified Day Board (calls → route → load → drive → return on the same cards).
 - **Parked — Online Sales Workspace:** [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md) — code retained; staff workspace + public holds **disabled** (`ONLINE_SALES_ENABLED=false`). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
 - **Parked — TARS decision guardrails:** [`tars_full_instruction_wizard_guidance`](initiatives/_archived/_pending/tars_full_instruction_wizard_guidance.md) — Studio at `/restoration/tars` **kept available**; floor validation + Phase 2/3 deferred. Contract: [`standalone_studio_contract.md`](reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).

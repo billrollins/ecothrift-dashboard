@@ -1,17 +1,18 @@
-<!-- initiative: slug=delivery_mobile_operations_completion status=active updated=2026-07-28 -->
-<!-- Last updated: 2026-07-28 (Phase 5B function-first Desk add/adjust done) -->
+<!-- initiative: slug=delivery_mobile_operations_completion status=completed updated=2026-07-29 -->
+<!-- Archived 2026-07-29: disposition=completed shipped v2.55.0–v2.59.1 (Desk + Field delivery ops) -->
+<!-- Last updated: 2026-07-29 (completed → _completed/; owner closed; phone/visual pass deferred to future initiative if needed) -->
 # Initiative: Delivery Mobile Operations Completion
 
-**Status:** Active — **Phases 1–4 shipped (v2.55–v2.58); Phase 5B function-first done in working tree.** Desk can create from past sale and adjust/cancel with run sync; shared Delivery theme module landed. **Next:** polish/tests at push; optional deeper Desk visual pass. Owner-only hardware smoke can still catch Field leftovers.
+**Status:** **Completed** (2026-07-29) — Phases 1–5 shipped in [`CHANGELOG`](../../../../CHANGELOG.md) **v2.55.0–v2.59.1** (live). Owner closed the initiative; optional phone hardware / visual sign-off deferred to a future initiative if needed.
 
 **Purpose:** Two deliberate products over one delivery domain:
 
 1. **Delivery Desk** (desktop) — planning, monitoring, corrections, evidence review.
 2. **Delivery Field** (mobile) — one-handed driver/crew workflow on a phone.
 
-**Predecessor:** [`pos_discount_and_delivery`](./_archived/_completed/pos_discount_and_delivery.md) (v2.50–v2.52). This initiative completed/hardened that domain into Desk + Field.
+**Predecessor:** [`pos_discount_and_delivery`](./pos_discount_and_delivery.md) (v2.50–v2.52). This initiative completed/hardened that domain into Desk + Field.
 
-**Working version:** `v2.58.0` in [`.version`](../../.version); Phase 5B add/adjust is staged under `## [Unreleased]` in [`CHANGELOG.md`](../../CHANGELOG.md) and ships at the next push per `review.0.Bump` Part 2E.
+**Shipped through:** `v2.59.1` in [`.version`](../../../../.version) / [`CHANGELOG.md`](../../../../CHANGELOG.md).
 
 ---
 
@@ -23,15 +24,15 @@
 |---|---|
 | **Split apps** | Desk `/pos/deliveries/desk/*` and Field `/pos/deliveries/field/*`; `/pos/deliveries` experience redirect; **legacy board retired** (`/pos/deliveries/legacy` → redirect only). |
 | **Canonical domain** | Delivery Day / Job / JobItem / Run / Stop / StopItem / scans / attachments / change events / test datasets (migrations through `0024_delivery_run_truck_reopened`). |
-| **Field shell** | [`EcoFieldRunShell.tsx`](../../frontend/src/pages/pos/deliveries/field/EcoFieldRunShell.tsx) — immersive phone frame, sticky timer, step rail **Contact → Load → Routes → Deliveries → Finish**, server-gated unlock, refresh resumes server phase. |
+| **Field shell** | [`EcoFieldRunShell.tsx`](../../../../frontend/src/pages/pos/deliveries/field/EcoFieldRunShell.tsx) — immersive phone frame, sticky timer, step rail **Contact → Load → Routes → Deliveries → Finish**, server-gated unlock, refresh resumes server phase. |
 | **Contact** | Card pager + dots; Call/Text handoff; attempt vs disposition truth; continue → Load. |
 | **Load + seal** | Item scan (`@zxing`), skip/heal, load photos, unload; **camera-first Seal/Reseal** (button opens camera when seal-window photo missing); **reopen truck** breaks seal (`truck_reopened_at`); header hint `· truck open — reseal to continue`; secondary truck photo counter not gated by `onTruck.length === 0`. |
 | **Routes** | Google **Routes API** (`computeRoutes` / `computeRouteMatrix`); traffic-aware ETAs; configurable unload minutes (`delivery_service_minutes_per_stop`, default 20); honest `provider` / `fallback_reason`; Optimize always available; **@dnd-kit** reorder + drag on↔off route; one-touch on/off arrows; Undo snackbar after reorder; compact one-line expandable header; footer icon row (Optimize / Maps / Add N); collapsible Off-route section; begin-route gate. |
 | **Deliveries** | Arrive → Navigate/Call/Text ETA → **EvidenceButtons** (thumb in button, tap thumb → viewer, rest of button retakes; upload spinner) → **Hold to complete** (~900ms fill, aborts if pointer moves >10px so pager swipe still wins) → Problem sheet. **No “Items handed to customer” tap** — backend stamps `delivered_at` on `complete_stop`. |
 | **Finish** | Return-to-store, exception reconcile, unload reminder for off-route loaded items, manager force-finish, day-complete summary. |
 | **Evidence / SMS** | SignaturePad (DPR-aware PNG); IndexedDB outbox; upload busy bar (kind label + indeterminate progress); platform-aware `sms:` composer + templates. |
-| **Desk monitor** | [`DeskDayLiveMonitor.tsx`](../../frontend/src/pages/pos/deliveries/desk/DeskDayLiveMonitor.tsx) — timer/stage, contact/load/truck, current/next, route/ETA panel, pending media, exceptions, manager Optimize. Not the driver wizard. |
-| **Test data** | `seed` / `show` / `reset_delivery_test_dataset`; scenario **v6** = 5 Today zig-zag Omaha stops, **1 item each**, intentionally suboptimal order for Optimize demos; `--with-active-run --stage …`. Local phone loop: [`scripts/dev/start_mobile_dashboard.bat`](../../scripts/dev/start_mobile_dashboard.bat). |
+| **Desk monitor** | [`DeskDayLiveMonitor.tsx`](../../../../frontend/src/pages/pos/deliveries/desk/DeskDayLiveMonitor.tsx) — timer/stage, contact/load/truck, current/next, route/ETA panel, pending media, exceptions, manager Optimize. Not the driver wizard. |
+| **Test data** | `seed` / `show` / `reset_delivery_test_dataset`; scenario **v6** = 5 Today zig-zag Omaha stops, **1 item each**, intentionally suboptimal order for Optimize demos; `--with-active-run --stage …`. Local phone loop: [`scripts/dev/start_mobile_dashboard.bat`](../../../../scripts/dev/start_mobile_dashboard.bat). |
 
 ### Recent polish (post-CHANGELOG v2.57.0 line — still local)
 
@@ -41,17 +42,19 @@ These landed after the published Phase 3 notes and must be captured in the next 
 2. **Routes membership decoupled from contact** — confirmed stops can be dragged/toggled off-route (`excluded_unconfirmed_at`); off-route stops can be re-added; serialize `off_route` / `off_route_reason`.
 3. **Routes API hard fixes** — omit past `departureTime` (INVALID_ARGUMENT); conditional `optimizedIntermediateWaypointIndex` field mask; richer Google error logging.
 4. **Compact Routes UI** — one-line expandable ETA strip; footer icon row; Undo instead of “Restore optimized order”; compact row density; sticky On/Off headers; Off-route collapses when >3.
-5. **Deliveries completion redesign** — removed slide-to-complete (fought `FieldDeliveryPager` capture-phase horizontal swipe); added [`FieldHoldToComplete.tsx`](../../frontend/src/pages/pos/deliveries/field/components/FieldHoldToComplete.tsx); removed “Items handed to customer”; proof/signature/issue thumbnails live inside their buttons.
+5. **Deliveries completion redesign** — removed slide-to-complete (fought `FieldDeliveryPager` capture-phase horizontal swipe); added [`FieldHoldToComplete.tsx`](../../../../frontend/src/pages/pos/deliveries/field/components/FieldHoldToComplete.tsx); removed “Items handed to customer”; proof/signature/issue thumbnails live inside their buttons.
 6. **Zig-zag seed** — `SCENARIO_VERSION = 6`, five Omaha addresses north/south zigzag, one item per stop.
 
-### Explicitly still open (2026-07-28, after v2.59.0)
+### Closed without further code (2026-07-29)
 
-| Gap | Notes |
+Owner formally closed this initiative. Deferred (not blocking archive; open a new initiative if needed):
+
+| Item | Notes |
 |---|---|
-| **Owner-only hardware pass** | Real rear-camera quirks, GPS drift, and the actual iOS/Android Messages handoff still need one owner pass on a phone. Every code-level path is audited and fixed (safe-area, tap swallow, hold fail-safe, scanner resume, SMS iPadOS, empty-phone guards); nothing here is a code gap. |
-| **Owner visual sign-off** | Field composition vs [`eco-field-demo.html`](../reference/eco-field-demo.html) at phone width is an acceptance judgment, not an implementation item. |
+| **Owner-only hardware pass** | Real rear-camera / GPS / Messages handoff on a physical phone. Code-level paths already audited. |
+| **Owner visual sign-off** | Field composition vs [`eco-field-demo.html`](../../../reference/eco-field-demo.html) at phone width. |
 
-Everything else previously listed here shipped in **v2.59.0**: production add/adjust (including manager item add/remove), Desk day create/edit, the real Static Map route surface (decorative `MiniMap` deleted), Desk page tests, byte-level upload progress, the change-history timeline, and all five deferred 4C shell fixes.
+Everything else listed as open earlier shipped in **v2.59.0–v2.59.1**.
 
 ---
 
@@ -211,7 +214,7 @@ scripts\dev\start_mobile_dashboard.bat
 
 **Phase 4 gate (soft):** Field carries no dead scaffolding; code-audit device defects fixed; local seed→phone→reset loop still available. Optional owner hardware pass can still find leftovers.
 
-### Phase 5 — Unify desktop on the mobile design language — **NEXT**
+### Phase 5 — Unify desktop on the mobile design language — **DONE (v2.59.0–v2.59.1)**
 
 **Goal:** Desktop stops looking like a different product. The Field decisions become a universal system, Delivery Desk is rebuilt on it, and production managers can add/adjust real deliveries without test data.
 
@@ -219,7 +222,7 @@ This **supersedes** the earlier rule that Desk and Field must be visually unrela
 
 #### 5A. Universal design system — **DONE (working tree 2026-07-28)**
 
-- [x] Promote tokens to [`frontend/src/theme/deliveryTheme.ts`](../../frontend/src/theme/deliveryTheme.ts); Field [`ecoFieldTheme.ts`](../../frontend/src/pages/pos/deliveries/field/ecoFieldTheme.ts) re-exports.
+- [x] Promote tokens to [`frontend/src/theme/deliveryTheme.ts`](../../../../frontend/src/theme/deliveryTheme.ts); Field [`ecoFieldTheme.ts`](../../../../frontend/src/pages/pos/deliveries/field/ecoFieldTheme.ts) re-exports.
 - [x] Phone/desktop density helpers for primary and secondary buttons; summary-row comfortable/compact kept.
 - [x] Desk planning row + shared status chips / cards / bucket tones.
 - [x] Scope boundary: Delivery Desk only.
@@ -264,10 +267,10 @@ This **supersedes** the earlier rule that Desk and Field must be visually unrela
 
 ## Eco Field visual contract (still binding, now the app-wide source)
 
-Reference: [`../reference/eco-field-demo.html`](../reference/eco-field-demo.html).
+Reference: [`../../../reference/eco-field-demo.html`](../../../reference/eco-field-demo.html).
 
 - Replicate composition and one-handed behavior, not every raw CSS value.
-- Tokens live in [`ecoFieldTheme.ts`](../../frontend/src/pages/pos/deliveries/field/ecoFieldTheme.ts) (ink `#14201A`, green `#0E8A4E` / deep `#0A6B3C`, tints, 44px+ touch, safe areas). Phase 5 promotes them to an app-level module; Field keeps consuming them, not owning them.
+- Tokens live in [`ecoFieldTheme.ts`](../../../../frontend/src/pages/pos/deliveries/field/ecoFieldTheme.ts) (ink `#14201A`, green `#0E8A4E` / deep `#0A6B3C`, tints, 44px+ touch, safe areas). Phase 5 promotes them to an app-level module; Field keeps consuming them, not owning them.
 - Field remains an immersive phone app — no desktop tables in the Field tree.
 - **Direction change 2026-07-27:** the earlier rule that Desk must look deliberately unlike Field is retired. Desk adopts the same tokens, primitives, and interaction vocabulary at desktop density. What stays separate is layout and task model: Desk plans, monitors, and corrects; it never renders the driver wizard.
 - Deviations require accessibility, safe-area, backend truth, native handoff, or maintainability — not “existing component looked different.”
@@ -283,9 +286,9 @@ Reference: [`../reference/eco-field-demo.html`](../reference/eco-field-demo.html
 - [x] Hold-to-complete + evidence-in-buttons + no redundant handed-over tap.
 - [x] Camera-first seal/reseal + reopen window.
 - [x] Desk live monitor (functional).
-- [ ] Field visual composition accepted by owner at phone width vs mockup. *(optional owner pass)*
+- [x] Field visual composition accepted by owner at phone width vs mockup. *(waived 2026-07-29 — owner closed initiative; reopen if needed)*
 - [x] Device-path audit + 4C fixes (safe-area, tap swallow, hold fail-safe, scanner resume, SMS iPadOS, empty phone). *(Phase 4B/4C)*
-- [ ] Optional owner hardware smoke (real camera/GPS/SMS handoff). *(does not block Phase 5 planning)*
+- [x] Optional owner hardware smoke (real camera/GPS/SMS handoff). *(waived 2026-07-29 — owner closed initiative; reopen if needed)*
 - [x] Test-data policy: seed `DEBUG`-only; production has no test data; lists omit `include_test` outside DEV. *(Phase 4A)*
 - [x] Field carries no dead scaffolding (`FieldStageHeader` / `FieldBottomShortcuts` deleted). *(Phase 4A)*
 - [x] Outbox regression tests + clean `tsc`. *(Phase 4A)*
@@ -308,10 +311,10 @@ Reference: [`../reference/eco-field-demo.html`](../reference/eco-field-demo.html
 - [x] Server state guards match Field actions (contact/load/seal/route/proof/return).
 - [x] Provider-backed optimization and ETA math are observable and unit-tested.
 - [x] Dynamic off-route / re-routing updates order and ETAs.
-- [ ] Signature finger-aligned and physically tested.
-- [ ] iPhone and Android native SMS composer handoff physically tested.
-- [ ] Owner phone smoke checklist green.
-- [x] Changelog dated release cut when polish pushes. *(v2.58.0 Field, v2.59.0 Desk)*
+- [x] Signature finger-aligned and physically tested. *(waived 2026-07-29 — code-audited; owner closed)*
+- [x] iPhone and Android native SMS composer handoff physically tested. *(waived 2026-07-29 — code-audited; owner closed)*
+- [x] Owner phone smoke checklist green. *(waived 2026-07-29 — owner closed initiative)*
+- [x] Changelog dated release cut when polish pushes. *(v2.58.0 Field, v2.59.0–v2.59.1 Desk)*
 
 ---
 
@@ -403,16 +406,21 @@ Routes API, service-minutes ETAs, Field route/evidence/SMS/completion, Desk rout
 - Swept dead code (legacy board trio, orphaned `usePOS` hooks, 16 unused API clients).
 - Repaired pre-existing `apps.pos` failures unrelated to deliveries (stale `Item.title` cart tests; `test_dashboard_metrics` future-dated audits + seeded-goal collision).
 - Gates: `apps.pos` 176 pass, frontend 374 pass, `tsc` clean, `makemigrations --check` clean. Released **v2.59.0**.
-- **Remaining:** owner phone hardware pass and owner visual sign-off only.
+- **Remaining at time:** owner phone hardware pass and owner visual sign-off only.
+
+### Session 12 (2026-07-29) — Close
+- **v2.59.1** live on Heroku (assign-day / restore run-sync).
+- Owner formally closed the initiative; optional phone/visual passes waived for archive (new initiative later if needed).
+- Moved to `_archived/_completed/`.
 
 ---
 
 ## See also
 
-- [`pos_discount_and_delivery`](./_archived/_completed/pos_discount_and_delivery.md)
-- [`../extended/pos-system.md`](../extended/pos-system.md)
-- [`../extended/frontend.md`](../extended/frontend.md)
-- [`../extended/inventory-pipeline.md`](../extended/inventory-pipeline.md) — Receiving media behavior
-- [`../../docs/app_navigation_and_pages.md`](../../docs/app_navigation_and_pages.md)
-- [`../protocols/code.0.Startup.md`](../protocols/code.0.Startup.md)
-- [`../context.md`](../context.md)
+- [`pos_discount_and_delivery`](./pos_discount_and_delivery.md)
+- [`../../../extended/pos-system.md`](../../../extended/pos-system.md)
+- [`../../../extended/frontend.md`](../../../extended/frontend.md)
+- [`../../../extended/inventory-pipeline.md`](../../../extended/inventory-pipeline.md) — Receiving media behavior
+- [`../../../../docs/app_navigation_and_pages.md`](../../../../docs/app_navigation_and_pages.md)
+- [`../../../protocols/code.0.Startup.md`](../../../protocols/code.0.Startup.md)
+- [`../../../context.md`](../../../context.md)

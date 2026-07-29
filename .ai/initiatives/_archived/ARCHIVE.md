@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-21 (pos_discount_and_delivery → _completed/; TARS + Online Sales → _pending/) -->
+<!-- Last updated: 2026-07-29 (delivery_mobile_operations_completion → _completed/) -->
 # Archive index — initiatives
 
 **Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
@@ -51,6 +51,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [delivery_mobile_operations_completion.md](./_completed/delivery_mobile_operations_completion.md) | Delivery Desk + Field ops: Days/Total, Eco Field five-step run, Routes API ETAs, evidence/SMS, Desk add/adjust, route maps, change history. Shipped **v2.55.0–v2.59.1**. Owner waived phone/visual pass. | 2026-07-29 |
 | [pos_discount_and_delivery.md](./_completed/pos_discount_and_delivery.md) | POS discount/store-credit + delivery fees, bilingual policy/printables, Deliveries board + scheduling. Shipped **v2.50.0**. Optional later: Directions API optimize. | 2026-07-21 |
 | [custom_label_studio.md](./_completed/custom_label_studio.md) | Custom Label Studio: Admin library + designer (PDF/template, variables/increment, QR/Code128, AI Create), print × N, print-server **1.4.1**. Shipped **v2.48.0**–**v2.48.2**. | 2026-07-10 |
 | [floorplan_builder.md](./_completed/floorplan_builder.md) | Floorplan builder: SVG editor, DB element kinds + Super Admin CRUD, walls/cut/print/drafting aids. Shipped **v2.39.0**–**v2.47.0**. | 2026-07-09 |
