@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.60.0] -->
-<!-- Last reviewed: 2026-07-29 (v2.60.0 Retail QA reliability + dashboard) -->
+<!-- Line 1 release: ## [2.61.0] -->
+<!-- Last reviewed: 2026-07-29 (v2.61.0 orders strip + dashboard polish) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.61.0] — 2026-07-29
+
+User-facing theme: **Orders summary strip + dashboard polish** — full table metrics on the PO cards, uniform department grids, QA wizard crash fix.
+
+Initiative: [`retail_qa_submission_reliability`](.ai/initiatives/retail_qa_submission_reliability.md).
+
+### Added
+
+- **Inventory / Orders summary** — Seven uniform two-line KPI cards: Trucks in Transit (shipped count + cost), Items (+ pallets), Cost/EST REC, Retail/PRC, Priced/MFT, Sold/7d, Profit/ACT REC. `GET /orders/summary/` adds `in_transit_count`, `in_transit_cost`, `pallet_count`, `sold_last_week`, `priced_retail`.
+
+### Fixed
+
+- **POS / Quality Audit wizard** — Opening an audit no longer blanks the page (`useBlocker` requires a data router; app uses `BrowserRouter`). Leave guards stay on Exit confirm + `beforeunload`.
+- **Dashboard / department grids** — Scroller shows exactly two week rows (same footprint as before); extra weeks scroll underneath and snap back to the top on leave.
+
+### Changed
+
+- **Dashboard / department cards** — Removed per-card status captions; fixed metrics band and grid geometry so dividers and week cells align; only font size flexes for longer values.
+- **Inventory / Orders ratios** — EST REC / ACT REC use recovery bands (&lt;100 dark red → 150 → 200 dark green → 250+ bright green). MFT keeps the break-even-at-100 scale. Column hover tooltips kept only on Order # and Description.
 
 ## [2.60.0] — 2026-07-29
 

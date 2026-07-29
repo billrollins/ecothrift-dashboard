@@ -210,10 +210,20 @@ export interface PurchaseOrderSummary {
   /** Alias of retail_value for profitability strip. */
   retail?: string;
   priced: string;
+  /** Listing retail on shelf-eligible (priced) items — for MFT. */
+  priced_retail?: string;
   sold: string;
+  /** Net sold in the last 7 days across the filtered/selected set. */
+  sold_last_week?: string;
   profit: string;
   items_received: number;
+  /** Sum of expected pallet_count on matching orders. */
+  pallet_count?: number;
   delivered_count: number;
+  /** Orders with status=shipped (Trucks in Transit). */
+  in_transit_count?: number;
+  /** Sum of total_cost for shipped orders. */
+  in_transit_cost?: string;
   margin_percent: number | null;
 }
 

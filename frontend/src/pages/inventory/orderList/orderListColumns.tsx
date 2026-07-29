@@ -66,7 +66,7 @@ type CoverageStyle = {
 };
 
 /**
- * Coverage vs manifested retail.
+ * Coverage vs manifested retail (MFT).
  * Thresholds: &lt;75 → &lt;85 → &lt;90 → &lt;95 → &lt;100 green → 100%+ bright green.
  */
 function coverageStyle(pct: number | null): CoverageStyle {
@@ -77,6 +77,19 @@ function coverageStyle(pct: number | null): CoverageStyle {
   if (pct < 95) return { color: '#a16207', fontWeight: 600 };
   if (pct < 100) return { color: '#166534', fontWeight: 700 };
   return { color: '#16a34a', fontWeight: 800 };
+}
+
+/**
+ * Recovery ratios (EST REC / ACT REC) vs cost — 100% is break-even.
+ * &lt;100 dark red → 150 warm → 200 dark green → 250+ super green.
+ */
+function recoveryStyle(pct: number | null): CoverageStyle {
+  if (pct == null) return { color: '#64748b', fontWeight: 600 };
+  if (pct < 100) return { color: '#7f1d1d', fontWeight: 700 };
+  if (pct < 150) return { color: '#9a3412', fontWeight: 700 };
+  if (pct < 200) return { color: '#a16207', fontWeight: 700 };
+  if (pct < 250) return { color: '#14532d', fontWeight: 800 };
+  return { color: '#16a34a', fontWeight: 900 };
 }
 
 /** Primary-line colors so the money columns read as a progression: spend → potential → tagged → realized. */
@@ -169,16 +182,6 @@ function conditionLabel(val: PurchaseOrderCondition | string): string {
 
 function statusEligibleForReceiving(status: PurchaseOrderStatus): boolean {
   return !['delivered', 'complete', 'cancelled'].includes(status);
-}
-
-function milestoneTooltip(dates: OrderPickerDateFields): string {
-  const lines = [
-    dates.delivered_date ? `Delivered ${formatOrderPickerDate(dates.delivered_date)}` : null,
-    dates.shipped_date ? `Shipped ${formatOrderPickerDate(dates.shipped_date)}` : null,
-    dates.paid_date ? `Paid ${formatOrderPickerDate(dates.paid_date)}` : null,
-    dates.ordered_date ? `Ordered ${formatOrderPickerDate(dates.ordered_date)}` : null,
-  ].filter(Boolean);
-  return lines.length ? lines.join('\n') : 'No dates';
 }
 
 function TwoLineCell({
@@ -342,19 +345,17 @@ export function buildOrderListColumns(opts: {
         >
           <StatusBadge status={p.row.status} size="small" />
           {statusEligibleForReceiving(p.row.status) ? (
-            <Tooltip title="Receive shipment">
-              <IconButton
-                size="small"
-                aria-label={`Receive shipment — order ${p.row.order_number}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReceive(p.row.id);
-                }}
-                sx={{ flexShrink: 0, p: 0.35 }}
-              >
-                <LocalShipping fontSize="small" sx={{ color: '#2e7d32' }} />
-              </IconButton>
-            </Tooltip>
+            <IconButton
+              size="small"
+              aria-label={`Receive shipment — order ${p.row.order_number}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onReceive(p.row.id);
+              }}
+              sx={{ flexShrink: 0, p: 0.35 }}
+            >
+              <LocalShipping fontSize="small" sx={{ color: '#2e7d32' }} />
+            </IconButton>
           ) : null}
         </Box>
       ),
@@ -438,11 +439,7 @@ export function buildOrderListColumns(opts: {
             ? `ORD · ${formatOrderPickerDate(dates.ordered_date)}`
             : null;
         return (
-          <Tooltip title={<Box sx={{ whiteSpace: 'pre-line' }}>{milestoneTooltip(dates)}</Box>}>
-            <Box sx={{ width: '100%' }}>
-              <TwoLineCell primary={formatRelevantOrderDateLine(dates)} secondary={secondary} />
-            </Box>
-          </Tooltip>
+          <TwoLineCell primary={formatRelevantOrderDateLine(dates)} secondary={secondary} />
         );
       },
     },
@@ -488,24 +485,20 @@ export function buildOrderListColumns(opts: {
           : null;
         const estPct = estRatio != null ? `${Math.round(estRatio)}%` : null;
         return (
-          <Tooltip title="Cost (top). EST REC = priced ÷ cost — the recovery the shelf tags project. 100% is break-even.">
-            <Box sx={{ width: '100%' }}>
-              <TwoLineCell
-                primary={quietCurrency(cost)}
-                secondary={
-                  estPct ? (
-                    <>
-                      {estPct}
-                      <MetricTag label="EST REC" />
-                    </>
-                  ) : null
-                }
-                primaryColor={MONEY_COLOR.cost}
-                secondaryStyle={coverageStyle(estRatio)}
-                align="right"
-              />
-            </Box>
-          </Tooltip>
+          <TwoLineCell
+            primary={quietCurrency(cost)}
+            secondary={
+              estPct ? (
+                <>
+                  {estPct}
+                  <MetricTag label="EST REC" />
+                </>
+              ) : null
+            }
+            primaryColor={MONEY_COLOR.cost}
+            secondaryStyle={recoveryStyle(estRatio)}
+            align="right"
+          />
         );
       },
     },
@@ -531,29 +524,19 @@ export function buildOrderListColumns(opts: {
             : quietCurrency(priced)
           : null;
         return (
-          <Tooltip
-            title={
-              pricedText
-                ? 'Manifested retail (top). PRC = priced shelf $ vs manifested retail.'
-                : 'Manifested / listing retail'
+          <TwoLineCell
+            primary={quietCurrency(listed)}
+            secondary={
+              pricedText ? (
+                <>
+                  {pricedText}
+                  <MetricTag label="PRC" />
+                </>
+              ) : null
             }
-          >
-            <Box sx={{ width: '100%' }}>
-              <TwoLineCell
-                primary={quietCurrency(listed)}
-                secondary={
-                  pricedText ? (
-                    <>
-                      {pricedText}
-                      <MetricTag label="PRC" />
-                    </>
-                  ) : null
-                }
-                primaryColor={MONEY_COLOR.retail}
-                align="right"
-              />
-            </Box>
-          </Tooltip>
+            primaryColor={MONEY_COLOR.retail}
+            align="right"
+          />
         );
       },
     },
@@ -581,24 +564,20 @@ export function buildOrderListColumns(opts: {
               : quietCurrency(pricedRetail)
             : null;
         return (
-          <Tooltip title="Shelf tag $ (top). MFT = listing retail on priced items vs what the manifest promised.">
-            <Box sx={{ width: '100%' }}>
-              <TwoLineCell
-                primary={quietCurrency(priced)}
-                secondary={
-                  coverText ? (
-                    <>
-                      {coverText}
-                      <MetricTag label="MFT" />
-                    </>
-                  ) : null
-                }
-                primaryColor={MONEY_COLOR.priced}
-                secondaryStyle={coverageStyle(coverRatio)}
-                align="right"
-              />
-            </Box>
-          </Tooltip>
+          <TwoLineCell
+            primary={quietCurrency(priced)}
+            secondary={
+              coverText ? (
+                <>
+                  {coverText}
+                  <MetricTag label="MFT" />
+                </>
+              ) : null
+            }
+            primaryColor={MONEY_COLOR.priced}
+            secondaryStyle={coverageStyle(coverRatio)}
+            align="right"
+          />
         );
       },
     },
@@ -647,24 +626,20 @@ export function buildOrderListColumns(opts: {
           : null;
         const actPct = actRatio != null ? `${Math.round(actRatio)}%` : null;
         return (
-          <Tooltip title="Profit = sold − cost (top). ACT REC = sold ÷ cost — recovery banked so far. 100% is break-even.">
-            <Box sx={{ width: '100%' }}>
-              <TwoLineCell
-                primary={quietCurrency(raw)}
-                secondary={
-                  actPct ? (
-                    <>
-                      {actPct}
-                      <MetricTag label="ACT REC" />
-                    </>
-                  ) : null
-                }
-                emphasize={emphasize}
-                secondaryStyle={coverageStyle(actRatio)}
-                align="right"
-              />
-            </Box>
-          </Tooltip>
+          <TwoLineCell
+            primary={quietCurrency(raw)}
+            secondary={
+              actPct ? (
+                <>
+                  {actPct}
+                  <MetricTag label="ACT REC" />
+                </>
+              ) : null
+            }
+            emphasize={emphasize}
+            secondaryStyle={recoveryStyle(actRatio)}
+            align="right"
+          />
         );
       },
     },

@@ -244,41 +244,59 @@ def financials_for_orders(po_ids: Iterable[int]) -> dict[int, dict[str, Decimal]
     return out
 
 
+def _empty_aggregate() -> dict:
+    return {
+        'total_orders': 0,
+        'total_cost': str(ZERO),
+        'retail_value': str(ZERO),
+        'priced': str(ZERO),
+        'priced_retail': str(ZERO),
+        'sold': str(ZERO),
+        'sold_last_week': str(ZERO),
+        'profit': str(ZERO),
+        'items_received': 0,
+        'pallet_count': 0,
+        'delivered_count': 0,
+        'in_transit_count': 0,
+        'in_transit_cost': str(ZERO),
+        'margin_percent': None,
+        'cost': str(ZERO),
+        'retail': str(ZERO),
+    }
+
+
 def aggregate_financials(po_qs) -> dict:
-    """Aggregate Cost/Retail/Priced/Sold/Profit across a PurchaseOrder queryset."""
+    """Aggregate Cost/Retail/Priced/Sold/Profit (+ ops counts) across a PurchaseOrder queryset."""
     ids = list(po_qs.values_list('id', flat=True))
     agg = po_qs.aggregate(
         n=Count('pk'),
         tc=Sum('total_cost'),
         rv=Sum('retail_value'),
         ic=Sum('item_count'),
+        pc=Sum('pallet_count'),
     )
     total_orders = agg['n'] or 0
     cost = _q2(agg['tc'])
     retail = _q2(agg['rv'])
     items_received = agg['ic'] if agg['ic'] is not None else 0
+    pallet_count = int(agg['pc'] or 0)
 
     if not ids:
-        return {
-            'total_orders': 0,
-            'total_cost': str(ZERO),
-            'retail_value': str(ZERO),
-            'priced': str(ZERO),
-            'sold': str(ZERO),
-            'profit': str(ZERO),
-            'items_received': 0,
-            'delivered_count': 0,
-            'margin_percent': None,
-            'cost': str(ZERO),
-            'retail': str(ZERO),
-        }
+        return _empty_aggregate()
 
     fin = financials_for_orders(ids)
     priced_total = _q2(sum((v['priced'] for v in fin.values()), ZERO))
     priced_retail_total = _q2(sum((v['priced_retail'] for v in fin.values()), ZERO))
     sold_total = _q2(sum((v['sold'] for v in fin.values()), ZERO))
+    sold_last_week_total = _q2(sum((v['sold_last_week'] for v in fin.values()), ZERO))
     profit_total = _q2(sold_total - cost)
     delivered_count = po_qs.filter(status='delivered').count()
+    in_transit_agg = po_qs.filter(status='shipped').aggregate(
+        n=Count('pk'),
+        tc=Sum('total_cost'),
+    )
+    in_transit_count = in_transit_agg['n'] or 0
+    in_transit_cost = _q2(in_transit_agg['tc'])
     margin_percent = None
     if retail > 0:
         margin_percent = float(((retail - cost) / retail * Decimal('100')).quantize(Decimal('0.01')))
@@ -292,9 +310,13 @@ def aggregate_financials(po_qs) -> dict:
         'priced': str(priced_total),
         'priced_retail': str(priced_retail_total),
         'sold': str(sold_total),
+        'sold_last_week': str(sold_last_week_total),
         'profit': str(profit_total),
         'items_received': items_received,
+        'pallet_count': pallet_count,
         'delivered_count': delivered_count,
+        'in_transit_count': in_transit_count,
+        'in_transit_cost': str(in_transit_cost),
         'margin_percent': margin_percent,
     }
 

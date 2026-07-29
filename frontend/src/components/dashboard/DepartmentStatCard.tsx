@@ -15,15 +15,26 @@ interface DepartmentStatCardProps {
   actualDisplay: string;
   placeholder?: boolean;
   goalMet?: boolean;
-  goalStatus?: ReactNode;
   onGoalClick: () => void;
   footer?: ReactNode;
-  subStat?: ReactNode;
   onViewWeekDetail?: () => void;
   showWeekDetailButton?: boolean;
 }
 
 const GOLD = dashboardPalette.gold;
+
+/** Shrink display type when the string is long so card geometry stays fixed. */
+function metricFontSize(value: string, role: 'goal' | 'actual') {
+  const len = value.trim().length;
+  if (role === 'goal') {
+    if (len >= 9) return { xs: '1.05rem', md: '1.1rem' };
+    if (len >= 6) return { xs: '1.25rem', md: '1.3rem' };
+    return '1.5rem';
+  }
+  if (len >= 9) return { xs: '1.35rem', md: '1.55rem' };
+  if (len >= 6) return { xs: '1.65rem', md: '1.9rem' };
+  return { xs: '2rem', md: '2.45rem' };
+}
 
 export function DepartmentStatCard({
   label,
@@ -33,10 +44,8 @@ export function DepartmentStatCard({
   actualDisplay,
   placeholder = false,
   goalMet = false,
-  goalStatus,
   onGoalClick,
   footer,
-  subStat,
   onViewWeekDetail,
   showWeekDetailButton = false,
 }: DepartmentStatCardProps) {
@@ -83,7 +92,15 @@ export function DepartmentStatCard({
           minHeight: 0,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.85 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.85,
+            minHeight: { xs: 32, md: 26 },
+            flexShrink: 0,
+          }}
+        >
           <Box
             sx={{
               display: 'flex',
@@ -117,14 +134,18 @@ export function DepartmentStatCard({
           </Typography>
         </Box>
 
+        {/* Fixed metrics band — keeps the divider Y identical across all four cards. */}
         <Box
           sx={{
+            position: 'relative',
             display: 'flex',
             flexDirection: { xs: 'column', sm: 'row' },
             alignItems: { xs: 'stretch', sm: 'flex-end' },
             justifyContent: 'space-between',
             gap: 1,
-            py: 0.35,
+            height: { xs: 108, sm: 72 },
+            flexShrink: 0,
+            overflow: 'hidden',
           }}
         >
           <Box
@@ -134,7 +155,7 @@ export function DepartmentStatCard({
             sx={{
               p: 0,
               py: 0.5,
-              minHeight: 44,
+              minHeight: { xs: 44, sm: 'auto' },
               border: 'none',
               background: 'none',
               cursor: 'pointer',
@@ -144,6 +165,8 @@ export function DepartmentStatCard({
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'flex-end',
+              minWidth: 0,
+              maxWidth: { sm: '48%' },
             }}
           >
             <Typography
@@ -163,8 +186,9 @@ export function DepartmentStatCard({
             </Typography>
             <Typography
               noWrap
+              title={goalDisplay}
               sx={{
-                fontSize: '1.5rem',
+                fontSize: metricFontSize(goalDisplay, 'goal'),
                 fontWeight: 900,
                 color: GOLD,
                 lineHeight: 1,
@@ -180,6 +204,7 @@ export function DepartmentStatCard({
           <Box
             sx={{
               minWidth: 0,
+              maxWidth: { sm: '52%' },
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'flex-end',
@@ -203,8 +228,9 @@ export function DepartmentStatCard({
             </Typography>
             <Typography
               noWrap
+              title={actualDisplay}
               sx={{
-                fontSize: { xs: '2rem', md: '2.45rem' },
+                fontSize: metricFontSize(actualDisplay, 'actual'),
                 fontWeight: 900,
                 lineHeight: 0.95,
                 letterSpacing: '-0.02em',
@@ -218,47 +244,48 @@ export function DepartmentStatCard({
               {actualDisplay}
             </Typography>
           </Box>
+
+          {goalMet ? (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.35,
+                px: 0.7,
+                py: 0.2,
+                borderRadius: 99,
+                bgcolor: 'rgba(242, 201, 76, 0.22)',
+                border: '1px solid rgba(189, 134, 24, 0.35)',
+                color: dashboardPalette.goldDark,
+                fontSize: '0.58rem',
+                fontWeight: 900,
+                letterSpacing: 0.2,
+                pointerEvents: 'none',
+              }}
+            >
+              <Box component="span" aria-hidden>
+                🏆
+              </Box>
+              GOAL HIT
+            </Box>
+          ) : null}
         </Box>
 
-        {goalMet ? (
-          <Box
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              alignSelf: 'flex-start',
-              gap: 0.5,
-              px: 0.85,
-              py: 0.35,
-              borderRadius: 99,
-              bgcolor: 'rgba(242, 201, 76, 0.22)',
-              border: '1px solid rgba(189, 134, 24, 0.35)',
-              color: dashboardPalette.goldDark,
-              fontSize: '0.64rem',
-              fontWeight: 900,
-              letterSpacing: 0.25,
-            }}
-          >
-            <Box component="span" aria-hidden>
-              🏆
-            </Box>
-            HURRAY — WEEKLY GOAL HIT!
-          </Box>
-        ) : goalStatus ? (
-          goalStatus
-        ) : null}
-
-        {subStat}
         {showWeekDetailButton && onViewWeekDetail ? (
           <Button
             size="small"
             variant="text"
             onClick={onViewWeekDetail}
-            sx={{ alignSelf: 'flex-start', px: 0.5, minHeight: 44 }}
+            sx={{ alignSelf: 'flex-start', px: 0.5, minHeight: 36, flexShrink: 0 }}
           >
             View week detail
           </Button>
         ) : null}
-        {footer}
+
+        <Box sx={{ mt: 'auto', minWidth: 0, minHeight: 0 }}>{footer}</Box>
       </CardContent>
     </Card>
   );

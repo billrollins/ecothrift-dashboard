@@ -1,5 +1,7 @@
-Release v2.60.0: Retail QA reliability + dashboard deep links / 8-week grids / mobile.
+Release v2.61.0: Orders summary strip, dashboard polish, QA wizard fix.
 
-- Recover stranded complete drafts; autosave + hub resume; +/- grade bands
-- Dashboard retail day cells deep-link to audits; metrics ?weeks= (default 8)
-- Mobile department + sales polish; orders-list secondary ratios; leaner scripts/dev
+- Seven two-line PO KPI cards including Trucks in Transit; summary API ops/ratio fields
+- Department grids: 2-week viewport + snap-back; uniform card geometry
+- Fix blank QA wizard (drop useBlocker on BrowserRouter); EST/ACT REC colors; fewer tooltips
+
+Release: v2.61.0

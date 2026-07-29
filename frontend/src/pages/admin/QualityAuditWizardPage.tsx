@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useBlocker, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Alert, Box, Button, Chip, CircularProgress, Stack, Typography } from '@mui/material';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
@@ -76,8 +76,6 @@ export default function QualityAuditWizardPage() {
     : false;
   const needsSubmitWarning = Boolean(!readOnly && allAnswered);
   const shouldBlockLeave = Boolean(!readOnly && (dirty || needsSubmitWarning) && !skipLeaveGuardRef.current);
-
-  const blocker = useBlocker(shouldBlockLeave);
 
   useEffect(() => {
     if (!shouldBlockLeave) return;
@@ -249,12 +247,12 @@ export default function QualityAuditWizardPage() {
     return <Alert severity="error">Invalid audit id.</Alert>;
   }
 
-  if (isLoading || !audit || !responses) {
-    return <LoadingScreen message="Loading audit…" />;
-  }
-
   if (error) {
     return <Alert severity="error">Could not load this audit.</Alert>;
+  }
+
+  if (isLoading || !audit || !responses) {
+    return <LoadingScreen message="Loading audit…" />;
   }
 
   const currentSection = sections[step];
@@ -399,24 +397,6 @@ export default function QualityAuditWizardPage() {
         onConfirm={() => void handleSubmitConfirmed()}
         onCancel={() => setConfirmSubmitOpen(false)}
         loading={submitAudit.isPending}
-      />
-
-      <ConfirmDialog
-        open={blocker.state === 'blocked'}
-        title={needsSubmitWarning ? 'Leave without submitting?' : 'Leave this audit?'}
-        message={
-          needsSubmitWarning
-            ? 'Every check is answered, but the audit is still a draft. Submit it so the dashboard updates.'
-            : 'You have unsaved progress. Leave anyway?'
-        }
-        confirmLabel="Leave"
-        onConfirm={() => {
-          skipLeaveGuardRef.current = true;
-          if (blocker.state === 'blocked') blocker.proceed();
-        }}
-        onCancel={() => {
-          if (blocker.state === 'blocked') blocker.reset();
-        }}
       />
     </Box>
   );

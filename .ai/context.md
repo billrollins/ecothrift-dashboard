@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-29 (v2.60.0 Retail QA reliability) -->
+<!-- Last updated: 2026-07-29 (v2.61.0 orders strip + dashboard polish) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active:** [`retail_qa_submission_reliability`](initiatives/retail_qa_submission_reliability.md) — **v2.60.0** shipped (autosave/resume, +/- grades, deep links, 8-week grids); follow-ups remain (photo S3, archive when done).
+- **Active:** [`retail_qa_submission_reliability`](initiatives/retail_qa_submission_reliability.md) — **v2.60.0–v2.61.0** (autosave/resume, deep links, 8-week grids, dashboard/orders polish); follow-ups remain (photo S3, archive when done).
 - **Delivery Mobile Ops (shipped):** archived [`delivery_mobile_operations_completion`](initiatives/_archived/_completed/delivery_mobile_operations_completion.md) — Desk + Field, Routes API, evidence/SMS, add/adjust, route maps, change history. **v2.55.0–v2.59.1**.
 - **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**; **v2.51.0** schedule-later; **v2.52.0** unified Day Board (calls → route → load → drive → return on the same cards).
 - **Parked — Online Sales Workspace:** [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md) — code retained; staff workspace + public holds **disabled** (`ONLINE_SALES_ENABLED=false`). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).

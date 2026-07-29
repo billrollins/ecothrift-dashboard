@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-07-29 (v2.60.0 Retail QA reliability + dashboard metrics) -->
+<!-- Last updated: 2026-07-29 (v2.61.0 orders summary aggregates) -->
 
 # Eco-Thrift Dashboard — Backend Context
+
+**2026-07-29 (v2.61.0) — Inventory / orders summary:** **`aggregate_financials`** adds **`in_transit_count`**, **`in_transit_cost`**, **`pallet_count`**, **`sold_last_week`**, **`priced_retail`** on **`GET /api/inventory/orders/summary/`**.
 
 **2026-07-29 (v2.60.0) — POS / Retail QA + dashboard metrics:** **`QualityAudit.updated_at`** (migration **`pos.0025`**); draft DELETE + list `limit`; +/- **`compute_overall_grade`**; week audit count includes off-schedule days. **`GET /api/pos/dashboard/metrics/?weeks=`** (default 8, clamp 2–12); cache key `dashboard:metrics:{date}:{weeks}`; retail days emit **`retail_audit_ids`** + **`form_slug`**. Command **`finalize_stranded_qa_audits`**. Orders **`page-metrics`**: `sold_last_week`, `priced_retail`.
 

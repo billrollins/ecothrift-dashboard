@@ -1,4 +1,4 @@
-import { Box, Grid, ListItemText, Menu, MenuItem, Typography } from '@mui/material';
+import { Box, Grid, ListItemText, Menu, MenuItem } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -54,16 +54,12 @@ interface CardConfig {
   icon: ReactNode;
   actual: string;
   placeholder?: boolean;
-  subStat?: ReactNode;
   goalMet?: boolean;
-  goalStatus?: ReactNode;
   getValue: (day: DepartmentDailyMetric) => string;
   getWeekTotal: (week: DepartmentDailyWeek) => string;
   getCellState?: (day: DepartmentDailyMetric) => 'scheduled' | 'achieved' | undefined;
   getWeekAchieved?: (week: DepartmentDailyWeek) => boolean;
 }
-
-const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function canOpenQualityAudit(role: string | null | undefined): boolean {
   return role === 'Admin' || role === 'Manager';
@@ -163,20 +159,6 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
       icon: <Handyman />,
       actual: String(restoration.active_jobs),
       placeholder: false,
-      subStat: (
-        <Typography
-          variant="caption"
-          sx={{
-            fontSize: { xs: '0.68rem', md: '0.62rem' },
-            fontWeight: 800,
-            color: 'text.secondary',
-            lineHeight: 1.2,
-            whiteSpace: { xs: 'normal', sm: 'nowrap' },
-          }}
-        >
-          {restoration.active_jobs} in restoration · {restoration.returns_pending} awaiting retag
-        </Typography>
-      ),
       getValue: restorationGridValue,
       getWeekTotal: restorationWeekTotal,
     },
@@ -189,31 +171,6 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
       actual: retail.ready && retail.last_grade ? retail.last_grade : '—',
       placeholder: !retail.ready,
       goalMet: retail.week_goal_met,
-      goalStatus: retail.scheduled_days > 0 ? (
-        <Typography
-          variant="caption"
-          sx={{
-            fontSize: { xs: '0.68rem', md: '0.62rem' },
-            fontWeight: 800,
-            color: retail.due_goal_met ? dashboardPalette.greenDark : 'text.secondary',
-            lineHeight: 1.25,
-          }}
-        >
-          {retail.completed_days}/{retail.scheduled_days} days hit · {retail.week_audits}/
-          {retail.week_required} audits
-          {retail.schedule?.weekdays?.length
-            ? ` · ${retail.schedule.weekdays.map((day) => WEEKDAY_SHORT[day]).join(' ')}`
-            : ''}
-          {retail.due_goal_met && !retail.week_goal_met ? ' · On track' : ''}
-        </Typography>
-      ) : (
-        <Typography
-          variant="caption"
-          sx={{ fontSize: { xs: '0.68rem', md: '0.62rem' }, fontWeight: 800, color: 'text.secondary' }}
-        >
-          Set required audit days in Goal
-        </Typography>
-      ),
       getValue: retailGridValue,
       getWeekTotal: retailWeekTotal,
       getCellState: retailGoalCellState,
@@ -239,7 +196,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
               size={{ xs: 12, sm: 6, md: 6, lg: 3 }}
               sx={{ display: 'flex', minWidth: 0, p: 1, overflow: 'visible' }}
             >
-              <Box sx={{ width: '100%', minWidth: 0, minHeight: 0 }}>
+              <Box sx={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, display: 'flex' }}>
                 <DepartmentStatCard
                   label={card.label}
                   accent={card.accent}
@@ -248,8 +205,6 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
                   actualDisplay={card.actual}
                   placeholder={card.placeholder}
                   goalMet={card.goalMet}
-                  goalStatus={card.goalStatus}
-                  subStat={card.subStat}
                   onGoalClick={() => setOpenKey(card.key)}
                   showWeekDetailButton={isCompact}
                   onViewWeekDetail={() => setWeekDetailKey(card.key)}

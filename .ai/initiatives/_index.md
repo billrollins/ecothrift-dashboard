@@ -13,7 +13,7 @@ Session details live **only** in each file under **`## Sessions`**.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [retail_qa_submission_reliability](./retail_qa_submission_reliability.md) | Session 1 done (v2.60.0) | Autosave/resume, +/- grades, deep links, 8-week grids shipped; photo S3 + archive still open. |
+| [retail_qa_submission_reliability](./retail_qa_submission_reliability.md) | Session 1 done (v2.60.0–v2.61.0) | Autosave/resume, deep links, 8-week grids + dashboard/orders polish; photo S3 + archive still open. |
 
 ---
 

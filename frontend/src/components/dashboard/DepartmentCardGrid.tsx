@@ -1,4 +1,5 @@
 import { Box, Typography } from '@mui/material';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { DepartmentDailyMetric, DepartmentDailyWeek } from '../../types/pos.types';
 import {
   formatDashboardCurrencyCompact,
@@ -6,6 +7,9 @@ import {
   shortDate,
 } from './dashboardFormatters';
 import { dashboardPalette } from './dashboardCardStyles';
+
+/** Visible week rows in the card scroller — matches the pre-history 2-week layout. */
+const VISIBLE_WEEK_ROWS = 2;
 
 const DAY_HEADS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -52,7 +56,9 @@ function GridCell({
     width: '100%',
     py: { xs: 0.45, md: 0.15 },
     px: 0.1,
-    minHeight: { xs: 44, md: 'auto' },
+    // Fixed row geometry across all department cards (touch target on phone).
+    minHeight: { xs: 44, md: 28 },
+    height: { xs: 44, md: 28 },
     border: '1px solid',
     borderColor: achieved
       ? dashboardPalette.gold
@@ -104,9 +110,16 @@ function GridCell({
       variant="caption"
       fontWeight={isToday || achieved ? 900 : 800}
       noWrap
+      title={value}
       sx={{
-        fontSize: { xs: '0.7rem', md: '0.56rem' },
-        lineHeight: 1.2,
+        // Longer retail strings (e.g. B·1/2) shrink; cell box stays fixed.
+        fontSize:
+          value.length >= 6
+            ? { xs: '0.58rem', md: '0.48rem' }
+            : value.length >= 4
+              ? { xs: '0.64rem', md: '0.52rem' }
+              : { xs: '0.7rem', md: '0.56rem' },
+        lineHeight: 1.15,
         color: achieved
           ? dashboardPalette.goldDark
           : isToday
@@ -151,13 +164,16 @@ function WeekLabelCell({
   return (
     <Box
       sx={{
-        alignSelf: 'center',
+        alignSelf: 'stretch',
         textAlign: 'center',
         minWidth: 0,
         px: 0.1,
-        py: achieved ? 0.25 : 0,
+        py: 0.25,
         borderRadius: 0.75,
         bgcolor: achieved ? dashboardPalette.goldSoft : 'transparent',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
       }}
     >
       <Typography
@@ -165,7 +181,7 @@ function WeekLabelCell({
         color="text.secondary"
         fontWeight={700}
         noWrap
-        sx={{ fontSize: { xs: '0.65rem', md: '0.53rem' }, lineHeight: 1.15, display: 'block' }}
+        sx={{ fontSize: { xs: '0.65rem', md: '0.53rem' }, lineHeight: 1.1, display: 'block' }}
       >
         {weekRowLabel(week)}
       </Typography>
@@ -173,9 +189,13 @@ function WeekLabelCell({
         variant="caption"
         fontWeight={900}
         noWrap
+        title={total}
         sx={{
-          fontSize: { xs: '0.6rem', md: '0.5rem' },
-          lineHeight: 1.15,
+          fontSize:
+            total.length >= 7
+              ? { xs: '0.5rem', md: '0.42rem' }
+              : { xs: '0.6rem', md: '0.5rem' },
+          lineHeight: 1.1,
           display: 'block',
           color: achieved ? dashboardPalette.goldDark : 'text.primary',
         }}
@@ -207,9 +227,47 @@ export function DepartmentCardGrid({
 }: DepartmentCardGridProps) {
   // Newest week first so the scroller opens on the current week.
   const orderedWeeks = [...weeks].reverse();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [viewportHeight, setViewportHeight] = useState<number | undefined>();
+
+  // Size the scroller to exactly VISIBLE_WEEK_ROWS so the card matches the old 2-week look.
+  useLayoutEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+
+    const measure = () => {
+      const rows = root.querySelectorAll<HTMLElement>('[data-week-row]');
+      if (rows.length === 0) {
+        setViewportHeight(undefined);
+        return;
+      }
+      const styles = getComputedStyle(root);
+      const gap = Number.parseFloat(styles.rowGap || styles.gap || '0') || 0;
+      const rowsToMeasure = Math.min(VISIBLE_WEEK_ROWS, rows.length);
+      let height = gap * Math.max(0, rowsToMeasure - 1);
+      for (let i = 0; i < rowsToMeasure; i += 1) {
+        height += rows[i].getBoundingClientRect().height;
+      }
+      setViewportHeight(height);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    root.querySelectorAll('[data-week-row]').forEach((row) => observer.observe(row));
+    return () => observer.disconnect();
+  }, [orderedWeeks.length]);
+
+  const snapToTop = () => {
+    const root = scrollRef.current;
+    if (!root || root.scrollTop === 0) return;
+    root.scrollTop = 0;
+  };
 
   return (
     <Box
+      onMouseLeave={snapToTop}
+      onPointerLeave={snapToTop}
       sx={{
         display: 'flex',
         flexDirection: 'column',
@@ -229,6 +287,9 @@ export function DepartmentCardGrid({
           display: 'grid',
           gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))',
           gap: 0.25,
+          alignItems: 'center',
+          height: { xs: onDayHeadsClick ? 36 : 20, md: 18 },
+          flexShrink: 0,
           ...(onDayHeadsClick
             ? {
                 p: 0,
@@ -240,7 +301,6 @@ export function DepartmentCardGrid({
                 color: 'inherit',
                 width: '100%',
                 borderRadius: 0.75,
-                minHeight: { xs: 36, md: 'auto' },
                 '&:focus-visible': {
                   outline: '2px solid',
                   outlineColor: dashboardPalette.blue,
@@ -269,10 +329,13 @@ export function DepartmentCardGrid({
         ))}
       </Box>
       <Box
+        ref={scrollRef}
         sx={{
           overflowY: 'auto',
           overscrollBehavior: 'contain',
-          maxHeight: { xs: 168, md: 132 },
+          // Fallback until measured: ~2 week rows (xs touch cells / md compact cells).
+          maxHeight: viewportHeight ?? { xs: 94, md: 64 },
+          height: viewportHeight ?? { xs: 94, md: 64 },
           display: 'flex',
           flexDirection: 'column',
           gap: 0.25,
@@ -287,7 +350,15 @@ export function DepartmentCardGrid({
         {orderedWeeks.map((week) => (
           <Box
             key={week.week_start}
-            sx={{ display: 'grid', gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))', gap: 0.25 }}
+            data-week-row=""
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))',
+              gap: 0.25,
+              alignItems: 'stretch',
+              height: { xs: 44, md: 28 },
+              flexShrink: 0,
+            }}
           >
             <WeekLabelCell
               week={week}

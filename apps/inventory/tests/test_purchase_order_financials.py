@@ -287,9 +287,40 @@ class PurchaseOrderFinancialsApiTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.data['total_orders'], 1)
         self.assertIn('priced', r.data)
+        self.assertIn('priced_retail', r.data)
         self.assertIn('sold', r.data)
+        self.assertIn('sold_last_week', r.data)
         self.assertIn('profit', r.data)
+        self.assertIn('in_transit_count', r.data)
+        self.assertIn('pallet_count', r.data)
         self.assertEqual(r.data['cost'], r.data['total_cost'])
+        self.assertEqual(r.data['in_transit_count'], 0)
+
+    def test_summary_in_transit_and_pallets(self):
+        shipped = PurchaseOrder.objects.create(
+            vendor=self.vendor,
+            order_number='PO-FIN-SHIP',
+            ordered_date=timezone.localdate() - timedelta(days=4),
+            paid_date=timezone.localdate() - timedelta(days=3),
+            shipped_date=timezone.localdate() - timedelta(days=1),
+            status='shipped',
+            purchase_cost=Decimal('250.00'),
+            retail_value=Decimal('800.00'),
+            item_count=10,
+            pallet_count=4,
+            description='In transit truck',
+            condition='good',
+        )
+        shipped.refresh_from_db()
+        r = self.client.get(
+            '/api/inventory/orders/summary/',
+            {'ids': f'{self.po.id},{shipped.id}'},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['total_orders'], 2)
+        self.assertEqual(r.data['in_transit_count'], 1)
+        self.assertEqual(Decimal(r.data['in_transit_cost']), Decimal(shipped.total_cost))
+        self.assertEqual(r.data['pallet_count'], 4)
 
     def test_list_condition_and_item_count_filters(self):
         r = self.client.get(

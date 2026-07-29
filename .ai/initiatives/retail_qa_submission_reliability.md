@@ -56,6 +56,6 @@ Fix the reason completed retail QAs never reach the dashboard: the wizard's only
 
 ### Session Result
 
-- **Shipped:** v2.60.0 — Retail QA submission reliability, stranded-audit recovery command, +/- grades, dashboard deep links, 8-week department grids, mobile dashboard overhaul; also orders-list secondary ratios and leaner `scripts/dev/`.
-- **Decisions:** Recover only #15/#17 (not #11/#13); extend grade engine to +/- bands rather than constraining the goal picker; department history default 8 weeks (2–12 clamp).
+- **Shipped:** **v2.60.0** — Retail QA submission reliability, stranded-audit recovery command, +/- grades, dashboard deep links, 8-week department grids, mobile dashboard overhaul; also orders-list secondary ratios and leaner `scripts/dev/`. **v2.61.0** — QA wizard blank-page fix, 2-week grid viewport + snap-back, uniform department cards, EST/ACT REC colors, Orders summary strip with Trucks in Transit.
+- **Decisions:** Recover only #15/#17 (not #11/#13); extend grade engine to +/- bands rather than constraining the goal picker; department history default 8 weeks (2–12 clamp); visible grid height stays 2 weeks with scroll for the rest.
 - **Follow-ups:** Photo S3 upload; archive initiative when no further QA reliability work remains.
