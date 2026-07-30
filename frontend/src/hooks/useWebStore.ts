@@ -190,7 +190,7 @@ export function useReservationAction() {
       action,
     }: {
       id: number;
-      action: 'confirm' | 'stage' | 'decline' | 'cancel' | 'expire' | 'complete';
+      action: 'confirm' | 'stage' | 'decline' | 'cancel' | 'expire' | 'complete' | 'extend';
     }) => {
       const { data } = await reservationAction(id, action);
       return data;

@@ -27,7 +27,21 @@ import {
 } from '../../hooks/useWebStore';
 import type { Conversation, Reservation } from '../../api/webstore.api';
 
-type InboxTab = 'holds' | 'messages';
+type InboxTab = 'holds' | 'pickup' | 'messages';
+
+function formatCountdown(expiresAt: string | null | undefined): string {
+  if (!expiresAt) return '—';
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (Number.isNaN(ms)) return '—';
+  if (ms <= 0) return 'Expired';
+  const hours = Math.floor(ms / 3_600_000);
+  const mins = Math.floor((ms % 3_600_000) / 60_000);
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    return `${days}d ${hours % 24}h`;
+  }
+  return `${hours}h ${mins}m`;
+}
 
 function HoldsPanel() {
   const { enqueueSnackbar } = useSnackbar();
@@ -145,6 +159,102 @@ function HoldsPanel() {
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
         Customer status links use unguessable tokens (not ETW order numbers).
       </Typography>
+    </>
+  );
+}
+
+function PickupPanel() {
+  const { enqueueSnackbar } = useSnackbar();
+  const { data, isLoading, isError } = useReservations({
+    ordering: 'expires_at',
+  });
+  const action = useReservationAction();
+
+  const rows = useMemo(() => {
+    const today = new Date().toDateString();
+    return (data?.results || []).filter((r) => {
+      if (!['confirmed', 'ready_for_pickup'].includes(r.status)) return false;
+      // Prefer "today's" staging window: confirmed/staged with expiry today or already ready.
+      if (r.status === 'ready_for_pickup') return true;
+      if (r.expires_at && new Date(r.expires_at).toDateString() === today) return true;
+      if (r.confirmed_at && new Date(r.confirmed_at).toDateString() === today) return true;
+      return r.status === 'confirmed';
+    });
+  }, [data]);
+
+  const run = async (
+    id: number,
+    act: 'stage' | 'extend' | 'cancel' | 'expire' | 'complete',
+  ) => {
+    try {
+      await action.mutateAsync({ id, action: act });
+      enqueueSnackbar(`${act} ok`, { variant: 'success' });
+    } catch {
+      enqueueSnackbar(`Could not ${act}`, { variant: 'error' });
+    }
+  };
+
+  const columns: GridColDef<Reservation>[] = [
+    { field: 'customer_name', headerName: 'Customer', width: 140 },
+    { field: 'phone', headerName: 'Phone', width: 130 },
+    { field: 'listing_title', headerName: 'Item', flex: 1, minWidth: 160 },
+    {
+      field: 'item_sku',
+      headerName: 'SKU',
+      width: 110,
+      valueGetter: (_v, row) => row.item_sku || '—',
+    },
+    {
+      field: 'status',
+      headerName: 'Status',
+      width: 140,
+      renderCell: ({ row }) => <Chip size="small" label={row.status_display || row.status} />,
+    },
+    {
+      field: 'expires_at',
+      headerName: 'Countdown',
+      width: 120,
+      valueGetter: (_v, row) => formatCountdown(row.expires_at),
+    },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      width: 340,
+      sortable: false,
+      renderCell: ({ row }) => (
+        <Stack direction="row" spacing={0.5}>
+          {row.status !== 'ready_for_pickup' && (
+            <Button size="small" onClick={() => run(row.id, 'stage')}>Stage</Button>
+          )}
+          <Button size="small" onClick={() => run(row.id, 'extend')}>Extend</Button>
+          <Button size="small" onClick={() => run(row.id, 'complete')}>Complete</Button>
+          <Button size="small" color="inherit" onClick={() => run(row.id, 'cancel')}>Cancel</Button>
+          <Button size="small" color="warning" onClick={() => run(row.id, 'expire')}>
+            No-show
+          </Button>
+        </Stack>
+      ),
+    },
+  ];
+
+  if (isLoading && !data) return <LoadingScreen />;
+  if (isError) return <Alert severity="error">Could not load pickup holds.</Alert>;
+
+  return (
+    <>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        Confirmed and staged holds for in-store pickup. No-show releases the hold.
+      </Typography>
+      <Box sx={{ height: 520 }}>
+        <DataGrid
+          rows={rows}
+          columns={columns}
+          getRowId={(r) => r.id}
+          disableRowSelectionOnClick
+          pageSizeOptions={[25, 50]}
+          initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+        />
+      </Box>
     </>
   );
 }
@@ -313,9 +423,12 @@ export default function OnlineSalesInboxPage() {
       />
       <Tabs value={tab} onChange={(_, v: InboxTab) => setTab(v)} sx={{ mb: 2 }}>
         <Tab value="holds" label="Holds" />
+        <Tab value="pickup" label="Ready for pickup" />
         <Tab value="messages" label="Messages" />
       </Tabs>
-      {tab === 'holds' ? <HoldsPanel /> : <MessagesPanel />}
+      {tab === 'holds' && <HoldsPanel />}
+      {tab === 'pickup' && <PickupPanel />}
+      {tab === 'messages' && <MessagesPanel />}
     </Box>
   );
 }

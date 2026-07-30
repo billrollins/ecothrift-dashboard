@@ -315,6 +315,21 @@ class ReservationViewSet(
         reservation = complete_reservation(self.get_object(), user=request.user)
         return Response(ReservationStaffSerializer(reservation).data)
 
+    @action(detail=True, methods=['post'], url_path='extend')
+    def extend(self, request, pk=None):
+        """Push expiry to next business-day close (ready/confirmed holds)."""
+        from apps.webstore.services.hours import next_business_day_close_after
+
+        reservation = self.get_object()
+        if reservation.status not in ('confirmed', 'ready_for_pickup'):
+            return Response(
+                {'detail': f'Cannot extend from status {reservation.status}.'},
+                status=400,
+            )
+        reservation.expires_at = next_business_day_close_after(timezone.now())
+        reservation.save(update_fields=['expires_at', 'updated_at'])
+        return Response(ReservationStaffSerializer(reservation).data)
+
 
 class ConversationViewSet(
     mixins.ListModelMixin,

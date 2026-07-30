@@ -212,7 +212,7 @@ export function getReservations(
 
 export function reservationAction(
   id: number,
-  action: 'confirm' | 'stage' | 'decline' | 'cancel' | 'expire' | 'complete',
+  action: 'confirm' | 'stage' | 'decline' | 'cancel' | 'expire' | 'complete' | 'extend',
 ): Promise<{ data: Reservation }> {
   return api.post(`/webstore/reservations/${id}/${action}/`);
 }

@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: E1
+- Last completed: F2
 - Half-done: —
-- Check first: E2 customer accounts frontend
+- Check first: Stage G hardening tests
 
 ---
 
@@ -161,5 +161,32 @@ Reviewer tomorrow: Opus
 - **Files changed:** User role map (+Customer lowest), IsCustomer, auth magic-link endpoints, setup_initial_data Customer group
 - **Decisions:** Token never in response when DEBUG=False; staff emails rejected on consume; accounts kill-switch setting
 - **Commands:** `test apps.accounts.tests.test_magic_link` → **9 OK**
+- **Known issues:** none
+- **Questions for Opus:** none
+
+### E2 — Customer accounts frontend — DONE — 2026-07-30T19:35:00-05:00
+
+- **Status:** DONE
+- **Files added:** `frontend-public/src/auth.tsx`, SignInPage, AccountPage
+- **Files changed:** Layout Sign in/Account, App routes, staff StaffRoute bounces Customer, UserRole includes Customer
+- **Commands:** public build + staff tsc OK
+- **Known issues:** none
+- **Questions for Opus:** none
+
+### F1 — Ready for pickup tab — DONE — 2026-07-30T19:45:00-05:00
+
+- **Status:** DONE
+- **Files changed:** Inbox Pickup tab; reservation `extend` action; vitest coverage
+- **Decisions:** No-show maps to expire; extend → next business-day close
+- **Commands:** Inbox vitest → **5 OK**
+- **Known issues:** none
+- **Questions for Opus:** none
+
+### F2 — Demo seed — DONE — 2026-07-30T19:50:00-05:00
+
+- **Status:** DONE
+- **Files added:** `seed_online_sales_demo` (--wipe, DEBUG-only)
+- **Decisions:** Customer `demo.customer@ecothrift.example`; slug prefix `demo-os-`
+- **Commands:** `seed_online_sales_demo --wipe` → OK locally
 - **Known issues:** none
 - **Questions for Opus:** none

@@ -126,6 +126,30 @@ describe('OnlineSalesInboxPage', () => {
     expect(screen.getByText('Could not load holds.')).toBeInTheDocument();
   });
 
+  it('switches to Ready for pickup tab', async () => {
+    inboxState.data = {
+      count: 1,
+      results: [
+        {
+          id: 12,
+          customer_name: 'Ada',
+          phone: '402-555-0100',
+          listing_title: 'Blue sofa',
+          item_sku: 'SF-1',
+          status: 'ready_for_pickup',
+          status_display: 'Ready for pickup',
+          expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+          confirmed_at: new Date().toISOString(),
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    wrap(<OnlineSalesInboxPage />);
+    await user.click(screen.getByRole('tab', { name: 'Ready for pickup' }));
+    expect(screen.getByText(/Confirmed and staged holds/)).toBeInTheDocument();
+    expect(screen.getByText('Blue sofa')).toBeInTheDocument();
+  });
+
   it('switches to Messages tab and shows conversation list', async () => {
     inboxState.data = { count: 0, results: [] };
     inboxState.conversations = {
