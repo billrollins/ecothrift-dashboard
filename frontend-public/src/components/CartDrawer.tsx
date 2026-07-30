@@ -12,9 +12,9 @@ export default function CartDrawer() {
         onClick={() => setOpen(false)}
         aria-hidden={!open}
       />
-      <aside className={`cartdrawer${open ? ' open' : ''}`} aria-label="Shopping cart" aria-hidden={!open}>
+      <aside className={`cartdrawer${open ? ' open' : ''}`} aria-label="Hold list" aria-hidden={!open}>
         <div className="carthead">
-          <h3>Your cart {count > 0 ? `(${count})` : ''}</h3>
+          <h3>Hold list {count > 0 ? `(${count})` : ''}</h3>
           <button className="cartclose" onClick={() => setOpen(false)} aria-label="Close cart">
             ×
           </button>
@@ -22,7 +22,7 @@ export default function CartDrawer() {
 
         {lines.length === 0 ? (
           <div className="cartempty">
-            <p>Your cart is empty.</p>
+            <p>Your hold list is empty.</p>
             <Link className="btn btn--primary" to="/shop" onClick={() => setOpen(false)}>
               Browse the shop
             </Link>

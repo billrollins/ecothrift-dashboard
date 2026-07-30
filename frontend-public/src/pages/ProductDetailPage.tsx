@@ -43,9 +43,10 @@ export default function ProductDetailPage() {
             '@type': 'Offer',
             price: listing.price,
             priceCurrency: 'USD',
-            availability: listing.available
-              ? 'https://schema.org/InStock'
-              : 'https://schema.org/OutOfStock',
+            availability:
+              listing.available > 0
+                ? 'https://schema.org/InStock'
+                : 'https://schema.org/OutOfStock',
             url: `${SITE_URL}/shop/${listing.slug}`,
           },
         }
@@ -114,8 +115,8 @@ export default function ProductDetailPage() {
         <div className="pdpgallery">
           <div className="pdpmain">
             {main ? <img src={main.url} alt={main.alt} /> : <span className="ph g3" />}
-            {listing.on_sale && <span className="badge sale">Sale</span>}
-            {!listing.available && <span className="badge sold">Sold</span>}
+            {listing.on_sale && listing.available > 0 && <span className="badge sale">Sale</span>}
+            {listing.available <= 0 && <span className="badge reserved">Reserved</span>}
           </div>
           {images.length > 1 && (
             <div className="pdpthumbs">
@@ -145,8 +146,8 @@ export default function ProductDetailPage() {
           <div className="pdpmeta">
             <span>Condition: {listing.condition_display}</span>
             {listing.sku && <span>SKU: {listing.sku}</span>}
-            <span className={listing.available ? 'instock' : 'soldout'}>
-              {listing.available ? 'In stock' : 'Sold out'}
+            <span className={listing.available > 0 ? 'instock' : 'soldout'}>
+              {listing.available > 0 ? 'Available to hold' : 'Reserved'}
             </span>
           </div>
 
@@ -158,7 +159,7 @@ export default function ProductDetailPage() {
             </div>
           ) : null}
 
-          {listing.available ? (
+          {listing.available > 0 ? (
             <div className="addrow">
               <div className="qty">
                 <button onClick={() => setQty((n) => Math.max(1, n - 1))} aria-label="Decrease quantity">

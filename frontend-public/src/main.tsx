@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { CartProvider } from './cart'
+import { OnlineSalesConfigProvider } from './onlineSalesConfig'
 import './styles.css'
 
 // Optional, privacy-friendly analytics — off unless VITE_PLAUSIBLE_DOMAIN is set
@@ -19,9 +20,11 @@ if (plausibleDomain) {
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <CartProvider>
-        <App />
-      </CartProvider>
+      <OnlineSalesConfigProvider>
+        <CartProvider>
+          <App />
+        </CartProvider>
+      </OnlineSalesConfigProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )

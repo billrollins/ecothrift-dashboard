@@ -2,14 +2,18 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
+import { useOnlineSalesConfig } from './onlineSalesConfig'
 
 // Code-split the less-frequent routes so the landing page ships a small bundle.
-// Shop / holds parked until Online Sales resumes (ONLINE_SALES_ENABLED).
 const BlogPage = lazy(() => import('./pages/BlogPage'))
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'))
 const VisitPage = lazy(() => import('./pages/VisitPage'))
 const SellPage = lazy(() => import('./pages/SellPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const ShopPage = lazy(() => import('./pages/ShopPage'))
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
+const CheckoutPage = lazy(() => import('./pages/CheckoutPage'))
+const HoldStatusPage = lazy(() => import('./pages/HoldStatusPage'))
 
 function RouteFallback() {
   return (
@@ -21,15 +25,56 @@ function RouteFallback() {
   )
 }
 
+function ShopRoute({ children }: { children: React.ReactNode }) {
+  const { config, loading } = useOnlineSalesConfig()
+  if (loading) return <RouteFallback />
+  if (!config.online_sales_enabled) return <Navigate to="/visit" replace />
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
-        <Route path="shop" element={<Navigate to="/visit" replace />} />
-        <Route path="shop/:slug" element={<Navigate to="/visit" replace />} />
-        <Route path="checkout" element={<Navigate to="/visit" replace />} />
-        <Route path="hold/:token" element={<Navigate to="/visit" replace />} />
+        <Route
+          path="shop"
+          element={
+            <ShopRoute>
+              <Suspense fallback={<RouteFallback />}>
+                <ShopPage />
+              </Suspense>
+            </ShopRoute>
+          }
+        />
+        <Route
+          path="shop/:slug"
+          element={
+            <ShopRoute>
+              <Suspense fallback={<RouteFallback />}>
+                <ProductDetailPage />
+              </Suspense>
+            </ShopRoute>
+          }
+        />
+        <Route
+          path="checkout"
+          element={
+            <ShopRoute>
+              <Suspense fallback={<RouteFallback />}>
+                <CheckoutPage />
+              </Suspense>
+            </ShopRoute>
+          }
+        />
+        <Route
+          path="hold/:token"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <HoldStatusPage />
+            </Suspense>
+          }
+        />
         <Route path="order/:number" element={<Navigate to="/visit" replace />} />
         <Route
           path="blog"

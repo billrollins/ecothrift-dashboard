@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: B2
+- Last completed: B3
 - Half-done: —
-- Check first: B3 public storefront un-park
+- Check first: B4 policy copy guard test
 
 ---
 
@@ -76,4 +76,33 @@ Reviewer tomorrow: Opus
 - **Decisions:** Catalog gated with 410 `ONLINE_SALES_DISABLED` (same family as holds). Hold status by token still open. Settings flags for inquiries/accounts default True for later phases.
 - **Commands:** `test apps.webstore.tests.test_holds_hard_controls apps.accounts.tests.test_auth_hardening` → **23 OK**
 - **Known issues:** `listing_image` still ungated when flag off (noted in kill-switch audit)
+- **Questions for Opus:** none
+
+### B1 — Staff workspace and routes — DONE — 2026-07-30T18:25:00-05:00
+
+- **Status:** DONE
+- **Files changed:** `frontend/src/navigation/slotCNavLayout.ts`, `frontend/src/App.tsx`
+- **Decisions:** Four nav items (queue/listings/inbox/sales); Marketing routed but not in SLOT_C_NAV_GROUPS; legacy `/admin/web-store` → listings, `/admin/web-orders` → inbox.
+- **Commands:** `cd frontend && npm run build` → OK
+- **Known issues:** none
+- **Questions for Opus:** none
+
+### B2 — Render tests for six pages — DONE — 2026-07-30T18:30:00-05:00
+
+- **Status:** DONE
+- **Files added:** six `*.test.tsx` under `frontend/src/pages/online-sales/`
+- **Files changed:** WorkQueue/Listings/Inbox/Sales/ListingStudio — small `isError` Alert paths
+- **Decisions:** Stub `@mui/x-data-grid` like DeskTotalDeliveriesPage (CSS import breaks vitest)
+- **Commands:** `npx vitest run src/pages/online-sales` → **18 OK**
+- **Known issues:** none
+- **Questions for Opus:** none
+
+### B3 — Public storefront un-park — DONE — 2026-07-30T18:40:00-05:00
+
+- **Status:** DONE
+- **Files added:** `frontend-public/src/onlineSalesConfig.tsx`
+- **Files changed:** App routes, Layout (Shop nav + Hold list + CartDrawer + conditional banner), api config fetch, Shop/PDP Reserved badge, CartDrawer copy
+- **Decisions:** Shop/checkout gated on config; `hold/:token` stays open when flag off; `available <= 0` shows Reserved (G4 default)
+- **Commands:** `cd frontend-public && npm run build` → OK
+- **Known issues:** Shop still had some "cart"/checkout wording until B4 sweep
 - **Questions for Opus:** none

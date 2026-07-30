@@ -191,8 +191,8 @@ export default function ShopPage() {
                   ) : (
                     <span className="ph g3" />
                   )}
-                  {it.on_sale && <span className="badge sale">Sale</span>}
-                  {!it.available && <span className="badge sold">Sold</span>}
+                  {it.on_sale && it.available > 0 && <span className="badge sale">Sale</span>}
+                  {it.available <= 0 && <span className="badge reserved">Reserved</span>}
                 </Link>
                 <div className="prodbody">
                   {it.category_name && <div className="prodcat">{it.category_name}</div>}
@@ -208,7 +208,7 @@ export default function ShopPage() {
                   </div>
                   <button
                     className="btn btn--primary prodadd"
-                    disabled={!it.available}
+                    disabled={it.available <= 0}
                     onClick={() =>
                       add({
                         slug: it.slug,
@@ -219,7 +219,7 @@ export default function ShopPage() {
                       })
                     }
                   >
-                    {it.available ? 'Add to cart' : 'Sold out'}
+                    {it.available > 0 ? 'Add to hold list' : 'Reserved'}
                   </button>
                 </div>
               </div>

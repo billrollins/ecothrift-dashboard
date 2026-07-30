@@ -1,21 +1,30 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import logoFooterImg from '../assets/logo-full-white-halfsize.png'
 import logoImg from '../assets/logo-full-halfsize.png'
+import { useCart } from '../cart'
 import { retailMapsDirectionsUrl, STORE } from '../data/content'
+import { useOnlineSalesConfig } from '../onlineSalesConfig'
+import CartDrawer from './CartDrawer'
 
 const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'on' : undefined)
 
 export default function Layout() {
+  const { config, loading } = useOnlineSalesConfig()
+  const { count, setOpen } = useCart()
+  const shopOn = !loading && config.online_sales_enabled
+
   return (
     <>
-      <div className="util" role="status" aria-live="polite">
-        <div className="wrap">
-          <span className="util-badge">Under construction</span>
-          <span className="util-msg">
-            Website is under construction — online listings and holds are not available yet.
-          </span>
+      {!shopOn && (
+        <div className="util" role="status" aria-live="polite">
+          <div className="wrap">
+            <span className="util-badge">Under construction</span>
+            <span className="util-msg">
+              Website is under construction — online listings and holds are not available yet.
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       <header className="hdr">
         <div className="wrap">
@@ -23,6 +32,11 @@ export default function Layout() {
             <img className="logo" src={logoImg} alt="Eco-Thrift" width={244} height={60} />
           </Link>
           <nav className="nav">
+            {shopOn && (
+              <NavLink to="/shop" className={navClass}>
+                Shop
+              </NavLink>
+            )}
             <NavLink to="/blog" className={navClass}>
               Blog
             </NavLink>
@@ -34,9 +48,25 @@ export default function Layout() {
             </NavLink>
           </nav>
           <div className="tools">
-            <Link className="btn btn--primary" to="/visit">
-              Visit the store
-            </Link>
+            {shopOn ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setOpen(true)}
+                  aria-label={count > 0 ? `Hold list, ${count} items` : 'Hold list'}
+                >
+                  Hold list{count > 0 ? ` (${count})` : ''}
+                </button>
+                <Link className="btn btn--primary" to="/shop">
+                  Shop
+                </Link>
+              </>
+            ) : (
+              <Link className="btn btn--primary" to="/visit">
+                Visit the store
+              </Link>
+            )}
           </div>
         </div>
       </header>
@@ -44,6 +74,8 @@ export default function Layout() {
       <main>
         <Outlet />
       </main>
+
+      {shopOn && <CartDrawer />}
 
       <footer className="ft">
         <div className="wrap">
@@ -54,6 +86,7 @@ export default function Layout() {
           </div>
           <div>
             <h4>Store</h4>
+            {shopOn && <Link to="/shop">Shop</Link>}
             <Link to="/visit">Visit us</Link>
             <Link to="/sell">Sell with us</Link>
             <Link to="/blog">Blog</Link>

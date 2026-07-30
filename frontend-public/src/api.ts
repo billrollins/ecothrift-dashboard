@@ -1,6 +1,22 @@
 // Tiny fetch-based client for the public storefront API (no auth, same-origin /api).
 const BASE = '/api/webstore'
 
+async function getJSON<T>(url: string): Promise<T> {
+  const res = await fetch(url, { headers: { Accept: 'application/json' } })
+  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  return (await res.json()) as T
+}
+
+export interface WebstoreConfig {
+  online_sales_enabled: boolean
+  inquiries_enabled: boolean
+  accounts_enabled: boolean
+}
+
+export function fetchWebstoreConfig(): Promise<WebstoreConfig> {
+  return getJSON<WebstoreConfig>(`${BASE}/config/`)
+}
+
 export interface CatalogImage {
   id?: number
   url: string
@@ -18,7 +34,8 @@ export interface CatalogItem {
   price: string
   compare_at_price: string | null
   on_sale: boolean
-  available: boolean
+  /** Units available to hold (integer). 0 = reserved/sold out of online hold. */
+  available: number
   featured: boolean
   stock: number
   image: CatalogImage | null
@@ -59,12 +76,6 @@ export type CatalogParams = {
   on_sale?: string
   featured?: string
   available?: string
-}
-
-async function getJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
-  return (await res.json()) as T
 }
 
 export function fetchCatalog(params: CatalogParams = {}): Promise<CatalogPage> {
