@@ -47,6 +47,20 @@ class AuthForgotPasswordThrottle(_FixedScopeThrottle):
     scope = 'auth_forgot_password'
 
 
+class AuthMagicLinkIpThrottle(_FixedScopeThrottle):
+    scope = 'auth_magic_link_ip'
+
+
+class AuthMagicLinkEmailThrottle(_FixedScopeThrottle):
+    scope = 'auth_magic_link_email'
+
+    def get_cache_key(self, request, view):
+        email = ((request.data or {}).get('email') or '').strip().lower()
+        if not email:
+            return None
+        return self.cache_format % {'scope': self.scope, 'ident': email}
+
+
 def _set_refresh_cookie(response: Response, refresh_token: str) -> Response:
     """Set the refresh token as an httpOnly cookie."""
     response.set_cookie(
@@ -422,3 +436,72 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 {'detail': 'Customer not found.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([AuthMagicLinkIpThrottle, AuthMagicLinkEmailThrottle])
+def magic_link_request_view(request):
+    """Request a customer magic-link email. Never echoes the token."""
+    from django.conf import settings as dj_settings
+
+    from apps.accounts.services.magic_link import issue_magic_link
+    from apps.webstore.emails import send_sign_in_link
+
+    if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
+        return Response(
+            {'detail': 'Customer accounts are not available.', 'code': 'ACCOUNTS_DISABLED'},
+            status=status.HTTP_410_GONE,
+        )
+
+    email = ((request.data or {}).get('email') or '').strip()
+    # Always return the same shape (no email enumeration).
+    generic = {'detail': 'If that email can receive mail, a sign-in link is on its way.'}
+    try:
+        ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR')
+        token_row = issue_magic_link(email=email, request_ip=ip or None)
+    except Exception:
+        return Response(generic)
+
+    base = getattr(dj_settings, 'ONLINE_SALES_PUBLIC_BASE_URL', 'https://ecothrift.us').rstrip('/')
+    link = f'{base}/account/sign-in?token={token_row.token}'
+    try:
+        send_sign_in_link(email=token_row.email, magic_link=link)
+    except Exception:
+        pass
+
+    payload = dict(generic)
+    if getattr(dj_settings, 'DEBUG', False):
+        # Dev only — never in production responses.
+        payload['debug_token'] = token_row.token
+    return Response(payload)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([AuthMagicLinkIpThrottle])
+def magic_link_consume_view(request):
+    """Consume a magic-link token; issue JWT + refresh cookie. Token never returned."""
+    from django.conf import settings as dj_settings
+
+    from apps.accounts.services.magic_link import consume_magic_link
+    from rest_framework.exceptions import ValidationError as DRFValidationError
+
+    if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
+        return Response(
+            {'detail': 'Customer accounts are not available.', 'code': 'ACCOUNTS_DISABLED'},
+            status=status.HTTP_410_GONE,
+        )
+
+    raw = (request.data or {}).get('token') or ''
+    try:
+        user = consume_magic_link(token=raw)
+    except DRFValidationError as exc:
+        return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+
+    refresh = RefreshToken.for_user(user)
+    response = Response({
+        'access': str(refresh.access_token),
+        'user': UserSerializer(user).data,
+    })
+    return _set_refresh_cookie(response, str(refresh))

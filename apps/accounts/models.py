@@ -1,5 +1,8 @@
+import secrets
+
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
@@ -54,8 +57,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         return f'{self.first_name} {self.last_name}'
 
     def _canonical_role_set(self):
-        """Group names mapped to Admin / Manager / Employee / Consignee (case-insensitive, strip whitespace)."""
-        canonical = {'admin': 'Admin', 'manager': 'Manager', 'employee': 'Employee', 'consignee': 'Consignee'}
+        """Group names mapped to App roles (case-insensitive, strip whitespace)."""
+        canonical = {
+            'admin': 'Admin',
+            'manager': 'Manager',
+            'employee': 'Employee',
+            'consignee': 'Consignee',
+            'customer': 'Customer',
+        }
         present = set()
         for raw in self.groups.values_list('name', flat=True):
             key = (raw or '').strip().lower()
@@ -67,16 +76,16 @@ class User(AbstractBaseUser, PermissionsMixin):
     def role(self):
         """Return the user's primary role based on group membership (highest privilege first)."""
         present = self._canonical_role_set()
-        for role in ['Admin', 'Manager', 'Employee', 'Consignee']:
+        for role in ['Admin', 'Manager', 'Employee', 'Consignee', 'Customer']:
             if role in present:
                 return role
         return None
 
     @property
     def roles(self):
-        """Canonical app roles this user has (subset of Admin, Manager, Employee, Consignee), priority order."""
+        """Canonical app roles (Admin…Customer), priority order. Customer is lowest."""
         present = self._canonical_role_set()
-        return [r for r in ['Admin', 'Manager', 'Employee', 'Consignee'] if r in present]
+        return [r for r in ['Admin', 'Manager', 'Employee', 'Consignee', 'Customer'] if r in present]
 
 
 class EmployeeProfile(models.Model):
@@ -208,3 +217,30 @@ class CustomerProfile(models.Model):
         else:
             num = 1
         return f'CUS-{num:03d}'
+
+
+def _magic_link_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+class MagicLinkToken(models.Model):
+    """Single-use customer magic-link sign-in token (never echoed in API responses)."""
+
+    email = models.EmailField(db_index=True)
+    token = models.CharField(max_length=64, unique=True, default=_magic_link_token, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    request_ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.email} ({self.token[:8]}…)'
+
+    @property
+    def is_usable(self) -> bool:
+        if self.used_at is not None:
+            return False
+        return self.expires_at > timezone.now()

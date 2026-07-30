@@ -752,6 +752,55 @@ def catalog_ask(request, slug):
 
 
 @api_view(['GET'])
+@perm_classes([IsAuthenticated])
+def my_holds(request):
+    """Customer: reservations for the signed-in email only."""
+    from apps.accounts.permissions import IsCustomer
+
+    if not IsCustomer().has_permission(request, None):
+        return Response({'detail': 'Customer accounts only.'}, status=403)
+    email = (request.user.email or '').strip()
+    qs = (
+        Reservation.objects.filter(email__iexact=email)
+        .select_related('listing')
+        .order_by('-created_at')[:100]
+    )
+    return Response(ReservationPublicSerializer(qs, many=True).data)
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated])
+def my_conversations(request):
+    """Customer: conversations claimed to this user or matching email."""
+    from apps.accounts.permissions import IsCustomer
+
+    if not IsCustomer().has_permission(request, None):
+        return Response({'detail': 'Customer accounts only.'}, status=403)
+    email = (request.user.email or '').strip()
+    qs = (
+        Conversation.objects.filter(Q(customer=request.user) | Q(guest_email__iexact=email))
+        .select_related('listing', 'reservation')
+        .prefetch_related('messages')
+        .order_by('-last_message_at', '-created_at')[:100]
+    )
+    # PII-minimal public-ish shape (own threads only)
+    return Response([
+        {
+            'public_token': c.public_token,
+            'state': c.state,
+            'listing_title': c.listing.title if c.listing_id else None,
+            'reservation_status_token': (
+                c.reservation.status_token if c.reservation_id else None
+            ),
+            'customer_unread': c.customer_unread,
+            'last_message_at': c.last_message_at,
+            'messages': MessagePublicSerializer(c.messages.all(), many=True).data,
+        }
+        for c in qs
+    ])
+
+
+@api_view(['GET'])
 @perm_classes([IsAuthenticated, IsManagerOrAdmin])
 def work_queue(request):
     from apps.inventory.models import Item

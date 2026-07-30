@@ -32,7 +32,7 @@ class Command(BaseCommand):
 
     def _create_groups(self):
         self.stdout.write(self.style.MIGRATE_HEADING('Creating groups...'))
-        for name in ['Admin', 'Manager', 'Employee', 'Consignee']:
+        for name in ['Admin', 'Manager', 'Employee', 'Consignee', 'Customer']:
             group, created = Group.objects.get_or_create(name=name)
             status = 'Created' if created else 'Already exists'
             self.stdout.write(f'  {status}: Group "{name}"')

@@ -18,6 +18,8 @@ from .views import (
     request_hold,
     sales_log,
     thread_post_message,
+    my_conversations,
+    my_holds,
     work_queue,
 )
 
@@ -39,6 +41,8 @@ urlpatterns = [
     path('holds/', request_hold, name='webstore-request-hold'),
     path('holds/<str:token>/', hold_status, name='webstore-hold-status'),
     path('threads/<str:token>/messages/', thread_post_message, name='webstore-thread-message'),
+    path('my/holds/', my_holds, name='webstore-my-holds'),
+    path('my/conversations/', my_conversations, name='webstore-my-conversations'),
     path('work-queue/', work_queue, name='webstore-work-queue'),
     path('sales-log/', sales_log, name='webstore-sales-log'),
     path('', include(router.urls)),

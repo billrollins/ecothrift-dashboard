@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: D2
+- Last completed: E1
 - Half-done: —
-- Check first: E1 customer accounts backend
+- Check first: E2 customer accounts frontend
 
 ---
 
@@ -151,5 +151,15 @@ Reviewer tomorrow: Opus
 - **Files added:** `email_setup.md`, `check_email_config` management command
 - **Decisions:** DNS lookup timed out overnight — Bill must paste current SPF before editing; SPF append warning emphasized
 - **Commands:** `check_email_config` and `--to test@example.com` → OK (console backend)
+- **Known issues:** none
+- **Questions for Opus:** none
+
+### E1 — Customer accounts backend — DONE — 2026-07-30T19:25:00-05:00
+
+- **Status:** DONE
+- **Files added:** MagicLinkToken model+migration, `services/magic_link.py`, `test_magic_link.py`, my/holds + my/conversations
+- **Files changed:** User role map (+Customer lowest), IsCustomer, auth magic-link endpoints, setup_initial_data Customer group
+- **Decisions:** Token never in response when DEBUG=False; staff emails rejected on consume; accounts kill-switch setting
+- **Commands:** `test apps.accounts.tests.test_magic_link` → **9 OK**
 - **Known issues:** none
 - **Questions for Opus:** none

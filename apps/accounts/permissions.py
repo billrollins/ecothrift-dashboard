@@ -61,6 +61,16 @@ class IsStaff(BasePermission):
         )
 
 
+class IsCustomer(BasePermission):
+    """Allow access only to Customer role users (online sales accounts)."""
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == 'Customer'
+        )
+
+
 class IsSuperAdmin(BasePermission):
     """Allow access only to Django superusers (the "Super Admin").
 
