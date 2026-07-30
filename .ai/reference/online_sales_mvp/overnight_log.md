@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: D1
+- Last completed: D2
 - Half-done: —
-- Check first: D2 email readiness
+- Check first: E1 customer accounts backend
 
 ---
 
@@ -142,5 +142,14 @@ Reviewer tomorrow: Opus
 - **Files changed:** `emails.py` (sign-in / hold confirmed / you have a reply), settings ONLINE_SALES_EMAIL_*, confirm_reservation + staff reply wiring
 - **Decisions:** From `Eco-Thrift <retail@ecothrift.us>`; fail-soft; console backend unchanged
 - **Commands:** `test apps.webstore.tests.test_emails` → **5 OK**
+- **Known issues:** none
+- **Questions for Opus:** none
+
+### D2 — Email readiness — DONE — 2026-07-30T19:10:00-05:00
+
+- **Status:** DONE
+- **Files added:** `email_setup.md`, `check_email_config` management command
+- **Decisions:** DNS lookup timed out overnight — Bill must paste current SPF before editing; SPF append warning emphasized
+- **Commands:** `check_email_config` and `--to test@example.com` → OK (console backend)
 - **Known issues:** none
 - **Questions for Opus:** none
