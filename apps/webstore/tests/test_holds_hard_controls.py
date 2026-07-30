@@ -145,6 +145,24 @@ class PolicyRejectTests(TestCase):
         self.assertEqual(r.status_code, 410)
         self.assertEqual(r.json().get('code'), 'HOLDS_DISABLED')
 
+    def test_catalog_disabled_when_online_sales_parked(self):
+        r = self.client.get('/api/webstore/catalog/')
+        self.assertEqual(r.status_code, 410)
+        self.assertEqual(r.json().get('code'), 'ONLINE_SALES_DISABLED')
+
+    def test_config_reports_flag(self):
+        r = self.client.get('/api/webstore/config/')
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.json().get('online_sales_enabled'))
+
+    @override_settings(ONLINE_SALES_ENABLED=True)
+    def test_config_and_catalog_when_enabled(self):
+        r = self.client.get('/api/webstore/config/')
+        self.assertTrue(r.json().get('online_sales_enabled'))
+        cat = self.client.get('/api/webstore/catalog/')
+        self.assertEqual(cat.status_code, 200)
+        self.assertGreaterEqual(cat.json().get('count', 0), 1)
+
     @override_settings(ONLINE_SALES_ENABLED=True)
     def test_ship_rejected_on_hold(self):
         r = self.client.post(

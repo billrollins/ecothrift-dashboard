@@ -11,6 +11,7 @@ from .views import (
     order_status,
     public_catalog,
     public_categories,
+    public_config,
     public_listing_detail,
     request_hold,
     sales_log,
@@ -23,6 +24,7 @@ router.register(r'orders', OrderViewSet, basename='weborder')
 router.register(r'reservations', ReservationViewSet, basename='webreservation')
 
 urlpatterns = [
+    path('config/', public_config, name='webstore-public-config'),
     path('catalog/', public_catalog, name='webstore-public-catalog'),
     path('catalog/categories/', public_categories, name='webstore-public-categories'),
     path('catalog/<slug:slug>/', public_listing_detail, name='webstore-public-detail'),

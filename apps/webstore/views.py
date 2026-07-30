@@ -297,9 +297,38 @@ class ReservationViewSet(
         return Response(ReservationStaffSerializer(reservation).data)
 
 
+def _public_surface_disabled_response():
+    return Response(
+        {
+            'detail': 'Online listings and holds are not available yet.',
+            'code': 'ONLINE_SALES_DISABLED',
+        },
+        status=410,
+    )
+
+
+@api_view(['GET'])
+@perm_classes([AllowAny])
+def public_config(request):
+    """Kill-switch + feature flags for public/staff SPAs."""
+    from apps.webstore.services.feature import online_sales_enabled
+    from django.conf import settings as dj_settings
+
+    return Response({
+        'online_sales_enabled': online_sales_enabled(),
+        'inquiries_enabled': bool(getattr(dj_settings, 'ONLINE_SALES_INQUIRIES_ENABLED', True)),
+        'accounts_enabled': bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)),
+    })
+
+
 @api_view(['GET'])
 @perm_classes([AllowAny])
 def public_catalog(request):
+    from apps.webstore.services.feature import online_sales_enabled
+
+    if not online_sales_enabled():
+        return _public_surface_disabled_response()
+
     qs = (
         WebListing.objects.filter(status='published')
         .select_related('category')
@@ -352,6 +381,11 @@ def public_catalog(request):
 @api_view(['GET'])
 @perm_classes([AllowAny])
 def public_listing_detail(request, slug):
+    from apps.webstore.services.feature import online_sales_enabled
+
+    if not online_sales_enabled():
+        return _public_surface_disabled_response()
+
     try:
         listing = (
             WebListing.objects.select_related('category')
@@ -366,6 +400,11 @@ def public_listing_detail(request, slug):
 @api_view(['GET'])
 @perm_classes([AllowAny])
 def public_categories(request):
+    from apps.webstore.services.feature import online_sales_enabled
+
+    if not online_sales_enabled():
+        return _public_surface_disabled_response()
+
     from apps.inventory.models import Category
     from apps.webstore.shop_categories import SHOP_CATEGORIES
 

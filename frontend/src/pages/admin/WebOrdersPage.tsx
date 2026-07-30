@@ -20,9 +20,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
-import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import {
-  useSetWebOrderStatus,
   useUpdateWebOrder,
   useWebOrder,
   useWebOrders,
@@ -76,7 +74,6 @@ export default function WebOrdersPage() {
   const [fulfillmentFilter, setFulfillmentFilter] = useState('');
 
   const [viewId, setViewId] = useState<number | null>(null);
-  const [cancelTarget, setCancelTarget] = useState<WebOrder | null>(null);
 
   const [paymentStatus, setPaymentStatus] = useState('unpaid');
   const [paymentReference, setPaymentReference] = useState('');
@@ -92,7 +89,6 @@ export default function WebOrdersPage() {
   const orderQuery = useWebOrder(viewId);
   const order = orderQuery.data ?? null;
 
-  const setStatus = useSetWebOrderStatus();
   const updateOrder = useUpdateWebOrder();
 
   // Sync the editable payment fields whenever the viewed order loads/changes.
@@ -105,26 +101,6 @@ export default function WebOrdersPage() {
   }, [order?.id, order?.payment_status, order?.payment_reference, order?.staff_note]);
 
   const orders = data?.results ?? [];
-
-  const changeStatus = async (id: number, status: string) => {
-    try {
-      await setStatus.mutateAsync({ id, status });
-      enqueueSnackbar(`Order marked ${status}`, { variant: 'success' });
-    } catch {
-      enqueueSnackbar('Failed to update status', { variant: 'error' });
-    }
-  };
-
-  const handleCancel = async () => {
-    if (!cancelTarget) return;
-    try {
-      await setStatus.mutateAsync({ id: cancelTarget.id, status: 'cancelled' });
-      enqueueSnackbar('Order cancelled — stock restored', { variant: 'success' });
-      setCancelTarget(null);
-    } catch {
-      enqueueSnackbar('Failed to cancel order', { variant: 'error' });
-    }
-  };
 
   const handleSavePayment = async () => {
     if (!order) return;
@@ -386,45 +362,11 @@ export default function WebOrdersPage() {
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
                 Order status
               </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {order.status === 'pending' && (
-                  <Button
-                    size="small"
-                    variant="contained"
-                    disabled={setStatus.isPending}
-                    onClick={() => changeStatus(order.id, 'paid')}
-                  >
-                    Mark paid
-                  </Button>
-                )}
-                {(order.status === 'pending' || order.status === 'paid') && (
-                  <Button
-                    size="small"
-                    variant="contained"
-                    color="success"
-                    disabled={setStatus.isPending}
-                    onClick={() => changeStatus(order.id, 'fulfilled')}
-                  >
-                    Mark fulfilled
-                  </Button>
-                )}
-                {order.status !== 'cancelled' && (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="error"
-                    disabled={setStatus.isPending}
-                    onClick={() => setCancelTarget(order)}
-                  >
-                    Cancel order
-                  </Button>
-                )}
-                {order.status === 'fulfilled' && (
-                  <Typography variant="body2" color="success.main" sx={{ alignSelf: 'center' }}>
-                    Completed
-                  </Typography>
-                )}
-              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Legacy checkout status changes are retired. Use{' '}
+                <strong>Online Sales → Inbox</strong> for holds and pickup.
+                Current status: {order.status_display}.
+              </Typography>
 
               <Divider sx={{ my: 2 }} />
 
@@ -485,17 +427,6 @@ export default function WebOrdersPage() {
           </>
         )}
       </Dialog>
-
-      <ConfirmDialog
-        open={cancelTarget != null}
-        title="Cancel order"
-        message={`Cancel ${cancelTarget?.order_number ?? ''}? Reserved stock for its items will be returned to the catalog.`}
-        confirmLabel="Cancel order"
-        confirmColor="error"
-        onConfirm={handleCancel}
-        onCancel={() => setCancelTarget(null)}
-        loading={setStatus.isPending}
-      />
     </Box>
   );
 }

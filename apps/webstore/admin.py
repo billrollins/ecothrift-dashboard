@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Order, OrderLine, WebListing, WebListingImage
+from .models import Order, OrderLine, Reservation, WebListing, WebListingImage
 
 
 class WebListingImageInline(admin.TabularInline):
@@ -14,13 +14,28 @@ class WebListingImageInline(admin.TabularInline):
 class WebListingAdmin(admin.ModelAdmin):
     list_display = [
         'title', 'status', 'category', 'price', 'compare_at_price',
-        'stock', 'featured', 'updated_at',
+        'on_hand', 'reserved', 'stock', 'featured', 'updated_at',
     ]
     list_filter = ['status', 'featured', 'condition', 'category']
     search_fields = ['title', 'sku', 'description']
     raw_id_fields = ['item', 'category', 'created_by']
-    readonly_fields = ['slug', 'created_at', 'updated_at', 'published_at']
+    readonly_fields = ['slug', 'created_at', 'updated_at', 'published_at', 'stock']
     inlines = [WebListingImageInline]
+
+
+@admin.register(Reservation)
+class ReservationAdmin(admin.ModelAdmin):
+    list_display = [
+        'id', 'listing', 'customer_name', 'email', 'status', 'quantity',
+        'expires_at', 'created_at',
+    ]
+    list_filter = ['status']
+    search_fields = ['customer_name', 'email', 'phone', 'status_token', 'listing__title']
+    raw_id_fields = ['listing', 'item', 'staged_by', 'confirmed_by', 'completed_by', 'pos_cart']
+    readonly_fields = [
+        'status_token', 'idempotency_key', 'unit_price_snapshot', 'cost_snapshot',
+        'created_at', 'updated_at', 'staged_at', 'confirmed_at', 'completed_at',
+    ]
 
 
 class OrderLineInline(admin.TabularInline):

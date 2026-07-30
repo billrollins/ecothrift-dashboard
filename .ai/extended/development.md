@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-29 (scripts/dev: dashboard / mobile / website) -->
+<!-- Last updated: 2026-07-30 (Online Sales expire_online_holds scheduler) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -63,6 +63,14 @@ npm run dev
 | Hourly | `python manage.py scheduled_sweep` |
 
 `compute_daily_category_stats` refreshes SQL-backed `CategoryStats` (including `need_score_1to99`), invalidates the category-need cache, and (unless `--skip-recompute-open`) runs a full valuation pass for non-archived open/closing auctions with a future `end_time`. `scheduled_sweep` runs discovery then `recompute_active_auctions_lightweight`. **Removed:** the legacy nightly **`recompute_cost_pipeline`** — item costs use **`PurchaseOrder.est_shrink`** and **`recompute_all_item_costs`** for backfills only.
+
+## Heroku Scheduler (Online Sales)
+
+| Schedule | Command |
+|----------|---------|
+| Hourly (recommended) | `python manage.py expire_online_holds` |
+
+`expire_online_holds` releases reserved quantity for confirmed/ready holds past `expires_at` (wraps `expire_due_reservations`). Use `--dry-run` to count only. Seed hours once with `python manage.py seed_online_sales_hours` (AppSetting key `online_sales.hours`).
 
 **Inventory / Item Processor:** optional safety net for `ProcessingRow.search_string` (bulk/SQL paths that bypass ORM `save()`): e.g. weekly `python manage.py rebuild_processing_search_string` (defaults to excluding `complete`/`cancelled` POs; add `--dry-run` to count rows only).
 

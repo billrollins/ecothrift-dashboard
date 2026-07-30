@@ -38,12 +38,14 @@ PUBLIC_SITE_CANONICAL_HOST = config('PUBLIC_SITE_CANONICAL_HOST', default='ecoth
 # with a no-op "manual" provider (placed → staff arrange payment) until a real
 # processor (likely Helcim) is wired — then just set this to its key + add creds.
 WEBSTORE_PAYMENT_PROVIDER = config('WEBSTORE_PAYMENT_PROVIDER', default='manual')
-WEBSTORE_SALES_TAX_RATE = config('WEBSTORE_SALES_TAX_RATE', default='0.07')  # Omaha, NE ≈ 7%
-WEBSTORE_SHIP_FLAT = config('WEBSTORE_SHIP_FLAT', default='9.95')
 # Optional staff address that receives a copy of each new web order.
 WEBSTORE_ORDER_NOTIFY_EMAIL = config('WEBSTORE_ORDER_NOTIFY_EMAIL', default='')
-# Online Sales holds / Listing Studio — off until the parked initiative resumes.
+# Online Sales public surface (catalog + holds). Staff APIs stay available when false.
 ONLINE_SALES_ENABLED = config('ONLINE_SALES_ENABLED', default=False, cast=bool)
+# Guest "Ask about this item" without a hold (G2 default — reversible by config).
+ONLINE_SALES_INQUIRIES_ENABLED = config('ONLINE_SALES_INQUIRIES_ENABLED', default=True, cast=bool)
+# Magic-link customer accounts (G8 guest-first; accounts optional — reversible).
+ONLINE_SALES_ACCOUNTS_ENABLED = config('ONLINE_SALES_ACCOUNTS_ENABLED', default=True, cast=bool)
 
 # Email — console backend by default so local dev prints messages (and order
 # confirmations never block checkout). Set EMAIL_BACKEND + SMTP/provider creds to send.

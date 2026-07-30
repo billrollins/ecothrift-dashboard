@@ -18,7 +18,6 @@ import {
   publishWebListing,
   reservationAction,
   restoreWebListing,
-  setWebOrderStatus,
   updateWebListing,
   updateWebOrder,
   uploadWebListingImage,
@@ -162,22 +161,6 @@ export function useUpdateWebOrder() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['webOrders'] });
       queryClient.invalidateQueries({ queryKey: ['webOrders', variables.id] });
-    },
-  });
-}
-
-export function useSetWebOrderStatus() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: string }) => {
-      const { data } = await setWebOrderStatus(id, status);
-      return data;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['webOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['webOrders', variables.id] });
-      // A cancellation restocks listings.
-      queryClient.invalidateQueries({ queryKey: ['webListings'] });
     },
   });
 }

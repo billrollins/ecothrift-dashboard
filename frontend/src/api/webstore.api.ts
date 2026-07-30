@@ -313,7 +313,3 @@ export function updateWebOrder(
 ): Promise<{ data: WebOrder }> {
   return api.patch(`/webstore/orders/${id}/`, data);
 }
-
-export function setWebOrderStatus(id: number, status: string): Promise<{ data: WebOrder }> {
-  return api.post(`/webstore/orders/${id}/set-status/`, { status });
-}

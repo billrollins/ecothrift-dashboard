@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: A3
+- Last completed: A4
 - Half-done: —
-- Check first: audit_*.md under `.ai/reference/online_sales_mvp/`
+- Check first: Stage B (staff nav + public un-park)
 
 ---
 
@@ -67,3 +67,13 @@ Reviewer tomorrow: Opus
 - **Commands:** read-only greps/reads — no tests
 - **Known issues:** documented in FINDINGS above
 - **Questions for Opus:** Prefer 410 vs empty catalog when flag off?
+
+### A4 — Backend hygiene + kill switch — DONE — 2026-07-30T19:10:00-05:00
+
+- **Status:** DONE
+- **Files added:** `expire_online_holds.py`, `seed_online_sales_hours.py`
+- **Files changed:** `views.py` (config + catalog/detail/categories 410), `urls.py`, `admin.py` (Reservation), `settings.py` (drop dead WEBSTORE_ tax/ship; add INQUIRIES/ACCOUNTS flags), `development.md`, FE remove `setWebOrderStatus`, WebOrdersPage legacy status UI retired
+- **Decisions:** Catalog gated with 410 `ONLINE_SALES_DISABLED` (same family as holds). Hold status by token still open. Settings flags for inquiries/accounts default True for later phases.
+- **Commands:** `test apps.webstore.tests.test_holds_hard_controls apps.accounts.tests.test_auth_hardening` → **23 OK**
+- **Known issues:** `listing_image` still ungated when flag off (noted in kill-switch audit)
+- **Questions for Opus:** none
