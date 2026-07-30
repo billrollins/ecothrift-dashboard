@@ -20,7 +20,7 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: *(none yet — A1 in progress)*
+- Last completed: A2
 - Half-done: —
 - Check first: this log + `git log --oneline online-sales-mvp`
 
@@ -28,7 +28,8 @@ Reviewer tomorrow: Opus
 
 ## FINDINGS
 
-*(every real bug or surprise, fixed or not)*
+- `ScopedRateThrottle` ignores class-level `scope` and requires `view.throttle_scope`; for `@api_view` function views we used a `SimpleRateThrottle` subclass with `get_cache_key` instead.
+- Forgot-password token disclosure was a live staff account-takeover path (confirmed, now fixed).
 
 ---
 
@@ -43,3 +44,14 @@ Reviewer tomorrow: Opus
 - **Commands:** `git checkout -b online-sales-mvp`
 - **Known issues:** none
 - **Questions for Opus:** none
+
+### A2 — Auth hardening — DONE — 2026-07-30T18:45:00-05:00
+
+- **Status:** DONE
+- **Files changed:** `apps/accounts/views.py`, `ecothrift/settings.py`
+- **Files added:** `apps/accounts/tests/__init__.py`, `apps/accounts/tests/test_auth_hardening.py`
+- **Decisions:** Email reset token via `send_mail` (fail_silently); echo `reset_token` only when `DEBUG`; refresh cookie `secure=not settings.DEBUG`; throttle scopes `auth_login` 30/min, `auth_forgot_password` 10/hour using `_FixedScopeThrottle` (not ScopedRateThrottle).
+- **Commands:** `python manage.py test apps.accounts.tests.test_auth_hardening` → **8 OK**
+- **Known issues:** none
+- **Questions for Opus:** none
+- **Verification note:** Running focused suite after each item; full webstore+accounts+pos+builds at stage boundaries / H5 (full migrate+test is ~35s each).

@@ -1,8 +1,11 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
+from django.core.mail import send_mail
 from rest_framework import serializers, viewsets, status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -25,6 +28,25 @@ REFRESH_COOKIE_NAME = 'refresh_token'
 REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60  # 7 days
 
 
+class _FixedScopeThrottle(SimpleRateThrottle):
+    """SimpleRateThrottle with a class-level scope (ScopedRateThrottle needs view.throttle_scope)."""
+
+    def get_cache_key(self, request, view):
+        if request.user and request.user.is_authenticated:
+            ident = request.user.pk
+        else:
+            ident = self.get_ident(request)
+        return self.cache_format % {'scope': self.scope, 'ident': ident}
+
+
+class AuthLoginThrottle(_FixedScopeThrottle):
+    scope = 'auth_login'
+
+
+class AuthForgotPasswordThrottle(_FixedScopeThrottle):
+    scope = 'auth_forgot_password'
+
+
 def _set_refresh_cookie(response: Response, refresh_token: str) -> Response:
     """Set the refresh token as an httpOnly cookie."""
     response.set_cookie(
@@ -32,7 +54,7 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> Response:
         refresh_token,
         max_age=REFRESH_COOKIE_MAX_AGE,
         httponly=True,
-        secure=False,          # Set True in production via HTTPS
+        secure=not settings.DEBUG,
         samesite='Lax',
         path='/api/auth/',     # Only sent to auth endpoints
     )
@@ -51,6 +73,7 @@ def _clear_refresh_cookie(response: Response) -> Response:
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AuthLoginThrottle])
 def login_view(request):
     """Authenticate user and return JWT access token + user data.
 
@@ -182,28 +205,46 @@ def admin_reset_password_view(request, user_id):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AuthForgotPasswordThrottle])
 def forgot_password_view(request):
-    """Request a password reset token. Stubbed: returns the token in response."""
+    """Request a password reset token. Token is emailed; never returned unless DEBUG."""
     import secrets
     email = request.data.get('email')
     if not email:
         return Response({'detail': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Always the same public message so we do not reveal whether the email exists.
+    public_detail = 'If this email is registered, a reset link will be sent.'
+
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
-        # Don't reveal if user exists
-        return Response({'detail': 'If this email is registered, a reset link will be sent.'})
+        return Response({'detail': public_detail})
 
-    # Generate a reset token (stubbed — no actual email sent)
     token = secrets.token_urlsafe(32)
-    # Store token on user (using a simple cache approach for now)
     from django.core.cache import cache
     cache.set(f'password_reset_{token}', user.id, timeout=3600)  # 1 hour
 
-    return Response({
-        'detail': 'If this email is registered, a reset link will be sent.',
-        'reset_token': token,  # Stubbed: in production, this would be emailed
-    })
+    dash_host = getattr(settings, 'STAFF_DASHBOARD_HOST', 'dash.ecothrift.us')
+    body = (
+        'You requested a password reset for your Eco-Thrift account.\n\n'
+        f'Open https://{dash_host}/forgot-password and paste this token:\n\n'
+        f'{token}\n\n'
+        'This token expires in one hour. If you did not request a reset, ignore this email.\n'
+    )
+    send_mail(
+        subject='Eco-Thrift password reset',
+        message=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=True,
+    )
+
+    payload = {'detail': public_detail}
+    # Dev convenience only — never echo the token when DEBUG is off.
+    if settings.DEBUG:
+        payload['reset_token'] = token
+    return Response(payload)
 
 
 @api_view(['POST'])

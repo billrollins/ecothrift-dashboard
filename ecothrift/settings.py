@@ -198,6 +198,8 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'labels_propose_structure': '30/hour',
         'labels_generate_background': '10/hour',
+        'auth_login': '30/minute',
+        'auth_forgot_password': '10/hour',
     },
 }
 
