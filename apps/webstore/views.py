@@ -350,11 +350,16 @@ class ConversationViewSet(
 
     @action(detail=True, methods=['post'], url_path='reply')
     def reply(self, request, pk=None):
+        from apps.webstore.emails import send_you_have_a_reply
         from apps.webstore.services.conversations import post_message
         body = (request.data or {}).get('body') or ''
         conv = self.get_object()
         post_message(conv, author_kind='staff', body=body, author_user=request.user)
-        conv = self.get_queryset().get(pk=conv.pk)
+        conv = self.get_queryset().select_related('listing', 'reservation').get(pk=conv.pk)
+        try:
+            send_you_have_a_reply(conv)
+        except Exception:
+            pass
         return Response(ConversationStaffSerializer(conv).data)
 
     @action(detail=True, methods=['post'], url_path='assign')

@@ -47,10 +47,15 @@ ONLINE_SALES_INQUIRIES_ENABLED = config('ONLINE_SALES_INQUIRIES_ENABLED', defaul
 # Magic-link customer accounts (G8 guest-first; accounts optional — reversible).
 ONLINE_SALES_ACCOUNTS_ENABLED = config('ONLINE_SALES_ACCOUNTS_ENABLED', default=True, cast=bool)
 
-# Email — console backend by default so local dev prints messages (and order
-# confirmations never block checkout). Set EMAIL_BACKEND + SMTP/provider creds to send.
+# Email — console backend by default so local dev prints messages.
+# Set EMAIL_BACKEND + SMTP/provider creds to send for real.
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Eco-Thrift <sales.ecothrift@outlook.com>')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Eco-Thrift <retail@ecothrift.us>')
+# Online Sales transactional From / Reply-To (G1 — retail@ mailbox).
+ONLINE_SALES_EMAIL_FROM = config('ONLINE_SALES_EMAIL_FROM', default='retail@ecothrift.us')
+ONLINE_SALES_EMAIL_DISPLAY_NAME = config('ONLINE_SALES_EMAIL_DISPLAY_NAME', default='Eco-Thrift')
+ONLINE_SALES_EMAIL_REPLY_TO = config('ONLINE_SALES_EMAIL_REPLY_TO', default='retail@ecothrift.us')
+ONLINE_SALES_PUBLIC_BASE_URL = config('ONLINE_SALES_PUBLIC_BASE_URL', default='https://ecothrift.us')
 
 # ── Application definition ────────────────────────────────────────────────────
 INSTALLED_APPS = [

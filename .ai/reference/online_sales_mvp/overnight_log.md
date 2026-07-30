@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: C2
+- Last completed: D1
 - Half-done: —
-- Check first: D1 system emails
+- Check first: D2 email readiness
 
 ---
 
@@ -134,4 +134,13 @@ Reviewer tomorrow: Opus
 - **Decisions:** Messages filters needs_reply / has_hold / resolved; thread tokens remembered in `ecothrift.my_requests.v1`
 - **Commands:** vitest online-sales+policy → **20 OK**; public build + staff tsc OK
 - **Known issues:** no dedicated My requests page yet (E2)
+- **Questions for Opus:** none
+
+### D1 — System emails — DONE — 2026-07-30T19:05:00-05:00
+
+- **Status:** DONE
+- **Files changed:** `emails.py` (sign-in / hold confirmed / you have a reply), settings ONLINE_SALES_EMAIL_*, confirm_reservation + staff reply wiring
+- **Decisions:** From `Eco-Thrift <retail@ecothrift.us>`; fail-soft; console backend unchanged
+- **Commands:** `test apps.webstore.tests.test_emails` → **5 OK**
+- **Known issues:** none
 - **Questions for Opus:** none

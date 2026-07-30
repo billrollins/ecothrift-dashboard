@@ -111,6 +111,13 @@ def confirm_reservation(reservation: Reservation, user=None) -> Reservation:
     ])
     from apps.webstore.services.conversations import notify_reservation_status
     notify_reservation_status(locked, 'confirmed')
+    try:
+        from apps.webstore.emails import send_hold_confirmed
+        # Refresh listing for email title; never let mail break confirm.
+        locked = Reservation.objects.select_related('listing').get(pk=locked.pk)
+        send_hold_confirmed(locked)
+    except Exception:
+        pass
     return locked
 
 
