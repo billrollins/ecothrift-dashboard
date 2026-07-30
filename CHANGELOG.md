@@ -14,7 +14,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 User-facing theme: **Orders summary strip + dashboard polish** — full table metrics on the PO cards, uniform department grids, QA wizard crash fix.
 
-Initiative: [`retail_qa_submission_reliability`](.ai/initiatives/retail_qa_submission_reliability.md).
+Initiative: [`retail_qa_submission_reliability`](.ai/initiatives/_archived/_completed/retail_qa_submission_reliability.md).
 
 ### Added
 
@@ -34,7 +34,7 @@ Initiative: [`retail_qa_submission_reliability`](.ai/initiatives/retail_qa_submi
 
 User-facing theme: **Retail QA reliability + dashboard deep links** — stranded audits recovered, drafts resumable, 8-week department grids, mobile dashboard overhaul.
 
-Initiative: [`retail_qa_submission_reliability`](.ai/initiatives/retail_qa_submission_reliability.md).
+Initiative: [`retail_qa_submission_reliability`](.ai/initiatives/_archived/_completed/retail_qa_submission_reliability.md).
 
 ### Added
 
