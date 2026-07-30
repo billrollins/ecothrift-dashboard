@@ -2,12 +2,13 @@ import type { NavigateFunction } from 'react-router-dom';
 import type { UserRole } from '../types/accounts.types';
 import type { NavItemDef } from './navTypes';
 
-/** Rank for nav access: Admin 3, Manager 2, Employee 1, Consignee 0. */
+/** Rank for nav access: Admin 3 … Consignee 0; Customer below staff portal. */
 export const ROLE_RANK: Record<UserRole, number> = {
   Admin: 3,
   Manager: 2,
   Employee: 1,
   Consignee: 0,
+  Customer: -1,
 };
 
 export function effectiveRoleRank(user: { role: UserRole | null; roles?: UserRole[] } | null): number {

@@ -14,6 +14,8 @@ const ShopPage = lazy(() => import('./pages/ShopPage'))
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'))
 const HoldStatusPage = lazy(() => import('./pages/HoldStatusPage'))
+const SignInPage = lazy(() => import('./pages/SignInPage'))
+const AccountPage = lazy(() => import('./pages/AccountPage'))
 
 function RouteFallback() {
   return (
@@ -72,6 +74,22 @@ export default function App() {
           element={
             <Suspense fallback={<RouteFallback />}>
               <HoldStatusPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="account/sign-in"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <SignInPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="account"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AccountPage />
             </Suspense>
           }
         />

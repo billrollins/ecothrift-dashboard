@@ -2,6 +2,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import { AuthProvider } from './auth'
 import { CartProvider } from './cart'
 import { OnlineSalesConfigProvider } from './onlineSalesConfig'
 import './styles.css'
@@ -21,9 +22,11 @@ createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <OnlineSalesConfigProvider>
-        <CartProvider>
-          <App />
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <App />
+          </CartProvider>
+        </AuthProvider>
       </OnlineSalesConfigProvider>
     </BrowserRouter>
   </React.StrictMode>,

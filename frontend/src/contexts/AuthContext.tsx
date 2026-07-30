@@ -92,10 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (role: User['role'] | null): boolean => {
       if (!user?.role || role == null) return false;
       const ROLE_HIERARCHY: Record<string, number> = {
-        Admin: 3,
-        Manager: 2,
-        Employee: 1,
-        Consignee: 0,
+        Admin: 4,
+        Manager: 3,
+        Employee: 2,
+        Consignee: 1,
+        Customer: 0,
       };
       const userLevel = ROLE_HIERARCHY[user.role] ?? -1;
       const requiredLevel = ROLE_HIERARCHY[String(role)] ?? -1;

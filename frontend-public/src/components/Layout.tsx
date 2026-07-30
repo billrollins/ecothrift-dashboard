@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import logoFooterImg from '../assets/logo-full-white-halfsize.png'
 import logoImg from '../assets/logo-full-halfsize.png'
+import { useAuth } from '../auth'
 import { useCart } from '../cart'
 import { retailMapsDirectionsUrl, STORE } from '../data/content'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
@@ -11,7 +12,9 @@ const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'on' : und
 export default function Layout() {
   const { config, loading } = useOnlineSalesConfig()
   const { count, setOpen } = useCart()
+  const { user } = useAuth()
   const shopOn = !loading && config.online_sales_enabled
+  const accountsOn = !loading && config.accounts_enabled
 
   return (
     <>
@@ -50,6 +53,11 @@ export default function Layout() {
           <div className="tools">
             {shopOn ? (
               <>
+                {accountsOn && (
+                  <Link className="btn btn--ghost" to={user ? '/account' : '/account/sign-in'}>
+                    {user ? 'Account' : 'Sign in'}
+                  </Link>
+                )}
                 <button
                   type="button"
                   className="btn btn--ghost"

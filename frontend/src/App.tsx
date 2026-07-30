@@ -91,6 +91,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function StaffRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (user?.role === 'Consignee') return <Navigate to="/consignee" replace />;
+  if (user?.role === 'Customer') return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
