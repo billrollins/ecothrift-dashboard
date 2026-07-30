@@ -244,6 +244,73 @@ export function getSalesLog(): Promise<{ data: { results: Reservation[] } }> {
   return api.get('/webstore/sales-log/');
 }
 
+export interface WebMessage {
+  id: number;
+  author_kind: 'customer' | 'staff' | 'system';
+  body: string;
+  created_at: string;
+}
+
+export interface Conversation {
+  id: number;
+  public_token: string;
+  state: 'needs_reply' | 'waiting_on_customer' | 'resolved' | string;
+  listing: number | null;
+  listing_title: string | null;
+  reservation_id: number | null;
+  guest_name: string;
+  guest_email: string;
+  guest_phone: string;
+  customer: number | null;
+  staff_owner: number | null;
+  staff_owner_email: string | null;
+  staff_unread: number;
+  customer_unread: number;
+  last_message_at: string | null;
+  created_at: string;
+  updated_at: string;
+  messages: WebMessage[];
+}
+
+export interface ConversationParams {
+  search?: string;
+  state?: string;
+  has_hold?: string;
+  listing?: number;
+  ordering?: string;
+  page?: number;
+  [key: string]: unknown;
+}
+
+export function getConversations(
+  params?: ConversationParams,
+): Promise<{ data: PaginatedResponse<Conversation> }> {
+  return api.get('/webstore/conversations/', { params });
+}
+
+export function getConversation(id: number): Promise<{ data: Conversation }> {
+  return api.get(`/webstore/conversations/${id}/`);
+}
+
+export function replyConversation(
+  id: number,
+  body: string,
+): Promise<{ data: Conversation }> {
+  return api.post(`/webstore/conversations/${id}/reply/`, { body });
+}
+
+export function assignConversation(id: number): Promise<{ data: Conversation }> {
+  return api.post(`/webstore/conversations/${id}/assign/`);
+}
+
+export function resolveConversation(id: number): Promise<{ data: Conversation }> {
+  return api.post(`/webstore/conversations/${id}/resolve/`);
+}
+
+export function reopenConversation(id: number): Promise<{ data: Conversation }> {
+  return api.post(`/webstore/conversations/${id}/reopen/`);
+}
+
 // Legacy order types kept for any remaining references.
 export interface OrderLine {
   id: number;

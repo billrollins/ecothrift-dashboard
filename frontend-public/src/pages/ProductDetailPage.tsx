@@ -1,7 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { fetchListing, money, type CatalogDetail } from '../api'
+import {
+  askAboutListing,
+  fetchListing,
+  money,
+  rememberMyRequest,
+  type CatalogDetail,
+} from '../api'
 import { useCart } from '../cart'
+import { useOnlineSalesConfig } from '../onlineSalesConfig'
 import { SITE_URL, STORE } from '../data/content'
 import { useJsonLd, useSeo } from '../useSeo'
 import NotFoundPage from './NotFoundPage'
@@ -13,6 +20,12 @@ export default function ProductDetailPage() {
   const [notFound, setNotFound] = useState(false)
   const [activeImage, setActiveImage] = useState(0)
   const [qty, setQty] = useState(1)
+  const [askOpen, setAskOpen] = useState(false)
+  const [askForm, setAskForm] = useState({ name: '', email: '', phone: '', body: '' })
+  const [askSending, setAskSending] = useState(false)
+  const [askError, setAskError] = useState<string | null>(null)
+  const [askDone, setAskDone] = useState(false)
+  const { config } = useOnlineSalesConfig()
 
   const { add } = useCart()
 
@@ -194,9 +207,89 @@ export default function ProductDetailPage() {
             </div>
           ) : (
             <div className="addrow">
-              <a className="btn btn--ghost" href={`mailto:${STORE.email}`}>
-                Ask about similar finds
-              </a>
+              <span className="btn btn--ghost" style={{ pointerEvents: 'none' }}>
+                Reserved
+              </span>
+            </div>
+          )}
+
+          {config.inquiries_enabled && (
+            <div style={{ marginTop: 16 }}>
+              {!askOpen && !askDone && (
+                <button type="button" className="btn btn--ghost" onClick={() => setAskOpen(true)}>
+                  Ask about this item
+                </button>
+              )}
+              {askDone && (
+                    <div className="pickupnote">Thanks — we got your message. A staff member will reply soon.</div>
+              )}
+              {askOpen && !askDone && (
+                <form
+                  className="pickupnote"
+                  onSubmit={async (e: FormEvent) => {
+                    e.preventDefault()
+                    setAskSending(true)
+                    setAskError(null)
+                    try {
+                      const thread = await askAboutListing({
+                        slug: listing.slug,
+                        name: askForm.name,
+                        email: askForm.email,
+                        phone: askForm.phone,
+                        body: askForm.body,
+                      })
+                      rememberMyRequest({
+                        kind: 'thread',
+                        token: thread.public_token,
+                        title: listing.title,
+                      })
+                      setAskDone(true)
+                      setAskOpen(false)
+                    } catch (err) {
+                      setAskError(err instanceof Error ? err.message : 'Could not send')
+                    } finally {
+                      setAskSending(false)
+                    }
+                  }}
+                >
+                  <h3 style={{ marginTop: 0 }}>Ask about this item</h3>
+                  <label className="field">
+                    <span>Name *</span>
+                    <input
+                      required
+                      value={askForm.name}
+                      onChange={(e) => setAskForm((f) => ({ ...f, name: e.target.value }))}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Email *</span>
+                    <input
+                      type="email"
+                      required
+                      value={askForm.email}
+                      onChange={(e) => setAskForm((f) => ({ ...f, email: e.target.value }))}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Message *</span>
+                    <textarea
+                      rows={3}
+                      required
+                      value={askForm.body}
+                      onChange={(e) => setAskForm((f) => ({ ...f, body: e.target.value }))}
+                    />
+                  </label>
+                  {askError && <div className="formerror">{askError}</div>}
+                  <div className="hbtns" style={{ marginTop: 12 }}>
+                    <button className="btn btn--primary" type="submit" disabled={askSending}>
+                      {askSending ? 'Sending…' : 'Send message'}
+                    </button>
+                    <button type="button" className="btn btn--ghost" onClick={() => setAskOpen(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
 

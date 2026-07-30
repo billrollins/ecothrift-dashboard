@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  assignConversation,
   createWebListing,
   deleteWebListing,
   deleteWebListingImage,
   getCategoryOptions,
+  getConversation,
+  getConversations,
   getReservations,
   getSalesLog,
   getWebListing,
@@ -16,11 +19,15 @@ import {
   markFbPosted,
   pauseWebListing,
   publishWebListing,
+  reopenConversation,
+  replyConversation,
   reservationAction,
+  resolveConversation,
   restoreWebListing,
   updateWebListing,
   updateWebOrder,
   uploadWebListingImage,
+  type ConversationParams,
   type ReservationParams,
   type WebListingParams,
   type WebOrderParams,
@@ -214,6 +221,53 @@ export function useSalesLog() {
       return data.results;
     },
   });
+}
+
+export function useConversations(params?: ConversationParams) {
+  return useQuery({
+    queryKey: ['webConversations', params],
+    queryFn: async () => {
+      const { data } = await getConversations(params);
+      return data;
+    },
+  });
+}
+
+export function useConversation(id: number | null) {
+  return useQuery({
+    queryKey: ['webConversations', id],
+    queryFn: async () => {
+      const { data } = await getConversation(id!);
+      return data;
+    },
+    enabled: id != null,
+  });
+}
+
+export function useConversationActions() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['webConversations'] });
+  };
+  return {
+    reply: useMutation({
+      mutationFn: async ({ id, body }: { id: number; body: string }) =>
+        (await replyConversation(id, body)).data,
+      onSuccess: invalidate,
+    }),
+    assign: useMutation({
+      mutationFn: async (id: number) => (await assignConversation(id)).data,
+      onSuccess: invalidate,
+    }),
+    resolve: useMutation({
+      mutationFn: async (id: number) => (await resolveConversation(id)).data,
+      onSuccess: invalidate,
+    }),
+    reopen: useMutation({
+      mutationFn: async (id: number) => (await reopenConversation(id)).data,
+      onSuccess: invalidate,
+    }),
+  };
 }
 
 export function usePublishWebListing() {

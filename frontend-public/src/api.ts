@@ -122,6 +122,21 @@ export interface HoldInput {
   idempotency_key?: string
 }
 
+export interface ThreadMessage {
+  id: number
+  author_kind: 'customer' | 'staff' | 'system' | string
+  body: string
+  created_at: string
+}
+
+export interface PublicThread {
+  public_token: string
+  state: string
+  customer_unread: number
+  messages: ThreadMessage[]
+  listing_title?: string
+}
+
 export interface HoldSummary {
   status_token: string
   listing_title: string
@@ -131,6 +146,7 @@ export interface HoldSummary {
   expires_at: string | null
   created_at: string
   policy: string
+  thread?: PublicThread | null
 }
 
 export async function requestHold(input: HoldInput): Promise<HoldSummary | { holds: HoldSummary[]; count: number }> {
@@ -153,6 +169,76 @@ export async function requestHold(input: HoldInput): Promise<HoldSummary | { hol
 
 export function fetchHold(token: string): Promise<HoldSummary> {
   return getJSON<HoldSummary>(`${BASE}/holds/${encodeURIComponent(token)}/`)
+}
+
+export async function postThreadMessage(token: string, body: string): Promise<PublicThread> {
+  const res = await fetch(`${BASE}/threads/${encodeURIComponent(token)}/messages/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ body }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((data && data.detail) || `Could not send message (${res.status})`)
+  }
+  return data as PublicThread
+}
+
+export async function askAboutListing(input: {
+  slug: string
+  name: string
+  email: string
+  phone?: string
+  body: string
+}): Promise<PublicThread> {
+  const res = await fetch(`${BASE}/catalog/${encodeURIComponent(input.slug)}/ask/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      name: input.name,
+      email: input.email,
+      phone: input.phone || '',
+      body: input.body,
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((data && data.detail) || `Could not send inquiry (${res.status})`)
+  }
+  return data as PublicThread
+}
+
+const MY_REQUESTS_KEY = 'ecothrift.my_requests.v1'
+
+export type MyRequestEntry = {
+  kind: 'hold' | 'thread'
+  token: string
+  title: string
+  saved_at: string
+}
+
+export function loadMyRequests(): MyRequestEntry[] {
+  try {
+    const raw = localStorage.getItem(MY_REQUESTS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function rememberMyRequest(entry: Omit<MyRequestEntry, 'saved_at'>) {
+  try {
+    const prev = loadMyRequests().filter((e) => !(e.kind === entry.kind && e.token === entry.token))
+    const next: MyRequestEntry[] = [
+      { ...entry, saved_at: new Date().toISOString() },
+      ...prev,
+    ].slice(0, 20)
+    localStorage.setItem(MY_REQUESTS_KEY, JSON.stringify(next))
+  } catch {
+    /* ignore */
+  }
 }
 
 /** @deprecated Online checkout disabled — use requestHold. POLICY_COPY_OK */

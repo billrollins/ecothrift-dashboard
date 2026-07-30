@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: C1
+- Last completed: C2
 - Half-done: —
-- Check first: C2 Messages frontend
+- Check first: D1 system emails
 
 ---
 
@@ -125,4 +125,13 @@ Reviewer tomorrow: Opus
 - **Decisions:** Hold auto-opens thread; public thread on hold status (PII-minimal); `POST threads/<token>/messages/`; `POST catalog/<slug>/ask/` behind INQUIRIES flag; staff ConversationViewSet with reply/assign/resolve/reopen
 - **Commands:** `test apps.webstore.tests.test_conversations` → **9 OK**
 - **Known issues:** none
+- **Questions for Opus:** none
+
+### C2 — Messages frontend — DONE — 2026-07-30T18:55:00-05:00
+
+- **Status:** DONE
+- **Files changed:** staff Inbox (Holds/Messages tabs), webstore.api + useWebStore conversation hooks, public HoldStatus thread+reply, PDP Ask about this item, my-requests localStorage helpers
+- **Decisions:** Messages filters needs_reply / has_hold / resolved; thread tokens remembered in `ecothrift.my_requests.v1`
+- **Commands:** vitest online-sales+policy → **20 OK**; public build + staff tsc OK
+- **Known issues:** no dedicated My requests page yet (E2)
 - **Questions for Opus:** none

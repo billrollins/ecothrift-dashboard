@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Box,
   Button,
   Chip,
+  Divider,
   InputAdornment,
   MenuItem,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
@@ -15,10 +18,18 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
-import { useReservationAction, useReservations } from '../../hooks/useWebStore';
-import type { Reservation } from '../../api/webstore.api';
+import {
+  useConversation,
+  useConversationActions,
+  useConversations,
+  useReservationAction,
+  useReservations,
+} from '../../hooks/useWebStore';
+import type { Conversation, Reservation } from '../../api/webstore.api';
 
-export default function OnlineSalesInboxPage() {
+type InboxTab = 'holds' | 'messages';
+
+function HoldsPanel() {
   const { enqueueSnackbar } = useSnackbar();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
@@ -39,8 +50,12 @@ export default function OnlineSalesInboxPage() {
   };
 
   const columns: GridColDef<Reservation>[] = [
-    { field: 'created_at', headerName: 'Requested', width: 150,
-      valueFormatter: (v) => (v ? new Date(String(v)).toLocaleString() : '') },
+    {
+      field: 'created_at',
+      headerName: 'Requested',
+      width: 150,
+      valueFormatter: (v) => (v ? new Date(String(v)).toLocaleString() : ''),
+    },
     { field: 'listing_title', headerName: 'Listing', flex: 1, minWidth: 160 },
     { field: 'customer_name', headerName: 'Customer', width: 140 },
     { field: 'email', headerName: 'Email', width: 180 },
@@ -84,24 +99,10 @@ export default function OnlineSalesInboxPage() {
   ];
 
   if (isLoading && !data) return <LoadingScreen />;
-  if (isError) {
-    return (
-      <Box>
-        <PageHeader
-          title="Inbox & Holds"
-          subtitle="Verify, stage, confirm, and expire pickup holds. Pay at POS — no online payment."
-        />
-        <Alert severity="error">Could not load holds.</Alert>
-      </Box>
-    );
-  }
+  if (isError) return <Alert severity="error">Could not load holds.</Alert>;
 
   return (
-    <Box>
-      <PageHeader
-        title="Inbox & Holds"
-        subtitle="Verify, stage, confirm, and expire pickup holds. Pay at POS — no online payment."
-      />
+    <>
       <Stack direction="row" spacing={2} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
         <TextField
           size="small"
@@ -117,14 +118,21 @@ export default function OnlineSalesInboxPage() {
           }}
           sx={{ minWidth: 240 }}
         />
-        <TextField select size="small" label="Status" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ minWidth: 180 }}>
+        <TextField
+          select
+          size="small"
+          label="Status"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          sx={{ minWidth: 180 }}
+        >
           <MenuItem value="">All</MenuItem>
           {['requested', 'confirmed', 'ready_for_pickup', 'completed', 'declined', 'expired', 'cancelled'].map((s) => (
             <MenuItem key={s} value={s}>{s}</MenuItem>
           ))}
         </TextField>
       </Stack>
-      <Box sx={{ height: 560 }}>
+      <Box sx={{ height: 520 }}>
         <DataGrid
           rows={data?.results || []}
           columns={columns}
@@ -137,6 +145,177 @@ export default function OnlineSalesInboxPage() {
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
         Customer status links use unguessable tokens (not ETW order numbers).
       </Typography>
+    </>
+  );
+}
+
+function MessagesPanel() {
+  const { enqueueSnackbar } = useSnackbar();
+  const [filter, setFilter] = useState<'needs_reply' | 'has_hold' | 'resolved' | ''>('needs_reply');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [reply, setReply] = useState('');
+
+  const listParams = useMemo(() => {
+    if (filter === 'needs_reply') return { state: 'needs_reply', ordering: '-last_message_at' };
+    if (filter === 'resolved') return { state: 'resolved', ordering: '-last_message_at' };
+    if (filter === 'has_hold') return { has_hold: '1', ordering: '-last_message_at' };
+    return { ordering: '-last_message_at' };
+  }, [filter]);
+
+  const { data, isLoading, isError } = useConversations(listParams);
+  const { data: selected, isLoading: loadingThread } = useConversation(selectedId);
+  const actions = useConversationActions();
+
+  const columns: GridColDef<Conversation>[] = [
+    {
+      field: 'staff_unread',
+      headerName: '',
+      width: 56,
+      renderCell: ({ row }) =>
+        row.staff_unread > 0 ? <Chip size="small" color="error" label={row.staff_unread} /> : null,
+    },
+    { field: 'guest_name', headerName: 'Customer', width: 140 },
+    { field: 'listing_title', headerName: 'Listing', flex: 1, minWidth: 140 },
+    {
+      field: 'state',
+      headerName: 'State',
+      width: 150,
+      renderCell: ({ row }) => <Chip size="small" label={row.state.replace(/_/g, ' ')} />,
+    },
+    {
+      field: 'reservation_id',
+      headerName: 'Hold',
+      width: 80,
+      valueFormatter: (v) => (v ? `#${v}` : '—'),
+    },
+    {
+      field: 'last_message_at',
+      headerName: 'Last msg',
+      width: 160,
+      valueFormatter: (v) => (v ? new Date(String(v)).toLocaleString() : ''),
+    },
+  ];
+
+  const sendReply = async () => {
+    if (!selectedId || !reply.trim()) return;
+    try {
+      await actions.reply.mutateAsync({ id: selectedId, body: reply.trim() });
+      setReply('');
+      enqueueSnackbar('Reply sent', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Could not send reply', { variant: 'error' });
+    }
+  };
+
+  if (isLoading && !data) return <LoadingScreen />;
+  if (isError) return <Alert severity="error">Could not load conversations.</Alert>;
+
+  return (
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.1fr 1fr' }, gap: 2 }}>
+      <Box>
+        <Stack direction="row" spacing={1} sx={{ mb: 1.5 }} flexWrap="wrap" useFlexGap>
+          {[
+            { id: 'needs_reply' as const, label: 'Needs reply' },
+            { id: 'has_hold' as const, label: 'Has hold' },
+            { id: 'resolved' as const, label: 'Resolved' },
+            { id: '' as const, label: 'All' },
+          ].map((f) => (
+            <Button
+              key={f.label}
+              size="small"
+              variant={filter === f.id ? 'contained' : 'outlined'}
+              onClick={() => setFilter(f.id)}
+            >
+              {f.label}
+            </Button>
+          ))}
+        </Stack>
+        <Box sx={{ height: 480 }}>
+          <DataGrid
+            rows={data?.results || []}
+            columns={columns}
+            getRowId={(r) => r.id}
+            disableRowSelectionOnClick
+            onRowClick={(params) => setSelectedId(params.row.id)}
+            pageSizeOptions={[25]}
+            initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+          />
+        </Box>
+      </Box>
+
+      <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2, minHeight: 480 }}>
+        {!selectedId && (
+          <Typography color="text.secondary">Select a conversation to read and reply.</Typography>
+        )}
+        {selectedId && loadingThread && <LoadingScreen />}
+        {selected && (
+          <Stack spacing={1.5} sx={{ height: '100%' }}>
+            <Box>
+              <Typography variant="h6">{selected.guest_name || 'Guest'}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {selected.guest_email}
+                {selected.listing_title ? ` · ${selected.listing_title}` : ''}
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button size="small" onClick={() => actions.assign.mutateAsync(selected.id)}>
+                Assign to me
+              </Button>
+              {selected.state === 'resolved' ? (
+                <Button size="small" onClick={() => actions.reopen.mutateAsync(selected.id)}>
+                  Reopen
+                </Button>
+              ) : (
+                <Button size="small" onClick={() => actions.resolve.mutateAsync(selected.id)}>
+                  Resolve
+                </Button>
+              )}
+            </Stack>
+            <Divider />
+            <Box sx={{ flex: 1, overflowY: 'auto', maxHeight: 280 }}>
+              {selected.messages.map((m) => (
+                <Box key={m.id} sx={{ mb: 1.5 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    {m.author_kind} · {new Date(m.created_at).toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {m.body}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+            <TextField
+              multiline
+              minRows={2}
+              placeholder="Reply to customer…"
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              fullWidth
+            />
+            <Button variant="contained" onClick={sendReply} disabled={!reply.trim()}>
+              Send reply
+            </Button>
+          </Stack>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+export default function OnlineSalesInboxPage() {
+  const [tab, setTab] = useState<InboxTab>('holds');
+
+  return (
+    <Box>
+      <PageHeader
+        title="Inbox & Holds"
+        subtitle="Verify holds and reply to customer messages. Pay at POS — no online payment."
+      />
+      <Tabs value={tab} onChange={(_, v: InboxTab) => setTab(v)} sx={{ mb: 2 }}>
+        <Tab value="holds" label="Holds" />
+        <Tab value="messages" label="Messages" />
+      </Tabs>
+      {tab === 'holds' ? <HoldsPanel /> : <MessagesPanel />}
     </Box>
   );
 }
