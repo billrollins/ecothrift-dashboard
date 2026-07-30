@@ -48,7 +48,17 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     label: 'Store Sales',
     itemIds: ['posTerminal', 'posTransactions', 'posDeliveries', 'posDrawers', 'posCash', 'posPrintables', 'posSetup'],
   },
-  // Online Sales workspace parked for v2.50 (ONLINE_SALES_ENABLED=false). Keep catalog ids.
+  {
+    id: 'onlineSales',
+    label: 'Online Sales',
+    roles: ['Manager', 'Admin'],
+    itemIds: [
+      'onlineSalesQueue',
+      'onlineSalesListings',
+      'onlineSalesInbox',
+      'onlineSalesSales',
+    ],
+  },
   {
     id: 'admin',
     label: 'Admin',
@@ -121,7 +131,13 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     helper: 'Register, drawers, and POS setup',
     icon: 'pointOfSale',
   },
-  // onlineSales workspace parked — restore with SLOT_C_NAV_GROUPS when re-enabling.
+  {
+    id: 'onlineSales',
+    label: 'Online Sales',
+    shortLabel: 'Online',
+    helper: 'List, reserve, message, and hand off at the register',
+    icon: 'storefront',
+  },
   {
     id: 'admin',
     label: 'Admin',

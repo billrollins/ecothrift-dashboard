@@ -74,6 +74,12 @@ import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
 import TarsPartsRequestsPage from './pages/restoration/TarsPartsRequestsPage';
 import RestorationLayout from './pages/restoration/RestorationLayout';
+import OnlineSalesWorkQueuePage from './pages/online-sales/OnlineSalesWorkQueuePage';
+import OnlineSalesListingsPage from './pages/online-sales/OnlineSalesListingsPage';
+import ListingStudioPage from './pages/online-sales/ListingStudioPage';
+import OnlineSalesInboxPage from './pages/online-sales/OnlineSalesInboxPage';
+import OnlineSalesSalesPage from './pages/online-sales/OnlineSalesSalesPage';
+import OnlineSalesMarketingPage from './pages/online-sales/OnlineSalesMarketingPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -231,10 +237,32 @@ export default function App() {
           path="/admin/customers"
           element={<AdminRoute><CustomerListPage /></AdminRoute>}
         />
-        {/* Online Sales parked (ONLINE_SALES_ENABLED=false) — keep page modules for resume. */}
-        <Route path="/online-sales/*" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/admin/web-store" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/admin/web-orders" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/online-sales"
+          element={<ManagerRoute><OnlineSalesWorkQueuePage /></ManagerRoute>}
+        />
+        <Route
+          path="/online-sales/listings"
+          element={<ManagerRoute><OnlineSalesListingsPage /></ManagerRoute>}
+        />
+        <Route
+          path="/online-sales/listings/:id"
+          element={<ManagerRoute><ListingStudioPage /></ManagerRoute>}
+        />
+        <Route
+          path="/online-sales/inbox"
+          element={<ManagerRoute><OnlineSalesInboxPage /></ManagerRoute>}
+        />
+        <Route
+          path="/online-sales/sales"
+          element={<ManagerRoute><OnlineSalesSalesPage /></ManagerRoute>}
+        />
+        <Route
+          path="/online-sales/marketing"
+          element={<ManagerRoute><OnlineSalesMarketingPage /></ManagerRoute>}
+        />
+        <Route path="/admin/web-store" element={<Navigate to="/online-sales/listings" replace />} />
+        <Route path="/admin/web-orders" element={<Navigate to="/online-sales/inbox" replace />} />
         <Route
           path="/admin/permissions"
           element={<AdminRoute><PermissionsPage /></AdminRoute>}

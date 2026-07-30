@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: A4
+- Last completed: B1
 - Half-done: —
-- Check first: Stage B (staff nav + public un-park)
+- Check first: B2 render tests for online-sales pages
 
 ---
 
