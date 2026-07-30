@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -33,7 +34,7 @@ export default function OnlineSalesListingsPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const createListing = useCreateWebListing();
-  const { data, isLoading } = useWebListings({
+  const { data, isLoading, isError } = useWebListings({
     search: search || undefined,
     status: status || undefined,
     ordering: '-updated_at',
@@ -90,6 +91,14 @@ export default function OnlineSalesListingsPage() {
   };
 
   if (isLoading && !data) return <LoadingScreen />;
+  if (isError) {
+    return (
+      <Box>
+        <PageHeader title="Listings" subtitle="Online Sales catalog — open Listing Studio to edit and publish" />
+        <Alert severity="error">Could not load listings.</Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box>

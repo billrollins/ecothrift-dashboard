@@ -1,4 +1,4 @@
-import { Box, Typography } from '@mui/material';
+import { Alert, Box, Typography } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
@@ -6,9 +6,20 @@ import { useSalesLog } from '../../hooks/useWebStore';
 import type { Reservation } from '../../api/webstore.api';
 
 export default function OnlineSalesSalesPage() {
-  const { data, isLoading } = useSalesLog();
+  const { data, isLoading, isError } = useSalesLog();
 
   if (isLoading) return <LoadingScreen />;
+  if (isError) {
+    return (
+      <Box>
+        <PageHeader
+          title="Sales log"
+          subtitle="Completed hold → pickup sales (POS-linked when available). Tax excluded."
+        />
+        <Alert severity="error">Could not load the sales log.</Alert>
+      </Box>
+    );
+  }
 
   const cols: GridColDef<Reservation>[] = [
     {

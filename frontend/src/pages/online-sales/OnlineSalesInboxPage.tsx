@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -21,7 +22,7 @@ export default function OnlineSalesInboxPage() {
   const { enqueueSnackbar } = useSnackbar();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
-  const { data, isLoading } = useReservations({
+  const { data, isLoading, isError } = useReservations({
     search: search || undefined,
     status: status || undefined,
     ordering: '-created_at',
@@ -83,6 +84,17 @@ export default function OnlineSalesInboxPage() {
   ];
 
   if (isLoading && !data) return <LoadingScreen />;
+  if (isError) {
+    return (
+      <Box>
+        <PageHeader
+          title="Inbox & Holds"
+          subtitle="Verify, stage, confirm, and expire pickup holds. Pay at POS — no online payment."
+        />
+        <Alert severity="error">Could not load holds.</Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box>

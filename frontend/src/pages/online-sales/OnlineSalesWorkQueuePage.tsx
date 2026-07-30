@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Box, Button, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Stack, Typography } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -9,10 +9,18 @@ import { useCreateWebListing, useWorkQueue } from '../../hooks/useWebStore';
 export default function OnlineSalesWorkQueuePage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
-  const { data, isLoading } = useWorkQueue();
+  const { data, isLoading, isError } = useWorkQueue();
   const createListing = useCreateWebListing();
 
-  if (isLoading || !data) return <LoadingScreen />;
+  if (isLoading) return <LoadingScreen />;
+  if (isError || !data) {
+    return (
+      <Box>
+        <PageHeader title="Work queue" subtitle="Items destined for online sales and unfinished drafts" />
+        <Alert severity="error">Could not load the work queue.</Alert>
+      </Box>
+    );
+  }
 
   const startFromItem = async (item: { id: number; sku: string; title: string; price: string | null }) => {
     try {

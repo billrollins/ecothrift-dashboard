@@ -48,7 +48,7 @@ export default function ListingStudioPage() {
   const listingId = Number(id);
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
-  const { data: listing, isLoading } = useWebListing(Number.isFinite(listingId) ? listingId : null);
+  const { data: listing, isLoading, isError } = useWebListing(Number.isFinite(listingId) ? listingId : null);
   const { data: categories } = useCategoryOptions();
   const updateListing = useUpdateWebListing();
   const uploadImage = useUploadWebListingImage();
@@ -96,7 +96,17 @@ export default function ListingStudioPage() {
     });
   }, [listing]);
 
-  if (isLoading || !listing) return <LoadingScreen />;
+  if (isLoading) return <LoadingScreen />;
+  if (isError || !listing) {
+    return (
+      <Box sx={{ p: 2 }}>
+        <Alert severity="error">Could not load this listing.</Alert>
+        <Button sx={{ mt: 2 }} onClick={() => navigate('/online-sales/listings')}>
+          Back to listings
+        </Button>
+      </Box>
+    );
+  }
 
   const setField = (key: keyof typeof form, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
