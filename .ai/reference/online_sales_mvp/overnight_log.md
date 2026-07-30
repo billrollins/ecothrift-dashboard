@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: A2
+- Last completed: A3
 - Half-done: —
-- Check first: this log + `git log --oneline online-sales-mvp`
+- Check first: audit_*.md under `.ai/reference/online_sales_mvp/`
 
 ---
 
@@ -30,6 +30,9 @@ Reviewer tomorrow: Opus
 
 - `ScopedRateThrottle` ignores class-level `scope` and requires `view.throttle_scope`; for `@api_view` function views we used a `SimpleRateThrottle` subclass with `get_cache_key` instead.
 - Forgot-password token disclosure was a live staff account-takeover path (confirmed, now fixed).
+- `setWebOrderStatus` calls nonexistent `POST …/orders/{id}/set-status/` (also hooked in useWebStore).
+- Kill switch only gates `POST holds/`; catalog/images stay live (A4 must expand).
+- `expire_due_reservations` has zero callers — reserved qty can leak.
 
 ---
 
@@ -55,3 +58,12 @@ Reviewer tomorrow: Opus
 - **Known issues:** none
 - **Questions for Opus:** none
 - **Verification note:** Running focused suite after each item; full webstore+accounts+pos+builds at stage boundaries / H5 (full migrate+test is ~35s each).
+
+### A3 — Four read-only audits — DONE — 2026-07-30T18:50:00-05:00
+
+- **Status:** DONE
+- **Files added:** `audit_api_contract.md`, `audit_quantity.md`, `audit_pii.md`, `audit_killswitch.md`
+- **Decisions:** Hold-status by token left ungated when flag false (existing customer links still work). Catalog gating recommended for A4.
+- **Commands:** read-only greps/reads — no tests
+- **Known issues:** documented in FINDINGS above
+- **Questions for Opus:** Prefer 410 vs empty catalog when flag off?
