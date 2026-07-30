@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-30 (retail_qa_submission_reliability completed) -->
+<!-- Last updated: 2026-07-30 (online_sales_mvp active) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active:** *none* — pick next from Pending / Backlog or start a new initiative.
+- **Active — Online Sales MVP:** [`online_sales_mvp`](initiatives/online_sales_mvp.md) — reserve online → pay/pick up in store; no payments or shipping, **guest-first optional customer login** (magic-link, passwordless; transactional email as `retail@ecothrift.us`). Most of it is **already built and parked** behind `ONLINE_SALES_ENABLED=false`; real gaps are turn-on hygiene, customer identity (`Customer` group + public auth), a new **Messages** subsystem (`Conversation`/`Message`), pickup prep, and the expiry scheduler + launch data. Carries two **auth prerequisites**: `forgot-password` returns a reset token in its response body (account-takeover path) and the refresh cookie is `secure=False`. Narrows parked [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md); policy/contracts still in [`phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
 - **Retail QA submission reliability (shipped):** archived [`retail_qa_submission_reliability`](initiatives/_archived/_completed/retail_qa_submission_reliability.md) — stranded-draft recovery, autosave/resume, +/- grades, dashboard deep links, 8-week grids. **v2.60.0–v2.61.0**. Photo S3 deferred.
 - **Delivery Mobile Ops (shipped):** archived [`delivery_mobile_operations_completion`](initiatives/_archived/_completed/delivery_mobile_operations_completion.md) — Desk + Field, Routes API, evidence/SMS, add/adjust, route maps, change history. **v2.55.0–v2.59.1**.
 - **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**; **v2.51.0** schedule-later; **v2.52.0** unified Day Board (calls → route → load → drive → return on the same cards).

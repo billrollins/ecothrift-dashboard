@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-30 (retail_qa_submission_reliability → completed) -->
+<!-- Last updated: 2026-07-30 (online_sales_mvp created → Active) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not roadmap strategy, not week-scale projects, not an AI plan/TODO list.
@@ -11,7 +11,9 @@ Session details live **only** in each file under **`## Sessions`**.
 
 ## Active
 
-*None.*
+| Initiative | Phase | Notes |
+|------------|-------|-------|
+| [online_sales_mvp](./online_sales_mvp.md) | 5 phases planned; Phase 1 not started | Absolute MVP: reserve online → pay/pick up in store. Audit finding: ~80% already built and parked behind `ONLINE_SALES_ENABLED=false`. Real gaps = turn-on hygiene, **customer login** (guest-first), **Messages** subsystem, pickup prep, expiry scheduler + launch data. **G1 accepted: transactional email ON → magic-link (passwordless) login, sending as `retail@ecothrift.us` (display name Eco-Thrift)**; G2–G6, G8, G9 still open. Includes two pre-existing **auth defects** as prerequisites (forgot-password token disclosure; non-secure refresh cookie). Narrows parked [online_sales_workspace](./_archived/_pending/online_sales_workspace.md). |
 
 ---
 
