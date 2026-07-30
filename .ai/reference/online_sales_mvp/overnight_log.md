@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: F2
+- Last completed: H5 (full overnight plan through Stage H)
 - Half-done: —
-- Check first: Stage G hardening tests
+- Check first: Bill/Opus review of DECISIONS NEEDED + `self_review.md`; then flip flags locally and walk `demo_script.md`
 
 ---
 
@@ -190,3 +190,24 @@ Reviewer tomorrow: Opus
 - **Commands:** `seed_online_sales_demo --wipe` → OK locally
 - **Known issues:** none
 - **Questions for Opus:** none
+
+### G1–G6 — Hardening — DONE — 2026-07-30T20:00:00-05:00
+
+- **Status:** DONE
+- **Files added:** `test_endpoint_matrix`, `test_journeys`, `test_concurrency_and_idempotency`, `test_query_budget`, `migration_rollback_rehearsal.md`
+- **Commands:** rollback rehearsal OK; focused G suites OK; broader `apps.webstore`+`apps.accounts.tests` → **70 OK**
+- **Known issues:** query budgets pinned to exact counts (brittle)
+- **Questions for Opus:** none
+
+### H1–H5 — Handoff — DONE — 2026-07-30T20:10:00-05:00
+
+- **Status:** DONE
+- **Files added:** `staff_sop_draft.md`, `demo_script.md`, `changelog_draft.md` (recommend v2.62.0), `self_review.md`
+- **Files changed:** initiative Session 2 entry
+- **Commands:** makemigrations --check clean; vitest **21 OK**; both FE builds OK
+- **Known issues:** see self_review
+- **Questions for Opus:** none
+
+### Z — Never-idle backlog — DONE (logged, not ground)
+
+Priority if more overnight time appeared (not started): deepen matrix 429 cases; POS hold guard regression suite; docstring pass on `services/conversations.py`; public inquiry status page by thread token.
