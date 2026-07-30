@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-29 (v2.61.0 orders strip + dashboard polish) -->
+<!-- Last updated: 2026-07-30 (retail_qa_submission_reliability completed) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,14 +13,15 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active:** [`retail_qa_submission_reliability`](initiatives/retail_qa_submission_reliability.md) — **v2.60.0–v2.61.0** (autosave/resume, deep links, 8-week grids, dashboard/orders polish); follow-ups remain (photo S3, archive when done).
+- **Active:** *none* — pick next from Pending / Backlog or start a new initiative.
+- **Retail QA submission reliability (shipped):** archived [`retail_qa_submission_reliability`](initiatives/_archived/_completed/retail_qa_submission_reliability.md) — stranded-draft recovery, autosave/resume, +/- grades, dashboard deep links, 8-week grids. **v2.60.0–v2.61.0**. Photo S3 deferred.
 - **Delivery Mobile Ops (shipped):** archived [`delivery_mobile_operations_completion`](initiatives/_archived/_completed/delivery_mobile_operations_completion.md) — Desk + Field, Routes API, evidence/SMS, add/adjust, route maps, change history. **v2.55.0–v2.59.1**.
 - **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**; **v2.51.0** schedule-later; **v2.52.0** unified Day Board (calls → route → load → drive → return on the same cards).
 - **Parked — Online Sales Workspace:** [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md) — code retained; staff workspace + public holds **disabled** (`ONLINE_SALES_ENABLED=false`). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
 - **Parked — TARS decision guardrails:** [`tars_full_instruction_wizard_guidance`](initiatives/_archived/_pending/tars_full_instruction_wizard_guidance.md) — Studio at `/restoration/tars` **kept available**; floor validation + Phase 2/3 deferred. Contract: [`standalone_studio_contract.md`](reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).
 - **Custom Label Studio (shipped):** archived [`custom_label_studio`](initiatives/_archived/_completed/custom_label_studio.md) — Admin **`/admin/label-studio`**: PDF + visual templates, variables/increment, QR/Code128, AI Create, print × N; print-server **1.4.1**. Shipped **v2.48.0**–**v2.48.2**.
 - **Floorplan builder (shipped):** archived [`floorplan_builder`](initiatives/_archived/_completed/floorplan_builder.md) — **`/floor-ops/floorplans`** editor + DB element kinds, walls/cut/print. Shipped **v2.39.0**–**v2.47.0**. Docs: **`apps/floorplan/README.md`**.
-- **Retail Quality Audit (shipped):** archived [`retail_quality_audit`](initiatives/_archived/_completed/retail_quality_audit.md) — Admin **Quality Audit** hub + mobile wizard; Super Admin editable **`QualityAuditForm`**; dashboard **Retail QA** grade. Shipped **v2.38.0** / **v2.43.0**.
+- **Retail Quality Audit MVP (shipped):** archived [`retail_quality_audit`](initiatives/_archived/_completed/retail_quality_audit.md) — Admin hub + mobile wizard; editable forms; dashboard grade. Shipped **v2.38.0** / **v2.43.0**.
 - **Parked — TARS Restoration:** [`.ai/initiatives/_archived/_pending/tars_restoration_workspace.md`](initiatives/_archived/_pending/tars_restoration_workspace.md) — TARS Studio at `/restoration/tars` (Phases 0–2 + hardening **v2.39.0**); Processing Queue nav removed in favor of Restorations hub. **Resume when:** Phase 3 execute workflows + Phase 4 steering.
 - **HR Time Clock (shipped):** archived [`hr_time_clock_mvp`](initiatives/_archived/_completed/hr_time_clock_mvp.md) — time clock, **Employees**, **Time & payroll**, soft delete; legacy HR pages removed. Shipped **v2.33.0**–**v2.33.1**.
 - **Product/Item CRUD → Processing (shipped):** archived [`product_item_crud_and_processing`](initiatives/_archived/_completed/product_item_crud_and_processing.md) — **v2.29.0–v2.32.0** (Catalog, processing integration, unmanifested lines). Semantic embedding search on hold.

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-29 (v2.60.0 Retail QA reliability) -->
+<!-- Last updated: 2026-07-30 (retail_qa_submission_reliability → completed) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not roadmap strategy, not week-scale projects, not an AI plan/TODO list.
@@ -11,9 +11,7 @@ Session details live **only** in each file under **`## Sessions`**.
 
 ## Active
 
-| Initiative | Phase | Notes |
-|------------|-------|-------|
-| [retail_qa_submission_reliability](./retail_qa_submission_reliability.md) | Session 1 done (v2.60.0–v2.61.0) | Autosave/resume, deep links, 8-week grids + dashboard/orders polish; photo S3 + archive still open. |
+*None.*
 
 ---
 
@@ -52,6 +50,8 @@ Not started / future; not scheduled.
 
 Name only. Details in each file.
 
+- [retail_qa_submission_reliability](./_archived/_completed/retail_qa_submission_reliability.md)
+- [delivery_mobile_operations_completion](./_archived/_completed/delivery_mobile_operations_completion.md)
 - [pos_discount_and_delivery](./_archived/_completed/pos_discount_and_delivery.md)
 - [custom_label_studio](./_archived/_completed/custom_label_studio.md)
 - [floorplan_builder](./_archived/_completed/floorplan_builder.md)
