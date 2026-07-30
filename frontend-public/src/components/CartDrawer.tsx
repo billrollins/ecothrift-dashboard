@@ -15,7 +15,7 @@ export default function CartDrawer() {
       <aside className={`cartdrawer${open ? ' open' : ''}`} aria-label="Hold list" aria-hidden={!open}>
         <div className="carthead">
           <h3>Hold list {count > 0 ? `(${count})` : ''}</h3>
-          <button className="cartclose" onClick={() => setOpen(false)} aria-label="Close cart">
+          <button className="cartclose" onClick={() => setOpen(false)} aria-label="Close hold list">
             ×
           </button>
         </div>
@@ -67,6 +67,7 @@ export default function CartDrawer() {
                 <b>{money(subtotal)}</b>
               </div>
               <p className="cartnote">
+                {/* POLICY_COPY_OK: negation prose */}
                 Request a hold online — pay and pick up in store. No shipping, delivery, or online
                 payment.
               </p>

@@ -87,8 +87,8 @@ export default function HomePage() {
             <div>
               <h3>Our online store is on the way.</h3>
               <p>
-                We&rsquo;re rebuilding ecothrift.us so you can browse and buy online. For now, the
-                full selection lives at our store — come see us.
+                We&rsquo;re rebuilding ecothrift.us so you can browse finds and request holds online.
+                For now, the full selection lives at our store — come see us.
               </p>
             </div>
             <Link className="btn btn--light" to="/visit">

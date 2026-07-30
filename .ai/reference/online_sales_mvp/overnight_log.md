@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: B3
+- Last completed: B4
 - Half-done: —
-- Check first: B4 policy copy guard test
+- Check first: C1 Messages backend
 
 ---
 
@@ -105,4 +105,14 @@ Reviewer tomorrow: Opus
 - **Decisions:** Shop/checkout gated on config; `hold/:token` stays open when flag off; `available <= 0` shows Reserved (G4 default)
 - **Commands:** `cd frontend-public && npm run build` → OK
 - **Known issues:** Shop still had some "cart"/checkout wording until B4 sweep
+- **Questions for Opus:** none
+
+### B4 — Policy copy guard — DONE — 2026-07-30T18:35:00-05:00
+
+- **Status:** DONE
+- **Files added:** `frontend/src/policy/publicStorefrontCopyGuard.test.ts` (scans sibling `frontend-public/src`)
+- **Files changed:** Home/OrderConfirmation/CartDrawer/PDP/Checkout/HoldStatus/api copy + `POLICY_COPY_OK` markers
+- **Decisions:** Allowlist covers negation prose + technical checkout identifiers (route/CSS/symbol); customer CTAs use hold language
+- **Commands:** vitest policy + online-sales → **19 OK**; public build OK
+- **Known issues:** none
 - **Questions for Opus:** none

@@ -80,6 +80,7 @@ export default function HoldStatusPage() {
         </div>
       </dl>
       <p style={{ marginTop: 24 }}>
+        {/* POLICY_COPY_OK: negation prose */}
         Save this page link. Pay in store at pickup — no shipping, delivery, or online payment.
       </p>
       <div className="hbtns" style={{ marginTop: 18, marginBottom: 60 }}>

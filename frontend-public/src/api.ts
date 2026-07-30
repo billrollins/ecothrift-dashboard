@@ -155,8 +155,9 @@ export function fetchHold(token: string): Promise<HoldSummary> {
   return getJSON<HoldSummary>(`${BASE}/holds/${encodeURIComponent(token)}/`)
 }
 
-/** @deprecated Online checkout disabled — use requestHold. */
+/** @deprecated Online checkout disabled — use requestHold. POLICY_COPY_OK */
 export async function checkout(_input: unknown): Promise<never> {
+  // POLICY_COPY_OK: steers callers away from online checkout
   throw new Error('Online checkout is no longer available. Request a hold instead.')
 }
 

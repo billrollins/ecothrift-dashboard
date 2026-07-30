@@ -110,7 +110,7 @@ export default function CheckoutPage() {
           <h3 className="fsec">Pickup policy</h3>
           <div className="pickupnote">
             <b>Pay and pick up in store</b> at {STORE.retail.name}, {STORE.retail.address}.{' '}
-            {STORE.retail.hours}. No shipping, delivery, or online payment. Staff confirm holds;
+            {STORE.retail.hours}. No shipping, delivery, or online payment. {/* POLICY_COPY_OK */} Staff confirm holds;
             confirmed holds last until store close the next business day. Items are typically final sale.
           </div>
 
