@@ -280,6 +280,82 @@ class Reservation(models.Model):
         return self.line_total - cost - self.fee_amount - self.direct_expense
 
 
+class Conversation(models.Model):
+    """Staff ↔ customer message thread (inquiry and/or hold-linked)."""
+
+    STATE_CHOICES = [
+        ('needs_reply', 'Needs reply'),
+        ('waiting_on_customer', 'Waiting on customer'),
+        ('resolved', 'Resolved'),
+    ]
+
+    listing = models.ForeignKey(
+        WebListing, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='conversations',
+    )
+    reservation = models.OneToOneField(
+        Reservation, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='conversation',
+    )
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='web_conversations',
+    )
+    guest_name = models.CharField(max_length=200, blank=True, default='')
+    guest_email = models.EmailField(blank=True, default='')
+    guest_phone = models.CharField(max_length=30, blank=True, default='')
+    public_token = models.CharField(
+        max_length=48, unique=True, default=_public_status_token, db_index=True,
+    )
+    state = models.CharField(max_length=24, choices=STATE_CHOICES, default='needs_reply')
+    last_message_at = models.DateTimeField(null=True, blank=True)
+    staff_owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='web_conversations_owned',
+    )
+    staff_unread = models.PositiveIntegerField(default=0)
+    customer_unread = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_message_at', '-created_at']
+        indexes = [
+            models.Index(fields=['state', 'last_message_at']),
+            models.Index(fields=['guest_email']),
+        ]
+
+    def __str__(self):
+        return f'{self.public_token[:8]}… ({self.state})'
+
+
+class Message(models.Model):
+    """Single message in a Conversation."""
+
+    AUTHOR_CHOICES = [
+        ('customer', 'Customer'),
+        ('staff', 'Staff'),
+        ('system', 'System'),
+    ]
+
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name='messages',
+    )
+    author_kind = models.CharField(max_length=12, choices=AUTHOR_CHOICES)
+    author_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='web_messages',
+    )
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+    def __str__(self):
+        return f'{self.author_kind}: {self.body[:40]}'
+
+
 class Order(models.Model):
     """Legacy public storefront order (guest checkout). Kept for history; new
     public flow uses Reservation. Checkout API rejects new creates.

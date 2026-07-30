@@ -39,6 +39,8 @@ def create_hold(
     if idempotency_key:
         existing = Reservation.objects.filter(idempotency_key=idempotency_key).first()
         if existing:
+            from apps.webstore.services.conversations import open_for_reservation
+            open_for_reservation(existing)
             return existing
 
     locked = WebListing.objects.select_for_update().get(pk=listing.pk)
@@ -53,7 +55,7 @@ def create_hold(
     locked.sync_stock_mirror()
     locked.save(update_fields=['reserved', 'stock', 'updated_at'])
 
-    return Reservation.objects.create(
+    reservation = Reservation.objects.create(
         listing=locked,
         item=locked.item,
         customer_name=customer_name.strip(),
@@ -66,6 +68,9 @@ def create_hold(
         unit_price_snapshot=locked.price,
         cost_snapshot=_cost_for_listing(locked),
     )
+    from apps.webstore.services.conversations import open_for_reservation
+    open_for_reservation(reservation)
+    return reservation
 
 
 @transaction.atomic
@@ -87,6 +92,8 @@ def release_reservation(reservation: Reservation, new_status: str) -> Reservatio
 
     locked.status = new_status
     locked.save(update_fields=['status', 'updated_at'])
+    from apps.webstore.services.conversations import notify_reservation_status
+    notify_reservation_status(locked, new_status)
     return locked
 
 
@@ -102,6 +109,8 @@ def confirm_reservation(reservation: Reservation, user=None) -> Reservation:
     locked.save(update_fields=[
         'status', 'confirmed_at', 'confirmed_by', 'expires_at', 'updated_at',
     ])
+    from apps.webstore.services.conversations import notify_reservation_status
+    notify_reservation_status(locked, 'confirmed')
     return locked
 
 
@@ -122,6 +131,8 @@ def stage_reservation(reservation: Reservation, user=None) -> Reservation:
         'status', 'confirmed_at', 'confirmed_by', 'expires_at',
         'staged_at', 'staged_by', 'updated_at',
     ])
+    from apps.webstore.services.conversations import notify_reservation_status
+    notify_reservation_status(locked, 'ready_for_pickup')
     return locked
 
 
@@ -151,6 +162,8 @@ def complete_reservation(reservation: Reservation, user=None, pos_cart=None) -> 
     locked.save(update_fields=[
         'status', 'completed_at', 'completed_by', 'pos_cart', 'updated_at',
     ])
+    from apps.webstore.services.conversations import notify_reservation_status
+    notify_reservation_status(locked, 'completed')
     return locked
 
 

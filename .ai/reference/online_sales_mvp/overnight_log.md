@@ -20,9 +20,9 @@ Reviewer tomorrow: Opus
 
 ## WHERE I STOPPED
 
-- Last completed: B4
+- Last completed: C1
 - Half-done: —
-- Check first: C1 Messages backend
+- Check first: C2 Messages frontend
 
 ---
 
@@ -114,5 +114,15 @@ Reviewer tomorrow: Opus
 - **Files changed:** Home/OrderConfirmation/CartDrawer/PDP/Checkout/HoldStatus/api copy + `POLICY_COPY_OK` markers
 - **Decisions:** Allowlist covers negation prose + technical checkout identifiers (route/CSS/symbol); customer CTAs use hold language
 - **Commands:** vitest policy + online-sales → **19 OK**; public build OK
+- **Known issues:** none
+- **Questions for Opus:** none
+
+### C1 — Messages backend — DONE — 2026-07-30T18:50:00-05:00
+
+- **Status:** DONE
+- **Files added:** models Conversation/Message, migration `0004`, `services/conversations.py`, `tests/test_conversations.py`
+- **Files changed:** reservations lifecycle system messages, views/urls/admin/serializers
+- **Decisions:** Hold auto-opens thread; public thread on hold status (PII-minimal); `POST threads/<token>/messages/`; `POST catalog/<slug>/ask/` behind INQUIRIES flag; staff ConversationViewSet with reply/assign/resolve/reopen
+- **Commands:** `test apps.webstore.tests.test_conversations` → **9 OK**
 - **Known issues:** none
 - **Questions for Opus:** none

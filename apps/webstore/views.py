@@ -24,8 +24,10 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsManagerOrAdmin
 from apps.core.models import S3File
 
-from .models import ChannelPublication, Order, Reservation, WebListing, WebListingImage
+from .models import ChannelPublication, Conversation, Order, Reservation, WebListing, WebListingImage
 from .serializers import (
+    ConversationStaffSerializer,
+    MessagePublicSerializer,
     OrderStaffSerializer,
     ReservationPublicSerializer,
     ReservationStaffSerializer,
@@ -51,6 +53,11 @@ _HOLD_LOCK = Lock()
 _HOLD_WINDOW_SEC = 60
 _HOLD_MAX = 8
 
+_MSG_HITS: dict[str, list[float]] = defaultdict(list)
+_MSG_LOCK = Lock()
+_MSG_WINDOW_SEC = 60
+_MSG_MAX = 20
+
 
 def _client_ip(request) -> str:
     forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -68,6 +75,18 @@ def _rate_limit_hold(request) -> bool:
         if len(_HOLD_HITS[ip]) >= _HOLD_MAX:
             return False
         _HOLD_HITS[ip].append(now)
+        return True
+
+
+def _rate_limit_messages(request) -> bool:
+    ip = _client_ip(request)
+    now = time.time()
+    with _MSG_LOCK:
+        hits = _MSG_HITS[ip]
+        _MSG_HITS[ip] = [t for t in hits if now - t < _MSG_WINDOW_SEC]
+        if len(_MSG_HITS[ip]) >= _MSG_MAX:
+            return False
+        _MSG_HITS[ip].append(now)
         return True
 
 
@@ -295,6 +314,66 @@ class ReservationViewSet(
     def complete(self, request, pk=None):
         reservation = complete_reservation(self.get_object(), user=request.user)
         return Response(ReservationStaffSerializer(reservation).data)
+
+
+class ConversationViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    serializer_class = ConversationStaffSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['state', 'listing', 'staff_owner']
+    search_fields = ['guest_name', 'guest_email', 'guest_phone', 'public_token', 'listing__title']
+    ordering_fields = ['last_message_at', 'created_at', 'state']
+
+    def get_queryset(self):
+        qs = (
+            Conversation.objects
+            .select_related('listing', 'reservation', 'staff_owner', 'customer')
+            .prefetch_related('messages')
+        )
+        has_hold = self.request.query_params.get('has_hold')
+        if has_hold in _TRUTHY:
+            qs = qs.filter(reservation__isnull=False)
+        elif has_hold in ('0', 'false', 'False', 'no'):
+            qs = qs.filter(reservation__isnull=True)
+        return qs
+
+    def retrieve(self, request, *args, **kwargs):
+        from apps.webstore.services.conversations import mark_staff_read
+        conv = self.get_object()
+        mark_staff_read(conv)
+        conv = self.get_queryset().get(pk=conv.pk)
+        return Response(ConversationStaffSerializer(conv).data)
+
+    @action(detail=True, methods=['post'], url_path='reply')
+    def reply(self, request, pk=None):
+        from apps.webstore.services.conversations import post_message
+        body = (request.data or {}).get('body') or ''
+        conv = self.get_object()
+        post_message(conv, author_kind='staff', body=body, author_user=request.user)
+        conv = self.get_queryset().get(pk=conv.pk)
+        return Response(ConversationStaffSerializer(conv).data)
+
+    @action(detail=True, methods=['post'], url_path='assign')
+    def assign(self, request, pk=None):
+        from apps.webstore.services.conversations import assign_conversation
+        conv = assign_conversation(self.get_object(), request.user)
+        return Response(ConversationStaffSerializer(conv).data)
+
+    @action(detail=True, methods=['post'], url_path='resolve')
+    def resolve(self, request, pk=None):
+        from apps.webstore.services.conversations import resolve_conversation
+        conv = resolve_conversation(self.get_object())
+        return Response(ConversationStaffSerializer(conv).data)
+
+    @action(detail=True, methods=['post'], url_path='reopen')
+    def reopen(self, request, pk=None):
+        from apps.webstore.services.conversations import reopen_conversation
+        conv = reopen_conversation(self.get_object())
+        return Response(ConversationStaffSerializer(conv).data)
 
 
 def _public_surface_disabled_response():
@@ -577,10 +656,94 @@ def request_hold(request):
 @perm_classes([AllowAny])
 def hold_status(request, token):
     try:
-        reservation = Reservation.objects.select_related('listing').get(status_token=token)
+        reservation = (
+            Reservation.objects
+            .select_related('listing', 'conversation')
+            .prefetch_related('conversation__messages')
+            .get(status_token=token)
+        )
     except Reservation.DoesNotExist:
         return Response({'detail': 'Hold not found.'}, status=404)
     return Response(ReservationPublicSerializer(reservation).data)
+
+
+@api_view(['POST'])
+@perm_classes([AllowAny])
+def thread_post_message(request, token):
+    """Guest reply on a conversation public_token."""
+    from apps.webstore.services.conversations import mark_customer_read, post_message
+    from apps.webstore.services.feature import online_sales_enabled
+
+    if not online_sales_enabled():
+        return _public_surface_disabled_response()
+    if not _rate_limit_messages(request):
+        return Response({'detail': 'Too many messages. Try again shortly.'}, status=429)
+
+    try:
+        conv = Conversation.objects.prefetch_related('messages').get(public_token=token)
+    except Conversation.DoesNotExist:
+        return Response({'detail': 'Thread not found.'}, status=404)
+
+    body = (request.data or {}).get('body') or ''
+    try:
+        post_message(conv, author_kind='customer', body=body)
+    except ValidationError as exc:
+        return Response(exc.detail, status=400)
+
+    conv = Conversation.objects.prefetch_related('messages').get(pk=conv.pk)
+    mark_customer_read(conv)
+    return Response({
+        'public_token': conv.public_token,
+        'state': conv.state,
+        'customer_unread': 0,
+        'messages': MessagePublicSerializer(conv.messages.all(), many=True).data,
+    }, status=201)
+
+
+@api_view(['POST'])
+@perm_classes([AllowAny])
+def catalog_ask(request, slug):
+    """Guest inquiry without a hold (gated by ONLINE_SALES_INQUIRIES_ENABLED)."""
+    from django.conf import settings as dj_settings
+
+    from apps.webstore.services.conversations import mark_customer_read, open_inquiry
+    from apps.webstore.services.feature import online_sales_enabled
+
+    if not online_sales_enabled():
+        return _public_surface_disabled_response()
+    if not bool(getattr(dj_settings, 'ONLINE_SALES_INQUIRIES_ENABLED', True)):
+        return Response(
+            {'detail': 'Inquiries are not available right now.', 'code': 'INQUIRIES_DISABLED'},
+            status=410,
+        )
+    if not _rate_limit_messages(request):
+        return Response({'detail': 'Too many messages. Try again shortly.'}, status=429)
+
+    try:
+        listing = WebListing.objects.get(slug=slug, status='published')
+    except WebListing.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=404)
+
+    data = request.data or {}
+    try:
+        conv = open_inquiry(
+            listing=listing,
+            name=data.get('name') or data.get('customer_name') or '',
+            email=data.get('email') or '',
+            phone=data.get('phone') or '',
+            body=data.get('body') or data.get('message') or '',
+        )
+    except ValidationError as exc:
+        return Response(exc.detail, status=400)
+
+    mark_customer_read(conv)
+    return Response({
+        'public_token': conv.public_token,
+        'state': conv.state,
+        'listing_title': listing.title,
+        'customer_unread': 0,
+        'messages': MessagePublicSerializer(conv.messages.all(), many=True).data,
+    }, status=201)
 
 
 @api_view(['GET'])

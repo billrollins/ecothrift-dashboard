@@ -3,6 +3,8 @@ from rest_framework import serializers
 
 from .models import (
     ChannelPublication,
+    Conversation,
+    Message,
     Order,
     OrderLine,
     Reservation,
@@ -158,18 +160,26 @@ class ReservationStaffSerializer(serializers.ModelSerializer):
         ]
 
 
+class MessagePublicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
+        fields = ['id', 'author_kind', 'body', 'created_at']
+        read_only_fields = fields
+
+
 class ReservationPublicSerializer(serializers.ModelSerializer):
     """Minimal public status payload — no address, no unrelated PII dumps."""
 
     listing_title = serializers.CharField(source='listing.title', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     policy = serializers.SerializerMethodField()
+    thread = serializers.SerializerMethodField()
 
     class Meta:
         model = Reservation
         fields = [
             'status_token', 'listing_title', 'quantity', 'status', 'status_display',
-            'expires_at', 'created_at', 'policy',
+            'expires_at', 'created_at', 'policy', 'thread',
         ]
         read_only_fields = fields
 
@@ -178,6 +188,39 @@ class ReservationPublicSerializer(serializers.ModelSerializer):
             'Pay and pick up in store. No shipping, delivery, or online payment. '
             'Confirmed holds expire at store close on the next business day.'
         )
+
+    def get_thread(self, obj):
+        from apps.webstore.services.conversations import mark_customer_read
+
+        try:
+            conv = obj.conversation
+        except Conversation.DoesNotExist:
+            return None
+        mark_customer_read(conv)
+        messages = list(conv.messages.all())
+        return {
+            'public_token': conv.public_token,
+            'state': conv.state,
+            'customer_unread': 0,
+            'messages': MessagePublicSerializer(messages, many=True).data,
+        }
+
+
+class ConversationStaffSerializer(serializers.ModelSerializer):
+    listing_title = serializers.CharField(source='listing.title', read_only=True, default=None)
+    reservation_id = serializers.IntegerField(read_only=True, allow_null=True)
+    staff_owner_email = serializers.EmailField(source='staff_owner.email', read_only=True, default=None)
+    messages = MessagePublicSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Conversation
+        fields = [
+            'id', 'public_token', 'state', 'listing', 'listing_title', 'reservation_id',
+            'guest_name', 'guest_email', 'guest_phone', 'customer',
+            'staff_owner', 'staff_owner_email', 'staff_unread', 'customer_unread',
+            'last_message_at', 'created_at', 'updated_at', 'messages',
+        ]
+        read_only_fields = fields
 
 
 class OrderLineSerializer(serializers.ModelSerializer):
