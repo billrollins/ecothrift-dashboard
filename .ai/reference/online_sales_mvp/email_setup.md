@@ -17,7 +17,18 @@ App settings (already in code):
 | `ONLINE_SALES_EMAIL_FROM` | `retail@ecothrift.us` |
 | `ONLINE_SALES_EMAIL_DISPLAY_NAME` | `Eco-Thrift` |
 | `ONLINE_SALES_EMAIL_REPLY_TO` | `retail@ecothrift.us` |
+| `ONLINE_SALES_PUBLIC_BASE_URL` | `https://ecothrift.us` (links in emails) |
 | `EMAIL_BACKEND` | console (local) |
+
+### Local development
+
+Magic-link and hold emails embed `ONLINE_SALES_PUBLIC_BASE_URL`. For a clickable local link, set in `.env`:
+
+```text
+ONLINE_SALES_PUBLIC_BASE_URL=http://localhost:5174
+```
+
+With `DEBUG=True`, the magic-link request API also returns `debug_token`, and the public Sign-in page shows a **Continue with debug link** button so you can sign in without relying on the emailed URL.
 
 ## Current DNS (overnight could not resolve)
 

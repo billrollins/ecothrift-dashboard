@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   fetchHold,
+  markThreadRead,
   postThreadMessage,
   rememberMyRequest,
   type HoldSummary,
@@ -22,8 +23,13 @@ export default function HoldStatusPage() {
 
   useEffect(() => {
     let active = true
+    setHold(null)
+    setThread(null)
+    setError(null)
+    setReply('')
+    setSendError(null)
     fetchHold(token)
-      .then((data) => {
+      .then(async (data) => {
         if (!active) return
         setHold(data)
         setThread(data.thread ?? null)
@@ -38,6 +44,14 @@ export default function HoldStatusPage() {
             token: data.thread.public_token,
             title: data.listing_title,
           })
+          if ((data.thread.customer_unread || 0) > 0) {
+            try {
+              const next = await markThreadRead(data.thread.public_token)
+              if (active) setThread(next)
+            } catch {
+              /* keep unread indicator if mark-read fails */
+            }
+          }
         }
       })
       .catch((err) => {

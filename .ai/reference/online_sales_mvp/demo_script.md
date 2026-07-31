@@ -6,7 +6,9 @@ Prereqs (local DEBUG):
 python manage.py migrate
 python manage.py seed_online_sales_hours
 python manage.py seed_online_sales_demo --wipe
-# set ONLINE_SALES_ENABLED=true in .env / shell, restart Django
+# In .env (then restart Django):
+#   ONLINE_SALES_ENABLED=true
+#   ONLINE_SALES_PUBLIC_BASE_URL=http://localhost:5174
 ```
 
 | Step | Where | Click / do | Expect |
@@ -18,6 +20,6 @@ python manage.py seed_online_sales_demo --wipe
 | 5 | Public | Add to hold list → Request a hold | Hold status page with messages |
 | 6 | Staff Inbox → Holds | Confirm the new hold | Customer gets console email “Hold confirmed” |
 | 7 | Staff Inbox → Ready for pickup | Stage / Extend | Countdown updates |
-| 8 | Public `/account/sign-in` | Email `demo.customer@ecothrift.example` | Console prints magic link; consume → Account |
+| 8 | Public `/account/sign-in` | Email `demo.customer@ecothrift.example` | With DEBUG, Sign-in page shows a **Continue with debug link** button (and/or console email if `ONLINE_SALES_PUBLIC_BASE_URL` points at localhost:5174); consume → Account |
 
 Seeded customer: `demo.customer@ecothrift.example` (magic link only).

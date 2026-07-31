@@ -217,12 +217,23 @@ class Command(BaseCommand):
         ))
 
     def _wipe(self):
+        from apps.inventory.models import Item
+
         Reservation.objects.filter(idempotency_key__startswith=DEMO_PREFIX).delete()
         Reservation.objects.filter(listing__slug__startswith=DEMO_PREFIX).delete()
         Conversation.objects.filter(listing__slug__startswith=DEMO_PREFIX).delete()
         Conversation.objects.filter(guest_email__endswith='@ecothrift.example').delete()
         Order.objects.filter(order_number='ETWDEMO9').delete()
+        # Unlink then delete demo Items so SKUs can be recreated (do not leave orphans).
+        item_ids = list(
+            WebListing.objects.filter(slug__startswith=DEMO_PREFIX)
+            .exclude(item_id=None)
+            .values_list('item_id', flat=True)
+        )
         WebListing.objects.filter(slug__startswith=DEMO_PREFIX).delete()
+        if item_ids:
+            Item.objects.filter(pk__in=item_ids).delete()
+        Item.objects.filter(sku__startswith='DEMO-').filter(location='online_sales').delete()
         User.objects.filter(email__iexact=DEMO_CUSTOMER_EMAIL).delete()
 
     def _listing(
@@ -248,39 +259,48 @@ class Command(BaseCommand):
             },
         )
         if with_item and listing.item_id is None:
-            try:
-                from apps.inventory.models import Category, Item, Product
-                category = Category.objects.order_by('id').first()
-                if category is None:
-                    raise RuntimeError('No inventory Category available')
-                product = Product.objects.create(
-                    title=title,
-                    brand='Demo',
-                    category=category,
-                )
-                item = Item.objects.create(
-                    product=product,
-                    sku=f'DEMO-{slug[-12:].upper().replace("-", "")[:16]}',
-                    status='on_shelf',
-                    location='online_sales',
-                    price=Decimal('49.00'),
-                    cost=Decimal('10.00'),
-                )
+            from apps.inventory.models import Category, Item, Product
+            category = Category.objects.order_by('id').first()
+            if category is None:
+                self.stdout.write(self.style.WARNING(
+                    f'Could not attach Item for {slug}: no inventory Category available',
+                ))
+            else:
+                sku = f'DEMO-{slug[-12:].upper().replace("-", "")[:16]}'
+                item = Item.objects.filter(sku=sku).first()
+                if item is None:
+                    product = Product.objects.create(
+                        title=title,
+                        brand='Demo',
+                        category=category,
+                    )
+                    item = Item.objects.create(
+                        product=product,
+                        sku=sku,
+                        status='on_shelf',
+                        location='online_sales',
+                        price=Decimal('49.00'),
+                        cost=Decimal('10.00'),
+                    )
                 listing.item = item
                 listing.sku = item.sku
                 listing.save(update_fields=['item', 'sku', 'updated_at'])
-            except Exception as exc:
-                self.stdout.write(self.style.WARNING(f'Could not attach Item for {slug}: {exc}'))
 
         existing_images = listing.images.count()
         for i in range(existing_images, image_count):
-            s3 = S3File.objects.create(
+            s3, _ = S3File.objects.get_or_create(
                 key=f'demo/{slug}-{i}.jpg',
-                filename=f'{slug}-{i}.jpg',
-                size=12,
-                content_type='image/jpeg',
+                defaults={
+                    'filename': f'{slug}-{i}.jpg',
+                    'size': 12,
+                    'content_type': 'image/jpeg',
+                },
             )
-            WebListingImage.objects.create(listing=listing, s3_file=s3, position=i)
+            WebListingImage.objects.get_or_create(
+                listing=listing,
+                s3_file=s3,
+                defaults={'position': i},
+            )
 
         if created or listing.on_hand != on_hand or listing.status != status:
             listing.on_hand = on_hand

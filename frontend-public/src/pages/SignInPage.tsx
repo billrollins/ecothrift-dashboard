@@ -14,17 +14,19 @@ export default function SignInPage() {
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [debugToken, setDebugToken] = useState<string | null>(null)
+  const tokenFromUrl = params.get('token')
 
   useEffect(() => {
     if (user) navigate('/account', { replace: true })
   }, [user, navigate])
 
   useEffect(() => {
-    const token = params.get('token')
-    if (!token) return
+    if (!tokenFromUrl) return
     let active = true
     setBusy(true)
-    consumeMagicLink(token)
+    setError(null)
+    consumeMagicLink(tokenFromUrl)
       .then(() => {
         if (active) navigate('/account', { replace: true })
       })
@@ -37,9 +39,17 @@ export default function SignInPage() {
     return () => {
       active = false
     }
-  }, [params, consumeMagicLink, navigate])
+  }, [tokenFromUrl, consumeMagicLink, navigate])
 
-  if (configLoading) return null
+  if (configLoading) {
+    return (
+      <div className="wrap">
+        <div className="pagehead">
+          <span className="skline" style={{ width: 180 }} />
+        </div>
+      </div>
+    )
+  }
   if (!config.accounts_enabled) {
     return (
       <div className="wrap">
@@ -58,14 +68,34 @@ export default function SignInPage() {
     e.preventDefault()
     setBusy(true)
     setError(null)
+    setDebugToken(null)
     try {
-      await requestMagicLink(email.trim())
+      const data = await requestMagicLink(email.trim())
       setSent(true)
+      if (data.debug_token) setDebugToken(data.debug_token)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send link')
     } finally {
       setBusy(false)
     }
+  }
+
+  // Token consume failure: show once below the heading (not also in the form).
+  if (tokenFromUrl && error && !sent) {
+    return (
+      <div className="wrap">
+        <div className="pagehead">
+          <div className="eyebrow">Account</div>
+          <h1>Sign in</h1>
+        </div>
+        <p className="lead" style={{ color: '#c0392b' }}>
+          {error}
+        </p>
+        <Link className="btn btn--primary" to="/account/sign-in">
+          Request a new link
+        </Link>
+      </div>
+    )
   }
 
   return (
@@ -75,7 +105,19 @@ export default function SignInPage() {
         <h1>Sign in</h1>
       </div>
       {sent ? (
-        <p className="lead">Check your email for a sign-in link. It expires soon and works once.</p>
+        <>
+          <p className="lead">Check your email for a sign-in link. It expires soon and works once.</p>
+          {debugToken && (
+            <div className="pickupnote" style={{ marginTop: 16, marginBottom: 16 }}>
+              <strong>Dev only:</strong> magic-link token returned because DEBUG is on.
+              <div style={{ marginTop: 8 }}>
+                <Link className="btn btn--primary" to={`/account/sign-in?token=${encodeURIComponent(debugToken)}`}>
+                  Continue with debug link
+                </Link>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <>
           <p className="lead">Enter your email and we&rsquo;ll send a one-time sign-in link.</p>
@@ -96,11 +138,6 @@ export default function SignInPage() {
             </button>
           </form>
         </>
-      )}
-      {error && sent === false && params.get('token') && (
-        <p className="lead" style={{ color: '#c0392b' }}>
-          {error}
-        </p>
       )}
     </div>
   )

@@ -26,6 +26,7 @@ import {
   useReservations,
 } from '../../hooks/useWebStore';
 import type { Conversation, Reservation } from '../../api/webstore.api';
+import { isTodaysPickupRow } from './pickupFilter';
 
 type InboxTab = 'holds' | 'pickup' | 'messages';
 
@@ -170,17 +171,10 @@ function PickupPanel() {
   });
   const action = useReservationAction();
 
-  const rows = useMemo(() => {
-    const today = new Date().toDateString();
-    return (data?.results || []).filter((r) => {
-      if (!['confirmed', 'ready_for_pickup'].includes(r.status)) return false;
-      // Prefer "today's" staging window: confirmed/staged with expiry today or already ready.
-      if (r.status === 'ready_for_pickup') return true;
-      if (r.expires_at && new Date(r.expires_at).toDateString() === today) return true;
-      if (r.confirmed_at && new Date(r.confirmed_at).toDateString() === today) return true;
-      return r.status === 'confirmed';
-    });
-  }, [data]);
+  const rows = useMemo(
+    () => (data?.results || []).filter((r) => isTodaysPickupRow(r)),
+    [data],
+  );
 
   const run = async (
     id: number,
@@ -358,7 +352,7 @@ function MessagesPanel() {
           <Typography color="text.secondary">Select a conversation to read and reply.</Typography>
         )}
         {selectedId && loadingThread && <LoadingScreen />}
-        {selected && (
+        {selectedId && !loadingThread && selected?.id === selectedId && (
           <Stack spacing={1.5} sx={{ height: '100%' }}>
             <Box>
               <Typography variant="h6">{selected.guest_name || 'Guest'}</Typography>
@@ -383,7 +377,7 @@ function MessagesPanel() {
             </Stack>
             <Divider />
             <Box sx={{ flex: 1, overflowY: 'auto', maxHeight: 280 }}>
-              {selected.messages.map((m) => (
+              {(selected.messages || []).map((m) => (
                 <Box key={m.id} sx={{ mb: 1.5 }}>
                   <Typography variant="caption" color="text.secondary">
                     {m.author_kind} · {new Date(m.created_at).toLocaleString()}

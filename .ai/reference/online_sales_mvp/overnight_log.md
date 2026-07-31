@@ -1,8 +1,8 @@
-<!-- Last updated: 2026-07-30T18:20:00-05:00 -->
+<!-- Last updated: 2026-07-31T09:45:00-05:00 -->
 # Overnight Online Sales MVP — Work Log
 
 Branch: `online-sales-mvp`  
-Executor: overnight agent  
+Executor: overnight agent + morning fix pass  
 Reviewer tomorrow: Opus
 
 ---
@@ -12,17 +12,18 @@ Reviewer tomorrow: Opus
 *(most important first — keep this section current)*
 
 - G9: transactional provider vs `retail@` M365 SMTP for sending (default: provider).
-- G2–G6, G8: remaining open gates — overnight implements recommended defaults behind settings.
+- G2–G6, G8: remaining open gates — implemented as recommended defaults; need a line marking them accepted.
 - Confirm `retail@ecothrift.us` is the monitored Reply-To mailbox for customer replies.
 - When to flip `ONLINE_SALES_ENABLED=true` in production (after Phase 1 round-trip + seed listings).
+- Ready to merge `online-sales-mvp` → main with flags still off? (fix pass complete; stop before merge per Bill).
 
 ---
 
 ## WHERE I STOPPED
 
-- Last completed: H5 (full overnight plan through Stage H)
+- Last completed: morning fix pass (unread GET side effect, pickup filter, 48h request triage, throttles, walkthrough)
 - Half-done: —
-- Check first: Bill/Opus review of DECISIONS NEEDED + `self_review.md`; then flip flags locally and walk `demo_script.md`
+- Check first: Bill decides merge vs further polish; G9 email provider still open
 
 ---
 
@@ -32,7 +33,12 @@ Reviewer tomorrow: Opus
 - Forgot-password token disclosure was a live staff account-takeover path (confirmed, now fixed).
 - `setWebOrderStatus` calls nonexistent `POST …/orders/{id}/set-status/` (also hooked in useWebStore).
 - Kill switch only gates `POST holds/`; catalog/images stay live (A4 must expand).
-- `expire_due_reservations` has zero callers — reserved qty can leak.
+- `expire_due_reservations` had zero callers overnight — reserved qty can leak; command now exists + 48h untriaged-request bucket.
+- **Fix pass:** `get_thread` was clearing `customer_unread` on every GET (serializer side effect).
+- **Fix pass:** PickupPanel “today” filter was dead code (`return r.status === 'confirmed'` fallback).
+- **Fix pass:** In-process hold/message rate limits are useless under Gunicorn multi-worker — moved to DRF cache throttles.
+- **Fix pass:** `TestCase` never commits, so `transaction.on_commit` email tests need `captureOnCommitCallbacks(execute=True)`.
+- **Fix pass:** `seed_online_sales_demo --wipe` left orphan Items/S3Files and broke the atomic block on re-seed.
 
 ---
 
@@ -211,3 +217,13 @@ Reviewer tomorrow: Opus
 ### Z — Never-idle backlog — DONE (logged, not ground)
 
 Priority if more overnight time appeared (not started): deepen matrix 429 cases; POS hold guard regression suite; docstring pass on `services/conversations.py`; public inquiry status page by thread token.
+
+### Fix pass — morning review defects — DONE — 2026-07-31T09:45:00-05:00
+
+- **Status:** DONE (stop before merge)
+- **Backend:** no mark-read on GET; `POST threads/<token>/read/`; list serializers without messages; 48h `ONLINE_SALES_REQUEST_TRIAGE_HOURS`; idempotency scoped to active+email; confirm email via `on_commit`; DRF `online_hold`/`online_message` throttles; magic-link except narrowed
+- **Frontend:** `isTodaysPickupRow`; HoldStatus reset + mark-read; inbox detail gated on `selectedId`; lazy public auth via session hint; Layout loading flash; SignIn `debug_token`; copy-guard allowlist narrowed
+- **Seed/walk:** seed wipe fixes; `walk_online_sales_demo` management command
+- **Commands:** with `ONLINE_SALES_ENABLED=true` and `ONLINE_SALES_PUBLIC_BASE_URL=http://localhost:5174`: seed + walk OK
+- **Verification:** `apps.webstore`+`apps.accounts.tests` → **80 OK**; vitest online-sales+policy → **27 OK**; both FE builds OK
+- **Known gaps left:** thin DataGrid mocks; `/checkout` route name; inquiry-only public deep link; G9 provider/SPF

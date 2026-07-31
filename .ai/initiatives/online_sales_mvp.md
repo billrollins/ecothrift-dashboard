@@ -368,6 +368,13 @@ Time from `online_sales` Item → published listing · holds requested / confirm
 - **Handoff:** Read [`.ai/reference/online_sales_mvp/overnight_log.md`](../reference/online_sales_mvp/overnight_log.md) first (DECISIONS NEEDED / WHERE I STOPPED / FINDINGS). Recommended semver draft `v2.62.0` in `changelog_draft.md` — do not bump yet.
 - **Out of scope overnight:** Answering open gates G2–G6/G8/G9; DNS/provider signup; flipping `ONLINE_SALES_ENABLED` in production; editing `CHANGELOG.md` / `.version`.
 
+### Session 3 — 2026-07-31 morning fix pass (stop before merge)
+
+- **Goal:** Review overnight branch; fix confirmed defects; walk demo locally with flags on; do not merge.
+- **Done:** Unread no longer cleared by GET (explicit `POST …/threads/<token>/read/`); list payloads omit message bodies; 48h untriaged-request expiry; idempotency scoped to active+email; confirm email on `transaction.on_commit`; cache-backed hold/message throttles; pickup “today” filter extracted and fixed; lazy public auth; SignIn `debug_token`; seed wipe + `walk_online_sales_demo`.
+- **Verify:** `test apps.webstore apps.accounts.tests` → **80 OK**; vitest online-sales+policy → **27 OK**; both FE builds OK; local walk with `ONLINE_SALES_ENABLED=true` OK.
+- **Still open:** G9 provider/SPF; merge decision; marking G2–G6/G8 accepted.
+
 ---
 
 ## See also

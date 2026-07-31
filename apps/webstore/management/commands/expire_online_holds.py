@@ -4,7 +4,9 @@ Usage:
     python manage.py expire_online_holds
     python manage.py expire_online_holds --dry-run
 """
+from datetime import timedelta
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -13,7 +15,10 @@ from apps.webstore.services.reservations import expire_due_reservations
 
 
 class Command(BaseCommand):
-    help = 'Expire confirmed/ready Online Sales holds past expires_at and release reserved qty.'
+    help = (
+        'Expire confirmed/ready Online Sales holds past expires_at, plus untriaged '
+        'requested holds past ONLINE_SALES_REQUEST_TRIAGE_HOURS; release reserved qty.'
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -24,18 +29,29 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         now = timezone.now()
-        due_qs = Reservation.objects.filter(
+        confirmed_due = Reservation.objects.filter(
             status__in=('confirmed', 'ready_for_pickup'),
             expires_at__isnull=False,
             expires_at__lte=now,
-        )
-        due_count = due_qs.count()
+        ).count()
+        triage_hours = int(getattr(settings, 'ONLINE_SALES_REQUEST_TRIAGE_HOURS', 48))
+        stale_requests = Reservation.objects.filter(
+            status='requested',
+            created_at__lte=now - timedelta(hours=triage_hours),
+        ).count()
+        due_count = confirmed_due + stale_requests
         if options['dry_run']:
             self.stdout.write(
-                self.style.WARNING(f'Dry run: {due_count} hold(s) would expire.')
+                self.style.WARNING(
+                    f'Dry run: {due_count} hold(s) would expire '
+                    f'({confirmed_due} confirmed/ready, {stale_requests} untriaged requests).'
+                )
             )
             return
         released = expire_due_reservations(now=now)
         self.stdout.write(
-            self.style.SUCCESS(f'Expired {released} hold(s) (due count was {due_count}).')
+            self.style.SUCCESS(
+                f'Expired {released} hold(s) '
+                f'({confirmed_due} confirmed/ready, {stale_requests} untriaged requests).'
+            )
         )

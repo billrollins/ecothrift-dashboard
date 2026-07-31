@@ -58,7 +58,9 @@ class SystemEmailTests(TestCase):
             listing=listing, quantity=1, customer_name='Ada', email='ada@example.com',
         )
         mail.outbox.clear()
-        confirm_reservation(res)
+        # Email is scheduled with transaction.on_commit — execute callbacks here.
+        with self.captureOnCommitCallbacks(execute=True):
+            confirm_reservation(res)
         self.assertEqual(len(mail.outbox), 1)
         msg = mail.outbox[0]
         self.assertIn('Hold confirmed', msg.subject)

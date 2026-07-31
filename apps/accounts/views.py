@@ -1,14 +1,19 @@
+import logging
+
 from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
 from django.core.mail import send_mail
 from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import SimpleRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+
+logger = logging.getLogger(__name__)
 
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserUpdateSerializer,
@@ -460,7 +465,10 @@ def magic_link_request_view(request):
     try:
         ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR')
         token_row = issue_magic_link(email=email, request_ip=ip or None)
+    except ValidationError:
+        return Response(generic)
     except Exception:
+        logger.exception('magic_link_request unexpected failure for %s', email)
         return Response(generic)
 
     base = getattr(dj_settings, 'ONLINE_SALES_PUBLIC_BASE_URL', 'https://ecothrift.us').rstrip('/')

@@ -46,6 +46,8 @@ ONLINE_SALES_ENABLED = config('ONLINE_SALES_ENABLED', default=False, cast=bool)
 ONLINE_SALES_INQUIRIES_ENABLED = config('ONLINE_SALES_INQUIRIES_ENABLED', default=True, cast=bool)
 # Magic-link customer accounts (G8 guest-first; accounts optional — reversible).
 ONLINE_SALES_ACCOUNTS_ENABLED = config('ONLINE_SALES_ACCOUNTS_ENABLED', default=True, cast=bool)
+# Untriaged `requested` holds auto-expire after this many hours (releases reserved qty).
+ONLINE_SALES_REQUEST_TRIAGE_HOURS = config('ONLINE_SALES_REQUEST_TRIAGE_HOURS', default=48, cast=int)
 
 # Email — console backend by default so local dev prints messages.
 # Set EMAIL_BACKEND + SMTP/provider creds to send for real.
@@ -209,6 +211,8 @@ REST_FRAMEWORK = {
         'auth_forgot_password': '10/hour',
         'auth_magic_link_ip': '20/hour',
         'auth_magic_link_email': '10/hour',
+        'online_hold': '8/minute',
+        'online_message': '20/minute',
     },
 }
 

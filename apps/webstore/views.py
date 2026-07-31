@@ -2,10 +2,7 @@
 from __future__ import annotations
 
 import os
-import time
 import uuid
-from collections import defaultdict
-from threading import Lock
 
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -15,17 +12,19 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, mixins, viewsets
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action, api_view, throttle_classes
 from rest_framework.decorators import permission_classes as perm_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import SimpleRateThrottle
 
 from apps.accounts.permissions import IsManagerOrAdmin
 from apps.core.models import S3File
 
 from .models import ChannelPublication, Conversation, Order, Reservation, WebListing, WebListingImage
 from .serializers import (
+    ConversationStaffListSerializer,
     ConversationStaffSerializer,
     MessagePublicSerializer,
     OrderStaffSerializer,
@@ -48,46 +47,24 @@ PAGE_SIZE_DEFAULT = 24
 PAGE_SIZE_MAX = 60
 _TRUTHY = ('1', 'true', 'True', 'yes')
 
-_HOLD_HITS: dict[str, list[float]] = defaultdict(list)
-_HOLD_LOCK = Lock()
-_HOLD_WINDOW_SEC = 60
-_HOLD_MAX = 8
 
-_MSG_HITS: dict[str, list[float]] = defaultdict(list)
-_MSG_LOCK = Lock()
-_MSG_WINDOW_SEC = 60
-_MSG_MAX = 20
+class _FixedScopeThrottle(SimpleRateThrottle):
+    """SimpleRateThrottle with a class-level scope (ScopedRateThrottle needs view.throttle_scope)."""
 
-
-def _client_ip(request) -> str:
-    forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    if forwarded:
-        return forwarded.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR') or 'unknown'
+    def get_cache_key(self, request, view):
+        if request.user and request.user.is_authenticated:
+            ident = request.user.pk
+        else:
+            ident = self.get_ident(request)
+        return self.cache_format % {'scope': self.scope, 'ident': ident}
 
 
-def _rate_limit_hold(request) -> bool:
-    ip = _client_ip(request)
-    now = time.time()
-    with _HOLD_LOCK:
-        hits = _HOLD_HITS[ip]
-        _HOLD_HITS[ip] = [t for t in hits if now - t < _HOLD_WINDOW_SEC]
-        if len(_HOLD_HITS[ip]) >= _HOLD_MAX:
-            return False
-        _HOLD_HITS[ip].append(now)
-        return True
+class OnlineHoldThrottle(_FixedScopeThrottle):
+    scope = 'online_hold'
 
 
-def _rate_limit_messages(request) -> bool:
-    ip = _client_ip(request)
-    now = time.time()
-    with _MSG_LOCK:
-        hits = _MSG_HITS[ip]
-        _MSG_HITS[ip] = [t for t in hits if now - t < _MSG_WINDOW_SEC]
-        if len(_MSG_HITS[ip]) >= _MSG_MAX:
-            return False
-        _MSG_HITS[ip].append(now)
-        return True
+class OnlineMessageThrottle(_FixedScopeThrottle):
+    scope = 'online_message'
 
 
 def _ensure_channel_rows(listing: WebListing) -> None:
@@ -343,12 +320,17 @@ class ConversationViewSet(
     search_fields = ['guest_name', 'guest_email', 'guest_phone', 'public_token', 'listing__title']
     ordering_fields = ['last_message_at', 'created_at', 'state']
 
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ConversationStaffListSerializer
+        return ConversationStaffSerializer
+
     def get_queryset(self):
-        qs = (
-            Conversation.objects
-            .select_related('listing', 'reservation', 'staff_owner', 'customer')
-            .prefetch_related('messages')
+        qs = Conversation.objects.select_related(
+            'listing', 'reservation', 'staff_owner', 'customer',
         )
+        if self.action != 'list':
+            qs = qs.prefetch_related('messages')
         has_hold = self.request.query_params.get('has_hold')
         if has_hold in _TRUTHY:
             qs = qs.filter(reservation__isnull=False)
@@ -584,6 +566,7 @@ def order_status(request, order_number):
 
 @api_view(['POST'])
 @perm_classes([AllowAny])
+@throttle_classes([OnlineHoldThrottle])
 def request_hold(request):
     from apps.webstore.services.feature import online_sales_enabled
 
@@ -598,9 +581,6 @@ def request_hold(request):
             },
             status=410,
         )
-
-    if not _rate_limit_hold(request):
-        return Response({'detail': 'Too many hold requests. Try again shortly.'}, status=429)
 
     data = request.data or {}
     fulfillment = (data.get('fulfillment') or '').strip().lower()
@@ -689,6 +669,7 @@ def hold_status(request, token):
 
 @api_view(['POST'])
 @perm_classes([AllowAny])
+@throttle_classes([OnlineMessageThrottle])
 def thread_post_message(request, token):
     """Guest reply on a conversation public_token."""
     from apps.webstore.services.conversations import mark_customer_read, post_message
@@ -696,8 +677,6 @@ def thread_post_message(request, token):
 
     if not online_sales_enabled():
         return _public_surface_disabled_response()
-    if not _rate_limit_messages(request):
-        return Response({'detail': 'Too many messages. Try again shortly.'}, status=429)
 
     try:
         conv = Conversation.objects.prefetch_related('messages').get(public_token=token)
@@ -722,6 +701,28 @@ def thread_post_message(request, token):
 
 @api_view(['POST'])
 @perm_classes([AllowAny])
+def thread_mark_read(request, token):
+    """Mark a conversation read for the customer (explicit; not a GET side effect)."""
+    from apps.webstore.services.conversations import mark_customer_read
+
+    try:
+        conv = Conversation.objects.prefetch_related('messages').get(public_token=token)
+    except Conversation.DoesNotExist:
+        return Response({'detail': 'Thread not found.'}, status=404)
+
+    mark_customer_read(conv)
+    conv.refresh_from_db()
+    return Response({
+        'public_token': conv.public_token,
+        'state': conv.state,
+        'customer_unread': 0,
+        'messages': MessagePublicSerializer(conv.messages.all(), many=True).data,
+    })
+
+
+@api_view(['POST'])
+@perm_classes([AllowAny])
+@throttle_classes([OnlineMessageThrottle])
 def catalog_ask(request, slug):
     """Guest inquiry without a hold (gated by ONLINE_SALES_INQUIRIES_ENABLED)."""
     from django.conf import settings as dj_settings
@@ -736,8 +737,6 @@ def catalog_ask(request, slug):
             {'detail': 'Inquiries are not available right now.', 'code': 'INQUIRIES_DISABLED'},
             status=410,
         )
-    if not _rate_limit_messages(request):
-        return Response({'detail': 'Too many messages. Try again shortly.'}, status=429)
 
     try:
         listing = WebListing.objects.get(slug=slug, status='published')
@@ -777,10 +776,16 @@ def my_holds(request):
     email = (request.user.email or '').strip()
     qs = (
         Reservation.objects.filter(email__iexact=email)
-        .select_related('listing')
+        .select_related('listing', 'conversation')
         .order_by('-created_at')[:100]
     )
-    return Response(ReservationPublicSerializer(qs, many=True).data)
+    return Response(
+        ReservationPublicSerializer(
+            qs,
+            many=True,
+            context={'include_thread_messages': False},
+        ).data,
+    )
 
 
 @api_view(['GET'])
@@ -795,10 +800,9 @@ def my_conversations(request):
     qs = (
         Conversation.objects.filter(Q(customer=request.user) | Q(guest_email__iexact=email))
         .select_related('listing', 'reservation')
-        .prefetch_related('messages')
         .order_by('-last_message_at', '-created_at')[:100]
     )
-    # PII-minimal public-ish shape (own threads only)
+    # List shape — no message bodies (open hold/thread token for history).
     return Response([
         {
             'public_token': c.public_token,
@@ -809,7 +813,6 @@ def my_conversations(request):
             ),
             'customer_unread': c.customer_unread,
             'last_message_at': c.last_message_at,
-            'messages': MessagePublicSerializer(c.messages.all(), many=True).data,
         }
         for c in qs
     ])

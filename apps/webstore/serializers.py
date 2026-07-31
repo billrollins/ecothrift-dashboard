@@ -190,20 +190,38 @@ class ReservationPublicSerializer(serializers.ModelSerializer):
         )
 
     def get_thread(self, obj):
-        from apps.webstore.services.conversations import mark_customer_read
-
         try:
             conv = obj.conversation
         except Conversation.DoesNotExist:
             return None
-        mark_customer_read(conv)
-        messages = list(conv.messages.all())
-        return {
+        payload = {
             'public_token': conv.public_token,
             'state': conv.state,
-            'customer_unread': 0,
-            'messages': MessagePublicSerializer(messages, many=True).data,
+            'customer_unread': conv.customer_unread,
         }
+        # List endpoints (my_holds) omit history; detail/hold-status include it.
+        if self.context.get('include_thread_messages', True):
+            messages = list(conv.messages.all())
+            payload['messages'] = MessagePublicSerializer(messages, many=True).data
+        return payload
+
+
+class ConversationStaffListSerializer(serializers.ModelSerializer):
+    """Inbox list — no message bodies (fetch on retrieve)."""
+
+    listing_title = serializers.CharField(source='listing.title', read_only=True, default=None)
+    reservation_id = serializers.IntegerField(read_only=True, allow_null=True)
+    staff_owner_email = serializers.EmailField(source='staff_owner.email', read_only=True, default=None)
+
+    class Meta:
+        model = Conversation
+        fields = [
+            'id', 'public_token', 'state', 'listing', 'listing_title', 'reservation_id',
+            'guest_name', 'guest_email', 'guest_phone', 'customer',
+            'staff_owner', 'staff_owner_email', 'staff_unread', 'customer_unread',
+            'last_message_at', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
 
 
 class ConversationStaffSerializer(serializers.ModelSerializer):

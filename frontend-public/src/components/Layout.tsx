@@ -12,13 +12,17 @@ const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'on' : und
 export default function Layout() {
   const { config, loading } = useOnlineSalesConfig()
   const { count, setOpen } = useCart()
-  const { user } = useAuth()
-  const shopOn = !loading && config.online_sales_enabled
-  const accountsOn = !loading && config.accounts_enabled
+  const { user, isLoading: authLoading } = useAuth()
+  // Treat config load as indeterminate — don't flash "under construction" when shop is on.
+  const shopOn = config.online_sales_enabled
+  const accountsOn = config.accounts_enabled
+  const showUnderConstruction = !loading && !shopOn
+  const accountLabel = authLoading ? 'Account' : user ? 'Account' : 'Sign in'
+  const accountHref = !authLoading && user ? '/account' : '/account/sign-in'
 
   return (
     <>
-      {!shopOn && (
+      {showUnderConstruction && (
         <div className="util" role="status" aria-live="polite">
           <div className="wrap">
             <span className="util-badge">Under construction</span>
@@ -35,7 +39,7 @@ export default function Layout() {
             <img className="logo" src={logoImg} alt="Eco-Thrift" width={244} height={60} />
           </Link>
           <nav className="nav">
-            {shopOn && (
+            {!loading && shopOn && (
               <NavLink to="/shop" className={navClass}>
                 Shop
               </NavLink>
@@ -51,11 +55,11 @@ export default function Layout() {
             </NavLink>
           </nav>
           <div className="tools">
-            {shopOn ? (
+            {loading ? null : shopOn ? (
               <>
                 {accountsOn && (
-                  <Link className="btn btn--ghost" to={user ? '/account' : '/account/sign-in'}>
-                    {user ? 'Account' : 'Sign in'}
+                  <Link className="btn btn--ghost" to={accountHref}>
+                    {accountLabel}
                   </Link>
                 )}
                 <button

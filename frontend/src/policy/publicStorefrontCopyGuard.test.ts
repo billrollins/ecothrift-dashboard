@@ -28,9 +28,8 @@ const FORBIDDEN: { id: string; re: RegExp }[] = [
 const ALLOW_LINE: RegExp[] = [
   /POLICY_COPY_OK/,
   // Negation prose: we promise we do NOT ship / deliver / take online payment.
+  // Keep this narrow — a bare /no shipping/i would allow-list the whole line.
   /no shipping,\s*delivery/i,
-  /no shipping/i,
-  /— no shipping/i,
   // Deprecated / ended messaging that steers customers to holds.
   /online checkout (has ended|is no longer available|disabled)/i,
   // Technical identifiers (CSS, routes, symbols) — not customer-facing copy.

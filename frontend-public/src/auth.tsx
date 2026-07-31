@@ -19,7 +19,7 @@ type AuthContextValue = {
   user: PublicUser | null
   accessToken: string | null
   isLoading: boolean
-  requestMagicLink: (email: string) => Promise<{ detail: string }>
+  requestMagicLink: (email: string) => Promise<{ detail: string; debug_token?: string }>
   consumeMagicLink: (token: string) => Promise<void>
   logout: () => Promise<void>
   authFetch: (url: string, init?: RequestInit) => Promise<Response>
@@ -27,7 +27,26 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+const SESSION_HINT_KEY = 'ecothrift.public_session.v1'
+
 let memoryAccess: string | null = null
+
+function hasSessionHint(): boolean {
+  try {
+    return localStorage.getItem(SESSION_HINT_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function setSessionHint(on: boolean) {
+  try {
+    if (on) localStorage.setItem(SESSION_HINT_KEY, '1')
+    else localStorage.removeItem(SESSION_HINT_KEY)
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<PublicUser | null>(null)
@@ -39,6 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessTokenState(token)
   }
 
+  const clearSession = useCallback(() => {
+    setUser(null)
+    setAccessToken(null)
+    setSessionHint(false)
+  }, [])
+
   const loadUser = useCallback(async () => {
     try {
       const refreshRes = await fetch('/api/auth/refresh/', {
@@ -48,12 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: '{}',
       })
       if (!refreshRes.ok) {
-        setUser(null)
-        setAccessToken(null)
+        clearSession()
         return
       }
       const refreshData = await refreshRes.json()
       setAccessToken(refreshData.access)
+      setSessionHint(true)
       const meRes = await fetch('/api/auth/me/', {
         credentials: 'include',
         headers: {
@@ -62,20 +87,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       })
       if (!meRes.ok) {
-        setUser(null)
-        setAccessToken(null)
+        clearSession()
         return
       }
       setUser((await meRes.json()) as PublicUser)
     } catch {
-      setUser(null)
-      setAccessToken(null)
+      clearSession()
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [clearSession])
 
   useEffect(() => {
+    if (!hasSessionHint()) {
+      setIsLoading(false)
+      return
+    }
     loadUser()
   }, [loadUser])
 
@@ -88,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.detail || 'Could not request sign-in link')
-    return data as { detail: string }
+    return data as { detail: string; debug_token?: string }
   }, [])
 
   const consumeMagicLink = useCallback(async (token: string) => {
@@ -100,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.detail || 'Sign-in link invalid or expired')
+    setSessionHint(true)
     if (data.access) setAccessToken(data.access)
     if (data.user) setUser(data.user as PublicUser)
     else await loadUser()
@@ -119,9 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-    setAccessToken(null)
-    setUser(null)
-  }, [])
+    clearSession()
+  }, [clearSession])
 
   const authFetch = useCallback(async (url: string, init: RequestInit = {}) => {
     const headers = new Headers(init.headers || {})

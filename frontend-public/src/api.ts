@@ -184,6 +184,19 @@ export async function postThreadMessage(token: string, body: string): Promise<Pu
   return data as PublicThread
 }
 
+export async function markThreadRead(token: string): Promise<PublicThread> {
+  const res = await fetch(`${BASE}/threads/${encodeURIComponent(token)}/read/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: '{}',
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((data && data.detail) || `Could not mark thread read (${res.status})`)
+  }
+  return data as PublicThread
+}
+
 export async function askAboutListing(input: {
   slug: string
   name: string

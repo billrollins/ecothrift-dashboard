@@ -1,8 +1,9 @@
 """Reservation create / confirm / release / complete helpers."""
 from __future__ import annotations
 
-from decimal import Decimal
+from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -36,8 +37,15 @@ def create_hold(
     if not customer_name or not email:
         raise ValidationError({'detail': 'Name and email are required.'})
 
+    email_norm = email.strip()
     if idempotency_key:
-        existing = Reservation.objects.filter(idempotency_key=idempotency_key).first()
+        existing = (
+            Reservation.objects.filter(
+                idempotency_key=idempotency_key,
+                status__in=Reservation.ACTIVE_STATUSES,
+                email__iexact=email_norm,
+            ).first()
+        )
         if existing:
             from apps.webstore.services.conversations import open_for_reservation
             open_for_reservation(existing)
@@ -59,7 +67,7 @@ def create_hold(
         listing=locked,
         item=locked.item,
         customer_name=customer_name.strip(),
-        email=email.strip(),
+        email=email_norm,
         phone=(phone or '').strip(),
         quantity=quantity,
         customer_note=(customer_note or '').strip(),
@@ -81,9 +89,7 @@ def release_reservation(reservation: Reservation, new_status: str) -> Reservatio
     if locked.status in TERMINAL_RELEASE_STATUSES + ('completed',):
         return locked
     if locked.status not in Reservation.ACTIVE_STATUSES:
-        locked.status = new_status
-        locked.save(update_fields=['status', 'updated_at'])
-        return locked
+        raise ValidationError({'detail': f'Cannot release from status {locked.status}.'})
 
     listing = WebListing.objects.select_for_update().get(pk=locked.listing_id)
     listing.reserved = max(0, listing.reserved - locked.quantity)
@@ -111,13 +117,17 @@ def confirm_reservation(reservation: Reservation, user=None) -> Reservation:
     ])
     from apps.webstore.services.conversations import notify_reservation_status
     notify_reservation_status(locked, 'confirmed')
-    try:
-        from apps.webstore.emails import send_hold_confirmed
-        # Refresh listing for email title; never let mail break confirm.
-        locked = Reservation.objects.select_related('listing').get(pk=locked.pk)
-        send_hold_confirmed(locked)
-    except Exception:
-        pass
+    reservation_id = locked.pk
+
+    def _send_email():
+        try:
+            from apps.webstore.emails import send_hold_confirmed
+            row = Reservation.objects.select_related('listing').get(pk=reservation_id)
+            send_hold_confirmed(row)
+        except Exception:
+            pass
+
+    transaction.on_commit(_send_email)
     return locked
 
 
@@ -182,16 +192,25 @@ def active_holds_for_item(item_id: int):
 
 
 def expire_due_reservations(now=None) -> int:
+    """Expire confirmed/ready past expires_at, plus untriaged requests past triage window."""
     now = now or timezone.now()
-    due = list(
+    due_ids = list(
         Reservation.objects.filter(
             status__in=('confirmed', 'ready_for_pickup'),
             expires_at__isnull=False,
             expires_at__lte=now,
         ).values_list('id', flat=True)
     )
+    triage_hours = int(getattr(settings, 'ONLINE_SALES_REQUEST_TRIAGE_HOURS', 48))
+    cutoff = now - timedelta(hours=triage_hours)
+    stale_request_ids = list(
+        Reservation.objects.filter(
+            status='requested',
+            created_at__lte=cutoff,
+        ).values_list('id', flat=True)
+    )
     count = 0
-    for pk in due:
+    for pk in due_ids + stale_request_ids:
         release_reservation(Reservation.objects.get(pk=pk), 'expired')
         count += 1
     return count
