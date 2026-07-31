@@ -13,7 +13,7 @@ Session details live **only** in each file under **`## Sessions`**.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [online_sales_mvp](./online_sales_mvp.md) | **v2.62.0** shipped (public parked); next listing polish + M365 Graph mail | Staff Online Sales live; public shop/holds gated by `ONLINE_SALES_ENABLED=false`. Auth defects closed. G2–G8 accepted; G9 = **Microsoft Graph** on `retail@` (one mailbox, UI-split OS vs general). Owner enters own listings. Narrows parked [online_sales_workspace](./_archived/_pending/online_sales_workspace.md). |
+| [online_sales_mvp](./online_sales_mvp.md) | **v2.62.0–v2.63.0**; next M365 Graph mail | Staff Online Sales + Listing Studio polish + shared TipTap editor. Public parked. G9 = Microsoft Graph on `retail@`. Narrows parked [online_sales_workspace](./_archived/_pending/online_sales_workspace.md). |
 
 ---
 

@@ -1,8 +1,7 @@
-Release v2.62.0: Online Sales MVP (public surface parked)
+Release v2.63.0: Listing Studio polish + shared RichTextEditor
 
-- Staff Online Sales workspace, Messages, magic-link accounts, hold expiry
-- Public shop/holds gated by ONLINE_SALES_ENABLED=false until owner flip
-- Auth hardening (forgot-password token, secure cookie, throttles)
-- Gates G2–G9 recorded; G9 = Microsoft Graph on retail@ (follow-up)
+- Photo reorder/alt, mark sold, delete with hold guard, work-queue dedupe
+- Publish readiness enforced (no PATCH to published)
+- TipTap extracted to components/common/RichTextEditor (blog | email)
 
-Release: v2.62.0
+Release: v2.63.0

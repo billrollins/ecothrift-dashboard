@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import { NodeSelection } from '@tiptap/pm/state';
-import type { EditorView } from '@tiptap/pm/view';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import {
+  RichTextEditor,
+  type RichTextEditorChange,
+  type RichTextEditorValue,
+} from '../../components/common/RichTextEditor';
 import {
   useArchiveBlogPost,
   useBlogPosts,
@@ -19,8 +21,6 @@ import {
   useUploadBlogImage,
 } from '../../hooks/useBlogStudio';
 import type { BlogPost, BlogStatus } from '../../api/blog.api';
-import { editorExtensions, EditorToolbar } from './StudioEditor';
-import { cleanPastedHtml } from './blogTiptapExtensions';
 import './blogStudio.css';
 
 type Segment = 'draft' | 'scheduled' | 'published';
@@ -114,41 +114,6 @@ function listMeta(post: BlogPost): string {
   return `edited ${formatDistanceToNowStrict(new Date(post.updated_at), { addSuffix: true })}`;
 }
 
-function selectLinkCardFromEvent(view: EditorView, event: MouseEvent): boolean {
-  const rawTarget = event.target;
-  const target =
-    rawTarget instanceof Element
-      ? rawTarget
-      : rawTarget instanceof Node
-        ? rawTarget.parentElement
-        : null;
-  const card = target?.closest('a.bt-linkcard');
-  if (!card || !view.dom.contains(card)) return false;
-
-  event.preventDefault();
-  event.stopPropagation();
-
-  try {
-    const rawPos = view.posAtDOM(card, 0);
-    const resolved = view.state.doc.resolve(rawPos);
-    const pos =
-      resolved.nodeAfter?.type.name === 'linkCard'
-        ? rawPos
-        : resolved.nodeBefore?.type.name === 'linkCard'
-          ? rawPos - resolved.nodeBefore.nodeSize
-          : null;
-
-    if (pos != null) {
-      view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)));
-      view.focus();
-    }
-  } catch {
-    // If ProseMirror cannot map the DOM position, still block navigation in the editor.
-  }
-
-  return true;
-}
-
 export default function BlogStudioPage() {
   const { enqueueSnackbar } = useSnackbar();
 
@@ -178,6 +143,7 @@ export default function BlogStudioPage() {
     html: '',
     json: {},
   });
+  const [editorValue, setEditorValue] = useState<RichTextEditorValue>('');
   const [words, setWords] = useState(0);
   const [chars, setChars] = useState(0);
   const [selectionWords, setSelectionWords] = useState(0);
@@ -186,8 +152,8 @@ export default function BlogStudioPage() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const heroInputRef = useRef<HTMLInputElement>(null);
-  const inlineInputRef = useRef<HTMLInputElement>(null);
   const loadedIdRef = useRef<number | null>(null);
+  const loadingPostRef = useRef<BlogPost | null>(null);
   const lastSavedRef = useRef<string>('');
   const payloadRef = useRef<Record<string, unknown>>({});
   const serializedRef = useRef<string>('');
@@ -195,67 +161,37 @@ export default function BlogStudioPage() {
 
   const currentStatus: BlogStatus = serverPost?.status ?? 'draft';
 
-  const insertInlineImageRef = useRef<(file: File) => Promise<void>>(async () => {});
+  const handleEditorChange = useCallback((next: RichTextEditorChange) => {
+    const json = next.json as Record<string, unknown>;
+    setEditorValue(next.json);
+    setBody({ html: next.html, json });
+    setWords(countWords(next.text));
+    setChars(next.text.length);
 
-  const editor = useEditor({
-    extensions: editorExtensions('Tell the story…'),
-    content: '',
-    editable: false,
-    onUpdate: ({ editor: ed }) => {
-      setBody({ html: ed.getHTML(), json: ed.getJSON() as Record<string, unknown> });
-      const text = ed.getText();
-      setWords(countWords(text));
-      setChars(text.length);
-    },
-    onSelectionUpdate: ({ editor: ed }) => {
-      const { from, to, empty } = ed.state.selection;
-      setSelectionWords(empty ? 0 : countWords(ed.state.doc.textBetween(from, to, ' ')));
-    },
-    editorProps: {
-      transformPastedHTML: (html) => cleanPastedHtml(html),
-      handleDOMEvents: {
-        mousedown: selectLinkCardFromEvent,
-        click: selectLinkCardFromEvent,
-      },
-      handleDrop: (_view, event, _slice, moved) => {
-        if (moved || !event.dataTransfer?.files?.length) return false;
-        const file = Array.from(event.dataTransfer.files).find((f) => f.type.startsWith('image/'));
-        if (!file) return false;
-        event.preventDefault();
-        void insertInlineImageRef.current(file);
-        return true;
-      },
-      handlePaste: (_view, event) => {
-        const file = Array.from(event.clipboardData?.items ?? [])
-          .map((item) => (item.type.startsWith('image/') ? item.getAsFile() : null))
-          .find(Boolean);
-        if (!file) return false;
-        event.preventDefault();
-        void insertInlineImageRef.current(file);
-        return true;
-      },
-    },
-  });
-
-  insertInlineImageRef.current = async (file: File) => {
-    if (!editor) return;
-    try {
-      const img = await uploadMutation.mutateAsync({ file });
-      editor.chain().focus().setImage({ src: img.url, alt: img.alt || '' }).run();
-    } catch {
-      enqueueSnackbar('Image upload failed.', { variant: 'error' });
+    const loadingPost = loadingPostRef.current;
+    if (loadingPost) {
+      lastSavedRef.current = JSON.stringify(
+        buildPayload({
+          title: loadingPost.title,
+          excerpt: loadingPost.excerpt,
+          heroAlt: loadingPost.hero_alt,
+          seriesId: loadingPost.series == null ? '' : String(loadingPost.series),
+          heroImageId: loadingPost.hero_image,
+          bodyHtml: next.html,
+          bodyJson: json,
+          status: loadingPost.status,
+        }),
+      );
+      loadingPostRef.current = null;
     }
-  };
+  }, []);
 
   // ── Load a post into the workspace ─────────────────────────────────────────
   const loadPost = useCallback(
     (post: BlogPost) => {
-      if (!editor) return;
       const content = isTipTapDoc(post.body_json) ? post.body_json : post.body_html || '<p></p>';
-      editor.commands.setContent(content, false);
-      editor.setEditable(true);
-      const html = editor.getHTML();
-      const json = editor.getJSON() as Record<string, unknown>;
+      const json = isTipTapDoc(post.body_json) ? post.body_json : {};
+      const html = post.body_html || '';
 
       const nextForm: Form = {
         title: post.title,
@@ -269,15 +205,16 @@ export default function BlogStudioPage() {
       setForm(nextForm);
       setHeroImageId(post.hero_image);
       setHeroUrl(post.hero?.url ?? null);
+      setEditorValue(content);
       setBody({ html, json });
-      const text = editor.getText();
-      setWords(countWords(text));
-      setChars(text.length);
+      setWords(0);
+      setChars(0);
       setSelectionWords(0);
       setPreview(false);
       setServerPost(post);
       setSaveState('idle');
       setLastSavedAt(post.updated_at ? new Date(post.updated_at) : null);
+      loadingPostRef.current = post;
 
       lastSavedRef.current = JSON.stringify(
         buildPayload({
@@ -293,16 +230,16 @@ export default function BlogStudioPage() {
       );
       loadedIdRef.current = post.id;
     },
-    [editor],
+    [],
   );
 
   // Load selected post from the library list once it's available.
   useEffect(() => {
-    if (!editor || selectedId == null) return;
+    if (selectedId == null) return;
     if (loadedIdRef.current === selectedId) return;
     const post = posts?.find((p) => p.id === selectedId);
     if (post) loadPost(post);
-  }, [editor, selectedId, posts, loadPost]);
+  }, [selectedId, posts, loadPost]);
 
   // Auto-select the most recently edited post on first load.
   useEffect(() => {
@@ -520,17 +457,15 @@ export default function BlogStudioPage() {
     }
   };
 
-  const onInlineFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !editor) return;
+  const uploadInlineImage = useCallback(async (file: File) => {
     try {
       const img = await uploadMutation.mutateAsync({ file });
-      editor.chain().focus().setImage({ src: img.url, alt: img.alt || '' }).run();
+      return { url: img.url, alt: img.alt || '' };
     } catch {
       enqueueSnackbar('Image upload failed.', { variant: 'error' });
+      throw new Error('Image upload failed');
     }
-  };
+  }, [uploadMutation, enqueueSnackbar]);
 
   const onSeriesChange = async (value: string) => {
     if (value === '__new__') {
@@ -624,14 +559,6 @@ export default function BlogStudioPage() {
         hidden
         onChange={onHeroFile}
       />
-      <input
-        ref={inlineInputRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={onInlineFile}
-      />
-
       <div className="app">
         <header>
           <div className="brand">
@@ -758,20 +685,23 @@ export default function BlogStudioPage() {
                       Preview
                     </button>
                   </div>
-                  {!preview && (
-                    <EditorToolbar
-                      editor={editor}
-                      onImageClick={() => inlineInputRef.current?.click()}
-                    />
-                  )}
                 </div>
                 {preview ? (
                   <div
-                    className="write preview-body"
+                    className="rich-text-editor rich-text-editor-content rich-text-editor-preview"
                     dangerouslySetInnerHTML={{ __html: body.html }}
                   />
                 ) : (
-                  <EditorContent editor={editor} className="write" />
+                  <RichTextEditor
+                    key={selectedId}
+                    value={editorValue}
+                    onChange={handleEditorChange}
+                    onSelectionChange={({ text }) => setSelectionWords(countWords(text))}
+                    placeholder="Tell the story…"
+                    editable
+                    variant="blog"
+                    uploadImage={uploadInlineImage}
+                  />
                 )}
                 <div className="foot">
                   <div className="ok">

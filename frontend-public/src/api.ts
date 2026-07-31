@@ -11,6 +11,7 @@ export interface WebstoreConfig {
   online_sales_enabled: boolean
   inquiries_enabled: boolean
   accounts_enabled: boolean
+  public_base_url?: string
 }
 
 export function fetchWebstoreConfig(): Promise<WebstoreConfig> {

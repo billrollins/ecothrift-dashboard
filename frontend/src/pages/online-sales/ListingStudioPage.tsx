@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -16,23 +16,31 @@ import {
   Typography,
 } from '@mui/material';
 import ArrowBack from '@mui/icons-material/ArrowBack';
+import ArrowDownward from '@mui/icons-material/ArrowDownward';
+import ArrowUpward from '@mui/icons-material/ArrowUpward';
 import ContentCopy from '@mui/icons-material/ContentCopy';
 import Delete from '@mui/icons-material/Delete';
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import { useSnackbar } from 'notistack';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
   useArchiveWebListing,
   useCategoryOptions,
+  useDeleteWebListing,
   useDeleteWebListingImage,
   useGenerateFbCopy,
   useMarkFbPosted,
+  useMarkWebListingSold,
   usePauseWebListing,
   usePublishWebListing,
+  useReorderWebListingImage,
   useRestoreWebListing,
   useUpdateWebListing,
+  useUpdateWebListingImageAlt,
   useUploadWebListingImage,
   useWebListing,
+  useWebstoreConfig,
 } from '../../hooks/useWebStore';
 
 const CONDITION_OPTIONS = [
@@ -50,13 +58,18 @@ export default function ListingStudioPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { data: listing, isLoading, isError } = useWebListing(Number.isFinite(listingId) ? listingId : null);
   const { data: categories } = useCategoryOptions();
+  const { data: config } = useWebstoreConfig();
   const updateListing = useUpdateWebListing();
   const uploadImage = useUploadWebListingImage();
   const deleteImage = useDeleteWebListingImage();
+  const reorderImages = useReorderWebListingImage();
+  const updateImageAlt = useUpdateWebListingImageAlt();
+  const deleteListing = useDeleteWebListing();
   const publish = usePublishWebListing();
   const pause = usePauseWebListing();
   const archive = useArchiveWebListing();
   const restore = useRestoreWebListing();
+  const markSold = useMarkWebListingSold();
   const genFb = useGenerateFbCopy();
   const markFb = useMarkFbPosted();
 
@@ -76,6 +89,9 @@ export default function ListingStudioPage() {
     fb_posted_url: '',
   });
   const [saving, setSaving] = useState(false);
+  const [altDrafts, setAltDrafts] = useState<Record<number, string>>({});
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmSold, setConfirmSold] = useState(false);
 
   useEffect(() => {
     if (!listing) return;
@@ -94,6 +110,11 @@ export default function ListingStudioPage() {
       fb_body: listing.fb_body || '',
       fb_posted_url: listing.fb_posted_url || '',
     });
+    const nextAlts: Record<number, string> = {};
+    for (const im of listing.images) {
+      nextAlts[im.id] = im.alt || '';
+    }
+    setAltDrafts(nextAlts);
   }, [listing]);
 
   if (isLoading) return <LoadingScreen />;
@@ -111,6 +132,9 @@ export default function ListingStudioPage() {
   const setField = (key: keyof typeof form, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
+
+  const publicBase = (config?.public_base_url || 'https://ecothrift.us').replace(/\/$/, '');
+  const publicUrl = listing.slug ? `${publicBase}/shop/${listing.slug}` : null;
 
   const save = async () => {
     setSaving(true);
@@ -150,15 +174,69 @@ export default function ListingStudioPage() {
     }
   };
 
+  const moveImage = async (imageId: number, direction: -1 | 1) => {
+    const ids = listing.images.map((im) => im.id);
+    const idx = ids.indexOf(imageId);
+    const swapWith = idx + direction;
+    if (idx < 0 || swapWith < 0 || swapWith >= ids.length) return;
+    const order = [...ids];
+    [order[idx], order[swapWith]] = [order[swapWith], order[idx]];
+    try {
+      await reorderImages.mutateAsync({ listingId: listing.id, order });
+    } catch {
+      enqueueSnackbar('Could not reorder photos', { variant: 'error' });
+    }
+  };
+
+  const saveAlt = async (imageId: number) => {
+    const alt = altDrafts[imageId] ?? '';
+    try {
+      await updateImageAlt.mutateAsync({ listingId: listing.id, imageId, alt });
+      enqueueSnackbar('Alt text saved', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Could not save alt text', { variant: 'error' });
+    }
+  };
+
+  const onDeleteListing = async () => {
+    try {
+      await deleteListing.mutateAsync(listing.id);
+      enqueueSnackbar('Listing deleted', { variant: 'success' });
+      navigate('/online-sales/listings');
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Delete failed';
+      enqueueSnackbar(detail, { variant: 'error' });
+    } finally {
+      setConfirmDelete(false);
+    }
+  };
+
+  const onMarkSold = async () => {
+    try {
+      await markSold.mutateAsync(listing.id);
+      enqueueSnackbar('Marked sold', { variant: 'success' });
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Mark sold failed';
+      enqueueSnackbar(detail, { variant: 'error' });
+    } finally {
+      setConfirmSold(false);
+    }
+  };
+
   const readiness = listing.readiness_errors || [];
+  const images = listing.images;
 
   return (
     <Box sx={{ pb: 6 }}>
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
         <IconButton onClick={() => navigate('/online-sales/listings')} aria-label="Back">
           <ArrowBack />
         </IconButton>
-        <Box sx={{ flex: 1 }}>
+        <Box sx={{ flex: 1, minWidth: 180 }}>
           <Typography variant="h5">Listing Studio</Typography>
           <Typography variant="body2" color="text.secondary">
             {listing.item_sku ? `Linked item ${listing.item_sku}` : 'Manual / unlinked listing'} · {listing.status_display}
@@ -176,7 +254,7 @@ export default function ListingStudioPage() {
           <Button variant="outlined" onClick={() => pause.mutateAsync(listing.id)}>
             Pause
           </Button>
-        ) : (
+        ) : listing.status !== 'sold' ? (
           <Button
             variant="contained"
             onClick={async () => {
@@ -195,12 +273,20 @@ export default function ListingStudioPage() {
           >
             Publish
           </Button>
-        )}
-        {listing.status !== 'archived' && (
+        ) : null}
+        {listing.status !== 'archived' && listing.status !== 'sold' && (
           <Button color="warning" onClick={() => archive.mutateAsync(listing.id)}>
             Archive
           </Button>
         )}
+        {listing.status !== 'sold' && listing.status !== 'archived' && (
+          <Button color="secondary" onClick={() => setConfirmSold(true)}>
+            Mark sold
+          </Button>
+        )}
+        <Button color="error" onClick={() => setConfirmDelete(true)}>
+          Delete
+        </Button>
       </Stack>
 
       {readiness.length > 0 && listing.status !== 'published' && (
@@ -297,23 +383,72 @@ export default function ListingStudioPage() {
                 onChange={(e) => onUpload(e.target.files?.[0])}
               />
             </Button>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {listing.images.map((im) => (
-                <Box key={im.id} sx={{ position: 'relative', width: 120, height: 120 }}>
+            <Stack spacing={1.5}>
+              {images.map((im, index) => (
+                <Stack
+                  key={im.id}
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={1.5}
+                  alignItems={{ sm: 'flex-start' }}
+                  sx={{ p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
+                >
                   <Box
                     component="img"
                     src={im.url}
-                    alt={im.alt || listing.title}
-                    sx={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 1 }}
+                    alt={altDrafts[im.id] || listing.title}
+                    sx={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }}
                   />
-                  <IconButton
-                    size="small"
-                    sx={{ position: 'absolute', top: 2, right: 2, bgcolor: 'background.paper' }}
-                    onClick={() => deleteImage.mutateAsync({ listingId: listing.id, imageId: im.id })}
-                  >
-                    <Delete fontSize="small" />
-                  </IconButton>
-                </Box>
+                  <Stack spacing={1} sx={{ flex: 1, minWidth: 0 }}>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconButton
+                        size="small"
+                        aria-label="Move photo up"
+                        disabled={index === 0 || reorderImages.isPending}
+                        onClick={() => moveImage(im.id, -1)}
+                      >
+                        <ArrowUpward fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        aria-label="Move photo down"
+                        disabled={index === images.length - 1 || reorderImages.isPending}
+                        onClick={() => moveImage(im.id, 1)}
+                      >
+                        <ArrowDownward fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        aria-label="Delete photo"
+                        onClick={() => deleteImage.mutateAsync({ listingId: listing.id, imageId: im.id })}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                      <Typography variant="caption" color="text.secondary">
+                        Position {index + 1}
+                      </Typography>
+                    </Stack>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                      <TextField
+                        label="Alt text"
+                        size="small"
+                        value={altDrafts[im.id] ?? ''}
+                        onChange={(e) =>
+                          setAltDrafts((prev) => ({ ...prev, [im.id]: e.target.value }))
+                        }
+                        fullWidth
+                      />
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={updateImageAlt.isPending}
+                        onClick={() => saveAlt(im.id)}
+                        sx={{ flexShrink: 0 }}
+                      >
+                        Save alt
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Stack>
               ))}
             </Stack>
           </Stack>
@@ -334,10 +469,10 @@ export default function ListingStudioPage() {
             <Typography variant="caption" display="block">
               Available {listing.available} · Reserved {listing.reserved} · On hand {listing.on_hand}
             </Typography>
-            {listing.slug && (
+            {publicUrl && (
               <Button
-                component={RouterLink}
-                to={`https://ecothrift.us/shop/${listing.slug}`}
+                component="a"
+                href={publicUrl}
                 target="_blank"
                 rel="noreferrer"
                 size="small"
@@ -420,6 +555,27 @@ export default function ListingStudioPage() {
           </Box>
         </Grid>
       </Grid>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete listing?"
+        message="This permanently deletes the listing and its photos. Active holds will block delete."
+        confirmLabel="Delete"
+        severity="error"
+        loading={deleteListing.isPending}
+        onConfirm={onDeleteListing}
+        onCancel={() => setConfirmDelete(false)}
+      />
+      <ConfirmDialog
+        open={confirmSold}
+        title="Mark listing sold?"
+        message="Sets status to sold. Active holds will block this action."
+        confirmLabel="Mark sold"
+        severity="warning"
+        loading={markSold.isPending}
+        onConfirm={onMarkSold}
+        onCancel={() => setConfirmSold(false)}
+      />
     </Box>
   );
 }

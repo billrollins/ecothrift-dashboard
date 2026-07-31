@@ -13,18 +13,22 @@ import {
   getWebListings,
   getWebOrder,
   getWebOrders,
+  getWebstoreConfig,
   getWorkQueue,
   archiveWebListing,
   generateFbCopy,
   markFbPosted,
+  markWebListingSold,
   pauseWebListing,
   publishWebListing,
   reopenConversation,
+  reorderWebListingImage,
   replyConversation,
   reservationAction,
   resolveConversation,
   restoreWebListing,
   updateWebListing,
+  updateWebListingImageAlt,
   updateWebOrder,
   uploadWebListingImage,
   type ConversationParams,
@@ -64,6 +68,7 @@ export function useCreateWebListing() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webWorkQueue'] });
     },
   });
 }
@@ -90,6 +95,7 @@ export function useDeleteWebListing() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webWorkQueue'] });
     },
   });
 }
@@ -118,6 +124,65 @@ export function useDeleteWebListingImage() {
       queryClient.invalidateQueries({ queryKey: ['webListings'] });
       queryClient.invalidateQueries({ queryKey: ['webListings', variables.listingId] });
     },
+  });
+}
+
+export function useReorderWebListingImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ listingId, order }: { listingId: number; order: number[] }) => {
+      const { data } = await reorderWebListingImage(listingId, order);
+      return data;
+    },
+    onSuccess: (listing) => {
+      queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webListings', listing.id] });
+    },
+  });
+}
+
+export function useUpdateWebListingImageAlt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      listingId,
+      imageId,
+      alt,
+    }: {
+      listingId: number;
+      imageId: number;
+      alt: string;
+    }) => {
+      const { data } = await updateWebListingImageAlt(listingId, imageId, alt);
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webListings', variables.listingId] });
+    },
+  });
+}
+
+export function useMarkWebListingSold() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => (await markWebListingSold(id)).data,
+    onSuccess: (listing) => {
+      queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webListings', listing.id] });
+      queryClient.invalidateQueries({ queryKey: ['webWorkQueue'] });
+    },
+  });
+}
+
+export function useWebstoreConfig() {
+  return useQuery({
+    queryKey: ['webstoreConfig'],
+    queryFn: async () => {
+      const { data } = await getWebstoreConfig();
+      return data;
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }
 

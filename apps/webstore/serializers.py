@@ -83,6 +83,17 @@ class WebListingSerializer(serializers.ModelSerializer):
     def get_readiness_errors(self, obj):
         return obj.publish_readiness_errors()
 
+    def validate_status(self, value):
+        if value == 'published':
+            raise serializers.ValidationError(
+                'Use POST …/publish/ to publish a listing; status cannot be set to published here.',
+            )
+        if value == 'sold':
+            raise serializers.ValidationError(
+                'Use POST …/mark-sold/ to mark a listing sold; status cannot be set to sold here.',
+            )
+        return value
+
 
 class WebListingListPublicSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)

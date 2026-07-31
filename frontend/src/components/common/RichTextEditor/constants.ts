@@ -1,14 +1,6 @@
-/** Shared typography presets for Blog Studio (class-based, no inline styles). */
-
+/** Shared class-based typography presets for rich text content. */
 export const FONT_SIZE_STEPS = ['small', 'normal', 'large', 'feature'] as const;
 export type FontSizeStep = (typeof FONT_SIZE_STEPS)[number];
-
-export const FONT_SIZE_LABELS: Record<FontSizeStep, string> = {
-  small: 'Small',
-  normal: 'Normal',
-  large: 'Large',
-  feature: 'Feature',
-};
 
 export const TEXT_COLORS = [
   { id: 'ink', label: 'Ink', className: 'bt-color-ink', swatch: '#181712' },
@@ -31,14 +23,14 @@ export const CALLOUT_TONES = [
 ] as const;
 export type CalloutTone = (typeof CALLOUT_TONES)[number]['id'];
 
-/** Classes allowed in published HTML (must stay in sync with apps/blog/sanitize.py). */
-export const ALLOWED_BT_CLASSES = new Set([
+/** Classes allowed in stored HTML (must stay in sync with apps/blog/sanitize.py). */
+export const ALLOWED_RICH_TEXT_CLASSES = new Set([
   'bt-size-small',
   'bt-size-large',
   'bt-size-feature',
-  ...TEXT_COLORS.map((c) => c.className),
-  ...HIGHLIGHTS.map((h) => h.className),
-  ...CALLOUT_TONES.map((c) => c.className),
+  ...TEXT_COLORS.map((color) => color.className),
+  ...HIGHLIGHTS.map((highlight) => highlight.className),
+  ...CALLOUT_TONES.map((callout) => callout.className),
   'bt-dropcap',
   'bt-pullquote',
   'bt-columns',
@@ -58,6 +50,8 @@ export const ALLOWED_BT_CLASSES = new Set([
   'bt-img-left',
   'bt-img-center',
   'bt-img-right',
+  'bt-code',
+  'bt-codeblock',
 ]);
 
 export function fontSizeClass(step: FontSizeStep | null): string | null {

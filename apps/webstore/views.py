@@ -110,6 +110,20 @@ class WebListingViewSet(viewsets.ModelViewSet):
         listing.save(update_fields=['stock', 'updated_at'])
         _ensure_channel_rows(listing)
 
+    def destroy(self, request, *args, **kwargs):
+        listing = self.get_object()
+        if listing.reservations.filter(status__in=Reservation.ACTIVE_STATUSES).exists():
+            return Response(
+                {
+                    'detail': (
+                        'Cannot delete a listing with active holds. '
+                        'Cancel, decline, expire, or complete holds first.'
+                    ),
+                },
+                status=409,
+            )
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=True, methods=['post'], url_path='publish')
     def publish(self, request, pk=None):
         listing = self.get_object()
@@ -152,6 +166,25 @@ class WebListingViewSet(viewsets.ModelViewSet):
         listing.status = 'draft'
         listing.archived_at = None
         listing.save(update_fields=['status', 'archived_at', 'updated_at'])
+        return Response(WebListingSerializer(listing).data)
+
+    @action(detail=True, methods=['post'], url_path='mark-sold')
+    def mark_sold(self, request, pk=None):
+        listing = self.get_object()
+        if listing.status == 'archived':
+            return Response({'detail': 'Archived listings cannot be marked sold.'}, status=400)
+        if listing.reservations.filter(status__in=Reservation.ACTIVE_STATUSES).exists():
+            return Response(
+                {
+                    'detail': (
+                        'Cannot mark sold while active holds exist. '
+                        'Cancel, decline, expire, or complete holds first.'
+                    ),
+                },
+                status=409,
+            )
+        listing.status = 'sold'
+        listing.save(update_fields=['status', 'updated_at'])
         return Response(WebListingSerializer(listing).data)
 
     @action(detail=True, methods=['post'], url_path='generate-fb-copy')
@@ -230,10 +263,17 @@ class WebListingViewSet(viewsets.ModelViewSet):
         listing = self.get_queryset().get(pk=listing.pk)
         return Response(WebListingSerializer(listing).data)
 
-    @action(detail=True, methods=['delete'], url_path=r'images/(?P<image_id>[0-9]+)')
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'images/(?P<image_id>[0-9]+)')
     def delete_image(self, request, pk=None, image_id=None):
         listing = self.get_object()
         image = get_object_or_404(WebListingImage, pk=image_id, listing=listing)
+        if request.method == 'PATCH':
+            alt = request.data.get('alt')
+            if alt is None:
+                return Response({'detail': 'alt is required.'}, status=400)
+            image.alt = str(alt)[:200]
+            image.save(update_fields=['alt'])
+            return Response(WebListingImageSerializer(image).data)
         s3_file = image.s3_file
         image.delete()
         try:
@@ -395,10 +435,14 @@ def public_config(request):
     from apps.webstore.services.feature import online_sales_enabled
     from django.conf import settings as dj_settings
 
+    public_base = (
+        getattr(dj_settings, 'ONLINE_SALES_PUBLIC_BASE_URL', None) or 'https://ecothrift.us'
+    ).rstrip('/')
     return Response({
         'online_sales_enabled': online_sales_enabled(),
         'inquiries_enabled': bool(getattr(dj_settings, 'ONLINE_SALES_INQUIRIES_ENABLED', True)),
         'accounts_enabled': bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)),
+        'public_base_url': public_base,
     })
 
 
@@ -834,6 +878,15 @@ def work_queue(request):
         .select_related('item')
         .order_by('-updated_at')[:100]
     )
+    item_ids = [it.id for it in items]
+    existing_by_item: dict[int, int] = {}
+    for wl in (
+        WebListing.objects.filter(item_id__in=item_ids, status__in=('draft', 'ready'))
+        .order_by('-updated_at')
+        .only('id', 'item_id')
+    ):
+        if wl.item_id not in existing_by_item:
+            existing_by_item[wl.item_id] = wl.id
     return Response({
         'items': [
             {
@@ -843,6 +896,7 @@ def work_queue(request):
                 'status': it.status,
                 'location': it.location,
                 'price': str(it.price) if it.price is not None else None,
+                'existing_listing_id': existing_by_item.get(it.id),
             }
             for it in items
         ],

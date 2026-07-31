@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.62.0] -->
-<!-- Last reviewed: 2026-07-31 (v2.62.0 Online Sales MVP parked behind flag) -->
+<!-- Line 1 release: ## [2.63.0] -->
+<!-- Last reviewed: 2026-07-31 (v2.63.0 listing polish + shared TipTap editor) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.63.0] — 2026-07-31
+
+User-facing theme: **Listing Studio polish + shared rich-text editor** — hand-entry ready; TipTap reusable across the dashboard.
+
+Initiative: [`online_sales_mvp`](.ai/initiatives/online_sales_mvp.md).
+
+### Added
+
+- **Online Sales / Listing Studio** — Photo reorder and alt text; delete listing (blocked when active holds); manual Mark sold; work-queue dedupe (`existing_listing_id`); config-driven public preview URL (`public_base_url` on `/api/webstore/config/`).
+- **Shared / RichTextEditor** — TipTap extracted to `frontend/src/components/common/RichTextEditor/` with `variant="blog" | "email"` and injectable `uploadImage`. Blog Studio consumes it unchanged.
+
+### Fixed
+
+- **Online Sales / publish gate** — PATCH/create cannot set `status=published` or `sold`; use dedicated `publish` / `mark-sold` actions so readiness is enforced.
+
+### Removed
+
+- **Legacy / WebStorePage** — Dead admin page removed; routes already redirected to Online Sales listings.
 
 ## [2.62.0] — 2026-07-31
 

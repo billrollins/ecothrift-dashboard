@@ -6,6 +6,16 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { useCreateWebListing, useWorkQueue } from '../../hooks/useWebStore';
 
+type WorkQueueItem = {
+  id: number;
+  sku: string;
+  title: string;
+  status: string;
+  location: string;
+  price: string | null;
+  existing_listing_id: number | null;
+};
+
 export default function OnlineSalesWorkQueuePage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
@@ -22,7 +32,11 @@ export default function OnlineSalesWorkQueuePage() {
     );
   }
 
-  const startFromItem = async (item: { id: number; sku: string; title: string; price: string | null }) => {
+  const startFromItem = async (item: WorkQueueItem) => {
+    if (item.existing_listing_id) {
+      navigate(`/online-sales/listings/${item.existing_listing_id}`);
+      return;
+    }
     try {
       const listing = await createListing.mutateAsync({
         title: item.title || `Item ${item.sku}`,
@@ -39,7 +53,7 @@ export default function OnlineSalesWorkQueuePage() {
     }
   };
 
-  const itemCols: GridColDef[] = [
+  const itemCols: GridColDef<WorkQueueItem>[] = [
     { field: 'sku', headerName: 'SKU', width: 120 },
     { field: 'title', headerName: 'Title', flex: 1, minWidth: 180 },
     { field: 'status', headerName: 'Status', width: 120 },
@@ -47,13 +61,22 @@ export default function OnlineSalesWorkQueuePage() {
     {
       field: 'actions',
       headerName: '',
-      width: 140,
+      width: 160,
       sortable: false,
-      renderCell: ({ row }) => (
-        <Button size="small" variant="contained" onClick={() => startFromItem(row)}>
-          Start listing
-        </Button>
-      ),
+      renderCell: ({ row }) =>
+        row.existing_listing_id ? (
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => navigate(`/online-sales/listings/${row.existing_listing_id}`)}
+          >
+            Open listing
+          </Button>
+        ) : (
+          <Button size="small" variant="contained" onClick={() => startFromItem(row)}>
+            Start listing
+          </Button>
+        ),
     },
   ];
 
@@ -86,7 +109,13 @@ export default function OnlineSalesWorkQueuePage() {
             Items at online_sales ({data.items.length})
           </Typography>
           <Box sx={{ height: 320 }}>
-            <DataGrid rows={data.items} columns={itemCols} getRowId={(r) => r.id} disableRowSelectionOnClick density="compact" />
+            <DataGrid
+              rows={data.items}
+              columns={itemCols}
+              getRowId={(r) => r.id}
+              disableRowSelectionOnClick
+              density="compact"
+            />
           </Box>
         </Box>
         <Box>

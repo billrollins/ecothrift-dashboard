@@ -149,6 +149,36 @@ export function deleteWebListingImage(listingId: number, imageId: number): Promi
   return api.delete(`/webstore/listings/${listingId}/images/${imageId}/`);
 }
 
+export function reorderWebListingImage(
+  listingId: number,
+  order: number[],
+): Promise<{ data: WebListing }> {
+  return api.post(`/webstore/listings/${listingId}/images/reorder/`, { order });
+}
+
+export function updateWebListingImageAlt(
+  listingId: number,
+  imageId: number,
+  alt: string,
+): Promise<{ data: WebListingImage }> {
+  return api.patch(`/webstore/listings/${listingId}/images/${imageId}/`, { alt });
+}
+
+export function markWebListingSold(id: number): Promise<{ data: WebListing }> {
+  return api.post(`/webstore/listings/${id}/mark-sold/`);
+}
+
+export interface WebstoreConfig {
+  online_sales_enabled: boolean;
+  inquiries_enabled: boolean;
+  accounts_enabled: boolean;
+  public_base_url: string;
+}
+
+export function getWebstoreConfig(): Promise<{ data: WebstoreConfig }> {
+  return api.get('/webstore/config/');
+}
+
 export interface CategoryOption {
   id: number;
   name: string;
@@ -233,6 +263,7 @@ export function getWorkQueue(): Promise<{
       status: string;
       location: string;
       price: string | null;
+      existing_listing_id: number | null;
     }>;
     draft_listings: WebListing[];
   };
