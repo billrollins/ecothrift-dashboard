@@ -68,9 +68,11 @@ npm run dev
 
 | Schedule | Command |
 |----------|---------|
-| Hourly (recommended) | `python manage.py expire_online_holds` |
+| Hourly (recommended; Scheduler minimum is 10 min) | `python manage.py expire_online_holds` |
 
-`expire_online_holds` releases reserved quantity for confirmed/ready holds past `expires_at` (wraps `expire_due_reservations`). Use `--dry-run` to count only. Seed hours once with `python manage.py seed_online_sales_hours` (AppSetting key `online_sales.hours`).
+`expire_online_holds` releases reserved quantity for (1) confirmed/ready holds past `expires_at` and (2) untriaged `requested` holds older than `ONLINE_SALES_REQUEST_TRIAGE_HOURS` (default 48). Use `--dry-run` to count only. Seed hours once with `python manage.py seed_online_sales_hours` (AppSetting key `online_sales.hours`).
+
+**Prod flag:** keep `ONLINE_SALES_ENABLED=false` until the owner tests in dev and says go. Staff Online Sales pages remain available to Manager/Admin regardless. Other flags: `ONLINE_SALES_INQUIRIES_ENABLED`, `ONLINE_SALES_ACCOUNTS_ENABLED`, `ONLINE_SALES_PUBLIC_BASE_URL` (magic-link / hold email links).
 
 **Inventory / Item Processor:** optional safety net for `ProcessingRow.search_string` (bulk/SQL paths that bypass ORM `save()`): e.g. weekly `python manage.py rebuild_processing_search_string` (defaults to excluding `complete`/`cancelled` POs; add `--dry-run` to count rows only).
 

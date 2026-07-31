@@ -171,47 +171,24 @@ Each of these has a home in the parked [`online_sales_workspace`](./_archived/_p
 |------|----------|----------|
 | **G1 — Transactional email** | **ON.** The store sends system email: magic-link sign-in, "your hold is confirmed," "you have a reply." The *conversation* still lives only in our DB (decision #9) — these are one-line system notices, not email threads. | 2026-07-30 |
 | **G7 — Login flavour** | **Magic link (passwordless).** Customer enters their email, gets a sign-in link, clicks it. No password stored, no reset flow, no password UI. Follows from G1. | 2026-07-30 |
-| **G1b — Sending identity** | **`retail@ecothrift.us`** (existing *Retail Operations* mailbox, Microsoft 365 Business Standard), `Reply-To` itself, but **display name “Eco-Thrift”** — a customer receiving a sign-in link from “Retail Operations” reads it as internal machinery. Chosen over a new `shop@` because it is already staffed, so replies cannot vanish, and no new mailbox or license is needed. Rejected: `noreply@` (cold, discards a channel), `info@` (spam magnet), `cs@` (cryptic), `customerservice@` (long, no benefit). | 2026-07-30 |
-
-### Identity is `retail@`; the sending pipe should still not be Microsoft 365
-
-The domain runs on **Microsoft 365 / Entra** (tenant *Eco-Thrift*) with `bill_rollins@`, `marketing@`, `retail@`, `warehouse@`. `retail@` and `bill_rollins@` hold **Business Standard licences**, so SMTP AUTH from `retail@` *is* technically available today. It is still not the right pipe:
-
-- **Reputation coupling.** Customer sign-in and hold mail sent from `retail@`'s own mailbox puts spam complaints onto the reputation of a mailbox staff depend on for real store correspondence.
-- **A stored mailbox credential.** SMTP AUTH means `retail@`'s password (or an app password) sits in Heroku config, and that credential can both send as and read the whole mailbox.
-- **No bounce or delivery signal.** Once sign-in *is* an emailed link, a silently bounced message is a customer who cannot log in. M365 client submission gives the app nothing to act on.
-- **A deadline.** Basic-auth SMTP is unchanged through **December 2026**, then **disabled by default** for existing tenants (admins can re-enable), with final removal to be announced in 2H 2027.
-- **No display-name control.** Sending through the mailbox stamps “Retail Operations” on customer mail; the provider path lets the From read “Eco-Thrift”.
-- *(For the record: **shared mailboxes cannot SMTP-auth** at all, and M365's free **High Volume Email** lane targets internal recipients — so neither is a shortcut here.)*
-
-**Therefore:**
-
-- **Send** via a dedicated transactional provider, From **`retail@ecothrift.us`**, display name **Eco-Thrift**. No new mailbox or licence is required — only DNS.
-- **Receive** replies in the existing `retail@` inbox, which Retail Operations already watches. Customers *will* reply by email even though the thread lives on the website.
-- **DNS:** *append* the provider to the existing SPF record and publish its DKIM entries. **Do not replace the Microsoft SPF entry** — that breaks all staff email. Consider DMARC alignment at the same time.
-- **Accepted fallback:** shipping Phase 2 on `retail@` SMTP is defensible for MVP volume, because switching pipes is only a change of Django email settings. If that path is taken, it must be migrated **before December 2026**, and the credential and reputation costs above are accepted knowingly rather than discovered later.
+| **G1b — Sending identity** | **`retail@ecothrift.us`** (existing *Retail Operations* mailbox, Microsoft 365 Business Standard), `Reply-To` itself, but **display name “Eco-Thrift”**. | 2026-07-30 |
+| **G2 — Inquiries** | **Allow** “Ask about this item” threads with no hold. | 2026-07-31 |
+| **G3 — Hold window** | **Store close next business day** after staff confirm. | 2026-07-31 |
+| **G4 — Reserved visibility** | **Show with *Reserved* badge** (do not hide). | 2026-07-31 |
+| **G5 — Launch listings** | **Owner enters their own listings** via Listing Studio / work queue CRUD (not a fixed 10–20 seed set). | 2026-07-31 |
+| **G6 — Hold list** | **Keep multi-item** hold list. | 2026-07-31 |
+| **G8 — Accounts** | **Optional** (guest-first). | 2026-07-31 |
+| **G9 — Sending pipe** | **Microsoft Graph** (Entra app + RBAC scoped to `retail@` only). No third-party provider. One mailbox; Online Sales vs general mail split in the dashboard UI by conversation token. No SPF/DKIM DNS change (mail leaves M365 as `retail@`). IMAP/POP basic auth is gone; SMTP basic auth is a dead-end by late 2026 — Graph is the durable path. | 2026-07-31 |
 
 ### Email is load-bearing — deliverability is a hard requirement
 
-Once sign-in *is* an emailed link, **mail delivery is the front door**: a link in a junk folder is a broken login. Therefore:
-
-- SPF and DKIM verified for `ecothrift.us` before launch, proven by sending to live **Gmail, Outlook, and Yahoo** inboxes.
-- Magic-link emails need a **short expiry, single use, and no token echoed in any API response** (see *Auth prerequisites*).
-- If mail delivery fails, the customer must still have a path: the **guest token URL keeps working**, so an outage degrades sign-in instead of locking anyone out of a hold.
+Once sign-in *is* an emailed link, **mail delivery is the front door**. Magic-link emails need a **short expiry, single use, and no token echoed in any API response**. If mail delivery fails, the **guest token URL keeps working**. Outlook on `retail@` remains the full mailbox; the dashboard is a simple read/reply surface for staff on the go.
 
 ---
 
 ## Open gates (owner answers needed)
 
-| Gate | Question | Recommended default |
-|------|----------|---------------------|
-| **G2** | Allow "Ask about this item" threads with no hold, or must every conversation start from a hold request? | **Allow inquiries.** It matches "all contact us" and costs almost nothing once Messages exists. |
-| **G3** | Hold window: keep *store close next business day*, or something simpler like a flat 48 hours? | **Keep next-business-day close** — the hours logic is already written and tested. |
-| **G4** | Reserved items: leave on the shop with a *Reserved* badge, or hide them? | **Show with badge** — proves the store has good stuff and costs nothing. |
-| **G5** | How many listings at launch, and who creates them? | **10–20 items**, one owner-designated person, drawn from the `online_sales` queue so the flow gets exercised for real. |
-| **G6** | One item per request, or keep the multi-item hold list? | **Keep multi-item** — the backend already supports it; removing it is work, not savings. |
-| **G8** | Is the account **optional** (guest can ask/reserve, login is for coming back) or **required** before requesting a hold? | **Optional.** Every extra step before "is this still available?" costs conversations. Required accounts also give us more PII to hold and more support burden, for no operational gain — staff still verify each hold by hand either way. |
-| **G9** | Sending pipe: a **transactional provider** sending as `retail@`, or **`retail@`'s own M365 SMTP**? | **Transactional provider** — no stored mailbox credential, bounce visibility, free display name, no December 2026 deadline. Provider choice itself is open (a Heroku addon is fine); pick at Phase 2 start. |
+*(none — G2–G9 closed 2026-07-31)*
 
 ---
 
@@ -324,9 +301,9 @@ Time from `online_sales` Item → published listing · holds requested / confirm
 
 ## Acceptance
 
-- [ ] Remaining gates (G2–G6, G8, G9) answered and recorded here. **G1 (email ON) and G7 (magic link) accepted 2026-07-30.**
-- [ ] Mail sends as **`retail@ecothrift.us`** / display name **Eco-Thrift**, with SPF appended and DKIM verified; a sign-in link reaches live Gmail and Outlook inboxes, not junk; staff email keeps working after the DNS change.
-- [ ] Replies to customer mail land in the `retail@` inbox and a named person watches it.
+- [x] Remaining gates (G2–G6, G8, G9) answered and recorded here. **G1/G7 accepted 2026-07-30; G2–G6, G8, G9 accepted 2026-07-31.**
+- [ ] Mail sends as **`retail@ecothrift.us`** / display name **Eco-Thrift** via Microsoft Graph; a sign-in link reaches live inboxes; Outlook still shows the full mailbox.
+- [ ] Replies to customer mail land in the `retail@` inbox and a named person watches it (Outlook + dashboard).
 - [ ] Only three system emails exist: sign-in link, hold confirmed, you have a reply.
 - [ ] Online Sales workspace live with four destinations; legacy `/admin/web-store` and `/admin/web-orders` redirect without losing bookmarks.
 - [ ] Listing Studio does basic CRUD well: create from Item or blank, photos, facts, price/quantity, publish/pause/sold/archive, clear readiness errors.
@@ -375,7 +352,14 @@ Time from `online_sales` Item → published listing · holds requested / confirm
 - **Verify:** `test apps.webstore apps.accounts.tests` → **80 OK**; vitest online-sales+policy → **27 OK**; both FE builds OK; local walk with `ONLINE_SALES_ENABLED=true` OK.
 - **Still open:** G9 provider/SPF; merge decision; marking G2–G6/G8 accepted.
 
+### Session 4 — 2026-07-31 release + next slices
+
+- **Goal:** Full release **v2.62.0** (merge + deploy, public flag off); then listing CRUD polish + shared TipTap editor (v2.63); then M365 Graph two-way mail (v2.64).
+- **Gates:** G2–G8 accepted; G5 = owner-entered listings; G9 = Microsoft Graph on `retail@`, one mailbox, UI-split OS vs general (Admin-only general inbox).
+- **Prod:** Do not flip `ONLINE_SALES_ENABLED` until owner tests in dev and says go.
+
 ---
+
 
 ## See also
 

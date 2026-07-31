@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.61.0] -->
-<!-- Last reviewed: 2026-07-29 (v2.61.0 orders strip + dashboard polish) -->
+<!-- Line 1 release: ## [2.62.0] -->
+<!-- Last reviewed: 2026-07-31 (v2.62.0 Online Sales MVP parked behind flag) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.62.0] — 2026-07-31
+
+User-facing theme: **Online Sales MVP (parked)** — staff workspace live; public shop/holds gated by `ONLINE_SALES_ENABLED=false` until owner flip.
+
+Initiative: [`online_sales_mvp`](.ai/initiatives/online_sales_mvp.md).
+
+### Added
+
+- **Online Sales / staff workspace** — Slot C nav: Work queue, Listings, Inbox (holds + messages + ready-for-pickup), Sales. Listing Studio create/edit/publish. Legacy `/admin/web-store` and `/admin/web-orders` redirect.
+- **Online Sales / public surface** — Shop, hold status, ask-about-item, hold list, gated by `GET /api/webstore/config/` (`ONLINE_SALES_ENABLED`). Hold status by token stays reachable when the flag is off.
+- **Online Sales / Messages** — `Conversation` + `Message` models; staff Inbox Messages tab; public thread on hold page; `POST /api/webstore/threads/<token>/messages/` and `/read/`.
+- **Online Sales / system email** — Sign-in link, hold confirmed, you have a reply (From `Eco-Thrift <retail@ecothrift.us>`). Console backend locally; M365 Graph planned for two-way mail.
+- **Online Sales / customer accounts** — Magic-link (`ONLINE_SALES_ACCOUNTS_ENABLED`), `Customer` role, `/account` My requests / My messages, guest claim by email.
+- **Online Sales / ops commands** — `expire_online_holds` (confirmed/ready + 48h untriaged requests), `seed_online_sales_hours`, `seed_online_sales_demo`, `check_email_config`, `walk_online_sales_demo`.
+- **Online Sales / settings** — `ONLINE_SALES_INQUIRIES_ENABLED`, `ONLINE_SALES_ACCOUNTS_ENABLED`, `ONLINE_SALES_REQUEST_TRIAGE_HOURS`, `ONLINE_SALES_PUBLIC_BASE_URL`, `ONLINE_SALES_EMAIL_*`.
+
+### Fixed
+
+- **Accounts / forgot-password** — Reset token no longer returned when `DEBUG=False` (was a staff account-takeover path).
+- **Accounts / refresh cookie** — `secure=not DEBUG`; login and forgot-password throttles.
+- **Online Sales / kill switch** — Public catalog and hold create return 410 when the flag is off.
+- **Online Sales / unread** — GET hold status no longer clears `customer_unread` (explicit mark-read POST).
+- **Online Sales / pickup tab** — Ready-for-pickup filter is day-scoped (`isTodaysPickupRow`).
+- **Online Sales / holds** — Idempotency scoped to active + matching email; cache-backed hold/message rate limits.
+
+### Changed
+
+- **Public site copy** — Hold-list language; reserved badge; policy copy guard test.
+- **Auth** — Staff routes reject `Customer` role.
+
+### Documentation
+
+- `.ai/reference/online_sales_mvp/` — overnight log, audits, email setup, staff SOP draft, demo script, self-review.
+- Heroku Scheduler: hourly `expire_online_holds` (see `.ai/extended/development.md`).
 
 ## [2.61.0] — 2026-07-29
 
