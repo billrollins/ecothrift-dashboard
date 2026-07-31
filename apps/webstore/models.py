@@ -216,7 +216,7 @@ class Reservation(models.Model):
     status_token = models.CharField(
         max_length=48, unique=True, default=_public_status_token, db_index=True,
     )
-    idempotency_key = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    idempotency_key = models.CharField(max_length=128, blank=True, default='', db_index=True)
 
     customer_name = models.CharField(max_length=200)
     email = models.EmailField()

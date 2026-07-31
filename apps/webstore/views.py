@@ -670,7 +670,8 @@ def request_hold(request):
                 if not item_slug:
                     continue
                 listing = get_object_or_404(WebListing, slug=item_slug)
-                key = f'{idem}:{item_slug}' if idem else ''
+                # Client keys are often UUIDs; appending slug must stay within the column.
+                key = f'{idem}:{item_slug}'[:128] if idem else ''
                 reservation = create_hold(
                     listing=listing,
                     quantity=qty,
