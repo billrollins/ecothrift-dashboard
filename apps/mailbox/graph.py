@@ -156,8 +156,14 @@ class GraphMailClient:
         )
 
     def check_mailbox(self) -> dict[str, Any]:
-        return self._request(
+        """Prove mail RBAC without calling GET /users (needs directory scopes we do not grant)."""
+        folder = self._request(
             'get',
-            f'{self._mailbox_path()}',
-            params={'$select': 'id,displayName,mail,userPrincipalName'},
+            f'{self._mailbox_path()}/mailFolders/inbox',
+            params={'$select': 'id,displayName,totalItemCount,unreadItemCount'},
         )
+        return {
+            'mail': self.mailbox or graph_settings()['mailbox'],
+            'userPrincipalName': self.mailbox or graph_settings()['mailbox'],
+            'inbox': folder,
+        }
