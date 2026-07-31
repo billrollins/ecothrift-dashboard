@@ -1,7 +1,8 @@
-Release v2.61.0: Orders summary strip, dashboard polish, QA wizard fix.
+Release v2.62.0: Online Sales MVP (public surface parked)
 
-- Seven two-line PO KPI cards including Trucks in Transit; summary API ops/ratio fields
-- Department grids: 2-week viewport + snap-back; uniform card geometry
-- Fix blank QA wizard (drop useBlocker on BrowserRouter); EST/ACT REC colors; fewer tooltips
+- Staff Online Sales workspace, Messages, magic-link accounts, hold expiry
+- Public shop/holds gated by ONLINE_SALES_ENABLED=false until owner flip
+- Auth hardening (forgot-password token, secure cookie, throttles)
+- Gates G2–G9 recorded; G9 = Microsoft Graph on retail@ (follow-up)
 
-Release: v2.61.0
+Release: v2.62.0
