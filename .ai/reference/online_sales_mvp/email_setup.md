@@ -103,3 +103,87 @@ python manage.py check_email_config --to your@address
 ```
 
 With the console backend, `--to` still “sends” to the console/outbox without touching DNS.
+
+## Microsoft 365 Graph two-way mailbox
+
+Release 3 uses one mailbox, `retail@ecothrift.us`, through Microsoft Graph
+client credentials. Graph is controlled by `MS_GRAPH_ENABLED` and remains off
+when the setting is absent.
+
+### Entra app
+
+1. In Microsoft Entra admin center, create a single-tenant app registration.
+2. Create a client secret and record its value immediately.
+3. Record the tenant ID, application (client) ID, and the **Enterprise
+   Application** (service principal) object ID — not the app registration
+   object ID.
+4. **Do not** add Microsoft Graph application permissions `Mail.Read` /
+   `Mail.ReadWrite` / `Mail.Send` and **do not** grant tenant-wide admin
+   consent for those scopes. Entra grants are additive; an org-wide Graph
+   mail grant would bypass the Exchange mailbox scope below.
+
+### Restrict the app to retail@ with Exchange Online RBAC
+
+Access is granted only via **RBAC for Applications** in Exchange Online
+(Application Mail.Send / Application Mail.ReadWrite), scoped to
+`retail@ecothrift.us`. Run these commands from Exchange Online PowerShell as
+an Exchange administrator. Replace the angle-bracket values:
+
+```powershell
+Connect-ExchangeOnline
+
+New-ServicePrincipal `
+  -AppId "<CLIENT_ID>" `
+  -ObjectId "<ENTERPRISE_APPLICATION_OBJECT_ID>" `
+  -DisplayName "Eco-Thrift Dashboard Graph Mail"
+
+New-ManagementScope `
+  -Name "Eco-Thrift retail mailbox" `
+  -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'retail@ecothrift.us'"
+
+New-ManagementRoleAssignment `
+  -Name "Eco-Thrift retail Mail.ReadWrite" `
+  -Role "Application Mail.ReadWrite" `
+  -App "<ENTERPRISE_APPLICATION_OBJECT_ID>" `
+  -CustomResourceScope "Eco-Thrift retail mailbox"
+
+New-ManagementRoleAssignment `
+  -Name "Eco-Thrift retail Mail.Send" `
+  -Role "Application Mail.Send" `
+  -App "<ENTERPRISE_APPLICATION_OBJECT_ID>" `
+  -CustomResourceScope "Eco-Thrift retail mailbox"
+
+Test-ServicePrincipalAuthorization `
+  -Identity "<ENTERPRISE_APPLICATION_OBJECT_ID>" `
+  -Resource "retail@ecothrift.us"
+```
+
+Confirm that the test lists only the intended application roles for the retail
+mailbox. RBAC changes can take time to propagate.
+
+### Application settings and verification
+
+Set these Heroku config vars, leaving the kill switch false at first:
+
+```text
+MS_GRAPH_ENABLED=false
+MS_GRAPH_TENANT_ID=<tenant-guid>
+MS_GRAPH_CLIENT_ID=<application-client-guid>
+MS_GRAPH_CLIENT_SECRET=<secret-value>
+MS_GRAPH_MAILBOX=retail@ecothrift.us
+```
+
+After RBAC propagation, enable and verify:
+
+```text
+MS_GRAPH_ENABLED=true
+python manage.py check_ms_graph
+python manage.py check_ms_graph --to your-address@example.com
+python manage.py sync_ms_mailbox
+```
+
+Schedule `python manage.py sync_ms_mailbox` at the desired polling interval.
+The command stores the Graph delta cursor and is safe to rerun. Disable Graph
+immediately by restoring `MS_GRAPH_ENABLED=false`; Django email then uses its
+non-Graph backend and mailbox sync skips work. Microsoft Graph send does not
+require an SPF record change.

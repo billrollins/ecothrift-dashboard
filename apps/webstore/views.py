@@ -390,11 +390,12 @@ class ConversationViewSet(
         from apps.webstore.emails import send_you_have_a_reply
         from apps.webstore.services.conversations import post_message
         body = (request.data or {}).get('body') or ''
+        subject = (request.data or {}).get('subject') or ''
         conv = self.get_object()
         post_message(conv, author_kind='staff', body=body, author_user=request.user)
         conv = self.get_queryset().select_related('listing', 'reservation').get(pk=conv.pk)
         try:
-            send_you_have_a_reply(conv)
+            send_you_have_a_reply(conv, reply_body=body, subject_override=subject)
         except Exception:
             pass
         return Response(ConversationStaffSerializer(conv).data)

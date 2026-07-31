@@ -356,7 +356,8 @@ Time from `online_sales` Item → published listing · holds requested / confirm
 
 - **Goal:** Full release **v2.62.0** (merge + deploy, public flag off); then listing CRUD polish + shared TipTap editor (v2.63); then M365 Graph two-way mail (v2.64).
 - **Gates:** G2–G8 accepted; G5 = owner-entered listings; G9 = Microsoft Graph on `retail@`, one mailbox, UI-split OS vs general (Admin-only general inbox).
-- **Prod:** Do not flip `ONLINE_SALES_ENABLED` until owner tests in dev and says go.
+- **Shipped:** v2.62.0 → v2.63.0 → v2.64.0 on Heroku. Public `ONLINE_SALES_ENABLED=false`; Graph `MS_GRAPH_ENABLED=false`.
+- **Owner next:** Entra app + Exchange RBAC (see email_setup.md); Heroku Scheduler `expire_online_holds` + `sync_ms_mailbox`; test in dev; say go to flip Online Sales and/or Graph.
 
 ---
 

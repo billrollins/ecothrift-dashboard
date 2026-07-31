@@ -19,6 +19,7 @@ anthropic>=0.42.0
 openai>=1.59.0
 bleach>=6.0,<7
 requests>=2.31.0
+msal>=1.28.0,<2
 PySocks>=1.7.1
 pytest>=9.0
 pytest-django>=4.11

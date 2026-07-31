@@ -326,8 +326,9 @@ export function getConversation(id: number): Promise<{ data: Conversation }> {
 export function replyConversation(
   id: number,
   body: string,
+  subject?: string,
 ): Promise<{ data: Conversation }> {
-  return api.post(`/webstore/conversations/${id}/reply/`, { body });
+  return api.post(`/webstore/conversations/${id}/reply/`, { body, subject });
 }
 
 export function assignConversation(id: number): Promise<{ data: Conversation }> {

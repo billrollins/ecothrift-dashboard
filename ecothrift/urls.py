@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/ai/', include('apps.ai.urls')),
     path('api/buying/', include('apps.buying.urls')),
     path('api/webstore/', include('apps.webstore.urls')),
+    path('api/mailbox/', include('apps.mailbox.urls')),
     path('api/blog/', include('apps.blog.urls')),
     path('api/floorplan/', include('apps.floorplan.urls')),
     path('api/labels/', include('apps.labels.urls')),

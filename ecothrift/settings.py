@@ -49,9 +49,24 @@ ONLINE_SALES_ACCOUNTS_ENABLED = config('ONLINE_SALES_ACCOUNTS_ENABLED', default=
 # Untriaged `requested` holds auto-expire after this many hours (releases reserved qty).
 ONLINE_SALES_REQUEST_TRIAGE_HOURS = config('ONLINE_SALES_REQUEST_TRIAGE_HOURS', default=48, cast=int)
 
-# Email — console backend by default so local dev prints messages.
-# Set EMAIL_BACKEND + SMTP/provider creds to send for real.
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+# Microsoft 365 Graph mail. Disabled by default; no credentials are needed locally.
+MS_GRAPH_ENABLED = config('MS_GRAPH_ENABLED', default=False, cast=bool)
+MS_GRAPH_TENANT_ID = config('MS_GRAPH_TENANT_ID', default='').strip()
+MS_GRAPH_CLIENT_ID = config('MS_GRAPH_CLIENT_ID', default='').strip()
+MS_GRAPH_CLIENT_SECRET = config('MS_GRAPH_CLIENT_SECRET', default='').strip()
+MS_GRAPH_MAILBOX = config('MS_GRAPH_MAILBOX', default='retail@ecothrift.us').strip()
+MS_GRAPH_FALLBACK_EMAIL_BACKEND = config(
+    'MS_GRAPH_FALLBACK_EMAIL_BACKEND',
+    default='django.core.mail.backends.console.EmailBackend',
+)
+
+# Existing Django senders route through Graph only when the kill switch is on.
+_default_email_backend = (
+    'apps.mailbox.backends.GraphEmailBackend'
+    if MS_GRAPH_ENABLED
+    else 'django.core.mail.backends.console.EmailBackend'
+)
+EMAIL_BACKEND = config('EMAIL_BACKEND', default=_default_email_backend)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Eco-Thrift <retail@ecothrift.us>')
 # Online Sales transactional From / Reply-To (G1 — retail@ mailbox).
 ONLINE_SALES_EMAIL_FROM = config('ONLINE_SALES_EMAIL_FROM', default='retail@ecothrift.us')
@@ -86,6 +101,7 @@ INSTALLED_APPS = [
     'apps.ai',
     'apps.buying',
     'apps.webstore',
+    'apps.mailbox',
     'apps.blog',
     'apps.floorplan',
     'apps.labels',

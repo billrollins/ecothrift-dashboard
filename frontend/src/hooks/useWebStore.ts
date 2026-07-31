@@ -316,8 +316,8 @@ export function useConversationActions() {
   };
   return {
     reply: useMutation({
-      mutationFn: async ({ id, body }: { id: number; body: string }) =>
-        (await replyConversation(id, body)).data,
+      mutationFn: async ({ id, body, subject }: { id: number; body: string; subject?: string }) =>
+        (await replyConversation(id, body, subject)).data,
       onSuccess: invalidate,
     }),
     assign: useMutation({

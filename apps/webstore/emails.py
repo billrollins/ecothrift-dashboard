@@ -10,7 +10,7 @@ from email.utils import formataddr
 from typing import TYPE_CHECKING
 
 from django.conf import settings
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMultiAlternatives as EmailMessage
 
 if TYPE_CHECKING:
     from apps.webstore.models import Conversation, Reservation
@@ -38,7 +38,19 @@ def _public_base() -> str:
     return (getattr(settings, 'ONLINE_SALES_PUBLIC_BASE_URL', None) or 'https://ecothrift.us').rstrip('/')
 
 
-def _send(subject: str, body: str, to: str) -> bool:
+def _thread_headers(conversation: 'Conversation') -> tuple[str, dict[str, str]]:
+    short = conversation.public_token[:8]
+    return f'[ETO-{short}]', {'X-Eco-Thread': conversation.public_token}
+
+
+def _send(
+    subject: str,
+    body: str,
+    to: str,
+    *,
+    html_body: str = '',
+    headers: dict[str, str] | None = None,
+) -> bool:
     """Return True if send reported success. Never raises to callers."""
     try:
         msg = EmailMessage(
@@ -47,7 +59,10 @@ def _send(subject: str, body: str, to: str) -> bool:
             from_email=_from_email(),
             to=[to],
             reply_to=_reply_to(),
+            headers=headers,
         )
+        if html_body:
+            msg.attach_alternative(html_body, 'text/html')
         sent = msg.send(fail_silently=True)
         return bool(sent)
     except Exception:
@@ -74,23 +89,54 @@ def send_hold_confirmed(reservation: 'Reservation') -> bool:
         expires = 'store close on the next business day'
 
     status_url = f'{_public_base()}/hold/{reservation.status_token}'
-    body = (
-        f'Hi {reservation.customer_name},\n\n'
-        f'Your hold is confirmed for “{reservation.listing.title}” '
-        f'(qty {reservation.quantity}).\n\n'
-        f'Pick up at Eco-Thrift — Canfield\n'
-        f'{PICKUP_ADDRESS}\n'
-        f'{PICKUP_PHONE}\n\n'
-        f'Hold expires: {expires}\n'
-        f'Status link: {status_url}\n\n'
-        f'Pay in store at pickup. No shipping, delivery, or online payment. '
-        f'Items are typically final sale.\n\n'
-        f'— Eco-Thrift'
+    try:
+        conversation = reservation.conversation
+    except Exception:
+        conversation = None
+    marker = ''
+    headers = None
+    if conversation:
+        marker, headers = _thread_headers(conversation)
+
+    html_body = ''
+    try:
+        from apps.mailbox.rendering import render_email_template
+        from apps.mailbox.sanitize import email_html_to_text
+
+        subject, html_body = render_email_template('hold_confirmed', {
+            'customer_name': reservation.customer_name,
+            'listing_title': reservation.listing.title,
+            'pickup_by': expires,
+            'store_address': PICKUP_ADDRESS,
+            'hold_link': status_url,
+        })
+        body = email_html_to_text(html_body)
+    except Exception:
+        subject = f'Hold confirmed: {reservation.listing.title}'
+        body = (
+            f'Hi {reservation.customer_name},\n\n'
+            f'Your hold is confirmed for “{reservation.listing.title}” '
+            f'(qty {reservation.quantity}).\n\n'
+            f'Pick up at {PICKUP_ADDRESS}\n{PICKUP_PHONE}\n\n'
+            f'Hold expires: {expires}\nStatus link: {status_url}\n\n'
+            f'Pay in store at pickup. No shipping, delivery, or online payment. '
+            f'Items are typically final sale.\n\n— Eco-Thrift'
+        )
+    return _send(
+        f'{marker} {subject}'.strip(),
+        body,
+        reservation.email,
+        html_body=html_body,
+        headers=headers,
     )
-    return _send(f'Hold confirmed: {reservation.listing.title}', body, reservation.email)
 
 
-def send_you_have_a_reply(conversation: 'Conversation') -> bool:
+def send_you_have_a_reply(
+    conversation: 'Conversation',
+    *,
+    reply_body: str = '',
+    subject_override: str = '',
+) -> bool:
     """Customer: staff replied on their thread."""
     email = (conversation.guest_email or '').strip()
     if not email:
@@ -105,8 +151,18 @@ def send_you_have_a_reply(conversation: 'Conversation') -> bool:
         link = f'{_public_base()}/shop'
     body = (
         f'Hi {conversation.guest_name or "there"},\n\n'
-        f'Eco-Thrift replied about “{title}”.\n\n'
-        f'View the conversation: {link}\n\n'
+        + (
+            f'{reply_body.strip()}\n\n'
+            if reply_body.strip()
+            else f'Eco-Thrift replied about “{title}”.\n\n'
+        )
+        + f'View the conversation: {link}\n\n'
         f'— Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
     )
-    return _send(f'New reply about {title}', body, email)
+    marker, headers = _thread_headers(conversation)
+    return _send(
+        f'{marker} {subject_override.strip() or f"New reply about {title}"}',
+        body,
+        email,
+        headers=headers,
+    )

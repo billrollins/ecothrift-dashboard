@@ -16,6 +16,7 @@ import {
 import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
+import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
@@ -26,6 +27,7 @@ import {
   useReservations,
 } from '../../hooks/useWebStore';
 import type { Conversation, Reservation } from '../../api/webstore.api';
+import { getMailboxTemplates } from '../../api/mailbox.api';
 import { isTodaysPickupRow } from './pickupFilter';
 
 type InboxTab = 'holds' | 'pickup' | 'messages';
@@ -258,6 +260,8 @@ function MessagesPanel() {
   const [filter, setFilter] = useState<'needs_reply' | 'has_hold' | 'resolved' | ''>('needs_reply');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [reply, setReply] = useState('');
+  const [subject, setSubject] = useState('');
+  const [templateKey, setTemplateKey] = useState('');
 
   const listParams = useMemo(() => {
     if (filter === 'needs_reply') return { state: 'needs_reply', ordering: '-last_message_at' };
@@ -269,6 +273,37 @@ function MessagesPanel() {
   const { data, isLoading, isError } = useConversations(listParams);
   const { data: selected, isLoading: loadingThread } = useConversation(selectedId);
   const actions = useConversationActions();
+  const { data: templates = [] } = useQuery({
+    queryKey: ['mailboxTemplates'],
+    queryFn: async () => (await getMailboxTemplates()).data,
+  });
+
+  const applyTemplate = (key: string) => {
+    setTemplateKey(key);
+    const template = templates.find((candidate) => candidate.key === key);
+    if (!template) return;
+    const values: Record<string, string> = {
+      customer_name: selected?.guest_name || '',
+      listing_title: selected?.listing_title || 'your request',
+      pickup_by: '',
+      store_address: '8425 W Center Rd, Omaha, NE 68124',
+      hold_link: '',
+      staff_name: '',
+    };
+    const fill = (value: string) => value.replace(
+      /\{\{\s*([a-z_]+)\s*\}\}/g,
+      (_match, name: string) => values[name] || '',
+    );
+    setSubject(fill(template.subject));
+    setReply(
+      fill(template.html_body)
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim(),
+    );
+  };
 
   const columns: GridColDef<Conversation>[] = [
     {
@@ -303,8 +338,14 @@ function MessagesPanel() {
   const sendReply = async () => {
     if (!selectedId || !reply.trim()) return;
     try {
-      await actions.reply.mutateAsync({ id: selectedId, body: reply.trim() });
+      await actions.reply.mutateAsync({
+        id: selectedId,
+        body: reply.trim(),
+        subject: subject.trim() || undefined,
+      });
       setReply('');
+      setSubject('');
+      setTemplateKey('');
       enqueueSnackbar('Reply sent', { variant: 'success' });
     } catch {
       enqueueSnackbar('Could not send reply', { variant: 'error' });
@@ -388,6 +429,27 @@ function MessagesPanel() {
                 </Box>
               ))}
             </Box>
+            <TextField
+              select
+              size="small"
+              label="Template"
+              value={templateKey}
+              onChange={(event) => applyTemplate(event.target.value)}
+              fullWidth
+            >
+              <MenuItem value="">No template</MenuItem>
+              {templates.map((template) => (
+                <MenuItem key={template.key} value={template.key}>{template.name}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              size="small"
+              label="Email subject"
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+              placeholder="New reply about this item"
+              fullWidth
+            />
             <TextField
               multiline
               minRows={2}

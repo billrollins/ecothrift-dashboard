@@ -214,6 +214,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'people',
     roles: ['Admin'],
   },
+  retailInbox: {
+    id: 'retailInbox',
+    path: '/admin/retail-inbox',
+    label: 'Retail inbox',
+    icon: 'receiptLong',
+    roles: ['Admin'],
+  },
   permissions: {
     id: 'permissions',
     path: '/admin/permissions',

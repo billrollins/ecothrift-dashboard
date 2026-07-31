@@ -74,6 +74,14 @@ npm run dev
 
 **Prod flag:** keep `ONLINE_SALES_ENABLED=false` until the owner tests in dev and says go. Staff Online Sales pages remain available to Manager/Admin regardless. Other flags: `ONLINE_SALES_INQUIRIES_ENABLED`, `ONLINE_SALES_ACCOUNTS_ENABLED`, `ONLINE_SALES_PUBLIC_BASE_URL` (magic-link / hold email links).
 
+## Heroku Scheduler (Microsoft Graph mailbox)
+
+| Schedule | Command |
+|----------|---------|
+| Every 10 minutes (Scheduler minimum) | `python manage.py sync_ms_mailbox` |
+
+Requires `MS_GRAPH_ENABLED=true` plus tenant/client/secret/mailbox config. Leave disabled until Entra + Exchange RBAC are done (see `.ai/reference/online_sales_mvp/email_setup.md`). Manual refresh: Admin **Retail inbox** → Refresh now, or `POST /api/mailbox/sync/`.
+
 **Inventory / Item Processor:** optional safety net for `ProcessingRow.search_string` (bulk/SQL paths that bypass ORM `save()`): e.g. weekly `python manage.py rebuild_processing_search_string` (defaults to excluding `complete`/`cancelled` POs; add `--dry-run` to count rows only).
 
 **Also polled in-app (not necessarily the same Heroku clock):** **`watch_auctions`** updates watchlisted auctions via anonymous batch GET (`auction.bstock.com`) when **`WatchlistEntry`** poll intervals allow — run it yourself or wire a scheduler.

@@ -67,6 +67,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
       'assumptions',
       'users',
       'customers',
+      'retailInbox',
       'permissions',
       'settings',
       'labelStudio',

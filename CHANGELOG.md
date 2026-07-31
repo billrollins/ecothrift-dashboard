@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.63.0] -->
-<!-- Last reviewed: 2026-07-31 (v2.63.0 listing polish + shared TipTap editor) -->
+<!-- Line 1 release: ## [2.64.0] -->
+<!-- Last reviewed: 2026-07-31 (v2.64.0 Microsoft Graph mailbox, dormant) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.64.0] — 2026-07-31
+
+User-facing theme: **Microsoft 365 Graph mailbox (dormant)** — two-way mail for Online Sales + Admin retail inbox; ships with `MS_GRAPH_ENABLED=false`.
+
+Initiative: [`online_sales_mvp`](.ai/initiatives/online_sales_mvp.md). Setup: [`.ai/reference/online_sales_mvp/email_setup.md`](.ai/reference/online_sales_mvp/email_setup.md).
+
+### Added
+
+- **Mailbox / Graph client** — New `apps/mailbox/`: MSAL client-credentials, cached token, `GraphMailClient`, `GraphEmailBackend`, `check_ms_graph`, `sync_ms_mailbox`. Settings `MS_GRAPH_*` with kill switch.
+- **Mailbox / models** — `MailMessage`, `MailSyncState`, `EmailTemplate` (seeded hold/reply starters). Outbound Online Sales mail stamps `X-Eco-Thread` + `[ETO-…]` subject marker; inbound classification (header → subject → sender → general).
+- **Mailbox / staff UI** — Online Sales Inbox Messages tab template picker; Admin-only **Retail inbox** (`/admin/retail-inbox`) with list/read/reply via `RichTextEditor` email variant, auto signature, server-side HTML sanitize, Refresh now.
+- **Docs** — Entra app + Exchange RBAC-for-Applications scope to `retail@` only (no org-wide Graph mail grant; no SPF change).
+
+### Changed
+
+- **Email** — When Graph is enabled, Django `EMAIL_BACKEND` routes existing webstore/password-reset senders through M365; when disabled, console fallback (unchanged local/dev behavior).
 
 ## [2.63.0] — 2026-07-31
 

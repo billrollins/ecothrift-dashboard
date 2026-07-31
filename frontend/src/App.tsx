@@ -8,6 +8,7 @@ import { ConsigneeLayout } from './components/layout/ConsigneeLayout';
 // Standalone full-screen page (its own window, outside MainLayout). Lazy-loaded so the
 // TipTap editor bundle never lands in the main staff chunk.
 const BlogStudioPage = lazy(() => import('./pages/blog/BlogStudioPage'));
+const RetailInboxPage = lazy(() => import('./pages/mailbox/RetailInboxPage'));
 
 // Full-screen floorplan editor — lazy so the SVG editor bundle stays out of the main chunk.
 const FloorplanEditorPage = lazy(() => import('./pages/floorplan/FloorplanEditorPage'));
@@ -237,6 +238,16 @@ export default function App() {
         <Route
           path="/admin/customers"
           element={<AdminRoute><CustomerListPage /></AdminRoute>}
+        />
+        <Route
+          path="/admin/retail-inbox"
+          element={
+            <AdminRoute>
+              <Suspense fallback={<LoadingScreen message="Loading retail inbox…" />}>
+                <RetailInboxPage />
+              </Suspense>
+            </AdminRoute>
+          }
         />
         <Route
           path="/online-sales"
